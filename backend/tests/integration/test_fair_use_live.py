@@ -4,7 +4,6 @@ Level 1 live test: fair-use system against real Redis with reduced thresholds.
 Run with:
   FAIR_USE_ENABLED=true FAIR_USE_DAILY_SPEECH_MS=10000 FAIR_USE_3DAY_SPEECH_MS=20000 \
   FAIR_USE_WEEKLY_SPEECH_MS=30000 FAIR_USE_CHECK_INTERVAL_SECONDS=5 \
-  ENCRYPTION_SECRET="omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv" \
   pytest tests/integration/test_fair_use_live.py -v -s
 """
 

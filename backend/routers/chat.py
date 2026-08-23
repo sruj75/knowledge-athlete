@@ -35,7 +35,7 @@ from utils.chat import (
     transcribe_voice_message_bytes,
     transcribe_pcm_bytes,
 )
-from utils.sync.files import retrieve_file_paths, decode_files_to_wav
+from utils.voice_messages import retrieve_file_paths, decode_files_to_wav
 from utils.stt.streaming import drain_stt_socket, get_managed_stt_language, process_audio_modulate
 from utils.stt.pre_recorded import get_prerecorded_service
 from config.prerecorded_stt import TranscriptionOutcome
@@ -596,7 +596,7 @@ async def transcribe_voice_message_stream(
 
     Receives binary PCM audio chunks, streams them to managed STT, and returns
     transcript segments in real-time. No conversation lifecycle, no memory
-    extraction, no pusher — just audio in, transcript out.
+    extraction and no background delivery worker — just audio in, transcript out.
 
     Query params:
         language: Language code (default 'en')

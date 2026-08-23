@@ -1,8 +1,8 @@
 """Neutral Redis run locks for idempotent background jobs.
 
 The key prefix and TTL deliberately match the retired wearable-sync owner so
-rolling revisions serialize audio merge, account deletion, and conversation
-finalization against exactly the same Redis keys as before S-02.
+rolling revisions serialize durable account-deletion delivery against exactly
+the same Redis keys as before S-02.
 """
 
 import logging

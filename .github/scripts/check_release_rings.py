@@ -7,15 +7,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKEND_RELEASE_SOURCES = (
-    Path(".github/workflows/gcp_backend.yml"),
-)
+BACKEND_RELEASE_SOURCES = (Path(".github/workflows/gcp_backend.yml"),)
 
 OBSOLETE_RELEASE_RING_SOURCES = (
     Path("backend/deploy/release_rings.yaml"),
     Path("backend/scripts/release_rings.py"),
     Path("backend/scripts/render_release_ring_config.py"),
-    Path("backend/scripts/release_ring_gke_snapshot.py"),
     Path(".github/workflows/release-record.yml"),
     Path(".github/workflows/deploy-release-ring.yml"),
 )
@@ -23,12 +20,10 @@ OBSOLETE_RELEASE_RING_SOURCES = (
 OBSOLETE_RELEASE_BINDINGS = (
     "RELEASE_ARTIFACT_PROJECT_ID",
     "RELEASE_RUNTIME_PROJECT_ID",
-    "RELEASE_GKE_CLUSTER",
     "RELEASE_RECORDS_BUCKET",
     "RELEASE_RECORDS_WRITER_SERVICE_ACCOUNT",
     "RELEASE_RING_DEPLOYER_SERVICE_ACCOUNT",
     "RELEASE_RINGS_WIF_PROVIDER",
-    "BACKEND_SECRETS_GSA",
 )
 
 
@@ -57,7 +52,8 @@ def check() -> list[str]:
             paths[Path(".github/workflows/gcp_backend.yml")],
             (
                 "release_sha:",
-                "default: 'cloud-run-only'",
+                "default: 'development'",
+                "default: 'deploy'",
                 "github.ref == 'refs/heads/main'",
                 "firestore_readiness:",
                 "GCP_FIRESTORE_READONLY_CREDENTIALS",
@@ -66,20 +62,12 @@ def check() -> list[str]:
                 "no_traffic: true",
                 "Verify serving backend release vector",
                 "github.event.inputs.environment == 'prod'",
-                "environment=prod, deploy_targets=all is unsupported",
+                "SERVICE: backend",
                 "Smoke promoted production serving API",
             ),
         )
     )
     workflow_path = paths[Path(".github/workflows/gcp_backend.yml")]
-    errors.extend(
-        require_one(
-            workflow,
-            workflow_path,
-            "canonical deploy-backend-secrets helper",
-            ("backend/scripts/deploy-backend-secrets.sh", "$DEPLOY_CONTROL_SCRIPTS/deploy-backend-secrets.sh"),
-        )
-    )
     errors.extend(
         require_one(
             workflow,
@@ -101,7 +89,10 @@ def check() -> list[str]:
             workflow,
             workflow_path,
             "canonical release-vector verifier",
-            ("backend/scripts/verify_backend_release_vector.py", "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py"),
+            (
+                "backend/scripts/verify_backend_release_vector.py",
+                "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py",
+            ),
         )
     )
     promotion = workflow.find("Shift Cloud Run traffic to validated revisions")

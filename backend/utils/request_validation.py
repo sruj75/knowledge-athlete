@@ -1,4 +1,4 @@
-"""Edge-case request validation helpers for calendar dates, sync filenames,
+"""Edge-case request validation helpers for calendar dates, voice filenames,
 and reusable Query parameter aliases.
 
 Body validation convention: JSON request bodies are validated by FastAPI's
@@ -44,13 +44,12 @@ def parse_timezone_aware_datetime(value: str, field_name: str) -> datetime:
     return parsed
 
 
-def parse_sync_filename_timestamp(path: str) -> int | float:
-    """Parse and validate the unix timestamp in a sync upload/segment filename.
+def parse_voice_message_filename_timestamp(path: str) -> int | float:
+    """Parse and validate the unix timestamp in a voice-message upload filename.
 
     Upload filenames are expected to end with _<unix-seconds-or-millis>.bin;
-    VAD segment files are named <unix-seconds-or-millis>.wav. The returned
-    timestamp is UTC seconds and is safe to pass to fromtimestamp(...,
-    tz=timezone.utc).
+    the returned timestamp is UTC seconds and is safe to pass to
+    fromtimestamp(..., tz=timezone.utc).
     """
     filename = path.split('/')[-1]
     timestamp_part = filename.rsplit('_', 1)[1] if '_' in filename else filename

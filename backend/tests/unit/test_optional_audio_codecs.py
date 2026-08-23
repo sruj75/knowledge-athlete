@@ -63,7 +63,7 @@ def _install_python_multipart_stub(monkeypatch):
     monkeypatch.setitem(sys.modules, "python_multipart", _module("python_multipart", __version__="0.0.20"))
 
 
-def _install_sync_import_stubs(monkeypatch):
+def _install_voice_message_import_stubs(monkeypatch):
     _install_python_multipart_stub(monkeypatch)
 
     for name in [
@@ -72,18 +72,13 @@ def _install_sync_import_stubs(monkeypatch):
         "database.fair_use",
         "database.users",
         "database.user_usage",
-        "database.conversations",
         "database.cache",
         "firebase_admin",
         "firebase_admin.messaging",
-        "models.conversation",
         "models.conversation_enums",
         "models.transcript_segment",
-        "utils.conversations.process_conversation",
-        "utils.conversations.factory",
         "utils.other.endpoints",
         "utils.other.storage",
-        "utils.encryption",
         "utils.analytics",
         "utils.cloud_tasks",
         "utils.http_client",
@@ -107,19 +102,19 @@ def _install_sync_import_stubs(monkeypatch):
     sys.modules["utils.log_sanitizer"].sanitize = lambda value: value
 
 
-def test_sync_import_defers_missing_native_opus(monkeypatch, tmp_path):
-    captured_sync_files = _capture_module("utils.sync.files")
-    _install_sync_import_stubs(monkeypatch)
+def test_voice_message_import_defers_missing_native_opus(monkeypatch, tmp_path):
+    captured_voice_messages = _capture_module("utils.voice_messages")
+    _install_voice_message_import_stubs(monkeypatch)
     monkeypatch.setitem(sys.modules, "opuslib", None)
     try:
-        _drop_module("utils.sync.files")
+        _drop_module("utils.voice_messages")
 
-        sync_files = importlib.import_module("utils.sync.files")
+        voice_messages = importlib.import_module("utils.voice_messages")
         opus_path = tmp_path / "audio.opus"
         opus_path.write_bytes(b"\x00\x00\x00\x00")
 
-        assert sync_files.Decoder is None
+        assert voice_messages.Decoder is None
         with pytest.raises(RuntimeError, match=MISSING_OPUS_MESSAGE):
-            sync_files.decode_opus_file_to_wav(str(opus_path), str(tmp_path / "audio.wav"))
+            voice_messages.decode_opus_file_to_wav(str(opus_path), str(tmp_path / "audio.wav"))
     finally:
-        _restore_module("utils.sync.files", captured_sync_files)
+        _restore_module("utils.voice_messages", captured_voice_messages)

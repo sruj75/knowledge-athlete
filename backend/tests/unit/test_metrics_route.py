@@ -26,7 +26,7 @@ def test_metrics_returns_a_bounded_low_cardinality_payload(monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain")
-    assert "pusher_ready 1.0" in response.text
+    assert "live_stt_active_ws_connections 0.0" in response.text
     assert "omi_journey_accepted_total" in response.text
     assert len(response.content) < 2_000_000
     assert secret not in response.text

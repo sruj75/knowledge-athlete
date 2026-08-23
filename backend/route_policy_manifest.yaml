@@ -537,27 +537,6 @@ routes:
         state: active
   - route_type: http
     method: POST
-    path: /v1/conversation-finalization-jobs/run
-    policy:
-      review_status: reviewed
-      auth:
-        mechanisms:
-          - service_oidc
-        placement: dependency
-        scopes: []
-      rate_limit:
-        policy_name: none
-        key_subject: none
-        enforcement: none
-        placement: none
-      timeout_class: listen_finalization
-      surface: internal_task
-      visibility: internal
-      data_domain: conversations
-      deprecation:
-        state: active
-  - route_type: http
-    method: POST
     path: /v1/conversation-compute/action-items
     policy: &conversation_compute_policy
       review_status: reviewed

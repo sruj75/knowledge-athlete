@@ -11,11 +11,6 @@ import types
 import copy
 from unittest.mock import MagicMock, patch, PropertyMock
 
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
-)
-
 # ── Stub heavy external modules ──────────────────────────────────────────────
 for mod_name in [
     "firebase_admin",

@@ -23,19 +23,6 @@ on:
         options:
           - deploy
           - repair-traffic-only
-      deploy_targets:
-        description: 'Deploy all backend surfaces or Cloud Run only'
-        required: true
-        default: 'cloud-run-only'
-        type: choice
-        options:
-          - all
-          - cloud-run-only
-      deploy_gateway:
-        description: 'Development only: deploy the LLM gateway binary with the backend stack (requires deploy_targets=all)'
-        required: true
-        default: false
-        type: boolean
       # Break-glass: the eligibility proof requires a *successful* Release
       # Eligibility push-run on this exact SHA. A flaky or red check therefore
       # poisons that SHA permanently -- rerunning does not retroactively make
@@ -59,8 +46,8 @@ on:
         required: false
         default: ''
 
-# Cloud Run revision promotion/traffic repair and the shared backend GKE resources
-# are one environment-scoped mutation domain across the backend deploy workflows.
+# Cloud Run revision promotion and traffic repair share one environment-scoped
+# mutation domain across the backend deploy workflows.
 concurrency:
   group: deploy-backend-stack-${{ github.event.inputs.environment }}
   cancel-in-progress: false
@@ -81,27 +68,10 @@ jobs:
       - name: Reject unsupported production deployment boundary before side effects
         env:
           DEPLOY_ENVIRONMENT: ${{ github.event.inputs.environment }}
-          DEPLOY_TARGETS: ${{ github.event.inputs.deploy_targets }}
         run: |
           set -euo pipefail
           if [[ "$DEPLOY_ENVIRONMENT" != "development" && "$DEPLOY_ENVIRONMENT" != "prod" ]]; then
             echo "Invalid environment: $DEPLOY_ENVIRONMENT. Must be 'development' or 'prod'." >&2
-            exit 1
-          fi
-          if [[ "$DEPLOY_TARGETS" != "all" && "$DEPLOY_TARGETS" != "cloud-run-only" ]]; then
-            echo "Invalid deploy_targets: $DEPLOY_TARGETS. Must be 'all' or 'cloud-run-only'." >&2
-            exit 1
-          fi
-          if [[ "$DEPLOY_ENVIRONMENT" == "prod" && "$DEPLOY_TARGETS" == "all" ]]; then
-            echo "environment=prod, deploy_targets=all is unsupported; use cloud-run-only." >&2
-            exit 1
-          fi
-          if [[ "${{ github.event.inputs.deploy_gateway }}" == "true" && "$DEPLOY_ENVIRONMENT" == "prod" ]]; then
-            echo "environment=prod, deploy_gateway=true is unsupported; use the standalone manual LLM gateway workflow." >&2
-            exit 1
-          fi
-          if [[ "${{ github.event.inputs.deploy_gateway }}" == "true" && "$DEPLOY_TARGETS" != "all" ]]; then
-            echo "deploy_gateway=true requires deploy_targets=all." >&2
             exit 1
           fi
 
@@ -153,8 +123,7 @@ jobs:
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
             --include-cloud-run \
-            --cloud-run-service backend \
-            --cloud-run-service backend-sync
+            --cloud-run-service backend
 
   firestore_readiness:
     needs: validate-production-boundary
@@ -344,18 +313,6 @@ jobs:
             echo "Invalid environment: ${{ github.event.inputs.environment }}. Must be 'development' or 'prod'."
             exit 1
           fi
-          if [[ "${{ github.event.inputs.deploy_targets }}" != "all" && "${{ github.event.inputs.deploy_targets }}" != "cloud-run-only" ]]; then
-            echo "Invalid deploy_targets: ${{ github.event.inputs.deploy_targets }}. Must be 'all' or 'cloud-run-only'."
-            exit 1
-          fi
-          if [[ "${{ github.event.inputs.deploy_gateway }}" == "true" && "${{ github.event.inputs.environment }}" == "prod" ]]; then
-            echo "environment=prod, deploy_gateway=true is unsupported; use the standalone manual LLM gateway workflow." >&2
-            exit 1
-          fi
-          if [[ "${{ github.event.inputs.deploy_gateway }}" == "true" && "${{ github.event.inputs.deploy_targets }}" != "all" ]]; then
-            echo "deploy_gateway=true requires deploy_targets=all." >&2
-            exit 1
-          fi
 
       # To workaround "no space left on device" issue of GitHub-hosted runner
       - name: Delete huge unnecessary tools folder
@@ -428,61 +385,25 @@ jobs:
       - name: Install Python deps for deploy scripts
         run: python3 -m pip install -q pyyaml
 
-      - name: Resolve production account-deletion task target
-        if: ${{ vars.ENV == 'prod' }}
+      - name: Resolve canonical account-deletion task target
         id: account-deletion-target
+        env:
+          ACCOUNT_DELETION_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
         run: |
           set -euo pipefail
-          SYNC_SERVICE_URL="$(
-            gcloud run services describe "${{ env.SERVICE }}-sync" \
+          BACKEND_URL="$(
+            gcloud run services describe "${{ env.SERVICE }}" \
               --region="${{ env.REGION }}" \
               --project="${{ vars.GCP_PROJECT_ID }}" \
               --format='value(status.url)'
           )"
-          SYNC_TASKS_INVOKER_SA="$(
-            gcloud run services describe "${{ env.SERVICE }}-sync" \
-              --region="${{ env.REGION }}" \
-              --project="${{ vars.GCP_PROJECT_ID }}" \
-              --format=json \
-              | jq -r '.spec.template.spec.containers[0].env[]? | select(.name == "SYNC_TASKS_INVOKER_SA") | .value'
-          )"
-          test -n "$SYNC_SERVICE_URL"
-          test -n "$SYNC_TASKS_INVOKER_SA"
+          test -n "$BACKEND_URL"
+          test -n "$ACCOUNT_DELETION_TASKS_INVOKER_SA"
+          HANDLER_URL="${BACKEND_URL}/v1/users/account-deletion-wipes/run"
           {
-            echo "account_deletion_handler_url=${SYNC_SERVICE_URL}/v1/users/account-deletion-wipes/run"
-            echo "listen_finalization_tasks_handler_url=${SYNC_SERVICE_URL}/v1/conversation-finalization-jobs/run"
-            echo "listen_finalization_tasks_invoker_sa=${SYNC_TASKS_INVOKER_SA}"
-            echo "sync_tasks_handler_url=${SYNC_SERVICE_URL}/v2/sync-jobs/run"
-            echo "sync_tasks_invoker_sa=${SYNC_TASKS_INVOKER_SA}"
+            echo "handler_url=${HANDLER_URL}"
+            echo "oidc_audience=${HANDLER_URL}"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Determine whether this deploy requests gateway-first serving
-        id: gateway-intent
-        run: |
-          python3 "$DEPLOY_CONTROL_SCRIPTS/verify-llm-gateway-serving.py" \
-            --environment="${{ vars.ENV }}" \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="${{ env.REGION }}" \
-            --listener-values="backend/charts/backend-listen/${{ vars.ENV }}_omi_backend_listen_values.yaml" \
-            --intent-only >> "$GITHUB_OUTPUT"
-
-      - name: Get GKE credentials for gateway serving gate
-        if: ${{ github.event.inputs.deploy_targets == 'all' || steps.gateway-intent.outputs.enabled == 'true' }}
-        uses: google-github-actions/get-gke-credentials@v3
-        with:
-          cluster_name: ${{ vars.GKE_CLUSTER }}
-          location: ${{ env.REGION }}
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-
-      - name: Verify LLM gateway control plane before promotion
-        id: gateway-serving
-        if: ${{ github.event.inputs.deploy_gateway != 'true' && steps.gateway-intent.outputs.enabled == 'true' }}
-        run: |
-          python3 "$DEPLOY_CONTROL_SCRIPTS/verify-llm-gateway-serving.py" \
-            --environment="${{ vars.ENV }}" \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="${{ env.REGION }}" \
-            --github-output "$GITHUB_OUTPUT"
 
       - name: Preflight Cloud Run deploy
         run: |
@@ -525,90 +446,17 @@ jobs:
           docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:latest
           docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
 
-      # Development can compose the gateway binary with a full backend deploy.
-      # Production remains Cloud Run-only; use gcp_llm_gateway.yml for its
-      # separate manual gateway deployment. This helm release changes no caller
-      # traffic flags, and the source-controlled caller mode still has to pass
-      # the serving and VPC gates below before a Cloud Run revision is created.
-      - name: Install Helm for combined LLM Gateway deployment
-        if: ${{ github.event.inputs.deploy_gateway == 'true' }}
-        uses: azure/setup-helm@v5
-
-      - name: Build, smoke, and push combined LLM Gateway image
-        if: ${{ github.event.inputs.deploy_gateway == 'true' }}
-        run: |
-          gateway_image="gcr.io/${{ vars.GCP_PROJECT_ID }}/llm-gateway:${{ steps.image-tag.outputs.short_sha }}"
-          docker build -t "$gateway_image" -f backend/Dockerfile .
-          python3 "$DEPLOY_CONTROL_SCRIPTS/runtime_image_contracts.py" smoke \
-            --dockerfile backend/Dockerfile \
-            --image "$gateway_image"
-          docker push "$gateway_image"
-
-      - name: Deploy LLM Gateway with backend stack
-        if: ${{ github.event.inputs.deploy_gateway == 'true' }}
-        env:
-          LLM_GATEWAY_GSA: ${{ vars.LLM_GATEWAY_GSA }}
-          ENVIRONMENT: ${{ vars.ENV }}
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
-          REGION: ${{ env.REGION }}
-        run: |
-          test -n "$LLM_GATEWAY_GSA"
-          python3 "$DEPLOY_CONTROL_SCRIPTS/validate-llm-gateway-env.py" \
-            backend/charts/backend-listen/${{ vars.ENV }}_omi_backend_listen_values.yaml \
-            backend/charts/llm-gateway/${{ vars.ENV }}_omi_llm_gateway_values.yaml
-          IMAGE_TAG="${{ steps.image-tag.outputs.short_sha }}" "$DEPLOY_CONTROL_SCRIPTS/deploy-llm-gateway.sh"
-
-      - name: Verify combined LLM gateway serving data plane
-        id: combined-gateway-serving
-        if: ${{ github.event.inputs.deploy_gateway == 'true' && steps.gateway-intent.outputs.enabled == 'true' }}
-        run: |
-          python3 "$DEPLOY_CONTROL_SCRIPTS/verify-llm-gateway-serving.py" \
-            --environment="${{ vars.ENV }}" \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="${{ env.REGION }}" \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Probe LLM gateway from the Cloud Run VPC before promotion
-        if: ${{ steps.gateway-intent.outputs.enabled == 'true' }}
-        run: |
-          bash "$DEPLOY_CONTROL_SCRIPTS/probe-llm-gateway-from-cloud-run.sh" \
-            --project "${{ vars.GCP_PROJECT_ID }}" \
-            --region "${{ env.REGION }}" \
-            --image "gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}" \
-            --gateway-url "${{ steps.combined-gateway-serving.outputs.gateway_url || steps.gateway-serving.outputs.gateway_url }}" \
-            --network "${{ vars.CLOUD_RUN_VPC_NETWORK }}" \
-            --subnet "${{ vars.CLOUD_RUN_VPC_SUBNET }}" \
-            --vpc-egress private-ranges-only \
-            --lane omi:auto:chat-structured \
-            --name-suffix "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-      - name: Reject an inert gateway endpoint when source-controlled gateway mode is requested
-        if: ${{ steps.gateway-intent.outputs.enabled == 'true' }}
-        env:
-          GATEWAY_URL: ${{ steps.combined-gateway-serving.outputs.gateway_url || steps.gateway-serving.outputs.gateway_url }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$GATEWAY_URL" || "$GATEWAY_URL" == "http://127.0.0.1:9" ]]; then
-            echo "Gateway mode requires a verified non-sentinel endpoint." >&2
-            exit 1
-          fi
-
-      # The endpoint is rendered only after the deployment gate derived it
-      # from the provisioned ingress address. Direct mode gets the inert
-      # sentinel from the manifest and does not require a gateway dependency.
       - name: Render backend runtime env
         id: runtime-env
         env:
-          ACCOUNT_DELETION_HANDLER_URL: ${{ steps.account-deletion-target.outputs.account_deletion_handler_url }}
-          LISTEN_FINALIZATION_TASKS_HANDLER_URL: ${{ steps.account-deletion-target.outputs.listen_finalization_tasks_handler_url }}
-          LISTEN_FINALIZATION_TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.listen_finalization_tasks_invoker_sa }}
+          ACCOUNT_DELETION_HANDLER_URL: ${{ steps.account-deletion-target.outputs.handler_url }}
+          ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE: ${{ steps.account-deletion-target.outputs.oidc_audience }}
+          ACCOUNT_DELETION_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
+          ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE: ${{ vars.ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE }}
+          ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA }}
           CLOUD_RUN_VPC_NETWORK: ${{ vars.CLOUD_RUN_VPC_NETWORK }}
           CLOUD_RUN_VPC_SUBNET: ${{ vars.CLOUD_RUN_VPC_SUBNET }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
-          OMI_LLM_GATEWAY_URL: ${{ steps.combined-gateway-serving.outputs.gateway_url || steps.gateway-serving.outputs.gateway_url || 'http://127.0.0.1:9' }}
-          SYNC_TASKS_HANDLER_URL: ${{ steps.account-deletion-target.outputs.sync_tasks_handler_url }}
-          SYNC_TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.sync_tasks_invoker_sa }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/render_backend_runtime_env.py" --env ${{ vars.ENV }} >> "$GITHUB_OUTPUT"
 
@@ -622,7 +470,6 @@ jobs:
           --project="${{ vars.GCP_PROJECT_ID }}"
           --region="${{ env.REGION }}"
           --migrate-legacy-public-binding backend
-          --migrate-legacy-public-binding backend-sync
 
       - name: Deploy ${{ env.SERVICE }} to Cloud Run
         id: deploy-backend
@@ -633,10 +480,12 @@ jobs:
           project_id: ${{ vars.GCP_PROJECT_ID }}
           image: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
           no_traffic: true
+          env_vars_update_strategy: overwrite
+          secrets_update_strategy: overwrite
           flags: >-
             --revision-suffix=${{ steps.image-tag.outputs.revision_suffix }}
+            --timeout=1500s
             ${{ github.event.inputs.environment == 'development' && format('--tag={0}', env.TRANSCRIPTION_CANDIDATE_TAG) || '' }}
-            --remove-env-vars=MEMORY_MODE,MEMORY_ENABLED_USERS,MEMORY_V3_GET_ENABLED,MEMORY_CANONICAL_MAINTENANCE_ENABLED,MEMORY_CANONICAL_CONSOLIDATION_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED,MEMORY_TYPESENSE_COLLECTION
             ${{ steps.runtime-env.outputs.cloud_run_flags }}
           env_vars: ${{ steps.runtime-env.outputs.backend_env_vars }}
           secrets: ${{ steps.runtime-env.outputs.backend_secrets }}
@@ -646,54 +495,36 @@ jobs:
         run: |
           echo "revision=backend-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
 
-      - name: Deploy ${{ env.SERVICE }}-sync to Cloud Run
-        id: deploy-backend-sync
-        uses: google-github-actions/deploy-cloudrun@v3
-        with:
-          service: ${{ env.SERVICE }}-sync
-          region: ${{ env.REGION }}
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-          image: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          no_traffic: true
-          flags: >-
-            --revision-suffix=${{ steps.image-tag.outputs.revision_suffix }}
-            --remove-env-vars=HOSTED_PUSHER_API_URL,MEMORY_MODE,MEMORY_ENABLED_USERS,MEMORY_V3_GET_ENABLED,MEMORY_CANONICAL_MAINTENANCE_ENABLED,MEMORY_CANONICAL_CONSOLIDATION_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_ENABLED,MEMORY_CANONICAL_PROMOTION_CRON_INTERVAL_HOURS,MEMORY_CANONICAL_PROMOTION_FAST_TRACK_ENABLED,MEMORY_TYPESENSE_COLLECTION
-            ${{ steps.runtime-env.outputs.cloud_run_flags }}
-          env_vars: ${{ steps.runtime-env.outputs.backend_sync_env_vars }}
-          secrets: ${{ steps.runtime-env.outputs.backend_sync_secrets }}
-
-      - name: Capture ${{ env.SERVICE }}-sync revision
-        id: capture-backend-sync-revision
-        run: |
-          echo "revision=backend-sync-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
-
-      - name: Configure production conversation-finalization Cloud Tasks queue
-        if: ${{ vars.ENV == 'prod' && github.event.inputs.deploy_targets == 'all' }}
+      - name: Configure account-deletion task identity and queue
         env:
-          TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.listen_finalization_tasks_invoker_sa }}
+          TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
+          LEGACY_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA }}
         run: |
           set -euo pipefail
           test -n "$TASKS_INVOKER_SA"
-          gcloud run services add-iam-policy-binding "${{ env.SERVICE }}-sync" \
-            --region="${{ env.REGION }}" \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --member="serviceAccount:${TASKS_INVOKER_SA}" \
-            --role=roles/run.invoker \
-            --quiet
-          if gcloud tasks queues describe conversation-finalization \
+          test -n "$LEGACY_TASKS_INVOKER_SA"
+          for signer in "$TASKS_INVOKER_SA" "$LEGACY_TASKS_INVOKER_SA"; do
+            gcloud run services add-iam-policy-binding "${{ env.SERVICE }}" \
+              --region="${{ env.REGION }}" \
+              --project="${{ vars.GCP_PROJECT_ID }}" \
+              --member="serviceAccount:${signer}" \
+              --role=roles/run.invoker \
+              --quiet
+          done
+          if gcloud tasks queues describe account-deletion \
             --location="${{ env.REGION }}" \
             --project="${{ vars.GCP_PROJECT_ID }}" >/dev/null 2>&1; then
-            gcloud tasks queues update conversation-finalization \
+            gcloud tasks queues update account-deletion \
               --location="${{ env.REGION }}" \
               --project="${{ vars.GCP_PROJECT_ID }}" \
               --max-attempts=5 \
-              --max-concurrent-dispatches=4
+              --max-concurrent-dispatches=1
           else
-            gcloud tasks queues create conversation-finalization \
+            gcloud tasks queues create account-deletion \
               --location="${{ env.REGION }}" \
               --project="${{ vars.GCP_PROJECT_ID }}" \
               --max-attempts=5 \
-              --max-concurrent-dispatches=4
+              --max-concurrent-dispatches=1
           fi
 
       - name: Wait for Cloud Run revisions to become ready
@@ -702,8 +533,7 @@ jobs:
             --env ${{ vars.ENV }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
-            --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }} \
-            --wait-revision-ready backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }}
+            --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }}
 
       - name: Validate backend runtime env after deploy
         run: |
@@ -737,7 +567,6 @@ jobs:
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py" \
             --candidate \
-            --cloud-run-only \
             --commit-sha "${{ needs.firestore_readiness.outputs.admitted_sha }}" \
             --short-sha "${{ steps.image-tag.outputs.short_sha }}" \
             --deploy-run-id "${{ github.run_id }}" \
@@ -767,53 +596,7 @@ jobs:
             --remove-tags="$TRANSCRIPTION_CANDIDATE_TAG" \
             --quiet
 
-      - name: Install Helm
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
-        uses: azure/setup-helm@v5
-
-      - name: Apply non-secret backend runtime config
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
-        env:
-          ACCOUNT_DELETION_HANDLER_URL: ${{ steps.account-deletion-target.outputs.account_deletion_handler_url }}
-          ENVIRONMENT: ${{ vars.ENV }}
-          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
-          REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
-          SYNC_TASKS_HANDLER_URL: ${{ steps.account-deletion-target.outputs.sync_tasks_handler_url }}
-          SYNC_TASKS_INVOKER_SA: ${{ steps.account-deletion-target.outputs.sync_tasks_invoker_sa }}
-        run: bash "$DEPLOY_CONTROL_SCRIPTS/deploy-backend-config.sh"
-
-      - name: Deploy backend-secrets to GKE using Helm
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
-        env:
-          ENVIRONMENT: ${{ vars.ENV }}
-          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          GKE_CLUSTER: ${{ vars.GKE_CLUSTER }}
-          REGION: ${{ env.REGION }}
-        run: bash "$DEPLOY_CONTROL_SCRIPTS/deploy-backend-secrets.sh"
-
-      - name: Deploy ${{ env.SERVICE }}-listen to GKE using Helm
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
-        run: |
-          helm -n ${{ vars.ENV }}-omi-backend upgrade --install ${{ vars.ENV }}-omi-backend-listen ./backend/charts/backend-listen \
-            -f ./backend/charts/backend-listen/${{ vars.ENV }}_omi_backend_listen_values.yaml \
-            --set image.repository=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }} \
-            --set gcpProjectId=${{ vars.GCP_PROJECT_ID }} \
-            --set runtimeGcpProjectId=${{ vars.RUNTIME_GCP_PROJECT_ID }} \
-            --set-string image.tag=${{ steps.image-tag.outputs.short_sha }}
-          # Bounds a healthy-but-slow rollout, not a stuck one: backend-listen runs
-          # 12-60 HPA replicas rolled 3 at a time (maxSurge=2, maxUnavailable=1) and
-          # its startupProbe alone permits 300s per pod, so a full roll routinely
-          # exceeds 300s and node scale-up adds more. A genuinely stalled rollout
-          # still fails fast on the deployment's 600s progressDeadlineSeconds, which
-          # kubectl reports as ProgressDeadlineExceeded regardless of this value.
-          if ! kubectl -n ${{ vars.ENV }}-omi-backend rollout status deploy/${{ vars.ENV }}-omi-backend-listen --timeout=1800s; then
-            python3 "$DEPLOY_CONTROL_SCRIPTS/deploy_status_report.py" --env ${{ vars.ENV }} --include-gke --gke-service backend-listen || true
-            exit 1
-          fi
-          python3 "$DEPLOY_CONTROL_SCRIPTS/deploy_status_report.py" --env ${{ vars.ENV }} --include-gke --gke-service backend-listen
-
       - name: Verify exact candidate composition
-        if: ${{ github.event.inputs.deploy_targets == 'all' }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py" \
             --candidate \
@@ -833,19 +616,16 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --service backend \
-            --service backend-sync \
             --output artifacts/backend-cloud-run-pre-promotion-traffic-snapshot.json
 
       - name: Verify validated revisions are still current
         run: |
           test "$(gcloud run services describe backend --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
-          test "$(gcloud run services describe backend-sync --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-sync-revision.outputs.revision }}"
 
       - name: Shift Cloud Run traffic to validated revisions
         id: shift-cloud-run-traffic
         run: |
           gcloud run services update-traffic backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
-          gcloud run services update-traffic backend-sync --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-sync-revision.outputs.revision }}=100 --quiet
 
       # A traffic command can complete after an earlier target has moved. The
       # shared deploy lock prevents competing writers, while this read-only
@@ -853,10 +633,6 @@ jobs:
       - name: Verify serving backend release vector
         id: verify-serving-release-vector
         run: |
-          CLOUD_RUN_ONLY=""
-          if [[ "${{ github.event.inputs.deploy_targets }}" == "cloud-run-only" ]]; then
-            CLOUD_RUN_ONLY="--cloud-run-only"
-          fi
           python3 "$DEPLOY_CONTROL_SCRIPTS/verify_backend_release_vector.py" \
             --commit-sha "${{ needs.firestore_readiness.outputs.admitted_sha }}" \
             --short-sha "${{ steps.image-tag.outputs.short_sha }}" \
@@ -865,8 +641,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment "${{ vars.ENV }}" \
-            --evidence-path artifacts/backend-serving-release-vector.json \
-            $CLOUD_RUN_ONLY
+            --evidence-path artifacts/backend-serving-release-vector.json
 
       - name: Smoke promoted production serving API
         id: smoke-promoted-production-serving-api
@@ -923,7 +698,6 @@ jobs:
           if [[ "${{ steps.shift-cloud-run-traffic.outcome }}" == "success" ]]; then
             expected_traffic=(
               --expect-cloud-run-traffic backend=${{ steps.capture-backend-revision.outputs.revision }}
-              --expect-cloud-run-traffic backend-sync=${{ steps.capture-backend-sync-revision.outputs.revision }}
             )
           fi
           python3 "$DEPLOY_CONTROL_SCRIPTS/deploy_status_report.py" \
@@ -932,7 +706,6 @@ jobs:
             --region ${{ env.REGION }} \
             --include-cloud-run \
             --cloud-run-service backend \
-            --cloud-run-service backend-sync \
             "${expected_traffic[@]}" \
             | tee /tmp/cloud-run-deploy-status.txt
           if [[ "${{ github.event.inputs.environment }}" == "prod" ]]; then

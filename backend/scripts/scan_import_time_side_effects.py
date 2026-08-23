@@ -13,7 +13,6 @@ WHAT IT DETECTS (at module scope only — inside functions/classes is allowed):
       OpenAI / AsyncOpenAI / Anthropic / AsyncAnthropic
       firebase_admin.initialize_app
       tiktoken.encoding_for_model / tiktoken.get_encoding
-      pusher.Client
       requests.Session / httpx.Client / httpx.AsyncClient
       firestore.Client / firestore.Firestore / redis.Redis
     (The list is maintained in ``SIDE_EFFECT_CTORS``; adding constructors is
@@ -67,7 +66,6 @@ SIDE_EFFECT_CTORS: list[tuple[str, str]] = [
     ("firebase_admin", "initialize_app"),
     ("tiktoken", "encoding_for_model"),
     ("tiktoken", "get_encoding"),
-    ("pusher", "Client"),
     ("requests", "Session"),
     ("httpx", "Client"),
     ("httpx", "AsyncClient"),

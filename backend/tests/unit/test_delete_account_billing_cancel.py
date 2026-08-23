@@ -35,7 +35,6 @@ def users_service():
     fakes = {
         "database": _pkg("database"),
         "database.users": AutoMockModule("database.users"),
-        "database.conversations": AutoMockModule("database.conversations"),
         "utils": _pkg("utils"),
         "utils.cloud_tasks": AutoMockModule("utils.cloud_tasks"),
         "utils.billing": _pkg("utils.billing"),

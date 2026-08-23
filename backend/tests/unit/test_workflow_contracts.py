@@ -50,8 +50,8 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
 
     current_deploy_contracts = (
         REPO_DIR / ".github/checks-manifest.yaml",
-        REPO_DIR / ".github/workflows/gcp_backend_pusher.yml",
-        REPO_DIR / ".github/workflows/gcp_backend_pusher_auto_deploy.yml",
+        REPO_DIR / ".github/workflows/gcp_backend.yml",
+        REPO_DIR / ".github/workflows/gcp_backend_auto_dev.yml",
         BACKEND_DIR / "testing/workflow_contracts.json",
     )
     for path in current_deploy_contracts:
@@ -59,12 +59,7 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
         assert "backend/charts/monitoring" not in contents, path
         assert "verify_pusher_dev_observability" not in contents, path
 
-    current_operator_docs = (
-        BACKEND_DIR / "AGENTS.md",
-        BACKEND_DIR / "docs/runbooks/llm-gateway-fallback.md",
-        BACKEND_DIR / "docs/runbooks/pusher-degraded.md",
-        BACKEND_DIR / "docs/pusher_rolling_update_operations.md",
-    )
+    current_operator_docs = (BACKEND_DIR / "AGENTS.md",)
     deleted_operator_surfaces = (
         "charts/monitoring",
         "Grafana → Parakeet ASR Monitoring",
@@ -91,7 +86,6 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
     full_run_cases = {}
     selected_cases = {
         "backend/services/users/account_deletion.py": "tests/services/users/test_account_deletion.py",
-        "backend/routers/sync.py": "tests/unit/test_audio_merge_tasks.py",
         "backend/routers/transcribe.py": "tests/unit/test_listen_transient_contract.py",
         "backend/routers/fair_use_reviews.py": "tests/unit/test_fair_use_review_requests.py",
         "backend/routers/listen/runtime.py": "tests/unit/test_fair_use_review_runtime.py",
@@ -101,12 +95,8 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         "backend/scripts/firebase_release_probe_token.py": "tests/unit/test_firebase_release_probe_token.py",
         "scripts/voice-provider-probe.sh": "tests/unit/test_voice_provider_probe.py",
         ".github/workflows/desktop_backend_auto_dev.yml": "tests/unit/test_voice_provider_probe.py",
-        "backend/charts/pusher/templates/deployment.yaml": "tests/unit/test_rendered_deployment_contract.py",
-        ".github/workflows/gcp_backend_pusher.yml": "tests/unit/test_verify_pusher_rollout_budget.py",
-        "backend/scripts/verify_pusher_rollout_budget.py": "tests/unit/test_verify_pusher_rollout_budget.py",
-        "backend/scripts/validate_rendered_deployment_contract.py": "tests/unit/test_rendered_deployment_contract.py",
-        ".github/workflows/gcp_backend_auto_dev.yml": "tests/unit/test_llm_gateway_deploy_contract.py",
-        ".github/workflows/gcp_llm_gateway.yml": "tests/unit/test_preflight_cloud_run_deploy.py",
+        ".github/workflows/gcp_backend_auto_dev.yml": "tests/unit/test_backend_runtime_env_validator.py",
+        "backend/scripts/preflight-cloud-run-deploy.py": "tests/unit/test_preflight_cloud_run_deploy.py",
     }
 
     for source_path, expected_test in selected_cases.items():
@@ -121,15 +111,15 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         assert selected == all_tests
 
 
-def test_workflow_contract_directory_glob_selects_nested_chart_test(selector_and_all_tests):
+def test_workflow_contract_directory_glob_selects_nested_action_test(selector_and_all_tests):
     selector, all_tests = selector_and_all_tests
 
     selected, reason = selector.tests_for_changed_paths(
-        ["backend/charts/pusher/templates/deployment.yaml"],
+        [".github/actions/transcription-release-candidate-probe/action.yml"],
         all_tests,
     )
 
-    assert "tests/unit/test_rendered_deployment_contract.py" in selected
+    assert "tests/unit/test_verify_backend_release_vector.py" in selected
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
 
@@ -147,8 +137,8 @@ def test_selector_docs_and_flat_utils_do_not_force_full_suite_via_globs(selector
     assert reason == "backend/utils/metrics.py did not match a backend test-selection contract", reason
     assert selected == all_tests
 
-    selected, reason = selector.tests_for_changed_paths(["backend/routers/sync.py"], all_tests)
-    assert "tests/unit/test_audio_merge_tasks.py" in selected
+    selected, reason = selector.tests_for_changed_paths(["backend/routers/users.py"], all_tests)
+    assert "tests/services/users/test_account_deletion.py" in selected
     assert selected != all_tests
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 
@@ -178,13 +168,13 @@ def test_mapped_source_with_direct_test_remains_narrow(selector_and_all_tests):
 
     selected, reason = selector.tests_for_changed_paths(
         [
-            "backend/routers/sync.py",
-            "backend/tests/unit/test_audio_merge_tasks.py",
+            "backend/routers/users.py",
+            "backend/tests/services/users/test_account_deletion.py",
         ],
         all_tests,
     )
 
-    assert "tests/unit/test_audio_merge_tasks.py" in selected
+    assert "tests/services/users/test_account_deletion.py" in selected
     assert selected != all_tests
     assert reason == "selected backend unit tests from changed paths and workflow contracts"
 

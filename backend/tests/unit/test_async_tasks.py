@@ -752,7 +752,7 @@ class TestStructuralUsage:
 
     def test_no_raw_gather_in_ws_supervisor(self):
         """Verify that WS handlers don't use raw asyncio.gather for task supervision."""
-        for filename in ['routers/pusher.py', 'routers/listen/runtime.py']:
+        for filename in ['routers/listen/runtime.py']:
             with open(self.BACKEND_DIR / filename, encoding='utf-8') as f:
                 source = f.read()
             assert (
@@ -766,7 +766,7 @@ class TestStructuralUsage:
         """Metric labels must be static — no uid/session_id to prevent cardinality explosion."""
         import re
 
-        for filename in ['routers/pusher.py', 'routers/listen/runtime.py']:
+        for filename in ['routers/listen/runtime.py']:
             with open(self.BACKEND_DIR / filename, encoding='utf-8') as f:
                 source = f.read()
             for match in re.finditer(r'label=f"[^"]*\{uid\}', source):

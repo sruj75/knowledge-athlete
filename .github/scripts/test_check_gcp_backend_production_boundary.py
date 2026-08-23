@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation tests for the rollback-first Cloud Run-only production boundary."""
+"""Mutation tests for the rollback-first single-service production boundary."""
 
 from __future__ import annotations
 
@@ -40,8 +40,9 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
         self.assertRegex(match.group("tag"), re.compile(schema.group("pattern")))
 
         reserve = UPDATES_SOURCE[
-            UPDATES_SOURCE.index("async def reserve_beta_candidate_endpoint(") :
-            UPDATES_SOURCE.index('@router.put("/v2/desktop/beta/admission")')
+            UPDATES_SOURCE.index("async def reserve_beta_candidate_endpoint(") : UPDATES_SOURCE.index(
+                '@router.put("/v2/desktop/beta/admission")'
+            )
         ]
         self.assertIn("if not _has_beta_promotion_authorization(authorization):", reserve)
         self.assertIn('raise HTTPException(status_code=401, detail="Unauthorized")', reserve)
@@ -49,9 +50,18 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
     def test_rejects_production_boundary_regressions(self) -> None:
         original = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
         mutations = {
-            "defaults_to_all": ("default: 'cloud-run-only'", "default: 'all'"),
-            "permits_prod_all": (CHECKER.PROD_ALL_REJECTION, "if false; then"),
-            "reintroduces_tagged_url": ("Production has no tagged candidate URL", "Production has no tagged candidate URL\n# resolve_cloud_run_tagged_url.py"),
+            "reintroduces_multi_target_input": (
+                "      mode:\n",
+                "      deploy_targets:\n        type: string\n      mode:\n",
+            ),
+            "reintroduces_backend_sync": (
+                "          service: ${{ env.SERVICE }}\n",
+                "          service: backend-sync\n",
+            ),
+            "reintroduces_tagged_url": (
+                "Production has no tagged candidate URL",
+                "Production has no tagged candidate URL\n# resolve_cloud_run_tagged_url.py",
+            ),
             "moves_smoke_before_serving_verification": (CHECKER.PROD_SMOKE, "Smoke production candidate API"),
             "omits_schema_valid_unauthenticated_smoke": (
                 "schema-valid inert tag reaches the authorization wall",

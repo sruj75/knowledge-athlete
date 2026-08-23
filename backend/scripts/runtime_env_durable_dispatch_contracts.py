@@ -1,4 +1,4 @@
-"""Production deployment contracts for durable Cloud Tasks dispatchers."""
+"""Deployment contract for the retained durable account-deletion task."""
 
 from __future__ import annotations
 
@@ -7,25 +7,21 @@ from typing import Any, cast
 
 ConfigDict = dict[str, Any]
 
-_ACCOUNT_DELETION_PROD_CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
-_ACCOUNT_DELETION_LITERAL_ENV = {
+_LITERAL_ENV = {
     'ACCOUNT_DELETION_DISPATCH_MODE': 'cloud_tasks',
     'ACCOUNT_DELETION_TASKS_QUEUE': 'account-deletion',
-    'SYNC_TASKS_PROJECT': 'based-hardware',
-    'SYNC_TASKS_LOCATION': 'us-central1',
+    'ACCOUNT_DELETION_TASKS_LOCATION': 'us-central1',
+    'ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS': '5',
+    'HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT': '1500',
 }
-_ACCOUNT_DELETION_DYNAMIC_ENV = frozenset(
-    {'ACCOUNT_DELETION_HANDLER_URL', 'SYNC_TASKS_INVOKER_SA', 'SYNC_TASKS_HANDLER_URL'}
-)
-_LISTEN_FINALIZATION_PROD_CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
-_LISTEN_FINALIZATION_LITERAL_ENV = {
-    'LISTEN_FINALIZATION_DISPATCH_MODE': 'cloud_tasks',
-    'LISTEN_FINALIZATION_TASKS_QUEUE': 'conversation-finalization',
-    'LISTEN_FINALIZATION_TASKS_MAX_ATTEMPTS': '5',
-    'HTTP_LISTEN_FINALIZATION_RUN_TIMEOUT': '1500',
-}
-_LISTEN_FINALIZATION_DYNAMIC_ENV = frozenset(
-    {'LISTEN_FINALIZATION_TASKS_HANDLER_URL', 'LISTEN_FINALIZATION_TASKS_INVOKER_SA'}
+_DYNAMIC_ENV = frozenset(
+    {
+        'ACCOUNT_DELETION_HANDLER_URL',
+        'ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE',
+        'ACCOUNT_DELETION_TASKS_INVOKER_SA',
+        'ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE',
+        'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA',
+    }
 )
 
 
@@ -36,99 +32,37 @@ class ValidationError:
 
 
 def validate_account_deletion_dispatch_contract(env: str, env_config: ConfigDict) -> list[ValidationError]:
-    """Keep every production API host out of the inline deletion execution path."""
-    if env != 'prod':
-        return []
-
-    errors: list[ValidationError] = []
-    gke = _as_config_dict(env_config.get('gke')) or {}
-    backend_listen = _as_config_dict(gke.get('backend-listen')) or {}
-    _validate_account_deletion_env_entries(
-        errors,
-        scope='prod/gke/backend-listen',
-        env_entries=_as_config_dict(backend_listen.get('env')) or {},
-        dynamic_binding='config_map',
-    )
-
-    cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
-    services = _as_config_dict(cloud_run.get('services')) or {}
-    for service in _ACCOUNT_DELETION_PROD_CLOUD_RUN_SERVICES:
-        service_config = _as_config_dict(services.get(service)) or {}
-        _validate_account_deletion_env_entries(
-            errors,
-            scope=f'prod/cloud_run/{service}',
-            env_entries=_as_config_dict(service_config.get('env')) or {},
-            dynamic_binding='env_var',
-        )
-    return errors
-
-
-def validate_listen_finalization_dispatch_contract(env: str, env_config: ConfigDict) -> list[ValidationError]:
-    """Keep the customer exact-ID route on its deployed durable worker boundary."""
-    if env != 'prod':
-        return []
-
+    """Require one truthful account-deletion task binding on canonical backend."""
     errors: list[ValidationError] = []
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     services = _as_config_dict(cloud_run.get('services')) or {}
-    for service in _LISTEN_FINALIZATION_PROD_CLOUD_RUN_SERVICES:
-        service_config = _as_config_dict(services.get(service)) or {}
-        _validate_listen_finalization_env_entries(
-            errors,
-            scope=f'prod/cloud_run/{service}',
-            env_entries=_as_config_dict(service_config.get('env')) or {},
-        )
+    if set(services) != {'backend'}:
+        errors.append(ValidationError(f'{env}/cloud_run', 'canonical backend must be the only Cloud Run service'))
+    backend = _as_config_dict(services.get('backend')) or {}
+    entries = _as_config_dict(backend.get('env')) or {}
+    scope = f'{env}/cloud_run/backend'
+
+    expected_literals = dict(_LITERAL_ENV)
+    expected_literals['ACCOUNT_DELETION_TASKS_PROJECT'] = str(env_config.get('gcp_project', ''))
+    for name, expected_value in expected_literals.items():
+        entry = _as_config_dict(entries.get(name))
+        if entry is None:
+            errors.append(ValidationError(scope, f'missing required account-deletion env {name}'))
+        elif str(entry.get('value', '')) != expected_value:
+            errors.append(ValidationError(scope, f'account-deletion env {name} must be literal {expected_value!r}'))
+
+    for name in _DYNAMIC_ENV:
+        entry = _as_config_dict(entries.get(name))
+        if entry is None:
+            errors.append(ValidationError(scope, f'missing required account-deletion env {name}'))
+        elif entry.get('env_var') != name:
+            errors.append(ValidationError(scope, f'account-deletion env {name} must bind ${name}'))
+
+    stale_names = sorted(name for name in entries if name.startswith(('SYNC_TASKS_', 'LISTEN_FINALIZATION_')))
+    for name in stale_names:
+        errors.append(ValidationError(scope, f'retired task setting is forbidden: {name}'))
     return errors
 
 
 def _as_config_dict(value: object) -> ConfigDict | None:
     return cast(ConfigDict, value) if isinstance(value, dict) else None
-
-
-def _validate_account_deletion_env_entries(
-    errors: list[ValidationError],
-    *,
-    scope: str,
-    env_entries: ConfigDict,
-    dynamic_binding: str,
-) -> None:
-    for name, expected_value in _ACCOUNT_DELETION_LITERAL_ENV.items():
-        entry = _as_config_dict(env_entries.get(name))
-        if entry is None:
-            errors.append(ValidationError(scope, f'missing required account-deletion env {name}'))
-        elif entry.get('value') != expected_value:
-            errors.append(ValidationError(scope, f'account-deletion env {name} must be literal {expected_value!r}'))
-
-    for name in _ACCOUNT_DELETION_DYNAMIC_ENV:
-        entry = _as_config_dict(env_entries.get(name))
-        if entry is None:
-            errors.append(ValidationError(scope, f'missing required account-deletion env {name}'))
-        elif dynamic_binding == 'env_var' and entry.get('env_var') != name:
-            errors.append(ValidationError(scope, f'account-deletion env {name} must bind ${name}'))
-        elif dynamic_binding == 'config_map':
-            config_map = _as_config_dict(entry.get('config_map')) or {}
-            if config_map.get('name') != 'prod-omi-backend-config' or config_map.get('key') != name:
-                errors.append(
-                    ValidationError(
-                        scope,
-                        f'account-deletion env {name} must bind prod-omi-backend-config/{name}',
-                    )
-                )
-
-
-def _validate_listen_finalization_env_entries(
-    errors: list[ValidationError], *, scope: str, env_entries: ConfigDict
-) -> None:
-    for name, expected_value in _LISTEN_FINALIZATION_LITERAL_ENV.items():
-        entry = _as_config_dict(env_entries.get(name))
-        if entry is None:
-            errors.append(ValidationError(scope, f'missing required listen-finalization env {name}'))
-        elif entry.get('value') != expected_value:
-            errors.append(ValidationError(scope, f'listen-finalization env {name} must be literal {expected_value!r}'))
-
-    for name in _LISTEN_FINALIZATION_DYNAMIC_ENV:
-        entry = _as_config_dict(env_entries.get(name))
-        if entry is None:
-            errors.append(ValidationError(scope, f'missing required listen-finalization env {name}'))
-        elif entry.get('env_var') != name:
-            errors.append(ValidationError(scope, f'listen-finalization env {name} must bind ${name}'))

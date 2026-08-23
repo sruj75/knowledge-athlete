@@ -23,18 +23,18 @@ def test_generic_run_lock_returns_none_when_already_held() -> None:
     redis.set.return_value = False
 
     with patch.object(job_run_locks, "r", redis):
-        assert job_run_locks.try_acquire_job_run_lock("audio:c-1:f-1") is None
+        assert job_run_locks.try_acquire_job_run_lock("account-deletion:u-1") is None
 
 
 def test_generic_run_lock_release_is_compare_and_delete() -> None:
     redis = MagicMock()
 
     with patch.object(job_run_locks, "r", redis):
-        job_run_locks.release_job_run_lock("audio:c-1:f-1", "token")
+        job_run_locks.release_job_run_lock("account-deletion:u-1", "token")
 
     redis.eval.assert_called_once_with(
         job_run_locks._RELEASE_LOCK_SCRIPT,
         1,
-        "sync_job_lock:audio:c-1:f-1",
+        "sync_job_lock:account-deletion:u-1",
         "token",
     )

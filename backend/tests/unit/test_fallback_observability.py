@@ -28,7 +28,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
 
     with caplog.at_level(logging.WARNING, logger=fallback_mod.logger.name):
         fallback_mod.record_fallback(
-            component='audio_merge',
+            component='account_deletion',
             from_mode='cloud_tasks',
             to_mode='inline',
             reason='enqueue_failed',
@@ -38,7 +38,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
     assert counter.increments == [
         (
             {
-                'component': 'audio_merge',
+                'component': 'account_deletion',
                 'from_mode': 'cloud_tasks',
                 'to_mode': 'inline',
                 'reason': 'enqueue_failed',
@@ -49,7 +49,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
     ]
     assert any(
         'omi_fallback_event' in record.message
-        and 'component=audio_merge' in record.message
+        and 'component=account_deletion' in record.message
         and 'from=cloud_tasks' in record.message
         and 'to=inline' in record.message
         and 'reason=enqueue_failed' in record.message
@@ -101,29 +101,10 @@ def test_record_fallback_never_raises_on_metric_or_log_failure(monkeypatch):
 
     monkeypatch.setattr(fallback_mod, 'OMI_FALLBACK_TOTAL', BoomCounter())
     fallback_mod.record_fallback(
-        component='pusher',
+        component='account_deletion',
         from_mode='connected',
         to_mode='degraded',
         reason='circuit_open',
         outcome='degraded',
         log=BoomLogger(),
     )
-
-
-def test_hosted_vad_fallback_reason_buckets(monkeypatch):
-    import httpx
-    import requests
-    from utils.stt import vad as vad_mod
-
-    assert vad_mod._hosted_vad_fallback_reason(requests.Timeout()) == 'timeout'
-    assert vad_mod._hosted_vad_fallback_reason(httpx.TimeoutException('slow')) == 'timeout'
-
-    response = requests.Response()
-    response.status_code = 503
-    assert vad_mod._hosted_vad_fallback_reason(requests.HTTPError(response=response)) == 'provider_5xx'
-
-    response429 = requests.Response()
-    response429.status_code = 429
-    assert vad_mod._hosted_vad_fallback_reason(requests.HTTPError(response=response429)) == 'provider_429'
-
-    assert vad_mod._hosted_vad_fallback_reason(RuntimeError('boom')) == 'other'

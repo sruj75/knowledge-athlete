@@ -30,11 +30,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-# Backend modules expect ENCRYPTION_SECRET to be set at import time.
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_test_secret_for_redirect_uri_validation_unit_test_only",
-)
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET", "test")
 os.environ.setdefault("BASE_API_URL", "http://localhost:8080")

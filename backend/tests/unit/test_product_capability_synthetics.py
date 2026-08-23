@@ -88,11 +88,6 @@ def test_failing_check_sets_overall_failure(monkeypatch):
     )
     monkeypatch.setattr(
         module,
-        "llm_gateway_fake_provider_check",
-        lambda _config: ("PASS", "llm passed", {}),
-    )
-    monkeypatch.setattr(
-        module,
         "account_deletion_fixture_check",
         lambda _config: ("NOT_RUN", "disabled", {}),
     )
@@ -103,36 +98,6 @@ def test_failing_check_sets_overall_failure(monkeypatch):
     assert report["summary"]["FAIL"] == 1
     assert "should_not_leak" not in encoded
     assert "[REDACTED]" in encoded
-
-
-def test_llm_gateway_fake_provider_check_passes_without_real_provider_credentials(monkeypatch):
-    module = _load_module()
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OMI_LLM_GATEWAY_SERVICE_TOKEN", raising=False)
-    monkeypatch.delenv("LLM_GATEWAY_SERVICE_TOKEN", raising=False)
-
-    status, summary, details = module.llm_gateway_fake_provider_check(_config(module))
-
-    assert status == "PASS"
-    assert "fake provider" in summary.lower()
-    assert details["network_or_provider_calls"] is False
-    assert "OMI_LLM_GATEWAY_SERVICE_TOKEN" not in os.environ
-    assert "LLM_GATEWAY_SERVICE_TOKEN" not in os.environ
-
-
-def test_llm_gateway_fake_provider_check_restores_existing_service_tokens(monkeypatch):
-    module = _load_module()
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OMI_LLM_GATEWAY_SERVICE_TOKEN", "existing-primary-token")
-    monkeypatch.setenv("LLM_GATEWAY_SERVICE_TOKEN", "existing-legacy-token")
-
-    status, summary, details = module.llm_gateway_fake_provider_check(_config(module))
-
-    assert status == "PASS"
-    assert "fake provider" in summary.lower()
-    assert details["network_or_provider_calls"] is False
-    assert os.environ["OMI_LLM_GATEWAY_SERVICE_TOKEN"] == "existing-primary-token"
-    assert os.environ["LLM_GATEWAY_SERVICE_TOKEN"] == "existing-legacy-token"
 
 
 def test_local_fixture_check_uses_pytest_selection_supported_by_runner(monkeypatch):

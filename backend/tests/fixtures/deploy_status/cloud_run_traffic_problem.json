@@ -29,7 +29,7 @@
     },
     {
       "metadata": {
-        "name": "backend-sync"
+        "name": "backend-beta"
       },
       "spec": {
         "template": {
@@ -43,11 +43,11 @@
         }
       },
       "status": {
-        "latestCreatedRevisionName": "backend-sync-abc1234-1",
-        "latestReadyRevisionName": "backend-sync-old9999-1",
+        "latestCreatedRevisionName": "backend-beta-abc1234-1",
+        "latestReadyRevisionName": "backend-beta-old9999-1",
         "traffic": [
           {
-            "revisionName": "backend-sync-old9999-1",
+            "revisionName": "backend-beta-old9999-1",
             "percent": 100
           }
         ]

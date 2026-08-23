@@ -50,50 +50,18 @@ def _count_thread_join_patterns(filepath: str) -> list:
     return patterns
 
 
-class TestNoThreadJoinInMigratedFiles:
-    """Phase 3 target files should not use Thread+join patterns."""
-
-    def test_process_conversation_no_thread_join(self):
-        filepath = os.path.join(BACKEND_DIR, 'utils', 'conversations', 'process_conversation.py')
-        patterns = _count_thread_join_patterns(filepath)
-        assert patterns == [], f"Thread+join still in process_conversation.py: {patterns}"
-
-    def test_sync_no_thread_join(self):
-        filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')
-        patterns = _count_thread_join_patterns(filepath)
-        assert patterns == [], f"Thread+join still in sync.py: {patterns}"
-
-
-class TestThreadPoolExecutorUsed:
-    """Verify retained migrated files use shared executors or asyncio.gather."""
-
-    def test_sync_uses_shared_executor_or_gather(self):
-        filepath = os.path.join(BACKEND_DIR, 'routers', 'sync.py')
-        source = _read_source(filepath)
-        assert 'critical_executor' in source or 'storage_executor' in source or 'asyncio.gather' in source
-
-
 class TestAsyncSTTVariants:
-    """Phase 4: verify async STT variants exist."""
+    """Verify the retained in-process async VAD path stays non-blocking."""
 
     def test_async_vad_exists(self):
         filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', 'vad.py')
         source = _read_source(filepath)
         assert 'async def async_vad_is_empty(' in source
 
-    def test_stt_async_uses_httpx_client(self):
-        """Async STT variants should use shared httpx client, not create per-call clients."""
-        for filename in ['vad.py']:
-            filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', filename)
-            source = _read_source(filepath)
-            assert 'get_stt_client' in source, f"{filename} should use shared get_stt_client()"
-
-    def test_stt_async_offloads_file_io(self):
-        """Async STT variants should offload file reads via run_blocking."""
-        for filename in ['vad.py']:
-            filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', filename)
-            source = _read_source(filepath)
-            assert 'run_blocking(storage_executor' in source, f"{filename} should offload file I/O via storage_executor"
+    def test_stt_async_offloads_local_inference(self):
+        filepath = os.path.join(BACKEND_DIR, 'utils', 'stt', 'vad.py')
+        source = _read_source(filepath)
+        assert 'run_blocking(sync_executor, _run_file_vad' in source
 
 
 @pytest.mark.slow
@@ -101,8 +69,8 @@ class TestAsyncSTTBehavior:
     """Runtime behavior tests for async STT variants."""
 
     @pytest.mark.asyncio
-    async def test_async_vad_local_fallback(self, monkeypatch):
-        """When hosted VAD URL is unset, async_vad_is_empty should fall back to local VAD."""
+    async def test_async_vad_uses_local_onnx(self, monkeypatch):
+        """async_vad_is_empty delegates inference to the local Silero seam."""
         from unittest.mock import patch
 
         ort_mod = types.ModuleType('onnxruntime')
@@ -126,8 +94,6 @@ class TestAsyncSTTBehavior:
         monkeypatch.delitem(sys.modules, 'utils.stt.vad', raising=False)
 
         with patch.dict(os.environ, {}, clear=False):
-            # Ensure HOSTED_VAD_API_URL is not set
-            os.environ.pop('HOSTED_VAD_API_URL', None)
             mod = importlib.import_module('utils.stt.vad')
             with patch.object(mod, '_run_file_vad', return_value=[]) as mock_local:
                 result = await mod.async_vad_is_empty('/tmp/nonexistent.wav')

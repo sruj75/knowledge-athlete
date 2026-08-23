@@ -1,7 +1,7 @@
-"""Tests for utils.stt.vad — ONNX Silero VAD + hosted fallback.
+"""Tests for utils.stt.vad — in-process ONNX Silero VAD.
 
 Covers:
-- vad_is_empty() hosted success, hosted failure → ONNX fallback, cache behavior
+- vad_is_empty() local inference and cache behavior
 - _run_file_vad() segment generation, empty/short file, threshold/window boundaries
 - ONNX session singleton wiring
 """
@@ -155,116 +155,11 @@ class TestLinear16PcmVad:
         mock_segments.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Tests: vad_is_empty — hosted success
-# ---------------------------------------------------------------------------
-
-
-class TestVadIsEmptyHostedSuccess:
-    """vad_is_empty() when HOSTED_VAD_API_URL is set and succeeds."""
-
-    @patch.dict(os.environ, {'HOSTED_VAD_API_URL': 'http://vad.test/v1/vad'})
-    @patch('utils.stt.vad.requests.post')
-    @patch.object(vad, 'redis_db')
-    def test_hosted_returns_segments(self, mock_redis, mock_post, tmp_wav_dir):
-        """Hosted VAD returns segments — vad_is_empty returns False (not empty)."""
-        wav_path = str(tmp_wav_dir / 'test.wav')
-        _write_wav_file(wav_path, 1.0)
-
-        hosted_segments = [{'start': 0.0, 'end': 0.5, 'duration': 0.5}]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = hosted_segments
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
-
-        result = vad_is_empty(wav_path)
-        assert result is False
-        mock_post.assert_called_once()
-
-    @patch.dict(os.environ, {'HOSTED_VAD_API_URL': 'http://vad.test/v1/vad'})
-    @patch('utils.stt.vad.requests.post')
-    @patch.object(vad, 'redis_db')
-    def test_hosted_returns_empty(self, mock_redis, mock_post, tmp_wav_dir):
-        """Hosted VAD returns empty list — vad_is_empty returns True."""
-        wav_path = str(tmp_wav_dir / 'test.wav')
-        _write_wav_file(wav_path, 1.0)
-
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
-
-        result = vad_is_empty(wav_path)
-        assert result is True
-
-    @patch.dict(os.environ, {'HOSTED_VAD_API_URL': 'http://vad.test/v1/vad'})
-    @patch('utils.stt.vad.requests.post')
-    @patch.object(vad, 'redis_db')
-    def test_hosted_return_segments_mode(self, mock_redis, mock_post, tmp_wav_dir):
-        """return_segments=True returns the hosted segment list directly."""
-        wav_path = str(tmp_wav_dir / 'test.wav')
-        _write_wav_file(wav_path, 1.0)
-
-        hosted_segments = [{'start': 0.0, 'end': 1.0, 'duration': 1.0}]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = hosted_segments
-        mock_resp.raise_for_status.return_value = None
-        mock_post.return_value = mock_resp
-
-        result = vad_is_empty(wav_path, return_segments=True)
-        assert result == hosted_segments
-
-
-# ---------------------------------------------------------------------------
-# Tests: vad_is_empty — hosted failure → ONNX fallback
-# ---------------------------------------------------------------------------
-
-
-class TestVadIsEmptyFallback:
-    """vad_is_empty() falls back to local ONNX when hosted VAD fails."""
-
-    @patch.dict(os.environ, {'HOSTED_VAD_API_URL': 'http://vad.test/v1/vad'})
-    @patch('utils.stt.vad.requests.post', side_effect=Exception('connection refused'))
-    @patch('utils.stt.vad._run_file_vad')
-    @patch.object(vad, 'redis_db')
-    def test_hosted_exception_falls_back(self, mock_redis, mock_local, mock_post, tmp_wav_dir):
-        """HTTP exception triggers local ONNX fallback."""
-        wav_path = str(tmp_wav_dir / 'test.wav')
-        _write_wav_file(wav_path, 1.0)
-
-        mock_local.return_value = [{'start': 0.0, 'end': 0.5, 'duration': 0.5}]
-
-        result = vad_is_empty(wav_path)
-        assert result is False
-        mock_local.assert_called_once_with(wav_path)
-
-    @patch.dict(os.environ, {'HOSTED_VAD_API_URL': 'http://vad.test/v1/vad'})
-    @patch('utils.stt.vad.requests.post')
-    @patch('utils.stt.vad._run_file_vad')
-    @patch.object(vad, 'redis_db')
-    def test_hosted_http_error_falls_back(self, mock_redis, mock_local, mock_post, tmp_wav_dir):
-        """HTTP 500 triggers local ONNX fallback."""
-        wav_path = str(tmp_wav_dir / 'test.wav')
-        _write_wav_file(wav_path, 1.0)
-
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status.side_effect = Exception('500 Server Error')
-        mock_post.return_value = mock_resp
-
-        mock_local.return_value = []
-
-        result = vad_is_empty(wav_path)
-        assert result is True
-        mock_local.assert_called_once_with(wav_path)
-
+class TestVadIsEmptyLocal:
     @patch.dict(os.environ, {}, clear=False)
     @patch('utils.stt.vad._run_file_vad')
     @patch.object(vad, 'redis_db')
-    def test_no_hosted_url_goes_straight_to_local(self, mock_redis, mock_local):
-        """Without HOSTED_VAD_API_URL, goes directly to local ONNX."""
-        # Remove env var if present
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
+    def test_goes_straight_to_local_onnx(self, mock_redis, mock_local):
         mock_local.return_value = [{'start': 0.0, 'end': 1.0, 'duration': 1.0}]
 
         result = vad_is_empty('/fake/path.wav')
@@ -284,8 +179,6 @@ class TestVadIsEmptyCache:
     @patch('utils.stt.vad._run_file_vad')
     def test_cache_hit_returns_cached_segments(self, mock_local, mock_redis):
         """Cache hit returns cached result without calling VAD."""
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
         cached = [{'start': 0.0, 'end': 2.0, 'duration': 2.0}]
         mock_redis.get_generic_cache.return_value = cached
 
@@ -298,8 +191,6 @@ class TestVadIsEmptyCache:
     @patch('utils.stt.vad._run_file_vad')
     def test_cache_hit_return_segments(self, mock_local, mock_redis):
         """Cache hit with return_segments=True returns segments directly."""
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
         cached = [{'start': 0.5, 'end': 1.5, 'duration': 1.0}]
         mock_redis.get_generic_cache.return_value = cached
 
@@ -311,8 +202,6 @@ class TestVadIsEmptyCache:
     @patch('utils.stt.vad._run_file_vad')
     def test_cache_hit_empty_list_honored(self, mock_local, mock_redis):
         """Cached empty list [] is a valid cache hit (audio was empty), not a miss."""
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
         mock_redis.get_generic_cache.return_value = []
 
         result = vad_is_empty('/fake/path.wav', cache=True)
@@ -323,8 +212,6 @@ class TestVadIsEmptyCache:
     @patch('utils.stt.vad._run_file_vad')
     def test_cache_miss_runs_vad_and_stores(self, mock_local, mock_redis):
         """Cache miss runs VAD and stores result in cache."""
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
         mock_redis.get_generic_cache.return_value = None
         mock_local.return_value = [{'start': 0.0, 'end': 0.5, 'duration': 0.5}]
 
@@ -339,8 +226,6 @@ class TestVadIsEmptyCache:
     @patch('utils.stt.vad._run_file_vad')
     def test_no_cache_flag_skips_cache(self, mock_local, mock_redis):
         """cache=False (default) skips cache entirely."""
-        os.environ.pop('HOSTED_VAD_API_URL', None)
-
         mock_local.return_value = []
 
         result = vad_is_empty('/fake/path.wav', cache=False)

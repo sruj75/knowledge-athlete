@@ -54,7 +54,7 @@ _APPLICATION_MODEL_CALL_TOKENS = tuple(sorted({'get_default_client', 'get_worklo
 
 def _application_python_sources() -> list[tuple[str, str]]:
     backend = Path(__file__).resolve().parents[2]
-    excluded_roots = {'llm_gateway', 'migrations', 'scripts', 'tests'}
+    excluded_roots = {'migrations', 'scripts', 'tests'}
     sources = []
     for path in backend.rglob('*.py'):
         if path.relative_to(backend).parts[0] in excluded_roots or any(

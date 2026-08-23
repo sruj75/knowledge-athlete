@@ -1,41 +1,9 @@
 from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi import Response
 
-BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS = Gauge(
-    'backend_listen_active_ws_connections',
-    'Number of currently active WebSocket connections in backend-listen',
-)
-
-PUSHER_ACTIVE_WS_CONNECTIONS = Gauge(
-    'pusher_active_ws_connections',
-    'Number of currently active WebSocket connections in pusher',
-)
-
-PUSHER_QUEUE_DROPS = Counter(
-    'pusher_queue_drops_total',
-    'Pusher queue items dropped by bounded queue name',
-    ['queue'],
-)
-
-PUSHER_QUEUE_DROPPED_BYTES = Counter(
-    'pusher_queue_dropped_bytes_total',
-    'Pusher queue bytes dropped by bounded queue name',
-    ['queue'],
-)
-
-PUSHER_CIRCUIT_BREAKER_STATE = Gauge(
-    'pusher_circuit_breaker_state',
-    'Pusher circuit breaker state (0=closed, 1=open, 2=half_open)',
-)
-
-PUSHER_CIRCUIT_BREAKER_REJECTIONS = Counter(
-    'pusher_circuit_breaker_rejections_total',
-    'Total pusher connection attempts rejected by circuit breaker',
-)
-
-PUSHER_SESSION_DEGRADED = Gauge(
-    'pusher_sessions_degraded',
-    'Number of sessions currently in degraded mode (pusher unavailable)',
+LIVE_STT_ACTIVE_WS_CONNECTIONS = Gauge(
+    'live_stt_active_ws_connections',
+    'Number of currently active live transcription WebSocket connections',
 )
 
 OMI_JOURNEY_ACCEPTED_TOTAL = Counter(
@@ -57,60 +25,13 @@ OMI_JOURNEY_LATENCY_SECONDS = Histogram(
     buckets=(0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900, 3600, 21600, 86400),
 )
 
-OMI_CAPTURE_FINALIZATION_RECONCILIATIONS_TOTAL = Counter(
-    'omi_capture_finalization_reconciliations_total',
-    'Reconciliation attempts for stale nonterminal capture finalization jobs',
-    ['outcome'],
-)
-
 # Export zero-valued children from a healthy but idle process so authenticated
 # metrics consumers can distinguish no user traffic from an absent target.
-for _journey in ('chat_response', 'pusher_session', 'capture_finalization'):
+for _journey in ('chat_response',):
     OMI_JOURNEY_ACCEPTED_TOTAL.labels(journey=_journey)
     for _outcome in ('success', 'failure', 'cancelled', 'stale'):
         OMI_JOURNEY_TERMINAL_TOTAL.labels(journey=_journey, outcome=_outcome)
         OMI_JOURNEY_LATENCY_SECONDS.labels(journey=_journey, outcome=_outcome)
-for _outcome in ('requeued', 'enqueue_failed'):
-    OMI_CAPTURE_FINALIZATION_RECONCILIATIONS_TOTAL.labels(outcome=_outcome)
-
-LISTEN_FINALIZATION_OLDEST_NONTERMINAL_AGE_SECONDS = Gauge(
-    'listen_finalization_oldest_nonterminal_age_seconds',
-    'Age of the oldest queued, leased, or blocked listen finalization job',
-)
-
-LISTEN_FINALIZATION_JOB_STATUS = Gauge(
-    'listen_finalization_jobs',
-    'Current durable listen finalization job count by non-success status',
-    ['status'],
-)
-
-LISTEN_FINALIZATION_DURABLE_JOBS = Gauge(
-    'listen_finalization_durable_jobs',
-    'Authoritative Firestore finalization jobs by closed durable lifecycle state',
-    ['state'],
-)
-
-LISTEN_FINALIZATION_RETRIES_TOTAL = Counter(
-    'listen_finalization_retries_total',
-    'Durable listen finalization jobs replayed by the reconciler',
-)
-
-LISTEN_FINALIZATION_DEAD_LETTER_TOTAL = Counter(
-    'listen_finalization_dead_letter_total',
-    'Listen finalization jobs terminalized after their final Cloud Tasks attempt',
-)
-
-LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL = Counter(
-    'listen_finalization_stale_processing_reconciliations_total',
-    'Stale bare-processing conversation reconciliation outcomes by the crash-orphan sweep',
-    ['outcome'],
-)
-
-# Zero-initialize the closed outcome set so an idle process exports every
-# series, distinguishing no stranded rows from a missing scrape target.
-for _outcome in ('completed', 'migrated', 'skipped', 'error'):
-    LISTEN_FINALIZATION_STALE_PROCESSING_RECONCILIATIONS_TOTAL.labels(outcome=_outcome)
-
 OMI_FALLBACK_TOTAL = Counter(
     'omi_fallback_total',
     'Fallback / resilience transitions by component, path, reason, and outcome',
@@ -203,23 +124,6 @@ AUTH_FLOW_DURATION_SECONDS = Histogram(
     'Auth flow duration in seconds by provider and terminal state',
     ['provider', 'terminal_state'],
 )
-
-
-# Pusher readiness / drain gauges. Label-free (low cardinality) so they scrape
-# cheaply. Initialized to serving below so an idle healthy pod reads
-# pusher_ready=1 / pusher_drain_in_progress=0 and is distinguishable from a
-# missing scrape target (a labelless Gauge defaults to 0, which would wrongly
-# read as "draining"). utils.readiness.ReadinessGate flips these on drain.
-PUSHER_READY = Gauge(
-    'pusher_ready',
-    '1 = serving new traffic, 0 = draining',
-)
-PUSHER_DRAIN_IN_PROGRESS = Gauge(
-    'pusher_drain_in_progress',
-    '1 = drain initiated, readiness closed',
-)
-PUSHER_READY.set(1)
-PUSHER_DRAIN_IN_PROGRESS.set(0)
 
 
 def metrics_response() -> Response:

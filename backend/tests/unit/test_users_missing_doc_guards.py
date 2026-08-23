@@ -19,11 +19,6 @@ from testing.import_isolation import load_module_fresh, stub_modules
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
-)
-
 
 def _module(name: str, **attrs: object) -> ModuleType:
     mod = ModuleType(name)

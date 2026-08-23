@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import importlib.util
-import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,81 +32,6 @@ def write_yaml(path: Path, payload: dict) -> None:
         yaml.safe_dump(payload, handle, sort_keys=False)
 
 
-def with_required_backend_env(payload: str) -> str:
-    required_env = '''\
-        {"name": "BILLING_MODE", "value": "disabled"},
-        {"name": "DESKTOP_UPDATE_POINTERS_MODE", "value": "primary"},
-        {"name": "DESKTOP_UPDATE_RECONCILE_SAMPLE_RATE", "value": "0.01"},
-        {"name": "OMI_ENV_STAGE", "value": "dev"},
-        {"name": "OMI_LLM_GATEWAY_FEATURE_MODE", "value": "gateway"},
-        {"name": "OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_ACTION_ITEMS_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "OMI_LLM_GATEWAY_DEV_SHADOW_ALL_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_DEV_SHADOW_ALL_SAMPLE_RATE", "value": "1.0"},
-        {"name": "POSTHOG_HOST", "value": "https://app.posthog.com"},
-        {"name": "MODULATE_API_KEY", "valueFrom": {"secretKeyRef": {"name": "MODULATE_API_KEY", "key": "latest"}}},
-        {"name": "GOOGLE_CLIENT_ID", "value": "fake-public-client-id"},
-        {"name": "GOOGLE_CLIENT_SECRET", "valueFrom": {"secretKeyRef": {"name": "GOOGLE_CLIENT_SECRET", "key": "latest"}}},
-        {"name": "POSTHOG_PROJECT_API_KEY", "valueFrom": {"secretKeyRef": {"name": "POSTHOG_PROJECT_API_KEY", "key": "latest"}}},
-'''
-    return payload.replace(
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},',
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},\n'
-        '        {"name": "GCP_LOCATION", "value": "us-central1"},\n'
-        '        {"name": "USE_VERTEX_AI", "value": "true"},\n' + required_env,
-    )
-
-
-def with_backend_pusher_env(payload: str) -> str:
-    return re.sub(
-        r'("backend":\s*\{.*?"env":\s*\[\s*\{"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"\},)',
-        r'\1\n        {"name": "HOSTED_PUSHER_API_URL", "value": "http://pusher.omiapi.com"},',
-        payload,
-        count=1,
-        flags=re.DOTALL,
-    )
-
-
-def with_listen_finalization_orphan_env(payload: str) -> str:
-    """Keep offline Cloud Run state fixtures aligned with the reliability recovery setting."""
-    return payload.replace(
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},',
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},\n'
-        '        {"name": "LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS", "value": "900"},',
-    )
-
-
-def with_parity_pack_env(payload: str) -> str:
-    """Keep offline dev Cloud Run states aligned with replay-capture bindings."""
-    return payload.replace(
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},',
-        '        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},\n'
-        '        {"name": "OMI_PARITY_PACK_CAPTURE", "value": "1"},\n'
-        '        {"name": "OMI_PARITY_PACK_ALLOWED_PRINCIPALS", "value": "vi7SA9ckQCe4ccobWNxlbdcNdC23"},\n'
-        '        {"name": "OMI_PARITY_PACK_ROOT", "value": "/tmp/omi-parity-pack"},\n'
-        '        {"name": "OMI_PARITY_PACK_GCS_URI", "value": "gs://based-hardware-dev-omi-parity-pack-v0/parity-pack/v0"},\n'
-        '        {"name": "OMI_PARITY_PACK_EXPORT_INTERVAL_SECONDS", "value": "3600"},',
-    )
-
-
-GOOGLE_OAUTH_SECRETS = '''\
-        {"name": "GOOGLE_CLIENT_SECRET", "valueFrom": {"secretKeyRef": {"name": "GOOGLE_CLIENT_SECRET"}}},
-        {"name": "MODULATE_API_KEY", "valueFrom": {"secretKeyRef": {"name": "MODULATE_API_KEY", "key": "latest"}}},'''
-
-
-def with_cloud_run_oauth_secrets(payload: str) -> str:
-    payload = with_backend_pusher_env(
-        with_parity_pack_env(with_listen_finalization_orphan_env(with_required_backend_env(payload)))
-    )
-    return re.sub(
-        r'^(\s*\{"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN".*\}\s*\})\s*,?\s*$',
-        r'\1,\n' + GOOGLE_OAUTH_SECRETS.rstrip(','),
-        payload,
-        flags=re.MULTILINE,
-    )
-
-
 def validate_cloud_run_workflows_only(validator, *, env: str, manifest_path: Path, workflow_root: Path | None = None):
     """Exercise a workflow fixture without unrelated full-manifest rollout contracts."""
     manifest = validator._load_yaml(manifest_path)
@@ -121,14 +45,7 @@ def validate_cloud_run_workflows_only(validator, *, env: str, manifest_path: Pat
     )
 
 
-STANDARD_CLOUD_RUN_SECRETS = {
-    'GOOGLE_CLIENT_ID': {'secret': 'GOOGLE_CLIENT_ID', 'version': 'latest'},
-    'GOOGLE_CLIENT_SECRET': {'secret': 'GOOGLE_CLIENT_SECRET', 'version': 'latest'},
-    'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'},
-}
-
-
-def test_repo_gke_values_match_manifest():
+def test_repo_dev_runtime_matches_manifest():
     validator = load_validator()
 
     errors = validator.validate_runtime_env(env='dev')
@@ -136,7 +53,7 @@ def test_repo_gke_values_match_manifest():
     assert errors == []
 
 
-def test_repo_prod_gke_values_match_manifest():
+def test_repo_prod_runtime_matches_manifest():
     validator = load_validator()
 
     errors = validator.validate_runtime_env(env='prod')
@@ -144,10 +61,10 @@ def test_repo_prod_gke_values_match_manifest():
     assert errors == []
 
 
-def test_prod_account_deletion_dispatch_contract_rejects_missing_or_inline_profile():
+def test_account_deletion_dispatch_contract_requires_canonical_backend_profile():
     validator = load_validator()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
-    prod = manifest['environments']['prod']
+    prod = copy.deepcopy(manifest['environments']['prod'])
 
     assert validator._validate_account_deletion_dispatch_contract('prod', prod) == []
 
@@ -161,82 +78,22 @@ def test_prod_account_deletion_dispatch_contract_rejects_missing_or_inline_profi
     finally:
         backend_env['ACCOUNT_DELETION_DISPATCH_MODE'] = missing_entry
 
-    dispatch_mode = prod['gke']['backend-listen']['env']['ACCOUNT_DELETION_DISPATCH_MODE']
+    dispatch_mode = backend_env['ACCOUNT_DELETION_DISPATCH_MODE']
     original_mode = dispatch_mode['value']
     dispatch_mode['value'] = 'inline'
     try:
         assert validator.ValidationError(
-            'prod/gke/backend-listen',
+            'prod/cloud_run/backend',
             "account-deletion env ACCOUNT_DELETION_DISPATCH_MODE must be literal 'cloud_tasks'",
         ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
     finally:
         dispatch_mode['value'] = original_mode
 
-
-def test_prod_listen_finalization_contract_requires_the_dedicated_worker_bindings():
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
-    prod = manifest['environments']['prod']
-
-    assert validator._validate_listen_finalization_dispatch_contract('prod', prod) == []
-
-    backend_env = prod['cloud_run']['services']['backend']['env']
-    queue = backend_env['LISTEN_FINALIZATION_TASKS_QUEUE']
-    queue['value'] = 'sync-jobs'
-    try:
-        assert validator.ValidationError(
-            'prod/cloud_run/backend',
-            "listen-finalization env LISTEN_FINALIZATION_TASKS_QUEUE must be literal 'conversation-finalization'",
-        ) in validator._validate_listen_finalization_dispatch_contract('prod', prod)
-    finally:
-        queue['value'] = 'conversation-finalization'
-
-    missing_entry = backend_env.pop('LISTEN_FINALIZATION_TASKS_HANDLER_URL')
-    try:
-        assert validator.ValidationError(
-            'prod/cloud_run/backend',
-            'missing required listen-finalization env LISTEN_FINALIZATION_TASKS_HANDLER_URL',
-        ) in validator._validate_listen_finalization_dispatch_contract('prod', prod)
-    finally:
-        backend_env['LISTEN_FINALIZATION_TASKS_HANDLER_URL'] = missing_entry
-
-
-def test_gke_config_map_contract_rejects_missing_config_map(tmp_path):
-    validator = load_validator()
-    values_path = tmp_path / 'values.yaml'
-    write_yaml(
-        values_path,
-        {
-            'envFrom': [{'configMapRef': {'name': 'test-omi-backend-config'}}],
-            'env': [],
-        },
-    )
-    env_config = {
-        'gke': {
-            'backend-listen': {
-                'values_file': str(values_path),
-                'env': {
-                    'FAKE_RUNTIME_CONFIG': {
-                        'config_map': {
-                            'name': 'test-omi-backend-config',
-                            'key': 'FAKE_RUNTIME_CONFIG',
-                        }
-                    }
-                },
-            }
-        }
-    }
-
-    assert validator._validate_gke(env_config, strict_provisional=False) == []
-
-    write_yaml(values_path, {'envFrom': [], 'env': []})
-
-    assert validator._validate_gke(env_config, strict_provisional=False) == [
-        validator.ValidationError(
-            'gke/backend-listen',
-            "env FAKE_RUNTIME_CONFIG must come from ConfigMap 'test-omi-backend-config'",
-        )
-    ]
+    prod['cloud_run']['services']['backend-sync'] = copy.deepcopy(prod['cloud_run']['services']['backend'])
+    assert validator.ValidationError(
+        'prod/cloud_run',
+        'canonical backend must be the only Cloud Run service',
+    ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
 
 
 def test_repo_cloud_run_workflows_match_manifest():
@@ -585,33 +442,6 @@ def test_repo_prod_rendered_cloud_run_state_matches_manifest():
     assert errors == []
 
 
-def test_dev_cloud_run_pusher_contract_rejects_legacy_and_non_listener_bindings():
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
-    env_config = validator._get_env_config(manifest, 'dev')
-    rendered_state = validator._build_rendered_cloud_run_state(env_config)
-
-    backend_env = rendered_state['services']['backend']['env']
-    next(entry for entry in backend_env if entry['name'] == 'HOSTED_PUSHER_API_URL')[
-        'value'
-    ] = 'http://internal-alb.pusher-ep-dev.il7.us-central1.lb.based-hardware-dev.internal'
-    rendered_state['services']['backend-sync']['env'].append(
-        {
-            'name': 'HOSTED_PUSHER_API_URL',
-            'value': 'http://internal-alb.pusher-ep-dev.il7.us-central1.lb.based-hardware-dev.internal',
-        }
-    )
-    errors = validator._validate_cloud_run(env_config, rendered_state, strict_provisional=False)
-
-    assert errors == [
-        validator.ValidationError(
-            'cloud_run/backend',
-            "env HOSTED_PUSHER_API_URL value mismatch: expected 'http://pusher.omiapi.com'",
-        ),
-        validator.ValidationError('cloud_run/backend-sync', 'forbidden env HOSTED_PUSHER_API_URL is present'),
-    ]
-
-
 def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     validator = load_validator()
     values_file = tmp_path / 'backend_listen.yaml'
@@ -703,14 +533,9 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
 def test_managed_stt_surfaces_require_modulate_binding():
     validator = load_validator()
     env_config = {
-        'gke': {
-            'backend-listen': {'env': {}},
-            'pusher': {'env': {}},
-        },
         'cloud_run': {
             'services': {
                 'backend': {'env': {}, 'secrets': {}},
-                'backend-sync': {'env': {}, 'secrets': {}},
             }
         },
     }
@@ -722,28 +547,17 @@ def test_managed_stt_surfaces_require_modulate_binding():
             scope,
             'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
-        for scope in (
-            'dev/gke/backend-listen',
-            'dev/gke/pusher',
-            'dev/cloud_run/backend',
-            'dev/cloud_run/backend-sync',
-        )
+        for scope in ('dev/cloud_run/backend',)
     ]
 
 
 def test_managed_stt_contract_accepts_fixed_modulate_bindings():
     validator = load_validator()
-    gke_secret = {'secret': {'name': 'secret', 'key': 'MODULATE_API_KEY'}}
     cloud_secret = {'secret': 'MODULATE_API_KEY', 'version': 'latest'}
     env_config = {
-        'gke': {
-            'backend-listen': {'env': {'MODULATE_API_KEY': gke_secret}},
-            'pusher': {'env': {'MODULATE_API_KEY': gke_secret}},
-        },
         'cloud_run': {
             'services': {
-                service: {'env': {}, 'secrets': {'MODULATE_API_KEY': cloud_secret}}
-                for service in ('backend', 'backend-sync')
+                'backend': {'env': {}, 'secrets': {'MODULATE_API_KEY': cloud_secret}},
             }
         },
     }
@@ -765,20 +579,19 @@ def test_managed_stt_contract_accepts_fixed_modulate_bindings():
 def test_managed_stt_contract_rejects_retired_provider_controls(retired_name):
     validator = load_validator()
     env_config = {
-        'gke': {
-            'backend-listen': {
-                'env': {
-                    'MODULATE_API_KEY': {'secret': {'name': 'secret', 'key': 'MODULATE_API_KEY'}},
-                    retired_name: {'value': 'retired'},
+        'cloud_run': {
+            'services': {
+                'backend': {
+                    'env': {retired_name: {'value': 'retired'}},
+                    'secrets': {'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'}},
                 }
             }
         },
-        'cloud_run': {'services': {}},
     }
 
     assert validator._validate_managed_stt_contract('prod', env_config) == [
         validator.ValidationError(
-            'prod/gke/backend-listen',
+            'prod/cloud_run/backend',
             f'retired managed STT setting is forbidden: {retired_name}',
         )
     ]
@@ -790,426 +603,6 @@ def test_repo_manifests_use_only_fixed_modulate_managed_stt_contract():
         manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
         env_config = manifest['environments'][environment]
         assert validator._validate_managed_stt_contract(environment, env_config) == []
-
-
-def test_cloud_run_state_reports_missing_gateway_url(tmp_path):
-    validator = load_validator()
-    state_path = tmp_path / 'cloud_run_state.json'
-    state_path.write_text(
-        with_cloud_run_oauth_secrets(
-            '''
-{
-  "services": {
-    "backend": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
-    },
-    "backend-sync": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
-    }
-  }
-}
-''',
-        ),
-        encoding='utf-8',
-    )
-
-    errors = validator.validate_runtime_env(env='dev', cloud_run_state_path=state_path)
-
-    assert [error.message for error in errors] == ['missing env OMI_LLM_GATEWAY_URL']
-    assert errors[0].scope == 'cloud_run/backend'
-
-
-def test_cloud_run_workflow_reports_missing_gateway_url(tmp_path):
-    validator = load_validator()
-    values_file = tmp_path / 'backend_listen.yaml'
-    write_yaml(
-        values_file,
-        {
-            'env': [
-                {'name': 'OMI_LLM_GATEWAY_URL', 'value': 'http://gateway.local'},
-            ]
-        },
-    )
-    workflow_file = tmp_path / 'deploy.yml'
-    write_yaml(
-        workflow_file,
-        {
-            'env': {'SERVICE': 'backend'},
-            'jobs': {
-                'deploy': {
-                    'steps': [
-                        {
-                            'uses': 'google-github-actions/deploy-cloudrun@v2',
-                            'with': {
-                                'service': '${{ env.SERVICE }}',
-                                'env_vars': 'GOOGLE_CLOUD_PROJECT=${{ vars.RUNTIME_GCP_PROJECT_ID }}\n',
-                            },
-                        },
-                    ]
-                }
-            },
-        },
-    )
-    manifest_path = tmp_path / 'runtime_env.yaml'
-    write_yaml(
-        manifest_path,
-        {
-            'schema_version': 1,
-            'environments': {
-                'dev': {
-                    'gcp_project': 'based-hardware-dev',
-                    'runtime_gcp_project': 'based-hardware',
-                    'region': 'us-central1',
-                    'gke': {
-                        'backend-listen': {
-                            'values_file': str(values_file),
-                            'env': {
-                                'OMI_LLM_GATEWAY_URL': {
-                                    'value': 'http://gateway.local',
-                                },
-                            },
-                        }
-                    },
-                    'cloud_run': {
-                        'workflow_files': [str(workflow_file)],
-                        'services': {
-                            'backend': {
-                                'env': {
-                                    'GOOGLE_CLOUD_PROJECT': {'value': 'based-hardware'},
-                                    'OMI_LLM_GATEWAY_URL': {'value': 'http://172.16.63.232'},
-                                },
-                                'secrets': {},
-                            }
-                        },
-                    },
-                }
-            },
-        },
-    )
-
-    errors = validate_cloud_run_workflows_only(validator, env='dev', manifest_path=manifest_path)
-
-    assert any(error.message == 'missing env OMI_LLM_GATEWAY_URL' for error in errors)
-    assert any(error.scope == 'cloud_run_workflow/backend' for error in errors)
-
-
-def test_cloud_run_workflow_validation_uses_custom_manifest_for_runtime_env_outputs(tmp_path):
-    validator = load_validator()
-    values_file = tmp_path / 'backend_listen.yaml'
-    write_yaml(
-        values_file,
-        {
-            'env': [
-                {'name': 'OMI_LLM_GATEWAY_URL', 'value': 'http://gateway.local'},
-            ]
-        },
-    )
-    workflow_file = tmp_path / 'deploy.yml'
-    write_yaml(
-        workflow_file,
-        {
-            'env': {'SERVICE': 'backend'},
-            'jobs': {
-                'deploy': {
-                    'steps': [
-                        {
-                            'id': 'runtime-env',
-                            'run': 'python3 backend/scripts/render_backend_runtime_env.py --env dev',
-                        },
-                        {
-                            'uses': 'google-github-actions/deploy-cloudrun@v2',
-                            'with': {
-                                'service': '${{ env.SERVICE }}',
-                                'flags': '${{ steps.runtime-env.outputs.cloud_run_flags }}',
-                                'env_vars': '${{ steps.runtime-env.outputs.backend_env_vars }}',
-                                'secrets': '${{ steps.runtime-env.outputs.backend_secrets }}',
-                            },
-                        },
-                    ]
-                }
-            },
-        },
-    )
-    manifest_path = tmp_path / 'runtime_env.yaml'
-    write_yaml(
-        manifest_path,
-        {
-            'schema_version': 1,
-            'environments': {
-                'dev': {
-                    'gcp_project': 'based-hardware-dev',
-                    'runtime_gcp_project': 'based-hardware',
-                    'region': 'us-central1',
-                    'gke': {
-                        'backend-listen': {
-                            'values_file': str(values_file),
-                            'env': {
-                                'OMI_LLM_GATEWAY_URL': {
-                                    'value': 'http://gateway.local',
-                                },
-                            },
-                        }
-                    },
-                    'cloud_run': {
-                        'workflow_files': [str(workflow_file)],
-                        'network': {
-                            'flags': {
-                                '--network': 'custom-network',
-                                '--subnet': 'custom-subnet',
-                                '--vpc-egress': 'private-ranges-only',
-                            }
-                        },
-                        'services': {
-                            'backend': {
-                                'env': {
-                                    'GOOGLE_CLOUD_PROJECT': {'value': 'based-hardware'},
-                                    'OMI_ENV_STAGE': {'value': 'dev'},
-                                    'OMI_LLM_GATEWAY_URL': {'value': 'http://custom-manifest-gateway'},
-                                    'OMI_LLM_GATEWAY_FEATURE_MODE': {'value': 'gateway'},
-                                    'OMI_LLM_GATEWAY_ALLOW_DIRECT_MODEL_EXCEPTION': {'value': 'true'},
-                                    'OMI_LLM_GATEWAY_DEV_SHADOW_ALL_ENABLED': {'value': 'false'},
-                                    'OMI_LLM_GATEWAY_DEV_SHADOW_ALL_SAMPLE_RATE': {'value': '1.0'},
-                                    'CUSTOM_MANIFEST_ONLY_MARKER': {'value': 'present'},
-                                },
-                                'secrets': {
-                                    **STANDARD_CLOUD_RUN_SECRETS,
-                                },
-                            }
-                        },
-                    },
-                }
-            },
-        },
-    )
-
-    errors = validate_cloud_run_workflows_only(validator, env='dev', manifest_path=manifest_path)
-
-    assert errors == []
-
-    validator = load_validator()
-    state_path = tmp_path / 'cloud_run_state.json'
-    state_path.write_text(
-        with_cloud_run_oauth_secrets(
-            '''
-{
-  "services": {
-    "backend": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
-    },
-    "backend-sync": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}}
-      ]
-    }
-  }
-}
-''',
-        ),
-        encoding='utf-8',
-    )
-
-    errors = validator.validate_runtime_env(env='dev', cloud_run_state_path=state_path)
-
-    assert errors == []
-
-
-def test_cloud_run_state_rejects_old_secret_versions(tmp_path):
-    validator = load_validator()
-    state_path = tmp_path / 'cloud_run_state.json'
-    state_path.write_text(
-        with_cloud_run_oauth_secrets(
-            '''
-{
-  "services": {
-    "backend": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON", "key": "1"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET", "key": "latest"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "key": "latest"}}}
-      ]
-    },
-    "backend-sync": {
-      "flags": {"--network": "omi-dev-vpc-1", "--subnet": "omi-us-central1-dev-vpc-1-subnet-1", "--vpc-egress": "private-ranges-only"},
-      "env": [
-        {"name": "GOOGLE_CLOUD_PROJECT", "value": "based-hardware"},
-        {"name": "OMI_LLM_GATEWAY_URL", "value": "http://172.16.63.232"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_ENABLED", "value": "false"},
-        {"name": "OMI_LLM_GATEWAY_CONVERSATION_STRUCTURE_SHADOW_SAMPLE_RATE", "value": "1.0"},
-        {"name": "SERVICE_ACCOUNT_JSON", "valueFrom": {"secretKeyRef": {"name": "SERVICE_ACCOUNT_JSON", "key": "latest"}}},
-        {"name": "ENCRYPTION_SECRET", "valueFrom": {"secretKeyRef": {"name": "ENCRYPTION_SECRET", "key": "latest"}}},
-        {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "key": "latest"}}}
-      ]
-    }
-  }
-}
-''',
-        ),
-        encoding='utf-8',
-    )
-
-    errors = validator.validate_runtime_env(env='dev', cloud_run_state_path=state_path)
-
-    assert len(errors) == 1
-    assert errors[0].scope == 'cloud_run/backend'
-    assert errors[0].message == (
-        "secret binding SERVICE_ACCOUNT_JSON mismatch: "
-        "expected {'secret': 'SERVICE_ACCOUNT_JSON', 'version': 'latest'}"
-    )
-
-
-def test_provisional_prod_endpoint_requires_presence_but_not_exact_value(tmp_path):
-    validator = load_validator()
-    values_file = tmp_path / 'prod_backend_listen.yaml'
-    write_yaml(
-        values_file,
-        {
-            'env': [
-                {
-                    'name': 'OMI_LLM_GATEWAY_URL',
-                    'value': 'http://prod-omi-llm-gateway.prod-omi-backend.svc.cluster.local:8080',
-                },
-                {
-                    'name': 'OMI_LLM_GATEWAY_SERVICE_TOKEN',
-                    'valueFrom': {
-                        'secretKeyRef': {
-                            'name': 'prod-omi-backend-secrets',
-                            'key': 'OMI_LLM_GATEWAY_SERVICE_TOKEN',
-                        }
-                    },
-                },
-            ]
-        },
-    )
-    manifest_path = tmp_path / 'runtime_env.yaml'
-    write_yaml(
-        manifest_path,
-        {
-            'schema_version': 1,
-            'environments': {
-                'prod': {
-                    'gcp_project': 'based-hardware',
-                    'region': 'us-central1',
-                    'gke': {
-                        'backend-listen': {
-                            'values_file': str(values_file),
-                            'env': {
-                                'OMI_LLM_GATEWAY_URL': {
-                                    'value': 'http://prod-omi-llm-gateway.prod-omi-backend.svc.cluster.local:8080'
-                                },
-                                'OMI_LLM_GATEWAY_SERVICE_TOKEN': {
-                                    'secret': {
-                                        'name': 'prod-omi-backend-secrets',
-                                        'key': 'OMI_LLM_GATEWAY_SERVICE_TOKEN',
-                                    }
-                                },
-                            },
-                        }
-                    },
-                    'cloud_run': {
-                        'services': {
-                            'backend': {
-                                'env': {
-                                    'OMI_LLM_GATEWAY_URL': {
-                                        'value': 'TBD_STABLE_PRIVATE_ENDPOINT',
-                                        'provisional': True,
-                                    },
-                                },
-                                'secrets': {
-                                    'OMI_LLM_GATEWAY_SERVICE_TOKEN': {
-                                        'secret': 'OMI_LLM_GATEWAY_SERVICE_TOKEN',
-                                        'version': 'latest',
-                                    },
-                                    'MODULATE_API_KEY': {'secret': 'MODULATE_API_KEY', 'version': 'latest'},
-                                },
-                            }
-                        },
-                    },
-                }
-            },
-        },
-    )
-    state_path = tmp_path / 'cloud_run_state.json'
-    state_path.write_text(
-        '''
-{
-  "services": {
-    "backend": {
-        "env": [
-          {"name": "OMI_LLM_GATEWAY_URL", "value": "http://stable-private-endpoint"},
-          {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN", "valueFrom": {"secretKeyRef": {"name": "OMI_LLM_GATEWAY_SERVICE_TOKEN"}}},
-          {"name": "MODULATE_API_KEY", "valueFrom": {"secretKeyRef": {"name": "MODULATE_API_KEY"}}}
-      ]
-    }
-  }
-}
-''',
-        encoding='utf-8',
-    )
-
-    manifest = validator._load_yaml(manifest_path)
-    errors = validator._validate_cloud_run(
-        validator._get_env_config(manifest, 'prod'),
-        validator._load_json(state_path),
-        strict_provisional=False,
-    )
-
-    assert errors == []
-
-
-def test_provisional_cloud_run_env_missing_is_allowed():
-    validator = load_validator()
-    errors = validator._validate_env_entries(
-        scope='cloud_run/backend',
-        expected={
-            'OMI_LLM_GATEWAY_URL': {
-                'env_var': 'OMI_LLM_GATEWAY_URL',
-                'provisional': True,
-            },
-            'BILLING_MODE': {'value': 'enabled'},
-        },
-        actual={'BILLING_MODE': {'name': 'BILLING_MODE', 'value': 'enabled'}},
-        strict_provisional=False,
-    )
-
-    assert errors == []
 
 
 def test_empty_literal_env_matches_cloud_run_entry_without_value():
@@ -1237,13 +630,6 @@ def test_non_empty_literal_env_still_rejects_cloud_run_entry_without_value():
     assert errors[0].message == "env BILLING_MODE value mismatch: expected 'off'"
 
 
-def test_backend_listen_chart_only_workflow_preserves_runtime_project():
-    workflow_path = ROOT.parent / '.github/workflows/gcp_backend_listen_helm.yml'
-    workflow_text = workflow_path.read_text(encoding='utf-8')
-
-    assert workflow_text.count('--set runtimeGcpProjectId=${{ vars.RUNTIME_GCP_PROJECT_ID }}') == 2
-
-
 def test_repo_rendered_cloud_run_matches_manifest():
     validator = load_validator()
 
@@ -1251,54 +637,11 @@ def test_repo_rendered_cloud_run_matches_manifest():
     assert validator.validate_runtime_env(env='prod', check_rendered_cloud_run=True) == []
 
 
-# Every service that deploys the backend image (`uvicorn main:app`) runs the
-# stale-processing reconciliation scheduler registered in main.py startup, so it
-# reads LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS. A scheduler surface that omits
-# it silently falls back to the code default, breaking the source-controlled
-# reliability contract. When a new main.py surface is added, extend this list.
-_MAIN_APP_SCHEDULER_SURFACES: dict[str, list[tuple[str, str]]] = {
-    'dev': [
-        ('gke', 'backend-listen'),
-        ('cloud_run', 'backend'),
-        ('cloud_run', 'backend-sync'),
-    ],
-    'prod': [
-        ('gke', 'backend-listen'),
-        ('cloud_run', 'backend'),
-        ('cloud_run', 'backend-sync'),
-    ],
-}
-
-
-def _scheduler_surface_env_block(env_config: dict, section: str, service: str) -> dict:
-    if section == 'gke':
-        return ((env_config.get('gke') or {}).get(service) or {}).get('env') or {}
-    services = (env_config.get('cloud_run') or {}).get('services') or {}
-    return (services.get(service) or {}).get('env') or {}
-
-
-@pytest.mark.parametrize('env', ['dev', 'prod'])
-def test_scheduler_runtime_surfaces_declare_orphan_stale_setting(env):
-    validator = load_validator()
-    manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
-    env_config = manifest['environments'][env]
-    for section, service in _MAIN_APP_SCHEDULER_SURFACES[env]:
-        env_block = _scheduler_surface_env_block(env_config, section, service)
-        entry = env_block.get('LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS')
-        assert entry is not None, (
-            f'{env}/{section}/{service} runs the stale-processing scheduler but '
-            f'omits LISTEN_FINALIZATION_ORPHAN_STALE_SECONDS'
-        )
-        assert (
-            entry.get('category') == 'reliability'
-        ), f'{env}/{section}/{service} must classify the recovery setting as reliability'
-
-
 def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
     services = manifest['environments']['dev']['cloud_run']['services']
-    required_services = {'backend', 'backend-sync'}
+    required_services = {'backend'}
     for service_name in required_services:
         services[service_name]['secrets'].pop('MODULATE_API_KEY')
 

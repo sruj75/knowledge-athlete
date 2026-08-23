@@ -174,7 +174,7 @@ def test_run_account_deletion_wipe_drops_unknown_or_ambiguous_job_without_mutati
     assert calls == [(users_router.resolve_deletion_wipe_job_id, ('job-1',))]
 
 
-def test_run_account_deletion_wipe_accepts_legacy_sync_audience_only_for_legacy_uid(monkeypatch):
+def test_run_account_deletion_wipe_accepts_legacy_audience_only_for_legacy_uid(monkeypatch):
     calls = []
 
     async def run_blocking(_executor, fn, *args):
@@ -187,7 +187,7 @@ def test_run_account_deletion_wipe_accepts_legacy_sync_audience_only_for_legacy_
 
     response = asyncio.run(
         users_router.run_account_deletion_wipe(
-            _FakeRequest({'uid': 'legacy-uid'}), task_authentication=_task_auth(audience='legacy_sync')
+            _FakeRequest({'uid': 'legacy-uid'}), task_authentication=_task_auth(audience='legacy')
         )
     )
 
@@ -196,15 +196,15 @@ def test_run_account_deletion_wipe_accepts_legacy_sync_audience_only_for_legacy_
     assert calls == [(users_router.resolve_legacy_deletion_wipe_uid, ('legacy-uid',))]
 
 
-def test_run_account_deletion_wipe_drops_job_id_with_legacy_sync_audience_without_mutation(monkeypatch):
+def test_run_account_deletion_wipe_drops_job_id_with_legacy_audience_without_mutation(monkeypatch):
     async def run_blocking(*_args):
-        raise AssertionError('legacy sync audience must not resolve or mutate a job-ID payload')
+        raise AssertionError('legacy audience must not resolve or mutate a job-ID payload')
 
     monkeypatch.setattr(users_router, 'run_blocking', run_blocking)
 
     response = asyncio.run(
         users_router.run_account_deletion_wipe(
-            _FakeRequest({'job_id': 'job-1'}), task_authentication=_task_auth(audience='legacy_sync')
+            _FakeRequest({'job_id': 'job-1'}), task_authentication=_task_auth(audience='legacy')
         )
     )
 

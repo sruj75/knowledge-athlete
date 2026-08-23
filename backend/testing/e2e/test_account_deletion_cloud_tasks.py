@@ -14,8 +14,10 @@ from google.cloud import tasks_v2
 _PROJECT = "test-e2e-project"
 _LOCATION = "us-central1"
 _QUEUE = "account-deletion"
-_HANDLER_URL = "http://127.0.0.1:8765/v1/users/account-deletion-wipes/run"
+_HANDLER_URL = "https://backend.example.test/v1/users/account-deletion-wipes/run"
 _INVOKER_SERVICE_ACCOUNT = "account-deletion-worker@example.invalid"
+_LEGACY_HANDLER_URL = "https://backend-sync.example.test/v1/users/account-deletion-wipes/run"
+_LEGACY_INVOKER_SERVICE_ACCOUNT = "legacy-account-deletion-worker@example.invalid"
 _LOCAL_TASK_TOKEN = "local-account-deletion-cloud-task"
 
 
@@ -115,12 +117,14 @@ def _configure_durable_account_deletion(monkeypatch) -> None:
     """Enable the production Cloud Tasks path with only local configuration."""
 
     monkeypatch.setenv("ACCOUNT_DELETION_DISPATCH_MODE", "cloud_tasks")
-    monkeypatch.setenv("SYNC_TASKS_PROJECT", _PROJECT)
-    monkeypatch.setenv("SYNC_TASKS_LOCATION", _LOCATION)
-    monkeypatch.setenv("SYNC_TASKS_INVOKER_SA", _INVOKER_SERVICE_ACCOUNT)
+    monkeypatch.setenv("ACCOUNT_DELETION_TASKS_PROJECT", _PROJECT)
+    monkeypatch.setenv("ACCOUNT_DELETION_TASKS_LOCATION", _LOCATION)
+    monkeypatch.setenv("ACCOUNT_DELETION_TASKS_INVOKER_SA", _INVOKER_SERVICE_ACCOUNT)
     monkeypatch.setenv("ACCOUNT_DELETION_TASKS_QUEUE", _QUEUE)
     monkeypatch.setenv("ACCOUNT_DELETION_HANDLER_URL", _HANDLER_URL)
     monkeypatch.setenv("ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE", _HANDLER_URL)
+    monkeypatch.setenv("ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE", _LEGACY_HANDLER_URL)
+    monkeypatch.setenv("ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA", _LEGACY_INVOKER_SERVICE_ACCOUNT)
     monkeypatch.setenv("ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS", "2")
 
     from utils import cloud_tasks

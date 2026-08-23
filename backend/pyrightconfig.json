@@ -2,13 +2,9 @@
     "include": [
         "config",
         "database",
-        "diarizer",
         "jobs",
-        "llm_gateway",
         "main.py",
-        "modal",
         "models",
-        "pusher",
         "routers",
         "scripts/__init__.py",
         "scripts/backfill_user_signup_platform.py",
@@ -30,8 +26,6 @@
         "scripts/scan_async_blockers.py",
         "scripts/scan_import_time_side_effects.py",
         "scripts/select_backend_unit_tests.py",
-        "scripts/smoke-llm-gateway-openai-schemas.py",
-        "scripts/smoke-llm-gateway.py",
         "scripts/stt/modulate_repro/repro_utterance_order.py",
         "scripts/stt/q_modulate_debug.py",
         "scripts/stt/r_modulate_stability.py",
@@ -42,19 +36,14 @@
         "scripts/vad/build_wav_from_bytes.py",
         "scripts/vad_offline_replay.py",
         "scripts/validate-backend-runtime-env.py",
-        "scripts/validate-llm-gateway-env.py",
-        "scripts/verify_k8s_secret_keys.py",
-        "scripts/wait_external_secret_refresh.py",
         "services",
         "utils"
     ],
     "exclude": [
         "**/__pycache__",
         ".venv",
-        "database/conversations.py",
         "database/staged_tasks.py",
         "database/users.py",
-        "models/conversation.py",
         "models/structured.py",
         "models/structured_extraction.py",
         "pretrained_models",
@@ -66,15 +55,11 @@
         "routers/fair_use_admin.py",
         "routers/notifications.py",
         "routers/payment.py",
-        "routers/sync.py",
         "routers/transcribe.py",
         "routers/updates.py",
         "routers/users.py",
         "scripts/export_openapi.py",
         "utils/chat.py",
-        "utils/conversations/merge_conversations.py",
-        "utils/conversations/postprocess_conversation.py",
-        "utils/conversations/process_conversation.py",
         "utils/llm/clients.py",
         "utils/llm/conversation_processing.py",
         "utils/llm/providers.py",
@@ -97,11 +82,5 @@
     "reportMissingTypeArgument": "warning",
     "reportUnnecessaryTypeIgnoreComment": "warning",
     "reportInvalidTypeForm": "error",
-    "reportDeprecated": "none",
-    "executionEnvironments": [
-        {
-            "root": "utils/sync",
-            "reportMissingParameterType": "error"
-        }
-    ]
+    "reportDeprecated": "none"
 }

@@ -17,8 +17,6 @@ from unittest.mock import MagicMock, patch
 from fastapi import HTTPException
 
 os.environ.setdefault('OPENAI_API_KEY', 'sk-test-not-real')
-os.environ.setdefault('ENCRYPTION_SECRET', 'omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv')
-
 _STUB = (
     'database',
     'utils.other.auth',
@@ -26,8 +24,6 @@ _STUB = (
     'google',
     'opuslib',
     'pydub',
-    'pusher',
-    'modal',
     'ulid',
     'redis',
     'sentry_sdk',

@@ -1,6 +1,6 @@
-"""Severity-aware logging config for services running on GKE / Cloud Logging.
+"""Severity-aware logging config for services running with Cloud Logging.
 
-On GKE the Cloud Logging agent classifies anything a container writes to
+The managed logging collector classifies anything a container writes to
 **stderr** as ERROR severity, and stdout as INFO/DEFAULT. Python's default
 ``logging.StreamHandler`` (and ``logging.basicConfig``) targets stderr, so
 routine INFO request logs were being ingested as ERROR — drowning out real

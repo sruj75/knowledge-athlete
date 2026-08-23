@@ -14,11 +14,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
-)
-
 from database import user_usage  # noqa: E402
 from database.firestore_read_metrics import FirestoreReadFamily, FirestoreReadMode  # noqa: E402
 

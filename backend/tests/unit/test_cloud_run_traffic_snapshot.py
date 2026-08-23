@@ -54,9 +54,9 @@ def test_restore_snapshot_resolves_latest_revision_before_the_new_candidate_exis
                 'spec': {'traffic': [{'latestRevision': True, 'percent': 100}]},
                 'status': {'latestReadyRevisionName': 'backend-pre-promotion'},
             },
-            'backend-sync': {
-                'spec': {'traffic': [{'revisionName': 'backend-sync-pre-promotion', 'percent': 100}]},
-                'status': {'latestReadyRevisionName': 'backend-sync-pre-promotion'},
+            'backend-beta': {
+                'spec': {'traffic': [{'revisionName': 'backend-beta-pre-promotion', 'percent': 100}]},
+                'status': {'latestReadyRevisionName': 'backend-beta-pre-promotion'},
             },
         },
     }
@@ -64,7 +64,7 @@ def test_restore_snapshot_resolves_latest_revision_before_the_new_candidate_exis
 
     revisions = {
         'backend': 'backend-pre-promotion',
-        'backend-sync': 'backend-sync-pre-promotion',
+        'backend-beta': 'backend-beta-pre-promotion',
     }
     evidence = snapshots.restore_snapshot(
         snapshot,
@@ -91,10 +91,10 @@ def test_restore_snapshot_resolves_latest_revision_before_the_new_candidate_exis
             'run',
             'services',
             'update-traffic',
-            'backend-sync',
+            'backend-beta',
             '--project=based-hardware-dev',
             '--region=us-central1',
-            '--to-revisions=backend-sync-pre-promotion=100',
+            '--to-revisions=backend-beta-pre-promotion=100',
             '--quiet',
         ],
     ]
@@ -127,9 +127,9 @@ def test_restore_snapshot_attempts_every_service_and_sanitizes_a_failed_command(
                 'spec': {'traffic': [{'revisionName': 'backend-pre-promotion', 'percent': 100}]},
                 'status': {'latestReadyRevisionName': 'backend-pre-promotion'},
             },
-            'backend-sync': {
-                'spec': {'traffic': [{'revisionName': 'backend-sync-pre-promotion', 'percent': 100}]},
-                'status': {'latestReadyRevisionName': 'backend-sync-pre-promotion'},
+            'backend-beta': {
+                'spec': {'traffic': [{'revisionName': 'backend-beta-pre-promotion', 'percent': 100}]},
+                'status': {'latestReadyRevisionName': 'backend-beta-pre-promotion'},
             },
         },
     }
@@ -146,7 +146,7 @@ def test_restore_snapshot_attempts_every_service_and_sanitizes_a_failed_command(
         fetcher=lambda **kwargs: _service_document(revision=f"{kwargs['service']}-pre-promotion"),
     )
 
-    assert calls == ['backend', 'backend-sync']
+    assert calls == ['backend', 'backend-beta']
     assert evidence['result'] == 'fail'
     assert evidence['failed_services'] == ['backend']
     assert evidence['services']['backend'] == {

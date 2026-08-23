@@ -43,7 +43,7 @@ from utils.fair_use import (
 )
 from utils.fair_use_reviews import create_pending_fair_use_review, get_pending_fair_use_review
 from utils.listen_session_bootstrap import load_listen_admission
-from utils.metrics import BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS
+from utils.metrics import LIVE_STT_ACTIVE_WS_CONNECTIONS
 from utils.observability.transcription import LiveSTTAttempt
 from utils.subscription import get_remaining_transcription_seconds, is_trial_paywalled
 
@@ -70,7 +70,7 @@ class ListenSessionRuntime:
         self.task_supervisor = WebSocketTaskSupervisor(
             uid=request.uid,
             label="listen",
-            gauge=BACKEND_LISTEN_ACTIVE_WS_CONNECTIONS,
+            gauge=LIVE_STT_ACTIVE_WS_CONNECTIONS,
         )
         self.state.shutdown_event = self.task_supervisor.shutdown_event
         self.transcripts = TransientTranscriptProcessor(self)

@@ -35,11 +35,11 @@ def test_wearable_sync_and_firmware_routes_are_absent() -> None:
         assert client.request(method, path).status_code == 404, f"{method} {path} is still mounted"
 
 
-def test_worker_owned_audio_and_desktop_update_routes_remain_mounted() -> None:
+def test_worker_owned_audio_is_absent_and_desktop_updates_remain_mounted() -> None:
     route_keys = {(method, route.path) for route in main.app.routes for method in getattr(route, "methods", set())}
 
     assert not any(path.startswith("/v1/sync/audio") for _, path in route_keys)
-    assert ("POST", "/v2/audio-merge-jobs/run") in route_keys
+    assert ("POST", "/v2/audio-merge-jobs/run") not in route_keys
     assert ("GET", "/v2/desktop/appcast.xml") in route_keys
 
 

@@ -15,11 +15,6 @@ import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
-os.environ.setdefault(
-    "ENCRYPTION_SECRET",
-    "omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv",
-)
-
 
 def _load(module_name, rel_path):
     # result_bounds.py imports nothing heavy, so load it directly without triggering the

@@ -6,6 +6,7 @@ import hashlib
 import os
 import uuid
 from typing import Any, Dict, Literal, NamedTuple, Optional
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request
 from google.api_core.exceptions import AlreadyExists
@@ -16,7 +17,7 @@ from google.protobuf import duration_pb2
 
 logger = logging.getLogger(__name__)
 
-# Must remain below the shared run-lock TTL so a lock cannot expire under a live task.
+# Must remain below the account-deletion run-lock TTL so a lock cannot expire under a live task.
 DISPATCH_DEADLINE_SECONDS = 1500
 
 _tasks_client: Optional[tasks_v2.CloudTasksClient] = None
@@ -27,7 +28,7 @@ class AccountDeletionTaskAuthentication(NamedTuple):
     """Verified Cloud Tasks identity plus its narrowly scoped audience lane."""
 
     retry_count: int
-    audience: Literal['account_deletion', 'legacy_sync']
+    audience: Literal['account_deletion', 'legacy']
 
 
 def _get_tasks_client() -> tasks_v2.CloudTasksClient:
@@ -44,29 +45,20 @@ def _get_auth_request() -> google_auth_requests.Request:
     return _google_auth_request
 
 
-def _handler_url() -> str:
-    return os.getenv('SYNC_TASKS_HANDLER_URL', '')
-
-
-def _oidc_audience() -> str:
-    return os.getenv('SYNC_TASKS_OIDC_AUDIENCE') or _handler_url()
-
-
 def _account_deletion_oidc_audience() -> str:
-    return os.getenv('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE') or os.getenv('ACCOUNT_DELETION_HANDLER_URL', '')
+    return os.getenv('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE', '')
 
 
-def _invoker_sa() -> str:
-    return os.getenv('SYNC_TASKS_INVOKER_SA', '')
+def _account_deletion_invoker_sa() -> str:
+    return os.getenv('ACCOUNT_DELETION_TASKS_INVOKER_SA', '')
 
 
-def get_sync_tasks_max_attempts() -> int:
-    # Must mirror the queue's maxAttempts (documented invariant).
-    return int(os.getenv('SYNC_TASKS_MAX_ATTEMPTS', '5'))
+def _legacy_account_deletion_oidc_audience() -> str:
+    return os.getenv('ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE', '')
 
 
-def is_audio_merge_dispatch_enabled() -> bool:
-    return os.getenv('AUDIO_MERGE_DISPATCH_MODE', 'inline') == 'cloud_tasks'
+def _legacy_account_deletion_invoker_sa() -> str:
+    return os.getenv('ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA', '')
 
 
 def is_account_deletion_dispatch_enabled() -> bool:
@@ -81,50 +73,37 @@ def validate_account_deletion_dispatch_configuration() -> None:
     owner. Keeping this check at process startup prevents a missing deploy
     binding from silently falling back to the in-process dispatcher.
     """
-    if os.getenv('OMI_ENV_STAGE', '').strip().lower() != 'prod':
+    stage = os.getenv('OMI_ENV_STAGE', '').strip().lower()
+    if stage != 'prod' and not is_account_deletion_dispatch_enabled():
         return
 
     if not is_account_deletion_dispatch_enabled():
         raise RuntimeError('production requires ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks')
 
     required_env = (
-        'SYNC_TASKS_PROJECT',
-        'SYNC_TASKS_LOCATION',
-        'SYNC_TASKS_INVOKER_SA',
-        'SYNC_TASKS_HANDLER_URL',
+        'ACCOUNT_DELETION_TASKS_PROJECT',
+        'ACCOUNT_DELETION_TASKS_LOCATION',
+        'ACCOUNT_DELETION_TASKS_INVOKER_SA',
         'ACCOUNT_DELETION_TASKS_QUEUE',
         'ACCOUNT_DELETION_HANDLER_URL',
+        'ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE',
+        'ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE',
+        'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA',
     )
     missing = [name for name in required_env if not os.getenv(name, '').strip()]
     if missing:
-        raise RuntimeError(f'production account-deletion Cloud Tasks config is incomplete: {", ".join(missing)}')
+        raise RuntimeError(f'account-deletion Cloud Tasks config is incomplete: {", ".join(missing)}')
 
-
-def is_listen_finalization_dispatch_enabled() -> bool:
-    """Whether platform-key listen finalization uses its durable worker."""
-    return os.getenv('LISTEN_FINALIZATION_DISPATCH_MODE', 'inline') == 'cloud_tasks'
-
-
-def is_listen_finalization_dispatch_configured() -> bool:
-    """Whether the durable finalizer can be admitted without an inline fallback."""
-    return is_listen_finalization_dispatch_enabled() and all(
-        (
-            os.getenv('SYNC_TASKS_PROJECT', ''),
-            os.getenv('SYNC_TASKS_LOCATION', ''),
-            os.getenv('LISTEN_FINALIZATION_TASKS_QUEUE', ''),
-            _listen_finalization_handler_url(),
-            _listen_finalization_invoker_sa(),
-        )
-    )
+    handler_url = os.environ['ACCOUNT_DELETION_HANDLER_URL']
+    audience = os.environ['ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE']
+    if urlparse(handler_url).scheme != 'https' or urlparse(audience).scheme != 'https':
+        raise RuntimeError('account-deletion handler URL and OIDC audience must use HTTPS')
+    if audience != handler_url:
+        raise RuntimeError('account-deletion OIDC audience must exactly match the canonical handler URL')
 
 
 def get_account_deletion_tasks_max_attempts() -> int:
-    return int(os.getenv('ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS', get_sync_tasks_max_attempts()))
-
-
-def get_listen_finalization_tasks_max_attempts() -> int:
-    """Must mirror the dedicated finalization queue's maxAttempts setting."""
-    return int(os.getenv('LISTEN_FINALIZATION_TASKS_MAX_ATTEMPTS', get_sync_tasks_max_attempts()))
+    return int(os.getenv('ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS', '5'))
 
 
 def _enqueue_named_task(
@@ -132,17 +111,17 @@ def _enqueue_named_task(
     url: str,
     task_id: str,
     payload: Dict[str, Any],
-    *,
-    audience: Optional[str] = None,
-    invoker_sa: Optional[str] = None,
 ) -> None:
     """Enqueue one named HTTP task. Duplicate names are treated as success —
     Cloud Tasks deduplicates named tasks. Any other failure raises."""
-    project = os.getenv('SYNC_TASKS_PROJECT', '')
-    location = os.getenv('SYNC_TASKS_LOCATION', '')
-    selected_invoker_sa = invoker_sa or _invoker_sa()
-    if not all([project, location, queue, url, selected_invoker_sa]):
-        raise RuntimeError('Cloud Tasks dispatch enabled but task env vars are incomplete')
+    project = os.getenv('ACCOUNT_DELETION_TASKS_PROJECT', '')
+    location = os.getenv('ACCOUNT_DELETION_TASKS_LOCATION', '')
+    invoker_sa = _account_deletion_invoker_sa()
+    audience = _account_deletion_oidc_audience()
+    if not all([project, location, queue, url, invoker_sa, audience]):
+        raise RuntimeError('account-deletion Cloud Tasks config is incomplete')
+    if urlparse(url).scheme != 'https' or audience != url:
+        raise RuntimeError('account-deletion task target must use one exact HTTPS handler URL and audience')
 
     client = _get_tasks_client()
     parent = client.queue_path(project, location, queue)
@@ -154,8 +133,8 @@ def _enqueue_named_task(
             headers={'Content-Type': 'application/json'},
             body=json.dumps(payload).encode(),
             oidc_token=tasks_v2.OidcToken(
-                service_account_email=selected_invoker_sa,
-                audience=audience or _oidc_audience(),
+                service_account_email=invoker_sa,
+                audience=audience,
             ),
         ),
         dispatch_deadline=duration_pb2.Duration(seconds=DISPATCH_DEADLINE_SECONDS),
@@ -164,31 +143,6 @@ def _enqueue_named_task(
         client.create_task(parent=parent, task=task)  # type: ignore[reportUnknownMemberType]  # google.cloud.tasks_v2 partially untyped
     except AlreadyExists:
         logger.info('task %s already enqueued, skipping duplicate', task_id)
-
-
-def enqueue_audio_merge_job(payload: Dict[str, Any]) -> None:
-    """Enqueue one named merge task per (conversation, audio_file).
-
-    Task name am-{conversation_id}-{audio_file_id} dedupes concurrent enqueues
-    from /urls polling; the handler's artifact-exists check covers the rest.
-    Tokens are minted with the same audience as sync tasks so a single
-    verify_cloud_tasks_oidc dependency covers both handlers.
-
-    schema_version 2 = conversation-level artifact build: the name embeds the
-    audio_files fingerprint so a rebuild after late chunks gets a fresh name
-    and isn't swallowed by the named-task tombstone. 'amc-' cannot collide with
-    per-part names (audio_file ids are UUIDv4).
-    """
-    if payload.get('schema_version') == 2:
-        task_id = f"amc-{payload['conversation_id']}-{payload['fingerprint']}"
-    else:
-        task_id = f"am-{payload['conversation_id']}-{payload['audio_file_id']}"
-    _enqueue_named_task(
-        os.getenv('AUDIO_MERGE_TASKS_QUEUE', ''),
-        os.getenv('AUDIO_MERGE_HANDLER_URL', ''),
-        task_id,
-        payload,
-    )
 
 
 def enqueue_account_deletion_wipe(wipe_job_id: str) -> None:
@@ -207,36 +161,6 @@ def enqueue_account_deletion_wipe(wipe_job_id: str) -> None:
         os.getenv('ACCOUNT_DELETION_HANDLER_URL', ''),
         task_id,
         {'job_id': wipe_job_id},
-        audience=_account_deletion_oidc_audience(),
-    )
-
-
-def _listen_finalization_handler_url() -> str:
-    return os.getenv('LISTEN_FINALIZATION_TASKS_HANDLER_URL', '')
-
-
-def _listen_finalization_audience() -> str:
-    return os.getenv('LISTEN_FINALIZATION_TASKS_OIDC_AUDIENCE') or _listen_finalization_handler_url()
-
-
-def _listen_finalization_invoker_sa() -> str:
-    return os.getenv('LISTEN_FINALIZATION_TASKS_INVOKER_SA') or _invoker_sa()
-
-
-def enqueue_listen_finalization_job(job_id: str, dispatch_generation: int) -> None:
-    """Wake the finalizer with opaque routing data only.
-
-    The Firestore job is canonical.  The task intentionally contains neither a
-    uid nor any conversation or credential material so Cloud Tasks diagnostics cannot
-    expose user content or credentials.
-    """
-    _enqueue_named_task(
-        os.getenv('LISTEN_FINALIZATION_TASKS_QUEUE', ''),
-        _listen_finalization_handler_url(),
-        f'listen-finalization-{job_id}-{dispatch_generation}',
-        {'job_id': job_id, 'dispatch_generation': dispatch_generation},
-        audience=_listen_finalization_audience(),
-        invoker_sa=_listen_finalization_invoker_sa(),
     )
 
 
@@ -272,11 +196,6 @@ def _verify_cloud_tasks_oidc(request: Request, *, audience: str, invoker_sa: str
         return 0
 
 
-def verify_cloud_tasks_oidc(request: Request) -> int:
-    """FastAPI dependency for shared task routes such as audio merge."""
-    return _verify_cloud_tasks_oidc(request, audience=_oidc_audience(), invoker_sa=_invoker_sa())
-
-
 def verify_account_deletion_cloud_tasks_oidc(request: Request) -> AccountDeletionTaskAuthentication:
     """Verify deletion tasks, with a bounded compatibility path for queued legacy UID tasks.
 
@@ -289,27 +208,19 @@ def verify_account_deletion_cloud_tasks_oidc(request: Request) -> AccountDeletio
         retry_count = _verify_cloud_tasks_oidc(
             request,
             audience=deletion_audience,
-            invoker_sa=_invoker_sa(),
+            invoker_sa=_account_deletion_invoker_sa(),
             log_failure=False,
         )
         return AccountDeletionTaskAuthentication(retry_count=retry_count, audience='account_deletion')
     except HTTPException as deletion_error:
-        legacy_sync_audience = _oidc_audience()
-        if not deletion_audience or not legacy_sync_audience or legacy_sync_audience == deletion_audience:
+        legacy_audience = _legacy_account_deletion_oidc_audience()
+        legacy_invoker_sa = _legacy_account_deletion_invoker_sa()
+        if not deletion_audience or not legacy_audience or legacy_audience == deletion_audience:
             raise deletion_error
 
         retry_count = _verify_cloud_tasks_oidc(
             request,
-            audience=legacy_sync_audience,
-            invoker_sa=_invoker_sa(),
+            audience=legacy_audience,
+            invoker_sa=legacy_invoker_sa,
         )
-        return AccountDeletionTaskAuthentication(retry_count=retry_count, audience='legacy_sync')
-
-
-def verify_listen_finalization_cloud_tasks_oidc(request: Request) -> int:
-    """FastAPI dependency for the isolated listen finalization task route."""
-    return _verify_cloud_tasks_oidc(
-        request,
-        audience=_listen_finalization_audience(),
-        invoker_sa=_listen_finalization_invoker_sa(),
-    )
+        return AccountDeletionTaskAuthentication(retry_count=retry_count, audience='legacy')

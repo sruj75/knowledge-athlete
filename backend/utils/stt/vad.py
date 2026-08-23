@@ -3,16 +3,12 @@ import os
 import threading
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, overload
 
-import httpx
 import numpy as np
 import onnxruntime as ort  # onnxruntime is untyped
-import requests
 from pydub import AudioSegment  # pydub is untyped
 
 from database import redis_db
-from utils.executors import db_executor, storage_executor, sync_executor, run_blocking
-from utils.http_client import get_stt_client
-from utils.observability.fallback import record_fallback
+from utils.executors import db_executor, sync_executor, run_blocking
 
 logger = logging.getLogger(__name__)
 
@@ -23,30 +19,6 @@ class VADAudioDecodeError(RuntimeError):
 
 class VADProcessingError(RuntimeError):
     """The local VAD could not make a trustworthy speech decision."""
-
-
-def _hosted_vad_fallback_reason(exc: BaseException) -> str:
-    if isinstance(exc, (requests.Timeout, httpx.TimeoutException)):
-        return 'timeout'
-    response = getattr(exc, 'response', None)
-    if response is not None:
-        status_code = getattr(response, 'status_code', None)
-        if isinstance(status_code, int):
-            if status_code == 429:
-                return 'provider_429'
-            if status_code >= 500:
-                return 'provider_5xx'
-    return 'other'
-
-
-def _record_hosted_vad_fallback(exc: BaseException) -> None:
-    record_fallback(
-        component='vad',
-        from_mode='hosted',
-        to_mode='local_onnx',
-        reason=_hosted_vad_fallback_reason(exc),
-        outcome='degraded',
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +116,7 @@ def vad_is_empty(file_path: str, return_segments: Literal[False] = False, cache:
 def vad_is_empty(
     file_path: str, return_segments: bool = False, cache: bool = False
 ) -> Union[bool, List[Dict[str, Any]]]:
-    """Uses hosted pyannote VAD (best quality) with local ONNX Silero fallback."""
+    """Classify an audio file with the in-process Silero ONNX model."""
     caching_key = f'vad_is_empty:{file_path}'
     if cache:
         cached = redis_db.get_generic_cache(caching_key)
@@ -153,21 +125,7 @@ def vad_is_empty(
                 return cached
             return len(cached) == 0
 
-    segments: Optional[List[Dict[str, Any]]] = None
-    hosted_vad_url = os.getenv('HOSTED_VAD_API_URL')
-    if hosted_vad_url:
-        try:
-            with open(file_path, 'rb') as file:
-                files = {'file': (file_path.split('/')[-1], file, 'audio/wav')}
-                response = requests.post(hosted_vad_url, files=files, timeout=300)
-                response.raise_for_status()
-                segments = response.json()  # untyped external JSON response
-        except Exception as e:
-            _record_hosted_vad_fallback(e)
-            logger.warning(f'Hosted VAD unavailable, falling back to local ONNX VAD for {file_path}: {e}')
-
-    if segments is None:
-        segments = _run_file_vad(file_path)
+    segments = _run_file_vad(file_path)
 
     if cache:
         redis_db.set_generic_cache(caching_key, segments, ttl=60 * 60 * 24)
@@ -285,11 +243,6 @@ def linear16_pcm_is_silent(audio_bytes: bytes, *, sample_rate: int, channels: in
         del samples
 
 
-def _read_file(path: str) -> bytes:
-    with open(path, 'rb') as f:
-        return f.read()
-
-
 @overload
 async def async_vad_is_empty(
     file_path: str, return_segments: Literal[True], cache: bool = False
@@ -303,7 +256,7 @@ async def async_vad_is_empty(file_path: str, return_segments: Literal[False] = F
 async def async_vad_is_empty(
     file_path: str, return_segments: bool = False, cache: bool = False
 ) -> Union[bool, List[Dict[str, Any]]]:
-    """Async version of vad_is_empty using httpx.AsyncClient for hosted VAD."""
+    """Async wrapper around the in-process Silero ONNX file classifier."""
     caching_key = f'vad_is_empty:{file_path}'
     if cache:
         if exists := await run_blocking(db_executor, redis_db.get_generic_cache, caching_key):
@@ -311,22 +264,7 @@ async def async_vad_is_empty(
                 return exists
             return len(exists) == 0
 
-    segments: Optional[List[Dict[str, Any]]] = None
-    hosted_vad_url = os.getenv('HOSTED_VAD_API_URL')
-    if hosted_vad_url:
-        try:
-            file_data = await run_blocking(storage_executor, _read_file, file_path)
-            files = {'file': (file_path.split('/')[-1], file_data, 'audio/wav')}
-            client = get_stt_client()
-            response = await client.post(hosted_vad_url, files=files)
-            response.raise_for_status()
-            segments = response.json()  # untyped external JSON response
-        except Exception as e:
-            _record_hosted_vad_fallback(e)
-            logger.warning(f'Hosted VAD unavailable, falling back to local VAD for {file_path}: {e}')
-
-    if segments is None:
-        segments = await run_blocking(sync_executor, _run_file_vad, file_path)
+    segments = await run_blocking(sync_executor, _run_file_vad, file_path)
 
     if cache:
         await run_blocking(db_executor, redis_db.set_generic_cache, caching_key, segments, ttl=60 * 60 * 24)

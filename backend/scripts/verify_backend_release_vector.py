@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only verification of a converged Cloud Run and backend-listen release vector."""
+"""Read-only verification of the canonical backend Cloud Run release vector."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-CLOUD_RUN_SERVICES = ('backend', 'backend-sync')
-MIN_CLOUD_RUN_TIMEOUT_SECONDS = 300
+CLOUD_RUN_SERVICES = ('backend',)
+MIN_CLOUD_RUN_TIMEOUT_SECONDS = 1500
 
 
 @dataclass(frozen=True)
@@ -23,11 +23,8 @@ class DeploymentExpectation:
     project: str
     region: str
     environment: str
-    namespace: str
     image: str
     revisions: Mapping[str, str]
-    listener_deployment: str
-    listener_service: str
 
 
 def build_expectation(
@@ -41,18 +38,6 @@ def build_expectation(
     short_sha: str | None = None,
     expected_image: str | None = None,
 ) -> DeploymentExpectation:
-    """Derive an immutable desired release vector from deploy-run metadata.
-
-    ``short_sha`` is the exact abbreviated SHA the deploy workflow used to tag
-    the image and build the revision suffix (``git rev-parse --short=7 HEAD``).
-    Git documents ``--short=N`` as a prefix of *at least* N characters: when the
-    N-character prefix is ambiguous Git extends it, so the deployed revision can
-    carry 8+ characters while a naive ``commit_sha[:7]`` truncation would expect
-    exactly seven and reject a correctly deployed release. Passing the
-    workflow's computed short SHA keeps the verifier aligned with what was
-    actually deployed; when omitted it falls back to the seven-character prefix
-    for local/manual invocations.
-    """
     normalized_sha = commit_sha.strip().lower()
     if len(normalized_sha) < 7 or any(char not in '0123456789abcdef' for char in normalized_sha):
         raise ValueError('commit SHA must be a hexadecimal value with at least seven characters')
@@ -79,100 +64,51 @@ def build_expectation(
         project=project,
         region=region,
         environment=environment,
-        namespace=f'{environment}-omi-backend',
         image=(
             expected_image.strip() if expected_image is not None else f'gcr.io/{project}/backend:{resolved_short_sha}'
         ),
-        revisions={service: f'{service}-{suffix}' for service in CLOUD_RUN_SERVICES},
-        listener_deployment=f'{environment}-omi-backend-listen',
-        listener_service=f'{environment}-omi-backend-listen',
+        revisions={'backend': f'backend-{suffix}'},
     )
 
 
 def build_read_only_commands(
     expectation: DeploymentExpectation,
     *,
-    include_listener: bool = True,
     include_candidate_revisions: bool = False,
 ) -> dict[str, list[str]]:
     commands = {
-        f'cloud_run/{service}': [
+        'cloud_run/backend': [
             'gcloud',
             'run',
             'services',
             'describe',
-            service,
+            'backend',
             f'--project={expectation.project}',
             f'--region={expectation.region}',
             '--format=json',
         ]
-        for service in CLOUD_RUN_SERVICES
     }
     if include_candidate_revisions:
-        commands.update(
-            {
-                f'cloud_run_revision/{service}': [
-                    'gcloud',
-                    'run',
-                    'revisions',
-                    'describe',
-                    expectation.revisions[service],
-                    f'--project={expectation.project}',
-                    f'--region={expectation.region}',
-                    '--format=json',
-                ]
-                for service in CLOUD_RUN_SERVICES
-            }
-        )
-    if include_listener:
-        commands.update(
-            {
-                'gke/deployment': [
-                    'kubectl',
-                    '-n',
-                    expectation.namespace,
-                    'get',
-                    'deployment',
-                    expectation.listener_deployment,
-                    '-o',
-                    'json',
-                ],
-                'gke/service': [
-                    'kubectl',
-                    '-n',
-                    expectation.namespace,
-                    'get',
-                    'service',
-                    expectation.listener_service,
-                    '-o',
-                    'json',
-                ],
-                'gke/endpointslices': [
-                    'kubectl',
-                    '-n',
-                    expectation.namespace,
-                    'get',
-                    'endpointslice',
-                    '-l',
-                    f'kubernetes.io/service-name={expectation.listener_service}',
-                    '-o',
-                    'json',
-                ],
-            }
-        )
+        commands['cloud_run_revision/backend'] = [
+            'gcloud',
+            'run',
+            'revisions',
+            'describe',
+            expectation.revisions['backend'],
+            f'--project={expectation.project}',
+            f'--region={expectation.region}',
+            '--format=json',
+        ]
     return commands
 
 
 def assert_commands_are_read_only(commands: Mapping[str, Sequence[str]]) -> None:
     for name, command in commands.items():
         rendered = ' '.join(command)
-        allowed = (
+        if not (
             rendered.startswith('gcloud run services describe ')
             or rendered.startswith('gcloud run revisions describe ')
-            or rendered.startswith('kubectl -n ')
-        )
-        is_query = rendered.startswith('gcloud run ') or ' get ' in f' {rendered} '
-        if not allowed or not is_query:
+        ):
             raise ValueError(f'{name} is not a read-only acceptance command: {rendered}')
         if any(term in f' {rendered} ' for term in (' apply ', ' delete ', ' patch ', ' create ', ' update ')):
             raise ValueError(f'{name} contains a mutating command: {rendered}')
@@ -200,37 +136,19 @@ def evaluate(
     documents: Mapping[str, Mapping[str, Any]],
     *,
     require_serving_traffic: bool = True,
-    include_listener: bool = True,
 ) -> list[str]:
-    errors: list[str] = []
-    for service, expected_revision in expectation.revisions.items():
-        document = documents.get(f'cloud_run/{service}')
-        if document is None:
-            errors.append(f'cloud_run/{service}: result missing')
-        else:
-            errors.extend(
-                evaluate_cloud_run_service(
-                    service,
-                    expected_revision,
-                    expectation.image,
-                    document,
-                    expected_environment=expectation.environment,
-                    require_serving_traffic=require_serving_traffic,
-                    expected_revision_document=documents.get(f'cloud_run_revision/{service}'),
-                )
-            )
-    if include_listener:
-        for key, evaluator in (
-            ('gke/deployment', evaluate_listener_deployment),
-            ('gke/service', evaluate_listener_service),
-            ('gke/endpointslices', evaluate_listener_endpoints),
-        ):
-            document = documents.get(key)
-            if document is None:
-                errors.append(f'{key}: result missing')
-            else:
-                errors.extend(evaluator(expectation, document))
-    return errors
+    document = documents.get('cloud_run/backend')
+    if document is None:
+        return ['cloud_run/backend: result missing']
+    return evaluate_cloud_run_service(
+        'backend',
+        expectation.revisions['backend'],
+        expectation.image,
+        document,
+        expected_environment=expectation.environment,
+        require_serving_traffic=require_serving_traffic,
+        expected_revision_document=documents.get('cloud_run_revision/backend'),
+    )
 
 
 def evaluate_cloud_run_service(
@@ -286,102 +204,44 @@ def evaluate_cloud_run_service(
     return errors
 
 
-def evaluate_listener_deployment(expectation: DeploymentExpectation, document: Mapping[str, Any]) -> list[str]:
-    metadata = _mapping(document.get('metadata'))
-    spec = _mapping(document.get('spec'))
-    status = _mapping(document.get('status'))
-    template_spec = _mapping(_mapping(spec.get('template')).get('spec'))
-    containers = _list(template_spec.get('containers'))
-    image = _mapping(containers[0]).get('image') if containers else None
-    desired = spec.get('replicas')
-    errors: list[str] = []
-    if metadata.get('name') != expectation.listener_deployment:
-        errors.append(f'gke/deployment: name is not {expectation.listener_deployment}')
-    if image != expectation.image:
-        errors.append(f'gke/deployment: template image is not {expectation.image}')
-    if not template_spec.get('serviceAccountName'):
-        errors.append('gke/deployment: service account is missing')
-    if not isinstance(desired, int) or desired < 1 or status.get('availableReplicas') != desired:
-        errors.append('gke/deployment: desired replicas are not all available')
-    if not isinstance(desired, int) or desired < 1 or status.get('updatedReplicas') != desired:
-        errors.append('gke/deployment: desired replicas are not all updated')
-    if status.get('observedGeneration') != metadata.get('generation'):
-        errors.append('gke/deployment: controller has not observed the latest generation')
-    if _container_env(containers).get('OMI_ENV_STAGE') != expectation.environment:
-        errors.append(f'gke/deployment: OMI_ENV_STAGE must be {expectation.environment}')
-    return errors
-
-
-def evaluate_listener_service(expectation: DeploymentExpectation, document: Mapping[str, Any]) -> list[str]:
-    metadata = _mapping(document.get('metadata'))
-    spec = _mapping(document.get('spec'))
-    ports = _list(spec.get('ports'))
-    errors: list[str] = []
-    if metadata.get('name') != expectation.listener_service:
-        errors.append(f'gke/service: name is not {expectation.listener_service}')
-    if spec.get('type') != 'ClusterIP':
-        errors.append('gke/service: type must be ClusterIP')
-    if not any(_mapping(port).get('port') == 8080 for port in ports):
-        errors.append('gke/service: port 8080 is missing')
-    if not _mapping(spec.get('selector')):
-        errors.append('gke/service: selector is missing')
-    return errors
-
-
-def evaluate_listener_endpoints(expectation: DeploymentExpectation, document: Mapping[str, Any]) -> list[str]:
-    for item in _list(document.get('items')):
-        labels = _mapping(_mapping(item).get('metadata')).get('labels')
-        if _mapping(labels).get('kubernetes.io/service-name') != expectation.listener_service:
-            continue
-        for endpoint in _list(_mapping(item).get('endpoints')):
-            conditions = _mapping(_mapping(endpoint).get('conditions'))
-            addresses = _list(_mapping(endpoint).get('addresses'))
-            if conditions.get('ready') is True and addresses:
-                return []
-    return ['gke/endpointslices: no ready endpoint for backend-listen service']
-
-
 def evidence(
     expectation: DeploymentExpectation,
     documents: Mapping[str, Mapping[str, Any]],
     errors: Sequence[str],
     *,
     require_serving_traffic: bool = True,
-    include_listener: bool = True,
 ) -> dict[str, Any]:
-    cloud_run: dict[str, dict[str, Any]] = {}
-    for service in CLOUD_RUN_SERVICES:
-        document = documents.get(f'cloud_run/{service}', {})
-        status = _mapping(document.get('status'))
-        template_spec = _mapping(_mapping(_mapping(document.get('spec')).get('template')).get('spec'))
-        containers = _list(template_spec.get('containers'))
-        cloud_run[service] = {
-            'expected_revision': expectation.revisions[service],
-            'latest_created_revision': status.get('latestCreatedRevisionName'),
-            'latest_ready_revision': status.get('latestReadyRevisionName'),
-            'image': _mapping(containers[0]).get('image') if containers else None,
-            'timeout_seconds': template_spec.get('timeoutSeconds'),
-            'traffic': [
-                {'revision': _mapping(entry).get('revisionName'), 'percent': _mapping(entry).get('percent')}
-                for entry in _list(status.get('traffic'))
-            ],
+    document = documents.get('cloud_run/backend', {})
+    status = _mapping(document.get('status'))
+    template_spec = _mapping(_mapping(_mapping(document.get('spec')).get('template')).get('spec'))
+    containers = _list(template_spec.get('containers'))
+    backend = {
+        'expected_revision': expectation.revisions['backend'],
+        'latest_created_revision': status.get('latestCreatedRevisionName'),
+        'latest_ready_revision': status.get('latestReadyRevisionName'),
+        'image': _mapping(containers[0]).get('image') if containers else None,
+        'timeout_seconds': template_spec.get('timeoutSeconds'),
+        'traffic': [
+            {'revision': _mapping(entry).get('revisionName'), 'percent': _mapping(entry).get('percent')}
+            for entry in _list(status.get('traffic'))
+        ],
+    }
+    if not require_serving_traffic:
+        revision_status = _mapping(_mapping(documents.get('cloud_run_revision/backend', {})).get('status'))
+        ready_condition = next(
+            (
+                condition
+                for condition in _list(revision_status.get('conditions'))
+                if _mapping(condition).get('type') == 'Ready'
+            ),
+            {},
+        )
+        backend['expected_revision_ready'] = {
+            'status': _mapping(ready_condition).get('status'),
+            'reason': _mapping(ready_condition).get('reason'),
         }
-        if not require_serving_traffic:
-            revision_status = _mapping(_mapping(documents.get(f'cloud_run_revision/{service}', {})).get('status'))
-            ready_condition = next(
-                (
-                    condition
-                    for condition in _list(revision_status.get('conditions'))
-                    if _mapping(condition).get('type') == 'Ready'
-                ),
-                {},
-            )
-            cloud_run[service]['expected_revision_ready'] = {
-                'status': _mapping(ready_condition).get('status'),
-                'reason': _mapping(ready_condition).get('reason'),
-            }
-    report = {
-        'scope': 'backend deploy (read-only)',
+    return {
+        'scope': 'canonical backend deploy (read-only)',
         'release_vector': {
             'schema_version': 1,
             'commit_sha': expectation.commit_sha,
@@ -392,31 +252,10 @@ def evidence(
             'cloud_run_revisions': dict(expectation.revisions),
             'require_serving_traffic': require_serving_traffic,
         },
-        'cloud_run': cloud_run,
+        'cloud_run': {'backend': backend},
         'result': 'pass' if not errors else 'fail',
         'errors': list(errors),
     }
-    if include_listener:
-        deployment = documents.get('gke/deployment', {})
-        deployment_spec = _mapping(deployment.get('spec'))
-        deployment_status = _mapping(deployment.get('status'))
-        template_spec = _mapping(_mapping(deployment_spec.get('template')).get('spec'))
-        containers = _list(template_spec.get('containers'))
-        report['release_vector']['backend_listen'] = {
-            'deployment': expectation.listener_deployment,
-            'image': expectation.image,
-        }
-        report['gke_listener'] = {
-            'deployment': expectation.listener_deployment,
-            'image': _mapping(containers[0]).get('image') if containers else None,
-            'service_account': template_spec.get('serviceAccountName'),
-            'desired_replicas': deployment_spec.get('replicas'),
-            'available_replicas': deployment_status.get('availableReplicas'),
-            'updated_replicas': deployment_status.get('updatedReplicas'),
-        }
-    else:
-        report['release_vector']['backend_listen_required'] = False
-    return report
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -438,15 +277,6 @@ def _container_env(containers: Sequence[Any]) -> dict[str, str]:
 
 
 def _effective_candidate_traffic_percent(percent: Any) -> float | None:
-    """Effective default-domain allocation for a candidate traffic target.
-
-    Cloud Run omits ``percent`` (serialized as ``null``) on a tagged, no-allocation
-    candidate revision, which carries 0% of serving traffic until promotion. A real
-    non-negative numeric percent is its allocation; any other shape (bool, string,
-    negative) is ambiguous and must not be trusted as zero, so it returns ``None``
-    for the caller to reject. Only ``revisionName``-pinned targets reach this path;
-    ``latestRevision`` remainder targets never match the candidate name.
-    """
     if percent is None:
         return 0.0
     if isinstance(percent, bool) or not isinstance(percent, (int, float)) or percent < 0:
@@ -457,33 +287,14 @@ def _effective_candidate_traffic_percent(percent: Any) -> float | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--commit-sha', required=True)
-    parser.add_argument(
-        '--short-sha',
-        help=(
-            'exact abbreviated SHA the deploy workflow used to tag the image and '
-            'revision suffix; must be a prefix of --commit-sha. Matches the workflow '
-            'git rev-parse --short=7 HEAD, which Git may extend past seven characters.'
-        ),
-    )
+    parser.add_argument('--short-sha')
     parser.add_argument('--deploy-run-id', required=True)
     parser.add_argument('--deploy-run-attempt', required=True)
     parser.add_argument('--project', required=True)
     parser.add_argument('--region', default='us-central1')
     parser.add_argument('--environment', choices=('dev', 'prod'), required=True)
-    parser.add_argument(
-        '--expected-image',
-        help='immutable image reference recorded by a release-ring deployment',
-    )
-    parser.add_argument(
-        '--candidate',
-        action='store_true',
-        help='verify a ready no-traffic candidate release vector before promotion',
-    )
-    parser.add_argument(
-        '--cloud-run-only',
-        action='store_true',
-        help='verify only Cloud Run; candidate mode accepts no traffic and serving mode requires 100% traffic',
-    )
+    parser.add_argument('--expected-image')
+    parser.add_argument('--candidate', action='store_true')
     parser.add_argument('--evidence-path', type=Path)
     args = parser.parse_args()
     try:
@@ -497,30 +308,15 @@ def main() -> int:
             environment=args.environment,
             expected_image=args.expected_image,
         )
-        commands = build_read_only_commands(
-            expectation,
-            include_listener=not args.cloud_run_only,
-            include_candidate_revisions=args.candidate,
-        )
+        commands = build_read_only_commands(expectation, include_candidate_revisions=args.candidate)
         assert_commands_are_read_only(commands)
         documents = collect_documents(commands)
-        errors = evaluate(
-            expectation,
-            documents,
-            require_serving_traffic=not args.candidate,
-            include_listener=not args.cloud_run_only,
-        )
+        errors = evaluate(expectation, documents, require_serving_traffic=not args.candidate)
     except (RuntimeError, ValueError) as exc:
         print(f'ERROR: {exc}', file=sys.stderr)
         return 1
     rendered = json.dumps(
-        evidence(
-            expectation,
-            documents,
-            errors,
-            require_serving_traffic=not args.candidate,
-            include_listener=not args.cloud_run_only,
-        ),
+        evidence(expectation, documents, errors, require_serving_traffic=not args.candidate),
         indent=2,
         sort_keys=True,
     )

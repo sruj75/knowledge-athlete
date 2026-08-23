@@ -25,7 +25,7 @@ def test_info_goes_to_stdout_and_errors_to_stderr(restore_root_logging):
     out, err = io.StringIO(), io.StringIO()
     configure_split_stream_logging(stdout=out, stderr=err)
 
-    logger = logging.getLogger("pusher.test")
+    logger = logging.getLogger("backend.test")
     logger.info("routine request line")
     logger.warning("something suspicious")
     logger.error("real failure")
@@ -33,7 +33,7 @@ def test_info_goes_to_stdout_and_errors_to_stderr(restore_root_logging):
     stdout_text = out.getvalue()
     stderr_text = err.getvalue()
 
-    # INFO must NOT land on stderr (which GKE would tag as ERROR severity).
+    # INFO must NOT land on stderr (which the logging collector tags as ERROR severity).
     assert "routine request line" in stdout_text
     assert "routine request line" not in stderr_text
 

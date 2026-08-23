@@ -100,7 +100,6 @@ class OpenAPIContractError(RuntimeError):
 def configure_hermetic_environment() -> None:
     os.environ['PYTHON_DOTENV_DISABLED'] = '1'
     os.environ['LOCAL_DEVELOPMENT'] = 'true'
-    os.environ['ENCRYPTION_SECRET'] = 'test-encryption-secret-for-openapi-testing-32chars!'
     os.environ['FIREBASE_PROJECT_ID'] = 'test-openapi-project'
     os.environ['GOOGLE_CLOUD_PROJECT'] = 'test-openapi-project'
     os.environ['REDIS_DB_HOST'] = 'localhost'

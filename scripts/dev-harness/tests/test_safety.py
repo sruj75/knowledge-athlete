@@ -100,11 +100,9 @@ def test_child_environment_strips_cloud_defaults_and_offline_provider_secrets() 
         parent,
         provider_mode="offline",
         extra={
-            "ENCRYPTION_SECRET": "local-only-test-secret",
             "ADMIN_KEY": "local-admin",
         },
     )
-    assert env_with_backend_secret["ENCRYPTION_SECRET"] == "local-only-test-secret"
     assert env_with_backend_secret["ADMIN_KEY"] == "local-admin"
 
     with pytest.raises(safety.SafetyError, match="provider credential"):

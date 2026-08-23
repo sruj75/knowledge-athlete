@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Keep production deploys rollback-first and Cloud Run-only."""
+"""Keep canonical production deploys rollback-first and single-service."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/gcp_backend.yml")
-PROD_ALL_REJECTION = 'if [[ "$DEPLOY_ENVIRONMENT" == "prod" && "$DEPLOY_TARGETS" == "all" ]]; then'
 DEV_CANDIDATE_GATE = "if: ${{ github.event.inputs.environment == 'development' }}"
 PROD_SMOKE = "Smoke promoted production serving API"
 SERVING_VERIFY = "Verify serving backend release vector"
@@ -15,6 +14,11 @@ PROD_FORBIDDEN = (
     "probe-transcription-candidate-from-cloud-run.sh",
     "FIREBASE_PROBE_TOKEN",
     "identity_audience=",
+    "deploy_targets:",
+    "deploy_gateway:",
+    "backend-sync",
+    "helm upgrade",
+    "kubectl ",
 )
 
 
@@ -22,12 +26,10 @@ def validate(root: Path) -> list[str]:
     path = root / WORKFLOW
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     errors: list[str] = []
-    if "default: 'cloud-run-only'" not in text:
-        errors.append("gcp_backend.yml must default deploy_targets to cloud-run-only")
-    if PROD_ALL_REJECTION not in text:
-        errors.append("gcp_backend.yml must reject environment=prod, deploy_targets=all before side effects")
     if text.count(DEV_CANDIDATE_GATE) < 2:
         errors.append("gcp_backend.yml must retain the development tagged-candidate gate")
+    if text.count('uses: google-github-actions/deploy-cloudrun@') != 1:
+        errors.append('gcp_backend.yml must deploy exactly one canonical Cloud Run service')
     if text.count("resolve_cloud_run_tagged_url.py") != 1:
         errors.append("gcp_backend.yml must use the tagged candidate resolver only for development")
     for forbidden in PROD_FORBIDDEN:

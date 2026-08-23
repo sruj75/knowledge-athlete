@@ -33,7 +33,7 @@ def test_check_rendered_secrets_reports_missing(monkeypatch: pytest.MonkeyPatch)
     )
 
     secret_names = {item.secret_name for item in missing}
-    assert 'ENCRYPTION_SECRET' in secret_names
+    assert 'BETA_PROMOTION_TOKEN' in secret_names
     assert 'GOOGLE_CLIENT_ID' not in secret_names
 
 
@@ -342,7 +342,7 @@ environments:
             GLOBAL_SECRET:
               secret: inherited-secret
               version: '3'
-        backend-sync:
+        backend-beta:
           env:
             RETAINED_PUBLIC:
               value: retained
@@ -382,7 +382,7 @@ environments:
     }
 
     drift = preflight.check_runtime_bindings(
-        services=('backend-sync',),
+        services=('backend-beta',),
         env='dev',
         project='based-hardware-dev',
         region='us-central1',
@@ -482,8 +482,8 @@ def test_backend_deploy_workflows_do_not_materialize_an_ignored_service_account_
     repo_root = BACKEND_ROOT.parent
     assert 'backend/google-credentials.json' in (repo_root / '.dockerignore').read_text(encoding='utf-8')
     workflows = (
-        'gcp_backend_pusher_auto_deploy.yml',
-        'gcp_llm_gateway.yml',
+        'gcp_backend.yml',
+        'gcp_backend_auto_dev.yml',
     )
 
     for workflow in workflows:

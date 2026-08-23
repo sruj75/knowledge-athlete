@@ -58,7 +58,6 @@ def test_real_mode_reports_fingerprints_without_leaking_secrets() -> None:
         "modulate",
         "gemini",
         "anthropic",
-        "hosted-ml-local-http",
     }
     assert report.fingerprints["openai"] == providers.secret_fingerprint(env["OPENAI_API_KEY"])
     assert report.fingerprints["modulate"] == providers.secret_fingerprint(env["MODULATE_API_KEY"])

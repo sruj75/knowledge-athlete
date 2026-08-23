@@ -305,7 +305,6 @@ jobs:
             /secrets/firebase/service-account.json=SERVICE_ACCOUNT_JSON:latest
             GEMINI_API_KEY=DESKTOP_GEMINI_API_KEY:latest
             OPENAI_API_KEY=OPENAI_API_KEY:latest
-            ENCRYPTION_SECRET=ENCRYPTION_SECRET:latest
             REDIS_DB_PASSWORD=DESKTOP_REDIS_DB_PASSWORD:latest
             FIREBASE_API_KEY=DESKTOP_FIREBASE_API_KEY:latest
             REDIS_DB_HOST=DESKTOP_REDIS_DB_HOST:latest

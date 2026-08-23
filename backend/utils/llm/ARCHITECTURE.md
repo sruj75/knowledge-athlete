@@ -17,10 +17,6 @@ fail closed. Environment variables do not select a quality profile, provider, or
 - `usage_tracker.py` — feature-level authoritative quota and usage accounting.
 - `vertex_auth.py` — shared bounded Vertex token refresh for the desktop Gemini proxy.
 
-The standalone `backend/llm_gateway` deployment is not an application transport. Its
-remaining repository topology is a callerless S-25 teardown handoff; do not add a caller
-or import its auto-lane/config surface here.
-
 ## Retained workload groups
 
 - `conversation_processing.py` — transient discard, structure, and action-item candidates.
@@ -28,9 +24,8 @@ or import its auto-lane/config surface here.
 - `fair_use_classifier.py` — S-20's pinned direct OpenAI classification dependency.
 - `temporal.py` and prompt/parser modules — deterministic prompt support only.
 
-Joan follow-ups, automatic folder assignment, Wrapped, and the application OpenRouter
-binding were deleted together in S-23. The standalone gateway remains only as the
-callerless S-25 teardown handoff described above.
+Joan follow-ups, automatic folder assignment, Wrapped, the application OpenRouter
+binding, and the standalone routing service were deleted by S-23 and S-25.
 
 ## Conventions
 

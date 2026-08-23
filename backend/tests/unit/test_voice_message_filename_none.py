@@ -19,8 +19,6 @@ import pytest
 from fastapi.routing import APIRoute
 
 os.environ.setdefault('OPENAI_API_KEY', 'sk-test-not-real')
-os.environ.setdefault('ENCRYPTION_SECRET', 'omi_ZwB2ZNqB2HHpMK6wStk7sTpavJiPTFg7gXUHnc4tFABPU6pZ2c2DKgehtfgi4RZv')
-
 _STUB = (
     'database',
     'utils',
@@ -32,11 +30,9 @@ _STUB = (
     'langchain',
     'openai',
     'anthropic',
-    'modal',
     'ulid',
     'sentry_sdk',
     'requests',
-    'pusher',
     'multipart',
 )
 

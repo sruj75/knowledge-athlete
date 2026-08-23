@@ -23,7 +23,7 @@ When intentionally changing backend Python dependencies, edit the relevant `requ
 
 By default, the lock refresh preserves already-locked package versions so unrelated transitive upgrades do not sneak into infrastructure changes. Set `PYLOCK_UPGRADE=1` only when intentionally refreshing dependency versions.
 
-Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `ENCRYPTION_SECRET` (required for tests), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files). Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
+Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (desktop-backend chat/realtime), `REDIS_DB_HOST` (cache/rate-limiting, fail-open without it), and `SERVICE_ACCOUNT_JSON` / `GOOGLE_APPLICATION_CREDENTIALS` (Firebase Admin credentials; prefer the secret value in Cloud Run, never commit files). Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
 
 Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's direct managed-Anthropic call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. Do not route normal Chat through an auto lane or introduce a per-request provider switch.
 
@@ -36,7 +36,6 @@ backend/
   database/               # All persistence — 25+ domain modules
     _client.py            #   Firestore singleton + document_id_from_seed utility
     redis_db.py           #   Cache, rate limiting (Lua scripts), pub/sub, locks, geolocation
-    conversations.py      #   Existing-row finalization drain state only; no product API
     users.py              #   Retained account, subscription, deletion, and language state
     fair_use.py           #   Usage limits and soft-cap tracking
     ...                   #   + auth, billing, updates, and operational job state
@@ -47,7 +46,6 @@ backend/
     chat_sessions.py      #   stateless /v2/chat greeting and title compute
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes
-    sync.py               #   Internal audio-merge Cloud Tasks handler retained for S-25
     auth.py               #   Google/Apple OAuth callbacks, session management
     users.py              #   Account profile, subscription, usage, export, and deletion routes
     ...                   #   + payment and other retained product routes
@@ -56,19 +54,12 @@ backend/
                           #   fair-use classification, and usage tracking
       clients.py          #     Explicit direct workload clients with prompt caching and usage callbacks
     stt/                  #   Managed Modulate speech-to-text and provider-neutral VAD gating
-    conversations/        #   Callerless finalization drain plus transient compute helpers
     retrieval/            #   Retained explicit-file/web/chart tools; no hosted product search
-    other/                #   Auth, timeout middleware, and S-25 drain storage helpers
+    other/                #   Auth, timeout middleware, and retained update/preview storage helpers
     log_sanitizer.py      #   sanitize() / sanitize_pii() — required for all logging
     encryption.py         #   AES-256-GCM per-user encryption (HKDF-SHA256 key derivation)
     fair_use.py           #   Rolling speech-hour tracking via Redis minute buckets, soft-cap enforcement
     translation.py        #   Multi-language translation coordination
-  pusher/                 # Subservice: real-time data distribution hub (separate Docker)
-                          #   - Callerless S-25 handoff: heartbeat + durable finalization control only
-  llm_gateway/            # Callerless legacy subservice source awaiting the S-25 topology teardown
-  diarizer/              # Callerless legacy GPU subservice handed to S-25 for teardown
-  modal/                 # Serverless GPU services deployed on Modal
-                          #   - VAD: voice activity detection (pyannote/voice-activity-detection)
   tests/unit/            # 50+ unit tests (no external service deps)
   tests/integration/     # Integration tests (need Redis, Firebase, API keys)
   scripts/run-unit-ci.sh # Full CI unit-test contract
@@ -81,32 +72,19 @@ backend/
 ```
 Shared: Firestore, Redis
 
-backend (main.py)
-  ├── ──────► vad (modal/)
-  ├── ──────► modulate (managed API)
-  └── ──────► managed model providers through explicit in-process workload clients
-
-pusher (callerless S-25 finalization-control drain)
-
-backend-sync (main.py, Cloud Run)
-  ├── ──────► Cloud Tasks queue `audio-merge` ──► POST /v2/audio-merge-jobs/run (OIDC, same service)
-  ├── ──────► Cloud Tasks queue `account-deletion` ──► POST /v1/users/account-deletion-wipes/run (OIDC, same service)
-  └── ──────► Cloud Tasks queue `conversation-finalization` ──► POST /v1/conversation-finalization-jobs/run (OIDC, same service)
+backend (main.py, canonical Cloud Run service)
+  ├── ──────► modulate (managed STT API; in-process Silero VAD gate)
+  ├── ──────► managed model providers through explicit in-process workload clients
+  └── ──────► Cloud Tasks queue `account-deletion` ──► POST /v1/users/account-deletion-wipes/run (OIDC, same service)
 
 ```
 
-Helm charts: `backend/charts/{backend-listen,backend-secrets,diarizer,llm-gateway,pusher,vad}/`.
+Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds `MODULATE_API_KEY` on the canonical backend.
 
-Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds only `MODULATE_API_KEY` on transcription-capable services.
-
-- **backend** (`main.py`) — REST API. `/v4/listen` streams fixed PCM directly to Modulate and returns transient canonical segments without Pusher, People, or conversation storage. Retained workflows use the VAD service and managed Modulate STT; retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
+- **backend** (`main.py`) — The one REST/WebSocket Cloud Run service. `/v4/listen` applies in-process `VADStreamingGate`, streams fixed PCM directly to Modulate, and returns transient canonical segments without a side channel, People, or conversation storage. Retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes direct OpenAI GPT-5.1 transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
-- **llm-gateway** (`llm_gateway/main.py`) — Callerless legacy deployment/source handed to S-25 for repository and live topology teardown. Application code must not import it or call `omi:auto:*` lanes.
-- **pusher** (`pusher/main.py`) — Callerless S-25 drain surface that accepts only heartbeat and durable finalization-control frames. Product transcript/audio/identity frames are rejected.
-- **diarizer** (`diarizer/main.py`) — Callerless legacy GPU service handed to S-25; application code must not add consumers.
-- **vad** (`modal/main.py`) — GPU `/v1/vad`, called by retained backend paths.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
-- **backend-sync** (`main.py`, same image as backend) — Shared Cloud Run task worker retained until S-25. S-10 removed public conversation playback routes; only the OIDC `/v2/audio-merge-jobs/run` worker remains for already-queued/stored artifacts. In production, account deletion requires `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and complete Cloud Tasks bindings to enqueue opaque job IDs to queue `account-deletion`, which posts `/v1/users/account-deletion-wipes/run`; startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks so the OIDC handler is the sole wipe executor, and the post-deploy queue-drain window accepts the former sync OIDC audience only for legacy UID payloads. Conversation finalization is outside transient listen and remains with its storage owners. API success is returned only after the deletion marker is persisted and the wipe task is durably enqueued.
+- **account deletion** — `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and the complete dedicated `ACCOUNT_DELETION_*` bindings enqueue opaque job IDs to the canonical backend's OIDC handler. Startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks, and API success follows persisted deletion intent plus durable enqueue. A bounded legacy audience/payload branch remains only because no live queue-drain proof was authorized for S-25.
 
 ### macOS conversation boundary
 
@@ -138,8 +116,6 @@ proposal computation pinned to OpenAI GPT-4.1-mini. These modules must not impor
 Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini
 embedding proxy is transient compute; vector storage and similarity remain local on macOS.
 
-- **backend-secrets** (`backend/charts/backend-secrets/`) — ExternalSecret and SecretStore resources that sync backend runtime secrets into GKE namespaces.
-
 ### macOS Focus, Insights, profile, and settings boundary
 
 Focus sessions, `tips` Insights, AI Profile history, assistant controls, and the
@@ -150,7 +126,7 @@ or a notifications cron job. Cloud FCM delivery is retired; authoritative
 fair-use facts are presented by the Mac through fixed in-app and local OS copy.
 Managed Gemini remains transient compute and owns no product records.
 
-Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with GKE Helm values and Cloud Run runtime env; run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes. The remaining `llm_gateway` manifest/chart/workflow/secret/traffic entries are a callerless S-25 handoff, not an application routing contract; do not add new consumers while that topology awaits deletion.
+Backend runtime env contract: keep `backend/deploy/runtime_env.yaml` aligned with the canonical Cloud Run runtime env and run `backend/scripts/pre-deploy-check.sh` after backend runtime env or deploy workflow changes.
 
 Firestore index boundary: backend deploy workflows run `reconcile_firestore_indexes.py --check-only` against `RUNTIME_GCP_PROJECT_ID` in an isolated approved-source job using dedicated read-only credentials. Auto-dev deploys accept only a first-attempt successful same-repository `Release Eligibility` proof for `main` whose `head_sha` still equals freshly fetched and checked-out `main`, then use that admitted SHA for every source-derived step; manual **deploy** mode accepts only an exact main SHA with the same successful proof. Traffic-only repair leaves that input empty and stays source-independent because it changes no source-derived runtime state. A failed gate writes and locally revalidates a short-lived, redacted create-only proposal before upload; backend deployment must never mutate the serving schema.
 
@@ -164,7 +140,7 @@ All imports at module top level — never inside functions. Strict hierarchy:
 database/  →  utils/  →  routers/  →  main.py
 ```
 
-Higher imports from lower, never reverse. Cross-importing between routers will break. Code paths are shared across backend, pusher, and diarizer — trace imports before assuming a change only affects one service.
+Higher imports from lower, never reverse. Cross-importing between routers will break. Code paths may be shared by the canonical backend and `desktop_backend.py`; trace imports before assuming a change affects only one entrypoint.
 
 Runtime-selected providers must keep model-token parsing and required environment bindings in a pure `config/` module. Read mutable env at the call boundary rather than snapshotting it during import, and construct SDK clients lazily. For pre-recorded STT, `config/prerecorded_stt.py` is the single source of truth used by both `utils/stt/pre_recorded.py` and the deploy manifest validator; adding a provider or model token requires updating that contract and its runtime/deploy tests together.
 
@@ -204,7 +180,7 @@ bash test.sh             # Run all tests (CI source of truth)
 
 **Tests are selector-driven.** `scripts/run-unit-ci.sh` is the full GitHub Actions contract: it selects changed-file tests on PRs, runs preflight and type-checking, then invokes `test.sh`; main CI uses it with `--all`. Local pre-push intentionally keeps its own 40-file cap and runs changed test files when a broad selector exceeds that budget. Do not make the hook call the CI runner: bounded push latency protects the normal development loop. Local `test.sh` runs the selected set from `tests/unit/`, `tests/services/`, and `tests/routers/` via `scripts/select_backend_unit_tests.py`. Tests that need live services (Redis, Firebase, real API keys) go in `tests/integration/`, which is not part of selector auto-discovery; note in the PR how you ran them.
 
-**Runtime image contracts.** `runtime_images.json` registers each deployed Python image, its Dockerfile, build context, entrypoints, and deployment workflows. Run `make runtime-image-source-closure` to verify final-stage first-party source closure and that every registered deployment workflow smokes its declared Dockerfile; it is the fast pre-push and CI gate. `make runtime-image-smoke SERVICE=pusher` builds one image, checks every reachable third-party module is installed offline, then imports the registered isolated entrypoint. PR CI builds every registry-selected CPU image; deployment workflows build, smoke, then publish. GPU images use the same dependency-presence probe after their deployment build but defer full import until model initialization is lazy. Do not add a hand-maintained image-layout test or workflow mapping; add the service to the registry instead.
+**Runtime image contracts.** `runtime_images.json` registers each deployed Python image, its Dockerfile, build context, entrypoints, and deployment workflows. Run `make runtime-image-source-closure` to verify final-stage first-party source closure and that every registered deployment workflow smokes its declared Dockerfile; it is the fast pre-push and CI gate. `make runtime-image-smoke SERVICE=backend` builds one image and checks every reachable third-party module is installed offline. PR CI builds every registry-selected CPU image; deployment workflows build, smoke, then publish. Do not add a hand-maintained image-layout test or workflow mapping; add the service to the registry instead.
 
 **OpenAPI contract runner** — OpenAPI contract checks use `backend/scripts/openapi_runner.sh`, which syncs the pinned `backend/openapi-requirements.txt` runner env and prewarms `tiktoken`; CI and `scripts/pre-push` must use this same path.
 
@@ -255,24 +231,24 @@ Never block the event loop — it freezes health checks, HPA scaling, and all co
     - `db_executor` (24w) — Firestore/Redis CRUD, vector DB queries
     - `llm_executor` (6w) — retained explicit-workload provider calls and first-party generation/classification work
     - `billing_executor` (4w) — billing-provider API calls
-    - `sync_executor` (16w) — sync endpoint pipeline work, parent calls that fan out to storage_executor
-    - `postprocess_executor` (24w) — post-conversation processing, coordinator functions
+    - `sync_executor` (16w) — retained voice-message and file-VAD compute
+    - `cleanup_executor` (4w) — durable account-deletion provider and Firestore cleanup
     - `storage_executor` (128w) — GCS uploads/downloads, audio chunk I/O (fan-out gated by semaphores: 32 global chunks, 8 per-call window, 4 concurrent precache files)
   - **Deadlock prevention — 4 rules:**
     1. **Worker threads are leaf operations only.** Never `.result()` on another pool from inside a worker thread. If pool A thread submits to pool B and calls `.result()`, and vice versa, both pools deadlock.
     2. **Orchestration stays in async code.** The async handler coordinates via `await run_blocking(pool, fn)` — sequentially or with `asyncio.gather`. The event loop never blocks, pools stay independent.
-    3. **Coordinators must not share a pool with their children.** If a function fans out work to `storage_executor` and waits on `.result()`, that function must run on a different pool (e.g., `postprocess_executor`), never on `storage_executor` itself — otherwise all threads become coordinators and children can't run.
+    3. **Coordinators must not share a pool with their children.** If a function fans out work to `storage_executor` and waits on `.result()`, that function must run on a different owning pool, never on `storage_executor` itself — otherwise all threads become coordinators and children can't run.
     4. **Long-running coordinators need async orchestration or sized pools.** If a coordinator holds a thread pool slot for >10s, it must either use async coordination (`asyncio.create_task` + `await run_blocking(...)`) or run on a pool sized for `hold_time × peak_concurrency`. Prefer async coordination for any coordinator with hold time >60s — thread slots occupied by sleeping coordinators waste memory and starve other work.
   - **Audit command:** `grep -rn '\.result()' --include="*.py" | grep -v tests/ | grep -v __pycache__` — every hit must be a leaf operation or a coordinator on a different pool from its children.
   - **Pool observability:** `get_executor_metrics()` returns active count, queue depth, and utilization % for all pools. `log_executor_health()` runs every 60s, warns when any pool exceeds 70% utilization. Wired in `main.py` startup event.
 - **Lane 3 — Lint**: `python scripts/scan_async_blockers.py --dirs routers utils` catches blocking calls in async routes and helpers.
   The scanner follows direct calls through module-local sync helpers transitively, so moving blocking I/O behind a wrapper is not an escape; offload the helper at the async boundary with `run_blocking`.
   Run from `backend/` before committing. From the repository root, use `python backend/scripts/scan_async_blockers.py --dirs backend/routers backend/utils`.
-- **Shutdown**: `close_all_clients()` + `shutdown_executors()` wired in `main.py` and `pusher/main.py`.
+- **Shutdown**: `close_all_clients()` + `shutdown_executors()` are wired in `main.py`.
 
 ## WebSocket Concurrency (Long-Lived Connections)
 
-WS handlers in `routers/listen/runtime.py` and `pusher.py` manage concurrent tasks per connection. Use `utils/async_tasks.py` utilities — never raw `asyncio.gather()` or bare `await receive_task`.
+The WS handler in `routers/listen/runtime.py` manages concurrent tasks per connection. Use `utils/async_tasks.py` utilities — never raw `asyncio.gather()` or bare `await receive_task`.
 
 - **Supervision**: `supervise_tasks()` wraps `asyncio.wait(FIRST_COMPLETED)` — detects both client disconnect and bg task crashes immediately. Classify tasks as finite (can complete during session) or lifetime (completion = session ending).
 - **Drain**: `drain_tasks()` cancels remaining bg tasks with bounded timeout, force-cancels stragglers via `asyncio.wait` (not `asyncio.gather`, which hangs if a task suppresses CancelledError).
@@ -281,7 +257,7 @@ WS handlers in `routers/listen/runtime.py` and `pusher.py` manage concurrent tas
 - **Receive timeouts**: every `websocket.receive()` must be wrapped in `asyncio.wait_for(..., timeout=WS_RECEIVE_TIMEOUT)`.
 - **Gauge placement**: `GAUGE.inc()` inside `try` body, `GAUGE.dec()` in `finally`. Init `bg_main_tasks = []` before `try`.
 - **Task naming**: `create_named_task()` for WS-scoped tasks (tracked in task_set for supervise/drain). Use `start_background_task()` from `utils/executors.py` for fire-and-forget work that outlives the handler.
-- **Prometheus labels**: static low-cardinality only (e.g. "pusher", "listen") — never uid/session_id.
+- **Prometheus labels**: static low-cardinality only (e.g. "listen", "chat") — never uid/session_id.
 - **Module-level dicts**: add TTL-based eviction or cap size — they grow forever otherwise.
 
 ## Common Gotchas
