@@ -819,3 +819,16 @@ Additional stop conditions apply globally:
 - [ ] No deploy, traffic change, drain, deletion, IAM/secret/image/network/GKE mutation is inferred from the repository PR.
 - [ ] Every later operational mutation has explicit named-resource/environment authorization, backup/retention/legal/rollback boundaries, ordered drain evidence, and post-change acceptance.
 - [ ] S-26 receives the source-consolidation handoff and S-27 receives the truthful retained-foundation/live-inventory handoff.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-25 implementation merged in PR #44 at `fbdb339f`. Closeout commit `a57b3f8d`
+removed parity export settings and deployment classification left after topology
+collapse. The four-line Windows diagnostic cleanup remains a retrospective scope
+exception because reverting it would advertise retired `backend-listen`; this
+closeout changes no Windows file. Canonical health/metrics/listen, removed-worker
+routes, and hermetic account-deletion dispatch are green. S-25 is **implemented
+but not repository-closed**, so S-26 remains blocked. Legacy deletion-task
+audience/payload acceptance remains until verified queue-drain proof; live
+resource inventory/decommission remains separately authorized. See
+[`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

@@ -1014,3 +1014,12 @@ Additional absolute stops:
   authorized operational action with inventory/retention/rollback evidence.
 - [ ] No Windows code, billing provider, production infrastructure, or
   production Omi/Omi Beta bundle was touched.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-24 implementation merged in PR #43 at `ac3ba541`. Closeout commit `a57b3f8d`
+removed the remaining parity-pack GCS exporter/runtime/deployment residue while
+retaining local redacted capture/replay and update/preview storage support. Its
+focused behavioral and classification tests are green. S-24 is **implemented
+but not repository-closed** because integrated desktop/Tier-2/provider acceptance
+is not fully green. See [`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

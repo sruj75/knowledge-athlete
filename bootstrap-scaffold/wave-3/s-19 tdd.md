@@ -714,3 +714,14 @@ There is no unresolved product decision in the assigned IR set. The only unresol
 - [ ] Repository closure and a separately authorized live read-only inventory/decommission remain distinct; no deployment or external mutation occurred in the implementation PR unless separately requested later.
 - [ ] `BILLING_MODE=disabled` remains unchanged and no Dodo/Stripe/provider transaction was used.
 - [ ] Final requirements-ledger validator and clean diff review confirm only intended implementation/docs changed; changes are committed in testable surfaces with commands/evidence in commit/PR text, never pushed/merged without the repository's current authorization rules.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-19 implementation merged in PR #38 at `684d97a4`. The Wave 3–4 residue repair
+tree includes the dormant failure-class merge `402d9fea` and OpenRouter cleanup
+`4b032fce`. Focused/backend/route evidence is green, and the
+`omi-wave34-closeout` Tier-2 run passed 26/31 flows. S-19 is **implemented but
+not repository-closed**: the manager probe terminated `owner_changed`, the
+controller screen protocol was `not_run`, and natural physical plus real
+OpenAI/Gemini/Auto/failover PTT acceptance remains unrun. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

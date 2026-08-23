@@ -719,3 +719,12 @@ No genuine unresolved product choice remains inside S-21. The missing inputs are
 - [ ] Product/component docs and one valid unreleased changelog fragment move with the code where required; no orphan TODO/FIXME/HACK is added.
 - [ ] No backend route/schema/generated client, Windows file, production app, external infrastructure, provider credential, transaction, deployment, push, PR, or merge is part of planning. Future landing follows repository authorization rules.
 - [ ] Repository closure and later S-09/S-18/S-27/S-29/S-31 live/release closure remain explicitly separate.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-21 implementation merged in PR #41 at `ee35939d`. The integrated
+`omi-wave34-closeout` run exercised Dashboard, navigation, Settings, Plan/Usage,
+Privacy, About, and retained local surfaces, but `home-stage` stayed in `chat`
+instead of collapsing to `hub`. With the required desktop suite also red, S-21
+is **implemented but not repository-closed**. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

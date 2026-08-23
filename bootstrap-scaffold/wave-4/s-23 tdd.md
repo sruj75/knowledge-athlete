@@ -913,3 +913,12 @@ Stop the affected cycle whenever:
 - [ ] No new `TODO`/`FIXME`/`HACK` lacks a tracking issue; docs and component guides move with changed ownership/config.
 - [ ] Repository closure and separately authorized live inventory/decommission remain distinct; no deploy or external mutation is inferred.
 - [ ] No production Omi app, production account, production data, external infrastructure, or Windows source was touched.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-23 implementation merged in PR #42 at `06a917e7`. Successor-owned OpenRouter
+residue was removed in closeout commit `4b032fce`; retained-neighbor and rejected
+route behavior passed through the assembled FastAPI app. S-23 is **implemented
+but not repository-closed** because the required desktop suite and integrated
+named-bundle/provider acceptance remain red or unrun. See
+[`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

@@ -1425,3 +1425,13 @@ Missing inputs and reopening evidence:
 - [ ] Production Omi bundles, billing providers, live cloud/provider resources, Windows,
       push/PR/merge/deploy, and external infrastructure were untouched unless separately
       authorized outside this planning slice.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-22 implementation merged in PR #40 at `5d6573ff`. Its required registry-only
+lifecycle transition merged in PR #45 at `402d9fea`, and stale OpenRouter fake,
+endpoint, comment, and secret vocabulary was removed in `4b032fce`. Direct-route,
+removed-route, `/v4/listen`, and metrics tests are green. S-22 is **implemented
+but not repository-closed** because the real OpenAI/Gemini/Auto/failover matrix
+and physical/controller PTT acceptance are not green. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

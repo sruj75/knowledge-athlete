@@ -775,3 +775,13 @@ Any bounded evidence observation outside the single authenticated in-memory GPT-
 - [ ] Named bundle `omi-wave3-s20` passes the full local-evidence/transient-GPT-5.1/privacy/state/handoff/owner/restart/adjacent-path matrix without touching production apps.
 - [ ] Repository closure and separately authorized live inventory/deploy/resource closure are reported separately.
 - [ ] `BILLING_MODE=disabled` stayed disabled; no Dodo call, paid grant, external mutation, commit, push, PR, merge, or deploy was smuggled into planning or implementation.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-20 implementation merged in PR #39 at `16e86b97`. Closeout commits
+`95d5da6d` and `2d0f44fc` add exactly-once fair-use Redis degradation telemetry
+for create/read/consume and remove raw UID values from the adjacent errors.
+Focused fair-use behavior and the offline named-bundle presentation flow are
+green. S-20 is **implemented but not repository-closed** because the required
+desktop and integrated acceptance gates remain red/unrun. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).
