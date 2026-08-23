@@ -33,7 +33,14 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-uv python install "$PYTHON_VERSION"
+# `uv python install` consults the current uv release's download catalog even when the
+# exact managed interpreter already exists. A checkout can therefore become impossible
+# to re-setup after upgrading its Python pin ahead of an older machine-local uv catalog.
+# Prefer the installed interpreter that `uv python find` can prove, and download only
+# when no exact local match exists.
+if ! uv python find "$PYTHON_VERSION" >/dev/null 2>&1; then
+  uv python install "$PYTHON_VERSION"
+fi
 uv venv --allow-existing --python "$PYTHON_VERSION" "$VENV_PATH"
 uv pip sync "$LOCK_FILE" --python "$PYTHON_BIN"
 
