@@ -11,5 +11,6 @@
     "backend/routers/desktop_core.py",
     "desktop/macos/agent/src/adapters/**"
   ],
-  "status": "open"
+  "status": "dormant",
+  "dormant_since": "2026-08-23T10:33:38Z"
 }
