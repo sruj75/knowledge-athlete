@@ -46,7 +46,7 @@ or an allowlist miss is also disabled. No production default enables this
 path. The local cassette may include restricted audio/transcript event payloads,
 so keep its root outside Git and never attach it to a PR.
 
-`SurfaceParityCapture` uses the same gate/exporter for the additional
+`SurfaceParityCapture` uses the same local-only gate for the additional
 retained surfaces below. It extends the cassette document with optional
 top-level discriminators while leaving the v1 identity, fingerprint, and event
 contract unchanged for existing players:
@@ -54,27 +54,13 @@ contract unchanged for existing players:
 | `surface` | `source` | Captured seam |
 | --- | --- | --- |
 | `ptt` | `desktop_ptt_http`, `desktop_ptt_stream` | Desktop PCM PTT and live PTT STT (bounded audio + transcript events) |
-The canonical development backend best-effort exports cassette JSON for
-explicitly allowlisted dogfood principals to a private development bucket:
 
-```text
-gs://based-hardware-dev-omi-parity-pack-v0/parity-pack/v0/cassettes/<identity-key>.json
-```
-
-Export is fail-open (listen continues if GCS is down). Download for offline
-replay:
-
-```bash
-gcloud storage cp -r \
-  "gs://based-hardware-dev-omi-parity-pack-v0/parity-pack/v0" \
-  ./omi-parity-pack-dogfood/
-# Point OMI_PARITY_PACK_ROOT at the local tree (or compose a pack with
-# manifest.json as required by this README), then:
-npm run test:parity-pack-v0
-```
-
-Never promote cassettes to production storage or commit them to the repository.
-Local scratch is still lost on process restart before a successful export.
+Capture persistence is local-only. The adapter never constructs a cloud-storage
+client or uploads cassettes, even if retired `OMI_PARITY_PACK_GCS_*` or export
+interval variables remain in an operator's environment. Copy any cassette pack
+needed for hermetic replay through an explicitly authorized local workflow;
+never promote cassettes to cloud or production storage, attach them to a PR, or
+commit them to the repository.
 
 ## Replay players
 

@@ -3,7 +3,7 @@
 This module is intentionally small enough to use from HTTP routers and
 background finalizers.  It only serializes data after ``CaptureWhitelist``
 permits the principal, never accepts a repository-local root, bounds raw audio
-and event count, and treats persistence/export failures as non-fatal.
+and event count, and treats local persistence failures as non-fatal.
 """
 
 from __future__ import annotations
@@ -148,14 +148,6 @@ class SurfaceParityCapture:
         if self._invocation is None:
             return
         try:
-            path = self._invocation.persist()
+            self._invocation.persist()
         except Exception as error:
             logger.warning("Parity pack surface capture persist failed error_type=%s", type(error).__name__)
-            return
-        try:
-            from .export import ensure_reconcile_loop, export_cassette_file
-
-            ensure_reconcile_loop()
-            export_cassette_file(path)
-        except Exception as error:
-            logger.warning("Parity pack surface capture export failed error_type=%s", type(error).__name__)
