@@ -1,8 +1,8 @@
 """
 Fake LLM HTTP server using pytest-httpserver.
 
-Provides deterministic responses for OpenAI, Anthropic, and OpenRouter
-LLM endpoints. Every request returns the same structured JSON response
+Provides deterministic responses for OpenAI and Anthropic LLM endpoints.
+Every request returns the same structured JSON response
 so tests are fully reproducible.
 """
 
@@ -66,18 +66,12 @@ def make_anthropic_response(content: str = None) -> dict:
     }
 
 
-def make_openrouter_response(content: str = None) -> dict:
-    """Build a fake OpenRouter (OpenAI-compatible) response."""
-    return make_openai_chat_response(content)
-
-
 def configure_llm_fakes(httpserver):
     """
     Register deterministic LLM handlers on a pytest-httpserver instance.
 
-    All common LLM endpoints (OpenAI, Anthropic, OpenRouter) return
-    the same structured output so conversation processing produces
-    predictable results.
+    Retained LLM endpoints return the same structured output so conversation
+    processing produces predictable results.
     """
 
     # OpenAI chat completions
@@ -88,11 +82,6 @@ def configure_llm_fakes(httpserver):
     # Anthropic messages
     httpserver.expect_request("/v1/messages").respond_with_json(
         make_anthropic_response(), status=200, content_type="application/json"
-    )
-
-    # OpenRouter (uses OpenAI-compatible format)
-    httpserver.expect_request("/api/v1/chat/completions").respond_with_json(
-        make_openrouter_response(), status=200, content_type="application/json"
     )
 
     # OpenAI embeddings
@@ -114,7 +103,7 @@ def configure_llm_error(httpserver, status_code: int = 500):
     Used by failure-mode tests to verify graceful degradation.
     """
     # Clear existing handlers and add error responses
-    for endpoint in ["/v1/chat/completions", "/v1/messages", "/api/v1/chat/completions"]:
+    for endpoint in ["/v1/chat/completions", "/v1/messages"]:
         httpserver.expect_request(endpoint).respond_with_json(
             {"error": {"message": "LLM service unavailable", "type": "server_error"}},
             status=status_code,
