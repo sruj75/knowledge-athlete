@@ -19,7 +19,7 @@ This document is a source-grounded implementation plan. It is not implementation
 
 ## 2. Planning status and pinned baseline
 
-**Status:** blocked. The plan is complete, but implementation waits at Gate G1 until S-22, S-23, and S-24 are integrated and the inventory is refreshed on their combined result. Repository work can then proceed family by family. Live traffic changes, drains, deployments, and decommissioning remain separately authorized operational work.
+**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text below preserves the historical planning baseline; section 19 owns the final implementation and acceptance evidence. Live traffic changes, drains, deployments, and decommissioning remain separately authorized operational work.
 
 The required Wave 2 closeout is both the planning baseline and the exact inspected `HEAD`:
 
@@ -827,8 +827,10 @@ removed parity export settings and deployment classification left after topology
 collapse. The four-line Windows diagnostic cleanup remains a retrospective scope
 exception because reverting it would advertise retired `backend-listen`; this
 closeout changes no Windows file. Canonical health/metrics/listen, removed-worker
-routes, and hermetic account-deletion dispatch are green. S-25 is **implemented
-but not repository-closed**, so S-26 remains blocked. Legacy deletion-task
-audience/payload acceptance remains until verified queue-drain proof; live
-resource inventory/decommission remains separately authorized. See
+routes, hermetic account-deletion dispatch, full component suites, official E2E,
+complete Tier-2, and all 40 selected preflight checks are green. S-25 is
+**repository-closed**. S-26 is ready after this closeout tree lands on `main`.
+Legacy deletion-task audience/payload acceptance remains until verified
+queue-drain proof; live resource inventory/decommission remains separately
+authorized. See
 [`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

@@ -17,7 +17,7 @@ This slice preserves the complete spoken-assistant lifecycle while changing wher
 
 ## 2. Planning status and pinned baseline
 
-**Status:** ready to start. Entry gates in section 5 remain cycle-specific. This document plans future changes; it does not claim that any RED, GREEN, component suite, named-bundle run, or live user path has passed.
+**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text below preserves the historical planning baseline; section 19 owns the final implementation and acceptance evidence.
 
 Planning was performed against the exact completed Wave 2 closeout:
 
@@ -719,9 +719,11 @@ There is no unresolved product decision in the assigned IR set. The only unresol
 
 S-19 implementation merged in PR #38 at `684d97a4`. The Wave 3–4 residue repair
 tree includes the dormant failure-class merge `402d9fea` and OpenRouter cleanup
-`4b032fce`. Focused/backend/route evidence is green, and the
-`omi-wave34-closeout` Tier-2 run passed 26/31 flows. S-19 is **implemented but
-not repository-closed**: the manager probe terminated `owner_changed`, the
-controller screen protocol was `not_run`, and natural physical plus real
-OpenAI/Gemini/Auto/failover PTT acceptance remains unrun. See
+`4b032fce`. Repair commit `b15d07e3` closes the stale suite and PTT lifecycle
+regressions. The `omi-wave34-closeout` Tier-2 run passed 31/31 flows; controller
+screen, manager, and natural physical shortcut probes all reached
+`terminal_success`/`success` without stale transitions or owner loss. S-19 is
+**repository-closed**. Credential-dependent OpenAI/Gemini/Auto/failover rows are
+explicitly `NOT_RUN`, as this plan requires when development credentials are
+unavailable. See
 [`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

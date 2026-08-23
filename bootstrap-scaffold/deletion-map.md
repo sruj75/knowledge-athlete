@@ -1255,7 +1255,7 @@ IR-835
 ### S-19 — Reconnect PTT to local product data and remove rejected tools
 
 **Type:** cross-domain adaptation<br>
-**Status:** implementation merged in PR #38 (`684d97a4`); integrated Wave 3–4 closeout remains blocked on desktop, physical PTT, and provider acceptance<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; desktop, Tier-2, controller, manager, and natural physical PTT are green, while unavailable credential-dependent provider rows are explicitly `NOT_RUN`<br>
 **Depends on:** S-05 through S-07 and S-10 through S-16, especially local
 Conversations, Memories, Tasks, Focus/Insights, Rewind, and transient listen<br>
 **Primary decisions:** IR-054 through IR-119, IR-600 through IR-602, IR-924
@@ -1281,7 +1281,7 @@ through IR-926, IR-932
 ### S-20 — Move fair-use evidence local and keep only enforcement facts in cloud
 
 **Type:** split-authority adaptation<br>
-**Status:** implementation merged in PR #39 (`16e86b97`); closeout telemetry/log repairs are complete, but integrated Wave 3–4 acceptance remains open<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; PR #39 (`16e86b97`) plus the closeout telemetry/log repairs pass full component and named-bundle acceptance<br>
 **Depends on:** S-10, S-16, and S-18<br>
 **Primary decisions:** IR-610 through IR-615, IR-700 through IR-709
 
@@ -1304,7 +1304,7 @@ through IR-926, IR-932
 ### S-21 — Simplify navigation, Settings, and the surviving Home shell
 
 **Type:** UI convergence after product deletion<br>
-**Status:** implementation merged in PR #41 (`ee35939d`); integrated Wave 3–4 closeout remains blocked by the desktop suite and `home-stage` acceptance<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; PR #41 (`ee35939d`) plus the repaired desktop suite and `home-stage` acceptance are green<br>
 **Depends on:** S-05 through S-07; S-10 through S-15; S-17, S-18, and S-20.
 S-09's repository consent/privacy seam gates only S-21's Privacy/Settings cycle;
 S-09 live owned-project proof remains S-09 operational acceptance.<br>
@@ -1332,7 +1332,7 @@ leftover navigation/search residue
 ### S-22 — Narrow managed models to explicit retained transient workloads
 
 **Type:** model portfolio deletion and result-ownership adaptation<br>
-**Status:** implementation merged in PR #40 (`5d6573ff`); registry lifecycle and OpenRouter residue are repaired, but physical/provider acceptance remains open<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; registry lifecycle, OpenRouter residue, and physical/controller acceptance are green, with unavailable live-provider rows recorded `NOT_RUN`<br>
 **Depends on:** S-05, S-07, S-10, S-11, S-12, S-13, S-14, and S-16<br>
 **Primary decisions:** IR-053, IR-113, IR-600 through IR-609, IR-710 through
 IR-732, IR-827, IR-828
@@ -1373,7 +1373,7 @@ IR-732, IR-827, IR-828
 ### S-23 — Delete rejected hosted products and their product-data schemas
 
 **Type:** backend product teardown<br>
-**Status:** implementation merged in PR #42 (`06a917e7`); closeout repair is complete, but integrated Wave 3–4 acceptance remains open<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; PR #42 (`06a917e7`) and its successor-residue repair pass the integrated gates<br>
 **Depends on:** S-01, S-02, S-06, S-08, S-10 through S-14, S-17, S-18, S-20,
 and S-22<br>
 **Primary decisions:** IR-039, IR-043, IR-121 through IR-123, IR-186 through
@@ -1399,7 +1399,7 @@ IR-714 through IR-725, IR-805, IR-814 through IR-835
 ### S-24 — Delete hosted search, vector, and product-object authority
 
 **Type:** infrastructure deletion after local search authority<br>
-**Status:** implementation merged in PR #43 (`ac3ba541`); parity export residue is repaired, but integrated Wave 3–4 acceptance remains open<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; PR #43 (`ac3ba541`) and the parity-export repair pass the integrated gates<br>
 **Depends on:** S-10, S-11, S-12, S-13, S-15, S-19, and S-23<br>
 **Primary decisions:** IR-011, IR-044, IR-053, IR-093, IR-095, IR-256, IR-291,
 IR-806 through IR-809
@@ -1419,7 +1419,7 @@ IR-806 through IR-809
 ### S-25 — Delete jobs, workers, duplicate services, and GKE control planes
 
 **Type:** service-topology collapse<br>
-**Status:** implementation merged in PR #44 (`fbdb339f`); repository closeout remains blocked, and live topology inventory/decommission remains a separate authorized handoff<br>
+**Status:** repository-closed on the integrated Wave 3–4 repair tree; live topology inventory/decommission remains a separate authorized handoff<br>
 **Depends on:** S-01 through S-03, S-06, S-22, S-23, and S-24<br>
 **Primary decisions:** IR-016, IR-120, IR-608, IR-810 through IR-818, IR-836,
 IR-839, IR-868
@@ -1438,7 +1438,7 @@ IR-839, IR-868
 ### S-26 — Consolidate one canonical Python backend and its development harness
 
 **Type:** backend boundary adaptation<br>
-**Status:** blocked until the Waves 3–4 desktop, Tier-2, physical PTT, and provider closeout gates are green; do not infer readiness from merged S-25 source alone<br>
+**Status:** ready after the complete Waves 3–4 closeout repair tree lands on `main`; do not branch from merged S-25 alone or omit the local closeout commits<br>
 **Depends on:** S-04, S-25, and the local/control-authority slices S-08 and
 S-10 through S-20<br>
 **Primary decisions:** IR-008, IR-803, IR-804, IR-808, IR-839 through IR-849,
@@ -1492,7 +1492,7 @@ IR-890, IR-891
 ### S-28 — Establish clean Mac storage namespaces and installation identity
 
 **Type:** local identity migration without inherited-data takeover<br>
-**Status:** blocked until Waves 3–4 integrated closeout is green and the retained local data/storage owners are stable<br>
+**Status:** ready after the complete Waves 3–4 closeout repair tree lands on `main`; the retained local data/storage owners are green in the integrated acceptance record<br>
 **Depends on:** S-08, S-10 through S-15, and S-17<br>
 **Primary decisions:** IR-929, IR-931
 

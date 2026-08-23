@@ -20,7 +20,7 @@ This document plans one implementation slice. It does not authorize product code
 
 ## 2. Planning status and pinned baseline
 
-**Status:** blocked. The plan is source-grounded, but implementation waits for S-20 and the predecessor shapes in §5. S-09 gates only Cycle 4's Privacy/Settings acceptance; its live owned-project proof does not block unrelated S-21 cycles. Do not implement a temporary shell around a missing result.
+**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text below preserves the historical planning baseline; section 19 owns the final implementation and acceptance evidence.
 
 The planning workspace was checked with the required commands:
 
@@ -724,7 +724,7 @@ No genuine unresolved product choice remains inside S-21. The missing inputs are
 
 S-21 implementation merged in PR #41 at `ee35939d`. The integrated
 `omi-wave34-closeout` run exercised Dashboard, navigation, Settings, Plan/Usage,
-Privacy, About, and retained local surfaces, but `home-stage` stayed in `chat`
-instead of collapsing to `hub`. With the required desktop suite also red, S-21
-is **implemented but not repository-closed**. See
+Privacy, About, and retained local surfaces. Repair commit `b15d07e3` restored
+the canonical Home collapse path; `home-stage` and the complete 31/31 Tier-2
+matrix now pass, as do all 386 Swift suites. S-21 is **repository-closed**. See
 [`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

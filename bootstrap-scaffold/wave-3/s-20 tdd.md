@@ -18,7 +18,7 @@ This is an execution plan, not implementation or verification evidence. Writing 
 
 ## 2. Planning status and pinned baseline
 
-**Status:** ready to start. Gate 0 is resolved: conversation evidence is locally authoritative in owner-scoped GRDB, while the existing backend GPT-5.1 classifier remains transient managed compute. Implementation must preserve the current classifier and enforcement behavior; it must not introduce an on-device model, alternate classifier, new setup, or hosted conversation authority.
+**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text below preserves the historical planning baseline; section 19 owns the final implementation and acceptance evidence.
 
 The required Wave 2 closeout commit remains an ancestor of the inspected planning baseline:
 
@@ -781,7 +781,7 @@ Any bounded evidence observation outside the single authenticated in-memory GPT-
 S-20 implementation merged in PR #39 at `16e86b97`. Closeout commits
 `95d5da6d` and `2d0f44fc` add exactly-once fair-use Redis degradation telemetry
 for create/read/consume and remove raw UID values from the adjacent errors.
-Focused fair-use behavior and the offline named-bundle presentation flow are
-green. S-20 is **implemented but not repository-closed** because the required
-desktop and integrated acceptance gates remain red/unrun. See
+Focused fair-use behavior, the offline named-bundle presentation flow, all 386
+Swift suites, and the complete 31/31 Tier-2 matrix are green. S-20 is
+**repository-closed**. See
 [`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).
