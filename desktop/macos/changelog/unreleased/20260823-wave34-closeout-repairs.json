@@ -1,0 +1,3 @@
+{
+  "change": "Fixed desktop account, task, conversation, memory, and voice flows that could show stale state or fail to complete"
+}
