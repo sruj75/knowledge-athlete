@@ -89,11 +89,36 @@ if [ -n "$TIMEOUT_BIN" ]; then
         echo "ERROR: e2e pytest exceeded timeout ${PYTEST_TIMEOUT}"
     fi
 else
-    echo "ERROR: GNU timeout is required so E2E_PYTEST_TIMEOUT=${PYTEST_TIMEOUT} is enforced"
-    if [ "$(uname -s)" = "Darwin" ]; then
-        echo "Install it on macOS with: brew install coreutils"
+    python - "$PYTEST_TIMEOUT" "$@" <<'PY'
+import os
+import re
+import signal
+import subprocess
+import sys
+
+match = re.fullmatch(r'(\d+)([smh]?)', sys.argv[1])
+if match is None:
+    print(f"ERROR: invalid E2E_PYTEST_TIMEOUT value: {sys.argv[1]!r}", file=sys.stderr)
+    raise SystemExit(2)
+multiplier = {'': 1, 's': 1, 'm': 60, 'h': 3600}[match.group(2)]
+timeout_seconds = int(match.group(1)) * multiplier
+command = [sys.executable, '-m', 'pytest', 'testing/e2e/', *sys.argv[2:]]
+process = subprocess.Popen(command, start_new_session=True)
+try:
+    raise SystemExit(process.wait(timeout=timeout_seconds))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+    raise SystemExit(124)
+PY
+    PYTEST_EXIT_CODE=$?
+    if [ $PYTEST_EXIT_CODE -eq 124 ]; then
+        echo "ERROR: e2e pytest exceeded timeout ${PYTEST_TIMEOUT}"
     fi
-    PYTEST_EXIT_CODE=1
 fi
 set -e
 

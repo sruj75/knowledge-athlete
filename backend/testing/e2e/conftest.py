@@ -7,7 +7,6 @@ network attempts so accidental real service calls are surfaced.
 """
 
 import os
-import socket
 import sys
 from pathlib import Path
 from typing import Generator
@@ -48,6 +47,8 @@ if backend_str not in sys.path:
 e2e_str = str(E2E_DIR)
 if e2e_str not in sys.path:
     sys.path.insert(0, e2e_str)
+
+from testing.hermetic_network import block_outbound_network
 
 
 # ─── Environment variables (set BEFORE any omi imports) ────────────────
@@ -99,64 +100,21 @@ dotenv.load_dotenv = _disabled_load_dotenv
 
 # ─── Network guard ──────────────────────────────────────────────────────
 
-_ALLOWED_NETWORK_HOSTS = {"127.0.0.1", "::1", "localhost", "0.0.0.0"}
-_original_socket_connect = socket.socket.connect
-_original_socket_connect_ex = socket.socket.connect_ex
-_original_socket_sendto = socket.socket.sendto
-_original_create_connection = socket.create_connection
-_original_getaddrinfo = socket.getaddrinfo
+_network_guard = None
 
 
-def _host_from_address(address):
-    if isinstance(address, tuple) and address:
-        return address[0]
-    return None
+def pytest_sessionstart(session):
+    """Install the shared fail-closed socket guard before test collection."""
+    global _network_guard
+    _network_guard = block_outbound_network()
+    _network_guard.__enter__()
 
 
-def _assert_local_address(address):
-    host = _host_from_address(address)
-    if host is None or host in _ALLOWED_NETWORK_HOSTS:
-        return
-    raise AssertionError(f"Hermetic e2e blocked outbound network connection to {host!r}")
-
-
-def _guarded_socket_connect(self, address):
-    _assert_local_address(address)
-    return _original_socket_connect(self, address)
-
-
-def _guarded_socket_connect_ex(self, address):
-    _assert_local_address(address)
-    return _original_socket_connect_ex(self, address)
-
-
-def _guarded_socket_sendto(self, data, *args):
-    if len(args) == 1:
-        address = args[0]
-    elif len(args) == 2:
-        address = args[1]
-    else:
-        raise TypeError("sendto expected address or flags,address")
-    _assert_local_address(address)
-    return _original_socket_sendto(self, data, *args)
-
-
-def _guarded_create_connection(address, timeout=None, source_address=None, *args, **kwargs):
-    _assert_local_address(address)
-    return _original_create_connection(address, timeout=timeout, source_address=source_address, *args, **kwargs)
-
-
-def _guarded_getaddrinfo(host, port, *args, **kwargs):
-    if host is not None and host not in _ALLOWED_NETWORK_HOSTS:
-        raise AssertionError(f"Hermetic e2e blocked DNS lookup for {host!r}")
-    return _original_getaddrinfo(host, port, *args, **kwargs)
-
-
-socket.socket.connect = _guarded_socket_connect
-socket.socket.connect_ex = _guarded_socket_connect_ex
-socket.socket.sendto = _guarded_socket_sendto
-socket.create_connection = _guarded_create_connection
-socket.getaddrinfo = _guarded_getaddrinfo
+def pytest_sessionfinish(session, exitstatus):
+    global _network_guard
+    if _network_guard is not None:
+        _network_guard.__exit__(None, None, None)
+        _network_guard = None
 
 
 # ─── Fake service initialization ───────────────────────────────────────
