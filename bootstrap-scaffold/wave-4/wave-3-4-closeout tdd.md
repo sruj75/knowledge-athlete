@@ -52,8 +52,8 @@ ownership remain design notes rather than closeout blockers.
   completion, redelivery, enqueue recovery, and legacy payload/audience handling.
 - `git diff --check` and the final requirements validation passed. The explicit
   PR-body preflight passed all 25 selected CI-lane checks with `Failure-Class:
-  none`. The first `make preflight` reached the same checks but read already-merged
-  PR #45 metadata; it must be rerun after the separate repair draft exists.
+  none`. After separate draft PR #46 existed, `make preflight` read that PR's
+  metadata and passed all 25 selected local-lane checks.
 
 ## 5. Red and unavailable required evidence
 
