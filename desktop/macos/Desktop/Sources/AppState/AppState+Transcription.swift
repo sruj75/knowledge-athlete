@@ -685,8 +685,7 @@ extension AppState {
     }
   }
 
-  /// Stop real-time transcription.
-  /// Both local and managed STT feed the same locally authoritative finalization path.
+  /// Stop real-time transcription; both STT paths feed the same locally authoritative finalization path.
   func stopTranscription() {
     transcriptionServiceError = nil
     guard transcriptionStopTask == nil else {
