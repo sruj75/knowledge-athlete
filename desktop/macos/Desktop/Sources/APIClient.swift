@@ -480,6 +480,7 @@ actor APIClient {
   /// accepted but the managed upstream credential was rejected. Inspect it before refreshing
   /// Firebase so a provider-key failure cannot become an account-session invalidation.
   nonisolated static func isProviderCredentialFailure(statusCode: Int, data: Data) -> Bool {
+    // session-preserving: this 401 belongs to the managed provider credential, not Firebase.
     guard statusCode == 401, let payload = OmiHTTPTransport.extractErrorPayload(from: data) else {
       return false
     }
