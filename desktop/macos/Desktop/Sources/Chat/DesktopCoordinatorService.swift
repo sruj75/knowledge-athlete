@@ -87,11 +87,6 @@ struct DesktopCoordinatorActionQueueItem: Codable {
   let source: String
 }
 
-struct DesktopCoordinatorOpenLoops: Codable {
-  let generatedAt: String
-  let items: [DesktopCoordinatorActionQueueItem]
-}
-
 enum DesktopCoordinatorIntentProposal: Equatable {
   case answerInline
   case spawnAgent
@@ -245,7 +240,6 @@ final class DesktopCoordinatorService {
     static let getAgentRun = "get_agent_run"
     static let buildAwarenessSnapshot = "build_desktop_awareness_snapshot"
     static let listActionQueue = "list_desktop_action_queue"
-    static let getOpenLoops = "get_desktop_open_loops"
     static let routeIntent = "route_desktop_intent"
     static let createDispatch = "create_desktop_dispatch"
     static let resolveDispatch = "resolve_desktop_dispatch"
@@ -310,10 +304,6 @@ final class DesktopCoordinatorService {
 
   func actionQueueJSON(limit: Int = 50) async throws -> String {
     try await callRuntimeControlTool(ToolName.listActionQueue, input: ["limit": limit])
-  }
-
-  func openLoopsJSON(limit: Int = 50) async throws -> String {
-    try await callRuntimeControlTool(ToolName.getOpenLoops, input: ["limit": limit])
   }
 
   func routeIntent(
@@ -395,14 +385,6 @@ final class DesktopCoordinatorService {
   func actionQueue() async -> [DesktopCoordinatorActionQueueItem] {
     let snapshot = await awarenessSnapshot()
     return deriveActionQueue(from: snapshot)
-  }
-
-  func openLoops() async -> DesktopCoordinatorOpenLoops {
-    let queue = await actionQueue()
-    let items = queue.filter { item in
-      ["approval", "failed_run", "stale_or_active_run", "debug_dispatch"].contains(item.kind)
-    }
-    return DesktopCoordinatorOpenLoops(generatedAt: nowString(), items: items)
   }
 
   func inspectRun(runId: String) async throws -> String {
@@ -616,7 +598,6 @@ final class DesktopCoordinatorService {
       ToolName.getAgentRun,
       ToolName.buildAwarenessSnapshot,
       ToolName.listActionQueue,
-      ToolName.getOpenLoops,
       ToolName.routeIntent,
       ToolName.createDispatch,
       ToolName.resolveDispatch,

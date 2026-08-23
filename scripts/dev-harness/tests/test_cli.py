@@ -47,7 +47,7 @@ def test_offline_check_skips_provider_credentials(monkeypatch: pytest.MonkeyPatc
     assert any("offline" in item for item in warnings)
 
 
-def test_offline_app_commands_install_stt_fake_factories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_offline_app_commands_install_provider_fake_factories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("PROVIDER_MODE", "offline")
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
     cfg = config.load_config(REPO_ROOT)

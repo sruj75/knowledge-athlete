@@ -171,7 +171,7 @@ extension APIClient: ConversationDiscardComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> ConversationDiscardComputeResponse {
     try await post(
-      "/v1/conversation-compute/discard",
+      "v1/conversation-compute/discard",
       body: request,
       authorizationSnapshot: authorizationSnapshot)
   }
@@ -183,7 +183,7 @@ extension APIClient: ConversationStructureComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> ConversationStructureComputeResponse {
     try await post(
-      "/v1/conversation-compute/structure",
+      "v1/conversation-compute/structure",
       body: request,
       authorizationSnapshot: authorizationSnapshot)
   }
@@ -195,7 +195,7 @@ extension APIClient: ConversationActionItemsComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> ConversationActionItemsComputeResponse {
     try await post(
-      "/v1/conversation-compute/action-items",
+      "v1/conversation-compute/action-items",
       body: request,
       authorizationSnapshot: authorizationSnapshot)
   }

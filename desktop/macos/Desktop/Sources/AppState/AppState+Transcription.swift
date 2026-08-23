@@ -688,6 +688,7 @@ extension AppState {
   /// Stop real-time transcription.
   /// Both local and managed STT feed the same locally authoritative finalization path.
   func stopTranscription() {
+    transcriptionServiceError = nil
     guard transcriptionStopTask == nil else {
       // A second stop is explicit stop intent while a local→cloud recovery is
       // still flushing. Cancel its pending restart so the completed teardown

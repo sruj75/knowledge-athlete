@@ -196,6 +196,9 @@ final class CredentialHealthManager: ObservableObject {
     provider: RealtimeHubProvider?
   ) -> CredentialHealthError {
     let message = payload?.preferredMessage ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
+    if payload?.reason == "provider_auth_failed", let provider {
+      return .providerAuth(provider: provider, mode: .managed, message: message)
+    }
     switch statusCode {
     case 401:
       return .requiresLogin(message: "Please sign in again to use voice responses.")

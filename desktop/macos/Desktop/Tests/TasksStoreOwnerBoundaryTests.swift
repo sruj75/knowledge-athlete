@@ -1,3 +1,4 @@
+@preconcurrency import UserNotifications
 import XCTest
 
 @testable import Omi_Computer
@@ -26,21 +27,36 @@ private actor TasksStorePauseGate {
 }
 
 @MainActor
+private final class TasksStoreNoopReminderNotifications: TaskReminderNotificationBoundary {
+  func add(_ request: UNNotificationRequest) async -> UserNotificationDeliveryResult {
+    UserNotificationDeliveryResult(errorDescription: nil)
+  }
+
+  func pendingRequestIdentifiers() async -> [String] { [] }
+
+  func removePendingRequests(withIdentifiers identifiers: [String]) {}
+}
+
+@MainActor
 final class TasksStoreOwnerBoundaryTests: XCTestCase {
   private var fixture: RewindStorageTestIsolation.Fixture?
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
-  private let store = TasksStore.shared
+  private var store: TasksStore!
 
   override func setUp() async throws {
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "tasks-store-owner")
     let ownerFixture = RuntimeOwnerAuthorityTestFixture()
     self.ownerFixture = ownerFixture
     await ownerFixture.establish(authOwnerID: fixture?.testUserId)
+    store = TasksStore(
+      reminderService: TaskReminderService(notifications: TasksStoreNoopReminderNotifications()),
+      observesNotifications: false)
     store.resetSessionState()
   }
 
   override func tearDown() async throws {
-    store.resetSessionState()
+    store?.resetSessionState()
+    store = nil
     await ownerFixture?.restore()
     ownerFixture = nil
     await RewindStorageTestIsolation.tearDown(userDir: fixture?.userDir)

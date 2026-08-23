@@ -119,18 +119,16 @@ extension APIClient {
     request.httpBody = try JSONEncoder().encode(body)
 
     // This desktop-backend route can surface upstream OpenAI credential failures
-    // as HTTP 401. Refresh the Firebase header once in case it is stale,
-    // but never let a voice-only provider failure invalidate the Omi session.
-    // Only remap to providerAuth when the body is OpenAI-shaped — a bare/Firebase
-    // 401 after refresh is a real login failure and must require re-auth.
+    // as HTTP 401. The shared transport policy distinguishes that body from a
+    // Firebase 401 before token refresh; keep the same classification here so
+    // FastAPI's canonical `detail` shape cannot fall through to session invalidation.
     let (data, httpResponse) = try await performAuthenticatedData(
       for: request,
       authPolicy: .providerCredentialBoundary
     )
 
     if httpResponse.statusCode == 401 {
-      let detail = (try? JSONDecoder().decode(APIErrorPayload.self, from: data))?.preferredMessage
-      if detail?.hasPrefix("OpenAI TTS request failed:") == true {
+      if Self.isProviderCredentialFailure(statusCode: httpResponse.statusCode, data: data) {
         throw CredentialHealthError.providerAuth(
           provider: .openai,
           mode: .managed,

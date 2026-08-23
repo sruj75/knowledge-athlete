@@ -52,6 +52,7 @@ final class TasksViewModel: ObservableObject {
     didSet {
       guard showCompleted != oldValue else { return }
       keyboardSelectedTaskId = nil
+      recompute()
       Task { @MainActor [weak self] in
         guard let self else { return }
         if self.showCompleted { await self.store.loadCompletedTasks() }

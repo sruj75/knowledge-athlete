@@ -21,8 +21,8 @@ final class ConversationDeletionCascadeTests: XCTestCase {
     let archive = try await owner.storage.conversationArchivePage(after: nil, limit: 20)
     XCTAssertNil(targetDetail)
     XCTAssertNotNil(unrelatedDetail)
-    XCTAssertEqual(counts.target, [0, 0, 0])
-    XCTAssertEqual(counts.unrelated, [1, 2, 1])
+    XCTAssertEqual(counts.target, [0, 0, 0, 0])
+    XCTAssertEqual(counts.unrelated, [1, 2, 1, 1])
     XCTAssertFalse(
       archive.contains {
         $0.conversationId == target.conversationId
@@ -49,7 +49,7 @@ final class ConversationDeletionCascadeTests: XCTestCase {
     let detail = try await owner.storage.conversationDetail(id: target.conversationId)
     let counts = try await descendantCounts(owner.pool, target: target, unrelated: unrelated)
     XCTAssertNotNil(detail)
-    XCTAssertEqual(counts.target, [1, 2, 1])
+    XCTAssertEqual(counts.target, [1, 2, 1, 1])
   }
 
   private func seededConversation(
@@ -75,6 +75,8 @@ final class ConversationDeletionCascadeTests: XCTestCase {
       try database.execute(
         sql: "CREATE TABLE action_items (id INTEGER PRIMARY KEY, conversationId TEXT, description TEXT)")
       try database.execute(sql: "CREATE TABLE memories (id INTEGER PRIMARY KEY, conversationId TEXT, content TEXT)")
+      try database.execute(
+        sql: "CREATE TABLE memory_processing_work (id TEXT PRIMARY KEY, conversationId TEXT)")
       for (conversationId, suffix) in [(target.conversationId, "target"), (unrelated.conversationId, "other")] {
         try database.execute(
           sql: "INSERT INTO action_items (conversationId, description) VALUES (?, ?), (?, ?)",
@@ -82,6 +84,9 @@ final class ConversationDeletionCascadeTests: XCTestCase {
         try database.execute(
           sql: "INSERT INTO memories (conversationId, content) VALUES (?, ?)",
           arguments: [conversationId, "memory-\(suffix)"])
+        try database.execute(
+          sql: "INSERT INTO memory_processing_work (id, conversationId) VALUES (?, ?)",
+          arguments: ["work-\(suffix)", conversationId])
       }
       let targetSession = target.sessionId
       let unrelatedSession = unrelated.sessionId
@@ -114,6 +119,9 @@ final class ConversationDeletionCascadeTests: XCTestCase {
           try Int.fetchOne(
             database, sql: "SELECT COUNT(*) FROM memories WHERE conversationId = ?", arguments: [item.conversationId])
             ?? 0,
+          try Int.fetchOne(
+            database, sql: "SELECT COUNT(*) FROM memory_processing_work WHERE conversationId = ?",
+            arguments: [item.conversationId]) ?? 0,
         ]
       }
       return (try counts(target), try counts(unrelated))

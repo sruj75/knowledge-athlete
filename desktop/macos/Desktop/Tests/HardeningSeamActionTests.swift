@@ -4,9 +4,8 @@ import XCTest
 
 /// Harness seams for the last runtime-blocked hardening rows:
 ///
-/// - TASK-05: `reorder_task flush=false` leaves the production 500ms sortOrder
-///   debounce running so rapid reorders provably coalesce into ONE sync (the
-///   bridge's unconditional flush was hiding exactly the behavior under test).
+/// - TASK-05: `reorder_task` commits through the local-authoritative task path;
+///   the retired backend-sync flush control must not survive on the harness API.
 /// - CHAT-07: `simulate_system_wake` posts `NSWorkspace.didWakeNotification` on
 ///   the workspace notification center, then AppState re-broadcasts `.systemDidWake`
 ///   so post-wake restart paths run without physically sleeping the machine.
@@ -16,24 +15,15 @@ import XCTest
 /// (SKILL §2k/§2l).
 final class HardeningSeamActionTests: XCTestCase {
 
-  func testReorderTaskExposesFlushParamAndGatesTheFlush() throws {
+  func testReorderTaskHasNoRetiredBackendSyncFlushControl() throws {
     let source = try tasksPageSource()
     guard let start = source.range(of: "name: \"reorder_task\"") else {
       return XCTFail("reorder_task registration not found")
     }
     let block = String(source[start.lowerBound...].prefix(2200))
-    XCTAssertTrue(
-      block.contains("\"flush\""),
-      "reorder_task must expose the flush param (TASK-05 debounce-coalescing seam)")
-    XCTAssertTrue(
-      block.contains("if flush {"),
-      "the sortOrder flush must be conditional so flush=false leaves the 500ms debounce live")
-    XCTAssertTrue(
-      block.contains("flushSortOrderSyncForAutomation()"),
-      "the default path must still flush so existing recipes keep deterministic SQLite reads")
-    XCTAssertTrue(
-      block.contains("(params[\"flush\"] ?? \"true\")"),
-      "flush must default to true — only an explicit flush=false opts into the debounce path")
+    XCTAssertFalse(block.contains("\"flush\""))
+    XCTAssertFalse(block.contains("flushSortOrderSyncForAutomation"))
+    XCTAssertTrue(block.contains("await self.reorderTask"))
   }
 
   func testSimulateSystemWakeIsRegisteredNonProdGatedAndPostsTheRealSignal() throws {

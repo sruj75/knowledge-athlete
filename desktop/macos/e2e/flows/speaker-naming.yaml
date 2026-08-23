@@ -37,7 +37,7 @@ steps:
       name: capture_test_transcript
       params:
         phase: inject_multi
-        segments: '[{"text":"[[MARKER:speaker-naming]] hello from speaker zero","speaker":"SPEAKER_00","speaker_id":0,"is_user":true},{"text":"reply from speaker one","speaker":"SPEAKER_01","speaker_id":1}]'
+        segments: '[{"text":"[[MARKER:speaker-naming]] Hello from speaker zero.","speaker":"SPEAKER_00","speaker_id":0,"is_user":true},{"text":"Reply from speaker one.","speaker":"SPEAKER_01","speaker_id":1}]'
     expect:
       result.detail.injected_count: "2"
       result.detail.unique_speakers: "SPEAKER_00,SPEAKER_01"

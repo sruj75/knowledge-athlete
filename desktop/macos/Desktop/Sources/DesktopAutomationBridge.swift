@@ -1195,8 +1195,15 @@ final class DesktopAutomationActionRegistry {
     ) { params in
       let query = (params["query"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       guard !query.isEmpty else { return ["error": "missing 'query'"] }
-      NotificationCenter.default.post(
-        name: .homeStageAsk, object: nil, userInfo: ["query": query])
+      guard let provider = ChatProvider.mainInstance else {
+        return ["error": "main ChatProvider not yet initialized"]
+      }
+      NotificationCenter.default.post(name: .homeStageOpenChat, object: nil)
+      let messageCount = provider.messages.count
+      _ = await provider.sendMainDraft(query)
+      guard provider.messages.count > messageCount else {
+        return ["error": "Home ask was not accepted into the main chat timeline"]
+      }
       return ["sent": query]
     }
 
@@ -1909,14 +1916,6 @@ final class DesktopAutomationActionRegistry {
       let limit = intParam(params["limit"], default: 20)
       let queue = try await DesktopCoordinatorService.shared.actionQueueJSON(limit: max(1, limit))
       return ["items": queue]
-    }
-
-    register(
-      name: "coordinator_open_loops",
-      summary: "Read unresolved agent/coordinator loops from the Swift projection"
-    ) { _ in
-      let loops = try await DesktopCoordinatorService.shared.openLoopsJSON()
-      return ["openLoops": loops]
     }
 
     register(

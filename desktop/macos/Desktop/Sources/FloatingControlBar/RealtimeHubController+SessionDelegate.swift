@@ -1117,15 +1117,6 @@ extension RealtimeHubController {
     acceptedSpawnJournalReceiptByContinuityKey.removeAll()
   }
 
-  func coordinatorOpenLoopsIsEmpty(_ raw: String) -> Bool {
-    guard let data = raw.data(using: .utf8),
-      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else { return false }
-    if let openLoops = object["openLoops"] as? [Any] { return openLoops.isEmpty }
-    if let items = object["items"] as? [Any] { return items.isEmpty }
-    return false
-  }
-
   func hubDidError(_ failure: RealtimeHubTransportFailure, source: RealtimeHubSession) {
     guard isCurrentSession(source) else { return }
     let message = failure.message

@@ -45,7 +45,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   }
 
   func testAdvancedSnapshotIncludesAskModeWithoutRetiredRoutingControls() throws {
-    let body = try actionBody(named: "advanced_settings_snapshot", in: try bridgeSource())
+    let body = try actionBody(named: "advanced_settings_snapshot", in: try managedAccessActionsSource())
     XCTAssertTrue(body.contains("ask_mode_enabled"))
     for retired in ["provider", "model", "workspace", "browser", "dev_mode"] {
       XCTAssertFalse(body.contains("\"\(retired)\""))
@@ -92,8 +92,8 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   func testQualificationActionsRespectBackendContracts() throws {
     let source = try bridgeSource()
     let goalBody = try actionBody(named: "create_test_goal", in: source)
-    XCTAssertTrue(goalBody.contains("source: \"user\""))
-    XCTAssertFalse(goalBody.contains("source: \"harness\""))
+    XCTAssertTrue(goalBody.contains("GoalStorage.shared.createGoal"))
+    XCTAssertFalse(goalBody.contains("APIClient"))
   }
 
   func testFloatingIdleWaitRequiresObservedSubmission() throws {
@@ -134,23 +134,23 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesPage.swift")
+      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesViewModel.swift")
     let source = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertTrue(source.contains("while !self.isSearching"))
-    XCTAssertTrue(source.contains("while !self.isLoadingFiltered"))
+    XCTAssertTrue(source.contains("await self.performSearch"))
+    XCTAssertTrue(source.contains("await self.reloadFilteredResults()"))
   }
 
   func testMemorySearchRefreshesTheVisibleMemoriesProjection() throws {
     let pageURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesPage.swift")
-    // omi-test-quality: source-inspection -- static contract: bridge search must refresh its projection before lifecycle-scoped SQLite search
+      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesViewModel.swift")
+    // omi-test-quality: source-inspection -- static contract: bridge search must await lifecycle-scoped SQLite search before returning
     let source = try String(contentsOf: pageURL, encoding: .utf8)
     let body = try actionBody(named: "memories_search", in: source)
     XCTAssertTrue(
-      body.contains("await self.refreshMemoriesIfNeeded()"),
-      "A bridge search must refresh the active MemoriesViewModel before it reads lifecycle-scoped local cache."
+      body.contains("await self.performSearch"),
+      "A bridge search must await the active MemoriesViewModel's lifecycle-scoped local query."
     )
   }
 
@@ -301,7 +301,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let body = try actionBody(named: "assign_local_speaker_label_fixture", in: source)
     XCTAssertTrue(body.contains("AppBuild.isNonProduction"))
-    XCTAssertTrue(body.contains("setConversationSpeakerLabel"))
+    XCTAssertTrue(body.contains("assignSpeakerToSegments"))
     XCTAssertFalse(body.contains("APIClient.shared"))
   }
 
@@ -317,7 +317,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesPage.swift")
+      .appendingPathComponent("Sources/MainWindow/Pages/MemoriesViewModel.swift")
     let source = try String(contentsOf: url, encoding: .utf8)
     for action in ["memories_search", "memories_set_tag_filter"] {
       XCTAssertTrue(
@@ -338,7 +338,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     let source = try bridgeSource()
     let body = try actionBody(named: "edit_test_memory", in: source)
     XCTAssertTrue(body.contains("params[\"marker\"]"))
-    XCTAssertTrue(body.contains("editMemory"))
+    XCTAssertTrue(body.contains("MemoryStorage.shared.correct"))
   }
 
   func testTaskDescriptionLookupRejectsAmbiguousMatches() throws {
@@ -348,7 +348,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       .appendingPathComponent("Sources/MainWindow/Pages/TasksPage.swift")
     let source = try String(contentsOf: url, encoding: .utf8)
     XCTAssertTrue(
-      source.contains("\"error\": \"ambiguous:"),
+      source.contains("\"error\": matches.count > 1 ? \"ambiguous task\""),
       "toggle_task/delete_task should reject ambiguous description matches"
     )
   }

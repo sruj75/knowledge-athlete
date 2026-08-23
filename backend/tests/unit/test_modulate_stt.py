@@ -23,8 +23,8 @@ from utils.stt.streaming import (
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
-def test_offline_backend_factory_streaming_socket_finalize_contract_runs_in_child_process():
-    """The harness factory installs the full PTT socket contract in its isolated process."""
+def test_offline_backend_factory_provider_contracts_run_in_child_process():
+    """The harness factory installs PTT and conversation fakes in its isolated process."""
 
     code = r'''
 import asyncio
@@ -40,7 +40,14 @@ from testing.e2e.offline_app import backend_app
 
 assert backend_app() is sentinel_app
 
+from utils.llm import conversation_processing
 from utils.stt import streaming
+
+structure = conversation_processing.get_transcript_structure(transcript="synthetic local fixture")
+assert structure.title == "Hermetic Local Conversation"
+assert structure.category == "other"
+assert conversation_processing.should_discard_conversation("synthetic local fixture", 1) is False
+assert conversation_processing.extract_action_items(transcript="synthetic local fixture") == []
 
 segments = []
 

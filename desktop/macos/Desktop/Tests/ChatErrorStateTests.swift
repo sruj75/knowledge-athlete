@@ -263,8 +263,8 @@ final class ChatErrorStateTests: XCTestCase {
     let source = try sourceFile("Providers/ChatProvider.swift")
     XCTAssertTrue(source.contains("onAccepted: (@MainActor () -> Void)? = nil"))
     XCTAssertTrue(source.contains("onAccepted?()"))
-    XCTAssertTrue(source.contains("self.draftRevision == submittedRevision"))
-    XCTAssertTrue(source.contains("self.draftText == text\n        else { return }"))
+    XCTAssertTrue(source.contains("draftRevisions[key, default: 0] == revision"))
+    XCTAssertTrue(source.contains("ChatDraftStore.shared.text(for: key, ownerID: ownerID) == text"))
     XCTAssertFalse(source.contains("draftText = trimmedText"))
   }
 
@@ -299,31 +299,29 @@ final class ChatErrorStateTests: XCTestCase {
 
   func testDashboardShowsChatErrorCard() throws {
     let source = try sourceFile("MainWindow/Pages/DashboardPage.swift")
-    XCTAssertTrue(source.contains("dashboardChatErrorCard"))
+    XCTAssertTrue(source.contains("private var chatErrors"))
     XCTAssertTrue(source.contains("ChatErrorCard("))
   }
 
-  /// Static tripwire for the Home chat layout. The shared ChatErrorCard belongs to
-  /// homePanelStage, below the composer; placing it inside homeChatPanel as well
-  /// visibly duplicates the sign-in recovery CTA for the same ChatProvider state.
-  func testDashboardHomeChatHasOneSharedErrorCardRenderSite() throws {
+  /// Static tripwire for the mutually exclusive Home stages. Each stage owns one
+  /// error-card projection below its composer, so neither can omit or duplicate it.
+  func testDashboardHomeStagesEachHaveOneErrorCardRenderSite() throws {
     let source = try sourceFile("MainWindow/Pages/DashboardPage.swift")
-    let panelStart = try XCTUnwrap(source.range(of: "private func homePanelStage"))
-    let panelEnd = try XCTUnwrap(source.range(of: "private func homeChatPanel"))
-    let chatStart = try XCTUnwrap(source.range(of: "private func homeChatPanel"))
-    let chatEnd = try XCTUnwrap(source.range(of: "private var dashboardChatErrorCard"))
+    let hubStart = try XCTUnwrap(source.range(of: "private func homeHub"))
+    let hubEnd = try XCTUnwrap(source.range(of: "private func homeChat"))
+    let chatStart = try XCTUnwrap(source.range(of: "private func homeChat"))
+    let chatEnd = try XCTUnwrap(source.range(of: "private var chatTimeline"))
 
-    let panelSource = String(source[panelStart.lowerBound..<panelEnd.lowerBound])
+    let hubSource = String(source[hubStart.lowerBound..<hubEnd.lowerBound])
     let chatSource = String(source[chatStart.lowerBound..<chatEnd.lowerBound])
 
     XCTAssertEqual(
-      panelSource.components(separatedBy: "dashboardChatErrorCard").count - 1,
-      1,
-      "Home must have one canonical error-card owner outside the chat panel."
+      hubSource.components(separatedBy: "chatErrors").count - 1, 1,
+      "The resting hub must render one error-card projection."
     )
-    XCTAssertFalse(
-      chatSource.contains("dashboardChatErrorCard"),
-      "The embedded chat panel must not render a second copy of the shared auth gate."
+    XCTAssertEqual(
+      chatSource.components(separatedBy: "chatErrors").count - 1, 1,
+      "The chat stage must render one error-card projection."
     )
   }
 

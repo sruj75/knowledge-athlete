@@ -211,7 +211,7 @@ extension APIClient: MemoryComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> MemoryNormalizeComputeResponse {
     try await post(
-      "/v1/memory/compute/normalize", body: request,
+      "v1/memory/compute/normalize", body: request,
       authorizationSnapshot: authorizationSnapshot)
   }
 
@@ -220,7 +220,7 @@ extension APIClient: MemoryComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> MemoryExtractComputeResponse {
     try await post(
-      "/v1/memory/compute/extract", body: request,
+      "v1/memory/compute/extract", body: request,
       authorizationSnapshot: authorizationSnapshot)
   }
 
@@ -229,7 +229,7 @@ extension APIClient: MemoryComputing {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
   ) async throws -> MemoryConsolidateComputeResponse {
     try await post(
-      "/v1/memory/compute/consolidate", body: request,
+      "v1/memory/compute/consolidate", body: request,
       authorizationSnapshot: authorizationSnapshot)
   }
 }

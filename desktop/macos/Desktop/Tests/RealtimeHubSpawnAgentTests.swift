@@ -30,6 +30,7 @@ import XCTest
           objective: RealtimeLocalProfileTurnPlan.exactMemoryAgentRequest,
           title: "Today's memory insight"))
       XCTAssertFalse(plan.assistantText.isEmpty)
+      XCTAssertFalse(plan.requestsCurrentScreen)
     }
 
     func testLocalProfileOrdinaryAndRecallTurnsNeverProposeSpawn() throws {
@@ -50,6 +51,20 @@ import XCTest
       XCTAssertNil(recall.spawn)
       XCTAssertTrue(recall.assistantText.contains(marker))
       XCTAssertFalse(recall.assistantText.contains("GAUNTLET-OLD"))
+      XCTAssertFalse(ordinary.requestsCurrentScreen)
+      XCTAssertFalse(recall.requestsCurrentScreen)
+    }
+
+    func testLocalProfileCurrentScreenRequestRunsTheScreenEvidenceProtocol() throws {
+      let plan = try XCTUnwrap(
+        RealtimeLocalProfileTurnPlan.make(
+          transcript: "What is on my screen?",
+          voiceContext: "",
+          localProfileEnabled: true))
+
+      XCTAssertTrue(plan.requestsCurrentScreen)
+      XCTAssertNil(plan.spawn)
+      XCTAssertFalse(plan.assistantText.isEmpty)
     }
 
     func testCanonicalSpawnReceiptKeepsProviderContinuationInNativeVoiceLane() {

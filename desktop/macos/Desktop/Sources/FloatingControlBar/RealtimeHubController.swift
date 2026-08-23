@@ -33,6 +33,9 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     /// Hermetic observation seam for controller lifecycle tests. Production
     /// replacement always enters `ensureWarm`.
     var testingWarmAfterDrain: (() -> Void)?
+    /// Narrows controller tests to context/session reconciliation without coupling
+    /// them to the process-wide local-profile environment and auth generation.
+    var testingLocalProfileTransportAuthorized: Bool?
   #endif
   var sessionOwnerScope: RealtimeHubOwnerScope? {
     guard let session, let binding = sessionOwnerBinding,
@@ -341,6 +344,9 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
 
   #if DEBUG
     func isAuthorizedLocalProfileTransport(_ source: RealtimeHubSession? = nil) -> Bool {
+      if let testingLocalProfileTransportAuthorized {
+        return testingLocalProfileTransportAuthorized
+      }
       guard let authority = localProfileTransportAuthority else { return false }
       let candidate = source ?? session
       return authority.accepts(
@@ -1146,21 +1152,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
         return ["error": "local-profile ptt_test_turn requires a non-empty force_transcript"]
       }
 
-      guard await refreshVoiceContextSnapshot(),
-        !RuntimeOwnerIdentity.effectiveOwnerTransitionInProgress,
-        !prefetchedVoiceContextSessionID.isEmpty
-      else {
-        return ["error": "local-profile realtime voice context session is unavailable"]
-      }
-      guard
-        let plan = RealtimeLocalProfileTurnPlan.make(
-          transcript: forceTranscript,
-          voiceContext: prefetchedVoiceContext,
-          localProfileEnabled: DesktopLocalProfile.isEnabled)
-      else {
-        return ["error": "local-profile realtime provider could not plan the test turn"]
-      }
-
       let localOwnerScope = currentOwnerScope
       guard let localOwnerID = localOwnerScope.authenticatedOwnerID,
         let localAuthorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
@@ -1168,10 +1159,8 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       else {
         return ["error": "local-profile realtime transport requires an authenticated owner"]
       }
+      revokeManagedMintForLocalProfileTransportPreparation()
       teardownSession()
-      let context = voiceSessionContext(for: localOwnerScope)
-      sessionVoiceContextFreshnessIdentity = context.snapshotFreshnessIdentity
-      sessionVoiceContextSurface = context.surface
       let localSession = RealtimeHubSession(
         provider: .openai,
         auth: .hermeticStub,
@@ -1195,6 +1184,28 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
           teardownSession()
         }
       }
+      guard await refreshVoiceContextSnapshot(),
+        !RuntimeOwnerIdentity.effectiveOwnerTransitionInProgress,
+        !prefetchedVoiceContextSessionID.isEmpty
+      else {
+        return ["error": "local-profile realtime voice context session is unavailable"]
+      }
+      let preparedContext = voiceSessionContext(for: localOwnerScope)
+      guard preparedContext.isResolved else {
+        return ["error": "local-profile realtime voice context did not resolve"]
+      }
+      sessionVoiceContextFreshnessIdentity = preparedContext.snapshotFreshnessIdentity
+      sessionVoiceContextSurface = preparedContext.surface
+      idleVoiceContextRefreshTask?.cancel()
+      idleVoiceContextRefreshTask = nil
+      guard
+        let plan = RealtimeLocalProfileTurnPlan.make(
+          transcript: forceTranscript,
+          voiceContext: prefetchedVoiceContext,
+          localProfileEnabled: DesktopLocalProfile.isEnabled)
+      else {
+        return ["error": "local-profile realtime provider could not plan the test turn"]
+      }
       localSession.markReadyForTesting()
       guard
         await waitUntilLocalProfileTransportReady(
@@ -1209,7 +1220,23 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       let turnID = RealtimeAutomationTurnHarness.begin(on: VoiceTurnCoordinator.shared)
       VoiceTurnCoordinator.shared.publish(
         .selectRoute(turnID: turnID, route: .hub(sessionID: voiceSessionID)))
-      beginTurn(turnID: turnID)
+      if plan.requestsCurrentScreen {
+        _ = PushToTalkManager.shared.captureScreenEvidenceForAutomation(turnID: turnID)
+      }
+      // Screen capture can overlap a kernel-context refresh. The hermetic socket has no
+      // provider-side context to rebuild, so bind it to the latest resolved requirement at
+      // the same input-admission boundary where a physical socket would be replaced.
+      let admissionContext = voiceSessionContext(for: localOwnerScope)
+      guard admissionContext.isResolved else {
+        VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
+        return ["error": "local-profile realtime voice context changed before input admission"]
+      }
+      sessionVoiceContextFreshnessIdentity = admissionContext.snapshotFreshnessIdentity
+      sessionVoiceContextSurface = admissionContext.surface
+      guard beginTurn(turnID: turnID) == .accepted else {
+        VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
+        return ["error": "local-profile realtime reducer rejected synthetic input admission"]
+      }
       if !textOnly {
         feedAudio(Data(pcm16k.prefix(3_200)), turnID: turnID)
       }
@@ -1245,6 +1272,57 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
         isFinal: true,
         identity: eventIdentity,
         source: localSession)
+
+      if plan.requestsCurrentScreen {
+        let screenshotCallID = "local-profile-screenshot-\(turnID.rawValue.uuidString.lowercased())"
+        hubDidRequestTool(
+          name: HubTool.screenshot.rawValue,
+          callId: screenshotCallID,
+          argumentsJSON: "{}",
+          identity: eventIdentity,
+          source: localSession)
+
+        let screenshotDeadline = Date().addingTimeInterval(max(1, timeout))
+        var shouldReportObservation = false
+        while Date() < screenshotDeadline {
+          switch screenGroundingState {
+          case .awaitingReport:
+            shouldReportObservation = true
+          case .inactive where lastScreenEvidenceProtocolCompletion == .completed:
+            break
+          case .rejected:
+            return ["error": "local-profile screen evidence protocol was rejected"]
+          case .inactive, .awaitingScreenshot, .accepted:
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            continue
+          }
+          break
+        }
+
+        if shouldReportObservation {
+          let reportCallID = "local-profile-screen-report-\(turnID.rawValue.uuidString.lowercased())"
+          hubDidRequestTool(
+            name: HubTool.reportScreenObservation.rawValue,
+            callId: reportCallID,
+            argumentsJSON: #"{"observation":"Current screen evidence reviewed."}"#,
+            identity: eventIdentity,
+            source: localSession)
+        }
+
+        let reportDeadline = Date().addingTimeInterval(max(1, timeout))
+        while Date() < reportDeadline {
+          if lastScreenEvidenceProtocolCompletion == .completed,
+            VoiceTurnCoordinator.shared.activeTurn?.screenEvidenceProtocol == nil
+          {
+            break
+          }
+          try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        guard lastScreenEvidenceProtocolCompletion == .completed else {
+          VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .toolTimeout))
+          return ["error": "local-profile screen evidence protocol did not finish within \(Int(timeout))s"]
+        }
+      }
 
       var reply = plan.assistantText
       if let spawn = plan.spawn {
@@ -1301,6 +1379,14 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
         try? await Task.sleep(nanoseconds: 50_000_000)
       }
       return ["error": "local-profile voice turn did not finalize within \(Int(timeout))s"]
+    }
+
+    /// A managed mint admitted before the local-profile action cannot be allowed to publish
+    /// provider state after the exact hermetic transport authority has taken ownership.
+    func revokeManagedMintForLocalProfileTransportPreparation() {
+      mintGeneration &+= 1
+      minting = false
+      mintOwnerScope = nil
     }
 
     /// Waits on the exact hermetic socket without entering `ensureWarm()` or

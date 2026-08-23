@@ -587,7 +587,7 @@
           <div class="mini-arrow">v</div>
           <div class="mini-node">
             <strong>Coordinator decides</strong>
-            <span>Route intent, scope context, derive open loops, and create dispatches.</span>
+            <span>Route intent, scope context, derive the action queue, and create dispatches.</span>
           </div>
           <div class="mini-arrow">v</div>
           <div class="mini-node">
@@ -620,7 +620,7 @@
         </article>
         <article class="panel">
           <h3>Desktop Coordinator</h3>
-          <p>Derives routing, scoped context packets, dispatches, action queue items, open loops, and candidate projections.</p>
+          <p>Derives routing, scoped context packets, dispatches, action queue items, and candidate projections.</p>
           <div class="tag-row">
             <span class="tag">context packets</span>
             <span class="tag">dispatches</span>
@@ -691,7 +691,7 @@
             </div>
             <div class="stack-row">
               <div class="label">Voice</div>
-              <div class="box">Reads coordinator open loops through <strong>get_desktop_open_loops</strong>.</div>
+              <div class="box">Uses typed kernel context and the retained runtime control tools.</div>
             </div>
             <div class="stack-row">
               <div class="label">Approvals</div>
@@ -721,7 +721,7 @@
         <div class="flow-card">
           <div class="num">2</div>
           <h3>Coordinator routes</h3>
-          <p><code>route_desktop_intent</code> checks open loops and reusable session candidates before starting new work.</p>
+          <p><code>route_desktop_intent</code> checks the action queue and reusable session candidates before starting new work.</p>
         </div>
         <div class="flow-card">
           <div class="num">3</div>
@@ -736,7 +736,7 @@
         <div class="flow-card">
           <div class="num">5</div>
           <h3>Surfaces project state</h3>
-          <p>Swift displays action queues and open loops derived from runtime state, not local UI guesses.</p>
+          <p>Swift displays the action queue derived from runtime state, not local UI guesses.</p>
         </div>
       </div>
     </section>
@@ -806,11 +806,10 @@
         <article class="lane">
           <div class="status green">Allowed read path</div>
           <h3>Inspect and summarize</h3>
-          <p>Agents can ask for awareness snapshots, action queues, open loops, intent routing, and policy evaluation. These do not directly mutate approval state.</p>
+          <p>Agents can ask for awareness snapshots, action queues, intent routing, and policy evaluation. These do not directly mutate approval state.</p>
           <div class="tag-row">
             <span class="tag">build_desktop_awareness_snapshot</span>
             <span class="tag">list_desktop_action_queue</span>
-            <span class="tag">get_desktop_open_loops</span>
           </div>
         </article>
 
@@ -872,15 +871,13 @@ as the scoped task context.</code></pre>
         </article>
         <article class="panel">
           <h3>Voice / realtime hub</h3>
-          <p>Task-agent status can now come from coordinator open loops, with legacy task-agent status only as a fallback path.</p>
-          <pre><code>DesktopCoordinatorService.shared.openLoopsJSON()</code></pre>
+          <p>Voice receives typed owner-scoped kernel context and uses the retained agent runtime controls.</p>
         </article>
         <article class="panel">
           <h3>Automation / dogfood</h3>
-          <p><code>DesktopAutomationBridge</code> exposes coordinator snapshot, action queue, open loops, routing, create dispatch, and resolve dispatch actions for local verification.</p>
+          <p><code>DesktopAutomationBridge</code> exposes coordinator snapshot, action queue, routing, create dispatch, and resolve dispatch actions for local verification.</p>
           <pre><code>coordinator_awareness_snapshot
 coordinator_action_queue
-coordinator_open_loops
 coordinator_route_intent</code></pre>
         </article>
       </div>
@@ -905,7 +902,7 @@ coordinator_route_intent</code></pre>
         </div>
         <div class="code-row">
           <code>desktop/macos/agent/src/runtime/control-tools.ts</code>
-          <p>Runtime control-tool dispatcher for snapshots, queues, open loops, context packets, routing, policy evaluation, dispatch create/resolve.</p>
+          <p>Runtime control-tool dispatcher for snapshots, queues, context packets, routing, policy evaluation, dispatch create/resolve.</p>
           <div class="line-ref">lines 393-520</div>
         </div>
         <div class="code-row">
@@ -920,7 +917,7 @@ coordinator_route_intent</code></pre>
         </div>
         <div class="code-row">
           <code>desktop/macos/Desktop/Sources/Chat/DesktopCoordinatorService.swift</code>
-          <p>Swift facade over runtime control tools for snapshots, queues, open loops, routing, dispatch creation, and dispatch resolution.</p>
+          <p>Swift facade over runtime control tools for snapshots, queues, routing, dispatch creation, and dispatch resolution.</p>
           <div class="line-ref">lines 90-180</div>
         </div>
         <div class="code-row">
@@ -985,7 +982,7 @@ coordinator_route_intent</code></pre>
           <ul>
             <li>Where is local agent truth stored?</li>
             <li>How does a worker get scoped context?</li>
-            <li>How do open loops appear in voice and UI?</li>
+            <li>How does the runtime action queue appear in the UI?</li>
             <li>Why can a model create a dispatch but not resolve one?</li>
             <li>How do sensitive context and grants get tied to explicit approval?</li>
           </ul>

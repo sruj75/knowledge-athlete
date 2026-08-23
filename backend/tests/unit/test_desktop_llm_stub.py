@@ -93,3 +93,23 @@ def test_gemini_proxy_stub_echoes_marker():
     )
     payload = stub.stub_gemini_proxy_json(body)
     assert payload['candidates'][0]['content']['parts'][0]['text'] == 'Stub saw marker: gemini-stub'
+
+
+def test_gemini_proxy_stub_honors_home_suggestion_response_schema():
+    body = json.dumps(
+        {
+            'contents': [{'role': 'user', 'parts': [{'text': 'Write personalized questions'}]}],
+            'generationConfig': {
+                'responseMimeType': 'application/json',
+                'responseSchema': {
+                    'type': 'object',
+                    'properties': {'questions': {'type': 'array', 'items': {'type': 'string'}}},
+                    'required': ['questions'],
+                },
+            },
+        }
+    )
+
+    payload = stub.stub_gemini_proxy_json(body)
+
+    assert payload['candidates'][0]['content']['parts'][0]['text'] == '{"questions":[]}'

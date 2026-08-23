@@ -272,6 +272,9 @@ struct DashboardPage: View {
       welcomeContent: { chatWelcome }
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .overlay(alignment: .bottom) {
+      ChatComposerFade()
+    }
   }
 
   @ViewBuilder

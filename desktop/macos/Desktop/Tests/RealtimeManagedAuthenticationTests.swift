@@ -37,6 +37,7 @@ final class RealtimeManagedAuthenticationTests: XCTestCase {
     controller.prefetchedVoiceContextSessionID = "managed-auth-test-session"
     controller.prefetchedVoiceContextFreshnessIdentity = "managed-auth-test-freshness"
     controller.prefetchedVoiceContextOwnerScope = .signedOut
+    controller.prefetchedVoiceContextSurface = .realtimeVoice()
     var startedDirectSession = false
     controller.testingSessionStartAfterDrain = { _, _, _ in
       startedDirectSession = true
@@ -83,6 +84,7 @@ final class RealtimeManagedAuthenticationTests: XCTestCase {
     controller.prefetchedVoiceContextSessionID = "managed-auth-test-session"
     controller.prefetchedVoiceContextFreshnessIdentity = "managed-auth-test-freshness"
     controller.prefetchedVoiceContextOwnerScope = ownerScope
+    controller.prefetchedVoiceContextSurface = .realtimeVoice()
     var startedDirectSession = false
     controller.testingSessionStartAfterDrain = { _, _, _ in
       startedDirectSession = true
@@ -102,5 +104,18 @@ final class RealtimeManagedAuthenticationTests: XCTestCase {
     controller.mintGeneration &+= 1
     controller.minting = false
     controller.mintOwnerScope = nil
+  }
+
+  func testLocalProfileTransportPreparationRevokesAnEarlierManagedMint() {
+    let controller = RealtimeHubController()
+    controller.mintGeneration = 41
+    controller.minting = true
+    controller.mintOwnerScope = .authenticated("earlier-owner")
+
+    controller.revokeManagedMintForLocalProfileTransportPreparation()
+
+    XCTAssertEqual(controller.mintGeneration, 42)
+    XCTAssertFalse(controller.minting)
+    XCTAssertNil(controller.mintOwnerScope)
   }
 }
