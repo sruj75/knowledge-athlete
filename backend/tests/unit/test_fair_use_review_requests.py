@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
@@ -178,6 +179,29 @@ def test_pending_review_consume_fails_open_when_redis_is_unavailable(monkeypatch
 
     assert result is None
     assert_redis_fallback(fallback, 'pending_review_consume')
+
+
+def test_pending_review_redis_failures_never_log_the_uid(monkeypatch, caplog):
+    uid = 'private-owner-uid-9284'
+    redis = Mock()
+    redis.eval.side_effect = RuntimeError('redis unavailable')
+    redis.get.side_effect = RuntimeError('redis unavailable')
+    monkeypatch.setattr(review_state.redis_db, 'r', redis)
+
+    with caplog.at_level(logging.WARNING, logger=review_state.logger.name):
+        assert (
+            review_state.create_pending_fair_use_review(
+                uid,
+                [{'trigger': 'daily'}],
+                {'daily_ms': 7_200_001},
+                PlanType.bounded,
+            )
+            is None
+        )
+        assert review_state.get_pending_fair_use_review(uid) is None
+        assert review_state.mark_fair_use_review_consumed(uid, 'review-a') is None
+
+    assert uid not in caplog.text
 
 
 def make_client(uid: str = 'owner-a') -> TestClient:

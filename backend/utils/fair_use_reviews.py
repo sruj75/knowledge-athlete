@@ -103,7 +103,7 @@ def create_pending_fair_use_review(
             return get_pending_fair_use_review(uid)
         return request
     except Exception as error:
-        logger.error('fair_use: pending review Redis error for %s: %s', uid, type(error).__name__)
+        logger.error('fair_use: pending review Redis create error type=%s', type(error).__name__)
         _record_redis_failure('create')
         return None
 
@@ -112,7 +112,7 @@ def get_pending_fair_use_review(uid: str, review_id: str | None = None) -> dict[
     try:
         raw = redis_db.r.get(_pending_key(uid))
     except Exception as error:
-        logger.error('fair_use: pending review Redis read error for %s: %s', uid, type(error).__name__)
+        logger.error('fair_use: pending review Redis read error type=%s', type(error).__name__)
         _record_redis_failure('read')
         return None
     if not raw:
@@ -139,5 +139,5 @@ def mark_fair_use_review_consumed(uid: str, review_id: str) -> None:
     try:
         redis_db.r.eval(_CONSUME_PENDING_REVIEW_SCRIPT, 1, _pending_key(uid), review_id)
     except Exception as error:
-        logger.error('fair_use: pending review Redis consume error for %s: %s', uid, type(error).__name__)
+        logger.error('fair_use: pending review Redis consume error type=%s', type(error).__name__)
         _record_redis_failure('consume')
