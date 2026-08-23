@@ -209,6 +209,7 @@ jobs:
             --revision-suffix=${{ steps.candidate-identity.outputs.revision_suffix }}
             --tag=${{ env.CANDIDATE_TAG }}
             --remove-env-vars=OMI_DESKTOP_RELEASE_TAG,OMI_DESKTOP_RELEASE_SHA,OMI_DESKTOP_RELEASE_CHANNEL
+            --remove-secrets=PINECONE_API_KEY,PINECONE_HOST
           env_vars: |
             FIREBASE_PROJECT_ID=${{ env.FIREBASE_AUTH_PROJECT_ID }}
             GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase/service-account.json
@@ -222,10 +223,8 @@ jobs:
             ENCRYPTION_SECRET=ENCRYPTION_SECRET:latest
             REDIS_DB_PASSWORD=REDIS_DB_PASSWORD:latest
             FIREBASE_API_KEY=FIREBASE_API_KEY:latest
-            PINECONE_API_KEY=PINECONE_API_KEY:latest
             REDIS_DB_HOST=REDIS_DB_HOST:latest
             REDIS_DB_PORT=REDIS_DB_PORT:latest
-            PINECONE_HOST=PINECONE_HOST:latest
             ANTHROPIC_API_KEY=DESKTOP_ANTHROPIC_API_KEY:latest
             DESKTOP_LEGACY_ANTHROPIC_KEY=DESKTOP_LEGACY_ANTHROPIC_KEY:latest
             GOOGLE_CALENDAR_API_KEY=DESKTOP_GOOGLE_CALENDAR_API_KEY:latest

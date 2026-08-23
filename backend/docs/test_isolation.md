@@ -26,7 +26,7 @@ it must not:
   `os.environ["X"]` (subscript) at module scope is **banned**; `os.getenv("X")` and
   `os.environ.get("X")` are fine;
 - construct resource-holding objects — clients, connections, downloaded artifacts
-  (`OpenAI(...)`, `Redis(...)`, `Pinecone(...)`, `tiktoken.encoding_for_model(...)`,
+  (`OpenAI(...)`, `Redis(...)`, `tiktoken.encoding_for_model(...)`,
   `firebase_admin.initialize_app(...)`, …) at module top level;
 - mutate process-global state (`sys.modules`, registering handlers, …).
 
@@ -99,9 +99,9 @@ A typical dirty test looks like this (module scope):
 
 ```python
 # BEFORE — banned: leaks across tests.
-sys.modules["database.vector_db"] = types.ModuleType("database.vector_db")
-sys.modules["database.vector_db"].find_similar_memories = lambda *a, **k: []
-import database.vector_db  # picks up the fake
+sys.modules["database.users"] = types.ModuleType("database.users")
+sys.modules["database.users"].get_user = lambda *a, **k: None
+import database.users  # picks up the fake
 ```
 
 Migrate to a fixture-scoped `monkeypatch`:
@@ -111,16 +111,16 @@ Migrate to a fixture-scoped `monkeypatch`:
 import pytest
 
 @pytest.fixture
-def fake_vector_db(monkeypatch):
+def fake_users_db(monkeypatch):
     from testing.import_isolation import AutoMockModule
-    fake = AutoMockModule("database.vector_db")
-    fake.find_similar_memories = lambda *a, **k: []
+    fake = AutoMockModule("database.users")
+    fake.get_user = lambda *a, **k: None
     # If the production module is already imported, patch its attribute:
-    import database.vector_db as real  # works because Tier-1 made import cheap
-    monkeypatch.setattr(real, "find_similar_memories", fake.find_similar_memories)
+    import database.users as real  # works because Tier-1 made import cheap
+    monkeypatch.setattr(real, "get_user", fake.get_user)
     return real
 
-def test_thing(fake_vector_db):
+def test_thing(fake_users_db):
     ...
 ```
 
@@ -129,10 +129,10 @@ module), use the reserve finder:
 
 ```python
 @pytest.fixture
-def fake_vector_db():
+def fake_users_db():
     from testing.import_isolation import AutoMockModule, stub_modules
-    fake = AutoMockModule("database.vector_db")
-    with stub_modules({"database.vector_db": fake}):
+    fake = AutoMockModule("database.users")
+    with stub_modules({"database.users": fake}):
         yield fake
 ```
 

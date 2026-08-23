@@ -290,57 +290,39 @@ def test_firebase_auth_and_firestore_helpers_are_safe_on_owned_executors(scanner
     assert results["async_helpers_with_blocking"] == []
 
 
-def test_prerecorded_stt_and_storage_lifecycle_calls_are_network_io(scanner, tmp_path):
+def test_prerecorded_stt_calls_are_network_io(scanner, tmp_path):
     _source_path, results = _scan_source(
         scanner,
         tmp_path,
         """
-        from utils.other.storage import (
-            get_syncing_file_temporal_signed_url,
-            schedule_syncing_temporal_file_deletion,
-        )
         from utils.stt.pre_recorded import prerecorded, prerecorded_from_bytes
 
         async def stream_voice_message():
             await checkpoint()
-            url = get_syncing_file_temporal_signed_url("audio.wav")
-            schedule_syncing_temporal_file_deletion("audio.wav")
-            prerecorded(url)
+            prerecorded("https://audio.example.test/input.wav")
             prerecorded_from_bytes(b"audio")
         """,
     )
 
     calls = results["async_helpers_with_blocking"][0]["network_io"]
     assert {call["call"] for call in calls} == {
-        "get_syncing_file_temporal_signed_url",
-        "schedule_syncing_temporal_file_deletion",
         "prerecorded() [sync STT]",
         "prerecorded_from_bytes() [sync STT]",
     }
 
 
-def test_prerecorded_stt_and_storage_helpers_are_safe_on_managed_executors(scanner, tmp_path):
+def test_prerecorded_stt_helpers_are_safe_on_managed_executors(scanner, tmp_path):
     _source_path, results = _scan_source(
         scanner,
         tmp_path,
         """
-        from utils.other.storage import (
-            get_syncing_file_temporal_signed_url,
-            schedule_syncing_temporal_file_deletion,
-        )
-        from utils.stt.pre_recorded import prerecorded
+        from utils.stt.pre_recorded import prerecorded_from_bytes
 
-        def _prepare_url(path):
-            url = get_syncing_file_temporal_signed_url(path)
-            schedule_syncing_temporal_file_deletion(path)
-            return url
-
-        def _transcribe(url):
-            return prerecorded(url)
+        def _transcribe(audio_bytes):
+            return prerecorded_from_bytes(audio_bytes)
 
         async def stream_voice_message():
-            url = await run_blocking(storage_executor, _prepare_url, "audio.wav")
-            return await run_blocking(sync_executor, _transcribe, url)
+            return await run_blocking(sync_executor, _transcribe, b"audio")
         """,
     )
 

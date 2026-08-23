@@ -29,12 +29,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/82/78/8ea7308cac6934de8
 wheels = [{ url = "https://files.pythonhosted.org/packages/76/7f/a987b14a3859094b3cea3f4825219c3e5536242564af6e3f9c2f6c994eb2/aiohttp-3.14.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", upload-time = 2026-06-07T21:06:19Z, size = 1786989, hashes = { sha256 = "b821a1f7dedf7e37450654e620038ac3b2e81e8fa6ea269337e97101978ec730" } }]
 
 [[packages]]
-name = "aiohttp-retry"
-version = "2.9.1"
-sdist = { url = "https://files.pythonhosted.org/packages/9d/61/ebda4d8e3d8cfa1fd3db0fb428db2dd7461d5742cea35178277ad180b033/aiohttp_retry-2.9.1.tar.gz", upload-time = 2024-11-06T10:44:54Z, size = 13608, hashes = { sha256 = "8eb75e904ed4ee5c2ec242fefe85bf04240f685391c4879d8f541d6028ff01f1" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/1a/99/84ba7273339d0f3dfa57901b846489d2e5c2cd731470167757f1935fffbd/aiohttp_retry-2.9.1-py3-none-any.whl", upload-time = 2024-11-06T10:44:52Z, size = 9981, hashes = { sha256 = "66d2759d1921838256a05a3f80ad7e724936f083e35be5abb5e16eed6be6dc54" } }]
-
-[[packages]]
 name = "aiosignal"
 version = "1.4.0"
 sdist = { url = "https://files.pythonhosted.org/packages/61/62/06741b579156360248d1ec624842ad0edf697050bbaf7c3e46394e106ad1/aiosignal-1.4.0.tar.gz", upload-time = 2025-07-03T22:54:43Z, size = 25007, hashes = { sha256 = "f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7" } }
@@ -653,12 +647,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/8e/f5/b1a56f703fb90952b
 wheels = [{ url = "https://files.pythonhosted.org/packages/0b/fa/8c33befbc0cf81b21371cc1dab4e7bf94a80b8116194f263a5021ec02529/langchain_openai-1.1.14-py3-none-any.whl", upload-time = 2026-04-16T14:55:23Z, size = 88705, hashes = { sha256 = "cb525d2011f9813fc15a7dcfd4bca5b87badcbcb2c113a7fbe45d1b8a1bbb69c" } }]
 
 [[packages]]
-name = "langchain-pinecone"
-version = "0.2.13"
-sdist = { url = "https://files.pythonhosted.org/packages/5f/e9/b52029651f6f8c0c585f26ae665a8ef34cd36a47b2590a2cd3a1a0b11d9d/langchain_pinecone-0.2.13.tar.gz", upload-time = 2025-11-02T19:11:45Z, size = 40655, hashes = { sha256 = "294a6da7e1a81d5805060e37639d3e4fb72cb239d651a34a4d1f81ba096f473a" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/1e/cf/27ec504e2fa92e73d49bc49f4345d82e5b6e75158c56092f5140f6afc8bd/langchain_pinecone-0.2.13-py3-none-any.whl", upload-time = 2025-11-02T19:11:44Z, size = 26232, hashes = { sha256 = "2f9db3f9d8c634e8716eb8fb65a405458083c4d52810be76294665e2d75ad65a" } }]
-
-[[packages]]
 name = "langchain-protocol"
 version = "0.0.18"
 sdist = { url = "https://files.pythonhosted.org/packages/d2/59/b5959aea96faa9146e2e49a7a22882b3528c62efafe9a6a95beab30c2305/langchain_protocol-0.0.18.tar.gz", upload-time = 2026-06-18T17:08:26Z, size = 6150, hashes = { sha256 = "ec3e11782f1ed0c9db38e5a9ed01b0e7a0d3fba406faa8aef6594b73c56a63e6" } }
@@ -908,24 +896,6 @@ name = "pillow"
 version = "12.3.0"
 sdist = { url = "https://files.pythonhosted.org/packages/1c/3d/bb7fca845737cf9d7dbde16ed1843984665ff2e0a518f5db43e77ec540b9/pillow-12.3.0.tar.gz", upload-time = 2026-07-01T11:56:38Z, size = 47025035, hashes = { sha256 = "3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/3b/2d/ede717bc1144f63886c21fd349bb95860b0d1a21149ff16f2bb362b612b6/pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", upload-time = 2026-07-01T11:53:53Z, size = 6934408, hashes = { sha256 = "23d27a3e0307ec2244cc51e7287b919aa68d097504ebe19df4e76a98a3eea5bd" } }]
-
-[[packages]]
-name = "pinecone"
-version = "7.3.0"
-sdist = { url = "https://files.pythonhosted.org/packages/fa/38/12731d4af470851b4963eba616605868a8599ef4df51c7b6c928e5f3166d/pinecone-7.3.0.tar.gz", upload-time = 2025-06-27T20:03:51Z, size = 235256, hashes = { sha256 = "307edc155621d487c20dc71b76c3ad5d6f799569ba42064190d03917954f9a7b" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/b7/a6/c5d54a5fb1de3983a8739c1a1660e7a7074db2cbadfa875b823fcf29b629/pinecone-7.3.0-py3-none-any.whl", upload-time = 2025-06-27T20:03:50Z, size = 587563, hashes = { sha256 = "315b8fef20320bef723ecbb695dec0aafa75d8434d86e01e5a0e85933e1009a8" } }]
-
-[[packages]]
-name = "pinecone-plugin-assistant"
-version = "1.8.0"
-sdist = { url = "https://files.pythonhosted.org/packages/b2/01/65c4c3a81732fa379f8e7f78a8c18aa57a1139f5b79d58b93a69f2fc8cb0/pinecone_plugin_assistant-1.8.0.tar.gz", upload-time = 2025-08-31T14:31:18Z, size = 150435, hashes = { sha256 = "8e8682cff30f9bae9243b384021aba71c91f4e6ef1650e9d63ee64aab83cba87" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/dd/49/62ab8e2f9098bf8593e36bbe6e729fcc0500bafca7d88be7b62eac66c8b0/pinecone_plugin_assistant-1.8.0-py3-none-any.whl", upload-time = 2025-08-31T14:31:16Z, size = 259281, hashes = { sha256 = "71ae42c3b4478d23138cbc4fe3505db561319a826f5aff4ef2e306a25ac56686" } }]
-
-[[packages]]
-name = "pinecone-plugin-interface"
-version = "0.0.7"
-sdist = { url = "https://files.pythonhosted.org/packages/f4/fb/e8a4063264953ead9e2b24d9b390152c60f042c951c47f4592e9996e57ff/pinecone_plugin_interface-0.0.7.tar.gz", upload-time = 2024-06-05T01:57:52Z, size = 3370, hashes = { sha256 = "b8e6675e41847333aa13923cc44daa3f85676d7157324682dc1640588a982846" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/3b/1d/a21fdfcd6d022cb64cef5c2a29ee6691c6c103c4566b41646b080b7536a5/pinecone_plugin_interface-0.0.7-py3-none-any.whl", upload-time = 2024-06-05T01:57:50Z, size = 6249, hashes = { sha256 = "875857ad9c9fc8bbc074dbe780d187a2afd21f5bfe0f3b08601924a61ef1bba8" } }]
 
 [[packages]]
 name = "platformdirs"
@@ -1282,12 +1252,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/58/15/8b3609fd3830ef7b2
 wheels = [{ url = "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl", upload-time = 2023-10-24T04:13:38Z, size = 9755, hashes = { sha256 = "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686" } }]
 
 [[packages]]
-name = "simsimd"
-version = "6.5.16"
-sdist = { url = "https://files.pythonhosted.org/packages/99/8c/070a179eb509b689509dacbd0bc81aa2e36614aff2c8aa6dc6c440886206/simsimd-6.5.16.tar.gz", upload-time = 2026-03-07T14:36:23Z, size = 187216, hashes = { sha256 = "0a005c6e2dacec83f235a747f7dbecca46b5d4d1e183ecc1929ca556ee7d7564" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/63/ab/ed2272a7a3ed9a104a3224b0f3a389e051c11da67f9c4e8799397cef241e/simsimd-6.5.16-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", upload-time = 2026-03-07T14:34:44Z, size = 583762, hashes = { sha256 = "34c34c95a32c881ce2d64cec445c82d33f2e350ca02ad50b053a78407d6163ba" } }]
-
-[[packages]]
 name = "six"
 version = "1.16.0"
 sdist = { url = "https://files.pythonhosted.org/packages/71/39/171f1c67cd00715f190ba0b100d606d440a28c93c7714febeca8b79af85e/six-1.16.0.tar.gz", upload-time = 2021-05-05T14:18:18Z, size = 34041, hashes = { sha256 = "1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926" } }
@@ -1442,12 +1406,6 @@ name = "types-toml"
 version = "0.10.8.20240310"
 sdist = { url = "https://files.pythonhosted.org/packages/86/47/3e4c75042792bff8e90d7991aa5c51812cc668828cc6cce711e97f63a607/types-toml-0.10.8.20240310.tar.gz", upload-time = 2024-03-10T02:18:37Z, size = 4392, hashes = { sha256 = "3d41501302972436a6b8b239c850b26689657e25281b48ff0ec06345b8830331" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/da/a2/d32ab58c0b216912638b140ab2170ee4b8644067c293b170e19fba340ccc/types_toml-0.10.8.20240310-py3-none-any.whl", upload-time = 2024-03-10T02:18:36Z, size = 4777, hashes = { sha256 = "627b47775d25fa29977d9c70dc0cbab3f314f32c8d8d0c012f2ef5de7aaec05d" } }]
-
-[[packages]]
-name = "typesense"
-version = "0.21.0"
-sdist = { url = "https://files.pythonhosted.org/packages/73/c4/b9ee39e15503c7e284bdb8afb5f2b8d06ee06e7abc33ed56c17388ab24e6/typesense-0.21.0.tar.gz", upload-time = 2024-05-10T04:42:42Z, size = 14030, hashes = { sha256 = "24470525b577300bd81fe43029dddd9269b942b20b49236edf049f6ecead7c8e" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/88/2c/e3f25e6e2c5ddb0c8b6e78115f6acd1be3167da1bbe361ae0bcff5c90512/typesense-0.21.0-py3-none-any.whl", upload-time = 2024-05-10T04:42:40Z, size = 21143, hashes = { sha256 = "e4330f103a40af98ba2b0ffd817392a84a537e04816221c9a283faadea7718f0" } }]
 
 [[packages]]
 name = "typing-extensions"

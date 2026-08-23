@@ -17,11 +17,11 @@ from testing.hermetic_network import BlockedNetworkError
 def test_dotenv_loading_is_disabled(tmp_path):
     """Local .env files must not rehydrate real credentials during e2e runs."""
     env_file = tmp_path / ".env"
-    env_file.write_text("SERVICE_ACCOUNT_JSON=real-looking-secret\nPINECONE_API_KEY=real-looking-key\n")
+    env_file.write_text("SERVICE_ACCOUNT_JSON=real-looking-secret\nUNUSED_PROVIDER_SECRET=real-looking-key\n")
 
     assert dotenv.load_dotenv(env_file, override=True) is False
     assert os.environ.get("SERVICE_ACCOUNT_JSON") is None
-    assert os.environ.get("PINECONE_API_KEY") is None
+    assert os.environ.get("UNUSED_PROVIDER_SECRET") is None
 
 
 def test_network_guard_blocks_external_dns_lookup():

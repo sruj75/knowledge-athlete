@@ -150,13 +150,6 @@ env:
     value: "http://vad.omi.me:80/v1/vad"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omi.me:80"
-  - name: PINECONE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: PINECONE_API_KEY
-  - name: PINECONE_INDEX_NAME
-    value: "memories-backend"
   - name: REDIS_DB_PORT
     value: "13151"
   - name: REDIS_DB_PASSWORD
@@ -186,8 +179,6 @@ env:
         key: GOOGLE_CLIENT_SECRET
   - name: NO_SOCKET_TIMEOUT
     value: "true"
-  - name: BUCKET_TEMPORAL_SYNC_LOCAL
-    value: "syncing-local"
   - name: GOOGLE_APPLICATION_CREDENTIALS
     valueFrom:
       secretKeyRef:
@@ -234,13 +225,6 @@ env:
     value: "prod"
   - name: DD_VERSION
     value: "1"
-  - name: TYPESENSE_HOST_PORT
-    value: "443"
-  - name: TYPESENSE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: prod-omi-backend-secrets
-        key: TYPESENSE_API_KEY
   - name: GOOGLE_CLOUD_PROJECT
     value: "based-hardware"
   - name: GCP_LOCATION

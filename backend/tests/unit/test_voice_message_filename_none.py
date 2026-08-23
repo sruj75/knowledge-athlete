@@ -26,7 +26,6 @@ _STUB = (
     'utils',
     'firebase_admin',
     'google',
-    'pinecone',
     'opuslib',
     'pydub',
     'redis',
@@ -37,7 +36,6 @@ _STUB = (
     'ulid',
     'sentry_sdk',
     'requests',
-    'typesense',
     'pusher',
     'multipart',
 )
@@ -67,7 +65,6 @@ class _Finder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
     def exec_module(self, module):
         if module.__name__ == 'utils.multipart':
-            module.CHAT_FILE_MAX_PART_SIZE = 50 * 1024 * 1024
             module.VOICE_MESSAGE_MAX_PART_SIZE = 200 * 1024 * 1024
             module.MultipartMaxPartSizeRoute = APIRoute
             module.max_part_size = _identity_max_part_size

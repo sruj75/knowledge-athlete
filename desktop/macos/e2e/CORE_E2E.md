@@ -9,7 +9,7 @@ Tiered desktop confidence ladder built on `dev-harness` (`make dev-up` + `PROVID
 **Hermetic T2 (recommended — local Auth emulator + offline stack):**
 
 ```bash
-# 1. Boot local stack (requires Docker for Typesense)
+# 1. Boot the local stack
 PROVIDER_MODE=offline make dev-up
 
 # 2. Launch named bundle with harness profile (signs in seeded alice user)

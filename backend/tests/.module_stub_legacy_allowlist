@@ -15,7 +15,6 @@
 # scope) and remove from this list.
 
 # --- (1) merge-casualty files ---
-backend/tests/unit/test_delete_account_purge_storage.py
 backend/tests/unit/test_llm_usage_db.py
 
 # --- (2) surfaced by P1 control-flow-descent fix (loop/conditional-wrapped writes) ---

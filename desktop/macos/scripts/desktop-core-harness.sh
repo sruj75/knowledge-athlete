@@ -256,7 +256,6 @@ PY
 probe_dev_stack() {
   python3 - "$REPO_ROOT" <<'PY'
 import json
-import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -269,13 +268,10 @@ from dev_harness import config, safety
 # Services with process records in the dev-harness manifest. The Firebase Auth
 # emulator has no record of its own — it runs inside the "firestore" process
 # (firebase emulators:start --only firestore,auth); auth liveness is covered by
-# the firestore PID plus the auth HTTP health check below. Typesense's record is
-# the harness supervise wrapper around `docker run`, so alive-PID + ownership
-# marker semantics hold for it like any other service.
+# the firestore PID plus the auth HTTP health check below.
 REQUIRED_SERVICES = (
     "firestore",
     "redis",
-    "typesense",
     "backend",
     "desktop-backend",
 )
@@ -419,23 +415,6 @@ for service in REQUIRED_SERVICES:
     except safety.SafetyError as exc:
         missing_services.append(f"{service}:{exc}")
         continue
-    if service == "typesense":
-        # Only the docker runtime has a container to cross-check; the native
-        # typesense-server runtime is covered by the owned-PID check above.
-        recorded_command = record.get("command") or []
-        uses_docker = bool(recorded_command) and str(recorded_command[0]).endswith("docker")
-        if uses_docker:
-            container = f"omi-dev-harness-{cfg.instance}-typesense"
-            container_running = subprocess.run(
-                ["docker", "ps", "--filter", f"name={container}", "--filter", "status=running", "-q"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                check=False,
-            ).stdout.strip()
-            if not container_running:
-                missing_services.append(f"{service}:container-not-running")
-
 if missing_services:
     ownership_failure(
         "stale_or_missing_process_records",
@@ -444,18 +423,15 @@ if missing_services:
         details=missing_services,
     )
 
-typesense_headers = {"X-TYPESENSE-API-KEY": config.LOCAL_TYPESENSE_API_KEY}
 checks = {
     "firestore": f"http://{cfg.firestore_host}/",
     "auth": f"http://{cfg.auth_host}/",
-    "typesense": f"http://127.0.0.1:{cfg.typesense_port}/collections",
     "backend": f"{cfg.backend_url}/docs",
     "desktop-backend": f"{cfg.desktop_backend_url}/health",
 }
 failures: list[str] = []
 for service, url in checks.items():
-    headers = typesense_headers if service == "typesense" else None
-    if not http_ok(url, headers=headers):
+    if not http_ok(url):
         failures.append(service)
 
 if failures:

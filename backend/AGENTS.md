@@ -38,13 +38,12 @@ backend/
     redis_db.py           #   Cache, rate limiting (Lua scripts), pub/sub, locks, geolocation
     conversations.py      #   Existing-row finalization drain state only; no product API
     users.py              #   Retained account, subscription, deletion, and language state
-    vector_db.py          #   Exact S-24-owned account-deletion Pinecone purge handoff
     fair_use.py           #   Usage limits and soft-cap tracking
     ...                   #   + auth, billing, updates, and operational job state
   routers/                # FastAPI route handlers, one per retained feature domain
     transcribe.py         #   /v4/listen WebSocket — auth + exact transient session contract
     listen/               #   Modulate transport, VAD, metering, canonical segments, direct translation
-    chat.py               #   stateless Chat compute, voice STT, and retained /v1 file upload
+    chat.py               #   stateless Chat compute and transient voice STT
     chat_sessions.py      #   stateless /v2/chat greeting and title compute
     conversation_compute.py # /v1/conversation-compute — stateless discard/structure/action-item candidates
     memory_compute.py     #   Three authenticated, bounded, stateless Memory proposal routes

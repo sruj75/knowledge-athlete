@@ -44,7 +44,6 @@
       "OPENROUTER_API_KEY",
       "OMI_BOT_APP_ID",
       "OMI_BOT_PRIVATE_KEY",
-      "PINECONE_API_KEY",
       "REDIS_DB_PASSWORD",
       "SERVICE_ACCOUNT_JSON",
       "SLIDESGPT_API_KEY",
@@ -54,7 +53,6 @@
       "SUPABASE_KEY",
       "TELEGRAM_BOT_TOKEN",
       "TELEGRAM_CHAT_ID",
-      "TYPESENSE_API_KEY",
       "UPSTASH_REDIS_PASSWORD"
     ],
     "config": [
@@ -104,7 +102,6 @@
       "SYNC_TASKS_INVOKER_SA",
       "SYNC_TASKS_LOCATION",
       "SYNC_TASKS_PROJECT",
-      "TYPESENSE_HOST",
       "USE_VERTEX_AI"
     ]
   },

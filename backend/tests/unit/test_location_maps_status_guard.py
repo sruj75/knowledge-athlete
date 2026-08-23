@@ -21,8 +21,6 @@ _STUB = (
     'utils.http_client',
     'firebase_admin',
     'google',
-    'pinecone',
-    'typesense',
     'opuslib',
     'pydub',
     'pusher',

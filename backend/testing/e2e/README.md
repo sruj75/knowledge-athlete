@@ -21,13 +21,13 @@ python -m pip install -r testing/e2e/requirements.txt
 
 ## Scope of v1
 
-This version proves the backend can boot hermetically and that selected retained user/account and durable account-deletion paths execute without real Firestore, Redis, GCS, Pinecone, Typesense, Google ADC, or production API keys. Conversation, Memory, task, goal, People, notification, and recording products are deliberately absent because the Mac owns those products locally. The authenticated transient listen route is exercised separately by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
+This version proves the backend can boot hermetically and that selected retained user/account and durable account-deletion paths execute without real Firestore, Redis, GCS, Google ADC, or production API keys. Conversation, Memory, task, goal, People, notification, and recording products are deliberately absent because the Mac owns those products locally. The authenticated transient listen route is exercised separately by `tests/unit/test_listen_transient_contract.py` with the real FastAPI route/runtime and a fake Modulate socket.
 
 | Scenario | Status | Notes |
 |---|---:|---|
 | Listen/STT route seam | ✅ | `/v4/listen` authentication, exact query parsing, fixed audio contract, managed Modulate transport, direct segment delivery, and optional translation are covered without server conversation persistence. `/v4/web/listen` is retired. |
-| Storage bootstrap | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake so callerless S-25 drain imports cannot contact GCS. No customer recording or speech-profile route is exercised. |
-| User/auth/profile/account | ✅ Green | Auth guard, account profile, and general language are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, exact Pinecone purge handoff, required-purge retry, and idempotent redelivery against local fakes. Firebase deletion and billing lookup stay controlled test seams. |
+| Storage bootstrap | ✅ Green | `google.cloud.storage.Client` is patched to a temp-dir fake so the S-25-owned finalization drain cannot contact GCS. No customer recording or speech-profile route is exercised. |
+| User/auth/profile/account | ✅ Green | Auth guard, account profile, and general language are covered. Account deletion additionally exercises its real admission route, durable marker, opaque Cloud Tasks payload, worker claim, retained fail-closed cleanup, and idempotent redelivery against local fakes. Firebase deletion and billing lookup stay controlled test seams. |
 | Removed product boundaries | ✅ Green | Product route/schema absence is owned by the focused S-23 unit contracts; the harness contains no hosted conversation, People, recording, notification, or retrieval fixture. |
 
 ## What is faked or disabled
@@ -39,8 +39,6 @@ This version proves the backend can boot hermetically and that selected retained
 | Google Cloud Storage | `google.cloud.storage.Client` patched to a filesystem-backed fake | Keeps shared S-25 drain imports hermetic without restoring customer storage routes. |
 | Cloud Tasks / OIDC | Strict in-memory `tasks_v2.CloudTasksClient` plus a local token-verification seam in the account-deletion lifecycle test | Exercises the production task protobuf, queue payload, OIDC identity/audience, and retry headers without a Cloud Tasks control plane or Google token verification. |
 | Google ADC | `google.auth.default` returns anonymous credentials | Prevents real credential lookup at import time. |
-| Pinecone | `PINECONE_API_KEY` removed globally; account deletion injects the exact S-24 purge result | Keeps app import hermetic without restoring hosted Memory or conversation vector readers. |
-| Typesense | Dummy host/port/API key | Lets remaining later-slice imports construct without testing hosted product search. |
 | Google Translate | Anonymous Google credentials | Allows import-time client construction; v1 tests do not call live translation. |
 | LLM/STT/VAD/embeddings | Fake modules scaffolded; route and custom-STT suggested-transcript seams covered where deterministic patching is practical | Kept as v2 work where scenarios need real outbound HTTP/WS/provider assertions. |
 
@@ -76,7 +74,6 @@ run.sh
         │   ├── firestore.py                    # MockFirestore retained-account support
         │   ├── redis.py                        # FakeRedis + redis.Redis patch
         │   ├── storage.py                      # filesystem-backed fake GCS client
-        │   ├── vector_search.py                # hermetic S-24 purge/import seam
         │   ├── llm.py                          # deterministic LLM fake scaffold
         │   ├── stt.py                          # deterministic custom and managed-STT socket helpers
         │   └── embeddings.py                   # VAD/diarization/embedding fake scaffold

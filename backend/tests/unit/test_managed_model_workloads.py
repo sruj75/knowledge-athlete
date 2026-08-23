@@ -41,7 +41,6 @@ _EXPECTED_PROVIDER_CONSTRUCTION = Counter(
         ('utils/llm/clients.py', 'OpenAIEmbeddings'): 1,
         ('utils/llm/providers.py', 'ChatGoogleGenerativeAI'): 2,
         ('utils/llm/providers.py', 'ChatOpenAI'): 2,
-        ('utils/other/chat_file.py', 'AsyncOpenAI'): 1,
     }
 )
 _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS = Counter(

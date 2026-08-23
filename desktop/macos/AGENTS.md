@@ -204,7 +204,6 @@ do not hand-edit those paths to match a specific machine.
 - **GRDB/SQLite**: Mac authority, including Focus, Insight tips, and AI Profile
 - **Firestore**: user/later-slice state; no Mac fallback
 - **Redis**: Caching
-- **Typesense**: Search
 
 ### User Subcollections (Firestore)
 - `users/{uid}/conversations` - callerless S-25 drain residue; never Mac/listen authority

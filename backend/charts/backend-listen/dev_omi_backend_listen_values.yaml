@@ -175,19 +175,10 @@ env:
       secretKeyRef:
         name: dev-omi-backend-secrets
         key: GITHUB_TOKEN
-  - name: BUCKET_TEMPORAL_SYNC_LOCAL
-    value: "syncing-local-development"
   - name: HOSTED_VAD_API_URL
     value: "http://vad.omiapi.com:80/v1/vad"
   - name: HOSTED_SPEAKER_EMBEDDING_API_URL
     value: "http://diarizer.omiapi.com:80"
-  - name: PINECONE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: PINECONE_API_KEY
-  - name: PINECONE_INDEX_NAME
-    value: "memories-backend-dev"
   - name: REDIS_DB_PORT
     value: "13151"
   - name: REDIS_DB_PASSWORD
@@ -243,13 +234,6 @@ env:
     value: "development"
   - name: DD_LOGS_ENABLED
     value: "false"
-  - name: TYPESENSE_HOST_PORT
-    value: "443"
-  - name: TYPESENSE_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: dev-omi-backend-secrets
-        key: TYPESENSE_API_KEY
   - name: ENCRYPTION_SECRET
     valueFrom:
       secretKeyRef:

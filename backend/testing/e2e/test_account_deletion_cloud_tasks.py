@@ -153,7 +153,7 @@ def _assert_user_data_deleted(fake_firestore, test_uid: str) -> None:
 
 
 def _stub_external_deletion_boundaries(monkeypatch) -> None:
-    """Keep Firebase, billing, and the S-24 Pinecone handoff inside the harness."""
+    """Keep Firebase and billing provider effects inside the harness."""
 
     from services.users import account_deletion
 
@@ -219,17 +219,6 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     test_uid, auth_headers = account_deletion_identity
     _configure_durable_account_deletion(monkeypatch)
     _stub_external_deletion_boundaries(monkeypatch)
-    purge_calls: list[str] = []
-
-    def successful_purge(uid: str) -> dict[str, object]:
-        purge_calls.append(uid)
-        return {"required_failures": [], "pinecone_namespaces_purged": 2}
-
-    monkeypatch.setattr(
-        account_deletion,
-        "purge_pinecone_user_data",
-        successful_purge,
-    )
     _seed_deletable_user(fake_firestore, test_uid)
     cloud_tasks_client.expect_pending_marker(fake_firestore, test_uid)
     claimed_markers = _observe_claim_transitions(monkeypatch, fake_firestore, test_uid)
@@ -270,7 +259,6 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     assert len(claimed_markers) == 1
     assert claimed_markers[0]["wipe_status"] == "retrying"
     assert "wipe_claimed_at" in claimed_markers[0]
-    assert purge_calls == [test_uid]
 
     redelivery = client.post(
         "/v1/users/account-deletion-wipes/run", json=payload, headers=_worker_headers(retry_count=1)
@@ -279,80 +267,6 @@ def test_account_deletion_cloud_task_completes_once_and_redelivery_is_acked(
     assert redelivery.json() == {"status": "dropped", "reason": "completed"}
     assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "completed"
     assert len(claimed_markers) == 1
-    assert purge_calls == [test_uid]
-
-
-def test_account_deletion_cloud_task_retries_required_purge_failure_without_losing_the_job(
-    client,
-    fake_firestore,
-    monkeypatch,
-    account_deletion_identity,
-    cloud_tasks_client,
-):
-    """A required purge failure returns retry, preserves data, and later completes the same job."""
-
-    from services.users import account_deletion
-
-    test_uid, auth_headers = account_deletion_identity
-    _configure_durable_account_deletion(monkeypatch)
-    _stub_external_deletion_boundaries(monkeypatch)
-    purge_calls: list[str] = []
-    purge_results = iter(
-        [
-            {
-                "required_failures": [{"operation": "pinecone_user_vectors", "error": "fake unavailable"}],
-                "pinecone_namespaces_purged": 0,
-            },
-            {"required_failures": [], "pinecone_namespaces_purged": 2},
-        ]
-    )
-
-    def controlled_purge(uid: str) -> dict[str, object]:
-        purge_calls.append(uid)
-        return next(purge_results)
-
-    monkeypatch.setattr(account_deletion, "purge_pinecone_user_data", controlled_purge)
-    _seed_deletable_user(fake_firestore, test_uid)
-    cloud_tasks_client.expect_pending_marker(fake_firestore, test_uid)
-    claimed_markers = _observe_claim_transitions(monkeypatch, fake_firestore, test_uid)
-
-    admitted = client.delete("/v1/users/delete-account", headers=auth_headers)
-    assert admitted.status_code == 200, admitted.text
-    wipe_job_id = _read_marker(fake_firestore, test_uid)["wipe_job_id"]
-    payload = _assert_enqueued_task_schema(cloud_tasks_client, wipe_job_id)
-
-    failed_delivery = client.post(
-        "/v1/users/account-deletion-wipes/run", json=payload, headers=_worker_headers(retry_count=0)
-    )
-    assert failed_delivery.status_code == 500, failed_delivery.text
-    assert failed_delivery.json() == {"status": "retry"}
-    assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "failed"
-    user = fake_firestore.collection("users").document(test_uid)
-    assert user.get().exists
-    assert user.collection("action_items").document("deletion-task").get().exists
-    assert len(claimed_markers) == 1
-    assert claimed_markers[0]["wipe_status"] == "retrying"
-    assert "wipe_claimed_at" in claimed_markers[0]
-    assert purge_calls == [test_uid]
-
-    retried_delivery = client.post(
-        "/v1/users/account-deletion-wipes/run", json=payload, headers=_worker_headers(retry_count=1)
-    )
-    assert retried_delivery.status_code == 200, retried_delivery.text
-    assert retried_delivery.json() == {"status": "done"}
-    assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "completed"
-    _assert_user_data_deleted(fake_firestore, test_uid)
-    assert len(claimed_markers) == 2
-    assert all(marker["wipe_status"] == "retrying" and "wipe_claimed_at" in marker for marker in claimed_markers)
-    assert purge_calls == [test_uid, test_uid]
-
-    redelivery = client.post(
-        "/v1/users/account-deletion-wipes/run", json=payload, headers=_worker_headers(retry_count=2)
-    )
-    assert redelivery.status_code == 200, redelivery.text
-    assert redelivery.json() == {"status": "dropped", "reason": "completed"}
-    assert len(claimed_markers) == 2
-    assert purge_calls == [test_uid, test_uid]
 
 
 def test_queue_not_found_preserves_auth_and_reconciles_from_the_marker(
@@ -371,11 +285,6 @@ def test_queue_not_found_preserves_auth_and_reconciles_from_the_marker(
     _seed_deletable_user(fake_firestore, test_uid)
     auth_deletions: list[str] = []
     monkeypatch.setattr(account_deletion.auth, "delete_account", lambda uid: auth_deletions.append(uid))
-    monkeypatch.setattr(
-        account_deletion,
-        "purge_pinecone_user_data",
-        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
-    )
     cloud_tasks_client.create_error = NotFound("account-deletion queue is absent")
 
     accepted = client.delete("/v1/users/delete-account", headers=auth_headers)
@@ -419,11 +328,6 @@ def test_repeated_delete_request_joins_running_wipe_without_requeueing(
     _configure_durable_account_deletion(monkeypatch)
     _stub_external_deletion_boundaries(monkeypatch)
     _seed_deletable_user(fake_firestore, test_uid)
-    monkeypatch.setattr(
-        account_deletion,
-        "purge_pinecone_user_data",
-        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
-    )
 
     first = client.delete("/v1/users/delete-account", headers=auth_headers)
     assert first.status_code == 200, first.text
@@ -462,11 +366,6 @@ def test_missing_root_document_does_not_hide_immediate_child_data(
     orphan_child = fake_firestore.collection("users").document(test_uid).collection("action_items").document("orphan")
     orphan_child.set({"id": "orphan", "uid": test_uid})
     assert not fake_firestore.collection("users").document(test_uid).get().exists
-    monkeypatch.setattr(
-        account_deletion,
-        "purge_pinecone_user_data",
-        lambda _uid: {"required_failures": [], "pinecone_namespaces_purged": 2},
-    )
 
     admitted = client.delete("/v1/users/delete-account", headers=auth_headers)
     assert admitted.status_code == 200, admitted.text

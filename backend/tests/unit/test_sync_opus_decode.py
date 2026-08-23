@@ -105,9 +105,6 @@ _ensure_attrs('utils.other.endpoints', ['get_current_user_uid'])
 _ensure_attrs(
     'utils.other.storage',
     [
-        'get_syncing_file_temporal_signed_url',
-        'delete_syncing_temporal_file',
-        'schedule_syncing_temporal_file_deletion',
         'download_audio_chunks_and_merge',
         'get_or_create_merged_audio',
         'get_merged_audio_signed_url',

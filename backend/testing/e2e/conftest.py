@@ -72,14 +72,6 @@ def _set_e2e_env():
     os.environ["OPENAI_API_KEY"] = "fake-openai-key"
     os.environ["ANTHROPIC_API_KEY"] = "fake-anthropic-key"
     os.environ["GOOGLE_API_KEY"] = "fake-google-key"
-    # database/vector_db.py intentionally skips Pinecone only when this env var is absent.
-    # An empty string still triggers Pinecone(api_key='') and fails at import time.
-    os.environ.pop("PINECONE_API_KEY", None)
-    os.environ["TYPESENSE_HOST"] = "localhost"
-    os.environ["TYPESENSE_HOST_PORT"] = "8108"
-    os.environ["TYPESENSE_API_KEY"] = "fake-typesense-key"
-    os.environ["BUCKET_TEMPORAL_SYNC_LOCAL"] = "sync-temporal"
-    os.environ["BUCKET_CHAT_FILES"] = "chat-files"
     os.environ["BUCKET_DESKTOP_UPDATES"] = "desktop-updates"
     os.environ["DEV_WEBHOOK_RETRY_DELAYS"] = "0,0,0"
     os.environ["AUDIO_MERGE_DISPATCH_MODE"] = "inline"

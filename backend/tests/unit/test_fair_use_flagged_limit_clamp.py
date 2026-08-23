@@ -29,7 +29,6 @@ _STUB = (
     'utils',
     'firebase_admin',
     'google',
-    'pinecone',
     'opuslib',
     'pydub',
     'redis',
@@ -40,7 +39,6 @@ _STUB = (
     'ulid',
     'sentry_sdk',
     'requests',
-    'typesense',
     'pusher',
 )
 

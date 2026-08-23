@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import hashlib
 import json
 import os
@@ -96,75 +95,6 @@ def _service_record(cfg: config.HarnessConfig, service: str) -> dict[str, object
     return None
 
 
-def _native_typesense_binary() -> str | None:
-    override = os.environ.get("OMI_TYPESENSE_SERVER_BIN", "").strip()
-    if override:
-        if not Path(override).is_file():
-            raise SystemExit(f"OMI_TYPESENSE_SERVER_BIN points to a missing binary: {override}")
-        return override
-    return shutil.which("typesense-server")
-
-
-@functools.lru_cache(maxsize=1)
-def _docker_daemon_healthy() -> bool:
-    """A docker CLI without a responding daemon must not win auto-detection."""
-    if not shutil.which("docker"):
-        return False
-    try:
-        probe = subprocess.run(
-            ["docker", "info"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return probe.returncode == 0
-
-
-def typesense_runtime() -> str:
-    """How the harness runs Typesense: "docker" (historical default) or "native".
-
-    OMI_TYPESENSE_RUNTIME pins the choice; unset, a healthy Docker daemon wins,
-    then a native typesense-server binary (so Docker-less or broken-Docker
-    machines — ephemeral CI Macs, minimal runners — still run the hermetic
-    stack), and a docker CLI without either keeps the historical docker error
-    ownership. Resolution is announced at `up` so evidence logs record the mode.
-    """
-    explicit = os.environ.get("OMI_TYPESENSE_RUNTIME", "").strip().lower()
-    if explicit:
-        if explicit not in ("docker", "native"):
-            raise SystemExit(f"OMI_TYPESENSE_RUNTIME must be 'docker' or 'native', got {explicit!r}")
-        return explicit
-    if _docker_daemon_healthy():
-        return "docker"
-    if _native_typesense_binary():
-        return "native"
-    return "docker"
-
-
-def _typesense_container_running(cfg: config.HarnessConfig) -> bool:
-    if typesense_runtime() != "docker":
-        return False
-    result = subprocess.run(
-        [
-            "docker",
-            "ps",
-            "--filter",
-            f"name={_typesense_container_name(cfg)}",
-            "--filter",
-            "status=running",
-            "-q",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-        check=False,
-    )
-    return bool(result.stdout.strip())
-
-
 def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]:
     if service == "redis":
         if _port_open("127.0.0.1", cfg.redis_port):
@@ -174,15 +104,6 @@ def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]
         return _http_ok(f"http://{cfg.firestore_host}/")
     if service == "auth":
         return _http_ok(f"http://{cfg.auth_host}/")
-    if service == "typesense":
-        url = f"http://127.0.0.1:{cfg.typesense_port}/collections"
-        headers = {"X-TYPESENSE-API-KEY": config.LOCAL_TYPESENSE_API_KEY}
-        ok, detail = _http_ok(url, headers=headers)
-        if ok:
-            return True, detail
-        if typesense_runtime() == "docker" and not _typesense_container_running(cfg):
-            return False, "container-not-running"
-        return False, detail
     if service == "backend":
         return _http_ok(f"{cfg.backend_url}/docs")
     if service == "desktop-backend":
@@ -201,8 +122,6 @@ def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -
     except safety.SafetyError as exc:
         print(f"{service}: not stopped before restart: {exc}")
         return
-    if service == "typesense":
-        _remove_stale_typesense_container(cfg)
     deadline = time.time() + 8
     while time.time() < deadline and safety.process_exists(pid):
         time.sleep(0.25)
@@ -269,23 +188,6 @@ def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]
         missing.append("java runtime (required by Firestore emulator)")
     if not _which("redis-server"):
         missing.append("redis-server (required for local Redis on loopback)")
-    runtime = typesense_runtime()
-    if runtime == "docker":
-        if not _which("docker"):
-            missing.append(
-                "docker (required for local Typesense on loopback; "
-                "or install typesense-server and set OMI_TYPESENSE_RUNTIME=native)"
-            )
-        elif not _docker_daemon_healthy():
-            missing.append(
-                "docker daemon (docker CLI present but `docker info` failed; "
-                "start Docker/colima or install typesense-server for OMI_TYPESENSE_RUNTIME=native)"
-            )
-    elif not _native_typesense_binary():
-        missing.append(
-            f"typesense-server {config.TYPESENSE_PINNED_VERSION} "
-            "(required for OMI_TYPESENSE_RUNTIME=native; set OMI_TYPESENSE_SERVER_BIN or add to PATH)"
-        )
     if not (cfg.repo_root / "firebase.json").is_file():
         missing.append("firebase.json at repo root")
     if not (cfg.repo_root / "firestore.rules").is_file():
@@ -315,7 +217,6 @@ def print_config(cfg: config.HarnessConfig) -> None:
     print(f"firestore_emulator: {cfg.firestore_host}")
     print(f"firebase_auth_emulator: {cfg.auth_host}")
     print(f"redis: {cfg.redis_host}:{cfg.redis_port}")
-    print(f"typesense: 127.0.0.1:{cfg.typesense_port}")
     print(f"backend: {cfg.backend_url}")
     print(f"desktop_backend: {cfg.desktop_backend_url}")
 
@@ -361,7 +262,6 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "firestore": cfg.firestore_host,
         "firebase_auth": cfg.auth_host,
         "redis": f"{cfg.redis_host}:{cfg.redis_port}",
-        "typesense": f"127.0.0.1:{cfg.typesense_port}",
         "backend": cfg.backend_url,
         "desktop_backend": cfg.desktop_backend_url,
     }
@@ -537,64 +437,7 @@ def _firebase_command(cfg: config.HarnessConfig) -> list[str]:
     ]
 
 
-def _typesense_container_name(cfg: config.HarnessConfig) -> str:
-    return f"{OWNERSHIP_PREFIX}-{cfg.instance}-typesense"
-
-
-def _remove_stale_typesense_container(cfg: config.HarnessConfig) -> None:
-    if typesense_runtime() != "docker":
-        return
-    container = _typesense_container_name(cfg)
-    subprocess.run(
-        ["docker", "rm", "-f", container],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-
-
-def _typesense_command(cfg: config.HarnessConfig) -> list[str]:
-    typesense_dir = cfg.layout.services_dir / "typesense"
-    typesense_dir.mkdir(parents=True, exist_ok=True)
-    if typesense_runtime() == "native":
-        binary = _native_typesense_binary()
-        if not binary:
-            raise SystemExit(
-                "OMI_TYPESENSE_RUNTIME=native requires typesense-server on PATH "
-                f"(expected {config.TYPESENSE_PINNED_VERSION}) or OMI_TYPESENSE_SERVER_BIN"
-            )
-        return [
-            binary,
-            "--data-dir",
-            str(typesense_dir),
-            "--api-address",
-            "127.0.0.1",
-            "--api-port",
-            str(cfg.typesense_port),
-            "--api-key",
-            config.LOCAL_TYPESENSE_API_KEY,
-            "--enable-cors",
-        ]
-    return [
-        "docker",
-        "run",
-        "--rm",
-        "--name",
-        _typesense_container_name(cfg),
-        "-p",
-        f"127.0.0.1:{cfg.typesense_port}:{config.TYPESENSE_CONTAINER_PORT}",
-        "-v",
-        f"{typesense_dir}:/data",
-        f"typesense/typesense:{config.TYPESENSE_PINNED_VERSION}",
-        "--data-dir",
-        "/data",
-        "--api-key",
-        config.LOCAL_TYPESENSE_API_KEY,
-        "--enable-cors",
-    ]
-
-
-# Infrastructure services (firestore, auth, redis, typesense) start first so the
+# Infrastructure services (firestore, auth, redis) start first so the
 # Python backend can connect to them immediately on boot.  The brief settle delay
 # prevents a port-binding race on resource-constrained runners (e.g. M1 Studio
 # under qualification load) where the backend starts before the emulator has
@@ -633,16 +476,6 @@ def _start_infrastructure(cfg: config.HarnessConfig) -> None:
         cwd=cfg.repo_root,
         log_name="redis.log",
         port=cfg.redis_port,
-    )
-    print(f"typesense runtime: {typesense_runtime()}")
-    _remove_stale_typesense_container(cfg)
-    _start_process(
-        cfg,
-        "typesense",
-        _typesense_command(cfg),
-        cwd=cfg.repo_root,
-        log_name="typesense.log",
-        port=cfg.typesense_port,
     )
 
 
@@ -696,7 +529,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
 def _start_services(cfg: config.HarnessConfig) -> None:
     _start_infrastructure(cfg)
     # Give infrastructure services a brief head start so the Python backend can
-    # bind connections to Redis, Firestore, and Typesense immediately on boot.
+    # bind connections to Redis and Firestore immediately on boot.
     # Without this, on a loaded runner the backend may retry connections during
     # its startup window, extending boot time beyond the health-check deadline.
     time.sleep(_INFRA_SETTLE_DELAY)
@@ -710,7 +543,6 @@ def _start_services(cfg: config.HarnessConfig) -> None:
 _HEALTH_TIMEOUTS: dict[str, float] = {
     "firestore": 45.0,
     "auth": 45.0,
-    "typesense": 45.0,
     "backend": 90.0,
     "desktop-backend": 60.0,
     "redis": 30.0,
@@ -729,11 +561,9 @@ def _wait_health(
     the service is marked unhealthy immediately instead of polling uselessly.
     Pass ``timeout`` to override the backend deadline for backwards-compat callers.
     """
-    typesense_headers = {"X-TYPESENSE-API-KEY": config.LOCAL_TYPESENSE_API_KEY}
     checks = {
         "firestore": (f"http://{cfg.firestore_host}/", None),
         "auth": (f"http://{cfg.auth_host}/", None),
-        "typesense": (f"http://127.0.0.1:{cfg.typesense_port}/collections", typesense_headers),
         "backend": (f"{cfg.backend_url}/docs", None),
         "desktop-backend": (f"{cfg.desktop_backend_url}/health", None),
         "redis": (None, None),  # port-based check
@@ -825,7 +655,6 @@ def cmd_up(args: argparse.Namespace) -> int:
                 "firestore": cfg.firestore_host,
                 "auth": cfg.auth_host,
                 "redis": f"{cfg.redis_host}:{cfg.redis_port}",
-                "typesense": f"127.0.0.1:{cfg.typesense_port}",
                 "backend": cfg.backend_url,
                 "desktop_backend": cfg.desktop_backend_url,
             },

@@ -6,13 +6,16 @@ Verifies:
 """
 
 import importlib.util
+import asyncio
 import base64
+import io
 import json
 import os
 import shutil as _shutil
 import sys
 import threading
 import time
+import wave
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -157,7 +160,6 @@ def _desktop_transcribe_isolation():
             'trends',
             'user_usage',
             'users',
-            'vector_db',
             'wrapped',
             'people',
             'processing_memories',
@@ -341,7 +343,6 @@ def _desktop_transcribe_isolation():
             'utils.conversations.process_conversation',
             'utils.notifications',
             'utils.other.storage',
-            'utils.other.chat_file',
             'utils.retrieval',
             'utils.retrieval.graph',
             'utils.fair_use',
@@ -594,7 +595,8 @@ class TestVoiceMessageTranscribeEndpoint:
                 patch.object(module, 'try_consume_budget', return_value=(True, 1_000, 1_000)),
                 patch.object(
                     module,
-                    'transcribe_voice_message_segment',
+                    '_transcribe_voice_message_file',
+                    new_callable=AsyncMock,
                     return_value=('Transient transcript', 'en'),
                 ) as transcribe,
             ):
@@ -611,6 +613,87 @@ class TestVoiceMessageTranscribeEndpoint:
             assert transcribe.call_count == 1
             assert not hasattr(module, 'process_voice_message_segment_stream')
         finally:
+            _cleanup_chat_client(saved)
+
+    def test_multipart_wav_uses_request_local_bytes_without_gcs(self):
+        from utils import chat as chat_helpers
+
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(16_000)
+            wav_file.writeframes(b'\x01\x00' * 160)
+        wav_bytes = wav_buffer.getvalue()
+
+        client, _module, saved = _make_chat_client()
+        fail_on_touch = MagicMock(side_effect=AssertionError('voice transcription touched GCS'))
+        try:
+            with (
+                patch.object(sys.modules['google.cloud.storage'], 'Client', fail_on_touch),
+                patch.object(
+                    chat_helpers,
+                    'get_prerecorded_service',
+                    return_value=('modulate', 'en', 'modulate-velma-2'),
+                ),
+                patch.object(chat_helpers, '_validated_wav_is_silent', return_value=False),
+                patch.object(chat_helpers, 'prerecorded_from_bytes', return_value=[object()]) as transcribe,
+                patch.object(chat_helpers, 'postprocess_words', return_value=[SimpleNamespace(text='Local bytes')]),
+            ):
+                response = client.post(
+                    '/v2/voice-message/transcribe',
+                    data={'language': 'en'},
+                    files={'files': ('audio.wav', wav_bytes, 'audio/wav')},
+                )
+
+            assert response.status_code == 200
+            assert response.json()['transcript'] == 'Local bytes'
+            transcribe.assert_called_once_with(wav_bytes, diarize=False, language='en', return_language=False)
+            fail_on_touch.assert_not_called()
+        finally:
+            _cleanup_chat_client(saved)
+
+    def test_file_voice_admission_bounds_bytes_until_provider_completion(self):
+        client, module, saved = _make_chat_client()
+        try:
+
+            async def scenario():
+                admission = asyncio.Semaphore(1)
+                provider_entered = asyncio.Event()
+                release_provider = asyncio.Event()
+                loaded_paths = []
+                provider_calls = 0
+
+                async def fake_run_blocking(_executor, function, *args, **kwargs):
+                    nonlocal provider_calls
+                    if function is module.load_voice_message_segment_bytes:
+                        loaded_paths.append(args[0])
+                        return b"wav", "en", None
+                    if function is module.transcribe_voice_message_bytes:
+                        provider_calls += 1
+                        if provider_calls == 1:
+                            provider_entered.set()
+                            await release_provider.wait()
+                        return "transcript", "en"
+                    raise AssertionError(f"unexpected blocking function: {function}")
+
+                with (
+                    patch.object(module, "get_stt_semaphore", return_value=admission),
+                    patch.object(module, "run_blocking", side_effect=fake_run_blocking),
+                ):
+                    first = asyncio.create_task(module._transcribe_voice_message_file("first.wav", "uid", "en"))
+                    await provider_entered.wait()
+                    second = asyncio.create_task(module._transcribe_voice_message_file("second.wav", "uid", "en"))
+                    await asyncio.sleep(0)
+
+                    assert loaded_paths == ["first.wav"]
+                    release_provider.set()
+                    assert await asyncio.gather(first, second) == [("transcript", "en"), ("transcript", "en")]
+                    assert loaded_paths == ["first.wav", "second.wav"]
+
+            asyncio.run(scenario())
+        finally:
+            client.close()
             _cleanup_chat_client(saved)
 
     @patch('utils.chat.transcribe_pcm_bytes')
@@ -815,7 +898,10 @@ class TestVoiceMessageTranscribeEndpoint:
         client, module, saved = _make_chat_client()
         try:
             with patch.object(
-                module, 'transcribe_voice_message_segment', return_value=('Hello world', 'en')
+                module,
+                '_transcribe_voice_message_file',
+                new_callable=AsyncMock,
+                return_value=('Hello world', 'en'),
             ) as transcribe:
                 response = client.post(
                     '/v2/voice-message/transcribe',

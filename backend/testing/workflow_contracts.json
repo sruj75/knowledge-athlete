@@ -86,13 +86,12 @@
         "tests/routers/test_users.py",
         "tests/unit/test_backend_runtime_env_validator.py",
         "tests/unit/test_claim_deletion_wipe_txn.py",
-        "tests/unit/test_delete_account_purge_storage.py",
         "testing/e2e/test_account_deletion_cloud_tasks.py"
       ],
       "checks": [],
       "invariants": [
         "irreversible auth deletion has a durable recovery marker",
-        "required derived-data purge failures cannot be marked completed",
+        "required retained-owner cleanup failures cannot be marked completed",
         "production deletion requests can only dispatch through a complete Cloud Tasks configuration",
         "an account-deletion task identifies exactly one persisted wipe job and never exposes a user ID"
       ]

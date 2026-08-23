@@ -2,6 +2,7 @@
 
 import os
 import re
+from pathlib import Path
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -64,19 +65,27 @@ class TestChatExecutorMigration:
 
 
 class TestChatUtilsExecutorMigration:
-    """Verify utils/chat.py uses storage_executor for file cleanup."""
+    """Verify utils/chat.py does not create unmanaged worker threads."""
 
     def test_no_threading_thread(self):
         src = _read_source('utils/chat.py')
         assert 'threading.Thread' not in src
 
-    def test_uses_storage_executor(self):
-        src = _read_source('utils/chat.py')
-        storage_src = _read_source('utils/other/storage.py')
-        assert 'schedule_syncing_temporal_file_deletion' in src
-        assert 'time.sleep(480)' not in src
-        assert 'DeferredDeleter' in storage_src
-        assert 'def schedule_syncing_temporal_file_deletion' in storage_src
+
+class TestHostedSearchProviderRetirement:
+    """Static tripwire for the deleted hosted search/vector boundary."""
+
+    def test_production_has_no_hosted_search_provider_boundary(self):
+        backend_path = Path(BACKEND_DIR)
+        assert not (backend_path / 'database' / 'vector_db.py').exists()
+        assert not (backend_path / 'typesense' / 'conversations.schema').exists()
+
+        forbidden = ('database.vector_db', 'database import vector_db', 'pinecone', 'typesense')
+        for root_name in ('database', 'models', 'routers', 'services', 'utils'):
+            for path in (backend_path / root_name).rglob('*.py'):
+                source = path.read_text(encoding='utf-8').lower()
+                matches = [token for token in forbidden if token in source]
+                assert not matches, f'{path.relative_to(backend_path)} restores hosted search/vector residue: {matches}'
 
 
 class TestStorageExecutorMigration:
