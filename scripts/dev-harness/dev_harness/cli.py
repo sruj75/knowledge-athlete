@@ -483,14 +483,13 @@ def _uvicorn_app_command(
     cfg: config.HarnessConfig,
     *,
     app_target: str,
-    offline_factory: str,
+    offline_app_target: str,
     port: int,
 ) -> list[str]:
     target = app_target
     command = [sys.executable, "-m", "uvicorn"]
     if cfg.provider_mode == "offline":
-        target = f"testing.e2e.offline_app:{offline_factory}"
-        command.append("--factory")
+        target = offline_app_target
     command.extend([target, "--host", "127.0.0.1", "--port", str(port)])
     return command
 
@@ -503,7 +502,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
         _uvicorn_app_command(
             cfg,
             app_target="main:app",
-            offline_factory="backend_app",
+            offline_app_target="testing.e2e.offline_backend_app:app",
             port=cfg.backend_port,
         ),
         cwd=cfg.repo_root / "backend",
@@ -516,7 +515,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
         _uvicorn_app_command(
             cfg,
             app_target="desktop_backend:app",
-            offline_factory="desktop_backend_app",
+            offline_app_target="testing.e2e.offline_desktop_backend_app:app",
             port=cfg.desktop_backend_port,
         ),
         cwd=cfg.repo_root / "backend",

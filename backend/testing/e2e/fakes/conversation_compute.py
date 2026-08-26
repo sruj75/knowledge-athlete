@@ -10,6 +10,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from utils.llm import conversation_processing
+
 
 def fake_should_discard_conversation(*_args: Any, **_kwargs: Any) -> bool:
     return False
@@ -31,8 +33,6 @@ def fake_extract_action_items(*_args: Any, **_kwargs: Any) -> list[Any]:
 
 def install_offline_conversation_compute_fakes() -> None:
     """Replace only provider-backed conversation helpers in offline processes."""
-
-    from utils.llm import conversation_processing
 
     conversation_processing.should_discard_conversation = fake_should_discard_conversation
     conversation_processing.get_transcript_structure = fake_get_transcript_structure

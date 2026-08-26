@@ -7,7 +7,6 @@ prerecorded and PTT callers continue to share the same offline fake.
 
 from __future__ import annotations
 
-import sys
 import uuid
 from typing import Any, Optional, Sequence
 
@@ -128,37 +127,3 @@ class FakePrerecordedSTTProvider:
 
 def make_fake_prerecorded_provider(language: Optional[str] = "en") -> FakePrerecordedSTTProvider:
     return FakePrerecordedSTTProvider(language)
-
-
-def install_offline_managed_stt_fake() -> None:
-    """Install fake managed-STT boundaries before an offline ASGI app is imported.
-
-    This installer lives under the test harness and is called only by the
-    offline app factories. Production modules retain their normal Modulate
-    adapters when imported through their regular entry points.
-    """
-
-    from utils import analytics
-    from utils.stt import pre_recorded, streaming, vad_gate
-
-    streaming.process_audio_modulate = fake_process_audio_modulate
-    pre_recorded.get_prerecorded_provider = make_fake_prerecorded_provider
-    vad_gate.is_gate_enabled = lambda: False
-    analytics.record_usage = lambda *args, **kwargs: None
-
-    # Keep installation idempotent if a caller imported one of these modules
-    # before selecting the offline factory.
-    already_loaded = {
-        "routers.listen.receiver": {
-            "process_audio_modulate": fake_process_audio_modulate,
-            "is_gate_enabled": lambda: False,
-        },
-        "routers.listen.runtime": {"record_usage": lambda *args, **kwargs: None},
-        "routers.chat": {"process_audio_modulate": fake_process_audio_modulate},
-    }
-    for module_name, replacements in already_loaded.items():
-        module = sys.modules.get(module_name)
-        if module is None:
-            continue
-        for name, replacement in replacements.items():
-            setattr(module, name, replacement)
