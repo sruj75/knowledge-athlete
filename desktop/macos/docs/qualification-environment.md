@@ -21,10 +21,10 @@ artifacts are listed in `qualification-cleanup.md`.
   sentinel-proven state/log pairs (defaults: 3 runs and 14 days).
 - `OMI_QUALIFICATION_SWIFT_CACHE_ROOT` — owner-only exact-SHA SwiftPM cache.
   Defaults to `~/Library/Caches/OmiDesktop/qualification-swiftpm-v2`.
-- `OMI_HARNESS_PORT_OFFSET` and `OMI_HARNESS_{FIRESTORE,AUTH,BACKEND,DESKTOP_BACKEND,REDIS}_PORT` — dev-harness controls. The qualifier exports the offset; direct per-service overrides remain available for debugging.
+- `OMI_HARNESS_PORT_OFFSET` and `OMI_HARNESS_{FIRESTORE,AUTH,BACKEND,REDIS}_PORT` — dev-harness controls. The qualifier exports the offset; direct per-service overrides remain available for debugging.
 
-The offset applies to Firestore, Firebase Auth, backend, desktop backend,
-and Redis. The script also derives `OMI_AUTOMATION_PORT`; invalid
+The offset applies to Firestore, Firebase Auth, the canonical backend, and
+Redis. The script also derives `OMI_AUTOMATION_PORT`; invalid
 ports fail before launch.
 
 ## Gate phases
@@ -263,8 +263,8 @@ The runner must reach:
 
 - `github.com` / `api.github.com` / Actions service endpoints (checkout, release
   download/upload, app-token flows)
-- Live desktop-backend health used by the workflow
-  (`https://desktop-backend-hhibjajaja-uc.a.run.app/health`)
+- Live canonical process health and Chat compatibility used by the workflow
+  (`https://api.omi.me/v1/health` and `https://api.omi.me/`)
 - Docker Hub / GHCR as required by the hermetic harness images
 - Apple notarization is **not** required on the qualifier; signed candidate
   assets arrive from Codemagic via the GitHub Release

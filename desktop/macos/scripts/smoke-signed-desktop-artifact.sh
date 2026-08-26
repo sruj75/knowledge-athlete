@@ -16,7 +16,6 @@ EXPECTED_BUNDLE_ID="${OMI_SIGNED_ARTIFACT_SMOKE_BUNDLE_ID:-com.omi.computer-maco
 EXPECTED_URL_SCHEME="${OMI_SIGNED_ARTIFACT_SMOKE_URL_SCHEME:-omi-computer}"
 EXPECTED_FEED_URL="${OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL:-https://api.omi.me/v2/desktop/appcast.xml}"
 EXPECTED_PYTHON_API_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL:-https://api.omi.me}"
-EXPECTED_DESKTOP_API_URL="${OMI_SIGNED_ARTIFACT_SMOKE_DESKTOP_API_URL:-https://desktop-backend-hhibjajaja-uc.a.run.app/}"
 IS_EXTERNAL_PREVIEW=false
 RUN_LAUNCH=false
 RUN_NETWORK=false
@@ -61,8 +60,6 @@ Options:
                              the Omi Beta variant passes its identity-scoped feed)
   --expected-python-api-url URL
                              Expected OMI_PYTHON_API_URL in the artifact
-  --expected-desktop-api-url URL
-                             Expected OMI_DESKTOP_API_URL in the artifact
   --preview                  Assert external-preview isolation (no Sparkle feed)
   --launch                   Launch the app and assert it stays alive briefly
   --network                  Probe configured backend/appcast URLs
@@ -160,7 +157,6 @@ parse_args() {
       --expected-url-scheme) require_option_value "$1" "${2:-}"; EXPECTED_URL_SCHEME="$2"; shift 2 ;;
       --expected-feed-url) require_option_value "$1" "${2:-}"; EXPECTED_FEED_URL="$2"; shift 2 ;;
       --expected-python-api-url) require_option_value "$1" "${2:-}"; EXPECTED_PYTHON_API_URL="$2"; shift 2 ;;
-      --expected-desktop-api-url) require_option_value "$1" "${2:-}"; EXPECTED_DESKTOP_API_URL="$2"; shift 2 ;;
       --preview) IS_EXTERNAL_PREVIEW=true; shift ;;
       --launch) RUN_LAUNCH=true; shift ;;
       --network) RUN_NETWORK=true; shift ;;
@@ -463,8 +459,8 @@ assert_backend_routing_config() {
 
   grep -Fqx "OMI_PYTHON_API_URL=$EXPECTED_PYTHON_API_URL" "$env_file" \
     || fail "artifact .env must use expected OMI_PYTHON_API_URL"
-  grep -Fqx "OMI_DESKTOP_API_URL=$EXPECTED_DESKTOP_API_URL" "$env_file" \
-    || fail "artifact .env must use expected OMI_DESKTOP_API_URL"
+  ! grep -Eq '^OMI_DESKTOP_API_URL=' "$env_file" \
+    || fail "artifact .env must not contain retired OMI_DESKTOP_API_URL"
   ! grep -Eq 'localhost|127[.]0[.]0[.]1|0[.]0[.]0[.]0|ngrok|dev-serve' "$env_file" \
     || fail "artifact .env contains a local/dev tunnel backend reference"
 

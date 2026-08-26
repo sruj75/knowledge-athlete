@@ -6,7 +6,6 @@ on:
       - 'backend/**'
       - 'Makefile'
       - '.github/workflows/runtime_image_contracts.yml'
-      - '.github/workflows/desktop_backend_auto_dev.yml'
       - '.github/workflows/gcp_*.yml'
   workflow_dispatch:
 

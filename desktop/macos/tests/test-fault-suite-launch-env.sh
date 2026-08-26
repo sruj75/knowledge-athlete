@@ -187,7 +187,6 @@ expected = {
     "OMI_SKIP_BACKEND": "1",
     "OMI_SKIP_TUNNEL": "1",
     "OMI_PYTHON_API_URL": fault_url,
-    "OMI_DESKTOP_API_URL": fault_url,
     "OMI_AUTH_API_URL": fault_url,
     "OMI_FAULT_MODEL_AUTH_TOKEN": "omi-fault-model-token",
     "OMI_DESKTOP_LAUNCH_TOKEN": sys.argv[5],
@@ -292,7 +291,6 @@ SH
     OMI_SKIP_BACKEND=1 \
     OMI_SKIP_TUNNEL=1 \
     OMI_PYTHON_API_URL="http://127.0.0.1:19081" \
-    OMI_DESKTOP_API_URL="http://127.0.0.1:19081" \
     OMI_AUTH_API_URL="http://127.0.0.1:19081" \
     OMI_SIGN_IDENTITY="fault-test-identity" \
     bash "$fixture/run.sh" >"$output" 2>&1

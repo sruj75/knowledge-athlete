@@ -1,6 +1,6 @@
 import Foundation
 
-/// Low-level HTTP transport for the desktop Python/Rust backends.
+/// Low-level HTTP transport for the canonical desktop backend.
 /// Owns URLSession, JSON decoding, managed auth header assembly, and standard verb helpers.
 struct OmiHTTPTransport {
   let session: URLSession

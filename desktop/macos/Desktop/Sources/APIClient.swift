@@ -2,22 +2,9 @@ import Foundation
 
 actor APIClient {
   static let shared = APIClient()
-  // Primary data backend URL — Python backend is the single source of truth for all data CRUD.
-  // Beta release channel uses the dev service; stable uses production or explicit local env.
+  // One canonical backend URL owns every retained API call family.
   var baseURL: String {
-    DesktopBackendEnvironment.pythonBaseURL()
-  }
-
-  // Python desktop backend URL — used only for config/api-keys and local test
-  // subscription. All data CRUD,
-  // chat AI, and title generation are on Python.
-  // Set via OMI_DESKTOP_API_URL env var (in .env).
-  var rustBackendURL: String {
-    let resolved = DesktopBackendEnvironment.rustBackendURL()
-    if !resolved.isEmpty { return resolved }
-
-    NSLog("OMI API: OMI_DESKTOP_API_URL not set — Python desktop backend calls will fail")
-    return ""
+    DesktopBackendEnvironment.backendBaseURL()
   }
 
   let session: URLSession
@@ -157,7 +144,7 @@ actor APIClient {
     customBaseURL: String? = nil
   ) async throws -> String {
     struct Resp: Decodable { let token: String }
-    let base = customBaseURL ?? rustBackendURL
+    let base = customBaseURL ?? baseURL
     guard !base.isEmpty else {
       throw CredentialHealthError.backendTransient(
         statusCode: nil,
@@ -291,7 +278,7 @@ actor APIClient {
     outputText: Int,
     outputAudio: Int
   ) async {
-    let base = rustBackendURL
+    let base = baseURL
     guard !base.isEmpty else { return }
     let normalized = base.hasSuffix("/") ? base : base + "/"
     guard let url = URL(string: normalized + "v2/realtime/usage") else { return }

@@ -5,13 +5,13 @@
   "canonical_prevention": "Stage the environment-owned Firebase signer only as owner-readable transient runner material, reject signer-project drift before key use, keep bounded redacted failure classes, and enforce the signer-before-probe-before-traffic ordering in the deployment contract.",
   "canonical_prevention_artifact": [
     "backend/tests/unit/test_firebase_release_probe_token.py",
-    ".github/scripts/test_check_desktop_backend_release_policy.py"
+    ".github/scripts/test_backend_candidate_probe.py"
   ],
   "evidence_prs": [
     10670
   ],
   "scope_hints": [
-    ".github/workflows/*desktop_backend*.yml",
+    ".github/workflows/gcp_backend*.yml",
     "backend/scripts/firebase_release_probe_token.py",
     "backend/tests/unit/test_firebase_release_probe_token.py"
   ],

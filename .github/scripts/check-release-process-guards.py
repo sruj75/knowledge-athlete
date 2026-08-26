@@ -84,6 +84,11 @@ def check_desktop_preview_controls() -> list[str]:
     for fragment in (
         "workflow_dispatch:",
         "source_ref:",
+        "backend_environment:",
+        "backend_url:",
+        "preview backend overrides must not target a production-family URL",
+        "PREVIEW_BACKEND_ENVIRONMENT",
+        "OMI_PYTHON_API_URL",
         "ref: main",
         "git ls-remote --exit-code origin",
         "^preview/",
@@ -99,6 +104,9 @@ def check_desktop_preview_controls() -> list[str]:
             errors.append(f"desktop preview dispatcher is missing required guard fragment: {fragment}")
     if "pull_request:" in dispatcher or "push:" in dispatcher:
         errors.append("desktop preview dispatcher must be manual-only")
+    for retired in ("python_api_url", "desktop_api_url", "OMI_DESKTOP_API_URL", "PREVIEW_BACKEND_MODE"):
+        if retired in dispatcher:
+            errors.append(f"desktop preview dispatcher retains retired dual-backend field: {retired}")
 
     required_runtime_secret = (
         "            DESKTOP_PREVIEW_PUBLISH_KEY:\n"

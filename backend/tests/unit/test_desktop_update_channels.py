@@ -287,14 +287,6 @@ class TestBetaAdmissionControl:
             build_number=12063,
             zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.63+12063-macos/Omi.zip",
             dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.63+12063-macos/omi.dmg",
-            compatibility_contract={
-                "schema_version": 1,
-                "app_release_id": "v0.12.63+12063-macos",
-                "app_version": "0.12.63",
-                "app_build_number": 12063,
-                "backend_mode": "app_only",
-                "environment_contract_version": "desktop-backend-env-v1",
-            },
         )
         ref = MagicMock()
         ref.get.return_value = snapshot
@@ -350,14 +342,6 @@ class TestChannelPromotionRules:
                 build_number=12093,
                 zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.93+12093-macos/Omi.zip",
                 dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.93+12093-macos/omi.dmg",
-                compatibility_contract={
-                    "schema_version": 1,
-                    "app_release_id": "v0.12.93+12093-macos",
-                    "app_version": "0.12.93",
-                    "app_build_number": 12093,
-                    "backend_mode": "app_only",
-                    "environment_contract_version": "desktop-backend-env-v1",
-                },
             )
         )
         missing_manifest = MagicMock(exists=False)
@@ -542,14 +526,6 @@ class TestPointerRepointRules:
                 build_number=12073,
                 zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/Omi.zip",
                 dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/omi.dmg",
-                compatibility_contract={
-                    "schema_version": 1,
-                    "app_release_id": "v0.12.73+12073-macos",
-                    "app_version": "0.12.73",
-                    "app_build_number": 12073,
-                    "backend_mode": "app_only",
-                    "environment_contract_version": "desktop-backend-env-v1",
-                },
             )
         )
 
@@ -583,14 +559,6 @@ class TestPointerRepointRules:
                 build_number=12073,
                 zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/Omi.zip",
                 dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/omi.dmg",
-                compatibility_contract={
-                    "schema_version": 1,
-                    "app_release_id": "v0.12.73+12073-macos",
-                    "app_version": "0.12.73",
-                    "app_build_number": 12073,
-                    "backend_mode": "app_only",
-                    "environment_contract_version": "desktop-backend-env-v1",
-                },
             )
         )
         with pytest.raises(ValueError, match=message):
@@ -636,14 +604,6 @@ class TestBetaBreakglass:
                 qualification_evidence_asset=(
                     "qualification-evidence-" + tag + ".json" if qualified else "desktop-smoke-result.json"
                 ),
-                compatibility_contract={
-                    "schema_version": 1,
-                    "app_release_id": tag,
-                    "app_version": f"0.12.{build - 12000}",
-                    "app_build_number": build,
-                    "backend_mode": "app_only",
-                    "environment_contract_version": "desktop-backend-env-v1",
-                },
             )
         )
 

@@ -50,7 +50,7 @@ Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.
 
 ## Repository
 - This is the `desktop/macos/` subfolder of the **OMI monorepo** (`BasedHardware/omi`)
-- macOS Swift app lives here; its shared Python desktop backend lives under `../../backend`
+- macOS Swift app lives here; its canonical Python backend lives under `../../backend`
 
 ## Release Pipeline
 
@@ -61,7 +61,7 @@ Beta candidate tags are cut **on every macOS-affecting merge to `main`** (`push`
 3. **Qualification** (`desktop_qualify_beta.yml`) — accepts the exact published candidate tag, but executes only on `qualify-m1-studio` (label `omi-qual-m1-studio`). The global non-cancelling `desktop-beta-qualification-m1` lock queues all candidates and never cancels local cleanup. It rebuilds the exact tag, runs hermetic T2 and fault injection, and writes evidence. No build-provider or M4 path can qualify. See `desktop/macos/docs/qualification-environment.md` for lease, port, retention, and cleanup controls; its local stack reaps only matching lease-token/process-group/port provenance and leaves foreign listeners alone.
 4. **Automatic beta promotion** (`desktop_promote_beta.yml`) — a separate `workflow_run` starts only after successful qualification, derives and validates the immutable `v*-macos` tag against the qualification SHA, then invokes the same internal-only backend admission authority. The backend captures the server-owned Beta admission generation before validating digest-matched evidence, then atomically verifies that the reservation and pause state are unchanged while registering the immutable manifest and advancing the explicit beta pointer. If that handoff fails after qualification, use only `desktop_recover_beta.yml` with the exact tag, `confirm=recover-beta`, and a reason.
 
-The shared Python backend must contain the manifest/pointer endpoints before the first beta promotion. Deploy it separately with `gcp_backend.yml`; `desktop_backend_auto_dev.yml` owns development Python desktop-backend delivery, while `desktop_backend_prod.yml` and `desktop_backend_recover_prod.yml` own protected production delivery and retained-revision recovery. Merging desktop code does not deploy either production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
+The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
 
 Signed artifact smoke scope:
 - Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, helper/runtime packaging, artifact readability, and local storage package surface.
@@ -73,7 +73,7 @@ Signed artifact smoke scope:
 Stable is manual:
 - Automatic qualification never promotes Stable. `desktop_promote_prod.yml` remains `workflow_dispatch` only and protected by the `prod` environment.
 - Run it with the current qualified Beta `release_tag` and `confirm=promote-stable`. It reads and compare-and-swaps the current Stable pointer itself, advances only that pointer, updates the existing legacy/static bridges, and verifies hashes and feed output.
-- The Python desktop-backend deployment workflows remain independent from desktop release promotion. Stable promotion checks live desktop chat-contract compatibility but does not deploy the backend. Do not manually edit release visibility or pointers outside the promotion workflow.
+- Canonical backend deployment remains independent from desktop release promotion. Stable promotion checks live process health and Chat-contract compatibility through `api.omi.me` but does not deploy the backend. Do not manually edit release visibility or pointers outside the promotion workflow.
 
 **Codemagic CLI & API:**
 - Token: `$CODEMAGIC_API_TOKEN` (set in `~/.zshrc`)
@@ -270,10 +270,10 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.omi.omi-fix-
 - To connect agent-swift: `agent-swift connect --bundle-id com.omi.omi-fix-rewind`
 - **Skip the web login:** sign into "Omi Dev" once; named bundles launched by `./run.sh` clone that session before launch.
 - **Jump to a screen without clicking:** the automation bridge auto-enables on non-prod bundles — `./scripts/omi-ctl navigate <screen>` (e.g. `rewind`, `memories`, `settings rewind`). See "Fast-Path for Local Iteration" in `e2e/SKILL.md`.
-- Named/dev bundles default to the development Python backends unless
+- Named/dev bundles default to the canonical development Python backend unless
   an explicit launch URL overrides them. Before QA, run
   `./scripts/omi-ctl health`; its unauthenticated identity payload reports the
-  resolved backend environment/URLs plus the agent-runtime handshake state,
+  resolved backend environment/URL plus the agent-runtime handshake state,
   negotiated protocol version, packaged runtime version, and expected protocol.
   A protocol-compatible runtime that omits a required capability is rejected at
   startup; health never reports the expected protocol as if it were negotiated.
@@ -282,8 +282,8 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.omi.omi-fix-
   component suites and the live continuity gauntlet for PR readiness.
 
 ### Run Variants & Parallel Worktrees
-- `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_DESKTOP_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
-- **Parallel worktrees auto-isolate.** `scripts/dev-instance.sh` derives a unique instance from each linked git worktree, so `run.sh` (and `backend/scripts/dev-serve.sh`) pick per-worktree ports (desktop 10201+, Python 8080+, automation 47777+) and bundle name (`omi-<worktree>`). Kills are pidfile-scoped, and a taken port fails loud instead of clobbering. The primary checkout is unchanged (`Omi Dev`, 10201/8080/47777). Override any of `OMI_INSTANCE` / `PORT` / `PYTHON_PORT` / `OMI_AUTOMATION_PORT` / `OMI_APP_NAME` to opt out.
+- `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_PYTHON_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
+- **Parallel worktrees auto-isolate.** `scripts/dev-instance.sh` derives a unique instance from each linked git worktree, so `run.sh` (and `backend/scripts/dev-serve.sh`) pick one per-worktree canonical backend port (8080+) plus an automation port (47777+) and bundle name (`omi-<worktree>`). Kills are pidfile-scoped, and a taken port fails loud instead of clobbering. The primary checkout is unchanged (`Omi Dev`, backend 8080, automation 47777). Override any of `OMI_INSTANCE` / `PORT` / `PYTHON_PORT` / `OMI_AUTOMATION_PORT` / `OMI_APP_NAME` to opt out.
 - `Omi Dev` is the canonical shared development profile (reusable permissions, auth seed source). Do not pass `OMI_APP_NAME="Omi Dev"` from a linked worktree; that creates a named bundle displayed as Omi Dev with a different bundle id and breaks permission reuse.
 - Local Python backend (per-worktree port): `cd backend && ./scripts/dev-serve.sh`.
 
@@ -307,7 +307,7 @@ Fast path (skips web login and sidebar click-through):
    - `agent-swift` only for UI the bridge can't reach yet (`click` moves the cursor).
 3. **Read logs to confirm behavior:** app + chat bridge in the exact path from
    `./scripts/omi-ctl log-path` (named dev bundles) or `/private/tmp/omi.log`
-   (production); `./run.sh` prints the isolated local Python desktop-backend log path at
+   (production); `./run.sh` prints the isolated local Python backend log path at
    launch; per-user issues in Sentry/PostHog.
 4. **Verify the actual behavior**, not just that the app launched — exercise the feature and check the logs/UI reflect the change.
 

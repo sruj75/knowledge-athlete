@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -58,17 +59,28 @@ def test_offline_app_commands_install_provider_fakes(monkeypatch: pytest.MonkeyP
         offline_app_target="testing.e2e.offline_backend_app:app",
         port=cfg.backend_port,
     )
-    desktop_command = cli._uvicorn_app_command(
-        cfg,
-        app_target="desktop_backend:app",
-        offline_app_target="testing.e2e.offline_desktop_backend_app:app",
-        port=cfg.desktop_backend_port,
-    )
-
     assert backend_command[3] == "testing.e2e.offline_backend_app:app"
-    assert desktop_command[3] == "testing.e2e.offline_desktop_backend_app:app"
     assert "--factory" not in backend_command
-    assert "--factory" not in desktop_command
+    assert not hasattr(cfg, "desktop_backend_port")
+
+
+def test_app_service_topology_starts_only_the_canonical_backend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    cfg = config.load_config(REPO_ROOT)
+    started: list[tuple[str, list[str]]] = []
+
+    def record_start(_cfg: config.HarnessConfig, service: str, command: list[str], **_kwargs: object) -> None:
+        started.append((service, command))
+
+    monkeypatch.setattr(cli, "_start_process", record_start)
+
+    cli._start_app_services(cfg)
+
+    assert [service for service, _command in started] == ["backend"]
+    assert started[0][1][3] == "testing.e2e.offline_backend_app:app"
 
 
 def test_real_app_commands_keep_production_entry_points(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -114,6 +126,47 @@ def test_firebase_command_writes_the_configured_emulator_ports(monkeypatch: pyte
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     assert payload["emulators"]["firestore"]["port"] == 8406
     assert payload["emulators"]["auth"]["port"] == 9420
+
+
+def test_wait_health_returns_terminal_timeout_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = SimpleNamespace(
+        firestore_host="127.0.0.1:8085",
+        auth_host="127.0.0.1:9099",
+        backend_url="http://127.0.0.1:8000",
+        redis_port=6380,
+    )
+    monkeypatch.setattr(cli, "_process_records", lambda _cfg: [])
+    monkeypatch.setattr(cli, "_HEALTH_TIMEOUTS", {service: 0.0 for service in cli._HEALTH_TIMEOUTS})
+
+    failures = cli._wait_health(cfg)
+
+    assert len(failures) == 4
+    assert any(item.startswith("backend: not healthy after 0s") for item in failures)
+
+
+def test_wait_health_returns_dead_process_failure_and_clears_recovered_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = SimpleNamespace(
+        firestore_host="127.0.0.1:8085",
+        auth_host="127.0.0.1:9099",
+        backend_url="http://127.0.0.1:8000",
+        redis_port=6380,
+    )
+    monkeypatch.setattr(
+        cli,
+        "_process_records",
+        lambda _cfg: [{"service": "backend", "pid": 4242, "log": "/tmp/backend.log"}],
+    )
+    monkeypatch.setattr(cli.safety, "process_exists", lambda pid: pid != 4242)
+    monkeypatch.setattr(cli, "_port_open", lambda _host, _port: True)
+    attempts = iter([(False, "connection refused"), (True, "HTTP 200"), (True, "HTTP 200")])
+    monkeypatch.setattr(cli, "_http_ok", lambda _url, headers=None: next(attempts))
+    monkeypatch.setattr(cli.time, "sleep", lambda _seconds: None)
+
+    failures = cli._wait_health(cfg)
+
+    assert failures == ["backend: process exited (pid=4242); check log: /tmp/backend.log"]
 
 
 def test_reset_command_is_idempotent_with_temp_state(tmp_path: Path) -> None:

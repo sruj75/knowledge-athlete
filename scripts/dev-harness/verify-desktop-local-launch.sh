@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "$0")/_source_local_dev_env.sh"
 cd "$(dirname "$0")/../.."
 
-DESKTOP_BACKEND_URL="${OMI_DESKTOP_API_URL:-http://127.0.0.1:10201}"
+BACKEND_URL="${OMI_PYTHON_API_URL:-http://127.0.0.1:8000}"
 STATE_ROOT="${OMI_LOCAL_STATE_ROOT:-.local/dev-harness/default}"
 BACKEND_LOG="${STATE_ROOT}/logs/backend.log"
 OMI_CTL="./desktop/macos/scripts/omi-ctl"
@@ -34,7 +34,7 @@ else
   echo "warning: $OMI_CTL not found; skipping omi-ctl state check"
 fi
 
-chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${DESKTOP_BACKEND_URL}/v2/chat/completions" \
+chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/chat/completions" \
   -H 'Content-Type: application/json' \
   -d '{"model":"claude-3-5-sonnet-20241022","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' || true)"
 if [ "$chat_status" = "404" ]; then

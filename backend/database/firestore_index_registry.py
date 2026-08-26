@@ -113,30 +113,6 @@ def _desc(field_path: str) -> FirestoreIndexField:
 INDEX_ONLY_REQUIREMENTS: tuple[FirestoreIndexRequirement, ...] = ()
 
 
-STALE_IN_PROGRESS_CONVERSATIONS_QUERY = FirestoreQuerySpec(
-    identifier='conversations_in_progress_by_finished_at',
-    collection_group='conversations',
-    query_scope='COLLECTION',
-    filters=(FirestoreQueryFilter('status', '==', 'status'),),
-    index_fields=(
-        _asc('status'),
-        _asc('finished_at'),
-        _asc('__name__'),
-    ),
-)
-
-STARRED_CHAT_SESSIONS_QUERY = FirestoreQuerySpec(
-    identifier='chat_sessions_starred_by_updated_at',
-    collection_group='chat_sessions',
-    query_scope='COLLECTION',
-    filters=(FirestoreQueryFilter('starred', '==', 'starred'),),
-    index_fields=(
-        _asc('starred'),
-        _desc('updated_at'),
-        _desc('__name__'),
-    ),
-)
-
 FAIR_USE_FLAGGED_STATES_QUERY = FirestoreQuerySpec(
     identifier='fair_use_flagged_states_by_updated_at',
     collection_group='fair_use_state',
@@ -149,11 +125,7 @@ FAIR_USE_FLAGGED_STATES_QUERY = FirestoreQuerySpec(
     ),
 )
 
-QUERY_SPECS = (
-    STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
-    STARRED_CHAT_SESSIONS_QUERY,
-    FAIR_USE_FLAGGED_STATES_QUERY,
-)
+QUERY_SPECS = (FAIR_USE_FLAGGED_STATES_QUERY,)
 INDEX_REQUIREMENTS = (
     *INDEX_ONLY_REQUIREMENTS,
     *(

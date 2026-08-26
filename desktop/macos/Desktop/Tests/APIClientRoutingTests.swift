@@ -151,27 +151,44 @@ final class APIClientRoutingTests: XCTestCase {
 
   // MARK: - URL property tests
 
-  func testNonProductionAppDefaultsToDevelopmentPythonBackend() async {
+  func testBackendBaseURLUsesOneCanonicalOverride() {
+    XCTAssertEqual(
+      DesktopBackendEnvironment.backendBaseURL(
+        useDevelopmentBackends: true,
+        environmentValue: "http://canonical.test:8080"
+      ),
+      "http://canonical.test:8080/"
+    )
+    XCTAssertEqual(
+      DesktopBackendEnvironment.backendBaseURL(
+        useDevelopmentBackends: false,
+        environmentValue: "http://contaminated.test:8080"
+      ),
+      DesktopBackendEnvironment.productionBackendURL
+    )
+  }
+
+  func testNonProductionAppDefaultsToDevelopmentBackend() async {
     unsetenv("OMI_PYTHON_API_URL")
     let client = APIClient()
     let url = await client.baseURL
-    XCTAssertEqual(url, DesktopBackendEnvironment.developmentPythonAPIURL)
+    XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
   }
 
-  func testExplicitPythonBackendOverrideWinsOverDevelopmentDefault() {
-    let url = DesktopBackendEnvironment.pythonBaseURL(
+  func testExplicitBackendOverrideWinsOverDevelopmentDefault() {
+    let url = DesktopBackendEnvironment.backendBaseURL(
       useDevelopmentBackends: true,
       environmentValue: "https://api.omi.me"
     )
     XCTAssertEqual(url, "https://api.omi.me/")
   }
 
-  func testDevelopmentDefaultUsesDevelopmentPythonBackendWithoutOverride() {
-    let url = DesktopBackendEnvironment.pythonBaseURL(
+  func testDevelopmentDefaultUsesDevelopmentBackendWithoutOverride() {
+    let url = DesktopBackendEnvironment.backendBaseURL(
       useDevelopmentBackends: true,
       environmentValue: nil
     )
-    XCTAssertEqual(url, DesktopBackendEnvironment.developmentPythonAPIURL)
+    XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
   }
 
   func testBetaProductionBundleKeepsProductionAuthBackendByDefault() {
@@ -187,73 +204,38 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertEqual(url, "http://localhost:8080/")
   }
 
-  func testStableProductionBundleKeepsProductionPythonBackend() {
-    let url = DesktopBackendEnvironment.pythonBaseURL(
+  func testStableProductionBundleKeepsProductionBackend() {
+    let url = DesktopBackendEnvironment.backendBaseURL(
       useDevelopmentBackends: false,
       environmentValue: "https://api.omi.me"
     )
     XCTAssertEqual(url, "https://api.omi.me/")
   }
 
-  func testExplicitRustBackendOverrideWinsOverDevelopmentDefault() {
-    let url = DesktopBackendEnvironment.rustBackendURL(
-      useDevelopmentBackends: true,
-      environmentValue: "https://desktop-backend-hhibjajaja-uc.a.run.app",
-      launchEnvironmentValue: nil
-    )
-    XCTAssertEqual(url, "https://desktop-backend-hhibjajaja-uc.a.run.app/")
-  }
-
-  func testDevelopmentDefaultUsesDevelopmentRustBackendWithoutOverride() {
-    let url = DesktopBackendEnvironment.rustBackendURL(
-      useDevelopmentBackends: true,
-      environmentValue: nil,
-      launchEnvironmentValue: nil
-    )
-    XCTAssertEqual(url, DesktopBackendEnvironment.developmentRustBackendURL)
-  }
-
-  func testDevelopmentDefaultsDoNotOverwriteExplicitBackendURLs() {
-    let originalPython = ProcessInfo.processInfo.environment["OMI_PYTHON_API_URL"]
-    let originalRust = ProcessInfo.processInfo.environment["OMI_DESKTOP_API_URL"]
+  func testDevelopmentDefaultsDoNotOverwriteExplicitBackendURL() {
+    let originalBackend = ProcessInfo.processInfo.environment["OMI_PYTHON_API_URL"]
     defer {
-      if let originalPython {
-        setenv("OMI_PYTHON_API_URL", originalPython, 1)
+      if let originalBackend {
+        setenv("OMI_PYTHON_API_URL", originalBackend, 1)
       } else {
         unsetenv("OMI_PYTHON_API_URL")
       }
-      if let originalRust {
-        setenv("OMI_DESKTOP_API_URL", originalRust, 1)
-      } else {
-        unsetenv("OMI_DESKTOP_API_URL")
-      }
     }
 
-    setenv("OMI_PYTHON_API_URL", "http://python-override:8080", 1)
-    setenv("OMI_DESKTOP_API_URL", "http://rust-override:10201", 1)
+    setenv("OMI_PYTHON_API_URL", "http://canonical-override:8080", 1)
     DesktopBackendEnvironment.applyReleaseChannelDefaults()
 
     XCTAssertEqual(
       ProcessInfo.processInfo.environment["OMI_PYTHON_API_URL"],
-      "http://python-override:8080"
-    )
-    XCTAssertEqual(
-      ProcessInfo.processInfo.environment["OMI_DESKTOP_API_URL"],
-      "http://rust-override:10201"
+      "http://canonical-override:8080"
     )
   }
 
-  func testBundleEnvironmentDoesNotOverwriteExplicitLaunchBackendURLs() {
+  func testBundleEnvironmentDoesNotOverwriteExplicitLaunchBackendURL() {
     let launchEnvironment = [
-      "OMI_DESKTOP_API_URL": "http://127.0.0.1:10343",
-      "OMI_PYTHON_API_URL": "http://127.0.0.1:8080",
+      "OMI_PYTHON_API_URL": "http://127.0.0.1:8080"
     ]
 
-    XCTAssertFalse(
-      BundleEnvironment.shouldApplyBundledValue(
-        for: "OMI_DESKTOP_API_URL",
-        launchEnvironment: launchEnvironment
-      ))
     XCTAssertFalse(
       BundleEnvironment.shouldApplyBundledValue(
         for: "OMI_PYTHON_API_URL",
@@ -264,15 +246,6 @@ final class APIClientRoutingTests: XCTestCase {
         for: "FIREBASE_API_KEY",
         launchEnvironment: launchEnvironment
       ))
-  }
-
-  func testStableProductionBundleKeepsConfiguredRustBackend() {
-    let url = DesktopBackendEnvironment.rustBackendURL(
-      useDevelopmentBackends: false,
-      environmentValue: "https://desktop-backend-hhibjajaja-uc.a.run.app",
-      launchEnvironmentValue: nil
-    )
-    XCTAssertEqual(url, "https://desktop-backend-hhibjajaja-uc.a.run.app/")
   }
 
   func testBetaProductionChannelUsesProductionBackendRatherThanDevelopment() {
@@ -287,19 +260,11 @@ final class APIClientRoutingTests: XCTestCase {
         updateChannel: "staging"
       ))
     XCTAssertEqual(
-      DesktopBackendEnvironment.pythonBaseURL(
+      DesktopBackendEnvironment.backendBaseURL(
         useDevelopmentBackends: false,
         environmentValue: nil
       ),
       "https://api.omi.me/"
-    )
-    XCTAssertEqual(
-      DesktopBackendEnvironment.rustBackendURL(
-        useDevelopmentBackends: false,
-        environmentValue: nil,
-        launchEnvironmentValue: nil
-      ),
-      DesktopBackendEnvironment.productionRustBackendURL
     )
   }
 
@@ -320,7 +285,7 @@ final class APIClientRoutingTests: XCTestCase {
         updateChannel: "beta"
       ))
     XCTAssertEqual(
-      DesktopBackendEnvironment.pythonBaseURL(useDevelopmentBackends: false, environmentValue: nil),
+      DesktopBackendEnvironment.backendBaseURL(useDevelopmentBackends: false, environmentValue: nil),
       "https://api.omi.me/"
     )
   }
@@ -358,26 +323,18 @@ final class APIClientRoutingTests: XCTestCase {
 
   func testProductionFamilyIgnoresContaminatedProcessEndpoints() {
     XCTAssertEqual(
-      DesktopBackendEnvironment.pythonBaseURL(
+      DesktopBackendEnvironment.backendBaseURL(
         useDevelopmentBackends: false,
         environmentValue: "https://staging.example.test"
       ),
-      DesktopBackendEnvironment.productionPythonAPIURL
+      DesktopBackendEnvironment.productionBackendURL
     )
     XCTAssertEqual(
       DesktopBackendEnvironment.authBaseURL(
         useDevelopmentBackends: false,
         environmentValue: "https://staging.example.test"
       ),
-      DesktopBackendEnvironment.productionPythonAPIURL
-    )
-    XCTAssertEqual(
-      DesktopBackendEnvironment.rustBackendURL(
-        useDevelopmentBackends: false,
-        environmentValue: "https://staging.example.test",
-        launchEnvironmentValue: "https://other.example.test"
-      ),
-      DesktopBackendEnvironment.productionRustBackendURL
+      DesktopBackendEnvironment.productionBackendURL
     )
   }
 
@@ -403,37 +360,6 @@ final class APIClientRoutingTests: XCTestCase {
     let client = APIClient()
     let url = await client.baseURL
     XCTAssertEqual(url, "http://localhost:8080/")
-  }
-
-  func testRustBackendURLReadsFromApiUrlEnvVar() async {
-    setenv("OMI_DESKTOP_API_URL", "http://localhost:8787", 1)
-    defer { unsetenv("OMI_DESKTOP_API_URL") }
-    let client = APIClient()
-    let url = await client.rustBackendURL
-    XCTAssertEqual(url, "http://localhost:8787/")
-  }
-
-  func testNonProductionAppDefaultsToDevelopmentRustBackendWhenNotSet() async {
-    unsetenv("OMI_DESKTOP_API_URL")
-    let client = APIClient()
-    let url = await client.rustBackendURL
-    XCTAssertEqual(url, DesktopBackendEnvironment.developmentRustBackendURL)
-  }
-
-  func testBaseURLAndRustBackendURLAreIndependent() async {
-    setenv("OMI_PYTHON_API_URL", "http://python:8080", 1)
-    setenv("OMI_DESKTOP_API_URL", "http://rust:8787", 1)
-    defer {
-      unsetenv("OMI_PYTHON_API_URL")
-      unsetenv("OMI_DESKTOP_API_URL")
-    }
-
-    let client = APIClient()
-    let base = await client.baseURL
-    let rust = await client.rustBackendURL
-    XCTAssertEqual(base, "http://python:8080/")
-    XCTAssertEqual(rust, "http://rust:8787/")
-    XCTAssertNotEqual(base, rust)
   }
 
   func testRealtimeMintStructuredFailurePreservesDiagnostics() async throws {
@@ -486,7 +412,7 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // MARK: - Routing behavior: Python-routed endpoints (default baseURL)
+  // MARK: - Routing behavior: canonical backend endpoints
 
   private func makeTestClient() async -> APIClient {
     let config = URLSessionConfiguration.ephemeral
@@ -500,13 +426,11 @@ final class APIClientRoutingTests: XCTestCase {
   override func setUp() {
     super.setUp()
     URLCapture.reset()
-    setenv("OMI_PYTHON_API_URL", "http://python-test:9001", 1)
-    setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
+    setenv("OMI_PYTHON_API_URL", "http://canonical-test:9001", 1)
   }
 
   override func tearDown() {
     unsetenv("OMI_PYTHON_API_URL")
-    unsetenv("OMI_DESKTOP_API_URL")
     URLCapture.reset()
     super.tearDown()
   }
@@ -528,7 +452,7 @@ final class APIClientRoutingTests: XCTestCase {
     }
 
     let client = await makeTestClient()
-    let baseURL = "http://python-test:9001/"
+    let baseURL = "http://canonical-test:9001/"
     let _: ManagedHeaderResponse? = try? await client.get("managed-get", customBaseURL: baseURL)
     let _: ManagedHeaderResponse? = try? await client.post(
       "managed-body", body: ManagedHeaderBody(value: "payload"), customBaseURL: baseURL)
@@ -548,13 +472,13 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  // -- Subscription/payments (GET → Python, was explicit pythonBackendURL, now default) --
+  // -- Subscription/payments --
 
   func testGetUserSubscriptionRoutesToPython() async {
     let client = await makeTestClient()
     _ = try? await client.getUserSubscription() as UserSubscriptionResponse
     assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
+      URLCapture.capturedRequests, host: "canonical-test", port: 9001,
       pathContains: "v1/users/me/subscription", method: "GET",
       label: "getUserSubscription")
   }
@@ -636,20 +560,18 @@ final class APIClientRoutingTests: XCTestCase {
     assertCapturedPath("/v1/memory/compute/consolidate")
   }
 
-  // MARK: - Routing behavior: Rust-routed endpoints (customBaseURL: rustBackendURL)
+  // -- Config/API keys --
 
-  // -- Config/API keys (GET → Rust) --
-
-  func testFetchApiKeysRoutesToRust() async {
+  func testFetchApiKeysRoutesToCanonicalBackend() async {
     let client = await makeTestClient()
     _ = try? await client.fetchApiKeys() as APIClient.ApiKeysResponse
     assertRoutes(
-      URLCapture.capturedRequests, host: "rust-test", port: 9002,
+      URLCapture.capturedRequests, host: "canonical-test", port: 9001,
       pathContains: "v1/config/api-keys", method: "GET",
       label: "fetchApiKeys")
   }
 
-  func testSynthesizeSpeechRoutesToRust() async {
+  func testSynthesizeSpeechRoutesToCanonicalBackend() async {
     let client = await makeTestClient()
     _ = try? await client.synthesizeSpeech(
       request: APIClient.TtsSynthesizeRequest(
@@ -661,7 +583,7 @@ final class APIClientRoutingTests: XCTestCase {
 
     let requests = URLCapture.capturedRequests
     assertRoutes(
-      requests, host: "rust-test", port: 9002,
+      requests, host: "canonical-test", port: 9001,
       pathContains: "v1/tts/synthesize", method: "POST",
       label: "synthesizeSpeech")
 
@@ -671,7 +593,7 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertEqual(body?["instructions"] as? String, "Speak naturally")
   }
 
-  // MARK: - Python-routed: remaining manual URL builders
+  // MARK: - Remaining manual URL builders
 
   // -- Chat AI endpoints (migrated from Rust to Python) --
 
@@ -679,7 +601,7 @@ final class APIClientRoutingTests: XCTestCase {
     let client = await makeTestClient()
     _ = try? await client.getInitialMessage(profileText: "Local profile", memories: ["Local memory"])
     assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
+      URLCapture.capturedRequests, host: "canonical-test", port: 9001,
       pathContains: "v2/chat/initial-message", method: "POST",
       label: "getInitialMessage")
   }
@@ -688,7 +610,7 @@ final class APIClientRoutingTests: XCTestCase {
     let client = await makeTestClient()
     _ = try? await client.generateSessionTitle(userText: "hi", assistantText: "hello")
     assertRoutes(
-      URLCapture.capturedRequests, host: "python-test", port: 9001,
+      URLCapture.capturedRequests, host: "canonical-test", port: 9001,
       pathContains: "v2/chat/generate-title", method: "POST",
       label: "generateSessionTitle")
   }
@@ -707,7 +629,7 @@ final class APIClientRoutingTests: XCTestCase {
 
     let requests = URLCapture.capturedRequests
     assertRoutes(
-      requests, host: "rust-test", port: 9002,
+      requests, host: "canonical-test", port: 9001,
       pathContains: "v2/realtime/usage", method: "POST",
       label: "reportRealtimeUsage")
     let body = requests.first?.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
@@ -728,7 +650,7 @@ final class APIClientRoutingTests: XCTestCase {
 
     let requests = URLCapture.capturedRequests
     assertRoutes(
-      requests, host: "python-test", port: 9001,
+      requests, host: "canonical-test", port: 9001,
       pathContains: "v1/payments/checkout-session", method: "POST",
       label: "createCheckoutSession")
 

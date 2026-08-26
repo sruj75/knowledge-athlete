@@ -120,7 +120,9 @@ def _appcast_surface(name: str, appcast: object, *, channel: str, release_id: st
     if not actual_id and not required:
         return _surface(name, "PASS", "safe_residue", expected, {}, "Channel is not required at this release phase.")
     if actual_id == release_id:
-        return _surface(name, "PASS", "aligned", expected, {"channel": channel, "release_id": actual_id}, "Appcast channel matches.")
+        return _surface(
+            name, "PASS", "aligned", expected, {"channel": channel, "release_id": actual_id}, "Appcast channel matches."
+        )
     return _surface(
         name,
         "FAIL",
@@ -132,7 +134,9 @@ def _appcast_surface(name: str, appcast: object, *, channel: str, release_id: st
     )
 
 
-def _github_surfaces(snapshot: dict[str, object], release_id: str, phase: str) -> tuple[list[dict[str, object]], dict[str, object]]:
+def _github_surfaces(
+    snapshot: dict[str, object], release_id: str, phase: str
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     github = snapshot.get("github_release")
     if not isinstance(github, dict):
         github = _unavailable("collector did not provide GitHub release data")
@@ -162,9 +166,11 @@ def _github_surfaces(snapshot: dict[str, object], release_id: str, phase: str) -
             "is_prerelease": github.get("is_prerelease"),
             "missing_assets": missing_assets,
         },
-        "GitHub release identity and required signed artifact are present."
-        if valid
-        else "GitHub release is missing, non-published, or does not match the requested release.",
+        (
+            "GitHub release identity and required signed artifact are present."
+            if valid
+            else "GitHub release is missing, non-published, or does not match the requested release."
+        ),
     )
     prose_surface = _surface(
         "human_release_prose",
@@ -187,7 +193,9 @@ def _github_surfaces(snapshot: dict[str, object], release_id: str, phase: str) -
     return [release_surface, prose_surface], metadata
 
 
-def _manifest_surface(snapshot: dict[str, object], release_id: str, tag_sha: str, phase: str, metadata: dict[str, object]) -> dict[str, object]:
+def _manifest_surface(
+    snapshot: dict[str, object], release_id: str, tag_sha: str, phase: str, metadata: dict[str, object]
+) -> dict[str, object]:
     manifest = snapshot.get("manifest", _unavailable("collector did not provide the canonical manifest"))
     expected = {"release_id": release_id, "app_source_sha": tag_sha}
     if _is_unavailable(manifest):
@@ -215,7 +223,11 @@ def _manifest_surface(snapshot: dict[str, object], release_id: str, tag_sha: str
         "PASS" if valid else "FAIL",
         "aligned" if valid else "reversible_drift",
         {**expected, "qualification_evidence": metadata_evidence or None},
-        {"release_id": manifest_id or None, "app_source_sha": manifest_sha or None, "qualification_evidence": evidence or None},
+        {
+            "release_id": manifest_id or None,
+            "app_source_sha": manifest_sha or None,
+            "qualification_evidence": evidence or None,
+        },
         message,
         repair,
     )
@@ -254,28 +266,23 @@ def _channel_surfaces(snapshot: dict[str, object], release_id: str, phase: str) 
                 "aligned" if valid else "customer_visible_split",
                 {"channel": phase, "is_live": required},
                 {"channel": actual_channel or None, "is_live": actual_live},
-                "Legacy bridge state matches the release phase." if valid else "Legacy appcast bridge does not match the release phase.",
+                (
+                    "Legacy bridge state matches the release phase."
+                    if valid
+                    else "Legacy appcast bridge does not match the release phase."
+                ),
             )
         )
 
     appcasts = snapshot.get("appcasts")
     appcasts = appcasts if isinstance(appcasts, dict) else {}
-    surfaces.extend(
-        (
-            _appcast_surface(
-                "python_appcast",
-                appcasts.get("python", _unavailable("Python appcast was not collected")),
-                channel=current_channel,
-                release_id=release_id,
-                required=required,
-            ),
-            _appcast_surface(
-                "rust_appcast",
-                appcasts.get("rust", _unavailable("Rust appcast was not collected")),
-                channel=current_channel,
-                release_id=release_id,
-                required=required,
-            ),
+    surfaces.append(
+        _appcast_surface(
+            "canonical_appcast",
+            appcasts.get("canonical", _unavailable("Canonical appcast was not collected")),
+            channel=current_channel,
+            release_id=release_id,
+            required=required,
         )
     )
     static = snapshot.get("static")
@@ -294,7 +301,11 @@ def _channel_surfaces(snapshot: dict[str, object], release_id: str, phase: str) 
             "aligned" if valid else "customer_visible_split",
             expected_static,
             {"channel": static_surface.get("channel"), "release_id": static_id or None},
-            "Static route matches the active release channel." if valid else "Static route diverges from the active release channel.",
+            (
+                "Static route matches the active release channel."
+                if valid
+                else "Static route diverges from the active release channel."
+            ),
         )
     )
     return surfaces
@@ -303,8 +314,22 @@ def _channel_surfaces(snapshot: dict[str, object], release_id: str, phase: str) 
 def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str, phase: str) -> list[dict[str, object]]:
     if phase != "stable":
         return [
-            _surface("backend_health_identity", "PASS", "safe_residue", {"phase": phase}, {}, "Stable backend identity is not required before stable promotion."),
-            _surface("tracking_tag", "PASS", "safe_residue", {"phase": phase}, {}, "Production tracking tag is not required before stable promotion."),
+            _surface(
+                "backend_health_identity",
+                "PASS",
+                "safe_residue",
+                {"phase": phase},
+                {},
+                "Stable backend identity is not required before stable promotion.",
+            ),
+            _surface(
+                "tracking_tag",
+                "PASS",
+                "safe_residue",
+                {"phase": phase},
+                {},
+                "Production tracking tag is not required before stable promotion.",
+            ),
         ]
 
     surfaces: list[dict[str, object]] = []
@@ -313,18 +338,16 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
         surfaces.append(
             _unavailable_surface(
                 "backend_health_identity",
-                {"service": "omi-desktop-backend", "release_channel": "production", "chat_contract_version": "1"},
+                {"process_status": "ok", "service": "omi-backend", "chat_contract_version": "1"},
                 backend,
             )
         )
     else:
-        backend_sha = _optional_string(backend.get("backend_release_sha"))
         valid = (
             backend.get("status") == "healthy"
-            and backend.get("service") == "omi-desktop-backend"
-            and backend.get("backend_release_channel") == "production"
+            and backend.get("process_status") == "ok"
+            and backend.get("service") == "omi-backend"
             and backend.get("chat_contract_version") == "1"
-            and bool(re.fullmatch(r"[0-9a-f]{40}", backend_sha))
         )
         surfaces.append(
             _surface(
@@ -332,24 +355,24 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
                 "PASS" if valid else "FAIL",
                 "aligned" if valid else "customer_visible_split",
                 {
-                    "service": "omi-desktop-backend",
-                    "backend_release_channel": "production",
+                    "process_status": "ok",
+                    "service": "omi-backend",
                     "chat_contract_version": "1",
                 },
                 {
                     key: backend.get(key)
                     for key in (
                         "status",
+                        "process_status",
                         "service",
-                        "backend_release_sha",
-                        "backend_release_channel",
                         "chat_contract_version",
-                        "revision",
                     )
                 },
-                "Backend health reports a compatible independent production identity."
-                if valid
-                else "Backend health is missing a compatible independent production identity.",
+                (
+                    "Canonical backend health reports an independent compatible contract."
+                    if valid
+                    else "Canonical backend health is missing an independent compatible contract."
+                ),
             )
         )
     surfaces.append(
@@ -359,7 +382,7 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
             "safe_residue",
             {"status": "retired"},
             {"status": "retired"},
-            "Legacy tracking tag is retired; independent backend provenance comes from health identity and deploy evidence.",
+            "Legacy tracking tag is retired; canonical deploy evidence owns backend provenance.",
         )
     )
     return surfaces
@@ -380,7 +403,11 @@ def _operational_surfaces(snapshot: dict[str, object]) -> tuple[list[dict[str, o
                 "aligned" if valid else "unknown",
                 {"artifact_status": "passed", "post_artifact_failure": None},
                 {"artifact_status": artifact_status or None, "post_artifact_failure": later_failure or None},
-                "Codemagic artifact and post-artifact state are durable." if valid else "Codemagic post-artifact state requires operator review.",
+                (
+                    "Codemagic artifact and post-artifact state are durable."
+                    if valid
+                    else "Codemagic post-artifact state requires operator review."
+                ),
             )
         ]
 
@@ -393,9 +420,11 @@ def _operational_surfaces(snapshot: dict[str, object]) -> tuple[list[dict[str, o
             "unknown" if unavailable else "aligned",
             {"all_metrics_available": True},
             {"unavailable_metrics": unavailable} if unavailable else {"all_metrics_available": True},
-            "Unavailable metrics remain explicit and are not rendered as release success."
-            if unavailable
-            else "Operational metrics include their denominators, windows, and minimum samples.",
+            (
+                "Unavailable metrics remain explicit and are not rendered as release success."
+                if unavailable
+                else "Operational metrics include their denominators, windows, and minimum samples."
+            ),
         )
     )
     return surfaces, metrics
@@ -407,7 +436,11 @@ def _metric_report(metrics: object) -> list[dict[str, object]]:
     for name in METRIC_CONTRACTS:
         value = source.get(name, _unavailable("metric collector did not provide this metric"))
         if _is_unavailable(value) or not isinstance(value, dict):
-            reason = _optional_string(value.get("reason")) if isinstance(value, dict) else "metric value had an invalid shape"
+            reason = (
+                _optional_string(value.get("reason"))
+                if isinstance(value, dict)
+                else "metric value had an invalid shape"
+            )
             report.append(
                 {
                     "id": name,

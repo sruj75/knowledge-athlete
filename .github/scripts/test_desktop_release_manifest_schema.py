@@ -87,5 +87,19 @@ class BetaFieldsStayOutOfTheStableSchema(unittest.TestCase):
         self.assertNotIn("betaDmgUrl", defs)
 
 
+class BackendIdentityStaysOutOfTheAppManifest(unittest.TestCase):
+    def test_schema_contains_only_app_artifact_identity(self):
+        properties = _load_schema()["properties"]
+        for retired in (
+            "backend_mode",
+            "compatibility_contract",
+            "environment_contract_version",
+            "desktop_backend_source_sha",
+            "desktop_backend_oci_index_digest",
+            "desktop_backend_platform_digest",
+        ):
+            self.assertNotIn(retired, properties)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

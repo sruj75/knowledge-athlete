@@ -1,7 +1,7 @@
 """Deterministic LLM responses for hermetic desktop E2E (OMI_LLM_STUB=1).
 
-Ported from the retired Rust `llm_stub.rs` after the Python desktop-backend
-cutover. Returns OpenAI-compatible JSON / SSE instead of calling upstream
+Ported from the retired Rust `llm_stub.rs` during the canonical Python cutover.
+Returns OpenAI-compatible JSON / SSE instead of calling upstream
 providers, and echoes any ``[[MARKER:...]]`` token found in the latest user turn.
 """
 

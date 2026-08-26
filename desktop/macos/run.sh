@@ -54,9 +54,9 @@ Usage: ./run.sh [options]
 Build and run the Omi Desktop dev app with local backend services.
 
 Options (via environment variables):
-  OMI_SKIP_BACKEND=1      Skip starting Python backend (use remote backend via OMI_DESKTOP_API_URL)
-  OMI_SKIP_TUNNEL=1        Skip Cloudflare tunnel (use OMI_DESKTOP_API_URL from .env directly)
-  PORT=10201                Desktop backend port (default: 10201, never use 8080)
+  OMI_SKIP_BACKEND=1      Skip starting Python backend (use remote backend via OMI_PYTHON_API_URL)
+  OMI_SKIP_TUNNEL=1        Skip Cloudflare tunnel (use OMI_PYTHON_API_URL from .env directly)
+  PORT=8080                Canonical backend port (default: 8080)
   OMI_APP_NAME="Omi Dev"   App name (default: "Omi Dev")
   OMI_SKIP_AUTH_SEED=1     Do not copy auth/onboarding from Omi Dev into named bundles
   OMI_SKIP_SETTINGS_SEED=1  Do not copy shortcuts/settings from Omi Dev into named bundles
@@ -79,8 +79,8 @@ Required files:
 Required tools:
   xcrun/swift, python3, uv, npm, node, codesign, cloudflared (unless skipped)
 
-Port allocation (avoid 8080 to prevent port conflicts):
-  Backend default: 10201
+Port allocation:
+  Canonical backend default: 8080 (linked worktrees derive an isolated port)
 
 Examples:
   ./run.sh                                  # Fast incremental launch after first run
@@ -104,8 +104,7 @@ apply_yolo_env() {
     # `--yolo` supplies remote-development defaults, but must not discard an
     # explicitly targeted backend. Named QA and fault-injection bundles use
     # these overrides to exercise a chosen service revision without requiring
-    # a local desktop backend or .env file.
-    export OMI_DESKTOP_API_URL="${OMI_DESKTOP_API_URL:-https://desktop-backend-dt5lrfkkoa-uc.a.run.app}"
+    # a local backend or .env file.
     export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://api.omiapi.com}"
     export FIREBASE_API_KEY="AIzaSyD9dzBdglc7IO9pPDIOvqnCoTis_xKkkC8"
 }
@@ -140,8 +139,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/scripts/fast-dev-bundle.sh"
 # shellcheck source=local-profile-env.sh
 source "$SCRIPT_DIR/scripts/local-profile-env.sh"
-# shellcheck source=python-desktop-backend-dev.sh
-source "$SCRIPT_DIR/scripts/python-desktop-backend-dev.sh"
+# shellcheck source=python-backend-dev.sh
+source "$SCRIPT_DIR/scripts/python-backend-dev.sh"
 
 # Timing utilities
 SCRIPT_START_TIME=$(date +%s.%N)
@@ -177,10 +176,10 @@ macos_copy_tree() {
 }
 
 # Per-worktree isolation: derive unique ports + bundle name so parallel worktrees don't
-# collide. Sets OMI_INSTANCE / RUST_PORT / PYTHON_PORT / AUTOMATION_PORT / OMI_APP_NAME /
-# OMI_DEV_DIR (explicit overrides always win; the primary checkout keeps "Omi Dev" + 10201).
+# collide. Sets OMI_INSTANCE / PYTHON_PORT / AUTOMATION_PORT / OMI_APP_NAME /
+# OMI_DEV_DIR (explicit overrides always win; the primary checkout keeps "Omi Dev" + 8080).
 source "$SCRIPT_DIR/../../scripts/dev-instance.sh"
-BACKEND_PORT="${PORT:-$RUST_PORT}"
+BACKEND_PORT="${PORT:-$PYTHON_PORT}"
 export PORT="$BACKEND_PORT"
 
 # Serialize same-worktree builds only (shared Desktop/.build + build/$APP_NAME.app).
@@ -210,7 +209,6 @@ should_default_named_bundle_to_dev_backend() {
         && [ "${YOLO_MODE:-0}" != "1" ] \
         && [ -z "${OMI_SKIP_BACKEND+x}" ] \
         && [ -z "${OMI_SKIP_TUNNEL+x}" ] \
-        && [ -z "${OMI_DESKTOP_API_URL+x}" ] \
         && [ -z "${OMI_PYTHON_API_URL+x}" ]
 }
 
@@ -275,7 +273,6 @@ if [ "$LOCAL_PROFILE" = true ]; then
         echo "ERROR: Omi Dev local harness requires OMI_SKIP_BACKEND=1 and OMI_SKIP_TUNNEL=1; start the harness with make dev-up first"
         exit 1
     fi
-    case "${OMI_DESKTOP_API_URL:-}" in http://127.*|http://localhost*) ;; *) echo "ERROR: OMI_DESKTOP_API_URL must be localhost for Omi Dev local harness"; exit 1 ;; esac
     case "${OMI_PYTHON_API_URL:-}" in http://127.*|http://localhost*) ;; *) echo "ERROR: OMI_PYTHON_API_URL must be localhost for Omi Dev local harness"; exit 1 ;; esac
     if [ "${FIREBASE_PROJECT_ID:-}" != "demo-omi-local" ] || [ "${FIREBASE_AUTH_PROJECT_ID:-demo-omi-local}" != "demo-omi-local" ]; then
         echo "ERROR: Omi Dev local harness must use Firebase project demo-omi-local"
@@ -302,8 +299,8 @@ fi
 BACKEND_DIR="$(cd "$SCRIPT_DIR/../../backend" && pwd)"
 BACKEND_PID=""
 BACKEND_REUSED_PID=""
-BACKEND_PIDFILE="$OMI_DEV_DIR/python-desktop-backend.pid"
-BACKEND_METADATA="$OMI_DEV_DIR/python-desktop-backend.meta"
+BACKEND_PIDFILE="$OMI_DEV_DIR/python-backend.pid"
+BACKEND_METADATA="$OMI_DEV_DIR/python-backend.meta"
 TUNNEL_PID=""
 TUNNEL_URL="${TUNNEL_URL:-}"
 AUTH_CACHE=""
@@ -352,14 +349,12 @@ resolve_signing_identity() {
 }
 
 fast_bundle_fingerprint() {
-    local desktop_api_fingerprint="${OMI_DESKTOP_API_URL:-}"
-    local python_api_fingerprint="${OMI_PYTHON_API_URL:-}"
-    # The local-profile writer refreshes both endpoint settings plus disposable
+    local backend_api_fingerprint="${OMI_PYTHON_API_URL:-}"
+    # The local-profile writer refreshes the endpoint setting plus disposable
     # Auth-emulator values inside the installed bundle on every fast patch.
     # They are launch configuration, not a packaged-input boundary.
     if [ "$LOCAL_PROFILE" = true ]; then
-        desktop_api_fingerprint="local-profile-refreshed"
-        python_api_fingerprint="local-profile-refreshed"
+        backend_api_fingerprint="local-profile-refreshed"
     fi
     omi_fast_bundle_fingerprint \
         "$SCRIPT_DIR" \
@@ -369,8 +364,7 @@ fast_bundle_fingerprint() {
         "yolo=$YOLO_MODE" \
         "skip-backend=${OMI_SKIP_BACKEND:-0}" \
         "skip-tunnel=${OMI_SKIP_TUNNEL:-0}" \
-        "desktop-api-url=$desktop_api_fingerprint" \
-        "python-api-url=$python_api_fingerprint" \
+        "backend-api-url=$backend_api_fingerprint" \
         "backend-port=$BACKEND_PORT"
 }
 
@@ -523,24 +517,24 @@ sign_app_bundle() {
     codesign --force --options runtime --entitlements "$effective_entitlements" --sign "$SIGN_IDENTITY" "$bundle"
 }
 
-update_app_desktop_api_url() {
+update_app_backend_api_url() {
     local env_file="$1"
     # An explicit environment or .env endpoint is authoritative over a tunnel.
     # Tunnels are a local-dev fallback only.
-    if [ -n "${OMI_DESKTOP_API_URL:-}" ]; then
-        EFFECTIVE_API_URL="$OMI_DESKTOP_API_URL"
+    if [ -n "${OMI_PYTHON_API_URL:-}" ]; then
+        EFFECTIVE_API_URL="$OMI_PYTHON_API_URL"
     elif [ -n "$TUNNEL_URL" ]; then
         EFFECTIVE_API_URL="$TUNNEL_URL"
     else
         EFFECTIVE_API_URL="http://localhost:$BACKEND_PORT"
     fi
 
-    if grep -q "^OMI_DESKTOP_API_URL=" "$env_file"; then
-        sed -i '' "s|^OMI_DESKTOP_API_URL=.*|OMI_DESKTOP_API_URL=$EFFECTIVE_API_URL|" "$env_file"
+    if grep -q "^OMI_PYTHON_API_URL=" "$env_file"; then
+        sed -i '' "s|^OMI_PYTHON_API_URL=.*|OMI_PYTHON_API_URL=$EFFECTIVE_API_URL|" "$env_file"
     else
-        echo "OMI_DESKTOP_API_URL=$EFFECTIVE_API_URL" >> "$env_file"
+        echo "OMI_PYTHON_API_URL=$EFFECTIVE_API_URL" >> "$env_file"
     fi
-    substep "OMI_DESKTOP_API_URL=$EFFECTIVE_API_URL"
+    substep "OMI_PYTHON_API_URL=$EFFECTIVE_API_URL"
 }
 
 rewrite_bundled_dylib_load_path() {
@@ -596,9 +590,9 @@ pkill -f "$APP_NAME.app" 2>/dev/null || true
 # for a Swift-only edit adds network-dependent delay and makes a compiler error
 # take down an otherwise healthy development server.
 if [ -n "${OMI_HARNESS_INSTANCE:-}" ]; then
-    substep "Keeping harness desktop-backend (OMI_HARNESS_INSTANCE=${OMI_HARNESS_INSTANCE})"
-elif omi_python_desktop_backend_pid_is_alive "$BACKEND_PIDFILE"; then
-    OLD_BACKEND_PID="$(omi_python_desktop_backend_read_pid "$BACKEND_PIDFILE")"
+    substep "Keeping harness backend (OMI_HARNESS_INSTANCE=${OMI_HARNESS_INSTANCE})"
+elif omi_python_backend_pid_is_alive "$BACKEND_PIDFILE"; then
+    OLD_BACKEND_PID="$(omi_python_backend_read_pid "$BACKEND_PIDFILE")"
     substep "Deferring recorded backend verification until a candidate is ready (PID: $OLD_BACKEND_PID, port $BACKEND_PORT)"
 else
     if [ -f "$BACKEND_PIDFILE" ] || [ -f "$BACKEND_METADATA" ]; then
@@ -651,8 +645,8 @@ else
     fi
 fi
 
-if [ -n "${OMI_DESKTOP_API_URL:-}" ]; then
-    substep "Skipping tunnel (explicit OMI_DESKTOP_API_URL)"
+if [ -n "${OMI_PYTHON_API_URL:-}" ]; then
+    substep "Skipping tunnel (explicit OMI_PYTHON_API_URL)"
 elif [ "${OMI_SKIP_TUNNEL:-0}" != "1" ]; then
     step "Starting Cloudflare quick tunnel..."
     if command -v cloudflared >/dev/null 2>&1; then
@@ -671,7 +665,7 @@ elif [ "${OMI_SKIP_TUNNEL:-0}" != "1" ]; then
             substep "Warning: Could not capture tunnel URL (see $TUNNEL_LOG for details)"
         fi
     else
-        substep "cloudflared not found — skipping tunnel (set OMI_DESKTOP_API_URL in .env instead)"
+        substep "cloudflared not found — skipping tunnel (set OMI_PYTHON_API_URL in .env instead)"
     fi
 else
     substep "Skipping tunnel (OMI_SKIP_TUNNEL=1)"
@@ -684,7 +678,7 @@ if [ "$LOCAL_PROFILE" = true ]; then
     substep "Omi Dev local harness: skipping backend/.env copy/source and google-credentials bootstrap"
 else
 if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" != true ] \
-    && { [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ -z "${OMI_DESKTOP_API_URL:-}" ]; }; then
+    && { [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ -z "${OMI_PYTHON_API_URL:-}" ]; }; then
     echo ""
     echo "=== First-time setup ==="
     echo "No .env file found at $BACKEND_DIR/.env"
@@ -696,14 +690,14 @@ if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BA
     echo "     (GCP service account key with Firestore + Firebase Auth access)"
     echo ""
     echo "Minimal .env for local dev:"
-    echo "  PORT=10201"
+    echo "  PORT=8080"
     echo "  FIREBASE_PROJECT_ID=based-hardware-dev"
     echo "  FIREBASE_API_KEY=<from GCP console>"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json"
     echo ""
     echo "Or skip the backend entirely:"
     echo "  OMI_SKIP_BACKEND=1 ./run.sh"
-    echo "  (set OMI_DESKTOP_API_URL and OMI_PYTHON_API_URL in .env.app to point to remote backends)"
+    echo "  (set OMI_PYTHON_API_URL in .env.app to point to a remote backend)"
     echo ""
     echo "Or just use the development backend (no setup needed):"
     echo "  ./run.sh --yolo"
@@ -719,7 +713,7 @@ if [ "$YOLO_MODE" = "1" ] || [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" = true ]; the
     apply_yolo_env
 fi
 
-# A checked-in/local `.env` commonly contains PORT=10201. The worktree-derived
+# A checked-in/local `.env` may contain PORT=8080. The worktree-derived
 # selection above remains authoritative so the child process, probes, and
 # ownership metadata all use the same isolated port.
 export PORT="$BACKEND_PORT"
@@ -759,16 +753,16 @@ cd - > /dev/null
 # ─── Start Python backend ─────────────────────────────────────────────
 if [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
     cd "$BACKEND_DIR"
-    PYTHON_BACKEND_BINARY="$(omi_python_desktop_backend_binary "$BACKEND_DIR")"
+    PYTHON_BACKEND_BINARY="$(omi_python_backend_binary "$BACKEND_DIR")"
     OLD_BACKEND_PID=""
-    if omi_python_desktop_backend_pid_is_alive "$BACKEND_PIDFILE"; then
-        OLD_BACKEND_PID="$(omi_python_desktop_backend_read_pid "$BACKEND_PIDFILE")"
+    if omi_python_backend_pid_is_alive "$BACKEND_PIDFILE"; then
+        OLD_BACKEND_PID="$(omi_python_backend_read_pid "$BACKEND_PIDFILE")"
         # A pidfile alone is never authority to signal a process: PIDs can be
         # reused after a crash. Require the recorded process-start identity
         # before a later replacement may stop it. This intentionally does not
         # require the requested profile/configuration to match: a known-owned
         # debug process must be safely replaceable by an explicit release run.
-        if ! omi_python_desktop_backend_pid_matches_metadata "$BACKEND_METADATA" "$OLD_BACKEND_PID"; then
+        if ! omi_python_backend_pid_matches_metadata "$BACKEND_METADATA" "$OLD_BACKEND_PID"; then
             substep "Ignoring unverified Python backend pidfile (PID: $OLD_BACKEND_PID)"
             rm -f "$BACKEND_PIDFILE" "$BACKEND_METADATA"
             OLD_BACKEND_PID=""
@@ -778,13 +772,13 @@ if [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
     # The local harness already owns an isolated debug backend. Do not compete
     # for its port or replace its process from the app launcher.
     if [ -n "${OMI_HARNESS_INSTANCE:-}" ]; then
-        substep "Reusing harness desktop-backend (instance $OMI_HARNESS_INSTANCE)"
+        substep "Reusing harness backend (instance $OMI_HARNESS_INSTANCE)"
     elif [ -n "$OLD_BACKEND_PID" ] \
-        && omi_python_desktop_backend_metadata_matches "$BACKEND_METADATA" "$BACKEND_PORT" \
-        && ! omi_python_desktop_backend_sources_are_stale "$BACKEND_DIR" "$BACKEND_PIDFILE" \
-        && ! omi_python_desktop_backend_config_is_newer "$BACKEND_DIR" "$BACKEND_PIDFILE" \
-        && omi_python_desktop_backend_pid_listens_on_port "$OLD_BACKEND_PID" "$BACKEND_PORT" \
-        && omi_python_desktop_backend_health_check "$BACKEND_PORT"; then
+        && omi_python_backend_metadata_matches "$BACKEND_METADATA" "$BACKEND_PORT" \
+        && ! omi_python_backend_sources_are_stale "$BACKEND_DIR" "$BACKEND_PIDFILE" \
+        && ! omi_python_backend_config_is_newer "$BACKEND_DIR" "$BACKEND_PIDFILE" \
+        && omi_python_backend_pid_listens_on_port "$OLD_BACKEND_PID" "$BACKEND_PORT" \
+        && omi_python_backend_health_check "$BACKEND_PORT"; then
         BACKEND_REUSED_PID="$OLD_BACKEND_PID"
         substep "Reusing healthy Python backend (PID: $BACKEND_REUSED_PID, port $BACKEND_PORT)"
     else
@@ -795,7 +789,7 @@ if [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
 
         if [ -n "$OLD_BACKEND_PID" ]; then
             substep "Replacing owned Python backend (PID: $OLD_BACKEND_PID)"
-            omi_python_desktop_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
+            omi_python_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
         fi
 
         # Fail loud (don't clobber) if our derived port is held by a different
@@ -816,7 +810,7 @@ if [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
         BACKEND_LOG_FILE="$BACKEND_LOG_DIR/backend.log"
 
         step "Starting Python backend..."
-        "$PYTHON_BACKEND_BINARY" desktop_backend:app --host 127.0.0.1 --port "$BACKEND_PORT" >>"$BACKEND_LOG_FILE" 2>&1 &
+        "$PYTHON_BACKEND_BINARY" main:app --host 127.0.0.1 --port "$BACKEND_PORT" >>"$BACKEND_LOG_FILE" 2>&1 &
         BACKEND_PID=$!
         printf '%s\n' "$BACKEND_PID" > "$BACKEND_PIDFILE"
         substep "Backend log: $BACKEND_LOG_FILE"
@@ -824,29 +818,29 @@ if [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
         step "Waiting for backend to start..."
         BACKEND_READY=0
         for i in {1..30}; do
-            if omi_python_desktop_backend_health_check "$BACKEND_PORT"; then
+            if omi_python_backend_health_check "$BACKEND_PORT"; then
                 BACKEND_READY=1
                 substep "Backend is ready!"
                 break
             fi
             if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
                 echo "ERROR: Backend failed to start. Check $BACKEND_DIR/.env and credentials."
-                omi_python_desktop_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
+                omi_python_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
                 exit 1
             fi
             sleep 0.5
         done
         if [ "$BACKEND_READY" != "1" ]; then
             echo "ERROR: Backend did not become healthy on port $BACKEND_PORT. Check $BACKEND_LOG_FILE" >&2
-            omi_python_desktop_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
+            omi_python_backend_stop_owned "$BACKEND_PIDFILE" "$BACKEND_METADATA"
             exit 1
         fi
-        omi_python_desktop_backend_write_metadata \
+        omi_python_backend_write_metadata \
             "$BACKEND_METADATA" "$BACKEND_PORT" "$BACKEND_PID"
     fi
     cd - > /dev/null
 else
-    substep "Skipping backend (OMI_SKIP_BACKEND=1) — using OMI_DESKTOP_API_URL"
+    substep "Skipping backend (OMI_SKIP_BACKEND=1) — using OMI_PYTHON_API_URL"
 fi
 
 # Wait only for SwiftPM instances building THIS checkout. Parallel worktrees
@@ -905,11 +899,11 @@ if [ "$FAST_BUNDLE" = "1" ]; then
     rewrite_bundled_dylib_load_path "$PATCHED_BINARY" "libwebp.7.dylib"
     mv -f "$PATCHED_BINARY" "$APP_PATH/Contents/MacOS/$BINARY_NAME"
     if [ "$LOCAL_PROFILE" = true ]; then
-        EFFECTIVE_API_URL="$OMI_DESKTOP_API_URL"
+        EFFECTIVE_API_URL="$OMI_PYTHON_API_URL"
         omi_write_local_profile_env "$APP_PATH/Contents/Resources/.env"
         substep "Refreshed local-profile bundle environment"
     else
-        update_app_desktop_api_url "$APP_PATH/Contents/Resources/.env"
+        update_app_backend_api_url "$APP_PATH/Contents/Resources/.env"
     fi
 
     step "Signing updated app with hardened runtime..."
@@ -1071,7 +1065,7 @@ fi
 
 substep "Copying .env.app"
 if [ "$LOCAL_PROFILE" = true ]; then
-    EFFECTIVE_API_URL="$OMI_DESKTOP_API_URL"
+    EFFECTIVE_API_URL="$OMI_PYTHON_API_URL"
     omi_write_local_profile_env "$APP_BUNDLE/Contents/Resources/.env"
     substep "Omi Dev local harness .env contains localhost endpoints/Auth emulator bootstrap only"
 else
@@ -1082,7 +1076,7 @@ elif [ -f ".env.app" ]; then
 else
     touch "$APP_BUNDLE/Contents/Resources/.env"
 fi
-update_app_desktop_api_url "$APP_BUNDLE/Contents/Resources/.env"
+update_app_backend_api_url "$APP_BUNDLE/Contents/Resources/.env"
 # Bootstrap FIREBASE_API_KEY — check env var first (yolo mode), then backend .env
 if ! grep -q "^FIREBASE_API_KEY=" "$APP_BUNDLE/Contents/Resources/.env"; then
     FIREBASE_KEY="${FIREBASE_API_KEY:-}"
@@ -1094,8 +1088,7 @@ if ! grep -q "^FIREBASE_API_KEY=" "$APP_BUNDLE/Contents/Resources/.env"; then
         substep "Bootstrapped FIREBASE_API_KEY"
     fi
 fi
-# Bootstrap OMI_PYTHON_API_URL — main Omi Python backend (auth, subscriptions, payments, transcription).
-# Do NOT fall back to OMI_DESKTOP_API_URL — that is the Python desktop backend, which does not serve these routes.
+# Bootstrap OMI_PYTHON_API_URL — the canonical backend for every retained route family.
 # If the caller set OMI_PYTHON_API_URL (for example --yolo), it must override copied .env values.
 PYTHON_API_URL="${OMI_PYTHON_API_URL:-}"
 if [ -z "$PYTHON_API_URL" ] && [ -f "$BACKEND_DIR/.env" ]; then

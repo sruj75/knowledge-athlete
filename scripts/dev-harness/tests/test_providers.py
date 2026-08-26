@@ -222,11 +222,9 @@ def test_provider_secrets_injected_into_child_env(tmp_path: Path) -> None:
 
     cfg = config.load_config(repo, env=env, create_layout=True)
     child = config.child_env_for(cfg)
-    desktop_child = config.desktop_backend_child_env_for(cfg)
     for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         expected = config.parse_secrets_file(cfg).secrets[key]
         assert child.get(key) == expected
-        assert desktop_child.get(key) == expected
     assert secret not in "\n".join(
         providers.status_lines(providers.provider_preflight(repo, env=config.preflight_env(cfg)))
     )

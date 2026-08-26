@@ -57,22 +57,25 @@ def healthy_snapshot(*, phase: str = "beta") -> dict[str, object]:
             "app_source_sha": SOURCE_SHA,
             "qualification_evidence_asset": "qualification-evidence-0.12.72+12072.json",
         },
-        "pointers": {"beta": pointer, "stable": pointer if phase == "stable" else {"release_id": "v0.12.71+12071-macos"}},
+        "pointers": {
+            "beta": pointer,
+            "stable": pointer if phase == "stable" else {"release_id": "v0.12.71+12071-macos"},
+        },
         "legacy_release": {"channel": current_channel, "is_live": True},
         "appcasts": {
-            "python": {"channels": {current_channel: RELEASE_ID}},
-            "rust": {"channels": {current_channel: RELEASE_ID}},
+            "canonical": {"channels": {current_channel: RELEASE_ID}},
         },
-        "static": {"beta": static if phase == "beta" else {"channel": "beta", "release_id": "v0.12.71+12071-macos"}, "stable": static if phase == "stable" else {"channel": "stable", "release_id": "v0.12.71+12071-macos"}},
+        "static": {
+            "beta": static if phase == "beta" else {"channel": "beta", "release_id": "v0.12.71+12071-macos"},
+            "stable": static if phase == "stable" else {"channel": "stable", "release_id": "v0.12.71+12071-macos"},
+        },
         "backend": {
             "status": "healthy",
-            "service": "omi-desktop-backend",
-            "backend_release_sha": "b" * 40,
-            "backend_release_channel": "production",
+            "process_status": "ok",
+            "service": "omi-backend",
             "chat_contract_version": "1",
-            "revision": "desktop-backend-1",
         },
-        "tracking": {"desktop_backend_prod_deployed_sha": SOURCE_SHA},
+        "tracking": {"status": "retired"},
         "codemagic": {"artifact_status": "passed", "post_artifact_failure": ""},
         "metrics": available_metrics(),
     }
@@ -119,9 +122,9 @@ class DesktopReleaseDoctorTests(unittest.TestCase):
 
     def test_unavailable_surfaces_are_warns_not_silent_success(self) -> None:
         snapshot = healthy_snapshot()
-        snapshot["appcasts"]["python"] = doctor._unavailable("network unavailable")
+        snapshot["appcasts"]["canonical"] = doctor._unavailable("network unavailable")
         report = doctor.evaluate_snapshot(snapshot)
-        appcast = surface(report, "python_appcast")
+        appcast = surface(report, "canonical_appcast")
         self.assertEqual(report["overall"], "WARN")
         self.assertEqual(appcast["status"], "WARN")
         self.assertEqual(appcast["classification"], "unknown")
@@ -186,7 +189,15 @@ class DesktopReleaseDoctorTests(unittest.TestCase):
             report_path = directory_path / "report.json"
             snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(MODULE_PATH), "report", "--snapshot", str(snapshot_path), "--output", str(report_path)],
+                [
+                    sys.executable,
+                    str(MODULE_PATH),
+                    "report",
+                    "--snapshot",
+                    str(snapshot_path),
+                    "--output",
+                    str(report_path),
+                ],
                 check=False,
                 text=True,
                 stdout=subprocess.PIPE,

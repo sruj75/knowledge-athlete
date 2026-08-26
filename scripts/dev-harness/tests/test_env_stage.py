@@ -22,6 +22,7 @@ def test_child_env_for_offline_mode() -> None:
     assert child["PROVIDER_MODE"] == "offline"
     assert child["OMI_HARNESS_INSTANCE"] == "default"
     assert child["FIREBASE_API_KEY"] == config.LOCAL_FIREBASE_API_KEY
+    assert child["OMI_LLM_STUB"] == "1"
     assert "MODULATE_API_KEY" not in child
 
 
@@ -45,10 +46,9 @@ def test_nondefault_port_offset_propagates_to_surviving_harness_services() -> No
     assert cfg.redis_port == 6701
     assert not hasattr(cfg, "typesense_port")
     assert cfg.backend_url == "http://127.0.0.1:8321"
-    assert cfg.desktop_backend_url == "http://127.0.0.1:10522"
+    assert not hasattr(cfg, "desktop_backend_url")
 
     backend_env = config.child_env_for(cfg)
-    desktop_env = config.desktop_backend_child_env_for(cfg)
     assert backend_env["FIRESTORE_EMULATOR_HOST"] == cfg.firestore_host
     assert backend_env["FIREBASE_AUTH_EMULATOR_HOST"] == cfg.auth_host
     assert backend_env["REDIS_DB_PORT"] == "6701"
@@ -57,4 +57,3 @@ def test_nondefault_port_offset_propagates_to_surviving_harness_services() -> No
     assert "TYPESENSE_API_KEY" not in backend_env
     assert "TYPESENSE_PROTOCOL" not in backend_env
     assert backend_env["PORT"] == "8321"
-    assert desktop_env["PORT"] == "10522"
