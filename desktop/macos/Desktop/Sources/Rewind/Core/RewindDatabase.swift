@@ -3,14 +3,112 @@ import Foundation
 import OmiSupport
 import os
 
+struct RewindDatabaseFileSystem: @unchecked Sendable {
+  enum Operation: String, Sendable {
+    case attributes
+    case copy
+    case createDirectory
+    case createFile
+    case exists
+    case list
+    case move
+    case read
+    case remove
+    case write
+  }
+
+  private let manager: FileManager
+  private let observer: @Sendable (Operation, String) -> Void
+
+  init(
+    manager: FileManager = .default,
+    observer: @escaping @Sendable (Operation, String) -> Void = { _, _ in }
+  ) {
+    self.manager = manager
+    self.observer = observer
+  }
+
+  func record(_ operation: Operation, path: String) {
+    observer(operation, path)
+  }
+
+  func createDirectory(at url: URL, withIntermediateDirectories: Bool) throws {
+    observer(.createDirectory, url.path)
+    try manager.createDirectory(at: url, withIntermediateDirectories: withIntermediateDirectories)
+  }
+
+  func fileExists(atPath path: String) -> Bool {
+    observer(.exists, path)
+    return manager.fileExists(atPath: path)
+  }
+
+  @discardableResult
+  func createFile(atPath path: String, contents: Data?) -> Bool {
+    observer(.createFile, path)
+    return manager.createFile(atPath: path, contents: contents)
+  }
+
+  func removeItem(atPath path: String) throws {
+    observer(.remove, path)
+    try manager.removeItem(atPath: path)
+  }
+
+  func removeItem(at url: URL) throws {
+    observer(.remove, url.path)
+    try manager.removeItem(at: url)
+  }
+
+  func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+    observer(.attributes, path)
+    return try manager.attributesOfItem(atPath: path)
+  }
+
+  func copyItem(atPath sourcePath: String, toPath destinationPath: String) throws {
+    observer(.copy, sourcePath)
+    observer(.copy, destinationPath)
+    try manager.copyItem(atPath: sourcePath, toPath: destinationPath)
+  }
+
+  func moveItem(atPath sourcePath: String, toPath destinationPath: String) throws {
+    observer(.move, sourcePath)
+    observer(.move, destinationPath)
+    try manager.moveItem(atPath: sourcePath, toPath: destinationPath)
+  }
+
+  func contentsOfDirectory(
+    at url: URL,
+    includingPropertiesForKeys keys: [URLResourceKey]?,
+    options mask: FileManager.DirectoryEnumerationOptions
+  ) throws -> [URL] {
+    observer(.list, url.path)
+    return try manager.contentsOfDirectory(
+      at: url,
+      includingPropertiesForKeys: keys,
+      options: mask)
+  }
+}
+
+struct RewindDatabaseStorageLocation: Sendable {
+  let applicationSupportDirectoryURL: URL
+  let productPathComponents: [String]
+
+  var productRootURL: URL {
+    productPathComponents.reduce(applicationSupportDirectoryURL) {
+      $0.appendingPathComponent($1, isDirectory: true)
+    }
+  }
+}
+
 /// Actor-based database manager for Rewind screenshots
 actor RewindDatabase {
   static let shared = RewindDatabase()
   private static let terminationStateLock = OSAllocatedUnfairLock<Bool>(initialState: false)
 
-  /// The product root is injectable only at the system-directory boundary so
-  /// storage behavior can be exercised without touching the host profile.
-  private let applicationSupportRootURL: URL?
+  /// The system Application Support directory and product-relative components
+  /// are injectable together, so tests can place both the selected product root
+  /// and a synthetic foreign sibling behind the same observable boundary.
+  private let storageLocation: RewindDatabaseStorageLocation?
+  private let fileSystem: RewindDatabaseFileSystem
 
   nonisolated static var isTerminationInProgress: Bool {
     terminationStateLock.withLock { $0 }
@@ -61,8 +159,12 @@ actor RewindDatabase {
 
   // MARK: - Initialization
 
-  init(applicationSupportRootURL: URL? = nil) {
-    self.applicationSupportRootURL = applicationSupportRootURL
+  init(
+    storageLocation: RewindDatabaseStorageLocation? = nil,
+    fileSystem: RewindDatabaseFileSystem = RewindDatabaseFileSystem()
+  ) {
+    self.storageLocation = storageLocation
+    self.fileSystem = fileSystem
   }
 
   /// Whether the database has been successfully initialized
@@ -166,7 +268,7 @@ actor RewindDatabase {
     // Close before file-level recovery so SQLite releases handles/WAL state.
     close()
 
-    guard FileManager.default.fileExists(atPath: dbPath) else { return }
+    guard fileSystem.fileExists(atPath: dbPath) else { return }
     do {
       try await handleCorruptedDatabase(at: dbPath, in: omiDir, triggerError: error)
       try await initialize()
@@ -325,7 +427,7 @@ actor RewindDatabase {
   /// Close the database, allowing re-initialization for a different user.
   func close() {
     if let runningFlagPath {
-      try? FileManager.default.removeItem(atPath: runningFlagPath)
+      try? fileSystem.removeItem(atPath: runningFlagPath)
     }
     if let dbQueue {
       do {
@@ -364,7 +466,9 @@ actor RewindDatabase {
 
   private func userBaseDirectory(for userId: String? = nil) -> URL {
     let userId = userId ?? targetUserId()
-    return (applicationSupportRootURL ?? DesktopLocalProfile.applicationSupportURL())
+    let productRoot = storageLocation?.productRootURL ?? DesktopLocalProfile.applicationSupportURL()
+    return
+      productRoot
       .appendingPathComponent("users", isDirectory: true)
       .appendingPathComponent(userId, isDirectory: true)
   }
@@ -391,7 +495,7 @@ actor RewindDatabase {
   /// Check if the previous session ended with an unclean shutdown (crash, force quit, etc.)
   func hadUncleanShutdown() -> Bool {
     let flagPath = userBaseDirectory().appendingPathComponent(".omi_running").path
-    return FileManager.default.fileExists(atPath: flagPath)
+    return fileSystem.fileExists(atPath: flagPath)
   }
 
   /// Initialize the database with migrations.
@@ -462,22 +566,24 @@ actor RewindDatabase {
     let omiDir = userBaseDirectory(for: expectedUserId)
 
     // Create directory if needed (withIntermediateDirectories creates parents too)
-    try FileManager.default.createDirectory(at: omiDir, withIntermediateDirectories: true)
+    try fileSystem.createDirectory(at: omiDir, withIntermediateDirectories: true)
 
     let dbPath = omiDir.appendingPathComponent("omi.db").path
     let flagPath = omiDir.appendingPathComponent(".omi_running").path
     runningFlagPath = flagPath
     log("RewindDatabase: Opening database at \(dbPath)")
+    fileSystem.record(.read, path: dbPath)
+    fileSystem.record(.write, path: dbPath)
 
     // Detect unclean shutdown: if the running flag file exists, the previous launch
     // didn't exit cleanly (crash, force quit, power loss)
-    let previousCrashed = FileManager.default.fileExists(atPath: flagPath)
+    let previousCrashed = fileSystem.fileExists(atPath: flagPath)
     if previousCrashed {
       log("RewindDatabase: Unclean shutdown detected (running flag exists)")
     }
 
     // Clean up stale WAL files that can cause disk I/O errors (SQLite error 10)
-    if FileManager.default.fileExists(atPath: dbPath) {
+    if fileSystem.fileExists(atPath: dbPath) {
       cleanupStaleWALFiles(at: dbPath)
     }
 
@@ -528,7 +634,7 @@ actor RewindDatabase {
           isCorrupted = "\(retryError)".contains("malformed")
         }
 
-        if isCorrupted && FileManager.default.fileExists(atPath: dbPath) {
+        if isCorrupted && fileSystem.fileExists(atPath: dbPath) {
           log("RewindDatabase: Database is corrupted (error: \(retryError)), attempting recovery...")
           try await handleCorruptedDatabase(at: dbPath, in: omiDir, triggerError: retryError)
           // Retry with recovered or fresh database
@@ -598,7 +704,7 @@ actor RewindDatabase {
     }
 
     // Set running flag — will be cleared on clean shutdown
-    FileManager.default.createFile(atPath: flagPath, contents: nil)
+    fileSystem.createFile(atPath: flagPath, contents: nil)
 
     log("RewindDatabase: Initialized successfully")
   }
@@ -629,7 +735,7 @@ actor RewindDatabase {
   private func cleanupStaleWALFiles(at dbPath: String) {
     let walPath = dbPath + "-wal"
     let shmPath = dbPath + "-shm"
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Only clean up if WAL file exists and is empty (indicates stale/orphaned WAL)
     // Non-empty WAL files may contain uncommitted data we don't want to lose
@@ -645,7 +751,7 @@ actor RewindDatabase {
 
   /// Force-remove WAL/SHM files (last resort when database won't open)
   private func removeWALFiles(at dbPath: String) {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
     for ext in ["-wal", "-shm"] {
       let filePath = dbPath + ext
       if fileManager.fileExists(atPath: filePath) {
@@ -664,7 +770,7 @@ actor RewindDatabase {
     in omiDir: URL,
     triggerError: Error? = nil
   ) async throws {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Create backup directory
     let backupDir = omiDir.appendingPathComponent("backups", isDirectory: true)
@@ -741,7 +847,7 @@ actor RewindDatabase {
   /// Attempt to recover data from a corrupted database using sqlite3 .recover
   /// Returns the number of screenshot records recovered
   private func attemptDataRecovery(from corruptedPath: String, to recoveredPath: String) async -> Int {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Remove any existing recovered database
     if fileManager.fileExists(atPath: recoveredPath) {
@@ -916,7 +1022,7 @@ actor RewindDatabase {
 
   /// Clean up old database backups, keeping only the most recent ones
   private func cleanupOldBackups(in backupDir: URL, keepCount: Int) async throws {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     let files = try fileManager.contentsOfDirectory(
       at: backupDir,

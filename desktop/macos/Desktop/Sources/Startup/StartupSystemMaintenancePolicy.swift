@@ -6,8 +6,23 @@ struct StartupSystemMaintenanceCommand: Equatable, Sendable {
   let arguments: [String]
 }
 
-enum StartupSystemMaintenanceAction: Equatable, Sendable {
-  case systemCommand(StartupSystemMaintenanceCommand)
+struct StartupSystemMaintenanceSink: Sendable {
+  private let submitCommand: @Sendable (StartupSystemMaintenanceCommand) -> Void
+
+  init(submitCommand: @escaping @Sendable (StartupSystemMaintenanceCommand) -> Void) {
+    self.submitCommand = submitCommand
+  }
+
+  func submit(_ command: StartupSystemMaintenanceCommand) {
+    submitCommand(command)
+  }
+
+  static let live = StartupSystemMaintenanceSink { command in
+    SystemCommand.runLogging(
+      command.label,
+      executable: command.executable,
+      arguments: command.arguments)
+  }
 }
 
 /// System commands allowed during normal app startup.
@@ -15,8 +30,13 @@ enum StartupSystemMaintenanceAction: Equatable, Sendable {
 /// Keep this list bundle-local. Launching Omi must not mutate shared macOS
 /// services such as the Dock or icon cache agents.
 enum StartupSystemMaintenancePolicy {
-  static func actions(bundlePath: String) -> [StartupSystemMaintenanceAction] {
-    commands(bundlePath: bundlePath).map(StartupSystemMaintenanceAction.systemCommand)
+  static func run(
+    bundlePath: String,
+    sink: StartupSystemMaintenanceSink
+  ) {
+    for command in commands(bundlePath: bundlePath) {
+      sink.submit(command)
+    }
   }
 
   static func commands(bundlePath: String) -> [StartupSystemMaintenanceCommand] {

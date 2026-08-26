@@ -241,6 +241,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   private var apiKeyFetchTask: Task<Void, Never>?
   private var floatingBarPlanFetchTask: Task<Void, Never>?
   private var appLifecycleMaintenanceTask: Task<Void, Never>?
+  private let startupSystemMaintenanceSink: StartupSystemMaintenanceSink
+
+  override init() {
+    startupSystemMaintenanceSink = .live
+    super.init()
+  }
+
+  init(startupSystemMaintenanceSink: StartupSystemMaintenanceSink) {
+    self.startupSystemMaintenanceSink = startupSystemMaintenanceSink
+    super.init()
+  }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Publish the live delegate instance for callers that can't rely on
@@ -285,9 +296,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     DesktopAutomationBridge.shared.startIfNeeded()
     publishNamedBundleRuntimeManifest()
 
-    let startupSystemMaintenanceActions = StartupSystemMaintenancePolicy.actions(
-      bundlePath: Bundle.main.bundlePath)
-    runStartupSystemMaintenance(actions: startupSystemMaintenanceActions)
+    runStartupSystemMaintenance(bundlePath: Bundle.main.bundlePath)
 
     log("AppDelegate: applicationDidFinishLaunching started (mode: \(OMIApp.launchMode.rawValue))")
     log("AppDelegate: AuthState.isSignedIn=\(AuthState.shared.isSignedIn)")
@@ -678,22 +687,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   /// Run the narrow, bundle-local maintenance required for update integrity.
   /// Startup must never restart shared macOS services or mutate global caches.
-  private func runStartupSystemMaintenance(actions: [StartupSystemMaintenanceAction]) {
-    let commands = actions.compactMap { action -> StartupSystemMaintenanceCommand? in
-      guard case .systemCommand(let command) = action else { return nil }
-      return command
-    }
+  private func runStartupSystemMaintenance(bundlePath: String) {
     DispatchQueue.global(qos: .utility).async {
-      for command in commands {
-        // A silent failure here can break future update integrity, so surface it
-        // instead of dropping it.
-        SystemCommand.runLogging(
-          command.label,
-          executable: command.executable,
-          arguments: command.arguments
-        )
-      }
+      self.performStartupSystemMaintenance(bundlePath: bundlePath)
     }
+  }
+
+  func performStartupSystemMaintenance(bundlePath: String) {
+    StartupSystemMaintenancePolicy.run(
+      bundlePath: bundlePath,
+      sink: startupSystemMaintenanceSink)
   }
 
   /// Set up global keyboard shortcuts
