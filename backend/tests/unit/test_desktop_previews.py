@@ -16,13 +16,19 @@ from database.desktop_previews import (
 
 SLUG = "new-onboarding"
 SOURCE_SHA = "a" * 40
+BUCKET = "owned-desktop-artifacts"
+
+
+@pytest.fixture(autouse=True)
+def _owned_bucket(monkeypatch):
+    monkeypatch.setenv('BUCKET_DESKTOP_UPDATES', BUCKET)
 
 
 def _manifest(**overrides):
     data = {
         "slug": SLUG,
         "source_sha": SOURCE_SHA,
-        "dmg_url": f"https://storage.googleapis.com/omi_macos_updates/previews/{SLUG}/{SOURCE_SHA}/Omi-Preview.dmg",
+        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/{SOURCE_SHA}/Omi-Preview.dmg",
         "dmg_sha256": "b" * 64,
         "app_name": "Omi Preview – new-onboarding",
         "bundle_id": f"com.omi.preview.{preview_identity(SLUG)}",
@@ -56,9 +62,7 @@ class TestPreviewManifestNormalization:
     def test_requires_exact_immutable_preview_artifact_url(self):
         with pytest.raises(ValueError, match="canonical immutable"):
             normalize_preview_manifest(
-                _manifest(
-                    dmg_url=f"https://storage.googleapis.com/omi_macos_updates/previews/{SLUG}/latest/Omi-Preview.dmg"
-                )
+                _manifest(dmg_url=f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/latest/Omi-Preview.dmg")
             )
 
     def test_requires_preview_identity_and_stapling(self):

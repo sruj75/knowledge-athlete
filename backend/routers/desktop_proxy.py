@@ -109,7 +109,7 @@ def _vertex_url(model: str, action: str) -> str | None:
     project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
     if model not in _VERTEX_MODELS or not project:
         return None
-    location = os.getenv("GCP_LOCATION", "us-central1").strip()
+    location = os.getenv("GCP_LOCATION", "us-west1").strip()
     return f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model}:{action}"
 
 

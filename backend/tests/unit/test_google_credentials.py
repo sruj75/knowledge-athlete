@@ -72,3 +72,20 @@ def test_existing_credentials_file_is_replaced_with_private_permissions(monkeypa
 
     assert credentials_path.read_text(encoding='utf-8') == '{"client_email": "unused@example.com"}'
     assert credentials_path.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize(
+    ('name', 'value'),
+    [
+        ('SERVICE_ACCOUNT_JSON', '{"client_email": "hosted@example.com"}'),
+        ('GOOGLE_APPLICATION_CREDENTIALS', '/tmp/hosted-service-account.json'),
+    ],
+)
+def test_hosted_runtime_requires_adc_without_exported_credentials(monkeypatch, name, value):
+    monkeypatch.setenv('OMI_ENV_STAGE', 'prod')
+    monkeypatch.delenv('SERVICE_ACCOUNT_JSON', raising=False)
+    monkeypatch.delenv('GOOGLE_APPLICATION_CREDENTIALS', raising=False)
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(RuntimeError, match='hosted Google clients must use attached runtime identity through ADC'):
+        google_credentials.prepare_google_credentials()

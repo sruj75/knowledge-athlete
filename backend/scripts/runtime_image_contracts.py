@@ -29,7 +29,15 @@ from typing import Iterable
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = REPOSITORY_ROOT / "backend" / "runtime_images.json"
-IGNORED_SOURCE_DIRECTORIES = {".git", ".pytest_cache", ".venv", "__pycache__"}
+IGNORED_SOURCE_DIRECTORIES = {
+    ".git",
+    ".mypy_cache",
+    ".openapi-venv",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+}
 
 
 @dataclass(frozen=True)
@@ -41,6 +49,9 @@ class ImageContract:
     source_root: Path
     entrypoint_source_root: Path
     workdir: PurePosixPath
+    runtime_uid: int
+    writable_paths: tuple[PurePosixPath, ...]
+    protected_paths: tuple[PurePosixPath, ...]
     entrypoints: tuple[str, ...]
     image_import_smoke: bool
     smoke_python: str
@@ -95,6 +106,18 @@ def load_contracts(registry_path: Path = REGISTRY_PATH) -> list[ImageContract]:
             raise ContractError(f"{entry['name']}: entrypoints must be a non-empty list of module names")
         if not isinstance(entry.get("image_import_smoke"), bool):
             raise ContractError(f"{entry['name']}: image_import_smoke must be boolean")
+        runtime_uid = entry.get("runtime_uid")
+        if not isinstance(runtime_uid, int) or isinstance(runtime_uid, bool) or runtime_uid <= 0:
+            raise ContractError(f"{entry['name']}: runtime_uid must be a positive integer")
+        writable_paths = entry.get("writable_paths")
+        protected_paths = entry.get("protected_paths")
+        for field_name, paths in (("writable_paths", writable_paths), ("protected_paths", protected_paths)):
+            if (
+                not isinstance(paths, list)
+                or not paths
+                or any(not isinstance(path, str) or not PurePosixPath(path).is_absolute() for path in paths)
+            ):
+                raise ContractError(f"{entry['name']}: {field_name} must contain absolute paths")
         smoke_python = entry.get("smoke_python", "python")
         if not isinstance(smoke_python, str) or not smoke_python:
             raise ContractError(f"{entry['name']}: smoke_python must be a non-empty string")
@@ -158,6 +181,9 @@ def load_contracts(registry_path: Path = REGISTRY_PATH) -> list[ImageContract]:
                 source_root=source_root,
                 entrypoint_source_root=entrypoint_source_root,
                 workdir=PurePosixPath(entry["workdir"]),
+                runtime_uid=runtime_uid,
+                writable_paths=tuple(PurePosixPath(path) for path in writable_paths),
+                protected_paths=tuple(PurePosixPath(path) for path in protected_paths),
                 entrypoints=tuple(entrypoints_raw),
                 image_import_smoke=entry["image_import_smoke"],
                 smoke_python=smoke_python,
@@ -467,6 +493,28 @@ def _dependency_probe_code(modules: tuple[str, ...]) -> str:
     )
 
 
+def _runtime_privilege_probe_code(contract: ImageContract) -> str:
+    return (
+        "\nimport os, pathlib\n"
+        f"assert os.getuid() == {contract.runtime_uid}\n"
+        f"writable_paths = {[path.as_posix() for path in contract.writable_paths]!r}\n"
+        "for raw_path in writable_paths:\n"
+        "    path = pathlib.Path(raw_path) / '.runtime-image-write-probe'\n"
+        "    path.write_text('ok', encoding='utf-8')\n"
+        "    path.unlink()\n"
+        f"protected_paths = {[path.as_posix() for path in contract.protected_paths]!r}\n"
+        "for raw_path in protected_paths:\n"
+        "    path = pathlib.Path(raw_path)\n"
+        "    target = path if path.is_file() else path / '.runtime-image-denied-probe'\n"
+        "    try:\n"
+        "        with target.open('a', encoding='utf-8'):\n"
+        "            pass\n"
+        "    except PermissionError:\n"
+        "        continue\n"
+        "    raise AssertionError(f'protected runtime path is writable: {target}')\n"
+    )
+
+
 def contracts_for_dockerfile(contracts: Iterable[ImageContract], dockerfile: Path) -> list[ImageContract]:
     resolved = dockerfile.resolve()
     matches = [contract for contract in contracts if contract.dockerfile.resolve() == resolved]
@@ -502,7 +550,7 @@ def smoke_image(image: str, contracts: Iterable[ImageContract]) -> int:
     for contract in contracts:
         if contract.dependency_probe_smoke:
             modules = third_party_dependency_modules(contract)
-            code = _dependency_probe_code(modules)
+            code = _dependency_probe_code(modules) + _runtime_privilege_probe_code(contract)
             print(
                 f"Smoke checking {contract.name}'s {len(modules)} reachable third-party modules in {image}", flush=True
             )

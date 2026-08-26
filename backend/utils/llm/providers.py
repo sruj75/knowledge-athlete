@@ -172,7 +172,7 @@ def get_or_create_gemini_llm(
             kwargs['thinking_budget'] = thinking_budget
 
         if gcp_project:
-            gcp_location = os.environ.get('GCP_LOCATION', 'us-central1')
+            gcp_location = os.environ.get('GCP_LOCATION', 'us-west1')
             _llm_cache[key] = ChatGoogleGenerativeAI(
                 model=model_name, project=gcp_project, location=gcp_location, **kwargs
             )

@@ -39,6 +39,15 @@ def test_registered_runtime_image_sources_are_closed(contracts_module):
     assert contracts_module.check_source_closures(contracts_module.load_contracts()) == []
 
 
+def test_source_staging_excludes_generated_virtual_environments(contracts_module):
+    names = ['database', '.venv', '.openapi-venv', '.pytest_cache', '__pycache__']
+
+    ignored = contracts_module._ignore_source_directory('/unused', names)
+
+    assert ignored == {'.venv', '.openapi-venv', '.pytest_cache', '__pycache__'}
+    assert names == ['database']
+
+
 def test_registered_runtime_image_workflows_smoke_their_declared_dockerfile(contracts_module):
     assert contracts_module.workflow_contract_errors(contracts_module.load_contracts()) == []
 
@@ -111,6 +120,10 @@ def test_image_smoke_is_network_isolated_and_uses_registered_entrypoint(contract
     assert 'jsonschema' in calls[0][-1]
     assert 'importlib.util.find_spec' in calls[0][-1]
     assert 'importlib.import_module(parent)' in calls[0][-1]
+    assert 'os.getuid() == 10001' in calls[0][-1]
+    assert '/tmp/omi-runtime' in calls[0][-1]
+    assert '/tmp/omi-parity-pack' in calls[0][-1]
+    assert '/app/main.py' in calls[0][-1]
 
 
 def test_build_smoke_uses_the_registered_dockerfile_and_context(contracts_module, monkeypatch):

@@ -32,13 +32,19 @@ _test_app.include_router(updates_router)
 
 PREVIEW_SLUG = "new-onboarding"
 PREVIEW_SHA = "a" * 40
+BUCKET = "owned-desktop-artifacts"
+
+
+@pytest.fixture(autouse=True)
+def _owned_bucket(monkeypatch):
+    monkeypatch.setenv('BUCKET_DESKTOP_UPDATES', BUCKET)
 
 
 def _preview_manifest(**overrides):
     manifest = {
         "slug": PREVIEW_SLUG,
         "source_sha": PREVIEW_SHA,
-        "dmg_url": f"https://storage.googleapis.com/omi_macos_updates/previews/{PREVIEW_SLUG}/{PREVIEW_SHA}/Omi-Preview.dmg",
+        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{PREVIEW_SLUG}/{PREVIEW_SHA}/Omi-Preview.dmg",
         "dmg_sha256": "b" * 64,
         "app_name": "Omi Preview – new-onboarding",
         "bundle_id": "com.omi.preview.p04a26d265d",
