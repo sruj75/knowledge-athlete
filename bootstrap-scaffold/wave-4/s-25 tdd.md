@@ -829,11 +829,15 @@ exception because reverting it would advertise retired `backend-listen`; this
 closeout changes no Windows file. Canonical health/metrics/listen, removed-worker
 routes, hermetic account-deletion dispatch, full component suites, official E2E,
 complete Tier-2, and all 40 selected preflight checks are green. S-25 is
-**repository-closed under its owning slice plan**. S-26 remains blocked until
-the stricter combined Waves 3–4 closeout completes and lands on `main`.
+**repository-closed under its owning slice plan**. By explicit product-owner
+decision, S-26 may proceed from the complete Waves 3–4 repair tree while the
+stricter live qualification remains open and deferred under
+[`BL-001`](../../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification).
 Legacy deletion-task audience/payload acceptance remains until verified
 queue-drain proof; live resource inventory/decommission remains separately
-authorized. See
+authorized and is tracked under
+[`BL-002`](../../BACKLOG.md#bl-002-s-25-verified-live-resource-inventory-and-operational-handoff).
+See
 [`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).
 
 ### 19.1 Sanitized live-resource inventory handoff — 2026-08-26

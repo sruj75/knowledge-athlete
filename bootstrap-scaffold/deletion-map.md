@@ -1255,7 +1255,7 @@ IR-835
 ### S-19 — Reconnect PTT to local product data and remove rejected tools
 
 **Type:** cross-domain adaptation<br>
-**Status:** per-slice repository acceptance is recorded in [`wave-3/s-19 tdd.md`](wave-3/s-19%20tdd.md); the stricter combined Waves 3–4 closeout remains open on final-head physical/provider qualification<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-19 tdd.md`](wave-3/s-19%20tdd.md); the stricter combined Waves 3–4 closeout remains open, with final live-provider/continuity qualification explicitly deferred to [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification)<br>
 **Depends on:** S-05 through S-07 and S-10 through S-16, especially local
 Conversations, Memories, Tasks, Focus/Insights, Rewind, and transient listen<br>
 **Primary decisions:** IR-054 through IR-119, IR-600 through IR-602, IR-924
@@ -1332,7 +1332,7 @@ leftover navigation/search residue
 ### S-22 — Narrow managed models to explicit retained transient workloads
 
 **Type:** model portfolio deletion and result-ownership adaptation<br>
-**Status:** per-slice repository acceptance is recorded in [`wave-3/s-22 tdd.md`](wave-3/s-22%20tdd.md); the stricter combined Waves 3–4 closeout remains open on final-head provider qualification<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-22 tdd.md`](wave-3/s-22%20tdd.md); the stricter combined Waves 3–4 closeout remains open, with final live-provider/continuity qualification explicitly deferred to [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification)<br>
 **Depends on:** S-05, S-07, S-10, S-11, S-12, S-13, S-14, and S-16<br>
 **Primary decisions:** IR-053, IR-113, IR-600 through IR-609, IR-710 through
 IR-732, IR-827, IR-828
@@ -1419,7 +1419,7 @@ IR-806 through IR-809
 ### S-25 — Delete jobs, workers, duplicate services, and GKE control planes
 
 **Type:** service-topology collapse<br>
-**Status:** per-slice repository acceptance is recorded in [`wave-4/s-25 tdd.md`](wave-4/s-25%20tdd.md); its sanitized live inventory currently classifies live state as `unknown`, so operational closure remains open<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-4/s-25 tdd.md`](wave-4/s-25%20tdd.md); its sanitized live inventory currently classifies live state as `unknown`, so operational closure remains open under [`BL-002`](../BACKLOG.md#bl-002-s-25-verified-live-resource-inventory-and-operational-handoff)<br>
 **Depends on:** S-01 through S-03, S-06, S-22, S-23, and S-24<br>
 **Primary decisions:** IR-016, IR-120, IR-608, IR-810 through IR-818, IR-836,
 IR-839, IR-868
@@ -1438,7 +1438,7 @@ IR-839, IR-868
 ### S-26 — Consolidate one canonical Python backend and its development harness
 
 **Type:** backend boundary adaptation<br>
-**Status:** blocked until the combined Waves 3–4 closeout completes and its repair tree lands on `main`; do not branch from merged S-25 alone or omit the closeout commits<br>
+**Status:** ready to begin after consuming the complete Waves 3–4 repair tree; by explicit product-owner decision, the remaining live qualification is deferred—not waived—under [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification), so do not branch from merged S-25 alone or omit the closeout commits<br>
 **Depends on:** S-04, S-25, and the local/control-authority slices S-08 and
 S-10 through S-20<br>
 **Primary decisions:** IR-008, IR-803, IR-804, IR-808, IR-839 through IR-849,
@@ -1492,7 +1492,7 @@ IR-890, IR-891
 ### S-28 — Establish clean Mac storage namespaces and installation identity
 
 **Type:** local identity migration without inherited-data takeover<br>
-**Status:** blocked until the combined Waves 3–4 closeout completes and its repair tree lands on `main`; retained local data/storage evidence alone does not waive the final integration gate<br>
+**Status:** ready to begin after consuming the complete Waves 3–4 repair tree; by explicit product-owner decision, the remaining live qualification is deferred—not waived—under [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification), and retained local data/storage evidence does not satisfy that final all-waves gate<br>
 **Depends on:** S-08, S-10 through S-15, and S-17<br>
 **Primary decisions:** IR-929, IR-931
 

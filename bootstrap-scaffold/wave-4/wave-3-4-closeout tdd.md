@@ -23,8 +23,11 @@ open.
 
 This record no longer treats IR-891's ordinary-development allowance, or the
 more permissive `NOT_RUN` disposition in the S-19/S-22 slice plans, as permission
-to relax the combined closeout contract. S-26 and S-28 therefore remain blocked
-on this combined closeout and its landing state.
+to relax the combined closeout contract. By explicit product-owner decision on
+2026-08-26, the unavailable live-provider and continuity rows are instead
+scheduled as [`BL-001`](../../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification).
+That scheduling decision allows S-26 and S-28 to begin from the complete repair
+tree; it does not mark this combined closeout closed or waive any acceptance row.
 
 ## 3. Lifecycle prerequisite and repair commits
 
@@ -98,6 +101,16 @@ unqualified closeout claim:
 - Real provider and deployed mint/direct-provider rows remained `NOT_RUN` for
   lack of development credentials and a verified deployment identity.
 
+A later qualification baseline at `30c50f7f` passed the full component suites,
+14/14 hermetic E2E tests, the agent-logic harness, offline Tier-2 at 31/31 plus
+the spatial-overlay suite, and natural authenticated physical PTT. The physical
+Option-key path captured 235,530 bytes over 7.4 seconds and reached
+`terminal_success`/`success` with zero invalid or stale transitions. Continuity
+again terminalized cleanly but failed blind recall against the offline echo
+provider, and the real-provider and deployed-provider rows remained `NOT_RUN`.
+This is the proven baseline before deferral, not a substitute for the final
+all-waves rerun required by BL-001.
+
 Because this evidence record and its review-hygiene repair change the commit,
 the exact final-head rerun manifests and preflight result must be attached to the
 draft PR after the record's commit. No older manifest may be relabelled as
@@ -126,10 +139,12 @@ the spatial-overlay suite. This repaired the earlier capture lifecycle,
   owner remained signed in.
 
 These successful observations belong to the 2026-08-23 repair head. The
-2026-08-26 final-candidate attempt is recorded above: offline Tier-2 passed, but
-continuity recall and natural captured-audio PTT did not. The combined closeout
-still requires those rows on the final committed head; controller or manager
-injection is supporting evidence, not a substitute.
+`ebd1d644` repair-head attempt on 2026-08-26 passed offline Tier-2 but not
+continuity recall or natural captured-audio PTT. The later `30c50f7f` baseline
+then passed natural captured-audio PTT, while continuity recall and the real
+provider rows stayed open. The final all-waves gate still requires every row on
+one final committed head; controller or manager injection is supporting
+evidence, not a substitute.
 
 ### Real-provider matrix — `BLOCKED / NOT_RUN`
 
@@ -186,13 +201,17 @@ performed. `BILLING_MODE=disabled` remained unchanged.
 
 ## 9. Closeout boundary
 
-The combined Waves 3–4 closeout is **open**. It can close only when one final
-committed SHA has passing component/E2E/Tier-2/continuity evidence, natural
-authenticated physical PTT is rerun on that head, and the required non-production
-OpenAI/Gemini/Auto/failover plus deployed mint/direct-provider probe is recorded.
-Unavailable credentials are a truthful blocker, not an implied pass and not a
-reason to relax the accepted closeout contract.
+The combined Waves 3–4 closeout is **open and deferred** under
+[`BL-001`](../../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification).
+It can close only when one final committed SHA after all waves has passing
+component/E2E/Tier-2/continuity evidence, natural authenticated physical PTT is
+rerun on that head, and the required non-production OpenAI/Gemini/Auto/failover
+plus deployed mint/direct-provider probe is recorded. Unavailable credentials
+are a truthful open row, not an implied pass and not a relaxation of the accepted
+closeout contract.
 
-S-26 and S-28 remain blocked on that closeout and on the repair branch landing on
-`main`. Live resource decommission, real account deletion, deployment, and
-release remain separately authorized work even after repository closeout.
+S-26 and S-28 may proceed after consuming the complete repair tree. The final
+all-waves closeout and any release claim remain blocked on BL-001. Live resource
+decommission, real account deletion, deployment, and release remain separately
+authorized work even after repository closeout; the S-25 inventory follow-up is
+tracked as [`BL-002`](../../BACKLOG.md#bl-002-s-25-verified-live-resource-inventory-and-operational-handoff).
