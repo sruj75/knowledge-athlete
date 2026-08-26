@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any, cast
 
-DEFAULT_REGION = 'us-central1'
+DEFAULT_REGION = 'us-west1'
 DEFAULT_SERVICES = ('backend',)
 
 

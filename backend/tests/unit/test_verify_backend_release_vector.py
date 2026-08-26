@@ -10,6 +10,8 @@ from scripts import verify_backend_release_vector as verify
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 REPO_DIR = BACKEND_DIR.parent
 COMMIT_SHA = 'abcdef1234567890abcdef1234567890abcdef12'
+IMAGE_DIGEST = 'sha256:' + ('1' * 64)
+EXPECTED_IMAGE = f'us-west1-docker.pkg.dev/owned-dev/backend-images/backend:{COMMIT_SHA}@{IMAGE_DIGEST}'
 
 
 def _expectation(*, environment: str = 'dev') -> verify.DeploymentExpectation:
@@ -21,6 +23,7 @@ def _expectation(*, environment: str = 'dev') -> verify.DeploymentExpectation:
         project='based-hardware-dev' if environment == 'dev' else 'based-hardware',
         region='us-central1',
         environment=environment,
+        expected_image=EXPECTED_IMAGE,
     )
 
 
@@ -32,7 +35,7 @@ def _service_document(
     latest_ready: str | None = None,
     image: str | None = None,
     environment: str | None = None,
-    timeout_seconds: int = 1500,
+    timeout_seconds: int = 3600,
 ) -> dict:
     revision = expectation.revisions['backend']
     return {
@@ -64,7 +67,7 @@ def _ready_revision_document(status: str = 'True') -> dict:
 def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -> None:
     expectation = _expectation()
 
-    assert expectation.image == 'gcr.io/based-hardware-dev/backend:abcdef1'
+    assert expectation.image == EXPECTED_IMAGE
     assert expectation.revisions == {'backend': 'backend-abcdef1-12345-2'}
     assert expectation.environment == 'dev'
 
@@ -76,6 +79,7 @@ def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -
         ({'short_sha': '1234567'}, 'prefix'),
         ({'deploy_run_id': 'run'}, 'decimal integers'),
         ({'environment': 'stage'}, 'environment'),
+        ({'expected_image': 'us-west1-docker.pkg.dev/owned/backend:latest'}, 'expected image'),
     ],
 )
 def test_expectation_rejects_ambiguous_release_identity(kwargs: dict, message: str) -> None:
@@ -87,6 +91,7 @@ def test_expectation_rejects_ambiguous_release_identity(kwargs: dict, message: s
         'project': 'based-hardware-dev',
         'region': 'us-central1',
         'environment': 'dev',
+        'expected_image': EXPECTED_IMAGE,
     }
     arguments.update(kwargs)
 
@@ -208,6 +213,8 @@ def test_main_writes_candidate_evidence_without_mutating_cloud(monkeypatch, tmp_
             '--environment',
             'dev',
             '--candidate',
+            '--expected-image',
+            EXPECTED_IMAGE,
             '--evidence-path',
             str(evidence_path),
         ],

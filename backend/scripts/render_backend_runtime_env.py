@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 from typing import Any, cast
@@ -44,6 +45,15 @@ def main() -> int:
     # Render everything before emitting output. A selected job with an invalid
     # contract must fail without leaving a partial GITHUB_OUTPUT file behind.
     rendered_outputs: list[tuple[str, str]] = []
+    foundation = _as_config_dict(env_config.get('foundation'))
+    if foundation is None:
+        raise ValueError(f'environment {args.env} must define foundation')
+    rendered_outputs.extend(
+        (
+            ('foundation_contract', json.dumps(foundation, sort_keys=True, separators=(',', ':'))),
+            ('foundation_required_inputs', ','.join(sorted(_collect_env_vars(foundation)))),
+        )
+    )
     network = _as_config_dict(cloud_run.get('network')) or {}
     rendered_outputs.append(('cloud_run_flags', _render_flags(_as_config_dict(network.get('flags')) or {})))
     services = _as_config_dict(cloud_run.get('services')) or {}
@@ -53,8 +63,13 @@ def main() -> int:
             if service_config is None:
                 raise ValueError(f'Cloud Run service {service} must be a mapping')
             output_prefix = _output_prefix(service)
+            service_account = _as_config_dict(service_config.get('service_account'))
+            if service_account is None:
+                raise ValueError(f'Cloud Run service {service} must define service_account')
             rendered_outputs.extend(
                 (
+                    (f'{output_prefix}_service_account', str(_runtime_value('service_account', service_account))),
+                    (f'{output_prefix}_flags', _render_service_flags(service_config)),
                     (f'{output_prefix}_env_vars', _render_env_vars(service_config.get('env', {}))),
                     (f'{output_prefix}_secrets', _render_secrets(service_config.get('secrets', {}))),
                     (f'{output_prefix}_secret_names', _render_secret_names(service_config.get('secrets', {}))),
@@ -114,13 +129,37 @@ def _render_secrets(secret_entries: ConfigDict) -> str:
         entry = _as_config_dict(raw_entry)
         if entry is None or 'secret' not in entry:
             raise ValueError(f'Cloud Run secret binding {name} must have a secret entry')
-        version = entry.get('version', 'latest')
+        if 'version' in entry:
+            version = str(entry['version'])
+        elif isinstance(entry.get('version_env_var'), str):
+            version = _runtime_value(name, {'env_var': entry['version_env_var']})
+        else:
+            raise ValueError(f'Cloud Run secret binding {name} must select an exact version')
+        if not version or version == 'latest':
+            raise ValueError(f'Cloud Run secret binding {name} must select an exact version')
         lines.append(f'{name}={entry["secret"]}:{version}')
     return '\n'.join(lines)
 
 
 def _render_secret_names(secret_entries: ConfigDict) -> str:
     return ','.join(secret_entries.keys())
+
+
+def _collect_env_vars(value: object) -> set[str]:
+    if isinstance(value, dict):
+        env_var = value.get('env_var')
+        if isinstance(env_var, str) and env_var:
+            return {env_var}
+        found: set[str] = set()
+        for nested in value.values():
+            found.update(_collect_env_vars(nested))
+        return found
+    if isinstance(value, list):
+        found: set[str] = set()
+        for nested in value:
+            found.update(_collect_env_vars(nested))
+        return found
+    return set()
 
 
 def _render_flags(flag_entries: ConfigDict) -> str:
@@ -131,10 +170,23 @@ def _render_flags(flag_entries: ConfigDict) -> str:
             value = _runtime_value(name, entry)
         else:
             value = raw_entry
-        if value in (None, ''):
+        if value in (None, '', False):
             raise ValueError(f'Cloud Run flag {name} must have a value')
-        flags.append(f'{name}={value}')
+        flags.append(name if value is True else f'{name}={value}')
     return ' '.join(flags)
+
+
+def _render_service_flags(service_config: ConfigDict) -> str:
+    flag_entries = dict(_as_config_dict(service_config.get('flags')) or {})
+    service_account = _as_config_dict(service_config.get('service_account'))
+    if service_account is None:
+        raise ValueError('Cloud Run service must define service_account')
+    flag_entries['--service-account'] = service_account
+    forbidden = service_config.get('forbidden_env')
+    if not isinstance(forbidden, list) or any(not isinstance(name, str) or not name for name in forbidden):
+        raise ValueError('Cloud Run service must define non-empty forbidden_env names')
+    flag_entries['--remove-env-vars'] = ','.join(forbidden)
+    return _render_flags(flag_entries)
 
 
 def _runtime_value(name: str, entry: ConfigDict, *, allow_missing: bool = False) -> str | None:

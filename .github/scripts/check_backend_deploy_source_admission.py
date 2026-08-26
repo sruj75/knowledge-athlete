@@ -416,12 +416,19 @@ def validate_manual_workflow(text: str) -> list[str]:
     else:
         if folded_job_condition(repair_job) != MANUAL_TRAFFIC_REPAIR_CONDITION:
             errors.append("traffic-only repair must use exactly the main-ref recovery condition")
-        require_fragment(
-            errors,
-            repair_job,
-            "ref: main",
-            "traffic-only repair must check out the repository recovery script from main",
-        )
+        if "actions/checkout@" in repair_job or "backend/scripts/" in repair_job:
+            errors.append("traffic-only repair must remain independent of repository source")
+        for fragment, message in (
+            (
+                'gcloud run services describe "$SERVICE"',
+                "traffic-only repair must discover the currently serving revision from Cloud Run",
+            ),
+            (
+                '--to-revisions="$serving_revision=100"',
+                "traffic-only repair must restore exactly the validated serving revision",
+            ),
+        ):
+            require_fragment(errors, repair_job, fragment, message)
         if "release_sha" in repair_job or "admitted_source" in repair_job:
             errors.append("traffic-only repair must not require a release-source admission")
 

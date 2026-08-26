@@ -52,10 +52,9 @@ def validate(root: Path) -> list[str]:
         "--tag=${{ env.CANDIDATE_TAG }}",
         "backend_candidate_probe.py",
         "voice-provider-probe.sh",
-        "https://api.omi.me/v2/desktop/beta/candidates/reserve",
-        '--data \'{"tag":"v0.0.0+1-macos"}\'',
-        "schema-valid inert tag reaches the authorization wall",
-        "--candidate-api-url https://api.omi.me",
+        '[[ "$BACKEND_URL" =~ ^https://[^/]+\\.run\\.app$ ]]',
+        'SERVING_API_URL: ${{ steps.account-deletion-target.outputs.backend_url }}',
+        '--candidate-api-url "$SERVING_API_URL"',
         "umask 077",
         "firebase-production-serving-token",
         "trap 'rm -f \"$token_file\"' EXIT",
@@ -63,9 +62,9 @@ def validate(root: Path) -> list[str]:
     ):
         if required not in text:
             errors.append(f"gcp_backend.yml is missing production serving-smoke guard {required!r}")
-    if "--data '{}')" in text:
-        errors.append("gcp_backend.yml must not use an invalid empty reservation body for the 401 smoke")
     smoke_text = text[text.find(PROD_SMOKE) :] if PROD_SMOKE in text else ""
+    if "api.omi.me" in smoke_text:
+        errors.append("production backend smoke must use the owned Cloud Run service URL, not inherited Omi DNS")
     if "$GITHUB_OUTPUT" in smoke_text and "firebase-production-serving-token" in smoke_text:
         errors.append("production smoke token must not be written to GITHUB_OUTPUT")
     return errors

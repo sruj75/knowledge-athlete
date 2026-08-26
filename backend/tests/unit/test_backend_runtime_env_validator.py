@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -61,6 +62,21 @@ def test_repo_prod_runtime_matches_manifest():
     assert errors == []
 
 
+def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
+    workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
+    modes = workflow[True]['workflow_dispatch']['inputs']['mode']['options']
+    job = workflow['jobs']['foundation-maintenance']
+    serialized = json.dumps(job, sort_keys=True)
+    runs = '\n'.join(str(step.get('run', '')) for step in job['steps'])
+
+    assert modes == ['deploy', 'repair-traffic-only', 'foundation-readiness', 'artifact-cleanup-dry-run']
+    assert 'foundation_drift.py --env="$manifest_env" --check-live' in runs
+    assert 'artifact_cleanup_policy.py' in serialized
+    assert '--include-tags' in serialized
+    assert 'artifacts delete' not in serialized
+    assert 'run revisions delete' not in serialized
+
+
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
 def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(env_name):
     validator = load_validator()
@@ -75,6 +91,9 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'ACCOUNT_DELETION_DISPATCH_MODE',
         'DESKTOP_UPDATE_POINTERS_MODE',
         'POSTHOG_HOST',
+        'REDIS_DB_HOST',
+        'REDIS_DB_PORT',
+        'REDIS_DB_CA_CERT_PEM',
     } <= set(backend['env'])
     assert {
         'MODULATE_API_KEY',
@@ -82,14 +101,126 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'OPENAI_API_KEY',
         'ANTHROPIC_API_KEY',
         'FIREBASE_API_KEY',
-        'REDIS_DB_HOST',
-        'REDIS_DB_PORT',
         'REDIS_DB_PASSWORD',
         'POSTHOG_PROJECT_API_KEY',
     } <= set(backend['secrets'])
     assert backend['env']['BILLING_MODE']['value'] == 'disabled'
     for binding in backend['secrets'].values():
-        assert set(binding) <= {'secret', 'version'}
+        assert set(binding) <= {'secret', 'version_env_var'}
+
+
+@pytest.mark.parametrize('env_name', ['dev', 'prod'])
+def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inputs(env_name):
+    validator = load_validator()
+    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    backend = manifest['environments'][env_name]['cloud_run']['services']['backend']
+
+    assert backend['service_account'] == {'env_var': 'BACKEND_RUNTIME_SERVICE_ACCOUNT'}
+    assert 'SERVICE_ACCOUNT_JSON' not in backend['secrets']
+    assert 'SERVICE_ACCOUNT_JSON' in backend['forbidden_env']
+    assert 'GOOGLE_APPLICATION_CREDENTIALS' in backend['forbidden_env']
+    assert all(binding.get('version_env_var') for binding in backend['secrets'].values())
+    assert all(binding.get('version') != 'latest' for binding in backend['secrets'].values())
+
+
+@pytest.mark.parametrize(('env_name', 'minimum', 'maximum'), [('dev', '0', '3'), ('prod', '1', '10')])
+def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, maximum):
+    validator = load_validator()
+    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    env_config = manifest['environments'][env_name]
+    cloud_run = env_config['cloud_run']
+    backend = cloud_run['services']['backend']
+
+    assert env_config['gcp_project'] == {'env_var': 'GCP_PROJECT_ID'}
+    assert env_config['runtime_gcp_project'] == {'env_var': 'RUNTIME_GCP_PROJECT_ID'}
+    assert env_config['region'] == 'us-west1'
+    assert cloud_run['network']['flags'] == {
+        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+        '--vpc-egress': 'private-ranges-only',
+    }
+    assert backend['flags'] == {
+        '--cpu': '2',
+        '--memory': '4Gi',
+        '--concurrency': '20',
+        '--timeout': '3600s',
+        '--min-instances': minimum,
+        '--max-instances': maximum,
+        '--execution-environment': 'gen2',
+        '--allow-unauthenticated': True,
+        '--no-session-affinity': True,
+        '--no-cpu-throttling': True,
+        '--no-cpu-boost': True,
+        '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
+        '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
+    }
+
+
+def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift(tmp_path):
+    validator = load_validator()
+    manifest = copy.deepcopy(validator._load_yaml(validator.DEFAULT_MANIFEST))
+    backend = manifest['environments']['prod']['cloud_run']['services']['backend']
+    backend['flags']['--cpu'] = '1'
+    backend['secrets']['OPENAI_API_KEY'] = {'secret': 'OPENAI_API_KEY', 'version': 'latest'}
+    manifest_path = tmp_path / 'runtime_env.yaml'
+    write_yaml(manifest_path, manifest)
+
+    errors = validator.validate_runtime_env(env='prod', manifest_path=manifest_path)
+
+    assert any('Cloud Run flag --cpu' in error.message for error in errors)
+    assert any('OPENAI_API_KEY must select an exact version input' in error.message for error in errors)
+
+
+@pytest.mark.parametrize(
+    ('env_name', 'redis_tier', 'alerts'),
+    [
+        ('dev', 'BASIC', []),
+        ('prod', 'STANDARD_HA', ['health_unreachable', 'cloud_run_5xx']),
+    ],
+)
+def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, redis_tier, alerts):
+    validator = load_validator()
+    foundation = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments'][env_name]['foundation']
+
+    assert foundation['network']['region'] == 'us-west1'
+    assert foundation['network']['private_service_access'] == {
+        'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
+        'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
+    }
+    assert foundation['redis'] == {
+        'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
+        'region': 'us-west1',
+        'tier': redis_tier,
+        'memory_gib': 1,
+        'private_service_access': True,
+        'auth': True,
+        'transit_encryption': 'SERVER_AUTHENTICATION',
+    }
+    assert foundation['tasks']['queue'] == {
+        'name': 'account-deletion',
+        'location': 'us-west1',
+        'max_concurrent_dispatches': 1,
+        'max_attempts': 5,
+        'dispatch_deadline_seconds': 1500,
+        'oidc_signer': {'env_var': 'ACCOUNT_DELETION_TASKS_INVOKER_SA'},
+        'handler_audience': {'env_var': 'ACCOUNT_DELETION_HANDLER_URL'},
+    }
+    assert foundation['gcs']['signing_method'] == 'iamcredentials.signBlob'
+    assert foundation['gcs']['signing_service_account'] == {'env_var': 'BACKEND_RUNTIME_SERVICE_ACCOUNT'}
+    assert foundation['alerts']['policies'] == alerts
+    assert foundation['budget']['thresholds'] == [0.5, 0.8, 1.0]
+    assert foundation['budget']['alert_only'] is True
+    assert foundation['logging'] == {
+        'bucket': '_Default',
+        'retention_days': 30,
+        'external_archive': False,
+    }
+    assert foundation['artifact_registry']['cleanup'] == {
+        'dry_run_required': True,
+        'delete_only_untagged_older_than_days': 30,
+        'preserve_exact_release_images': True,
+        'delete_cloud_run_revisions': False,
+    }
 
 
 def test_account_deletion_dispatch_contract_requires_canonical_backend_profile():
@@ -161,6 +292,48 @@ def test_repo_prod_cloud_run_workflows_match_manifest(monkeypatch):
     )
 
     assert errors == []
+
+
+def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json_keys():
+    workflows = {
+        'manual': ROOT.parent / '.github/workflows/gcp_backend.yml',
+        'automatic': ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml',
+        'indexes': ROOT.parent / '.github/workflows/gcp_firestore_indexes.yml',
+    }
+    expected_accounts = {
+        'manual': {
+            '${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}',
+            '${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}',
+        },
+        'automatic': {
+            '${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}',
+            '${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}',
+        },
+        'indexes': {'${{ vars.GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT }}'},
+    }
+
+    for name, path in workflows.items():
+        workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
+        auth_steps = [
+            step
+            for job in workflow['jobs'].values()
+            for step in job.get('steps', [])
+            if step.get('uses') == 'google-github-actions/auth@v3'
+            or step.get('uses') == "google-github-actions/auth@v3"
+        ]
+
+        assert auth_steps, f'{name} must authenticate to Google through WIF'
+        assert {step['with']['service_account'] for step in auth_steps} == expected_accounts[name]
+        assert all(
+            step['with']['workload_identity_provider'] == '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+            for step in auth_steps
+        )
+        assert all('credentials_json' not in step['with'] for step in auth_steps)
+        assert all(
+            job.get('permissions', {}).get('id-token') == 'write'
+            for job in workflow['jobs'].values()
+            if any(step in auth_steps for step in job.get('steps', []))
+        )
 
 
 def test_workflow_validation_uses_immutable_workflow_root_with_admitted_runtime_manifest(tmp_path):
@@ -738,3 +911,64 @@ def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
     assert 'jobs' not in state  # no live job state → consumer skips job env checks
     assert 'backend' in state['services']  # services are still fetched + validated
     assert any('services' in cmd for cmd in described)
+
+
+def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract(monkeypatch):
+    validator = load_validator()
+    env_config = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments']['prod']
+    monkeypatch.setenv('GCP_PROJECT_ID', 'owned-prod')
+    document = {
+        'spec': {
+            'template': {
+                'metadata': {
+                    'annotations': {
+                        'autoscaling.knative.dev/minScale': '1',
+                        'autoscaling.knative.dev/maxScale': '10',
+                        'run.googleapis.com/execution-environment': 'gen2',
+                        'run.googleapis.com/cpu-throttling': 'false',
+                        'run.googleapis.com/startup-cpu-boost': 'false',
+                        'run.googleapis.com/sessionAffinity': 'false',
+                        'run.googleapis.com/network-interfaces': '[{"network":"owned-vpc","subnetwork":"owned-subnet"}]',
+                        'run.googleapis.com/vpc-access-egress': 'private-ranges-only',
+                    }
+                },
+                'spec': {
+                    'serviceAccountName': 'runtime@owned-prod.iam.gserviceaccount.com',
+                    'containerConcurrency': 20,
+                    'timeoutSeconds': 3600,
+                    'containers': [
+                        {
+                            'env': [],
+                            'resources': {'limits': {'cpu': '2', 'memory': '4Gi'}},
+                            'startupProbe': {
+                                'httpGet': {'path': '/v1/health'},
+                                'periodSeconds': 10,
+                                'timeoutSeconds': 5,
+                                'failureThreshold': 24,
+                            },
+                            'livenessProbe': {
+                                'httpGet': {'path': '/v1/health'},
+                                'periodSeconds': 10,
+                                'timeoutSeconds': 5,
+                                'failureThreshold': 5,
+                            },
+                        }
+                    ],
+                },
+            }
+        }
+    }
+    monkeypatch.setattr(
+        validator.subprocess,
+        'run',
+        lambda command, **kwargs: SimpleNamespace(returncode=0, stdout=json.dumps(document), stderr=''),
+    )
+
+    flags = validator._fetch_live_cloud_run_state(env_config)['services']['backend']['flags']
+
+    assert flags['--cpu'] == '2'
+    assert flags['--memory'] == '4Gi'
+    assert flags['--timeout'] == '3600s'
+    assert flags['--service-account'] == 'runtime@owned-prod.iam.gserviceaccount.com'
+    assert flags['--no-cpu-throttling'] == 'true'
+    assert flags['--startup-probe'].startswith('httpGet.path=/v1/health,periodSeconds=10')

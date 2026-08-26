@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-import re
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-UPDATES_SOURCE = (ROOT / "backend/routers/updates.py").read_text(encoding="utf-8")
 
 MODULE_PATH = ROOT / ".github/scripts/check-gcp-backend-production-boundary.py"
 SPEC = importlib.util.spec_from_file_location("check_gcp_backend_production_boundary", MODULE_PATH)
@@ -23,29 +21,13 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
     def test_current_workflow_preserves_the_rollback_first_cloud_run_only_boundary(self) -> None:
         self.assertEqual(CHECKER.validate(ROOT), [])
 
-    def test_production_reservation_smoke_uses_a_schema_valid_inert_tag(self) -> None:
+    def test_production_smoke_uses_the_owned_stable_cloud_run_url(self) -> None:
         workflow = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
         smoke = workflow[workflow.index(CHECKER.PROD_SMOKE) :]
-        match = re.search(r'''--data '\{"tag":"(?P<tag>[^"]+)"\}'\)''', smoke)
-        if match is None:
-            self.fail("production reservation smoke must send an exact tag body")
-
-        schema = re.search(
-            r'class QualifiedBetaPromotionRequest\(BaseModel\):.*?tag: str = Field\(pattern=r"(?P<pattern>[^"]+)"\)',
-            UPDATES_SOURCE,
-            re.DOTALL,
-        )
-        if schema is None:
-            self.fail("qualified Beta tag schema must remain statically inspectable")
-        self.assertRegex(match.group("tag"), re.compile(schema.group("pattern")))
-
-        reserve = UPDATES_SOURCE[
-            UPDATES_SOURCE.index("async def reserve_beta_candidate_endpoint(") : UPDATES_SOURCE.index(
-                '@router.put("/v2/desktop/beta/admission")'
-            )
-        ]
-        self.assertIn("if not _has_beta_promotion_authorization(authorization):", reserve)
-        self.assertIn('raise HTTPException(status_code=401, detail="Unauthorized")', reserve)
+        self.assertIn('[[ "$BACKEND_URL" =~ ^https://[^/]+\\.run\\.app$ ]]', workflow)
+        self.assertIn('SERVING_API_URL: ${{ steps.account-deletion-target.outputs.backend_url }}', smoke)
+        self.assertIn('--candidate-api-url "$SERVING_API_URL"', smoke)
+        self.assertNotIn("api.omi.me", smoke)
 
     def test_rejects_production_boundary_regressions(self) -> None:
         original = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
@@ -64,13 +46,13 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
             ),
             "moves_candidate_probe_after_traffic": (CHECKER.CANDIDATE_PROBE, "Post-traffic candidate chat probe"),
             "moves_smoke_before_serving_verification": (CHECKER.PROD_SMOKE, "Smoke production candidate API"),
-            "omits_schema_valid_unauthenticated_smoke": (
-                "schema-valid inert tag reaches the authorization wall",
-                "unexpected response",
+            "omits_owned_stable_url_guard": (
+                '[[ "$BACKEND_URL" =~ ^https://[^/]+\\.run\\.app$ ]]',
+                'test -n "$BACKEND_URL"',
             ),
-            "uses_invalid_empty_reservation_body": (
-                '--data \'{"tag":"v0.0.0+1-macos"}\'',
-                "--data '{}')",
+            "reintroduces_inherited_production_domain": (
+                '--candidate-api-url "$SERVING_API_URL"',
+                "--candidate-api-url https://api.omi.me",
             ),
             "omits_smoke_rollback": (CHECKER.ROLLBACK_CONDITION, "false"),
             "leaks_smoke_token_to_output": (

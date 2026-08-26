@@ -56,7 +56,7 @@ def check() -> list[str]:
                 "default: 'deploy'",
                 "github.ref == 'refs/heads/main'",
                 "firestore_readiness:",
-                "GCP_FIRESTORE_READONLY_CREDENTIALS",
+                "GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT",
                 "needs.firestore_readiness.outputs.admitted_sha",
                 "--check-only",
                 "no_traffic: true",

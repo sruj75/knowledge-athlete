@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence, cast
 
-DEFAULT_REGION = 'us-central1'
+DEFAULT_REGION = 'us-west1'
 DEFAULT_SERVICES = ('backend',)
 SNAPSHOT_SCHEMA_VERSION = 1
 

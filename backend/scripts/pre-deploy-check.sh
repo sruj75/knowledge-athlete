@@ -56,7 +56,7 @@ run_live() {
   python3 scripts/preflight-cloud-run-deploy.py \
     --env "$env" \
     --project "$project" \
-    --region us-central1 \
+    --region us-west1 \
     --check-secrets \
     --check-traffic
 }

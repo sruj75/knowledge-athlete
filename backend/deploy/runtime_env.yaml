@@ -1,29 +1,139 @@
 schema_version: 1
 environments:
   dev:
-    gcp_project: based-hardware-dev
-    runtime_gcp_project: based-hardware
-    region: us-central1
+    gcp_project:
+      env_var: GCP_PROJECT_ID
+    runtime_gcp_project:
+      env_var: RUNTIME_GCP_PROJECT_ID
+    region: us-west1
+    foundation:
+      wif:
+        provider: {env_var: GCP_WORKLOAD_IDENTITY_PROVIDER}
+        deploy_service_account: {env_var: GCP_DEPLOY_SERVICE_ACCOUNT}
+        firestore_readonly_service_account: {env_var: GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT}
+        firestore_writer_service_account: {env_var: GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT}
+        claims:
+          repository: {env_var: GITHUB_REPOSITORY}
+          repository_id: {env_var: GITHUB_REPOSITORY_ID}
+          repository_owner_id: {env_var: GITHUB_REPOSITORY_OWNER_ID}
+          ref: refs/heads/main
+          environment: development
+          workflow_paths:
+            deploy:
+              - .github/workflows/gcp_backend.yml
+              - .github/workflows/gcp_backend_auto_dev.yml
+            firestore_readonly:
+              - .github/workflows/gcp_backend.yml
+              - .github/workflows/gcp_backend_auto_dev.yml
+            firestore_writer:
+              - .github/workflows/gcp_firestore_indexes.yml
+      network:
+        region: us-west1
+        vpc: {env_var: CLOUD_RUN_VPC_NETWORK}
+        subnet: {env_var: CLOUD_RUN_VPC_SUBNET}
+        private_service_access:
+          range_name: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_NAME}
+          range_cidr: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_CIDR}
+      redis:
+        instance_name: {env_var: REDIS_INSTANCE_NAME}
+        region: us-west1
+        tier: BASIC
+        memory_gib: 1
+        private_service_access: true
+        auth: true
+        transit_encryption: SERVER_AUTHENTICATION
+      firestore:
+        project: {env_var: RUNTIME_GCP_PROJECT_ID}
+        database: (default)
+        index_reconciliation: create-only
+        destructive_changes: false
+      gcs:
+        bucket: {env_var: BUCKET_DESKTOP_UPDATES}
+        location: us-west1
+        uniform_bucket_level_access: true
+        public_access_prevention: enforced
+        runtime_access: read-and-sign-only
+        signing_method: iamcredentials.signBlob
+        signing_service_account: {env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT}
+        publisher_access: future-s29-prefix-writer
+        retained_prefixes: [updates/, previews/]
+      tasks:
+        queue:
+          name: account-deletion
+          location: us-west1
+          max_concurrent_dispatches: 1
+          max_attempts: 5
+          dispatch_deadline_seconds: 1500
+          oidc_signer: {env_var: ACCOUNT_DELETION_TASKS_INVOKER_SA}
+          handler_audience: {env_var: ACCOUNT_DELETION_HANDLER_URL}
+      artifact_registry:
+        repository: {env_var: ARTIFACT_REGISTRY_REPOSITORY}
+        location: us-west1
+        format: DOCKER
+        release_tag: full-commit-sha
+        deploy_identity: sha256-digest
+        build_cache_tag: buildcache
+        cleanup:
+          dry_run_required: true
+          delete_only_untagged_older_than_days: 30
+          preserve_exact_release_images: true
+          delete_cloud_run_revisions: false
+      logging:
+        bucket: _Default
+        retention_days: 30
+        external_archive: false
+      alerts:
+        policies: []
+        notification_channel: {env_var: ALERT_NOTIFICATION_CHANNEL}
+      budget:
+        billing_account: {env_var: GCP_BILLING_ACCOUNT_ID}
+        amount: {env_var: GCP_MONTHLY_BUDGET_AMOUNT}
+        currency: {env_var: GCP_MONTHLY_BUDGET_CURRENCY}
+        recipients: {env_var: GCP_BUDGET_RECIPIENTS}
+        thresholds: [0.5, 0.8, 1.0]
+        alert_only: true
     cloud_run:
+      canonical_service_url: {env_var: BACKEND_CANONICAL_URL}
       workflow_files:
         - .github/workflows/gcp_backend_auto_dev.yml
         - .github/workflows/gcp_backend.yml
       network:
         flags:
-          --network: omi-dev-vpc-1
-          --subnet: omi-us-central1-dev-vpc-1-subnet-1
+          --network:
+            env_var: CLOUD_RUN_VPC_NETWORK
+          --subnet:
+            env_var: CLOUD_RUN_VPC_SUBNET
           --vpc-egress: private-ranges-only
       services:
         backend:
+          service_account:
+            env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
+          forbidden_env:
+            - SERVICE_ACCOUNT_JSON
+            - GOOGLE_APPLICATION_CREDENTIALS
+          flags:
+            --cpu: '2'
+            --memory: 4Gi
+            --concurrency: '20'
+            --timeout: 3600s
+            --min-instances: '0'
+            --max-instances: '3'
+            --execution-environment: gen2
+            --allow-unauthenticated: true
+            --no-session-affinity: true
+            --no-cpu-throttling: true
+            --no-cpu-boost: true
+            --startup-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24
+            --liveness-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5
           env:
             ACCOUNT_DELETION_DISPATCH_MODE:
               value: cloud_tasks
               category: reliability
             ACCOUNT_DELETION_TASKS_PROJECT:
-              value: based-hardware-dev
+              env_var: GCP_PROJECT_ID
               category: reliability
             ACCOUNT_DELETION_TASKS_LOCATION:
-              value: us-central1
+              value: us-west1
               category: reliability
             ACCOUNT_DELETION_TASKS_QUEUE:
               value: account-deletion
@@ -59,15 +169,18 @@ environments:
               value: '0.01'
               category: rollout
             GOOGLE_CLOUD_PROJECT:
-              value: based-hardware
+              env_var: RUNTIME_GCP_PROJECT_ID
             FIREBASE_PROJECT_ID:
-              value: based-hardware
+              env_var: FIREBASE_AUTH_PROJECT_ID
             GCP_LOCATION:
-              value: us-central1
+              value: us-west1
             USE_VERTEX_AI:
               value: 'true'
             OMI_ENV_STAGE:
               value: dev
+              category: runtime_identity
+            BACKEND_RUNTIME_SERVICE_ACCOUNT:
+              env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
               category: runtime_identity
             OMI_PARITY_PACK_CAPTURE:
               value: '1'
@@ -84,51 +197,141 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
+            REDIS_DB_HOST:
+              env_var: REDIS_DB_HOST
+              category: private_dependency
+            REDIS_DB_PORT:
+              env_var: REDIS_DB_PORT
+              category: private_dependency
+            REDIS_DB_CA_CERT_PEM:
+              env_var: REDIS_DB_CA_CERT_PEM
+              category: private_dependency
+            BUCKET_DESKTOP_UPDATES:
+              env_var: BUCKET_DESKTOP_UPDATES
+              category: desktop_artifacts
           secrets:
-            SERVICE_ACCOUNT_JSON:
-              secret: SERVICE_ACCOUNT_JSON
-              version: latest
             GOOGLE_CLIENT_SECRET:
               secret: GOOGLE_CLIENT_SECRET
-              version: latest
+              version_env_var: GOOGLE_CLIENT_SECRET_VERSION
             POSTHOG_PROJECT_API_KEY:
               secret: POSTHOG_PROJECT_API_KEY
-              version: latest
+              version_env_var: POSTHOG_PROJECT_API_KEY_VERSION
             MODULATE_API_KEY:
               secret: MODULATE_API_KEY
-              version: latest
+              version_env_var: MODULATE_API_KEY_VERSION
             GEMINI_API_KEY:
               secret: GEMINI_API_KEY
-              version: latest
+              version_env_var: GEMINI_API_KEY_VERSION
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
-              version: latest
+              version_env_var: OPENAI_API_KEY_VERSION
             ANTHROPIC_API_KEY:
               secret: DESKTOP_ANTHROPIC_API_KEY
-              version: latest
+              version_env_var: ANTHROPIC_API_KEY_VERSION
             DESKTOP_LEGACY_ANTHROPIC_KEY:
               secret: DESKTOP_LEGACY_ANTHROPIC_KEY
-              version: latest
+              version_env_var: DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION
             FIREBASE_API_KEY:
               secret: FIREBASE_API_KEY
-              version: latest
+              version_env_var: FIREBASE_API_KEY_VERSION
             GOOGLE_CALENDAR_API_KEY:
               secret: DESKTOP_GOOGLE_CALENDAR_API_KEY
-              version: latest
-            REDIS_DB_HOST:
-              secret: REDIS_DB_HOST
-              version: latest
-            REDIS_DB_PORT:
-              secret: REDIS_DB_PORT
-              version: latest
+              version_env_var: GOOGLE_CALENDAR_API_KEY_VERSION
             REDIS_DB_PASSWORD:
               secret: REDIS_DB_PASSWORD
-              version: latest
+              version_env_var: REDIS_DB_PASSWORD_VERSION
   prod:
-    gcp_project: based-hardware
-    runtime_gcp_project: based-hardware
-    region: us-central1
+    gcp_project:
+      env_var: GCP_PROJECT_ID
+    runtime_gcp_project:
+      env_var: RUNTIME_GCP_PROJECT_ID
+    region: us-west1
+    foundation:
+      wif:
+        provider: {env_var: GCP_WORKLOAD_IDENTITY_PROVIDER}
+        deploy_service_account: {env_var: GCP_DEPLOY_SERVICE_ACCOUNT}
+        firestore_readonly_service_account: {env_var: GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT}
+        firestore_writer_service_account: {env_var: GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT}
+        claims:
+          repository: {env_var: GITHUB_REPOSITORY}
+          repository_id: {env_var: GITHUB_REPOSITORY_ID}
+          repository_owner_id: {env_var: GITHUB_REPOSITORY_OWNER_ID}
+          ref: refs/heads/main
+          environment: prod
+          workflow_paths:
+            deploy:
+              - .github/workflows/gcp_backend.yml
+            firestore_readonly:
+              - .github/workflows/gcp_backend.yml
+            firestore_writer:
+              - .github/workflows/gcp_firestore_indexes.yml
+      network:
+        region: us-west1
+        vpc: {env_var: CLOUD_RUN_VPC_NETWORK}
+        subnet: {env_var: CLOUD_RUN_VPC_SUBNET}
+        private_service_access:
+          range_name: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_NAME}
+          range_cidr: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_CIDR}
+      redis:
+        instance_name: {env_var: REDIS_INSTANCE_NAME}
+        region: us-west1
+        tier: STANDARD_HA
+        memory_gib: 1
+        private_service_access: true
+        auth: true
+        transit_encryption: SERVER_AUTHENTICATION
+      firestore:
+        project: {env_var: RUNTIME_GCP_PROJECT_ID}
+        database: (default)
+        index_reconciliation: create-only
+        destructive_changes: false
+      gcs:
+        bucket: {env_var: BUCKET_DESKTOP_UPDATES}
+        location: us-west1
+        uniform_bucket_level_access: true
+        public_access_prevention: enforced
+        runtime_access: read-and-sign-only
+        signing_method: iamcredentials.signBlob
+        signing_service_account: {env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT}
+        publisher_access: future-s29-prefix-writer
+        retained_prefixes: [updates/, previews/]
+      tasks:
+        queue:
+          name: account-deletion
+          location: us-west1
+          max_concurrent_dispatches: 1
+          max_attempts: 5
+          dispatch_deadline_seconds: 1500
+          oidc_signer: {env_var: ACCOUNT_DELETION_TASKS_INVOKER_SA}
+          handler_audience: {env_var: ACCOUNT_DELETION_HANDLER_URL}
+      artifact_registry:
+        repository: {env_var: ARTIFACT_REGISTRY_REPOSITORY}
+        location: us-west1
+        format: DOCKER
+        release_tag: full-commit-sha
+        deploy_identity: sha256-digest
+        build_cache_tag: buildcache
+        cleanup:
+          dry_run_required: true
+          delete_only_untagged_older_than_days: 30
+          preserve_exact_release_images: true
+          delete_cloud_run_revisions: false
+      logging:
+        bucket: _Default
+        retention_days: 30
+        external_archive: false
+      alerts:
+        policies: [health_unreachable, cloud_run_5xx]
+        notification_channel: {env_var: ALERT_NOTIFICATION_CHANNEL}
+      budget:
+        billing_account: {env_var: GCP_BILLING_ACCOUNT_ID}
+        amount: {env_var: GCP_MONTHLY_BUDGET_AMOUNT}
+        currency: {env_var: GCP_MONTHLY_BUDGET_CURRENCY}
+        recipients: {env_var: GCP_BUDGET_RECIPIENTS}
+        thresholds: [0.5, 0.8, 1.0]
+        alert_only: true
     cloud_run:
+      canonical_service_url: {env_var: BACKEND_CANONICAL_URL}
       workflow_files:
         - .github/workflows/gcp_backend.yml
       network:
@@ -140,15 +343,34 @@ environments:
           --vpc-egress: private-ranges-only
       services:
         backend:
+          service_account:
+            env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
+          forbidden_env:
+            - SERVICE_ACCOUNT_JSON
+            - GOOGLE_APPLICATION_CREDENTIALS
+          flags:
+            --cpu: '2'
+            --memory: 4Gi
+            --concurrency: '20'
+            --timeout: 3600s
+            --min-instances: '1'
+            --max-instances: '10'
+            --execution-environment: gen2
+            --allow-unauthenticated: true
+            --no-session-affinity: true
+            --no-cpu-throttling: true
+            --no-cpu-boost: true
+            --startup-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24
+            --liveness-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5
           env:
             ACCOUNT_DELETION_DISPATCH_MODE:
               value: cloud_tasks
               category: reliability
             ACCOUNT_DELETION_TASKS_PROJECT:
-              value: based-hardware
+              env_var: GCP_PROJECT_ID
               category: reliability
             ACCOUNT_DELETION_TASKS_LOCATION:
-              value: us-central1
+              value: us-west1
               category: reliability
             ACCOUNT_DELETION_TASKS_QUEUE:
               value: account-deletion
@@ -181,15 +403,18 @@ environments:
               value: '0.01'
               category: rollout
             GOOGLE_CLOUD_PROJECT:
-              value: based-hardware
+              env_var: RUNTIME_GCP_PROJECT_ID
             FIREBASE_PROJECT_ID:
-              value: based-hardware
+              env_var: FIREBASE_AUTH_PROJECT_ID
             GCP_LOCATION:
-              value: us-central1
+              value: us-west1
             USE_VERTEX_AI:
               value: 'true'
             OMI_ENV_STAGE:
               value: prod
+              category: runtime_identity
+            BACKEND_RUNTIME_SERVICE_ACCOUNT:
+              env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
               category: runtime_identity
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
@@ -200,46 +425,52 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
+            REDIS_DB_HOST:
+              env_var: REDIS_DB_HOST
+              category: private_dependency
+            REDIS_DB_PORT:
+              env_var: REDIS_DB_PORT
+              category: private_dependency
+            REDIS_DB_CA_CERT_PEM:
+              env_var: REDIS_DB_CA_CERT_PEM
+              category: private_dependency
+            BUCKET_DESKTOP_UPDATES:
+              env_var: BUCKET_DESKTOP_UPDATES
+              category: desktop_artifacts
           secrets:
             DESKTOP_PREVIEW_PUBLISH_KEY:
               secret: DESKTOP_PREVIEW_PUBLISH_KEY
-              version: latest
+              version_env_var: DESKTOP_PREVIEW_PUBLISH_KEY_VERSION
             BETA_PROMOTION_TOKEN:
               secret: BETA_PROMOTION_TOKEN
-              version: latest
+              version_env_var: BETA_PROMOTION_TOKEN_VERSION
             GOOGLE_CLIENT_SECRET:
               secret: GOOGLE_CLIENT_SECRET
-              version: latest
+              version_env_var: GOOGLE_CLIENT_SECRET_VERSION
             MODULATE_API_KEY:
               secret: MODULATE_API_KEY
-              version: latest
+              version_env_var: MODULATE_API_KEY_VERSION
             GEMINI_API_KEY:
               secret: DESKTOP_GEMINI_API_KEY
-              version: latest
+              version_env_var: GEMINI_API_KEY_VERSION
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
-              version: latest
+              version_env_var: OPENAI_API_KEY_VERSION
             ANTHROPIC_API_KEY:
               secret: DESKTOP_ANTHROPIC_API_KEY
-              version: latest
+              version_env_var: ANTHROPIC_API_KEY_VERSION
             DESKTOP_LEGACY_ANTHROPIC_KEY:
               secret: DESKTOP_LEGACY_ANTHROPIC_KEY
-              version: latest
+              version_env_var: DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION
             FIREBASE_API_KEY:
               secret: DESKTOP_FIREBASE_API_KEY
-              version: latest
+              version_env_var: FIREBASE_API_KEY_VERSION
             GOOGLE_CALENDAR_API_KEY:
               secret: DESKTOP_GOOGLE_CALENDAR_API_KEY
-              version: latest
-            REDIS_DB_HOST:
-              secret: DESKTOP_REDIS_DB_HOST
-              version: latest
-            REDIS_DB_PORT:
-              secret: DESKTOP_REDIS_DB_PORT
-              version: latest
+              version_env_var: GOOGLE_CALENDAR_API_KEY_VERSION
             REDIS_DB_PASSWORD:
               secret: DESKTOP_REDIS_DB_PASSWORD
-              version: latest
+              version_env_var: REDIS_DB_PASSWORD_VERSION
             POSTHOG_PROJECT_API_KEY:
               secret: POSTHOG_PROJECT_API_KEY
-              version: latest
+              version_env_var: POSTHOG_PROJECT_API_KEY_VERSION

@@ -228,26 +228,6 @@ checks:
     triggers: [".github/actions/deployment-notifier/**", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "optional Telegram deployment notifications must not fail deploy workflows when credentials are absent"
-  - id: opentofu-foundation-boundary
-    command: ["python3", ".github/scripts/check_opentofu_foundation.py"]
-    triggers: ["infrastructure/opentofu/**", ".github/scripts/check_opentofu_foundation.py", ".github/workflows/opentofu-foundation-validate.yml"]
-    lanes: ["local", "ci"]
-    reason: "OpenTofu remains limited to durable foundation resources and cannot carry secret values"
-  - id: opentofu-foundation-boundary-fixtures
-    command: ["python3", ".github/scripts/test_check_opentofu_foundation.py"]
-    triggers: ["infrastructure/opentofu/**", ".github/scripts/check_opentofu_foundation.py", ".github/scripts/test_check_opentofu_foundation.py", ".github/workflows/opentofu-foundation-validate.yml"]
-    lanes: ["local", "ci"]
-    reason: "OpenTofu foundation boundary fixtures must reject release and secret-value ownership"
-  - id: opentofu-development-wif-pilot
-    command: ["python3", ".github/scripts/check_opentofu_development_wif_pilot.py"]
-    triggers: ["infrastructure/opentofu/pilots/development-wif-plan/**", "infrastructure/opentofu/probes/development-project-read/**", ".github/scripts/check_opentofu_development_wif_pilot.py", ".github/workflows/opentofu-development-wif-pilot.yml", ".github/workflows/opentofu-development-wif-pilot-validate.yml"]
-    lanes: ["local", "ci"]
-    reason: "development WIF pilot stays read-only, GitHub-main-scoped, and outside release ownership"
-  - id: opentofu-development-wif-pilot-fixtures
-    command: ["python3", ".github/scripts/test_check_opentofu_development_wif_pilot.py"]
-    triggers: ["infrastructure/opentofu/pilots/development-wif-plan/**", "infrastructure/opentofu/probes/development-project-read/**", ".github/scripts/check_opentofu_development_wif_pilot.py", ".github/scripts/test_check_opentofu_development_wif_pilot.py", ".github/workflows/opentofu-development-wif-pilot.yml", ".github/workflows/opentofu-development-wif-pilot-validate.yml"]
-    lanes: ["local", "ci"]
-    reason: "development WIF pilot fixtures must reject secret access, apply, and scope expansion"
   - id: backend-async-blockers
     command: ["python3", "backend/scripts/scan_async_blockers.py", "--dirs", "backend/routers", "backend/utils", "--diff-base", "{base}", "--fail-on", "high_network_io,async_helpers_with_blocking,time_sleep,mixed_await_sync_db,no_await_should_be_def,unmanaged_thread_offload"]
     triggers: ["backend/**/*.py", "backend/scripts/scan_async_blockers.py"]

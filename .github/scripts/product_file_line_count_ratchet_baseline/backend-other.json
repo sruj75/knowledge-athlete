@@ -1,5 +1,9 @@
 {
-  "files": {},
-  "raise_justifications": {},
+  "files": {
+    "backend/scripts/validate-backend-runtime-env.py": 1610
+  },
+  "raise_justifications": {
+    "backend/scripts/validate-backend-runtime-env.py": "S-27 keeps one manifest validator authority while adding the full dev and production cloud-foundation contract."
+  },
   "threshold": 1500
 }

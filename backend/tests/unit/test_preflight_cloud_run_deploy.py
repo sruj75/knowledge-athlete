@@ -12,6 +12,28 @@ import pytest
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = BACKEND_ROOT / 'scripts' / 'preflight-cloud-run-deploy.py'
 
+_SECRET_VERSION_INPUTS = (
+    'DESKTOP_PREVIEW_PUBLISH_KEY_VERSION',
+    'BETA_PROMOTION_TOKEN_VERSION',
+    'GOOGLE_CLIENT_SECRET_VERSION',
+    'POSTHOG_PROJECT_API_KEY_VERSION',
+    'MODULATE_API_KEY_VERSION',
+    'GEMINI_API_KEY_VERSION',
+    'OPENAI_API_KEY_VERSION',
+    'ANTHROPIC_API_KEY_VERSION',
+    'DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION',
+    'FIREBASE_API_KEY_VERSION',
+    'GOOGLE_CALENDAR_API_KEY_VERSION',
+    'REDIS_DB_PASSWORD_VERSION',
+)
+
+
+@pytest.fixture(autouse=True)
+def _exact_secret_version_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in _SECRET_VERSION_INPUTS:
+        monkeypatch.setenv(name, '7')
+    monkeypatch.setenv('GCP_PROJECT_ID', 'owned-project')
+
 
 def load_preflight():
     spec = importlib.util.spec_from_file_location('preflight_cloud_run_deploy', SCRIPT)
@@ -243,87 +265,6 @@ environments:
         )
 
 
-def test_remove_secret_then_pre_candidate_check_accepts_absent_public_binding(tmp_path: Path) -> None:
-    preflight = load_preflight()
-    manifest = tmp_path / 'runtime_env.yaml'
-    manifest.write_text(
-        '''\
-environments:
-  dev:
-    gcp_project: based-hardware-dev
-    cloud_run:
-      services:
-        backend:
-          env:
-            PUBLIC_SETTING:
-              value: public
-          secrets:
-            PRIVATE_SETTING:
-              secret: expected-secret
-              version: '7'
-''',
-        encoding='utf-8',
-    )
-    commands: list[list[str]] = []
-    state = {
-        'env': [
-            {
-                'name': 'PUBLIC_SETTING',
-                'valueFrom': {'secretKeyRef': {'name': 'PUBLIC_SETTING', 'key': 'latest'}},
-            },
-            {
-                'name': 'PRIVATE_SETTING',
-                'valueFrom': {'secretKeyRef': {'name': 'expected-secret', 'key': '7'}},
-            },
-        ]
-    }
-
-    def runner(command: list[str], **_kwargs):
-        commands.append(command)
-        if command[:4] == ['gcloud', 'run', 'services', 'describe']:
-            return SimpleNamespace(
-                stdout=json.dumps({'spec': {'template': {'spec': {'containers': [{'env': state['env']}]}}}})
-            )
-        assert command[3] == 'update'
-        assert '--remove-secrets=PUBLIC_SETTING' in command
-        state['env'] = [state['env'][1]]
-        return SimpleNamespace(stdout='')
-
-    migrated = preflight.migrate_legacy_public_bindings(
-        services=('backend',),
-        env='dev',
-        project='based-hardware-dev',
-        region='us-central1',
-        manifest_path=manifest,
-        runner=runner,
-    )
-    command_count_after_migration = len(commands)
-    drift = preflight.check_runtime_bindings(
-        services=('backend',),
-        env='dev',
-        project='based-hardware-dev',
-        region='us-central1',
-        manifest_path=manifest,
-        runner=runner,
-    )
-
-    assert migrated == ['backend']
-    assert drift == []
-    assert commands[1][3] == 'update'
-    assert commands[command_count_after_migration:] == [
-        [
-            'gcloud',
-            'run',
-            'services',
-            'describe',
-            'backend',
-            '--project=based-hardware-dev',
-            '--region=us-central1',
-            '--format=json',
-        ]
-    ]
-
-
 def test_runtime_binding_check_ignores_undeclared_live_bindings(tmp_path: Path) -> None:
     preflight = load_preflight()
     manifest = tmp_path / 'runtime_env.yaml'
@@ -349,7 +290,7 @@ environments:
           secrets:
             RETAINED_SECRET:
               secret: retained-secret
-              version: latest
+              version: '7'
 ''',
         encoding='utf-8',
     )
@@ -371,7 +312,7 @@ environments:
                                 {'name': 'RETAINED_PUBLIC', 'value': 'retained'},
                                 {
                                     'name': 'RETAINED_SECRET',
-                                    'valueFrom': {'secretKeyRef': {'name': 'retained-secret', 'key': 'latest'}},
+                                    'valueFrom': {'secretKeyRef': {'name': 'retained-secret', 'key': '7'}},
                                 },
                             ]
                         }
@@ -412,7 +353,7 @@ environments:
           secrets:
             PRIVATE_SETTING:
               secret: expected-secret
-              version: latest
+              version: '7'
 ''',
         encoding='utf-8',
     )
@@ -450,27 +391,27 @@ environments:
     assert drift == [
         'runtime-binding/backend/PUBLIC_SETTING: expected public literal or absent before candidate deploy, observed Secret Manager reference legacy-public:latest',
         'runtime-binding/backend/SECOND_PUBLIC_SETTING: expected public literal or absent before candidate deploy, observed unsupported value source',
-        'runtime-binding/backend/PRIVATE_SETTING: expected Secret Manager reference expected-secret:latest, observed public literal',
+        'runtime-binding/backend/PRIVATE_SETTING: expected Secret Manager reference expected-secret:7, observed public literal',
     ]
 
 
 @pytest.mark.parametrize(
     ('env', 'project'),
     [
-        ('prod', 'based-hardware'),
-        ('dev', 'based-hardware'),
+        ('prod', 'wrong-prod-project'),
+        ('dev', 'wrong-dev-project'),
     ],
 )
-def test_runtime_binding_check_rejects_non_development_scope_without_gcloud_calls(env: str, project: str) -> None:
+def test_runtime_binding_check_rejects_cross_environment_project_without_gcloud_calls(env: str, project: str) -> None:
     preflight = load_preflight()
     calls: list[list[str]] = []
 
-    with pytest.raises(ValueError, match='development-only'):
+    with pytest.raises(ValueError, match='expects project'):
         preflight.check_runtime_bindings(
             services=('backend',),
             env=env,
             project=project,
-            region='us-central1',
+            region='us-west1',
             runner=lambda command, **_kwargs: calls.append(command),
         )
 

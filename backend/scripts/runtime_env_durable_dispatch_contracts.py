@@ -10,7 +10,7 @@ ConfigDict = dict[str, Any]
 _LITERAL_ENV = {
     'ACCOUNT_DELETION_DISPATCH_MODE': 'cloud_tasks',
     'ACCOUNT_DELETION_TASKS_QUEUE': 'account-deletion',
-    'ACCOUNT_DELETION_TASKS_LOCATION': 'us-central1',
+    'ACCOUNT_DELETION_TASKS_LOCATION': 'us-west1',
     'ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS': '5',
     'HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT': '1500',
 }
@@ -42,14 +42,23 @@ def validate_account_deletion_dispatch_contract(env: str, env_config: ConfigDict
     entries = _as_config_dict(backend.get('env')) or {}
     scope = f'{env}/cloud_run/backend'
 
-    expected_literals = dict(_LITERAL_ENV)
-    expected_literals['ACCOUNT_DELETION_TASKS_PROJECT'] = str(env_config.get('gcp_project', ''))
-    for name, expected_value in expected_literals.items():
+    for name, expected_value in _LITERAL_ENV.items():
         entry = _as_config_dict(entries.get(name))
         if entry is None:
             errors.append(ValidationError(scope, f'missing required account-deletion env {name}'))
         elif str(entry.get('value', '')) != expected_value:
             errors.append(ValidationError(scope, f'account-deletion env {name} must be literal {expected_value!r}'))
+
+    project_entry = _as_config_dict(entries.get('ACCOUNT_DELETION_TASKS_PROJECT'))
+    if project_entry is None:
+        errors.append(ValidationError(scope, 'missing required account-deletion env ACCOUNT_DELETION_TASKS_PROJECT'))
+    elif project_entry.get('env_var') != 'GCP_PROJECT_ID':
+        errors.append(
+            ValidationError(
+                scope,
+                'account-deletion env ACCOUNT_DELETION_TASKS_PROJECT must bind $GCP_PROJECT_ID',
+            )
+        )
 
     for name in _DYNAMIC_ENV:
         entry = _as_config_dict(entries.get(name))
