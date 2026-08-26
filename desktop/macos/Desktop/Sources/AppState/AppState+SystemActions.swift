@@ -153,66 +153,6 @@ extension AppState {
     }
   }
 
-  /// Clean conflicting app bundles from Trash, DerivedData, and DMG staging directories
-  nonisolated func cleanConflictingAppBundles() {
-    let fileManager = FileManager.default
-    let homeDir = fileManager.homeDirectoryForCurrentUser.path
-
-    // Clean Omi apps from Trash (they still pollute Launch Services!)
-    let trashPath = "\(homeDir)/.Trash"
-    if let contents = try? fileManager.contentsOfDirectory(atPath: trashPath) {
-      for item in contents where item.lowercased().contains("omi") {
-        let itemPath = "\(trashPath)/\(item)"
-        do {
-          try fileManager.removeItem(atPath: itemPath)
-          log("Cleaned from Trash: \(item)")
-        } catch {
-          log("Failed to clean from Trash: \(item) - \(error.localizedDescription)")
-        }
-      }
-    }
-
-    // Clean DMG staging directories
-    let tmpDir = "/private/tmp"
-    if let contents = try? fileManager.contentsOfDirectory(atPath: tmpDir) {
-      for item in contents where item.hasPrefix("omi-dmg-staging") || item.hasPrefix("omi-dmg-test") {
-        let itemPath = "\(tmpDir)/\(item)"
-        do {
-          try fileManager.removeItem(atPath: itemPath)
-          log("Cleaned DMG staging: \(item)")
-        } catch {
-          log("Failed to clean DMG staging: \(item) - \(error.localizedDescription)")
-        }
-      }
-    }
-
-    // Clean Xcode DerivedData Omi builds
-    let derivedDataPath = "\(homeDir)/Library/Developer/Xcode/DerivedData"
-    if let contents = try? fileManager.contentsOfDirectory(atPath: derivedDataPath) {
-      for item in contents where item.lowercased().contains("omi") {
-        let buildProductsPath = "\(derivedDataPath)/\(item)/Build/Products"
-        if let buildDirs = try? fileManager.contentsOfDirectory(atPath: buildProductsPath) {
-          for buildDir in buildDirs {
-            let appPath = "\(buildProductsPath)/\(buildDir)/Omi.app"
-            let appPath2 = "\(buildProductsPath)/\(buildDir)/Omi Computer.app"
-            let appPath3 = "\(buildProductsPath)/\(buildDir)/omi.app"
-            let appPath4 = "\(buildProductsPath)/\(buildDir)/Omi Dev.app"
-            for path in [appPath, appPath2, appPath3, appPath4] {
-              if fileManager.fileExists(atPath: path) {
-                do {
-                  try fileManager.removeItem(atPath: path)
-                  log("Cleaned DerivedData: \(path)")
-                } catch {
-                  log("Failed to clean DerivedData: \(path) - \(error.localizedDescription)")
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   /// Eject any mounted Omi DMG volumes
   nonisolated func ejectMountedDMGVolumes() {
     let fileManager = FileManager.default
