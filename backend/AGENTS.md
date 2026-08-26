@@ -160,6 +160,11 @@ WebSocket endpoints: use `WebSocketException(code=1008)`, **not** `HTTPException
 
 Rate limiting: `Depends(auth.with_rate_limit(get_current_user_uid, "policy_name"))` — policies in `utils/rate_limit_config.py`.
 
+Managed provider proxies return provider-owned auth and quota failures as typed JSON with
+`reason`, `provider`, `backend_route`, `upstream_status_code`, and `retryable`. Clients must
+classify these fields at the backend boundary; never infer provider credential ownership from
+human-readable error text.
+
 ## Logging Security
 
 Never log raw sensitive data. Use `sanitize()` and `sanitize_pii()` from `utils.log_sanitizer`.

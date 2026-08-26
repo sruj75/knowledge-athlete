@@ -349,7 +349,16 @@ import XCTest
 
     func testTTSProvider401DoesNotRefreshOrInvalidateFirebaseSession() async throws {
       AuthRetryURLStub.returnUnauthorizedForEveryAttempt(
-        body: "{\"detail\":\"OpenAI TTS request failed\"}"
+        body: """
+          {
+            "error":"OpenAI TTS request failed",
+            "reason":"provider_auth_failed",
+            "provider":"openai",
+            "backend_route":"/v1/tts/synthesize",
+            "upstream_status_code":401,
+            "retryable":false
+          }
+          """
       )
       setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
       setenv("FIREBASE_API_KEY", "test-key", 1)
@@ -415,6 +424,12 @@ import XCTest
       let retainedToken = try await auth.getIdToken()
       XCTAssertEqual(retainedToken, "id-token")
       XCTAssertFalse(try healthSnapshots().contains { $0["area"] as? String == "api_auth" })
+    }
+
+    func testTTSLegacyMessageDoesNotDeclareProviderCredentialFailure() {
+      let legacyBody = Data("{\"detail\":\"OpenAI TTS request failed\"}".utf8)
+
+      XCTAssertFalse(APIClient.isProviderCredentialFailure(statusCode: 401, data: legacyBody))
     }
 
     func testRealtimeProvider401DoesNotRefreshOrInvalidateFirebaseSession() async throws {
@@ -528,7 +543,16 @@ import XCTest
     func testTTSProvider429ReturnsTypedQuotaFailure() async throws {
       AuthRetryURLStub.returnStatus(
         429,
-        body: "{\"error\":\"OpenAI TTS request failed: upstream quota exhausted\"}"
+        body: """
+          {
+            "error":"OpenAI TTS request failed",
+            "reason":"provider_quota_exceeded",
+            "provider":"openai",
+            "backend_route":"/v1/tts/synthesize",
+            "upstream_status_code":429,
+            "retryable":true
+          }
+          """
       )
       setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
       defer { unsetenv("OMI_DESKTOP_API_URL") }

@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 
 import httpx
@@ -39,6 +40,43 @@ async def test_tts_uses_managed_key_and_metering(monkeypatch):
     assert response.body == b'mp3'
     assert captured['headers']['Authorization'] == 'Bearer managed-openai-key'
     meter.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("upstream_status", "reason", "retryable"),
+    [
+        (401, "provider_auth_failed", False),
+        (403, "provider_auth_failed", False),
+        (429, "provider_quota_exceeded", True),
+    ],
+)
+async def test_tts_upstream_failure_returns_typed_provider_boundary(monkeypatch, upstream_status, reason, retryable):
+    async def immediate(_executor, function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    async def upstream_failure(_payload, _api_key):
+        return httpx.Response(upstream_status)
+
+    monkeypatch.setenv("OPENAI_API_KEY", "managed-openai-key")
+    monkeypatch.setattr(desktop_tts_updates, "is_trial_paywalled", lambda _uid, _source: False)
+    monkeypatch.setattr(desktop_tts_updates, "run_blocking", immediate)
+    monkeypatch.setattr(desktop_tts_updates.redis_db, "check_tts_rate_limit", MagicMock(return_value=(0, 1)))
+    monkeypatch.setattr(desktop_tts_updates, "_openai_tts", upstream_failure)
+
+    response = await desktop_tts_updates.tts_synthesize(
+        desktop_tts_updates.TtsSynthesizeRequest(text="hello", voice_id="marin"), uid="managed-user"
+    )
+
+    assert response.status_code == upstream_status
+    assert json.loads(response.body) == {
+        "error": "OpenAI TTS request failed",
+        "reason": reason,
+        "provider": "openai",
+        "backend_route": "/v1/tts/synthesize",
+        "upstream_status_code": upstream_status,
+        "retryable": retryable,
+    }
 
 
 def _release(**overrides):

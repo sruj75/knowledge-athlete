@@ -118,23 +118,28 @@ extension APIClient {
     request.allHTTPHeaderFields = try await buildHeaders()
     request.httpBody = try JSONEncoder().encode(body)
 
-    // This desktop-backend route can surface upstream OpenAI credential failures
-    // as HTTP 401. The shared transport policy distinguishes that body from a
-    // Firebase 401 before token refresh; keep the same classification here so
-    // FastAPI's canonical `detail` shape cannot fall through to session invalidation.
+    // This desktop-backend route identifies managed upstream failures with the
+    // same typed provider boundary as realtime minting. The shared transport
+    // inspects that shape before a Firebase refresh so provider credentials can
+    // never invalidate the account session.
     let (data, httpResponse) = try await performAuthenticatedData(
       for: request,
       authPolicy: .providerCredentialBoundary
     )
 
+    let payload = OmiHTTPTransport.extractErrorPayload(from: data)
+    if payload?.reason == "provider_auth_failed",
+      payload?.provider == "openai",
+      payload?.upstreamStatusCode == httpResponse.statusCode
+    {
+      throw CredentialHealthError.providerAuth(
+        provider: .openai,
+        mode: .managed,
+        message: "OpenAI authentication failed. Voice responses are using fallback."
+      )
+    }
+
     if httpResponse.statusCode == 401 {
-      if Self.isProviderCredentialFailure(statusCode: httpResponse.statusCode, data: data) {
-        throw CredentialHealthError.providerAuth(
-          provider: .openai,
-          mode: .managed,
-          message: "OpenAI authentication failed. Voice responses are using fallback."
-        )
-      }
       await invalidateSessionAfterUnauthorized(
         endpoint: endpointLabel(for: request),
         signOutOn401: true
@@ -142,15 +147,17 @@ extension APIClient {
       throw APIError.unauthorized
     }
 
+    if payload?.reason == "provider_quota_exceeded",
+      payload?.provider == "openai",
+      payload?.upstreamStatusCode == httpResponse.statusCode
+    {
+      throw CredentialHealthError.providerQuota(
+        provider: .openai,
+        message: "OpenAI voice quota was exceeded. Voice responses are using fallback."
+      )
+    }
     if httpResponse.statusCode == 429 {
-      let detail = (try? JSONDecoder().decode(APIErrorPayload.self, from: data))?.preferredMessage
-      if detail?.hasPrefix("OpenAI TTS request failed:") == true {
-        throw CredentialHealthError.providerQuota(
-          provider: .openai,
-          message: "OpenAI voice quota was exceeded. Voice responses are using fallback."
-        )
-      }
-      throw APIError.httpError(statusCode: httpResponse.statusCode, detail: detail)
+      throw APIError.httpError(statusCode: httpResponse.statusCode, detail: payload?.preferredMessage)
     }
     guard (200...299).contains(httpResponse.statusCode) else {
       throw APIError.httpError(statusCode: httpResponse.statusCode)

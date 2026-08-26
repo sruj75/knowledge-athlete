@@ -6,7 +6,7 @@ import hmac
 import os
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from database import redis_db
@@ -173,6 +173,28 @@ async def _openai_tts(payload: dict[str, str], api_key: str) -> httpx.Response:
         raise HTTPException(status_code=502, detail="OpenAI TTS request failed")
 
 
+def _openai_tts_provider_failure(status_code: int) -> JSONResponse | None:
+    if status_code in (401, 403):
+        reason = "provider_auth_failed"
+        retryable = False
+    elif status_code == 429:
+        reason = "provider_quota_exceeded"
+        retryable = True
+    else:
+        return None
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": "OpenAI TTS request failed",
+            "reason": reason,
+            "provider": "openai",
+            "backend_route": "/v1/tts/synthesize",
+            "upstream_status_code": status_code,
+            "retryable": retryable,
+        },
+    )
+
+
 @router.post("/v1/tts/synthesize", responses={200: {"content": {"audio/mpeg": {}}}})
 async def tts_synthesize(request: TtsSynthesizeRequest, uid: str = Depends(get_current_user_uid)):
     text = request.text.strip()
@@ -207,6 +229,8 @@ async def tts_synthesize(request: TtsSynthesizeRequest, uid: str = Depends(get_c
         payload["instructions"] = request.instructions.strip()
     upstream = await _openai_tts(payload, api_key)
     if upstream.is_error:
+        if provider_failure := _openai_tts_provider_failure(upstream.status_code):
+            return provider_failure
         raise HTTPException(status_code=upstream.status_code, detail="OpenAI TTS request failed")
     return Response(content=upstream.content, media_type="audio/mpeg")
 

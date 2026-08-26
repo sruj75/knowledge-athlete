@@ -490,7 +490,7 @@ actor APIClient {
     {
       return true
     }
-    return payload.preferredMessage?.hasPrefix("OpenAI TTS request failed") == true
+    return false
   }
 
   /// An owner-bound request may finish after the app has signed out or switched
