@@ -40,7 +40,7 @@ on this combined closeout and its landing state.
 | `058bba2b` | Made setup reuse an already-installed compatible Python before consulting the stale download catalog, with a rerun regression test. |
 | `e8b07c18` | Extracted the DEBUG-only local-profile PTT acceptance transport from the oversized realtime controller and ratcheted both affected line-count baselines down. |
 | `64c2f2d6` | Removed the raw local-profile owner identifier from the rejected-commit log and automation response, retaining only `owner_present`. |
-| `1ad4ddb5` | Repaired managed OpenAI TTS auth/quota classification at the typed backend boundary so provider failures cannot be inferred from English text or invalidate Firebase sessions. |
+| `1ad4ddb5` | Repaired managed OpenAI TTS auth/quota classification at the typed backend boundary so provider failures cannot be inferred from English text or invalidate Firebase sessions. The 429 row preserves the pre-existing quota fallback behavior while replacing its English-prefix parser; it is not a new product policy. |
 
 The residue commits do not change a public HTTP, WebSocket, OpenAPI, or schema
 interface. The later repairs restore already-required desktop, harness, setup,
@@ -77,13 +77,31 @@ one generic harness:
   checks passed with `Failure-Class: FC-split-mutation-authority`.
 
 The 2026-08-26 boundary repairs were developed with behavioral RED/GREEN tests.
-Focused backend tests pass 7/7; focused auth/realtime Swift tests pass 37/37;
-the agent-logic harness passes; the official backend runner passes all 219
-discovered test files; and `desktop/macos/test.sh` passes all launcher/packaging
-guards, 50 desktop-backend tests, and 386 isolated Swift suites. Because this
-document itself changes the commit, final-head Tier-2, continuity, E2E, preflight,
-and physical/provider outcomes must be attached to the draft PR after this
-record's commit. No older manifest may be relabelled as final-head proof.
+Focused backend tests passed 7/7; focused auth/realtime Swift tests passed 37/37;
+the agent-logic harness passed; the official backend runner passed all 219
+discovered test files; and `desktop/macos/test.sh` passed all launcher/packaging
+guards, 50 desktop-backend tests, and 386 isolated Swift suites. The official
+E2E wrapper passed 14/14 at repair head `ebd1d644`.
+
+That repair head also produced explicit qualification evidence rather than an
+unqualified closeout claim:
+
+- Offline Tier-2 passed 31/31 flows plus the spatial-overlay suite at
+  `desktop/macos/.harness/desktop-core/20260826T103937Z-t2`.
+- The continuity lifecycle terminalized successfully with zero stale/invalid
+  transitions, but blind recall failed against the offline echo provider at
+  `desktop/macos/.harness/agent-continuity-gauntlet/20260826T104104Z`; this is a
+  failed required row, not a fake-backed continuity pass.
+- Natural Option-key PTT reached `terminal_capture_failed`/`capture_failed` with
+  zero stale/invalid transitions because the isolated bundle reported
+  `micPermission=false`; no captured-audio success is claimed.
+- Real provider and deployed mint/direct-provider rows remained `NOT_RUN` for
+  lack of development credentials and a verified deployment identity.
+
+Because this evidence record and its review-hygiene repair change the commit,
+the exact final-head rerun manifests and preflight result must be attached to the
+draft PR after the record's commit. No older manifest may be relabelled as
+final-head proof.
 
 ## 5. Named-bundle acceptance and open qualification lanes
 
@@ -107,10 +125,11 @@ the spatial-overlay suite. This repaired the earlier capture lifecycle,
   `terminal_success`/`success` with zero invalid or stale transitions while the
   owner remained signed in.
 
-These observations belong to the 2026-08-23 repair head. The combined closeout
-still requires the corresponding natural physical PTT and continuity evidence
-on the final committed head; controller or manager injection is supporting
-evidence, not a substitute.
+These successful observations belong to the 2026-08-23 repair head. The
+2026-08-26 final-candidate attempt is recorded above: offline Tier-2 passed, but
+continuity recall and natural captured-audio PTT did not. The combined closeout
+still requires those rows on the final committed head; controller or manager
+injection is supporting evidence, not a substitute.
 
 ### Real-provider matrix — `BLOCKED / NOT_RUN`
 
