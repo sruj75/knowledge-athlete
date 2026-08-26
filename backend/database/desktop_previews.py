@@ -15,12 +15,12 @@ from urllib.parse import urlparse
 
 from google.cloud.firestore import transactional
 
+from config.desktop_storage import desktop_updates_bucket
 from database._client import get_firestore_client
 
 PREVIEW_MANIFESTS_COLLECTION = "desktop_preview_manifests"
 PREVIEW_POINTERS_COLLECTION = "desktop_preview_pointers"
 PREVIEW_BUCKET_HOST = "storage.googleapis.com"
-PREVIEW_BUCKET_NAME = "omi_macos_updates"
 
 PREVIEW_SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
@@ -93,7 +93,7 @@ def _preview_dmg_url(data: dict[str, Any], *, slug: str, source_sha: str) -> str
     value = _https_url(data, "dmg_url", required=True)
     assert value is not None
     parsed = urlparse(value)
-    expected_path = f"/{PREVIEW_BUCKET_NAME}/previews/{slug}/{source_sha}/Omi-Preview.dmg"
+    expected_path = f"/{desktop_updates_bucket()}/previews/{slug}/{source_sha}/Omi-Preview.dmg"
     if (
         parsed.netloc != PREVIEW_BUCKET_HOST
         or parsed.path != expected_path

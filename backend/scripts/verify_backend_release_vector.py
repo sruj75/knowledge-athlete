@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -12,7 +13,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 CLOUD_RUN_SERVICES = ('backend',)
-MIN_CLOUD_RUN_TIMEOUT_SECONDS = 1500
+CLOUD_RUN_TIMEOUT_SECONDS = 3600
+IMMUTABLE_IMAGE_RE = re.compile(r'^us-west1-docker\.pkg\.dev/[^/]+/[^/]+/backend:[0-9a-f]{40}@sha256:[0-9a-f]{64}$')
 
 
 @dataclass(frozen=True)
@@ -54,8 +56,8 @@ def build_expectation(
         resolved_short_sha = normalized_short
     else:
         resolved_short_sha = normalized_sha[:7]
-    if expected_image is not None and not expected_image.strip():
-        raise ValueError('expected image must not be empty')
+    if expected_image is None or not IMMUTABLE_IMAGE_RE.fullmatch(expected_image.strip()):
+        raise ValueError('expected image must be the us-west1 Artifact Registry full-SHA tag plus sha256 digest')
     suffix = f'{resolved_short_sha}-{deploy_run_id}-{deploy_run_attempt}'
     return DeploymentExpectation(
         commit_sha=normalized_sha,
@@ -64,9 +66,7 @@ def build_expectation(
         project=project,
         region=region,
         environment=environment,
-        image=(
-            expected_image.strip() if expected_image is not None else f'gcr.io/{project}/backend:{resolved_short_sha}'
-        ),
+        image=expected_image.strip(),
         revisions={'backend': f'backend-{suffix}'},
     )
 
@@ -197,8 +197,8 @@ def evaluate_cloud_run_service(
             elif allocation > 0:
                 errors.append(f'cloud_run/{service}: expected revision carries traffic before promotion')
     timeout = template_spec.get('timeoutSeconds')
-    if not isinstance(timeout, int) or timeout < MIN_CLOUD_RUN_TIMEOUT_SECONDS:
-        errors.append(f'cloud_run/{service}: timeoutSeconds must be at least {MIN_CLOUD_RUN_TIMEOUT_SECONDS}')
+    if timeout != CLOUD_RUN_TIMEOUT_SECONDS:
+        errors.append(f'cloud_run/{service}: timeoutSeconds must be {CLOUD_RUN_TIMEOUT_SECONDS}')
     if _container_env(containers).get('OMI_ENV_STAGE') != expected_environment:
         errors.append(f'cloud_run/{service}: OMI_ENV_STAGE must be {expected_environment}')
     return errors
@@ -291,7 +291,7 @@ def main() -> int:
     parser.add_argument('--deploy-run-id', required=True)
     parser.add_argument('--deploy-run-attempt', required=True)
     parser.add_argument('--project', required=True)
-    parser.add_argument('--region', default='us-central1')
+    parser.add_argument('--region', default='us-west1')
     parser.add_argument('--environment', choices=('dev', 'prod'), required=True)
     parser.add_argument('--expected-image')
     parser.add_argument('--candidate', action='store_true')

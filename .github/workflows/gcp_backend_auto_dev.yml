@@ -13,7 +13,7 @@ concurrency:
 
 env:
   SERVICE: backend
-  REGION: us-central1
+  REGION: us-west1
   CHAT_CONTRACT_VERSION: '1'
   # Cloud Run tags are service-scoped. Reusing this tag atomically moves each
   # service's candidate URL without accumulating stale no-traffic routes.
@@ -148,6 +148,7 @@ jobs:
     environment: development
     permissions:
       contents: 'read'
+      id-token: 'write'
     runs-on: ubuntu-latest
     outputs:
       admitted_sha: ${{ steps.admitted_source.outputs.admitted_sha }}
@@ -180,12 +181,14 @@ jobs:
 
       - name: Require read-only Firestore credentials
         env:
-          GCP_FIRESTORE_READONLY_CREDENTIALS: ${{ secrets.GCP_FIRESTORE_READONLY_CREDENTIALS }}
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT: ${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}
+          RUNTIME_GCP_PROJECT_ID: ${{ vars.RUNTIME_GCP_PROJECT_ID }}
         run: |
-          if [ -z "$GCP_FIRESTORE_READONLY_CREDENTIALS" ]; then
-            echo "::error title=Missing Firestore read-only credentials::Set GCP_FIRESTORE_READONLY_CREDENTIALS in the development environment before deploying."
-            exit 1
-          fi
+          set -euo pipefail
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT"
+          test -n "$RUNTIME_GCP_PROJECT_ID"
 
       - name: Checkout admitted Firestore source
         uses: actions/checkout@v7
@@ -193,9 +196,10 @@ jobs:
           ref: ${{ steps.admitted_source.outputs.admitted_sha }}
 
       - name: Google Auth for read-only Firestore inventory
-        uses: 'google-github-actions/auth@v3'
+        uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_FIRESTORE_READONLY_CREDENTIALS }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -272,25 +276,37 @@ jobs:
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v3'
+        uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Login to GCR
-        run: gcloud auth configure-docker
+      - name: Login to regional Artifact Registry
+        run: gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Compute short SHA
+      - name: Compute immutable image identity
         id: image-tag
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}
         run: |
+          set -euo pipefail
+          FULL_SHA="$(git rev-parse HEAD)"
           SHORT_SHA="$(git rev-parse --short=7 HEAD)"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "revision_suffix=${SHORT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          IMAGE_REPOSITORY="us-west1-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPOSITORY}/${SERVICE}"
+          {
+            echo "full_sha=${FULL_SHA}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "repository=${IMAGE_REPOSITORY}"
+            echo "image_ref=${IMAGE_REPOSITORY}:${FULL_SHA}"
+            echo "revision_suffix=${SHORT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install Python deps for deploy scripts
         run: python3 -m pip install -q pyyaml
@@ -299,21 +315,33 @@ jobs:
         id: account-deletion-target
         env:
           ACCOUNT_DELETION_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
+          BACKEND_CANONICAL_URL: ${{ vars.BACKEND_CANONICAL_URL }}
         run: |
           set -euo pipefail
-          BACKEND_URL="$(gcloud run services describe backend \
-            --project="${{ vars.GCP_PROJECT_ID }}" \
-            --region="${{ env.REGION }}" \
-            --format='value(status.url)')"
+          BACKEND_URL="${BACKEND_CANONICAL_URL%/}"
           test -n "$BACKEND_URL"
+          [[ "$BACKEND_URL" =~ ^https://[^/]+\.run\.app$ ]]
           test -n "$ACCOUNT_DELETION_TASKS_INVOKER_SA"
           HANDLER_URL="${BACKEND_URL}/v1/users/account-deletion-wipes/run"
           {
+            echo "backend_url=${BACKEND_URL}"
             echo "handler_url=${HANDLER_URL}"
             echo "oidc_audience=${HANDLER_URL}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Preflight Cloud Run deploy
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
+          POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
+          GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
+          OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
+          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
+          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
+          FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
+          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
+          REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 backend/scripts/preflight-cloud-run-deploy.py \
             --env dev \
@@ -328,39 +356,42 @@ jobs:
           python3 backend/scripts/validate-backend-runtime-env.py --env dev --check-workflows --check-rendered-cloud-run
 
       - name: Build runtime image
+        id: build-runtime-image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./backend/Dockerfile
-          push: false
-          load: true
-          tags: |
-            gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:latest
-            gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          cache-from: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache
-          cache-to: type=registry,ref=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:buildcache,mode=max
+          push: true
+          tags: ${{ steps.image-tag.outputs.image_ref }}
+          cache-from: type=registry,ref=${{ steps.image-tag.outputs.repository }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image-tag.outputs.repository }}:buildcache,mode=max
 
-      - name: Verify built runtime image before publish
-        run: |
-          image=gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          python3 backend/scripts/runtime_image_contracts.py smoke --dockerfile backend/Dockerfile --image "$image"
-
-      - name: Push verified runtime image
+      - name: Capture immutable runtime image
         id: push-runtime-image
         run: |
-          docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:latest
-          docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
-          image="gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}"
-          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+          set -euo pipefail
+          image="${{ steps.image-tag.outputs.image_ref }}"
+          digest="${{ steps.build-runtime-image.outputs.digest }}"
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "ERROR: published backend image returned invalid digest $digest" >&2
             exit 1
           fi
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "immutable_ref=${image}@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify published runtime image by digest
+        run: |
+          image="${{ steps.push-runtime-image.outputs.immutable_ref }}"
+          docker pull "$image"
+          python3 backend/scripts/runtime_image_contracts.py smoke --dockerfile backend/Dockerfile --image "$image"
 
       - name: Render backend runtime env
         id: runtime-env
         env:
+          BACKEND_RUNTIME_SERVICE_ACCOUNT: ${{ vars.BACKEND_RUNTIME_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          RUNTIME_GCP_PROJECT_ID: ${{ vars.RUNTIME_GCP_PROJECT_ID }}
+          FIREBASE_AUTH_PROJECT_ID: ${{ vars.FIREBASE_AUTH_PROJECT_ID }}
           ACCOUNT_DELETION_HANDLER_URL: ${{ steps.account-deletion-target.outputs.handler_url }}
           ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE: ${{ steps.account-deletion-target.outputs.oidc_audience }}
           ACCOUNT_DELETION_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
@@ -369,18 +400,36 @@ jobs:
           CLOUD_RUN_VPC_NETWORK: ${{ vars.CLOUD_RUN_VPC_NETWORK }}
           CLOUD_RUN_VPC_SUBNET: ${{ vars.CLOUD_RUN_VPC_SUBNET }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
+          REDIS_DB_PORT: ${{ vars.REDIS_DB_PORT }}
+          REDIS_DB_CA_CERT_PEM: ${{ vars.REDIS_DB_CA_CERT_PEM }}
+          BUCKET_DESKTOP_UPDATES: ${{ vars.BUCKET_DESKTOP_UPDATES }}
+          GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
+          POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
+          GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
+          OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
+          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
+          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
+          FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
+          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
+          REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 backend/scripts/render_backend_runtime_env.py --env dev >> "$GITHUB_OUTPUT"
 
-      - name: Migrate legacy public Cloud Run bindings
-        run: >-
-          python3 backend/scripts/preflight-cloud-run-deploy.py
-          --env dev
-          --project="${{ vars.GCP_PROJECT_ID }}"
-          --region="${{ env.REGION }}"
-          --migrate-legacy-public-binding backend
-
       - name: Check development Cloud Run runtime bindings
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
+          POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
+          GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
+          OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
+          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
+          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
+          FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
+          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
+          REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: >-
           python3 backend/scripts/preflight-cloud-run-deploy.py
           --env dev
@@ -395,15 +444,15 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           project_id: ${{ vars.GCP_PROJECT_ID }}
-          image: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
+          image: ${{ steps.push-runtime-image.outputs.immutable_ref }}
           no_traffic: true
           env_vars_update_strategy: overwrite
           secrets_update_strategy: overwrite
           flags: >-
             --revision-suffix=${{ steps.image-tag.outputs.revision_suffix }}
             --tag=${{ env.CANDIDATE_TAG }}
-            --timeout=1500s
             ${{ steps.runtime-env.outputs.cloud_run_flags }}
+            ${{ steps.runtime-env.outputs.backend_flags }}
           env_vars: ${{ steps.runtime-env.outputs.backend_env_vars }}
           secrets: ${{ steps.runtime-env.outputs.backend_secrets }}
 
@@ -411,6 +460,18 @@ jobs:
         id: capture-backend-revision
         run: |
           echo "revision=backend-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate discovered canonical service URL
+        env:
+          EXPECTED_BACKEND_URL: ${{ steps.account-deletion-target.outputs.backend_url }}
+        run: |
+          set -euo pipefail
+          discovered="$(gcloud run services describe backend \
+            --project="${{ vars.GCP_PROJECT_ID }}" \
+            --region="${{ env.REGION }}" \
+            --format='value(status.url)')"
+          [[ "$discovered" =~ ^https://[^/]+\.run\.app$ ]]
+          test "$discovered" = "$EXPECTED_BACKEND_URL"
 
       - name: Configure account-deletion task identity and queue
         env:
@@ -455,7 +516,7 @@ jobs:
       - name: Verify canonical backend image lineage
         id: verify-image-lineage
         env:
-          BUILD_IMAGE_REF: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}@${{ steps.push-runtime-image.outputs.digest }}
+          BUILD_IMAGE_REF: ${{ steps.push-runtime-image.outputs.immutable_ref }}
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
@@ -466,7 +527,7 @@ jobs:
           runtime_digest="$(python3 backend/scripts/verify_backend_image_lineage.py \
             --build-image-ref="$BUILD_IMAGE_REF" \
             --runtime-image-ref="$runtime_image_ref" \
-            --source-sha="${{ needs.firestore_readiness.outputs.admitted_sha }}" \
+            --source-sha="${{ steps.image-tag.outputs.full_sha }}" \
             --revision="${{ steps.capture-backend-revision.outputs.revision }}" \
             --evidence-path=artifacts/dev-backend-image-lineage.json)"
           echo "runtime_digest=$runtime_digest" >> "$GITHUB_OUTPUT"
@@ -489,6 +550,19 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate backend runtime env after deploy
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          BACKEND_RUNTIME_SERVICE_ACCOUNT: ${{ vars.BACKEND_RUNTIME_SERVICE_ACCOUNT }}
+          GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
+          POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
+          GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
+          OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
+          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
+          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
+          FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
+          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
+          REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 backend/scripts/validate-backend-runtime-env.py --env dev --check-workflows --check-live-cloud-run
 
@@ -511,6 +585,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-cloud-run-candidate-release-vector.json
 
       - name: Mint backend candidate probe identity
@@ -521,7 +596,7 @@ jobs:
           echo "BACKEND_CANDIDATE_PROBE_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
           python3 backend/scripts/firebase_release_probe_token.py \
             --secret-project "${{ vars.GCP_PROJECT_ID }}" \
-            --firebase-project based-hardware \
+            --firebase-project "${{ vars.FIREBASE_AUTH_PROJECT_ID }}" \
             --token-output "$token_file"
 
       - name: Prove canonical candidate chat compatibility
@@ -575,6 +650,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-deployment-composition.json
 
       - name: Capture Cloud Run pre-promotion traffic snapshot
@@ -609,6 +685,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-serving-release-vector.json
 
       - name: Restore Cloud Run traffic snapshot after failed promotion

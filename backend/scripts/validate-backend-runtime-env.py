@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +20,8 @@ from scripts.firestore_workflow_policy import (  # noqa: E402
     has_direct_firestore_mutation,
     reconciliation_invocations,
 )
+from scripts.backend_workflow_contract import validate_immutable_deploy_contract  # noqa: E402
+from scripts.foundation_contract import validation_messages as foundation_validation_messages  # noqa: E402
 from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
     ValidationError,
     validate_account_deletion_dispatch_contract as _validate_account_deletion_dispatch_contract,
@@ -177,18 +180,24 @@ def _build_rendered_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
             entry = _as_config_dict(raw_entry)
             if entry is None or 'secret' not in entry:
                 continue
+            version = entry.get('version')
+            if version is None and isinstance(entry.get('version_env_var'), str):
+                version = f'__rendered_{entry["version_env_var"]}__'
             env_entries.append(
                 {
                     'name': str(secret_name),
                     'valueFrom': {
                         'secretKeyRef': {
                             'name': str(entry['secret']),
-                            'key': str(entry.get('version', 'latest')),
+                            'key': str(version or ''),
                         }
                     },
                 }
             )
-        services[str(service_name)] = {'env': env_entries, 'flags': dict(network_flags)}
+        services[str(service_name)] = {
+            'env': env_entries,
+            'flags': {**network_flags, **_rendered_service_flags(service_config)},
+        }
     jobs: ConfigDict = {}
     job_configs = _as_config_dict(cloud_run.get('jobs')) or {}
     for job_name, raw_job_config in job_configs.items():
@@ -211,13 +220,16 @@ def _build_rendered_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
             entry = _as_config_dict(raw_entry)
             if entry is None or 'secret' not in entry:
                 continue
+            version = entry.get('version')
+            if version is None and isinstance(entry.get('version_env_var'), str):
+                version = f'__rendered_{entry["version_env_var"]}__'
             env_entries.append(
                 {
                     'name': str(secret_name),
                     'valueFrom': {
                         'secretKeyRef': {
                             'name': str(entry['secret']),
-                            'key': str(entry.get('version', 'latest')),
+                            'key': str(version or ''),
                         }
                     },
                 }
@@ -273,7 +285,71 @@ def _validate_manifest_shape(env_config: ConfigDict, env: str) -> list[Validatio
     cloud_run_services = _as_config_dict(cloud_run.get('services'))
     if cloud_run_services is None or not cloud_run_services:
         errors.append(ValidationError(env, 'cloud_run.services must be a non-empty mapping'))
+    errors.extend(_validate_canonical_cloud_run_manifest(env, env_config))
+    errors.extend(_validate_foundation_contract(env, env_config))
     return errors
+
+
+def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> list[ValidationError]:
+    errors: list[ValidationError] = []
+    scope = f'{env}/cloud_run/backend'
+    if env_config.get('gcp_project') != {'env_var': 'GCP_PROJECT_ID'}:
+        errors.append(ValidationError(env, 'gcp_project must bind $GCP_PROJECT_ID'))
+    if env_config.get('runtime_gcp_project') != {'env_var': 'RUNTIME_GCP_PROJECT_ID'}:
+        errors.append(ValidationError(env, 'runtime_gcp_project must bind $RUNTIME_GCP_PROJECT_ID'))
+    if env_config.get('region') != 'us-west1':
+        errors.append(ValidationError(env, "region must be 'us-west1'"))
+
+    cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
+    network = _as_config_dict(cloud_run.get('network')) or {}
+    expected_network = {
+        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+        '--vpc-egress': 'private-ranges-only',
+    }
+    if network.get('flags') != expected_network:
+        errors.append(
+            ValidationError(scope, 'private network flags must use owned inputs and private-ranges-only egress')
+        )
+
+    services = _as_config_dict(cloud_run.get('services')) or {}
+    backend = _as_config_dict(services.get('backend')) or {}
+    expected_flags: ConfigDict = {
+        '--cpu': '2',
+        '--memory': '4Gi',
+        '--concurrency': '20',
+        '--timeout': '3600s',
+        '--min-instances': '0' if env == 'dev' else '1',
+        '--max-instances': '3' if env == 'dev' else '10',
+        '--execution-environment': 'gen2',
+        '--allow-unauthenticated': True,
+        '--no-session-affinity': True,
+        '--no-cpu-throttling': True,
+        '--no-cpu-boost': True,
+        '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
+        '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
+    }
+    actual_flags = _as_config_dict(backend.get('flags')) or {}
+    for name, expected in expected_flags.items():
+        if actual_flags.get(name) != expected:
+            errors.append(ValidationError(scope, f'Cloud Run flag {name} must be {expected!r}'))
+    if set(actual_flags) != set(expected_flags):
+        errors.append(ValidationError(scope, 'Cloud Run service flags must match the canonical declared set'))
+    if backend.get('service_account') != {'env_var': 'BACKEND_RUNTIME_SERVICE_ACCOUNT'}:
+        errors.append(ValidationError(scope, 'service_account must bind $BACKEND_RUNTIME_SERVICE_ACCOUNT'))
+
+    secrets = _as_config_dict(backend.get('secrets')) or {}
+    for name, raw_binding in secrets.items():
+        binding = _as_config_dict(raw_binding) or {}
+        version_env_var = binding.get('version_env_var')
+        if not isinstance(version_env_var, str) or not version_env_var or 'version' in binding:
+            errors.append(ValidationError(scope, f'{name} must select an exact version input'))
+    return errors
+
+
+def _validate_foundation_contract(env: str, env_config: ConfigDict) -> list[ValidationError]:
+    scope = f'{env}/foundation'
+    return [ValidationError(scope, message) for message in foundation_validation_messages(env, env_config)]
 
 
 def _manifest_env_binding_is_configured(env_map: ConfigDict, secrets_map: ConfigDict, key: str) -> bool:
@@ -368,11 +444,24 @@ def _validate_cloud_run(
         errors.extend(
             _validate_workflow_flags(
                 scope=f'cloud_run/{service}',
-                expected=_network_flags(env_config),
+                expected=_service_flags(env_config, service_config),
                 actual=service_state.get('flags', {}),
                 strict_provisional=strict_provisional,
             )
         )
+        service_account = _as_config_dict(service_config.get('service_account'))
+        if service_account is not None and isinstance(service_account.get('env_var'), str):
+            expected_service_account = os.getenv(service_account['env_var'], '').strip()
+            if (
+                expected_service_account
+                and service_state.get('flags', {}).get('--service-account') != expected_service_account
+            ):
+                errors.append(
+                    ValidationError(
+                        f'cloud_run/{service}',
+                        f'service account must match ${service_account["env_var"]}',
+                    )
+                )
     state_jobs = _as_config_dict(cloud_run_state.get('jobs'))
     if state_jobs is not None:
         job_configs = _as_config_dict(cloud_run.get('jobs')) or {}
@@ -435,6 +524,10 @@ def _validate_cloud_run_workflows(
             continue
         workflow_path = workflow_root / workflow_file
         workflow = _load_yaml(workflow_path)
+        errors.extend(
+            ValidationError(f'cloud_run_workflow/{workflow_file}', message)
+            for message in validate_immutable_deploy_contract(workflow_file, workflow)
+        )
         errors.extend(_validate_firestore_index_reconciliation_boundary(workflow_file, workflow))
         extracted = _extract_workflow_cloud_run_targets(
             workflow,
@@ -486,7 +579,7 @@ def _validate_cloud_run_workflows(
         errors.extend(
             _validate_workflow_flags(
                 scope=f'cloud_run_workflow/{service}',
-                expected=_network_flags(env_config),
+                expected=_service_flags(env_config, service_config),
                 actual=_substitute_values(service_state.get('flags', {}), variables=workflow_vars),
                 strict_provisional=strict_provisional,
             )
@@ -564,7 +657,11 @@ def _validate_firestore_readiness_workflow_contract(workflow_file: str, workflow
     )
     is_manual_deploy = Path(workflow_file).name == 'gcp_backend.yml'
     permissions = _as_config_dict(readiness_job.get('permissions')) or {}
-    expected_permissions = {'actions': 'read', 'contents': 'read'} if is_manual_deploy else {'contents': 'read'}
+    expected_permissions = (
+        {'actions': 'read', 'contents': 'read', 'id-token': 'write'}
+        if is_manual_deploy
+        else {'contents': 'read', 'id-token': 'write'}
+    )
     if permissions != expected_permissions:
         errors.append(
             ValidationError(scope, 'Firestore readiness job permissions must be limited to its release-proof boundary')
@@ -576,10 +673,14 @@ def _validate_firestore_readiness_workflow_contract(workflow_file: str, workflow
     if 'secrets.GCP_CREDENTIALS' in serialized_readiness_job:
         errors.append(ValidationError(scope, 'Firestore readiness must not receive backend deployment credentials'))
     auth_steps = [step for step in parsed_steps if step.get('uses') == 'google-github-actions/auth@v3']
-    if len(auth_steps) != 1 or (_as_config_dict(auth_steps[0].get('with')) or {}).get('credentials_json') != (
-        '${{ secrets.GCP_FIRESTORE_READONLY_CREDENTIALS }}'
+    auth_with = _as_config_dict(auth_steps[0].get('with')) if len(auth_steps) == 1 else None
+    if (
+        auth_with is None
+        or auth_with.get('workload_identity_provider') != '${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+        or auth_with.get('service_account') != '${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}'
+        or 'credentials_json' in auth_with
     ):
-        errors.append(ValidationError(scope, 'Firestore readiness must use the dedicated read-only credentials'))
+        errors.append(ValidationError(scope, 'Firestore readiness must use the dedicated read-only WIF identity'))
     checkout_steps = [step for step in parsed_steps if step.get('uses') == 'actions/checkout@v7']
     admitted_readiness_ref = '${{ steps.admitted_source.outputs.admitted_sha }}'
     admission_checkout_name = (
@@ -783,6 +884,17 @@ def _network_flags(env_config: ConfigDict) -> ConfigDict:
     return _as_config_dict(network.get('flags')) or {}
 
 
+def _service_flags(env_config: ConfigDict, service_config: ConfigDict) -> ConfigDict:
+    flags = {**_network_flags(env_config), **(_as_config_dict(service_config.get('flags')) or {})}
+    service_account = _as_config_dict(service_config.get('service_account'))
+    if service_account is not None:
+        flags['--service-account'] = service_account
+    forbidden = _as_config_list(service_config.get('forbidden_env'))
+    if forbidden is not None:
+        flags['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
+    return flags
+
+
 def _literal_env_value(entry: dict[str, Any]) -> str:
     value = entry.get('value')
     if value is None:
@@ -882,11 +994,23 @@ def _validate_cloud_run_secret_entries(
         actual_secret = _cloud_run_secret_ref(actual_entry)
         expected_secret = {
             'secret': expected_entry['secret'],
-            'version': str(expected_entry.get('version', 'latest')),
+            'version': _expected_secret_version(expected_entry),
         }
         if actual_secret != expected_secret:
             errors.append(ValidationError(scope, f'secret binding {name} mismatch: expected {expected_secret!r}'))
     return errors
+
+
+def _expected_secret_version(entry: ConfigDict) -> str:
+    if 'version' in entry:
+        return str(entry['version'])
+    version_env_var = entry.get('version_env_var')
+    if isinstance(version_env_var, str) and version_env_var:
+        configured = os.getenv(version_env_var, '').strip()
+        if configured:
+            return configured
+        return f'__rendered_{version_env_var}__'
+    return ''
 
 
 def _env_entries_by_name(raw_env: object) -> EnvEntryMap:
@@ -1092,6 +1216,10 @@ def _rendered_runtime_env_outputs(workflow: ConfigDict, *, env: str, manifest: C
             if service_config is None:
                 continue
             output_prefix = service.replace('-', '_')
+            outputs[f'{output_prefix}_service_account'] = _render_manifest_value(
+                'service_account', _as_config_dict(service_config.get('service_account')) or {}
+            )
+            outputs[f'{output_prefix}_flags'] = _render_cloud_run_flags(_service_flags(env_config, service_config))
             outputs[f'{output_prefix}_env_vars'] = _render_cloud_run_env_vars(service_config.get('env', {}))
             outputs[f'{output_prefix}_secrets'] = _render_cloud_run_secrets(service_config.get('secrets', {}))
         jobs = _as_config_dict(cloud_run.get('jobs')) or {}
@@ -1163,7 +1291,7 @@ def _render_cloud_run_secrets(secret_entries: object) -> str:
         entry = _as_config_dict(raw_entry)
         if entry is None or 'secret' not in entry:
             continue
-        version = entry.get('version', 'latest')
+        version = _expected_secret_version(entry)
         lines.append(f'{name}={entry["secret"]}:{version}')
     return '\n'.join(lines)
 
@@ -1176,7 +1304,7 @@ def _render_cloud_run_flags(flag_entries: object) -> str:
     for name, raw_entry in flag_entry_map.items():
         entry = _as_config_dict(raw_entry)
         value = _render_manifest_value(name, entry) if entry is not None else raw_entry
-        flags.append(f'{name}={value}')
+        flags.append(str(name) if value is True else f'{name}={value}')
     return ' '.join(flags)
 
 
@@ -1218,7 +1346,10 @@ def _parse_workflow_flags(raw_flags: object) -> StringMap:
     result: StringMap = {}
     for raw_part in raw_flags.split():
         part = raw_part.strip()
-        if not part.startswith('--') or '=' not in part:
+        if not part.startswith('--'):
+            continue
+        if '=' not in part:
+            result[part] = 'true'
             continue
         name, value = part.split('=', 1)
         result[name] = value
@@ -1263,8 +1394,29 @@ def _validate_workflow_flags(
 def _expected_flag_value(expected_entry: object) -> str:
     expected_dict = _as_config_dict(expected_entry)
     if expected_dict is not None and 'value' in expected_dict:
-        return str(expected_dict['value'])
+        expected_entry = expected_dict['value']
+    if expected_entry is True:
+        return 'true'
+    if expected_entry is False:
+        return 'false'
     return str(expected_entry)
+
+
+def _rendered_service_flags(service_config: ConfigDict) -> StringMap:
+    rendered: StringMap = {}
+    for name, raw_entry in (_as_config_dict(service_config.get('flags')) or {}).items():
+        entry = _as_config_dict(raw_entry)
+        if entry is not None and 'env_var' in entry:
+            rendered[str(name)] = f'__rendered_flag_{str(name).lstrip("-").replace("-", "_")}__'
+        else:
+            rendered[str(name)] = _expected_flag_value(raw_entry)
+    service_account = _as_config_dict(service_config.get('service_account'))
+    if service_account is not None:
+        rendered['--service-account'] = '__rendered_service_account__'
+    forbidden = _as_config_list(service_config.get('forbidden_env'))
+    if forbidden is not None:
+        rendered['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
+    return rendered
 
 
 def _is_provisional(expected_entry: object) -> bool:
@@ -1314,11 +1466,12 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
     # Fetch and live-validate those services; any separately owned job contract
     # is validated statically against the rendered state.
     services: ConfigDict = {}
-    project = env_config['gcp_project']
+    project = _resolved_external_value('gcp_project', env_config['gcp_project'])
     region = env_config['region']
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     service_configs = _as_config_dict(cloud_run.get('services')) or {}
-    for service in service_configs:
+    for service, raw_service_config in service_configs.items():
+        service_config = _as_config_dict(raw_service_config) or {}
         command = [
             'gcloud',
             'run',
@@ -1339,9 +1492,16 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
         template_spec = _as_config_dict(template.get('spec')) or {}
         containers = _as_config_list(template_spec.get('containers')) or [{}]
         first_container = _as_config_dict(containers[0]) or {}
+        env_entries = first_container.get('env', [])
         services[service] = {
-            'env': first_container.get('env', []),
-            'flags': _cloud_run_network_flags_from_annotations(annotations),
+            'env': env_entries,
+            'flags': _cloud_run_service_flags_from_state(
+                annotations=annotations,
+                template_spec=template_spec,
+                container=first_container,
+                service_config=service_config,
+                env_entries=env_entries,
+            ),
         }
     return {'services': services}
 
@@ -1370,6 +1530,80 @@ def _cloud_run_network_flags_from_annotations(annotations: object) -> StringMap:
     if isinstance(egress, str):
         flags['--vpc-egress'] = egress
     return flags
+
+
+def _resolved_external_value(name: str, raw_value: object) -> str:
+    entry = _as_config_dict(raw_value)
+    if entry is None:
+        value = str(raw_value or '').strip()
+    else:
+        env_var = entry.get('env_var')
+        value = os.getenv(str(env_var), '').strip() if isinstance(env_var, str) else ''
+    if not value:
+        raise ValueError(f'{name} requires its declared external input')
+    return value
+
+
+def _cloud_run_service_flags_from_state(
+    *,
+    annotations: ConfigDict,
+    template_spec: ConfigDict,
+    container: ConfigDict,
+    service_config: ConfigDict,
+    env_entries: object,
+) -> StringMap:
+    flags = _cloud_run_network_flags_from_annotations(annotations)
+    resources = _as_config_dict(container.get('resources')) or {}
+    limits = _as_config_dict(resources.get('limits')) or {}
+    for flag, key in (('--cpu', 'cpu'), ('--memory', 'memory')):
+        value = limits.get(key)
+        if value is not None:
+            flags[flag] = str(value)
+    scalar_fields = (
+        ('--concurrency', 'containerConcurrency', ''),
+        ('--timeout', 'timeoutSeconds', 's'),
+        ('--service-account', 'serviceAccountName', ''),
+    )
+    for flag, key, suffix in scalar_fields:
+        value = template_spec.get(key)
+        if value is not None:
+            flags[flag] = f'{value}{suffix}'
+    annotation_fields = (
+        ('--min-instances', 'autoscaling.knative.dev/minScale'),
+        ('--max-instances', 'autoscaling.knative.dev/maxScale'),
+        ('--execution-environment', 'run.googleapis.com/execution-environment'),
+    )
+    for flag, key in annotation_fields:
+        value = annotations.get(key)
+        if value is not None:
+            flags[flag] = str(value)
+    if annotations.get('run.googleapis.com/sessionAffinity') == 'false':
+        flags['--no-session-affinity'] = 'true'
+    if annotations.get('run.googleapis.com/cpu-throttling') == 'false':
+        flags['--no-cpu-throttling'] = 'true'
+    if annotations.get('run.googleapis.com/startup-cpu-boost') == 'false':
+        flags['--no-cpu-boost'] = 'true'
+    for flag, key in (('--startup-probe', 'startupProbe'), ('--liveness-probe', 'livenessProbe')):
+        probe = _as_config_dict(container.get(key))
+        if probe is not None:
+            flags[flag] = _render_described_probe(probe)
+    forbidden = _as_config_list(service_config.get('forbidden_env')) or []
+    actual_env = _env_entries_by_name(env_entries)
+    if not set(str(name) for name in forbidden).intersection(actual_env):
+        flags['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
+    return flags
+
+
+def _render_described_probe(probe: ConfigDict) -> str:
+    http_get = _as_config_dict(probe.get('httpGet')) or {}
+    return ','.join(
+        (
+            f'httpGet.path={http_get.get("path", "")}',
+            f'periodSeconds={probe.get("periodSeconds", "")}',
+            f'timeoutSeconds={probe.get("timeoutSeconds", "")}',
+            f'failureThreshold={probe.get("failureThreshold", "")}',
+        )
+    )
 
 
 if __name__ == '__main__':

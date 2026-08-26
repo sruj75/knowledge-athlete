@@ -634,10 +634,22 @@ class WorkflowContractTests(unittest.TestCase):
         self.mutate(
             root,
             CHECKER.MANUAL_WORKFLOW_PATH,
-            "          ref: main",
-            "          ref: ${{ github.event.inputs.release_sha }}",
+            "      - name: Google Auth\n",
+            "      - uses: actions/checkout@v7\n\n      - name: Google Auth\n",
         )
-        self.assertIn("traffic-only repair must not require a release-source admission", CHECKER.validate(root))
+        self.assertIn("traffic-only repair must remain independent of repository source", CHECKER.validate(root))
+
+        root = self.fixture_root()
+        self.mutate(
+            root,
+            CHECKER.MANUAL_WORKFLOW_PATH,
+            '--to-revisions="$serving_revision=100"',
+            '--to-revisions=LATEST=100',
+        )
+        self.assertIn(
+            "traffic-only repair must restore exactly the validated serving revision",
+            CHECKER.validate(root),
+        )
 
 
 class BreakGlassContractTests(unittest.TestCase):

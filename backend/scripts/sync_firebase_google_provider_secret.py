@@ -220,7 +220,7 @@ def sync(config: SyncConfig) -> int:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> SyncConfig:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project", default="based-hardware", help="GCP/Firebase project ID")
+    parser.add_argument("--project", required=True, help="Owned GCP/Firebase project ID")
     parser.add_argument("--quota-project", help="Quota project for Identity Toolkit Admin API")
     parser.add_argument("--provider-id", default=DEFAULT_PROVIDER_ID)
     parser.add_argument("--client-id-secret", default=DEFAULT_CLIENT_ID_SECRET)

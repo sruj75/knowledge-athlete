@@ -1,7 +1,7 @@
 """Tests for the fair-use engine (utils/fair_use.py).
 
 ``utils.fair_use`` imports cleanly (its dependencies defer client construction),
-so we patch the module-level ``redis_client`` and ``fair_use_db`` attributes via
+so we patch the Redis factory and ``fair_use_db`` attributes via
 an autouse ``monkeypatch`` fixture instead of mutating ``sys.modules`` at module
 scope. See ``backend/docs/test_isolation.md`` (Tier-2 sanctioned seams).
 """
@@ -31,7 +31,7 @@ _fair_use_db.get_violation_counts = MagicMock(return_value={'violation_count_7d'
 @pytest.fixture(autouse=True)
 def _patch_fair_use_deps(monkeypatch):
     _mock_redis.eval.side_effect = None
-    monkeypatch.setattr(fair_use_mod, 'redis_client', _mock_redis)
+    monkeypatch.setattr(fair_use_mod, 'get_redis_client', lambda: _mock_redis)
     monkeypatch.setattr(fair_use_mod, 'fair_use_db', _fair_use_db)
 
 

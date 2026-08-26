@@ -49,6 +49,25 @@ def test_preview_guard_rejects_a_second_backend_url(monkeypatch):
     assert any("retired dual-backend field: desktop_api_url" in error for error in errors)
 
 
+def test_preview_guard_rejects_a_floating_publish_key_version(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_floating_secret(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == "backend/deploy/runtime_env.yaml":
+            return text.replace(
+                "version_env_var: DESKTOP_PREVIEW_PUBLISH_KEY_VERSION",
+                "version: latest",
+            )
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_floating_secret)
+
+    errors = GUARDS.check_desktop_preview_controls()
+
+    assert "production backend must receive the preview publishing key from Secret Manager" in errors
+
+
 def test_guard_has_no_live_provider_document_read():
     """Static ownership tripwire; the real CLI test above is behavioral."""
     source = SCRIPT.read_text(encoding="utf-8")

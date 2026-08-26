@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import os
 
@@ -70,10 +69,6 @@ if _auth_emulator_host:
         os.environ.get("FIREBASE_AUTH_PROJECT_ID") or os.environ.get("FIREBASE_PROJECT_ID") or "demo-omi-local"
     )
     firebase_admin.initialize_app(options={"projectId": _firebase_project_id})  # type: ignore[reportUnknownMemberType]  # firebase_admin untyped
-elif os.environ.get("SERVICE_ACCOUNT_JSON"):
-    service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-    credentials = firebase_admin.credentials.Certificate(service_account_info)
-    firebase_admin.initialize_app(credentials)  # type: ignore[reportUnknownMemberType]  # firebase_admin untyped
 else:
     firebase_admin.initialize_app()  # type: ignore[reportUnknownMemberType]  # firebase_admin untyped
 
@@ -183,5 +178,10 @@ async def _periodic_deletion_wipe_reconcile(interval_seconds: int = 300):
 
 @app.on_event("shutdown")  # type: ignore[reportDeprecated]  # FastAPI on_event still functional; lifespan migration would change app wiring
 async def shutdown_event():
-    await drain_background_tasks(timeout=10.0)
-    await close_all_clients()
+    # Cloud Run sends SIGKILL about ten seconds after SIGTERM. Leave margin for
+    # uvicorn/process teardown after bounded task drain and client closure.
+    await drain_background_tasks(timeout=7.0)
+    try:
+        await asyncio.wait_for(close_all_clients(), timeout=1.0)
+    except TimeoutError:
+        logger.warning('HTTP client shutdown exceeded its one-second budget')

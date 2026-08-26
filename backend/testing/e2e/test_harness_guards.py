@@ -68,9 +68,9 @@ def test_backend_database_globals_are_fake_after_app_import(client, fake_firesto
     """Already-imported backend modules must not retain real Firestore/Redis clients."""
 
     import database._client as db_client
-    import database.redis_db as redis_db
+    from database.redis_connection import get_redis_client
     import utils.fair_use as fair_use
 
     assert db_client.db is fake_firestore
-    assert redis_db.r is fake_redis
-    assert fair_use.redis_client is fake_redis
+    assert get_redis_client() is fake_redis
+    assert fair_use.get_redis_client() is fake_redis

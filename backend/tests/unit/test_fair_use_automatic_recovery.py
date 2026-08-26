@@ -79,7 +79,7 @@ def test_cached_automatic_restriction_uses_authoritatively_normalized_state(monk
         'restrict_until': None,
         'throttle_until': datetime.now(timezone.utc) + timedelta(days=7),
     }
-    monkeypatch.setattr(fair_use, 'redis_client', redis)
+    monkeypatch.setattr(fair_use, 'get_redis_client', lambda: redis)
     monkeypatch.setattr(fair_use, 'fair_use_db', db)
 
     assert fair_use.get_enforcement_stage('owner-a') == 'throttle'

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Optional, cast
 
-from database.redis_db import r
+from database.redis_connection import get_redis_client
 from database.firestore_cache_metrics import observe_fetch, observe_payload, record_request
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def invalidate(policy: CachePolicy, entity_id: str) -> None:
 
     key = make_cache_key(policy, entity_id)
     try:
-        r.delete(key)
+        get_redis_client().delete(key)
         record_request(policy.namespace, 'invalidate')
     except Exception as e:
         logger.warning('Firestore cache invalidate failed namespace=%s error=%s', policy.namespace, e)
@@ -93,7 +93,7 @@ def get_or_fetch(policy: CachePolicy, entity_id: str, fetch_fn: Callable[[], Any
     now = time.time()
 
     try:
-        raw = r.get(key)
+        raw = get_redis_client().get(key)
     except Exception as e:
         logger.warning('Firestore cache read failed namespace=%s error=%s', policy.namespace, e)
         record_request(policy.namespace, 'redis_error')
@@ -159,7 +159,7 @@ def _set(policy: CachePolicy, key: str, payload: Any, now: Optional[float] = Non
         if payload_bytes > policy.max_payload_bytes:
             record_request(policy.namespace, 'payload_too_large')
             return
-        r.set(key, encoded, ex=ttl)
+        get_redis_client().set(key, encoded, ex=ttl)
         record_request(policy.namespace, 'set')
     except Exception as e:
         logger.warning('Firestore cache set failed namespace=%s error=%s', policy.namespace, e)

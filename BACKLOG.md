@@ -85,3 +85,27 @@ identity to classify every retained, rejected, shared, already-absent, or
 unknown resource. Any deploy, drain, deletion, IAM, secret, image, network, data,
 or production mutation remains separately authorized work and must record
 before/after and rollback evidence.
+
+Run S-27's manual `foundation-readiness` mode first and retain its sanitized
+read-only output. A matching inventory does not replace the separately
+authorized behavioral and denial probes.
+
+## BL-003: S-27 deferred broad verification
+
+**Status:** OPEN — focused repository checks passed; broad host-dependent gates
+were unavailable
+
+**Run when:** the local host has enough free disk and a healthy container
+runtime, and GitHub Actions can execute detector jobs; before the final
+all-waves closeout
+
+**Next-wave effect:** does not block repository implementation of later slices
+
+At S-27 commit `2853357f`, focused tests and deterministic contracts passed, but
+the locked full backend/Pyright lane could not be completed, Colima could not
+run the backend image smoke, and PR #50 detector jobs failed before executing
+any steps. Close this entry by running `backend/test-preflight.sh`,
+`backend/test.sh`, `backend/scripts/typecheck.sh`, and
+`make runtime-image-smoke SERVICE=backend` on one clean SHA, then recording
+hosted checks that execute rather than fail at detection. Live GCP and
+named-bundle acceptance stay owned by BL-002 and BL-001 respectively.

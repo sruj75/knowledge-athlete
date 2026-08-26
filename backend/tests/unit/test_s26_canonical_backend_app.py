@@ -78,5 +78,5 @@ def test_main_app_owns_the_single_backend_lifecycle_and_retained_operational_rou
 
     validate_dispatch.assert_called_once_with()
     assert started_tasks == ['startup_deletion_wipe_reconcile', 'periodic_deletion_wipe_reconcile']
-    drain_tasks.assert_awaited_once_with(timeout=10.0)
+    drain_tasks.assert_awaited_once_with(timeout=7.0)
     close_clients.assert_awaited_once_with()

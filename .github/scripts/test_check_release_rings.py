@@ -108,6 +108,21 @@ class ReleaseRingGuardTests(unittest.TestCase):
 
         self.assertTrue(any("canonical release-vector verifier" in error for error in checker.check()))
 
+    def test_firestore_readiness_requires_the_read_only_wif_principal(self) -> None:
+        self._stage_release_sources()
+        deploy_path = self._deploy_workflow()
+        deploy_path.write_text(
+            deploy_path.read_text(encoding="utf-8").replace(
+                "GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT",
+                "GCP_FIRESTORE_READONLY_CREDENTIALS",
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertTrue(
+            any("GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT" in error for error in checker.check())
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

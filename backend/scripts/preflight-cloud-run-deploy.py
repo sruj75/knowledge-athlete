@@ -17,7 +17,7 @@ import repair_cloud_run_traffic  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / 'backend/deploy/runtime_env.yaml'
-DEFAULT_REGION = 'us-central1'
+DEFAULT_REGION = 'us-west1'
 DEFAULT_SERVICES = ('backend',)
 
 
@@ -43,7 +43,6 @@ def main() -> int:
     parser.add_argument('--region', default=DEFAULT_REGION)
     parser.add_argument('--manifest', type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument('--service', action='append', dest='services')
-    parser.add_argument('--migrate-legacy-public-binding', action='append', dest='legacy_public_binding_services')
     parser.add_argument('--check-runtime-bindings', action='store_true')
     parser.add_argument('--check-secrets', action='store_true')
     parser.add_argument('--check-traffic', action='store_true')
@@ -55,20 +54,6 @@ def main() -> int:
 
     services = tuple(args.services or DEFAULT_SERVICES)
     exit_code = 0
-
-    if args.legacy_public_binding_services:
-        try:
-            migrated = migrate_legacy_public_bindings(
-                services=args.legacy_public_binding_services,
-                env=args.env,
-                project=args.project,
-                region=args.region,
-                manifest_path=args.manifest,
-            )
-        except ValueError as exc:
-            parser.error(str(exc))
-        for service in migrated:
-            print(f'migrated legacy GOOGLE_CLIENT_ID binding for {service}')
 
     if args.check_runtime_bindings:
         try:
@@ -136,62 +121,6 @@ def main() -> int:
     return exit_code
 
 
-DEVELOPMENT_PROJECT = 'based-hardware-dev'
-
-
-def migrate_legacy_public_bindings(
-    *,
-    services: tuple[str, ...] | list[str],
-    env: str,
-    project: str,
-    region: str,
-    manifest_path: Path = DEFAULT_MANIFEST,
-    runner: Any = subprocess.run,
-) -> list[str]:
-    _require_manifest_scope(
-        env=env, project=project, manifest_path=manifest_path, check_name='Legacy public-binding migration'
-    )
-    service_configs = _cloud_run_service_configs(env=env, manifest_path=manifest_path)
-
-    migrated: list[str] = []
-    for service in services:
-        service_config = service_configs.get(service)
-        if not isinstance(service_config, dict):
-            raise ValueError(f'Missing Cloud Run service config for {service}')
-        public_env = service_config.get('env')
-        if not isinstance(public_env, dict):
-            raise ValueError(f'Missing public environment config for {service}')
-        public_binding_names = set(public_env)
-        document = _describe_cloud_run_service(service=service, project=project, region=region, runner=runner)
-        containers = _single_container(document, operation='Legacy public-binding migration')
-        legacy_binding_names = sorted(
-            entry['name']
-            for entry in _container_env_entries(containers, operation='Legacy public-binding migration')
-            if isinstance(entry, dict)
-            and entry.get('name') in public_binding_names
-            and entry.get('valueFrom', {}).get('secretKeyRef', {}).get('name') == entry.get('name')
-        )
-        if not legacy_binding_names:
-            continue
-        runner(
-            [
-                'gcloud',
-                'run',
-                'services',
-                'update',
-                service,
-                f'--project={project}',
-                f'--region={region}',
-                f'--remove-secrets={",".join(legacy_binding_names)}',
-                '--no-traffic',
-                '--quiet',
-            ],
-            check=True,
-        )
-        migrated.append(service)
-    return migrated
-
-
 def check_runtime_bindings(
     *,
     services: tuple[str, ...] | list[str],
@@ -210,7 +139,7 @@ def check_runtime_bindings(
     This is deliberately not a full live-service inventory: normal retained
     Cloud Run bindings absent from runtime_env.yaml are outside this check.
     """
-    _require_development_scope(env=env, project=project, check_name='Runtime binding check')
+    _require_manifest_scope(env=env, project=project, manifest_path=manifest_path, check_name='Runtime binding check')
     service_configs = _cloud_run_service_configs(env=env, manifest_path=manifest_path)
     drift: list[str] = []
 
@@ -251,16 +180,10 @@ def check_runtime_bindings(
     return drift
 
 
-def _require_development_scope(*, env: str, project: str, check_name: str) -> None:
-    if env != 'dev' or project != DEVELOPMENT_PROJECT:
-        raise ValueError(f'{check_name} is development-only')
-
-
 def _require_manifest_scope(*, env: str, project: str, manifest_path: Path, check_name: str) -> None:
     """Bind an operation to the project the manifest declares for `env`.
 
-    Migration is value-preserving but rewrites live service bindings, so the
-    caller must not be able to aim one environment's contract at another's
+    Read-only checks must not apply one environment's contract to another
     project.
     """
     manifest = render_backend_runtime_env._load_yaml(manifest_path)
@@ -270,7 +193,13 @@ def _require_manifest_scope(*, env: str, project: str, manifest_path: Path, chec
     environment_config = render_backend_runtime_env._as_config_dict(environments.get(env))
     if environment_config is None:
         raise ValueError(f'{check_name} has no {env} environment in {manifest_path}')
-    expected_project = environment_config.get('gcp_project')
+    raw_expected_project = environment_config.get('gcp_project')
+    expected_project_entry = render_backend_runtime_env._as_config_dict(raw_expected_project)
+    expected_project = (
+        render_backend_runtime_env._runtime_value('gcp_project', expected_project_entry)
+        if expected_project_entry is not None
+        else str(raw_expected_project or '')
+    )
     if project != expected_project:
         raise ValueError(f'{check_name} for {env} expects project {expected_project!r}, got {project!r}')
 
@@ -306,9 +235,7 @@ def _expected_runtime_bindings(*, service: str, service_config: dict[str, Any]) 
         secret = render_backend_runtime_env._as_config_dict(raw_secret)
         if secret is None or not isinstance(secret.get('secret'), str) or not secret['secret']:
             raise ValueError(f'Cloud Run secret binding {env_name} must have a secret entry')
-        secret_references[str(env_name)] = (
-            f'Secret Manager reference {secret["secret"]}:{secret.get("version", "latest")}'
-        )
+        secret_references[str(env_name)] = f'Secret Manager reference {secret["secret"]}:{_secret_version(secret)}'
     return RuntimeBindingContract(public_names=public_names, secret_references=secret_references)
 
 
@@ -400,7 +327,7 @@ def check_rendered_secrets(*, env: str, manifest_path: Path, project: str) -> li
             binding = SecretBinding(
                 env_name=str(env_name),
                 secret_name=str(entry['secret']),
-                version=str(entry.get('version', 'latest')),
+                version=_secret_version(entry),
             )
             key = (binding.secret_name, binding.version)
             if key in seen:
@@ -409,6 +336,19 @@ def check_rendered_secrets(*, env: str, manifest_path: Path, project: str) -> li
             if not _secret_exists(project=project, secret_name=binding.secret_name, version=binding.version):
                 missing.append(binding)
     return missing
+
+
+def _secret_version(entry: dict[str, Any]) -> str:
+    if 'version' in entry:
+        version = str(entry['version'])
+    else:
+        version_env_var = entry.get('version_env_var')
+        if not isinstance(version_env_var, str) or not version_env_var:
+            raise ValueError('Cloud Run secret binding must select an exact version')
+        version = str(render_backend_runtime_env._runtime_value('secret version', {'env_var': version_env_var}))
+    if not version or version == 'latest':
+        raise ValueError('Cloud Run secret binding must select an exact version, not latest')
+    return version
 
 
 def wait_revision_ready(

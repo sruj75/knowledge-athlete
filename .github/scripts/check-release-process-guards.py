@@ -111,7 +111,7 @@ def check_desktop_preview_controls() -> list[str]:
     required_runtime_secret = (
         "            DESKTOP_PREVIEW_PUBLISH_KEY:\n"
         "              secret: DESKTOP_PREVIEW_PUBLISH_KEY\n"
-        "              version: latest"
+        "              version_env_var: DESKTOP_PREVIEW_PUBLISH_KEY_VERSION"
     )
     if required_runtime_secret not in runtime_env:
         errors.append("production backend must receive the preview publishing key from Secret Manager")

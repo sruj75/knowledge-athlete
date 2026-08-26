@@ -82,3 +82,10 @@ def test_canonical_workflows_bind_candidate_evidence_to_the_runtime_platform_dig
         assert 'verify_backend_image_lineage.py' in workflow
         assert "--format='value(status.imageDigest)'" in workflow
         assert '--expected-image-digest="${{ steps.verify-image-lineage.outputs.runtime_digest }}"' in workflow
+        assert 'us-west1-docker.pkg.dev' in workflow
+        assert '${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}' in workflow
+        assert 'full_sha=' in workflow
+        assert '${{ steps.image-tag.outputs.full_sha }}' in workflow
+        assert '${{ steps.push-runtime-image.outputs.immutable_ref }}' in workflow
+        assert 'gcr.io/' not in workflow
+        assert ':latest' not in workflow

@@ -1,5 +1,6 @@
 """Renderer for backend Cloud Run runtime env."""
 
+import json
 import runpy
 from pathlib import Path
 
@@ -13,6 +14,20 @@ _MANIFEST = _MODULE['_load_yaml'](_MODULE['DEFAULT_MANIFEST'])
 @pytest.fixture(autouse=True)
 def _reuse_parsed_repo_manifest(monkeypatch):
     monkeypatch.setitem(_MODULE, '_load_yaml', lambda _path: _MANIFEST)
+    monkeypatch.setenv('BACKEND_RUNTIME_SERVICE_ACCOUNT', 'backend-runtime@example.iam.gserviceaccount.com')
+    monkeypatch.setenv('GCP_PROJECT_ID', 'owned-project')
+    monkeypatch.setenv('RUNTIME_GCP_PROJECT_ID', 'owned-runtime-project')
+    monkeypatch.setenv('FIREBASE_AUTH_PROJECT_ID', 'owned-firebase-project')
+    monkeypatch.setenv('REDIS_DB_HOST', 'redis.internal.example')
+    monkeypatch.setenv('REDIS_DB_PORT', '6378')
+    monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', 'fake-ca')
+    monkeypatch.setenv('BUCKET_DESKTOP_UPDATES', 'owned-desktop-artifacts')
+    for env_config in _MANIFEST['environments'].values():
+        backend = env_config['cloud_run']['services']['backend']
+        for binding in backend['secrets'].values():
+            version_env_var = binding.get('version_env_var')
+            if version_env_var:
+                monkeypatch.setenv(version_env_var, '7')
 
 
 def _job_env_block(out: str, job_prefix: str) -> str:
@@ -27,6 +42,14 @@ def _job_secret_lines(out: str, job_prefix: str) -> set[str]:
     start = out.index('\n', start) + 1
     end = out.index(marker, start)
     return set(out[start:end].splitlines())
+
+
+def _output_value(out: str, name: str) -> str:
+    marker = f'__BACKEND_RUNTIME_ENV_{name}__'
+    start = out.index(f'{name}<<{marker}')
+    start = out.index('\n', start) + 1
+    end = out.index(marker, start)
+    return out[start:end].strip()
 
 
 def test_required_env_var_missing_raises(monkeypatch):
@@ -77,6 +100,17 @@ def test_network_flags_still_required(monkeypatch):
         _MODULE['_render_flags']({'--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'}})
 
 
+def test_secret_binding_requires_exact_non_latest_version(monkeypatch):
+    monkeypatch.delenv('PRIVATE_SETTING_VERSION', raising=False)
+    with pytest.raises(ValueError, match='PRIVATE_SETTING_VERSION'):
+        _MODULE['_render_secrets'](
+            {'PRIVATE_SETTING': {'secret': 'private-setting', 'version_env_var': 'PRIVATE_SETTING_VERSION'}}
+        )
+
+    with pytest.raises(ValueError, match='exact version'):
+        _MODULE['_render_secrets']({'PRIVATE_SETTING': {'secret': 'private-setting', 'version': 'latest'}})
+
+
 def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsys, monkeypatch):
     monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'dev', '--job', 'unknown-job'])
 
@@ -115,6 +149,34 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA=' in service_env
     assert 'backend_sync_env_vars' not in output
     assert 'OMI_LLM_GATEWAY' not in output
+
+
+def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(capsys, monkeypatch):
+    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'owned-prod-vpc')
+    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'owned-prod-subnet')
+    monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
+    monkeypatch.setenv('ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE', 'https://backend.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_TASKS_INVOKER_SA', 'tasks@example.iam.gserviceaccount.com')
+    monkeypatch.setenv('ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE', 'https://legacy.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA', 'legacy@example.iam.gserviceaccount.com')
+    monkeypatch.setenv('GCP_BUDGET_RECIPIENTS', 'private-owner@example.com')
+    monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'prod'])
+
+    assert _MODULE['main']() == 0
+    output = capsys.readouterr().out
+    rendered = _output_value(output, 'foundation_contract')
+    required_inputs = _output_value(output, 'foundation_required_inputs').split(',')
+
+    contract = json.loads(rendered)
+    assert contract['network']['region'] == 'us-west1'
+    assert contract['redis']['tier'] == 'STANDARD_HA'
+    assert contract['budget']['thresholds'] == [0.5, 0.8, 1.0]
+    assert contract['budget']['recipients'] == {'env_var': 'GCP_BUDGET_RECIPIENTS'}
+    assert 'private-owner@example.com' not in rendered
+    assert required_inputs == sorted(required_inputs)
+    assert 'GCP_BUDGET_RECIPIENTS' in required_inputs
+    assert 'GCP_WORKLOAD_IDENTITY_PROVIDER' in required_inputs
 
 
 def test_render_prod_requires_vpc_env_vars_before_job_outputs(monkeypatch):

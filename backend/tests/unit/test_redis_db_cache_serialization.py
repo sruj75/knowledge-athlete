@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 import pytest
 
 import database.redis_db as redis_db
+from database.redis_connection import reset_redis_client_for_testing, set_redis_client_for_testing
 
 
 class _FakeRedis:
@@ -27,10 +28,13 @@ class _FakeRedis:
 
 
 @pytest.fixture
-def fake_redis(monkeypatch: pytest.MonkeyPatch) -> _FakeRedis:
+def fake_redis() -> Iterator[_FakeRedis]:
     client = _FakeRedis()
-    monkeypatch.setattr(redis_db, "r", client)
-    return client
+    set_redis_client_for_testing(client)
+    try:
+        yield client
+    finally:
+        reset_redis_client_for_testing()
 
 
 def test_generic_cache_json_round_trip(fake_redis: _FakeRedis) -> None:

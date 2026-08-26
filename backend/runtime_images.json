@@ -11,6 +11,15 @@
       "build_context": ".",
       "source_root": "backend",
       "workdir": "/app",
+      "runtime_uid": 10001,
+      "writable_paths": [
+        "/tmp/omi-runtime",
+        "/tmp/omi-parity-pack"
+      ],
+      "protected_paths": [
+        "/app/main.py",
+        "/tmp"
+      ],
       "entrypoints": [
         "main"
       ],

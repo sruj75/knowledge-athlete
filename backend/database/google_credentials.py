@@ -8,11 +8,16 @@ RUNTIME_GOOGLE_CREDENTIALS_PATH = Path('/tmp/omi-google-credentials.json')
 
 def prepare_google_credentials() -> None:
     service_account_json = os.environ.get('SERVICE_ACCOUNT_JSON', '').strip()
+    credentials = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '').strip()
+    if os.environ.get('OMI_ENV_STAGE', '').strip().lower() in {'dev', 'prod'}:
+        if service_account_json or credentials:
+            raise RuntimeError('hosted Google clients must use attached runtime identity through ADC')
+        return
+
     if service_account_json:
         _write_credentials_file(service_account_json)
         return
 
-    credentials = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '').strip()
     if not credentials:
         return
 

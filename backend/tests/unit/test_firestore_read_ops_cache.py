@@ -455,7 +455,7 @@ class TestRedisCreditsInvalidationSignal:
         mock_redis.set = MagicMock()
         mock_redis.get = MagicMock(return_value=b'1')
 
-        with patch('database.redis_db.r', mock_redis):
+        with patch('database.redis_db.get_redis_client', return_value=mock_redis):
             from database.redis_db import set_credits_invalidation_signal, check_credits_invalidation
 
             set_credits_invalidation_signal('user123')
@@ -470,7 +470,7 @@ class TestRedisCreditsInvalidationSignal:
         mock_redis = MagicMock()
         mock_redis.get = MagicMock(return_value=None)
 
-        with patch('database.redis_db.r', mock_redis):
+        with patch('database.redis_db.get_redis_client', return_value=mock_redis):
             from database.redis_db import check_credits_invalidation
 
             result = check_credits_invalidation('user_no_signal')
@@ -482,7 +482,7 @@ class TestRedisCreditsInvalidationSignal:
         # GET returns value on every call until TTL expires
         mock_redis.get = MagicMock(return_value=b'1')
 
-        with patch('database.redis_db.r', mock_redis):
+        with patch('database.redis_db.get_redis_client', return_value=mock_redis):
             from database.redis_db import check_credits_invalidation
 
             first = check_credits_invalidation('user_multi')

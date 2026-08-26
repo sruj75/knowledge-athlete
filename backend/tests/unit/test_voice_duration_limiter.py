@@ -291,7 +291,7 @@ class TestBudgetConsumeLogic:
         assert remaining == DAILY_BUDGET_MS
 
     def test_consume_lua_none_fails_open(self):
-        with patch('utils.voice_duration_limiter._consume_lua', None):
+        with patch('utils.voice_duration_limiter._get_consume_lua', return_value=None):
             from utils.voice_duration_limiter import try_consume_budget, DAILY_BUDGET_MS
 
             allowed, used, remaining = try_consume_budget('uid123', 60000)

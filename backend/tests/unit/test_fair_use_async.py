@@ -30,7 +30,8 @@ def _patch_fair_use_deps():
     module scope we patch the module attributes (the sanctioned Tier-2 seam)
     for the duration of each test.
     """
-    with patch.object(fair_use_mod, 'redis_client', MagicMock(name='redis_client')), patch.object(
+    redis_client = MagicMock(name='redis_client')
+    with patch.object(fair_use_mod, 'get_redis_client', return_value=redis_client), patch.object(
         fair_use_mod, 'fair_use_db', _fair_use_db
     ), patch.object(fair_use_mod, 'users_db', MagicMock(name='users_db')), patch.object(
         fair_use_mod, 'has_transcription_credits', MagicMock(return_value=True)
@@ -42,7 +43,7 @@ def _patch_fair_use_deps():
 
 def _redis():
     """Get the Redis mock that the fair_use module actually references."""
-    return fair_use_mod.redis_client
+    return fair_use_mod.get_redis_client()
 
 
 def _reset():

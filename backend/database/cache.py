@@ -9,7 +9,7 @@ import atexit
 from typing import List, Optional
 from database.cache_manager import InMemoryCacheManager
 from database.redis_pubsub import RedisPubSubManager
-from database.redis_db import r
+from database.redis_connection import get_redis_client
 
 # Global cache instances (lazily initialized)
 _memory_cache: Optional[InMemoryCacheManager] = None
@@ -32,7 +32,7 @@ def _ensure_initialized() -> None:
         return
 
     _memory_cache = InMemoryCacheManager(max_memory_mb=100)
-    _pubsub_manager = RedisPubSubManager(r)
+    _pubsub_manager = RedisPubSubManager(get_redis_client())
 
     # Register callbacks: when invalidation message received, clear memory cache
     _pubsub_manager.register_callback('get_public_approved_apps_data*', _invalidate_keys)

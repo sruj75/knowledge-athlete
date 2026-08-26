@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from database import redis_db
+from database.redis_connection import get_redis_client
 
 from .fair_use import FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS, fair_use_caps_for_entitlement
 from .observability.fallback import record_fallback
@@ -90,7 +90,7 @@ def create_pending_fair_use_review(
     }
     payload = json.dumps(request, separators=(',', ':'))
     try:
-        acquired = redis_db.r.eval(
+        acquired = get_redis_client().eval(
             _CREATE_PENDING_REVIEW_SCRIPT,
             2,
             _cooldown_key(uid),
@@ -110,7 +110,7 @@ def create_pending_fair_use_review(
 
 def get_pending_fair_use_review(uid: str, review_id: str | None = None) -> dict[str, Any] | None:
     try:
-        raw = redis_db.r.get(_pending_key(uid))
+        raw = get_redis_client().get(_pending_key(uid))
     except Exception as error:
         logger.error('fair_use: pending review Redis read error type=%s', type(error).__name__)
         _record_redis_failure('read')
@@ -137,7 +137,7 @@ def get_pending_fair_use_review(uid: str, review_id: str | None = None) -> dict[
 
 def mark_fair_use_review_consumed(uid: str, review_id: str) -> None:
     try:
-        redis_db.r.eval(_CONSUME_PENDING_REVIEW_SCRIPT, 1, _pending_key(uid), review_id)
+        get_redis_client().eval(_CONSUME_PENDING_REVIEW_SCRIPT, 1, _pending_key(uid), review_id)
     except Exception as error:
         logger.error('fair_use: pending review Redis consume error type=%s', type(error).__name__)
         _record_redis_failure('consume')

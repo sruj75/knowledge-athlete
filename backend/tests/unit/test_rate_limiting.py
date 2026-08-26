@@ -25,9 +25,8 @@ class _RedisError(Exception):
 def _rate_limit_stubs():
     """Install import-time fakes (redis, firebase_admin, database.redis_db, ...).
 
-    ``database.redis_db`` constructs a ``redis.Redis(...)`` client at import time
-    (a Tier-1 import-purity violation), and ``utils.other.endpoints`` transitively
-    pulls ``firebase_admin`` + ``database.redis_db`` + ``database.users``. These
+    ``utils.other.endpoints`` transitively pulls ``firebase_admin`` +
+    ``database.redis_db`` + ``database.users``. These
     fakes must be active *before* those modules are exec'd, so they live inside a
     ``stub_modules`` block (the sanctioned reserve seam — see
     ``backend/docs/test_isolation.md`` and DECISIONS D2). The stub ``check_rate_limit``
@@ -460,8 +459,10 @@ class TestRealCheckRateLimit(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('redis_db_real', 'database/redis_db.py')
         cls.real_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.real_module)
+        cls.real_module.get_redis_client = MagicMock(return_value=mock_redis_client)
+        cls.real_module._rate_limit_script()
 
-        # Restore original redis stub
+        # Restore original redis stub after the lazy script boundary has been exercised.
         if original_redis:
             sys.modules['redis'] = original_redis
 

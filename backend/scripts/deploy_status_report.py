@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, cast
 
-DEFAULT_REGION = 'us-central1'
+DEFAULT_REGION = 'us-west1'
 DEFAULT_CLOUD_RUN_SERVICES = ('backend',)
 
 
