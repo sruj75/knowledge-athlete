@@ -367,7 +367,7 @@ def get_user_paywall_status(
 ):
     """Trial-paywall status for the calling user on the given platform.
 
-    Used by the Rust desktop-backend middleware to decide whether to proxy
+    Used by canonical desktop provider paths to decide whether to admit
     paid LLM / TTS traffic. Mirrors the exact semantics of
     `is_trial_paywalled`: basic plan + Firebase Auth account >3d old + platform
     in {macos, desktop}. Mobile platforms always

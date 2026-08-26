@@ -12,21 +12,16 @@ on:
         required: false
         default: ''
         type: string
-      backend_mode:
-        description: 'API compatibility declaration for this preview'
+      backend_environment:
+        description: 'Backend environment for this preview'
         required: true
-        default: production_compatible
+        default: production
         type: choice
         options:
-          - production_compatible
-          - preview_backend
-      python_api_url:
-        description: 'Required only for preview_backend; HTTPS Python API URL'
-        required: false
-        default: ''
-        type: string
-      desktop_api_url:
-        description: 'Required only for preview_backend; HTTPS Desktop API URL'
+          - production
+          - preview
+      backend_url:
+        description: 'Required only for preview; one non-production HTTPS backend URL'
         required: false
         default: ''
         type: string
@@ -43,8 +38,7 @@ jobs:
       preview_id: ${{ steps.preview.outputs.preview_id }}
       source_sha: ${{ steps.preview.outputs.source_sha }}
       source_ref: ${{ steps.preview.outputs.source_ref }}
-      python_api_url: ${{ steps.backend.outputs.python_api_url }}
-      desktop_api_url: ${{ steps.backend.outputs.desktop_api_url }}
+      backend_url: ${{ steps.backend.outputs.backend_url }}
     steps:
       - name: Checkout publishing controls from main
         uses: actions/checkout@v7
@@ -83,40 +77,54 @@ jobs:
             echo "source_ref=$SOURCE_REF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Validate the declared backend contract
+      - name: Validate the declared backend environment
         id: backend
         env:
-          BACKEND_MODE: ${{ inputs.backend_mode }}
-          PYTHON_API_URL: ${{ inputs.python_api_url }}
-          DESKTOP_API_URL: ${{ inputs.desktop_api_url }}
+          BACKEND_ENVIRONMENT: ${{ inputs.backend_environment }}
+          BACKEND_URL: ${{ inputs.backend_url }}
         run: |
           set -euo pipefail
-          case "$BACKEND_MODE" in
-            production_compatible)
-              test -z "$PYTHON_API_URL" && test -z "$DESKTOP_API_URL" || {
-                echo "production_compatible previews must use the canonical production URLs." >&2
+          case "$BACKEND_ENVIRONMENT" in
+            production)
+              test -z "$BACKEND_URL" || {
+                echo "production previews must use the canonical production backend URL." >&2
                 exit 1
               }
-              python_api_url="https://api.omi.me"
-              desktop_api_url="https://desktop-backend-hhibjajaja-uc.a.run.app/"
+              backend_url="https://api.omi.me"
               ;;
-            preview_backend)
-              [[ "$PYTHON_API_URL" =~ ^https:// ]] && [[ "$DESKTOP_API_URL" =~ ^https:// ]] || {
-                echo "preview_backend requires HTTPS Python and Desktop API URLs." >&2
-                exit 1
-              }
-              python_api_url="$PYTHON_API_URL"
-              desktop_api_url="$DESKTOP_API_URL"
+            preview)
+              python3 - "$BACKEND_URL" <<'PY'
+          import sys
+          from urllib.parse import urlsplit
+
+          value = sys.argv[1]
+          try:
+              parsed = urlsplit(value)
+              parsed.port
+          except ValueError as exc:
+              raise SystemExit(f"preview backend URL is invalid: {exc}") from exc
+          hostname = (parsed.hostname or "").lower().rstrip(".")
+          if (
+              value != value.strip()
+              or parsed.scheme.lower() != "https"
+              or not hostname
+              or parsed.username is not None
+              or parsed.password is not None
+              or parsed.query
+              or parsed.fragment
+          ):
+              raise SystemExit("preview requires one absolute HTTPS backend URL without credentials, query, or fragment.")
+          if hostname in {"api.omi.me", "api.omiapi.com"}:
+              raise SystemExit("preview backend overrides must not target a production-family URL.")
+          PY
+              backend_url="$BACKEND_URL"
               ;;
             *)
-              echo "Unsupported backend mode: $BACKEND_MODE" >&2
+              echo "Unsupported backend environment: $BACKEND_ENVIRONMENT" >&2
               exit 1
               ;;
           esac
-          {
-            echo "python_api_url=$python_api_url"
-            echo "desktop_api_url=$desktop_api_url"
-          } >> "$GITHUB_OUTPUT"
+          echo "backend_url=$backend_url" >> "$GITHUB_OUTPUT"
 
       - name: Summarize exact preview awaiting approval
         env:
@@ -124,9 +132,8 @@ jobs:
           PREVIEW_ID: ${{ steps.preview.outputs.preview_id }}
           PREVIEW_SOURCE_REF: ${{ steps.preview.outputs.source_ref }}
           PREVIEW_SOURCE_SHA: ${{ steps.preview.outputs.source_sha }}
-          PREVIEW_BACKEND_MODE: ${{ inputs.backend_mode }}
-          OMI_PYTHON_API_URL: ${{ steps.backend.outputs.python_api_url }}
-          OMI_DESKTOP_API_URL: ${{ steps.backend.outputs.desktop_api_url }}
+          PREVIEW_BACKEND_ENVIRONMENT: ${{ inputs.backend_environment }}
+          OMI_PYTHON_API_URL: ${{ steps.backend.outputs.backend_url }}
           PREVIEW_NOTES: ${{ inputs.tester_notes }}
         run: |
           set -euo pipefail
@@ -137,9 +144,8 @@ jobs:
             echo "- Source branch: \`${PREVIEW_SOURCE_REF}\`"
             echo "- Source commit: [\`${PREVIEW_SOURCE_SHA}\`](https://github.com/${GITHUB_REPOSITORY}/commit/${PREVIEW_SOURCE_SHA})"
             echo "- Preview identity: \`${PREVIEW_SLUG}\` (\`${PREVIEW_ID}\`)"
-            echo "- Backend mode: \`${PREVIEW_BACKEND_MODE}\`"
-            echo "- Python API: \`${OMI_PYTHON_API_URL}\`"
-            echo "- Desktop API: \`${OMI_DESKTOP_API_URL}\`"
+            echo "- Backend environment: \`${PREVIEW_BACKEND_ENVIRONMENT}\`"
+            echo "- Backend URL: \`${OMI_PYTHON_API_URL}\`"
             echo "- Tester notes (JSON-escaped): ${notes_json}"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -169,9 +175,8 @@ jobs:
           PREVIEW_SOURCE_REF: ${{ needs.resolve.outputs.source_ref }}
           PREVIEW_SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
           PREVIEW_NOTES: ${{ inputs.tester_notes }}
-          PREVIEW_BACKEND_MODE: ${{ inputs.backend_mode }}
-          OMI_PYTHON_API_URL: ${{ needs.resolve.outputs.python_api_url }}
-          OMI_DESKTOP_API_URL: ${{ needs.resolve.outputs.desktop_api_url }}
+          PREVIEW_BACKEND_ENVIRONMENT: ${{ inputs.backend_environment }}
+          OMI_PYTHON_API_URL: ${{ needs.resolve.outputs.backend_url }}
         run: |
           set -euo pipefail
           test -n "$CODEMAGIC_API_TOKEN" || {
@@ -186,10 +191,9 @@ jobs:
             --arg source_ref "$PREVIEW_SOURCE_REF" \
             --arg source_sha "$PREVIEW_SOURCE_SHA" \
             --arg notes "$notes_base64" \
-            --arg backend_mode "$PREVIEW_BACKEND_MODE" \
-            --arg python_api_url "$OMI_PYTHON_API_URL" \
-            --arg desktop_api_url "$OMI_DESKTOP_API_URL" \
-            '{appId: $app_id, workflowId: "omi-desktop-swift-preview", branch: "main", environment: {variables: {PREVIEW_MODE: "true", PREVIEW_SLUG: $slug, PREVIEW_ID: $preview_id, PREVIEW_SOURCE_REF: $source_ref, PREVIEW_SOURCE_SHA: $source_sha, PREVIEW_NOTES_BASE64: $notes, PREVIEW_BACKEND_MODE: $backend_mode, OMI_PYTHON_API_URL: $python_api_url, OMI_DESKTOP_API_URL: $desktop_api_url}}}')"
+            --arg backend_environment "$PREVIEW_BACKEND_ENVIRONMENT" \
+            --arg backend_url "$OMI_PYTHON_API_URL" \
+            '{appId: $app_id, workflowId: "omi-desktop-swift-preview", branch: "main", environment: {variables: {PREVIEW_MODE: "true", PREVIEW_SLUG: $slug, PREVIEW_ID: $preview_id, PREVIEW_SOURCE_REF: $source_ref, PREVIEW_SOURCE_SHA: $source_sha, PREVIEW_NOTES_BASE64: $notes, PREVIEW_BACKEND_ENVIRONMENT: $backend_environment, OMI_PYTHON_API_URL: $backend_url}}}')"
           response="$(curl --fail --show-error --silent \
             -H 'Content-Type: application/json' \
             -H "x-auth-token: $CODEMAGIC_API_TOKEN" \

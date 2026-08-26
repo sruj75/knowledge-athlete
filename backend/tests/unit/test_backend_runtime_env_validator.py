@@ -61,6 +61,37 @@ def test_repo_prod_runtime_matches_manifest():
     assert errors == []
 
 
+@pytest.mark.parametrize('env_name', ['dev', 'prod'])
+def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(env_name):
+    validator = load_validator()
+    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    services = manifest['environments'][env_name]['cloud_run']['services']
+
+    assert set(services) == {'backend'}
+    backend = services['backend']
+    assert {
+        'BILLING_MODE',
+        'FIREBASE_PROJECT_ID',
+        'ACCOUNT_DELETION_DISPATCH_MODE',
+        'DESKTOP_UPDATE_POINTERS_MODE',
+        'POSTHOG_HOST',
+    } <= set(backend['env'])
+    assert {
+        'MODULATE_API_KEY',
+        'GEMINI_API_KEY',
+        'OPENAI_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'FIREBASE_API_KEY',
+        'REDIS_DB_HOST',
+        'REDIS_DB_PORT',
+        'REDIS_DB_PASSWORD',
+        'POSTHOG_PROJECT_API_KEY',
+    } <= set(backend['secrets'])
+    assert backend['env']['BILLING_MODE']['value'] == 'disabled'
+    for binding in backend['secrets'].values():
+        assert set(binding) <= {'secret', 'version'}
+
+
 def test_account_deletion_dispatch_contract_requires_canonical_backend_profile():
     validator = load_validator()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
@@ -663,11 +694,11 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     }
 
 
-def test_prod_cloud_run_secret_bindings_exclude_stale_optional_secrets():
+def test_prod_cloud_run_secret_bindings_exclude_stale_service_account_json():
     validator = load_validator()
     manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
     prod_services = manifest['environments']['prod']['cloud_run']['services']
-    stale_secrets = {'SERVICE_ACCOUNT_JSON', 'POSTHOG_PROJECT_API_KEY'}
+    stale_secrets = {'SERVICE_ACCOUNT_JSON'}
 
     for service_name, service_config in prod_services.items():
         secret_names = set((service_config.get('secrets') or {}).keys())

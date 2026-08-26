@@ -165,7 +165,6 @@ make_signed_smoke_fixture() {
 PLIST
   cat > "$app/Contents/Resources/.env" <<'ENV'
 OMI_PYTHON_API_URL=https://api.omi.me
-OMI_DESKTOP_API_URL=https://desktop-backend-hhibjajaja-uc.a.run.app/
 ENV
   printf '#!/usr/bin/env bash\nexit 0\n' > "$app/Contents/MacOS/Omi Computer"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"

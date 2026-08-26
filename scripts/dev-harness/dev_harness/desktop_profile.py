@@ -115,8 +115,7 @@ class DesktopLocalProfile:
     firebase_client_id: str
     firebase_gcm_sender_id: str
     firebase_plist: str
-    python_api_url: str
-    desktop_api_url: str
+    backend_url: str
     selected_user: str
     selected_user_email: str
     selected_user_display_name: str
@@ -150,8 +149,7 @@ def resolve_profile(
     email = payload.get("email", f"{user}@local.omi.invalid")
     display_name = payload.get("display_name", f"Synthetic {user}")
     password = payload.get("password", f"{user}-local-password-030")
-    python_api_url = cfg.backend_url
-    desktop_api_url = cfg.desktop_backend_url
+    backend_url = cfg.backend_url
     app_name = _resolve_local_app_name(env)
     bundle_id = _local_bundle_id(app_name)
     url_scheme = _local_url_scheme(app_name)
@@ -162,8 +160,7 @@ def resolve_profile(
         "OMI_SKIP_AUTH_SEED": "1",
         "OMI_SKIP_BACKEND": "1",
         "OMI_SKIP_TUNNEL": "1",
-        "OMI_DESKTOP_API_URL": desktop_api_url,
-        "OMI_PYTHON_API_URL": python_api_url,
+        "OMI_PYTHON_API_URL": backend_url,
         "OMI_LOCAL_PROFILE_STORAGE_NAME": storage_name,
         "OMI_LOCAL_AUTH_USER": user,
         "OMI_LOCAL_AUTH_EMAIL": email,
@@ -197,8 +194,7 @@ def resolve_profile(
         firebase_client_id=LOCAL_FIREBASE_CLIENT_ID,
         firebase_gcm_sender_id=LOCAL_FIREBASE_GCM_SENDER_ID,
         firebase_plist=LOCAL_FIREBASE_PLIST,
-        python_api_url=python_api_url,
-        desktop_api_url=desktop_api_url,
+        backend_url=backend_url,
         selected_user=user,
         selected_user_email=email,
         selected_user_display_name=display_name,
@@ -235,9 +231,8 @@ def validate_profile(profile: DesktopLocalProfile) -> list[str]:
         errors.append("local profile must use demo-omi-local only")
     if profile.firebase_database_id != safety.DEFAULT_FIRESTORE_DATABASE_ID:
         errors.append("local profile must use Firestore database (default)")
-    for label, raw in (("python_api_url", profile.python_api_url), ("desktop_api_url", profile.desktop_api_url)):
-        if not _is_loopback_url(raw):
-            errors.append(f"{label} must be loopback http/ws, got {raw!r}")
+    if not _is_loopback_url(profile.backend_url):
+        errors.append(f"backend_url must be loopback http/ws, got {profile.backend_url!r}")
     if not safety.is_loopback_host(profile.firebase_auth_emulator_host):
         errors.append("Firebase Auth emulator host must be loopback")
     text = profile.to_json()

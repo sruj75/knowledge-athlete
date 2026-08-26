@@ -1,8 +1,7 @@
-import ast
 import base64
 import json
 import os
-from typing import Any, Callable, Dict, Optional, TypeVar, Union, cast
+from typing import Any, Callable, Dict, Optional, TypeVar, cast
 from datetime import datetime, timedelta, timezone
 
 import redis
@@ -24,24 +23,6 @@ r: Any = redis.Redis(
 
 
 T = TypeVar("T")
-
-
-def _decode_redis_value(raw: Union[bytes, str]) -> str:
-    return raw.decode('utf-8') if isinstance(raw, bytes) else raw
-
-
-def _deserialize_cache_value(raw: Union[bytes, str, None]) -> Any:
-    """Deserialize a Redis cache value using JSON, with legacy literal_eval fallback."""
-    if raw is None:
-        return None
-    text = _decode_redis_value(raw)
-    try:
-        return json.loads(text)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        try:
-            return ast.literal_eval(text)
-        except (ValueError, SyntaxError):
-            return text
 
 
 def try_catch_decorator(func: Callable[..., T]) -> Callable[..., Optional[T]]:
@@ -103,15 +84,6 @@ def get_cached_signed_url(blob_path: str) -> str:
     if not signed_url:
         return ''
     return signed_url.decode()
-
-
-def get_cached_user_geolocation(uid: str) -> Optional[Dict[str, Any]]:
-    """Read legacy hosted-listen location residue until S-23 removes finalization storage."""
-    raw = r.get(f'users:{uid}:geolocation')
-    if not raw:
-        return None
-    loaded = _deserialize_cache_value(raw)
-    return cast(Dict[str, Any], loaded) if isinstance(loaded, dict) else None
 
 
 @try_catch_decorator

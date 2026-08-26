@@ -2360,7 +2360,7 @@ extension PushToTalkManager {
           self.voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity,
           self.omniDelegateProxy === delegateProxy
         else { return }
-        let base = DesktopBackendEnvironment.pythonBaseURL()
+        let base = DesktopBackendEnvironment.backendBaseURL()
         let service = RealtimeOmniService(
           provider: provider, relayBaseURL: base, authHeader: authHeader, sttOnly: true,
           delegate: delegateProxy)

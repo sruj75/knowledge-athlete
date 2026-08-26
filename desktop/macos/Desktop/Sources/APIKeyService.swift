@@ -141,9 +141,9 @@ final class APIKeyService: ObservableObject {
   }
 
   /// True when the app has enough configuration to start transcription and screen analysis.
-  /// In proxy mode (OMI_DESKTOP_API_URL set), no client-side Deepgram/Gemini keys are needed.
+  /// In managed mode, a canonical backend URL removes any need for client-side provider keys.
   nonisolated static var keysAvailable: Bool {
-    getenv("GEMINI_API_KEY") != nil || getenv("OMI_DESKTOP_API_URL") != nil
+    getenv("GEMINI_API_KEY") != nil || getenv("OMI_PYTHON_API_URL") != nil
   }
 
 }

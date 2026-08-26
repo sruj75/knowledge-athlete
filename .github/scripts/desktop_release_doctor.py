@@ -212,24 +212,19 @@ def _safe_static_json(bucket: str, name: str) -> dict[str, object]:
     return {key: data[key] for key in allowed if key in data}
 
 
-def _safe_health(service_url: str) -> dict[str, object]:
-    if not service_url:
-        return _unavailable("desktop-backend service URL was unavailable")
+def _safe_backend_contract(base_url: str) -> dict[str, object]:
     try:
-        payload = _http_json(f"{service_url.rstrip('/')}/health")
+        process_health = _http_json(f"{base_url.rstrip('/')}/v1/health")
+        compatibility = _http_json(f"{base_url.rstrip('/')}/")
     except (OSError, ValueError, urllib.error.HTTPError) as error:
         return _unavailable(f"backend health read failed: {type(error).__name__}")
-    if not isinstance(payload, dict):
-        return _unavailable("backend health response was not an object")
-    allowed = (
-        "status",
-        "service",
-        "backend_release_sha",
-        "backend_release_channel",
-        "chat_contract_version",
-        "revision",
-    )
-    return {key: payload[key] for key in allowed if key in payload}
+    if not isinstance(process_health, dict) or not isinstance(compatibility, dict):
+        return _unavailable("backend health responses were not objects")
+    allowed = ("status", "service", "chat_contract_version")
+    return {
+        **{key: compatibility[key] for key in allowed if key in compatibility},
+        "process_status": process_health.get("status"),
+    }
 
 
 def _safe_appcast(url: str) -> dict[str, object]:
@@ -240,9 +235,7 @@ def _safe_appcast(url: str) -> dict[str, object]:
     return {"channels": items}
 
 
-def collect_snapshot(
-    *, release_tag: str, project_id: str, repository: str, bucket: str, service: str, region: str
-) -> dict[str, object]:
+def collect_snapshot(*, release_tag: str, project_id: str, repository: str, bucket: str) -> dict[str, object]:
     """Collect every currently accessible surface without persisting secrets or prose."""
     if not TAG_RE.fullmatch(release_tag):
         raise ValueError("release_tag must use v<version>+<build>-macos form")
@@ -261,19 +254,6 @@ def collect_snapshot(
         )
     )
     access_token = _run("gcloud", "auth", "print-access-token").strip()
-    service_url = _run(
-        "gcloud",
-        "run",
-        "services",
-        "describe",
-        service,
-        "--region",
-        region,
-        "--project",
-        project_id,
-        "--format=value(status.url)",
-        check=False,
-    ).strip()
     match = TAG_RE.fullmatch(release_tag)
     assert match is not None
     legacy_id = f"v{match.group('version')}+{match.group('build')}"
@@ -340,17 +320,16 @@ def collect_snapshot(
             allowed_fields=("version", "build_number", "channel", "is_live"),
         ),
         "appcasts": {
-            "python": _safe_appcast("https://api.omi.me/v2/desktop/appcast.xml?platform=macos"),
-            "rust": _safe_appcast(f"{service_url.rstrip('/')}/appcast.xml?platform=macos"),
+            "canonical": _safe_appcast("https://api.omi.me/v2/desktop/appcast.xml?platform=macos"),
         },
         "static": {
             "beta": _safe_static_json(bucket, "beta/redirect.json"),
             "stable": _safe_static_json(bucket, "stable/latest.json"),
         },
-        "backend": _safe_health(service_url),
+        "backend": _safe_backend_contract("https://api.omi.me"),
         "tracking": {
             "status": "retired",
-            "reason": "independent backend provenance comes from live health identity and deploy evidence",
+            "reason": "canonical deploy evidence owns backend provenance",
         },
         "codemagic": _unavailable("Codemagic API is not yet a release-control dependency"),
         "metrics": {
@@ -376,8 +355,6 @@ def main() -> int:
     doctor.add_argument("--project-id", required=True)
     doctor.add_argument("--repository", default=REPOSITORY)
     doctor.add_argument("--gcs-bucket", required=True)
-    doctor.add_argument("--service", default="desktop-backend")
-    doctor.add_argument("--region", default="us-central1")
     doctor.add_argument("--output", type=Path, required=True)
     doctor.add_argument("--summary", type=Path)
     doctor.add_argument("--snapshot-output", type=Path)
@@ -393,8 +370,6 @@ def main() -> int:
                 project_id=args.project_id,
                 repository=args.repository,
                 bucket=args.gcs_bucket,
-                service=args.service,
-                region=args.region,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as error:
             raise SystemExit(f"FAIL: could not collect desktop release snapshot: {error}") from error

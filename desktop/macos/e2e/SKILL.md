@@ -112,13 +112,13 @@ structured `ChatErrorState` and transcription transport truthfulness) can't be d
 end-to-end. Tasks and goals are local-authoritative and are verified with the bridge flows
 below instead of a fault server. `scripts/omi-fault-inject.sh`
 stands up a local endpoint that fails on purpose; point a **named test bundle** (never
-prod) at it via the documented backend overrides — `OMI_PYTHON_API_URL` (chat / transcription
-relay), `OMI_DESKTOP_API_URL` (Rust backend), `OMI_AUTH_API_URL` (auth):
+prod) at it via the documented overrides — `OMI_PYTHON_API_URL` (canonical data plane),
+`OMI_AUTH_API_URL` (the explicit OAuth callback seam):
 ```bash
 cd desktop/macos
 eval "$(./scripts/omi-fault-inject.sh start error)"      # modes: error | status:CODE | latency | reset | refuse
 OMI_SKIP_BACKEND=1 OMI_SKIP_TUNNEL=1 \
-  OMI_PYTHON_API_URL="$OMI_FAULT_URL" OMI_DESKTOP_API_URL="$OMI_FAULT_URL" \
+  OMI_PYTHON_API_URL="$OMI_FAULT_URL" \
   OMI_APP_NAME="omi-fault" ./run.sh &
 ./scripts/omi-ctl wait-ready
 ./scripts/omi-ctl action ask query="hi"                  # exercise the path; assert a surfaced error, not a crash/silent no-op

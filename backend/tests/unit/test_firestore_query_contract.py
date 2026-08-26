@@ -6,8 +6,7 @@ import pytest
 from google.cloud.firestore_v1 import FieldFilter
 
 from database.firestore_index_registry import (
-    STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
-    STARRED_CHAT_SESSIONS_QUERY,
+    FAIR_USE_FLAGGED_STATES_QUERY,
     firebase_index_manifest,
 )
 from scripts import firestore_query_coverage, generate_firestore_indexes
@@ -22,43 +21,45 @@ class _RecordingQuery:
         return self
 
 
-def test_registered_starred_chat_query_builds_the_real_filter_chain():
+def test_registered_fair_use_query_builds_the_real_filter_chain():
     query = _RecordingQuery()
 
-    built = STARRED_CHAT_SESSIONS_QUERY.build(query, {'starred': True}, field_filter_factory=FieldFilter)
+    built = FAIR_USE_FLAGGED_STATES_QUERY.build(
+        query, {'active_stages': ['warning', 'restricted', 'ban']}, field_filter_factory=FieldFilter
+    )
 
     assert built is query
-    assert query.filters == [('starred', '==', True)]
+    assert query.filters == [('stage', 'in', ['warning', 'restricted', 'ban'])]
 
 
 def test_generated_firestore_manifest_matches_the_checked_in_contract():
     manifest_path = Path(__file__).resolve().parents[3] / 'firestore.indexes.json'
 
     assert manifest_path.read_text(encoding='utf-8') == generate_firestore_indexes.render_manifest()
-    assert {
-        'collectionGroup': 'conversations',
-        'queryScope': 'COLLECTION',
-        'fields': [
-            {'fieldPath': 'status', 'order': 'ASCENDING'},
-            {'fieldPath': 'finished_at', 'order': 'ASCENDING'},
-            {'fieldPath': '__name__', 'order': 'ASCENDING'},
-        ],
-    } in firebase_index_manifest()['indexes']
+    assert firebase_index_manifest()['indexes'] == [
+        {
+            'collectionGroup': 'fair_use_state',
+            'queryScope': 'COLLECTION_GROUP',
+            'fields': [
+                {'fieldPath': 'stage', 'order': 'ASCENDING'},
+                {'fieldPath': 'updated_at', 'order': 'DESCENDING'},
+                {'fieldPath': '__name__', 'order': 'DESCENDING'},
+            ],
+        }
+    ]
 
 
 @pytest.mark.slow
 def test_query_inventory_registers_the_migrated_query_shapes():
     report = firestore_query_coverage.report_for(firestore_query_coverage.inventory(waiver_ids=set()))
 
-    for spec in (
-        STALE_IN_PROGRESS_CONVERSATIONS_QUERY,
-        STARRED_CHAT_SESSIONS_QUERY,
-    ):
-        matching = [query for query in report['queries'] if query['registered_spec'] == spec.identifier]
-        assert len(matching) == 1
-        assert matching[0]['classification'] == 'registered'
-        assert matching[0]['collection_group'] == spec.collection_group
-    assert report['counts']['serving']['registered'] >= 2
+    matching = [
+        query for query in report['queries'] if query['registered_spec'] == FAIR_USE_FLAGGED_STATES_QUERY.identifier
+    ]
+    assert len(matching) == 1
+    assert matching[0]['classification'] == 'registered'
+    assert matching[0]['collection_group'] == FAIR_USE_FLAGGED_STATES_QUERY.collection_group
+    assert report['counts']['serving']['registered'] == 1
 
 
 def test_inventory_finds_a_direct_compound_chain_wrapped_by_list():

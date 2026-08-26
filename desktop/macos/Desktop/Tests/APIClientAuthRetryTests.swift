@@ -360,10 +360,10 @@ import XCTest
           }
           """
       )
-      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
+      setenv("OMI_PYTHON_API_URL", "http://canonical-test:9002", 1)
       setenv("FIREBASE_API_KEY", "test-key", 1)
       defer {
-        unsetenv("OMI_DESKTOP_API_URL")
+        unsetenv("OMI_PYTHON_API_URL")
         unsetenv("FIREBASE_API_KEY")
       }
 
@@ -445,10 +445,10 @@ import XCTest
           }
           """
       )
-      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
+      setenv("OMI_PYTHON_API_URL", "http://canonical-test:9002", 1)
       setenv("FIREBASE_API_KEY", "test-key", 1)
       defer {
-        unsetenv("OMI_DESKTOP_API_URL")
+        unsetenv("OMI_PYTHON_API_URL")
         unsetenv("FIREBASE_API_KEY")
       }
 
@@ -478,10 +478,10 @@ import XCTest
 
     func testTTSBare401DoesNotRemapToProviderAuth() async throws {
       AuthRetryURLStub.returnUnauthorizedForEveryAttempt(body: "{\"error\":\"Unauthorized\"}")
-      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
+      setenv("OMI_PYTHON_API_URL", "http://canonical-test:9002", 1)
       setenv("FIREBASE_API_KEY", "test-key", 1)
       defer {
-        unsetenv("OMI_DESKTOP_API_URL")
+        unsetenv("OMI_PYTHON_API_URL")
         unsetenv("FIREBASE_API_KEY")
       }
 
@@ -554,8 +554,8 @@ import XCTest
           }
           """
       )
-      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
-      defer { unsetenv("OMI_DESKTOP_API_URL") }
+      setenv("OMI_PYTHON_API_URL", "http://canonical-test:9002", 1)
+      defer { unsetenv("OMI_PYTHON_API_URL") }
 
       let config = URLSessionConfiguration.ephemeral
       config.protocolClasses = [AuthRetryURLStub.self]
@@ -576,8 +576,8 @@ import XCTest
 
     func testTTSLocal429RemainsBackendRateLimitFailure() async throws {
       AuthRetryURLStub.returnStatus(429, body: "{\"error\":\"TTS burst rate limit exceeded\"}")
-      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
-      defer { unsetenv("OMI_DESKTOP_API_URL") }
+      setenv("OMI_PYTHON_API_URL", "http://canonical-test:9002", 1)
+      defer { unsetenv("OMI_PYTHON_API_URL") }
 
       let config = URLSessionConfiguration.ephemeral
       config.protocolClasses = [AuthRetryURLStub.self]

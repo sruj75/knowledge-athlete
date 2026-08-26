@@ -2,7 +2,7 @@ name: Promote Qualified Desktop Stable
 
 # Stable is a protected distribution pointer, not a backend deployment. It
 # promotes the exact signed artifact already qualified on beta; the existing
-# backend deployment workflows remain independent.
+# canonical backend deployment remains independent.
 on:
   workflow_dispatch:
     inputs:
@@ -38,18 +38,22 @@ jobs:
           ref: ${{ inputs.release_tag }}
           fetch-depth: 0
 
-      - name: Verify live desktop-backend chat compatibility
+      - name: Verify live canonical backend chat compatibility
         run: |
           set -euo pipefail
           curl -fsS --max-time 15 \
-            https://desktop-backend-hhibjajaja-uc.a.run.app/health \
-            > /tmp/desktop-backend-health.json
+            https://api.omi.me/v1/health \
+            > /tmp/backend-process-health.json
+          jq -e '.status == "ok"' /tmp/backend-process-health.json >/dev/null
+          curl -fsS --max-time 15 \
+            https://api.omi.me/ \
+            > /tmp/backend-compatibility.json
           jq -e '
             .status == "healthy"
-            and .service == "omi-desktop-backend"
+            and .service == "omi-backend"
             and .chat_contract_version == "1"
-          ' /tmp/desktop-backend-health.json >/dev/null
-          rm -f /tmp/desktop-backend-health.json
+          ' /tmp/backend-compatibility.json >/dev/null
+          rm -f /tmp/backend-process-health.json /tmp/backend-compatibility.json
 
       - name: Generate Omi Bot token
         id: app-token
@@ -183,7 +187,7 @@ jobs:
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
-          SERVICE_URL=$(gcloud run services describe desktop-backend --region us-central1 --project "$PROJECT_ID" --format='value(status.url)')
+          SERVICE_URL=https://api.omi.me
           RELEASE_SECRET=$(gcloud secrets versions access latest --secret=RELEASE_SECRET --project "$PROJECT_ID")
           python3 - <<'PY' > /tmp/legacy-desktop-release.json
           import json

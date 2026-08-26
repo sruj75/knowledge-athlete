@@ -13,7 +13,9 @@ REQUIRED = (
     "confirm:",
     "promote-stable",
     "environment: prod",
-    "Verify live desktop-backend chat compatibility",
+    "Verify live canonical backend chat compatibility",
+    'https://api.omi.me/v1/health',
+    '.status == "ok"',
     '.chat_contract_version == "1"',
     "Select and validate the exact trusted qualification",
     "Fetch exact retained qualified manifest",
@@ -38,7 +40,7 @@ REQUIRED = (
 )
 
 ORDERED_STEPS = (
-    "Verify live desktop-backend chat compatibility",
+    "Verify live canonical backend chat compatibility",
     "Select and validate the exact trusted qualification",
     "Fetch exact retained qualified manifest",
     "Read current pointers and capture workflow-owned CAS inputs",
@@ -59,7 +61,9 @@ def validate(text: str) -> list[str]:
         errors.append("stable pointer promotion must remain manual-only")
     order = [text.find(fragment) for fragment in ORDERED_STEPS]
     if -1 in order or order != sorted(order):
-        errors.append("stable promotion must fetch and verify retained identity before pointer mutation, then bridge and verify")
+        errors.append(
+            "stable promotion must fetch and verify retained identity before pointer mutation, then bridge and verify"
+        )
     return errors
 
 

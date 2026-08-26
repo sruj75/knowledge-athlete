@@ -42,14 +42,6 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: GET
-    path: /health
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: GET
-    path: /ready
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: GET
     path: /updates/latest
     policy: *desktop_migration_policy
   - route_type: http

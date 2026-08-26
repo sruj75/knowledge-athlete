@@ -10,7 +10,6 @@ omi_write_local_profile_env() {
     : > "$env_file"
     {
         printf '%s\n' "OMI_DESKTOP_LOCAL_PROFILE=1"
-        printf '%s\n' "OMI_DESKTOP_API_URL=${OMI_DESKTOP_API_URL:-}"
         printf '%s\n' "OMI_PYTHON_API_URL=${OMI_PYTHON_API_URL:-}"
         printf '%s\n' "OMI_LOCAL_PROFILE_STORAGE_NAME=${OMI_LOCAL_PROFILE_STORAGE_NAME:-Omi}"
         printf '%s\n' "OMI_LOCAL_AUTH_USER=${OMI_LOCAL_AUTH_USER:-}"

@@ -33,6 +33,22 @@ def test_candidate_guard_rejects_missing_exact_tag_intake_observer(monkeypatch):
     assert any("check-codemagic-tag-intake.py" in error for error in errors)
 
 
+def test_preview_guard_rejects_a_second_backend_url(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_dual_url(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == ".github/workflows/desktop_publish_preview.yml":
+            return text + "\ndesktop_api_url:\n"
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_dual_url)
+
+    errors = GUARDS.check_desktop_preview_controls()
+
+    assert any("retired dual-backend field: desktop_api_url" in error for error in errors)
+
+
 def test_guard_has_no_live_provider_document_read():
     """Static ownership tripwire; the real CLI test above is behavioral."""
     source = SCRIPT.read_text(encoding="utf-8")

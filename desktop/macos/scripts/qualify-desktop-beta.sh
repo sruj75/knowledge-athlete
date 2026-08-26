@@ -824,7 +824,7 @@ rm -f "$LAUNCH_SIGNAL_FILE"
 
 DESKTOP_LAUNCH_REQUESTED=1
 # Run dev-up first in its own tracked subshell so the dev stack (backend,
-# desktop-backend, firestore, redis) stays alive even if the
+# canonical backend, Firestore, and Redis) stays alive even if the
 # subsequent desktop app launch fails.  Previously both commands shared one
 # subshell; set -e caused the subshell to exit on desktop-run-local (or any
 # post-dev-up) failure, which triggered the EXIT trap → cleanup → dev-down

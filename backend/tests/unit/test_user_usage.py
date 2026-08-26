@@ -1,6 +1,6 @@
 """Unit tests for get_monthly_chat_usage — the freemium chat-question quota source.
 
-Regression coverage for the nested-vs-flat bug: the Rust desktop-backend commits
+Regression coverage for the nested-vs-flat bug: legacy writers committed
 desktop_chat usage via dotted Firestore fieldPaths, which Firestore materializes as a
 NESTED map ({desktop_chat: {call_count, ...}}), whereas the Python backend writes flat
 dotted keys ("chat.<model>.call_count"). The reader must count both, count the

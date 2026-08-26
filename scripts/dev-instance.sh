@@ -2,7 +2,7 @@
 # Per-worktree dev isolation — source this (don't execute it).
 #
 # Multiple agents/worktrees building the macOS app used to collide: they all grabbed
-# the same ports (Python 8080, Rust 10201, automation 47777), the same bundle name
+# the same ports (backend 8080, automation 47777), the same bundle name
 # ("Omi Dev"), and run.sh killed *every* backend by process name. This derives a
 # stable, unique "instance" from the current git worktree so each one gets its own
 # ports, its own bundle, and its own pidfile — zero cross-talk, automatically.
@@ -11,8 +11,7 @@
 #
 # Exports (an explicit override always wins — set any of these to opt out):
 #   OMI_INSTANCE      stable id (git worktree basename)
-#   RUST_PORT         desktop backend port        (10201 + offset)
-#   PYTHON_PORT       local Python backend port   (8080  + offset)
+#   PYTHON_PORT       local backend port          (8080  + offset)
 #   AUTOMATION_PORT   in-app automation bridge     (47777 + offset)
 #   OMI_APP_NAME      named bundle                 (omi-<instance>)
 #   OMI_DEV_DIR       per-instance pidfile/scratch dir (<worktree>/.dev)
@@ -44,11 +43,10 @@ else
   : "${OMI_APP_NAME:=Omi Dev}"
 fi
 
-: "${RUST_PORT:=$((10201 + _omi_off))}"
 : "${PYTHON_PORT:=$((8080 + _omi_off))}"
 : "${AUTOMATION_PORT:=${OMI_AUTOMATION_PORT:-$((47777 + _omi_off))}}"
 
 OMI_DEV_DIR="$_omi_wt/.dev"
 mkdir -p "$OMI_DEV_DIR" 2>/dev/null || true
 
-export OMI_INSTANCE RUST_PORT PYTHON_PORT AUTOMATION_PORT OMI_APP_NAME OMI_DEV_DIR
+export OMI_INSTANCE PYTHON_PORT AUTOMATION_PORT OMI_APP_NAME OMI_DEV_DIR

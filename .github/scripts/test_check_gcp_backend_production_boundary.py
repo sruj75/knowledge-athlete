@@ -58,10 +58,11 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
                 "          service: ${{ env.SERVICE }}\n",
                 "          service: backend-sync\n",
             ),
-            "reintroduces_tagged_url": (
-                "Production has no tagged candidate URL",
-                "Production has no tagged candidate URL\n# resolve_cloud_run_tagged_url.py",
+            "omits_no_traffic_candidate_tag": (
+                "--tag=${{ env.CANDIDATE_TAG }}",
+                "--no-candidate-tag",
             ),
+            "moves_candidate_probe_after_traffic": (CHECKER.CANDIDATE_PROBE, "Post-traffic candidate chat probe"),
             "moves_smoke_before_serving_verification": (CHECKER.PROD_SMOKE, "Smoke production candidate API"),
             "omits_schema_valid_unauthenticated_smoke": (
                 "schema-valid inert tag reaches the authorization wall",

@@ -92,7 +92,7 @@ extension APIClient {
   }
 
   func fetchApiKeys() async throws -> ApiKeysResponse {
-    return try await get("v1/config/api-keys", customBaseURL: rustBackendURL)
+    return try await get("v1/config/api-keys")
   }
 
   struct TtsSynthesizeRequest: Encodable {
@@ -108,7 +108,7 @@ extension APIClient {
   }
 
   func synthesizeSpeech(request body: TtsSynthesizeRequest) async throws -> Data {
-    let base = rustBackendURL
+    let base = baseURL
     guard !base.isEmpty, let url = URL(string: base + "v1/tts/synthesize") else {
       throw APIError.invalidResponse
     }
@@ -118,7 +118,7 @@ extension APIClient {
     request.allHTTPHeaderFields = try await buildHeaders()
     request.httpBody = try JSONEncoder().encode(body)
 
-    // This desktop-backend route identifies managed upstream failures with the
+    // This canonical backend route identifies managed upstream failures with the
     // same typed provider boundary as realtime minting. The shared transport
     // inspects that shape before a Firebase refresh so provider credentials can
     // never invalidate the account session.

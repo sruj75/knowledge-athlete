@@ -1,4 +1,4 @@
-"""Round-trip tests for Redis cache serialization helpers in database/redis_db.py."""
+"""Behavioral coverage for the retained generic Redis cache surface."""
 
 from __future__ import annotations
 
@@ -33,6 +33,15 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> _FakeRedis:
     return client
 
 
-def test_geolocation_legacy_literal_round_trip(fake_redis: _FakeRedis) -> None:
-    fake_redis._store["users:uid-legacy:geolocation"] = b"{'lat': 1.0, 'lng': 2.0}"
-    assert redis_db.get_cached_user_geolocation("uid-legacy") == {"lat": 1.0, "lng": 2.0}
+def test_generic_cache_json_round_trip(fake_redis: _FakeRedis) -> None:
+    value = {"segments": [{"start": 1.0, "end": 2.0}]}
+
+    redis_db.set_generic_cache("vad/example", value, ttl=60)
+
+    assert redis_db.get_generic_cache("vad/example") == value
+
+
+def test_retired_geolocation_cache_is_not_part_of_the_redis_surface() -> None:
+    # Static public-surface tripwire: S-23 removed the only production owner of
+    # this legacy namespace, so S-26 must not retain an unowned reader.
+    assert not hasattr(redis_db, "get_cached_user_geolocation")

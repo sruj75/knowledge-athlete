@@ -105,9 +105,7 @@ def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]
     if service == "auth":
         return _http_ok(f"http://{cfg.auth_host}/")
     if service == "backend":
-        return _http_ok(f"{cfg.backend_url}/docs")
-    if service == "desktop-backend":
-        return _http_ok(f"{cfg.desktop_backend_url}/health")
+        return _http_ok(f"{cfg.backend_url}/v1/health")
     return False, f"unknown service {service!r}"
 
 
@@ -218,7 +216,6 @@ def print_config(cfg: config.HarnessConfig) -> None:
     print(f"firebase_auth_emulator: {cfg.auth_host}")
     print(f"redis: {cfg.redis_host}:{cfg.redis_port}")
     print(f"backend: {cfg.backend_url}")
-    print(f"desktop_backend: {cfg.desktop_backend_url}")
 
 
 def print_provider_status(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
@@ -263,7 +260,6 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "firebase_auth": cfg.auth_host,
         "redis": f"{cfg.redis_host}:{cfg.redis_port}",
         "backend": cfg.backend_url,
-        "desktop_backend": cfg.desktop_backend_url,
     }
     return {
         "schema_version": 1,
@@ -495,7 +491,7 @@ def _uvicorn_app_command(
 
 
 def _start_app_services(cfg: config.HarnessConfig) -> None:
-    """Start backend and desktop-backend after infrastructure is settling."""
+    """Start the canonical backend after infrastructure is settling."""
     _start_process(
         cfg,
         "backend",
@@ -508,20 +504,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
         cwd=cfg.repo_root / "backend",
         log_name="backend.log",
         port=cfg.backend_port,
-    )
-    _start_process(
-        cfg,
-        "desktop-backend",
-        _uvicorn_app_command(
-            cfg,
-            app_target="desktop_backend:app",
-            offline_app_target="testing.e2e.offline_desktop_backend_app:app",
-            port=cfg.desktop_backend_port,
-        ),
-        cwd=cfg.repo_root / "backend",
-        log_name="desktop-backend.log",
-        port=cfg.desktop_backend_port,
-        env=config.desktop_backend_child_env_for(cfg),
+        env=config.child_env_for(cfg),
     )
 
 
@@ -543,7 +526,6 @@ _HEALTH_TIMEOUTS: dict[str, float] = {
     "firestore": 45.0,
     "auth": 45.0,
     "backend": 90.0,
-    "desktop-backend": 60.0,
     "redis": 30.0,
 }
 
@@ -563,8 +545,7 @@ def _wait_health(
     checks = {
         "firestore": (f"http://{cfg.firestore_host}/", None),
         "auth": (f"http://{cfg.auth_host}/", None),
-        "backend": (f"{cfg.backend_url}/docs", None),
-        "desktop-backend": (f"{cfg.desktop_backend_url}/health", None),
+        "backend": (f"{cfg.backend_url}/v1/health", None),
         "redis": (None, None),  # port-based check
     }
     pending = dict(checks)
@@ -606,14 +587,13 @@ def _wait_health(
             ok, detail = _http_ok(url, headers=headers)
             if ok:
                 print(f"{service}: healthy ({detail})")
+                failures.pop(service, None)
                 pending.pop(service)
             else:
                 failures[service] = detail
         if pending:
             time.sleep(0.75)
-    for service, (url, _) in pending.items():
-        failures.setdefault(service, f"not healthy at {url}")
-    return [f"{service}: {failures.get(service, 'unknown failure')}" for service in pending] if failures else []
+    return [f"{service}: {failures[service]}" for service in sorted(failures)]
 
 
 def cmd_up(args: argparse.Namespace) -> int:
@@ -655,7 +635,6 @@ def cmd_up(args: argparse.Namespace) -> int:
                 "auth": cfg.auth_host,
                 "redis": f"{cfg.redis_host}:{cfg.redis_port}",
                 "backend": cfg.backend_url,
-                "desktop_backend": cfg.desktop_backend_url,
             },
         },
     )

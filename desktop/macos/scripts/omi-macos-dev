@@ -337,8 +337,7 @@ def automation_health(port: object) -> dict[str, Any]:
         return {"status": "unavailable", "reason": exc.__class__.__name__}
     return {
         "status": "ok",
-        "desktop_backend_url": payload.get("rustBackendURL"),
-        "python_backend_url": payload.get("pythonBackendURL"),
+        "backend_url": payload.get("backendURL"),
         "backend_environment": payload.get("backendEnvironment"),
     }
 

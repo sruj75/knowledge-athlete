@@ -46,7 +46,7 @@ class DevFeedbackTests(unittest.TestCase):
         (backend_root / "routers").mkdir(parents=True)
         (backend_root / "database").mkdir()
         (backend_root / "utils").mkdir()
-        (backend_root / "desktop_backend.py").write_text("app = None\n")
+        (backend_root / "main.py").write_text("app = None\n")
         (backend_root / "requirements.txt").write_text("\n")
         (backend_root / "pylock.toml").write_text("\n")
 
