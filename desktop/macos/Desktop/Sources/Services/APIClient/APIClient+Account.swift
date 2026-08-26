@@ -128,7 +128,7 @@ extension APIClient {
     )
 
     let payload = OmiHTTPTransport.extractErrorPayload(from: data)
-    if payload?.reason == "provider_auth_failed",
+    if payload?.managedProviderFailureReason == .authFailed,
       payload?.provider == "openai",
       payload?.upstreamStatusCode == httpResponse.statusCode
     {
@@ -147,7 +147,7 @@ extension APIClient {
       throw APIError.unauthorized
     }
 
-    if payload?.reason == "provider_quota_exceeded",
+    if payload?.managedProviderFailureReason == .quotaExceeded,
       payload?.provider == "openai",
       payload?.upstreamStatusCode == httpResponse.statusCode
     {

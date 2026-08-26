@@ -484,7 +484,7 @@ actor APIClient {
     guard statusCode == 401, let payload = OmiHTTPTransport.extractErrorPayload(from: data) else {
       return false
     }
-    if payload.reason == "provider_auth_failed",
+    if payload.managedProviderFailureReason == .authFailed,
       payload.provider != nil,
       payload.upstreamStatusCode == 401
     {

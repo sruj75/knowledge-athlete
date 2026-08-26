@@ -4,6 +4,11 @@ enum CredentialAuthMode: String, Equatable {
   case managed
 }
 
+enum ManagedProviderFailureReason: String, Equatable {
+  case authFailed = "provider_auth_failed"
+  case quotaExceeded = "provider_quota_exceeded"
+}
+
 enum CredentialFailureClass: Equatable {
   case backendUnauthorized
   case requiresLogin
@@ -196,7 +201,7 @@ final class CredentialHealthManager: ObservableObject {
     provider: RealtimeHubProvider?
   ) -> CredentialHealthError {
     let message = payload?.preferredMessage ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
-    if payload?.reason == "provider_auth_failed", let provider {
+    if payload?.managedProviderFailureReason == .authFailed, let provider {
       return .providerAuth(provider: provider, mode: .managed, message: message)
     }
     switch statusCode {
@@ -279,5 +284,9 @@ struct APIErrorPayload: Decodable, Equatable {
 
   var preferredMessage: String? {
     detail ?? message ?? error ?? code
+  }
+
+  var managedProviderFailureReason: ManagedProviderFailureReason? {
+    reason.flatMap(ManagedProviderFailureReason.init(rawValue:))
   }
 }
