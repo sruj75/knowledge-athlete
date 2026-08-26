@@ -58,11 +58,6 @@ final class DesktopStorageIdentityTests: XCTestCase {
     }
   }
 
-  func testIsolatedStorageNeverMigratesTheSharedLegacyRoot() {
-    XCTAssertFalse(RewindDatabase.shouldMigrateLegacyStorage(isolatedStorage: true))
-    XCTAssertTrue(RewindDatabase.shouldMigrateLegacyStorage(isolatedStorage: false))
-  }
-
   func testBetaProductionIdentityOwnsAnIsolatedRoot() {
     let beta = DesktopStorageIdentity(
       bundleIdentifier: DesktopStorageIdentity.betaProductionBundleIdentifier,

@@ -3,10 +3,112 @@ import Foundation
 import OmiSupport
 import os
 
+struct RewindDatabaseFileSystem: @unchecked Sendable {
+  enum Operation: String, Sendable {
+    case attributes
+    case copy
+    case createDirectory
+    case createFile
+    case exists
+    case list
+    case move
+    case read
+    case remove
+    case write
+  }
+
+  private let manager: FileManager
+  private let observer: @Sendable (Operation, String) -> Void
+
+  init(
+    manager: FileManager = .default,
+    observer: @escaping @Sendable (Operation, String) -> Void = { _, _ in }
+  ) {
+    self.manager = manager
+    self.observer = observer
+  }
+
+  func record(_ operation: Operation, path: String) {
+    observer(operation, path)
+  }
+
+  func createDirectory(at url: URL, withIntermediateDirectories: Bool) throws {
+    observer(.createDirectory, url.path)
+    try manager.createDirectory(at: url, withIntermediateDirectories: withIntermediateDirectories)
+  }
+
+  func fileExists(atPath path: String) -> Bool {
+    observer(.exists, path)
+    return manager.fileExists(atPath: path)
+  }
+
+  @discardableResult
+  func createFile(atPath path: String, contents: Data?) -> Bool {
+    observer(.createFile, path)
+    return manager.createFile(atPath: path, contents: contents)
+  }
+
+  func removeItem(atPath path: String) throws {
+    observer(.remove, path)
+    try manager.removeItem(atPath: path)
+  }
+
+  func removeItem(at url: URL) throws {
+    observer(.remove, url.path)
+    try manager.removeItem(at: url)
+  }
+
+  func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+    observer(.attributes, path)
+    return try manager.attributesOfItem(atPath: path)
+  }
+
+  func copyItem(atPath sourcePath: String, toPath destinationPath: String) throws {
+    observer(.copy, sourcePath)
+    observer(.copy, destinationPath)
+    try manager.copyItem(atPath: sourcePath, toPath: destinationPath)
+  }
+
+  func moveItem(atPath sourcePath: String, toPath destinationPath: String) throws {
+    observer(.move, sourcePath)
+    observer(.move, destinationPath)
+    try manager.moveItem(atPath: sourcePath, toPath: destinationPath)
+  }
+
+  func contentsOfDirectory(
+    at url: URL,
+    includingPropertiesForKeys keys: [URLResourceKey]?,
+    options mask: FileManager.DirectoryEnumerationOptions
+  ) throws -> [URL] {
+    observer(.list, url.path)
+    return try manager.contentsOfDirectory(
+      at: url,
+      includingPropertiesForKeys: keys,
+      options: mask)
+  }
+}
+
+struct RewindDatabaseStorageLocation: Sendable {
+  let applicationSupportDirectoryURL: URL
+  let productPathComponents: [String]
+
+  var productRootURL: URL {
+    productPathComponents.reduce(applicationSupportDirectoryURL) {
+      $0.appendingPathComponent($1, isDirectory: true)
+    }
+  }
+}
+
 /// Actor-based database manager for Rewind screenshots
 actor RewindDatabase {
   static let shared = RewindDatabase()
   private static let terminationStateLock = OSAllocatedUnfairLock<Bool>(initialState: false)
+
+  /// The system Application Support directory and product-relative components
+  /// are injectable together, so tests can place both the selected product root
+  /// and a synthetic foreign sibling behind the same observable boundary.
+  private let storageLocation: RewindDatabaseStorageLocation?
+  private let fileSystem: RewindDatabaseFileSystem
 
   nonisolated static var isTerminationInProgress: Bool {
     terminationStateLock.withLock { $0 }
@@ -57,7 +159,13 @@ actor RewindDatabase {
 
   // MARK: - Initialization
 
-  private init() {}
+  init(
+    storageLocation: RewindDatabaseStorageLocation? = nil,
+    fileSystem: RewindDatabaseFileSystem = RewindDatabaseFileSystem()
+  ) {
+    self.storageLocation = storageLocation
+    self.fileSystem = fileSystem
+  }
 
   /// Whether the database has been successfully initialized
   var isInitialized: Bool { dbQueue != nil }
@@ -160,7 +268,7 @@ actor RewindDatabase {
     // Close before file-level recovery so SQLite releases handles/WAL state.
     close()
 
-    guard FileManager.default.fileExists(atPath: dbPath) else { return }
+    guard fileSystem.fileExists(atPath: dbPath) else { return }
     do {
       try await handleCorruptedDatabase(at: dbPath, in: omiDir, triggerError: error)
       try await initialize()
@@ -319,7 +427,7 @@ actor RewindDatabase {
   /// Close the database, allowing re-initialization for a different user.
   func close() {
     if let runningFlagPath {
-      try? FileManager.default.removeItem(atPath: runningFlagPath)
+      try? fileSystem.removeItem(atPath: runningFlagPath)
     }
     if let dbQueue {
       do {
@@ -358,7 +466,9 @@ actor RewindDatabase {
 
   private func userBaseDirectory(for userId: String? = nil) -> URL {
     let userId = userId ?? targetUserId()
-    return DesktopLocalProfile.applicationSupportURL()
+    let productRoot = storageLocation?.productRootURL ?? DesktopLocalProfile.applicationSupportURL()
+    return
+      productRoot
       .appendingPathComponent("users", isDirectory: true)
       .appendingPathComponent(userId, isDirectory: true)
   }
@@ -385,7 +495,7 @@ actor RewindDatabase {
   /// Check if the previous session ended with an unclean shutdown (crash, force quit, etc.)
   func hadUncleanShutdown() -> Bool {
     let flagPath = userBaseDirectory().appendingPathComponent(".omi_running").path
-    return FileManager.default.fileExists(atPath: flagPath)
+    return fileSystem.fileExists(atPath: flagPath)
   }
 
   /// Initialize the database with migrations.
@@ -456,25 +566,24 @@ actor RewindDatabase {
     let omiDir = userBaseDirectory(for: expectedUserId)
 
     // Create directory if needed (withIntermediateDirectories creates parents too)
-    try FileManager.default.createDirectory(at: omiDir, withIntermediateDirectories: true)
-
-    // Migrate data from legacy path if this is first launch with per-user paths
-    migrateFromLegacyPathIfNeeded(to: omiDir)
+    try fileSystem.createDirectory(at: omiDir, withIntermediateDirectories: true)
 
     let dbPath = omiDir.appendingPathComponent("omi.db").path
     let flagPath = omiDir.appendingPathComponent(".omi_running").path
     runningFlagPath = flagPath
     log("RewindDatabase: Opening database at \(dbPath)")
+    fileSystem.record(.read, path: dbPath)
+    fileSystem.record(.write, path: dbPath)
 
     // Detect unclean shutdown: if the running flag file exists, the previous launch
     // didn't exit cleanly (crash, force quit, power loss)
-    let previousCrashed = FileManager.default.fileExists(atPath: flagPath)
+    let previousCrashed = fileSystem.fileExists(atPath: flagPath)
     if previousCrashed {
       log("RewindDatabase: Unclean shutdown detected (running flag exists)")
     }
 
     // Clean up stale WAL files that can cause disk I/O errors (SQLite error 10)
-    if FileManager.default.fileExists(atPath: dbPath) {
+    if fileSystem.fileExists(atPath: dbPath) {
       cleanupStaleWALFiles(at: dbPath)
     }
 
@@ -525,7 +634,7 @@ actor RewindDatabase {
           isCorrupted = "\(retryError)".contains("malformed")
         }
 
-        if isCorrupted && FileManager.default.fileExists(atPath: dbPath) {
+        if isCorrupted && fileSystem.fileExists(atPath: dbPath) {
           log("RewindDatabase: Database is corrupted (error: \(retryError)), attempting recovery...")
           try await handleCorruptedDatabase(at: dbPath, in: omiDir, triggerError: retryError)
           // Retry with recovered or fresh database
@@ -595,181 +704,9 @@ actor RewindDatabase {
     }
 
     // Set running flag — will be cleared on clean shutdown
-    FileManager.default.createFile(atPath: flagPath, contents: nil)
+    fileSystem.createFile(atPath: flagPath, contents: nil)
 
     log("RewindDatabase: Initialized successfully")
-  }
-
-  // MARK: - Legacy Migration
-
-  /// Migrate data from the legacy shared path (Omi/) or from the anonymous fallback
-  /// (Omi/users/anonymous/) to the per-user path (Omi/users/{userId}/).
-  /// Handles both first-time migration (DB move) and partial re-runs (directory merges).
-  /// Fold a directory's `omi.db-wal` into its `omi.db` so committed-but-
-  /// uncheckpointed writes survive the migration cleanup that deletes WAL/SHM.
-  /// Returns `true` when there is nothing to checkpoint or the checkpoint
-  /// succeeded, and `false` when a non-empty WAL exists but could not be
-  /// checkpointed — the caller MUST abort (not delete the WAL) in that case to
-  /// avoid a silent rollback / data loss.
-  private func checkpointWALBeforeMigration(in dir: URL, label: String, fileManager: FileManager) -> Bool {
-    let db = dir.appendingPathComponent("omi.db")
-    let wal = dir.appendingPathComponent("omi.db-wal")
-    guard fileManager.fileExists(atPath: db.path),
-      fileManager.fileExists(atPath: wal.path)
-    else {
-      return true  // no WAL to fold in — nothing can be lost by the cleanup loop
-    }
-    do {
-      let pool = try DatabasePool(path: db.path, configuration: Configuration())
-      try pool.write { db in
-        try db.execute(sql: "PRAGMA wal_checkpoint(TRUNCATE)")
-      }
-      try pool.close()
-      log("RewindDatabase: Checkpointed WAL at \(label) before migration")
-      return true
-    } catch {
-      log(
-        "RewindDatabase: \(label) WAL checkpoint failed, aborting migration to avoid data loss: \(error.localizedDescription)"
-      )
-      return false
-    }
-  }
-
-  private func migrateFromLegacyPathIfNeeded(to userDir: URL) {
-    // The legacy `Omi` root is shared historical state. A named bundle that
-    // now has an identity-derived profile must never claim it: the first
-    // bundle to launch would otherwise move data belonging to Omi/Omi Dev
-    // or another old named bundle into its isolated root.
-    guard Self.shouldMigrateLegacyStorage(isolatedStorage: DesktopLocalProfile.usesIsolatedStorage) else { return }
-    let fileManager = FileManager.default
-    let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    let omiDir = appSupport.appendingPathComponent("Omi", isDirectory: true)
-
-    // Determine migration source: prefer legacy root (Omi/omi.db), fall back to anonymous dir.
-    // The anonymous fallback covers the case where another early caller
-    // triggered initialize() before configure(userId:) was called, causing data to land
-    // in users/anonymous/ instead of the real user's directory.
-    let legacyDB = omiDir.appendingPathComponent("omi.db")
-    let anonymousDir =
-      omiDir
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent("anonymous", isDirectory: true)
-
-    let effectiveUserId = targetUserId()
-    let sourceDir: URL
-    if fileManager.fileExists(atPath: legacyDB.path) {
-      sourceDir = omiDir
-    } else if effectiveUserId != "anonymous",
-      fileManager.fileExists(atPath: anonymousDir.path)
-    {
-      // Check if anonymous dir has anything worth migrating (DB, Videos, Screenshots, backups)
-      let hasContent = ["omi.db", "Screenshots", "Videos", "backups"].contains {
-        fileManager.fileExists(atPath: anonymousDir.appendingPathComponent($0).path)
-      }
-      guard hasContent else { return }
-      sourceDir = anonymousDir
-    } else {
-      return  // Nothing to migrate
-    }
-
-    // Don't migrate to ourselves
-    guard sourceDir.path != userDir.path else { return }
-
-    log("RewindDatabase: Migrating data from \(sourceDir.path) to \(userDir.path)")
-
-    // Items to migrate: omi.db, Screenshots/, Videos/, backups/
-    // IMPORTANT: Do NOT move omi.db-wal, omi.db-shm, or .omi_running:
-    //   - WAL/SHM files are path-bound. Moving them to a new directory makes them
-    //     invalid, causing SQLITE_IOERR_CORRUPTFS (error 6922) on the next open.
-    //     SQLite will cleanly recover without stale WAL files.
-    //   - .omi_running would falsely trigger unclean-shutdown recovery at the
-    //     destination, running an expensive integrity check on the migrated DB.
-    let itemsToMove = [
-      "omi.db", "Screenshots", "Videos", "backups",
-    ]
-
-    // Fold each directory's WAL into its omi.db BEFORE the cleanup loop below
-    // deletes the path-bound WAL/SHM. An unclean prior shutdown leaves a
-    // non-empty WAL holding committed-but-uncheckpointed transactions (a clean
-    // close checkpoints and removes it); deleting that WAL outright would roll
-    // the DB back to its last checkpoint and silently drop up to
-    // wal_autocheckpoint (1000 pages, ~4MB) of recent writes:
-    //   - dest WAL: recent writes saved during onboarding before the permission restart.
-    //   - source WAL: the legacy data being migrated.
-    // If a checkpoint FAILS, those writes are still only in the WAL, so we must
-    // NOT proceed to delete it — abort the whole migration and leave source +
-    // dest intact. initialize() retries migration on the next launch, once the
-    // transient cause (locked DB, momentary IO error) has likely cleared.
-    guard checkpointWALBeforeMigration(in: userDir, label: "dest", fileManager: fileManager) else { return }
-    guard checkpointWALBeforeMigration(in: sourceDir, label: "source", fileManager: fileManager) else { return }
-
-    // Delete WAL/SHM and running flag at source AND destination — do NOT migrate them.
-    // Stale WAL/SHM at the destination (from a prior partial migration or crash) would
-    // also cause SQLITE_IOERR_CORRUPTFS when SQLite opens the migrated DB.
-    for staleFile in ["omi.db-wal", "omi.db-shm", ".omi_running"] {
-      for dir in [sourceDir, userDir] {
-        let path = dir.appendingPathComponent(staleFile)
-        if fileManager.fileExists(atPath: path.path) {
-          try? fileManager.removeItem(at: path)
-          let label = dir == sourceDir ? "source" : "dest"
-          log("RewindDatabase: Deleted \(staleFile) from \(label) (not migrating)")
-        }
-      }
-    }
-
-    for name in itemsToMove {
-      let source = sourceDir.appendingPathComponent(name)
-      let dest = userDir.appendingPathComponent(name)
-      guard fileManager.fileExists(atPath: source.path) else { continue }
-
-      var isDir: ObjCBool = false
-      fileManager.fileExists(atPath: source.path, isDirectory: &isDir)
-
-      do {
-        if isDir.boolValue && fileManager.fileExists(atPath: dest.path) {
-          // Both source and dest dirs exist — merge contents (move each child item)
-          let children = try fileManager.contentsOfDirectory(atPath: source.path)
-          var moved = 0
-          for child in children {
-            let childSrc = source.appendingPathComponent(child)
-            let childDst = dest.appendingPathComponent(child)
-            if fileManager.fileExists(atPath: childDst.path) { continue }
-            try fileManager.moveItem(at: childSrc, to: childDst)
-            moved += 1
-          }
-          // Remove source dir if now empty
-          let remaining = try? fileManager.contentsOfDirectory(atPath: source.path)
-          if remaining?.isEmpty == true {
-            try? fileManager.removeItem(at: source)
-          }
-          log("RewindDatabase: Merged \(name) (\(moved) items moved)")
-        } else if fileManager.fileExists(atPath: dest.path) {
-          // File already exists at dest — remove stale source copy
-          try? fileManager.removeItem(at: source)
-          log("RewindDatabase: Removed stale \(name) from source (already at dest)")
-        } else {
-          try fileManager.moveItem(at: source, to: dest)
-          log("RewindDatabase: Migrated \(name)")
-        }
-      } catch {
-        log("RewindDatabase: Failed to migrate \(name): \(error.localizedDescription)")
-      }
-    }
-
-    // Clean up source dir if it's now empty (don't leave empty anonymous/ dirs around)
-    if sourceDir != omiDir {
-      let remaining = try? fileManager.contentsOfDirectory(atPath: sourceDir.path)
-      if remaining?.isEmpty == true {
-        try? fileManager.removeItem(at: sourceDir)
-        log("RewindDatabase: Removed empty source dir \(sourceDir.lastPathComponent)")
-      }
-    }
-
-    log("RewindDatabase: Legacy migration complete")
-  }
-
-  static func shouldMigrateLegacyStorage(isolatedStorage: Bool) -> Bool {
-    !isolatedStorage
   }
 
   // MARK: - Corruption Detection & Recovery
@@ -798,7 +735,7 @@ actor RewindDatabase {
   private func cleanupStaleWALFiles(at dbPath: String) {
     let walPath = dbPath + "-wal"
     let shmPath = dbPath + "-shm"
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Only clean up if WAL file exists and is empty (indicates stale/orphaned WAL)
     // Non-empty WAL files may contain uncommitted data we don't want to lose
@@ -814,7 +751,7 @@ actor RewindDatabase {
 
   /// Force-remove WAL/SHM files (last resort when database won't open)
   private func removeWALFiles(at dbPath: String) {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
     for ext in ["-wal", "-shm"] {
       let filePath = dbPath + ext
       if fileManager.fileExists(atPath: filePath) {
@@ -833,7 +770,7 @@ actor RewindDatabase {
     in omiDir: URL,
     triggerError: Error? = nil
   ) async throws {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Create backup directory
     let backupDir = omiDir.appendingPathComponent("backups", isDirectory: true)
@@ -910,7 +847,7 @@ actor RewindDatabase {
   /// Attempt to recover data from a corrupted database using sqlite3 .recover
   /// Returns the number of screenshot records recovered
   private func attemptDataRecovery(from corruptedPath: String, to recoveredPath: String) async -> Int {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     // Remove any existing recovered database
     if fileManager.fileExists(atPath: recoveredPath) {
@@ -1085,7 +1022,7 @@ actor RewindDatabase {
 
   /// Clean up old database backups, keeping only the most recent ones
   private func cleanupOldBackups(in backupDir: URL, keepCount: Int) async throws {
-    let fileManager = FileManager.default
+    let fileManager = fileSystem
 
     let files = try fileManager.contentsOfDirectory(
       at: backupDir,

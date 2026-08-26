@@ -241,6 +241,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   private var apiKeyFetchTask: Task<Void, Never>?
   private var floatingBarPlanFetchTask: Task<Void, Never>?
   private var appLifecycleMaintenanceTask: Task<Void, Never>?
+  private let startupSystemMaintenanceSink: StartupSystemMaintenanceSink
+
+  override init() {
+    startupSystemMaintenanceSink = .live
+    super.init()
+  }
+
+  init(startupSystemMaintenanceSink: StartupSystemMaintenanceSink) {
+    self.startupSystemMaintenanceSink = startupSystemMaintenanceSink
+    super.init()
+  }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     // Publish the live delegate instance for callers that can't rely on
@@ -285,7 +296,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     DesktopAutomationBridge.shared.startIfNeeded()
     publishNamedBundleRuntimeManifest()
 
-    runStartupSystemMaintenance()
+    runStartupSystemMaintenance(bundlePath: Bundle.main.bundlePath)
 
     log("AppDelegate: applicationDidFinishLaunching started (mode: \(OMIApp.launchMode.rawValue))")
     log("AppDelegate: AuthState.isSignedIn=\(AuthState.shared.isSignedIn)")
@@ -498,9 +509,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       // No background scan — prevents race condition where scan finishes before UI listens
     }
 
-    // One-time migration: Rename app bundle from legacy names to "omi.app"
-    migrateAppName()
-
     updateOnboardingLifecyclePolicy(reason: "launch")
     userDefaultsObserver = NotificationCenter.default.addObserver(
       forName: UserDefaults.didChangeNotification,
@@ -679,20 +687,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   /// Run the narrow, bundle-local maintenance required for update integrity.
   /// Startup must never restart shared macOS services or mutate global caches.
-  private func runStartupSystemMaintenance() {
-    let bundlePath = Bundle.main.bundlePath
-    let commands = StartupSystemMaintenancePolicy.commands(bundlePath: bundlePath)
+  private func runStartupSystemMaintenance(bundlePath: String) {
     DispatchQueue.global(qos: .utility).async {
-      for command in commands {
-        // A silent failure here can break future update integrity, so surface it
-        // instead of dropping it.
-        SystemCommand.runLogging(
-          command.label,
-          executable: command.executable,
-          arguments: command.arguments
-        )
-      }
+      self.performStartupSystemMaintenance(bundlePath: bundlePath)
     }
+  }
+
+  func performStartupSystemMaintenance(bundlePath: String) {
+    StartupSystemMaintenancePolicy.run(
+      bundlePath: bundlePath,
+      sink: startupSystemMaintenanceSink)
   }
 
   /// Set up global keyboard shortcuts
@@ -1324,66 +1328,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
         NSApp.enableRelaunchOnLogin()
         relaunchOnLoginSuppressedForOnboarding = false
         log("AppDelegate: Re-enabled relaunch on login after onboarding completed (\(reason))")
-      }
-    }
-  }
-
-  private func migrateAppName() {
-    // No rename migration — APFS is case-insensitive so "omi.app" and "Omi.app"
-    // collide. Renaming the running app also breaks Dock pins and Spotlight indexing.
-    // The app ships as "omi.app" for new installs; existing users keep their current
-    // bundle name and get updates in-place via Sparkle.
-
-    // Clean up stale legacy bundles (never the running app)
-    cleanupLegacyAppBundles()
-  }
-
-  private func cleanupLegacyAppBundles() {
-    // Stable-only: this takeover kills running com.omi.computer-macos processes
-    // and deletes the legacy bundle. From Omi Beta or a dev bundle it would
-    // terminate the user's running stable app instead of a stale duplicate.
-    guard AppBuild.mayRunLegacyStableAppCleanup else {
-      log("Skipping legacy app cleanup: not the stable production identity")
-      return
-    }
-    let currentPath = Bundle.main.bundlePath
-    let oldAppPaths = [
-      "/Applications/Omi Computer.app",
-      NSHomeDirectory() + "/Applications/Omi Computer.app",
-    ]
-
-    for oldPath in oldAppPaths {
-      // Never delete the running app
-      guard oldPath != currentPath else { continue }
-      guard FileManager.default.fileExists(atPath: oldPath) else { continue }
-
-      log("Found old app at \(oldPath), cleaning up...")
-
-      // Kill the old app if it's running
-      let running = NSRunningApplication.runningApplications(
-        withBundleIdentifier: "com.omi.computer-macos")
-      for app in running {
-        guard app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { continue }
-        log("Terminating old Omi Computer process (PID \(app.processIdentifier))")
-        app.forceTerminate()
-      }
-
-      // Wait briefly for termination, then delete
-      DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1.0) {
-        do {
-          try FileManager.default.removeItem(atPath: oldPath)
-          log("Deleted old app at \(oldPath)")
-        } catch {
-          log("Failed to delete old app: \(error.localizedDescription)")
-          // Try moving to trash as fallback
-          do {
-            try FileManager.default.trashItem(
-              at: URL(fileURLWithPath: oldPath), resultingItemURL: nil)
-            log("Moved old app to trash")
-          } catch {
-            log("Failed to trash old app: \(error.localizedDescription)")
-          }
-        }
       }
     }
   }
