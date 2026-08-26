@@ -125,19 +125,15 @@ import VoiceTurnDomain
         }.joined(separator: ",")
         let phase = failedTurn.map { VoiceTurnCoordinator.phaseLabel($0.phase) } ?? "idle"
         let route = failedTurn.map { VoiceTurnCoordinator.routeLabel($0.route) } ?? "none"
-        let owner = failedTurn?.ownerID ?? "none"
-        log(
-          "RealtimeHub: local-profile synthetic commit rejected result=\(commitResult) "
-            + "phase=\(phase) route=\(route) owner=\(owner) timeline=[\(recentTimeline)]")
+        let diagnostic = RealtimeLocalProfileRejectedCommitDiagnostics.make(
+          commitResult: "\(commitResult)",
+          phase: phase,
+          route: route,
+          ownerID: failedTurn?.ownerID,
+          recentTimeline: recentTimeline)
+        log(diagnostic.logMessage)
         VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
-        return [
-          "error": "local-profile realtime reducer rejected the synthetic commit",
-          "commit_result": "\(commitResult)",
-          "phase": phase,
-          "route": route,
-          "owner": owner,
-          "recent_timeline": recentTimeline,
-        ]
+        return diagnostic.response
       }
 
       let eventIdentity = RealtimeHubEventIdentity(turnID: turnID, responseID: responseID)

@@ -1015,6 +1015,34 @@ enum RealtimeHeadlessPTTCompletionPolicy {
   }
 }
 
+#if DEBUG
+  struct RealtimeLocalProfileRejectedCommitDiagnostics: Equatable {
+    let logMessage: String
+    let response: [String: String]
+
+    static func make(
+      commitResult: String,
+      phase: String,
+      route: String,
+      ownerID: String?,
+      recentTimeline: String
+    ) -> Self {
+      let ownerPresent = ownerID != nil ? "true" : "false"
+      return Self(
+        logMessage: "RealtimeHub: local-profile synthetic commit rejected result=\(commitResult) "
+          + "phase=\(phase) route=\(route) owner_present=\(ownerPresent) timeline=[\(recentTimeline)]",
+        response: [
+          "error": "local-profile realtime reducer rejected the synthetic commit",
+          "commit_result": commitResult,
+          "phase": phase,
+          "route": route,
+          "owner_present": ownerPresent,
+          "recent_timeline": recentTimeline,
+        ])
+    }
+  }
+#endif
+
 enum RealtimeHubBargeInContinuity {
   enum Outcome: Equatable {
     case started

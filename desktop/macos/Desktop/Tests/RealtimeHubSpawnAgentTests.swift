@@ -9,6 +9,23 @@ import XCTest
 
   @MainActor
   final class RealtimeHubSpawnAgentTests: XCTestCase {
+    func testRejectedLocalProfileCommitDiagnosticRedactsOwnerIdentifier() {
+      let rawOwnerID = "private-owner-id-sentinel"
+
+      let diagnostic = RealtimeLocalProfileRejectedCommitDiagnostics.make(
+        commitResult: "rejected",
+        phase: "finalizing",
+        route: "managed_batch",
+        ownerID: rawOwnerID,
+        recentTimeline: "1:finalize:listening->finalizing")
+
+      XCTAssertEqual(diagnostic.response["owner_present"], "true")
+      XCTAssertNil(diagnostic.response["owner"])
+      XCTAssertTrue(diagnostic.logMessage.contains("owner_present=true"))
+      XCTAssertFalse(diagnostic.logMessage.contains(rawOwnerID))
+      XCTAssertFalse(diagnostic.response.values.contains(rawOwnerID))
+    }
+
     func testLocalProfileTurnPlanIsFailClosedOutsideHermeticProfile() {
       XCTAssertNil(
         RealtimeLocalProfileTurnPlan.make(
