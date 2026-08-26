@@ -19,7 +19,7 @@ This is an implementation plan, not implementation or verification evidence. Wri
 
 ## 2. Planning status and pinned baseline
 
-**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text below preserves the historical planning baseline; section 19 owns the final implementation and acceptance evidence. Live-resource decommissioning remains separately authorized.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter combined Waves 3–4 closeout remains open. The text below preserves the historical planning baseline. Live-resource decommissioning remains separately authorized.
 
 The inspected tree is exactly the required Wave 2 closeout commit:
 

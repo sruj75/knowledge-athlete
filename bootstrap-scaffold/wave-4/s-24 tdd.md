@@ -36,7 +36,8 @@ tree is intentionally a **pre-S-19/pre-S-23 inventory**. It proves the deletion
 targets and retained siblings, but it is not an executable starting point for
 the cycles below.
 
-**Status:** repository-closed on the integrated Wave 3–4 repair tree. The text
+**Status:** per-slice repository acceptance is closed by section 19; the stricter
+combined Waves 3–4 closeout remains open. The text
 below preserves the historical planning baseline; section 19 owns the final
 implementation and acceptance evidence.
 
