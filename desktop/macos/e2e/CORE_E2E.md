@@ -152,7 +152,7 @@ Evidence contract: `.harness/desktop-core/<run-id>/{manifest.json, flows/, summa
 1. Read `manifest.json` for tier, git SHA, per-flow pass/fail.
 2. Read `summary.md` for human summary.
 3. For failed flows, open `flows/<name>/` for `omi-harness` step artifacts.
-4. T2 hermetic failures: confirm `provider_mode: offline` in `manifest.json`, `PROVIDER_MODE=offline` in dev-harness `config-digest.json`, `OMI_LLM_STUB=1` on Rust backend, bridge `/health`. If a live stack is already up, the harness fails loudly instead of reusing it.
+4. T2 hermetic failures: confirm `provider_mode: offline` in `manifest.json`, `PROVIDER_MODE=offline` in dev-harness `config-digest.json`, `OMI_LLM_STUB=1` on the canonical backend, and bridge `/v1/health`. If a live stack is already up, the harness fails loudly instead of reusing it.
 5. **`dev-up failed: Port 8085 for firestore is already in use by a foreign process`:** Another harness instance (or stale Firebase emulator) owns the default ports. Either `make dev-down` on the owning worktree, or set a separate `OMI_INSTANCE` / harness state root before `PROVIDER_MODE=offline make dev-up`. If emulators are healthy but process records are stale, flows can still be qualified manually: launch `make desktop-run-local DESKTOP_APP_NAME=omi-core-e2e DESKTOP_USER=alice`, note the automation port, then run each T2 flow with `python3 scripts/omi-harness run e2e/flows/<name>.yaml --lane bridge --port <PORT>`.
 6. T3 failures: check LLM credentials / quota; inspect gauntlet evidence under `.harness/agent-continuity-gauntlet/`.
 

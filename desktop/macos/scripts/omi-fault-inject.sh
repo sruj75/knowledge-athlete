@@ -10,8 +10,7 @@
 # that fails on purpose, and you point a *named test bundle* at it via the documented
 # backend-override env vars (DesktopBackendEnvironment.swift):
 #
-#   OMI_PYTHON_API_URL   → Python backend (chat, action-item sync, transcription relay)
-#   OMI_DESKTOP_API_URL  → Rust backend
+#   OMI_PYTHON_API_URL   → canonical backend data plane
 #   OMI_AUTH_API_URL     → auth backend
 #
 # Usage:
@@ -33,7 +32,7 @@
 #
 #   eval "$(desktop/macos/scripts/omi-fault-inject.sh start error)"
 #   OMI_SKIP_BACKEND=1 OMI_SKIP_TUNNEL=1 \
-#     OMI_PYTHON_API_URL="$OMI_FAULT_URL" OMI_DESKTOP_API_URL="$OMI_FAULT_URL" \
+#     OMI_PYTHON_API_URL="$OMI_FAULT_URL" \
 #     OMI_APP_NAME=omi-fault ./run.sh
 #   # …exercise the flow; assert the app surfaces a structured error, not a crash/silent no-op…
 #   desktop/macos/scripts/omi-fault-inject.sh stop

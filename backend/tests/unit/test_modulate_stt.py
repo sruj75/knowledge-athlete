@@ -24,7 +24,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def test_offline_app_provider_contracts_run_in_child_process():
-    """Each harness app installs PTT and conversation fakes in its isolated process."""
+    """The canonical harness app installs PTT and conversation fakes in its isolated process."""
 
     code = r'''
 import asyncio
@@ -32,19 +32,13 @@ import sys
 from types import ModuleType
 
 sentinel_backend_app = object()
-sentinel_desktop_backend_app = object()
 main_stub = ModuleType("main")
 main_stub.app = sentinel_backend_app
 sys.modules["main"] = main_stub
-desktop_backend_stub = ModuleType("desktop_backend")
-desktop_backend_stub.app = sentinel_desktop_backend_app
-sys.modules["desktop_backend"] = desktop_backend_stub
 
 from testing.e2e.offline_backend_app import app as backend_app
-from testing.e2e.offline_desktop_backend_app import app as desktop_backend_app
 
 assert backend_app is sentinel_backend_app
-assert desktop_backend_app is sentinel_desktop_backend_app
 
 from utils.llm import conversation_processing
 from utils.stt import streaming

@@ -322,8 +322,7 @@ private struct DesktopAutomationHealth: Codable {
   let bridgePort: UInt16
   let requiresAuth: Bool
   let backendEnvironment: String
-  let pythonBackendURL: String
-  let rustBackendURL: String
+  let backendURL: String
   let agentRuntimeRunning: Bool
   let agentRuntimeExpectedProtocolVersion: Int
   let agentRuntimeProtocolVersion: Int?
@@ -1039,7 +1038,7 @@ final class DesktopAutomationActionRegistry {
       let provider =
         params["provider"].flatMap(RealtimeOmniProvider.init(rawValue:))
         ?? RealtimeOmniSettings.shared.effectiveProvider
-      let base = DesktopBackendEnvironment.pythonBaseURL()
+      let base = DesktopBackendEnvironment.backendBaseURL()
       let authHeader: String
       do {
         authHeader = try await AuthService.shared.getAuthHeader()
@@ -3052,8 +3051,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           bridgePort: DesktopAutomationLaunchOptions.port,
           requiresAuth: true,
           backendEnvironment: DesktopBackendEnvironment.shouldUseDevelopmentBackends ? "development" : "production",
-          pythonBackendURL: DesktopBackendEnvironment.pythonBaseURL(),
-          rustBackendURL: DesktopBackendEnvironment.rustBackendURL(),
+          backendURL: DesktopBackendEnvironment.backendBaseURL(),
           agentRuntimeRunning: runtime.running,
           agentRuntimeExpectedProtocolVersion: AgentRuntimeProcess.expectedProtocolVersion,
           agentRuntimeProtocolVersion: runtime.protocolVersion,

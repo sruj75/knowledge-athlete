@@ -4,7 +4,7 @@
   "$comment": "Structural projection of the authoritative executable contract in .github/scripts/desktop_release_manifest.py. Schema-only validation is insufficient for cross-field identity and provenance rules.",
   "x-omi-executable-contract": ".github/scripts/desktop_release_manifest.py",
   "title": "Omi Desktop Release Manifest v1",
-  "description": "Immutable identity for one qualified macOS app release and its optional Rust backend.",
+  "description": "Immutable identity for one qualified macOS app release.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,9 +23,6 @@
     "qualification_evidence_sha256",
     "qualification_tier",
     "qualification_passed",
-    "backend_mode",
-    "compatibility_contract",
-    "environment_contract_version",
     "created_at"
   ],
   "properties": {
@@ -53,64 +50,6 @@
     "qualification_evidence_sha256": { "$ref": "#/$defs/sha256" },
     "qualification_tier": { "enum": ["T2", "emergency"] },
     "qualification_passed": { "type": "boolean" },
-    "backend_mode": { "enum": ["app_only", "backend_required"] },
-    "desktop_backend_source_sha": { "$ref": "#/$defs/sourceSha" },
-    "desktop_backend_oci_index_digest": { "$ref": "#/$defs/sha256" },
-    "desktop_backend_platform_digest": { "$ref": "#/$defs/sha256" },
-    "compatibility_contract": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schema_version",
-        "app_release_id",
-        "app_version",
-        "app_build_number",
-        "backend_mode",
-        "environment_contract_version"
-      ],
-      "properties": {
-        "schema_version": { "const": 1 },
-        "app_release_id": { "type": "string" },
-        "app_version": { "type": "string" },
-        "app_build_number": { "type": "integer", "minimum": 1 },
-        "backend_mode": { "enum": ["app_only", "backend_required"] },
-        "desktop_backend_source_sha": { "$ref": "#/$defs/sourceSha" },
-        "desktop_backend_oci_index_digest": { "$ref": "#/$defs/sha256" },
-        "desktop_backend_platform_digest": { "$ref": "#/$defs/sha256" },
-        "environment_contract_version": {
-          "type": "string",
-          "pattern": "^desktop-backend-env-v[1-9][0-9]*$"
-        }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "backend_mode": { "const": "app_only" } } },
-          "then": {
-            "not": {
-              "anyOf": [
-                { "required": ["desktop_backend_source_sha"] },
-                { "required": ["desktop_backend_oci_index_digest"] },
-                { "required": ["desktop_backend_platform_digest"] }
-              ]
-            }
-          }
-        },
-        {
-          "if": { "properties": { "backend_mode": { "const": "backend_required" } } },
-          "then": {
-            "required": [
-              "desktop_backend_source_sha",
-              "desktop_backend_oci_index_digest",
-              "desktop_backend_platform_digest"
-            ]
-          }
-        }
-      ]
-    },
-    "environment_contract_version": {
-      "type": "string",
-      "pattern": "^desktop-backend-env-v[1-9][0-9]*$"
-    },
     "created_at": {
       "type": "string",
       "format": "date-time",
@@ -136,28 +75,6 @@
           "qualification_passed": { "const": false },
           "qualification_evidence_asset": { "const": "desktop-smoke-result.json" }
         }
-      }
-    },
-    {
-      "if": { "properties": { "backend_mode": { "const": "app_only" } } },
-      "then": {
-        "not": {
-          "anyOf": [
-            { "required": ["desktop_backend_source_sha"] },
-            { "required": ["desktop_backend_oci_index_digest"] },
-            { "required": ["desktop_backend_platform_digest"] }
-          ]
-        }
-      }
-    },
-    {
-      "if": { "properties": { "backend_mode": { "const": "backend_required" } } },
-      "then": {
-        "required": [
-          "desktop_backend_source_sha",
-          "desktop_backend_oci_index_digest",
-          "desktop_backend_platform_digest"
-        ]
       }
     }
   ],

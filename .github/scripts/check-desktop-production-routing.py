@@ -11,16 +11,19 @@ RETIRED_GKE_DESKTOP_BACKEND_MANIFEST_SUFFIXES = {".tpl", ".yaml", ".yml"}
 RETIRED_GKE_DESKTOP_BACKEND_MARKERS = ("desktop-api.omi.me", "desktop-backend")
 GKE_WORKFLOW_MARKERS = ("gcloud container clusters", "helm ", "kubectl ")
 DESKTOP_BACKEND_ENVIRONMENT_PATH = "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift"
-FORBIDDEN_ROUTING_TOKENS = ("OMI_BETA_RELEASE_RING", "api-beta.omi.me", "STAGING_API_URL")
+FORBIDDEN_ROUTING_TOKENS = (
+    "OMI_BETA_RELEASE_RING",
+    "OMI_DESKTOP_API_URL",
+    "api-beta.omi.me",
+    "desktop-backend-hhibjajaja-uc.a.run.app",
+    "STAGING_API_URL",
+)
 REQUIRED_PRODUCTION_FRAGMENTS = {
     "desktop/macos/Desktop/Sources/AppBuild.swift": (
         'productionBundleIdentifier = "com.omi.computer-macos"',
         "externalPreviewBundleIdentifierPrefix",
     ),
-    "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift": (
-        'productionPythonAPIURL = "https://api.omi.me/"',
-        'productionRustBackendURL = "https://desktop-backend-hhibjajaja-uc.a.run.app/"',
-    ),
+    "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift": ('productionBackendURL = "https://api.omi.me/"',),
     "desktop/macos/Desktop/Sources/GoogleService-Info.plist": ("<string>based-hardware</string>",),
 }
 CANONICAL_BUNDLE_IDENTIFIER = "com.omi.computer-macos"
@@ -65,7 +68,7 @@ def validate(root: Path) -> list[str]:
     errors: list[str] = []
     for manifest in _retired_gke_desktop_backend_manifests(root):
         errors.append(
-            f"{manifest} declares retired GKE desktop-backend ownership; production desktop-backend is Cloud Run"
+            f"{manifest} declares retired GKE desktop-backend ownership; the canonical backend owns production"
         )
 
     routing_path = root / DESKTOP_BACKEND_ENVIRONMENT_PATH

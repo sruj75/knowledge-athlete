@@ -34,6 +34,11 @@ def test_validate_profile_allows_omi_memory_named_bundle() -> None:
     profile = _resolve({"OMI_APP_NAME": "omi-memory"})
     assert profile.app_name == "omi-memory"
     assert profile.bundle_id == "com.omi.omi-memory"
+    assert profile.backend_url == "http://127.0.0.1:8000"
+    assert profile.env["OMI_PYTHON_API_URL"] == profile.backend_url
+    assert "OMI_DESKTOP_API_URL" not in profile.env
+    assert not hasattr(profile, "python_api_url")
+    assert not hasattr(profile, "desktop_api_url")
 
     errors = desktop_profile.validate_profile(profile)
     assert not errors

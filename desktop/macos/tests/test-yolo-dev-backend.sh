@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="$ROOT/run.sh"
-BACKEND_MAIN="$ROOT/../../backend/desktop_backend.py"
+BACKEND_MAIN="$ROOT/../../backend/main.py"
 
 YOLO_FUNCTION="$(sed -n '/^apply_yolo_env()/,/^}/p' "$RUN")"
 NAMED_DEFAULT_FUNCTION="$(sed -n '/^should_default_named_bundle_to_dev_backend()/,/^}/p' "$RUN")"
@@ -19,32 +19,29 @@ if [[ -z "$NAMED_DEFAULT_FUNCTION" ]]; then
 fi
 
 (
-  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_DESKTOP_API_URL OMI_PYTHON_API_URL FIREBASE_API_KEY
+  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL FIREBASE_API_KEY
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 
   test "$OMI_SKIP_BACKEND" = "1"
   test "$OMI_SKIP_TUNNEL" = "1"
-  test "$OMI_DESKTOP_API_URL" = "https://desktop-backend-dt5lrfkkoa-uc.a.run.app"
   test "$OMI_PYTHON_API_URL" = "https://api.omiapi.com"
   test -n "$FIREBASE_API_KEY"
 )
 
 (
-  export OMI_DESKTOP_API_URL="https://desktop-override.test"
-  export OMI_PYTHON_API_URL="https://python-override.test"
+  export OMI_PYTHON_API_URL="https://canonical-override.test"
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 
   test "$OMI_SKIP_BACKEND" = "1"
   test "$OMI_SKIP_TUNNEL" = "1"
-  test "$OMI_DESKTOP_API_URL" = "https://desktop-override.test"
-  test "$OMI_PYTHON_API_URL" = "https://python-override.test"
+  test "$OMI_PYTHON_API_URL" = "https://canonical-override.test"
 )
 
 (
   export IS_NAMED_BUNDLE=true LOCAL_PROFILE=false
-  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_DESKTOP_API_URL OMI_PYTHON_API_URL
+  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL
   eval "$NAMED_DEFAULT_FUNCTION"
 
   should_default_named_bundle_to_dev_backend
@@ -52,10 +49,6 @@ fi
   OMI_SKIP_BACKEND=0
   ! should_default_named_bundle_to_dev_backend
   unset OMI_SKIP_BACKEND
-
-  OMI_DESKTOP_API_URL="http://127.0.0.1:10343"
-  ! should_default_named_bundle_to_dev_backend
-  unset OMI_DESKTOP_API_URL
 
   OMI_PYTHON_API_URL="http://127.0.0.1:8080"
   ! should_default_named_bundle_to_dev_backend
@@ -73,8 +66,10 @@ fi
 grep -q 'BACKEND_LOG_FILE' "$RUN"
 grep -q 'mktemp -d' "$RUN"
 grep -q '>>"$BACKEND_LOG_FILE" 2>&1' "$RUN"
+grep -q 'main:app --host 127.0.0.1' "$RUN"
+grep -q 'http://127.0.0.1:$port/v1/health' "$ROOT/scripts/python-backend-dev.sh"
 
-# backend/.env commonly carries the template PORT=10201. The launcher
+# backend/.env may carry the canonical default PORT=8080. The launcher
 # must reassert its worktree-derived port after loading it so child/backend
 # ownership state cannot diverge.
 ENV_LOAD_LINE="$(grep -n 'set -a; source "\$BACKEND_DIR/.env"; set +a' "$RUN" | cut -d: -f1)"
@@ -84,4 +79,4 @@ if [[ -z "$ENV_LOAD_LINE" || -z "$PORT_REASSERT_LINE" || "$PORT_REASSERT_LINE" -
   exit 1
 fi
 
-echo "PASS: --yolo and implicit named bundles target development backends"
+echo "PASS: --yolo and implicit named bundles target the canonical development backend"

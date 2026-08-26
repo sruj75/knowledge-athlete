@@ -22,6 +22,7 @@ covers:
   - desktop/macos/Desktop/Sources/ClientDeviceService.swift
   - desktop/macos/Desktop/Sources/Automation/LoopbackHTTPParsing.swift
   - desktop/macos/Desktop/Sources/APIKeyService.swift
+  - desktop/macos/Desktop/Sources/Services/OmiHTTPTransport.swift
   - desktop/macos/Desktop/Sources/StartupWarmupCoordinator.swift
   - desktop/macos/Desktop/Sources/Startup/StartupWarmupPolicy.swift
   - desktop/macos/Desktop/Sources/OmiApp.swift

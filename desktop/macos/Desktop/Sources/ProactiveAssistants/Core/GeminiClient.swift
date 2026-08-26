@@ -175,17 +175,14 @@ struct GeminiResponse: Decodable {
 // MARK: - GeminiClient
 
 /// Low-level client for communicating with the Gemini API via backend proxy.
-/// All requests route through the Rust backend (/v1/proxy/gemini/*) which adds
+/// All requests route through the canonical backend (/v1/proxy/gemini/*) which adds
 /// the Gemini API key server-side. Auth uses Firebase Bearer token.
 actor GeminiClient {
   private let model: String
 
-  /// Backend proxy base URL (from OMI_DESKTOP_API_URL env var)
+  /// Backend proxy base URL (from the canonical backend resolver).
   private static var proxyBaseURL: String {
-    if let cString = getenv("OMI_DESKTOP_API_URL"), let url = String(validatingCString: cString), !url.isEmpty {
-      return url.hasSuffix("/") ? url : url + "/"
-    }
-    return "https://api.omi.me/"
+    DesktopBackendEnvironment.backendBaseURL()
   }
 
   enum GeminiClientError: LocalizedError {
@@ -329,7 +326,7 @@ actor GeminiClient {
   init(apiKey: String? = nil, model: String = ModelQoS.Gemini.proactive, fallbackModel: String? = nil) throws {
     // BREAKING CHANGE (issue #5861): apiKey parameter is ignored.
     // All Gemini requests now route through the backend proxy which supplies
-    // the key server-side. Defaults to production when OMI_DESKTOP_API_URL is absent
+    // the key server-side. Defaults through the canonical backend resolver.
     // so installed test bundles launched from Finder still have AI features.
     guard !Self.proxyBaseURL.isEmpty else {
       throw GeminiClientError.missingAPIKey

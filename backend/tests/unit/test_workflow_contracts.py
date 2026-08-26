@@ -74,6 +74,24 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
             assert deleted_surface not in contents, (path, deleted_surface)
 
 
+@pytest.mark.parametrize("workflow_name", ("gcp_backend.yml", "gcp_backend_auto_dev.yml"))
+def test_backend_candidate_probe_token_is_deleted_unconditionally(workflow_name: str):
+    """Static workflow tripwire for the existing ephemeral probe-credential boundary."""
+    workflow = (REPO_DIR / ".github/workflows" / workflow_name).read_text(encoding="utf-8")
+    cleanup_name = "Delete backend candidate probe identity"
+    mint_name = "Mint backend candidate probe identity"
+
+    assert workflow.count(cleanup_name) == 1
+    assert workflow.index(mint_name) < workflow.index(cleanup_name)
+    mint = workflow.split(f"      - name: {mint_name}\n", 1)[1].split("\n      - ", 1)[0]
+    assert mint.index('echo "BACKEND_CANDIDATE_PROBE_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"') < mint.index(
+        "firebase_release_probe_token.py"
+    )
+    cleanup = workflow.split(f"      - name: {cleanup_name}\n", 1)[1].split("\n      - ", 1)[0]
+    assert "if: ${{ always() }}" in cleanup
+    assert 'rm -f -- "$BACKEND_CANDIDATE_PROBE_TOKEN_FILE"' in cleanup
+
+
 @pytest.fixture(scope="module")
 def selector_and_all_tests():
     selector = _load_script("select_backend_unit_tests")
@@ -94,7 +112,6 @@ def test_workflow_contract_sources_select_adjacent_tests(selector_and_all_tests)
         "backend/scripts/validate-backend-runtime-env.py": "tests/unit/test_backend_runtime_env_validator.py",
         "backend/scripts/firebase_release_probe_token.py": "tests/unit/test_firebase_release_probe_token.py",
         "scripts/voice-provider-probe.sh": "tests/unit/test_voice_provider_probe.py",
-        ".github/workflows/desktop_backend_auto_dev.yml": "tests/unit/test_voice_provider_probe.py",
         ".github/workflows/gcp_backend_auto_dev.yml": "tests/unit/test_backend_runtime_env_validator.py",
         "backend/scripts/preflight-cloud-run-deploy.py": "tests/unit/test_preflight_cloud_run_deploy.py",
     }

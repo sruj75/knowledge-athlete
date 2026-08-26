@@ -273,7 +273,6 @@ REQUIRED_SERVICES = (
     "firestore",
     "redis",
     "backend",
-    "desktop-backend",
 )
 
 
@@ -426,8 +425,7 @@ if missing_services:
 checks = {
     "firestore": f"http://{cfg.firestore_host}/",
     "auth": f"http://{cfg.auth_host}/",
-    "backend": f"{cfg.backend_url}/docs",
-    "desktop-backend": f"{cfg.desktop_backend_url}/health",
+    "backend": f"{cfg.backend_url}/v1/health",
 }
 failures: list[str] = []
 for service, url in checks.items():
@@ -839,7 +837,6 @@ start_fault_stack() {
       OMI_ALLOW_ADHOC_SIGN=1 \
       OMI_SKIP_BACKEND=1 OMI_SKIP_TUNNEL=1 \
       OMI_PYTHON_API_URL="$OMI_FAULT_URL" \
-      OMI_DESKTOP_API_URL="$OMI_FAULT_URL" \
       OMI_AUTH_API_URL="$OMI_FAULT_URL" \
       OMI_FAULT_MODEL_AUTH_TOKEN=omi-fault-model-token \
       OMI_AUTOMATION_PORT="$PORT" \

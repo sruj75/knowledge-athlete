@@ -14,6 +14,7 @@ concurrency:
 env:
   SERVICE: backend
   REGION: us-central1
+  CHAT_CONTRACT_VERSION: '1'
   # Cloud Run tags are service-scoped. Reusing this tag atomically moves each
   # service's candidate URL without accumulating stale no-traffic routes.
   CANDIDATE_TAG: candidate
@@ -345,9 +346,17 @@ jobs:
           python3 backend/scripts/runtime_image_contracts.py smoke --dockerfile backend/Dockerfile --image "$image"
 
       - name: Push verified runtime image
+        id: push-runtime-image
         run: |
           docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:latest
           docker push gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}
+          image="gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}:${{ steps.image-tag.outputs.short_sha }}"
+          digest="$(docker buildx imagetools inspect "$image" --format '{{.Manifest.Digest}}')"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: published backend image returned invalid digest $digest" >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Render backend runtime env
         id: runtime-env
@@ -443,6 +452,25 @@ jobs:
             --region ${{ env.REGION }} \
             --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }}
 
+      - name: Verify canonical backend image lineage
+        id: verify-image-lineage
+        env:
+          BUILD_IMAGE_REF: gcr.io/${{ vars.GCP_PROJECT_ID }}/${{ env.SERVICE }}@${{ steps.push-runtime-image.outputs.digest }}
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          runtime_image_ref="$(gcloud run revisions describe "${{ steps.capture-backend-revision.outputs.revision }}" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --format='value(status.imageDigest)')"
+          runtime_digest="$(python3 backend/scripts/verify_backend_image_lineage.py \
+            --build-image-ref="$BUILD_IMAGE_REF" \
+            --runtime-image-ref="$runtime_image_ref" \
+            --source-sha="${{ needs.firestore_readiness.outputs.admitted_sha }}" \
+            --revision="${{ steps.capture-backend-revision.outputs.revision }}" \
+            --evidence-path=artifacts/dev-backend-image-lineage.json)"
+          echo "runtime_digest=$runtime_digest" >> "$GITHUB_OUTPUT"
+
       - name: Capture exact no-traffic candidate URLs
         id: candidate-urls
         run: |
@@ -484,6 +512,57 @@ jobs:
             --region "${{ env.REGION }}" \
             --environment dev \
             --evidence-path artifacts/dev-backend-cloud-run-candidate-release-vector.json
+
+      - name: Mint backend candidate probe identity
+        run: |
+          set -euo pipefail
+          token_file="$(mktemp "$RUNNER_TEMP/backend-candidate-probe.XXXXXX")"
+          chmod 600 "$token_file"
+          echo "BACKEND_CANDIDATE_PROBE_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
+          python3 backend/scripts/firebase_release_probe_token.py \
+            --secret-project "${{ vars.GCP_PROJECT_ID }}" \
+            --firebase-project based-hardware \
+            --token-output "$token_file"
+
+      - name: Prove canonical candidate chat compatibility
+        run: |
+          python3 .github/scripts/backend_candidate_probe.py \
+            --base-url="${{ steps.candidate-urls.outputs.backend_url }}" \
+            --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" \
+            --source-sha="${{ needs.firestore_readiness.outputs.admitted_sha }}" \
+            --expected-contract-version="$CHAT_CONTRACT_VERSION" \
+            --expected-revision="${{ steps.capture-backend-revision.outputs.revision }}" \
+            --expected-image-digest="${{ steps.verify-image-lineage.outputs.runtime_digest }}" \
+            --candidate-tag="$CANDIDATE_TAG" \
+            --workflow-run-id="$GITHUB_RUN_ID" \
+            --evidence-path=artifacts/dev-backend-chat-candidate.json
+
+      - name: Prove canonical candidate managed realtime provider paths
+        run: |
+          set -euo pipefail
+          for provider in openai gemini; do
+            for attempt in 1 2 3; do
+              probe_exit=0
+              scripts/voice-provider-probe.sh "$provider" "${{ steps.candidate-urls.outputs.backend_url }}" \
+                --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" || probe_exit=$?
+              if [[ "$probe_exit" -eq 0 ]]; then
+                break
+              fi
+              if [[ "$probe_exit" -ne 75 || "$attempt" -eq 3 ]]; then
+                echo "Managed realtime provider proof failed for $provider." >&2
+                exit "$probe_exit"
+              fi
+              echo "Retrying $provider provider proof after a retryable upstream failure ($attempt/3)."
+              sleep 5
+            done
+          done
+
+      - name: Delete backend candidate probe identity
+        if: ${{ always() }}
+        run: |
+          if [[ -n "${BACKEND_CANDIDATE_PROBE_TOKEN_FILE:-}" ]]; then
+            rm -f -- "$BACKEND_CANDIDATE_PROBE_TOKEN_FILE"
+          fi
 
       - name: Verify exact candidate composition
         run: |
@@ -560,6 +639,8 @@ jobs:
           name: dev-backend-deployment-acceptance-${{ github.run_id }}
           path: |
             artifacts/dev-backend-cloud-run-candidate-release-vector.json
+            artifacts/dev-backend-image-lineage.json
+            artifacts/dev-backend-chat-candidate.json
             artifacts/dev-backend-deployment-composition.json
             artifacts/dev-backend-cloud-run-pre-promotion-traffic-snapshot.json
             artifacts/dev-backend-serving-release-vector.json

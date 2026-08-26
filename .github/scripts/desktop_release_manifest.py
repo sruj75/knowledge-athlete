@@ -22,7 +22,6 @@ from urllib.parse import unquote, urlparse
 
 SCHEMA_VERSION = 1
 PLATFORM = "macos"
-BACKEND_MODES = frozenset({"app_only", "backend_required"})
 SIGNATURE_PREFIX = "hmac-sha256:"
 SIGNING_CONTEXT = b"omi-desktop-release-manifest-v1\0"
 TOP_LEVEL_FIELDS = frozenset(
@@ -42,12 +41,6 @@ TOP_LEVEL_FIELDS = frozenset(
         "qualification_evidence_sha256",
         "qualification_tier",
         "qualification_passed",
-        "backend_mode",
-        "desktop_backend_source_sha",
-        "desktop_backend_oci_index_digest",
-        "desktop_backend_platform_digest",
-        "compatibility_contract",
-        "environment_contract_version",
         "created_at",
         "published_at",
         "changelog",
@@ -57,36 +50,15 @@ TOP_LEVEL_FIELDS = frozenset(
 REQUIRED_FIELDS = frozenset(
     TOP_LEVEL_FIELDS
     - {
-        "desktop_backend_source_sha",
-        "desktop_backend_oci_index_digest",
-        "desktop_backend_platform_digest",
         "published_at",
         "changelog",
         "mandatory",
-    }
-)
-BACKEND_FIELDS = frozenset(
-    {
-        "desktop_backend_source_sha",
-        "desktop_backend_oci_index_digest",
-        "desktop_backend_platform_digest",
-    }
-)
-COMPATIBILITY_BASE_FIELDS = frozenset(
-    {
-        "schema_version",
-        "app_release_id",
-        "app_version",
-        "app_build_number",
-        "backend_mode",
-        "environment_contract_version",
     }
 )
 TAG_RE = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+(?:\.[0-9]+)?)\+(?P<build>[1-9][0-9]*)-macos$")
 SOURCE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVIDENCE_ASSET_RE = re.compile(r"^qualification-evidence-[^/]+\.json$")
-ENVIRONMENT_CONTRACT_RE = re.compile(r"^desktop-backend-env-v[1-9]\d*$")
 
 
 class ManifestError(ValueError):
@@ -181,31 +153,6 @@ def _require_changelog(data: dict[str, Any]) -> list[str]:
     return value
 
 
-def _validate_compatibility(manifest: dict[str, Any]) -> None:
-    raw = manifest.get("compatibility_contract")
-    if not isinstance(raw, dict):
-        _fail("compatibility_contract must be an object")
-    contract = raw
-    mode = manifest["backend_mode"]
-    allowed = COMPATIBILITY_BASE_FIELDS | (BACKEND_FIELDS if mode == "backend_required" else frozenset())
-    _require_exact_fields(contract, allowed, allowed, "compatibility_contract")
-
-    if contract.get("schema_version") != SCHEMA_VERSION:
-        _fail("compatibility_contract.schema_version must be 1")
-    exact_matches = {
-        "app_release_id": manifest["release_id"],
-        "app_version": manifest["version"],
-        "app_build_number": manifest["build_number"],
-        "backend_mode": mode,
-        "environment_contract_version": manifest["environment_contract_version"],
-    }
-    if mode == "backend_required":
-        exact_matches.update({field: manifest[field] for field in BACKEND_FIELDS})
-    for field, expected in exact_matches.items():
-        if contract.get(field) != expected:
-            _fail(f"compatibility_contract.{field} must exactly match {field}")
-
-
 def validate_manifest(value: object) -> dict[str, Any]:
     """Validate one v1 manifest and return it unchanged when valid."""
     if not isinstance(value, dict):
@@ -249,27 +196,6 @@ def validate_manifest(value: object) -> dict[str, Any]:
     if qualification_tier == "emergency" and evidence_asset != "desktop-smoke-result.json":
         _fail("emergency qualification requires exact signed-smoke evidence")
 
-    mode = manifest.get("backend_mode")
-    if mode not in BACKEND_MODES:
-        _fail("backend_mode must be app_only or backend_required")
-    present_backend_fields = BACKEND_FIELDS & manifest.keys()
-    if mode == "app_only" and present_backend_fields:
-        _fail(f"app_only manifest must omit backend field(s): {', '.join(sorted(present_backend_fields))}")
-    if mode == "backend_required":
-        missing_backend_fields = BACKEND_FIELDS - manifest.keys()
-        if missing_backend_fields:
-            _fail(f"backend_required manifest is missing field(s): {', '.join(sorted(missing_backend_fields))}")
-        _require_source_sha(manifest, "desktop_backend_source_sha")
-        if manifest["desktop_backend_source_sha"] != manifest["app_source_sha"]:
-            _fail("desktop backend and app must come from the same source SHA")
-        _require_sha256(manifest, "desktop_backend_oci_index_digest")
-        _require_sha256(manifest, "desktop_backend_platform_digest")
-        if manifest["desktop_backend_oci_index_digest"] == manifest["desktop_backend_platform_digest"]:
-            _fail("OCI index and platform-child digests must identify distinct objects")
-
-    environment_contract = _require_string(manifest, "environment_contract_version")
-    if not ENVIRONMENT_CONTRACT_RE.fullmatch(environment_contract):
-        _fail("environment_contract_version must use desktop-backend-env-vN form")
     _require_timestamp(manifest, "created_at")
     if "published_at" in manifest:
         _require_timestamp(manifest, "published_at")
@@ -277,7 +203,6 @@ def validate_manifest(value: object) -> dict[str, Any]:
         _require_changelog(manifest)
     if "mandatory" in manifest and not isinstance(manifest.get("mandatory"), bool):
         _fail("mandatory must be a boolean")
-    _validate_compatibility(manifest)
     return manifest
 
 

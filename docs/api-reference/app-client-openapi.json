@@ -3662,7 +3662,7 @@
     },
     "/v1/users/me/paywall": {
       "get": {
-        "description": "Trial-paywall status for the calling user on the given platform.\n\nUsed by the Rust desktop-backend middleware to decide whether to proxy\npaid LLM / TTS traffic. Mirrors the exact semantics of\n`is_trial_paywalled`: basic plan + Firebase Auth account >3d old + platform\nin {macos, desktop}. Mobile platforms always\nreturn `paywalled=false`.\n\nPlatform comes from `X-App-Platform` header (preferred) or `platform`\nquery param (fallback). Unknown / missing platforms are never paywalled.",
+        "description": "Trial-paywall status for the calling user on the given platform.\n\nUsed by canonical desktop provider paths to decide whether to admit\npaid LLM / TTS traffic. Mirrors the exact semantics of\n`is_trial_paywalled`: basic plan + Firebase Auth account >3d old + platform\nin {macos, desktop}. Mobile platforms always\nreturn `paywalled=false`.\n\nPlatform comes from `X-App-Platform` header (preferred) or `platform`\nquery param (fallback). Unknown / missing platforms are never paywalled.",
         "operationId": "get_user_paywall_status_v1_users_me_paywall_get",
         "parameters": [
           {

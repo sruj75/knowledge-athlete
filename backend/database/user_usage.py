@@ -52,8 +52,8 @@ def get_monthly_chat_usage(uid: str, now: Optional[datetime] = None) -> Dict[str
             for key, value in data.items()
         )
         for key, value in data.items():
-            # The Rust desktop-backend commits desktop_chat usage via dotted Firestore
-            # fieldPaths, which Firestore materializes as a NESTED map. Keep
+            # Legacy writers committed desktop_chat usage via dotted Firestore
+            # fieldPaths, which Firestore materialized as a NESTED map. Keep
             # `call_count` as internal generation telemetry; quota enforcement uses
             # `quota_questions`, incremented once per visible desktop user turn.
             if isinstance(value, dict):

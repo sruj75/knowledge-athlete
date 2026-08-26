@@ -415,10 +415,10 @@ def test_provision_missing_uses_gcloud_with_every_manifest_field_and_waits_for_r
 
 def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id():
     live_index = {
-        'name': ('projects/dev-project/databases/(default)/collectionGroups/' 'chat_sessions/indexes/index-id'),
-        'queryScope': 'COLLECTION',
+        'name': ('projects/dev-project/databases/(default)/collectionGroups/' 'fair_use_state/indexes/index-id'),
+        'queryScope': 'COLLECTION_GROUP',
         'fields': [
-            {'fieldPath': 'starred', 'order': 'ASCENDING'},
+            {'fieldPath': 'stage', 'order': 'ASCENDING'},
             {'fieldPath': 'updated_at', 'order': 'DESCENDING'},
             {'fieldPath': '__name__', 'order': 'DESCENDING'},
         ],
@@ -432,22 +432,22 @@ def test_live_gcloud_indexes_derive_collection_group_with_explicit_document_id()
         project='dev-project', database='(default)', runner=runner
     )
 
-    starred_chat_signature = (
-        'chat_sessions',
-        'COLLECTION',
+    fair_use_signature = (
+        'fair_use_state',
+        'COLLECTION_GROUP',
         (
-            ('starred', 'ASCENDING'),
+            ('stage', 'ASCENDING'),
             ('updated_at', 'DESCENDING'),
             ('__name__', 'DESCENDING'),
         ),
     )
-    assert starred_chat_signature in reconcile_firestore_indexes.expected_index_signatures(firebase_index_manifest())
+    assert fair_use_signature in reconcile_firestore_indexes.expected_index_signatures(firebase_index_manifest())
     assert reconcile_firestore_indexes.expected_index_states(
-        expected={starred_chat_signature},
+        expected={fair_use_signature},
         live_indexes=live_indexes,
         project='dev-project',
         database='(default)',
-    ) == {starred_chat_signature: 'READY'}
+    ) == {fair_use_signature: 'READY'}
 
 
 def test_live_gcloud_indexes_do_not_alias_implicit_terminal_document_id():
@@ -636,7 +636,7 @@ def test_provisioning_dry_run_only_lists_indexes_and_does_not_write(capsys):
             '--format=json',
         ]
     ]
-    assert 'would create COLLECTION/chat_sessions' in capsys.readouterr().out
+    assert 'would create COLLECTION_GROUP/fair_use_state' in capsys.readouterr().out
 
 
 def test_provisioning_fails_closed_when_gcloud_cannot_create_a_missing_index():

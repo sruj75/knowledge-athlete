@@ -1,4 +1,3 @@
-import redis
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -13,7 +12,7 @@ def make_client() -> TestClient:
     return TestClient(app)
 
 
-def test_health_and_root_preserve_release_identity(monkeypatch):
+def test_root_reports_only_canonical_backend_identity(monkeypatch):
     monkeypatch.setenv("OMI_DESKTOP_RELEASE_TAG", "v1.2.3")
     monkeypatch.setenv("OMI_DESKTOP_RELEASE_SHA", "abc123")
     monkeypatch.setenv("OMI_DESKTOP_RELEASE_CHANNEL", "stable")
@@ -23,63 +22,19 @@ def test_health_and_root_preserve_release_identity(monkeypatch):
     client = make_client()
     expected = {
         "status": "healthy",
-        "service": "omi-desktop-backend",
+        "service": "omi-backend",
         "version": "0.1.0",
-        "release_tag": "v1.2.3",
-        "release_sha": "abc123",
-        "release_channel": "stable",
-        "backend_release_sha": "a" * 40,
-        "backend_release_channel": "development",
         "chat_contract_version": "1",
     }
 
     assert client.get("/").json() == expected
-    assert client.get("/health").json() == expected
 
 
-def test_ready_requires_configured_redis(monkeypatch):
-    monkeypatch.delenv("REDIS_DB_HOST", raising=False)
+def test_retired_service_health_and_readiness_aliases_are_absent():
+    client = make_client()
 
-    response = make_client().get("/ready")
-
-    assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "service": "omi-desktop-backend",
-        "redis": {"status": "not_configured", "failure_class": "not_configured"},
-    }
-
-
-def test_ready_reports_redis_ping(monkeypatch):
-    monkeypatch.setenv("REDIS_DB_HOST", "redis")
-    monkeypatch.setattr(desktop_core.redis_db.r, "ping", lambda: True)
-
-    response = make_client().get("/ready")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "ready",
-        "service": "omi-desktop-backend",
-        "redis": {"status": "ready"},
-    }
-
-
-def test_ready_bounds_redis_auth_failure(monkeypatch):
-    monkeypatch.setenv("REDIS_DB_HOST", "redis")
-
-    def ping():
-        raise redis.exceptions.AuthenticationError("credential detail")
-
-    monkeypatch.setattr(desktop_core.redis_db.r, "ping", ping)
-
-    response = make_client().get("/ready")
-
-    assert response.status_code == 503
-    assert response.json() == {
-        "status": "not_ready",
-        "service": "omi-desktop-backend",
-        "redis": {"status": "unavailable", "failure_class": "auth_config"},
-    }
+    assert client.get("/health").status_code == 404
+    assert client.get("/ready").status_code == 404
 
 
 def test_api_keys_require_firebase_auth_and_omit_unset_values(monkeypatch):
@@ -105,7 +60,7 @@ def test_sentry_task_bridge_routes_are_absent_while_health_and_config_remain():
 
     assert client.post("/v1/webhooks/sentry").status_code == 404
     assert client.post("/v1/webhooks/sentry/poll").status_code == 404
-    assert client.get("/health").status_code == 200
+    assert client.get("/").status_code == 200
     assert client.get("/v1/config/api-keys").status_code == 200
 
 

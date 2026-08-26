@@ -24,6 +24,7 @@ def clean_git_environment(env: dict[str, str]) -> dict[str, str]:
 class DesktopReleaseFlowContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = (ROOT / ".github/workflows/desktop_qualify_beta.yml").read_text(encoding="utf-8")
+        self.preview_workflow = (ROOT / ".github/workflows/desktop_publish_preview.yml").read_text(encoding="utf-8")
         self.release_guard = (ROOT / ".github/scripts/check-release-process-guards.py").read_text(encoding="utf-8")
 
     def _workflow_script(self, step_name: str) -> str:
@@ -52,6 +53,50 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+
+    def _preview_workflow_script(self, step_name: str) -> str:
+        marker = f"      - name: {step_name}\n"
+        self.assertEqual(self.preview_workflow.count(marker), 1)
+        block = self.preview_workflow.split(marker, 1)[1].split("\n      - ", 1)[0]
+        script = block.split("        run: |\n", 1)[1]
+        return "\n".join(line[10:] if line.startswith("          ") else line for line in script.splitlines())
+
+    def test_preview_backend_validation_rejects_normalized_production_family_urls(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "github-output"
+            base_env = {
+                **clean_git_environment(dict(os.environ)),
+                "BACKEND_ENVIRONMENT": "preview",
+                "GITHUB_OUTPUT": str(output),
+            }
+            script = self._preview_workflow_script("Validate the declared backend environment")
+
+            accepted = subprocess.run(
+                ["bash", "-c", script],
+                env={**base_env, "BACKEND_URL": "https://preview.example.test/backend"},
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertIn("backend_url=https://preview.example.test/backend", output.read_text(encoding="utf-8"))
+
+            for url in (
+                "https://api.omi.me:443/",
+                "https://API.OMI.ME/",
+                "https://api.omi.me./",
+                "https://api.omiapi.com:443/",
+            ):
+                with self.subTest(url=url):
+                    rejected = subprocess.run(
+                        ["bash", "-c", script],
+                        env={**base_env, "BACKEND_URL": url},
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertNotEqual(rejected.returncode, 0)
+                    self.assertIn("must not target a production-family URL", rejected.stderr)
 
     def _create_candidate_remote(self, root: Path) -> tuple[Path, str]:
         server = root / "git-server"
@@ -121,15 +166,17 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
         ):
             self.assertIn(fragment, self.workflow)
 
-    def test_m1_qualification_requires_live_desktop_backend_contract(self) -> None:
+    def test_m1_qualification_requires_live_canonical_backend_contract(self) -> None:
         for fragment in (
-            "Verify live desktop-backend chat compatibility",
+            "Verify live canonical backend chat compatibility",
+            '.status == "ok"',
             '.chat_contract_version == "1"',
-            "https://desktop-backend-hhibjajaja-uc.a.run.app/health",
-            "desktop-backend-compatibility.json",
+            "https://api.omi.me/v1/health",
+            "https://api.omi.me/ \\",
+            "backend-compatibility.json",
         ):
             self.assertIn(fragment, self.workflow)
-        compatibility = self.workflow.index("Verify live desktop-backend chat compatibility")
+        compatibility = self.workflow.index("Verify live canonical backend chat compatibility")
         qualify = self.workflow.index("Qualify exact candidate on the M1 Studio hermetic stack")
         self.assertLess(compatibility, qualify)
 

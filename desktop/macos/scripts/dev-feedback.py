@@ -30,7 +30,7 @@ SWIFT_WATCH_INPUTS = (
     "Desktop/CWebP",
 )
 PYTHON_WATCH_INPUTS = (
-    "../../backend/desktop_backend.py",
+    "../../backend/main.py",
     "../../backend/routers",
     "../../backend/database",
     "../../backend/utils",
@@ -326,9 +326,13 @@ def parser() -> argparse.ArgumentParser:
 
 
 def validate_layout(desktop_root: Path, language: str) -> None:
-    expected_path = desktop_root / "Desktop/Package.swift" if language == "swift" else desktop_root.parent.parent / "backend/desktop_backend.py"
+    expected_path = (
+        desktop_root / "Desktop/Package.swift"
+        if language == "swift"
+        else desktop_root.parent.parent / "backend/main.py"
+    )
     if not expected_path.is_file():
-        expected_file = "Desktop/Package.swift" if language == "swift" else "backend/desktop_backend.py"
+        expected_file = "Desktop/Package.swift" if language == "swift" else "backend/main.py"
         raise ValueError(f"{expected_file} was not found under desktop root {desktop_root}")
 
 

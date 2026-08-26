@@ -27,9 +27,6 @@ class LockContract:
 
 
 LOCK_CONTRACTS = {
-    'desktop_backend_auto_dev.yml': LockContract('desktop-backend-auto-dev'),
-    'desktop_backend_prod.yml': LockContract('desktop-backend-prod'),
-    'desktop_backend_recover_prod.yml': LockContract('desktop-backend-prod'),
     'gcp_backend.yml': LockContract('deploy-backend-stack-${{ github.event.inputs.environment }}'),
     'gcp_backend_auto_dev.yml': LockContract('deploy-backend-stack-development'),
     'gcp_firestore_indexes.yml': LockContract('deploy-backend-stack-${{ github.event.inputs.environment }}'),

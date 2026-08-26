@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Probe one exact no-traffic desktop-backend candidate.
+"""Probe one exact no-traffic canonical backend candidate.
 
 The probe is deliberately bounded and content-free in its evidence. It proves:
 
-* the tagged candidate reports the admitted backend source identity;
-* readiness dependencies are healthy;
-* the versioned desktop chat contract is advertised on health and responses;
+* the workflow supplies the admitted backend source identity;
+* the shallow process health contract stays unchanged;
+* the versioned desktop chat contract is advertised independently and on responses;
 * two ordinary turns complete in the same history.
 
 The Firebase ID token is read from a mode-0600 file and is never printed.
@@ -50,15 +50,22 @@ def _require_object(value: object, *, stage: str) -> dict[str, Any]:
     return value
 
 
+def validate_process_health(payload: object) -> dict[str, str]:
+    health = _require_object(payload, stage="process_health")
+    if health != {"status": "ok"}:
+        raise ProbeError(f"process_health: expected the shallow canonical contract, got {json.dumps(health, sort_keys=True)}")
+    return {"status": "ok"}
+
+
 def validate_compatibility(
     payload: object,
     *,
     expected_contract_version: str,
 ) -> dict[str, object]:
-    health = _require_object(payload, stage="health")
+    health = _require_object(payload, stage="compatibility")
     expected = {
         "status": "healthy",
-        "service": "omi-desktop-backend",
+        "service": "omi-backend",
         "chat_contract_version": expected_contract_version,
     }
     mismatches = {
@@ -67,50 +74,12 @@ def validate_compatibility(
         if health.get(key) != wanted
     }
     if mismatches:
-        raise ProbeError(f"health: incompatible service contract {json.dumps(mismatches, sort_keys=True)}")
+        raise ProbeError(f"compatibility: incompatible service contract {json.dumps(mismatches, sort_keys=True)}")
     return {
         "chat_contract_version": expected_contract_version,
-        "service": "omi-desktop-backend",
+        "service": "omi-backend",
         "status": "healthy",
     }
-
-
-def validate_health(
-    payload: object,
-    *,
-    expected_sha: str,
-    expected_channel: str,
-    expected_contract_version: str,
-) -> dict[str, object]:
-    health = _require_object(payload, stage="health")
-    compatibility = validate_compatibility(
-        health,
-        expected_contract_version=expected_contract_version,
-    )
-    expected = {
-        "backend_release_sha": expected_sha,
-        "backend_release_channel": expected_channel,
-    }
-    mismatches = {
-        key: {"expected": wanted, "actual": health.get(key)}
-        for key, wanted in expected.items()
-        if health.get(key) != wanted
-    }
-    if mismatches:
-        raise ProbeError(f"health: incompatible candidate fields {json.dumps(mismatches, sort_keys=True)}")
-    return {
-        "backend_release_channel": expected_channel,
-        "backend_release_sha": expected_sha,
-        **compatibility,
-    }
-
-
-def validate_readiness(payload: object) -> dict[str, object]:
-    readiness = _require_object(payload, stage="readiness")
-    redis = _require_object(readiness.get("redis"), stage="readiness.redis")
-    if readiness.get("status") != "ready" or redis.get("status") != "ready":
-        raise ProbeError("readiness: candidate dependencies are not ready")
-    return {"redis": "ready", "status": "ready"}
 
 
 def parse_sse(
@@ -277,21 +246,17 @@ def probe_candidate(
     *,
     base_url: str,
     token: str,
-    expected_sha: str,
-    expected_channel: str,
     expected_contract_version: str,
+    source_sha: str,
     expected_revision: str,
     expected_image_digest: str,
     candidate_tag: str,
     workflow_run_id: str,
 ) -> dict[str, object]:
-    health = validate_health(
-        _request_json(f"{base_url.rstrip('/')}/health"),
-        expected_sha=expected_sha,
-        expected_channel=expected_channel,
-        expected_contract_version=expected_contract_version,
+    process_health = validate_process_health(_request_json(f"{base_url.rstrip('/')}/v1/health"))
+    compatibility = validate_compatibility(
+        _request_json(f"{base_url.rstrip('/')}/"), expected_contract_version=expected_contract_version
     )
-    readiness = validate_readiness(_request_json(f"{base_url.rstrip('/')}/ready"))
     firestore = _require_firestore_read(base_url)
 
     initial_prompt = "Reply with one concise sentence confirming that the desktop chat service is available."
@@ -319,7 +284,7 @@ def probe_candidate(
         raise ProbeError("ordinary_follow_up: provider did not report terminal usage")
 
     return {
-        "backend_release": health,
+        "backend": compatibility,
         "chat": {
             "initial_turn": "passed",
             "initial_turn_chars": len(initial_result.answer),
@@ -330,11 +295,12 @@ def probe_candidate(
             "ordinary_follow_up_seconds": round(follow_up_result.elapsed_seconds, 3),
         },
         "firestore_read": firestore,
-        "readiness": readiness,
+        "process_health": process_health,
         "target": {
             "candidate_tag": candidate_tag,
             "image_digest": expected_image_digest,
             "revision": expected_revision,
+            "source_sha": source_sha,
             "workflow_run_id": workflow_run_id,
         },
         "schema_version": 1,
@@ -345,32 +311,13 @@ def probe_candidate(
 def probe_health_only(
     *,
     base_url: str,
-    expected_sha: str,
-    expected_channel: str,
     expected_contract_version: str,
 ) -> dict[str, object]:
     return {
-        "backend_release": validate_health(
-            _request_json(f"{base_url.rstrip('/')}/health"),
-            expected_sha=expected_sha,
-            expected_channel=expected_channel,
-            expected_contract_version=expected_contract_version,
+        "backend": validate_compatibility(
+            _request_json(f"{base_url.rstrip('/')}/"), expected_contract_version=expected_contract_version
         ),
-        "schema_version": 1,
-        "status": "passed",
-    }
-
-
-def probe_compatibility_only(
-    *,
-    base_url: str,
-    expected_contract_version: str,
-) -> dict[str, object]:
-    return {
-        "desktop_backend": validate_compatibility(
-            _request_json(f"{base_url.rstrip('/')}/health"),
-            expected_contract_version=expected_contract_version,
-        ),
+        "process_health": validate_process_health(_request_json(f"{base_url.rstrip('/')}/v1/health")),
         "schema_version": 1,
         "status": "passed",
     }
@@ -398,9 +345,7 @@ def main() -> int:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--bearer-token-file", type=Path)
     parser.add_argument("--health-only", action="store_true")
-    parser.add_argument("--compatibility-only", action="store_true")
-    parser.add_argument("--expected-release-sha")
-    parser.add_argument("--expected-release-channel", choices=("development", "production"))
+    parser.add_argument("--source-sha")
     parser.add_argument("--expected-contract-version", required=True)
     parser.add_argument("--expected-revision")
     parser.add_argument("--expected-image-digest")
@@ -409,14 +354,9 @@ def main() -> int:
     parser.add_argument("--evidence-path", required=True, type=Path)
     args = parser.parse_args()
 
-    if args.health_only and args.compatibility_only:
-        parser.error("--health-only and --compatibility-only are mutually exclusive")
-    if not args.compatibility_only:
-        if args.expected_release_sha is None or not SHA_PATTERN.fullmatch(args.expected_release_sha):
-            parser.error("--expected-release-sha must be one lowercase full commit SHA")
-        if args.expected_release_channel is None:
-            parser.error("--expected-release-channel is required for candidate and health-only probes")
-    if not args.health_only and not args.compatibility_only:
+    if not args.health_only:
+        if args.source_sha is None or not SHA_PATTERN.fullmatch(args.source_sha):
+            parser.error("--source-sha must be one lowercase full commit SHA")
         for name in ("expected_revision", "expected_image_digest", "candidate_tag", "workflow_run_id"):
             if not getattr(args, name):
                 parser.error(f"--{name.replace('_', '-')} is required for a full candidate probe")
@@ -430,16 +370,9 @@ def main() -> int:
         parser.error("--base-url must use https")
 
     try:
-        if args.compatibility_only:
-            evidence = probe_compatibility_only(
-                base_url=args.base_url,
-                expected_contract_version=args.expected_contract_version,
-            )
-        elif args.health_only:
+        if args.health_only:
             evidence = probe_health_only(
                 base_url=args.base_url,
-                expected_sha=args.expected_release_sha,
-                expected_channel=args.expected_release_channel,
                 expected_contract_version=args.expected_contract_version,
             )
         else:
@@ -448,27 +381,20 @@ def main() -> int:
             evidence = probe_candidate(
                 base_url=args.base_url,
                 token=_valid_token(args.bearer_token_file),
-                expected_sha=args.expected_release_sha,
-                expected_channel=args.expected_release_channel,
                 expected_contract_version=args.expected_contract_version,
+                source_sha=args.source_sha,
                 expected_revision=args.expected_revision,
                 expected_image_digest=args.expected_image_digest,
                 candidate_tag=args.candidate_tag,
                 workflow_run_id=args.workflow_run_id,
             )
     except (OSError, ProbeError) as error:
-        print(f"desktop-backend candidate probe failed: {error}")
+        print(f"backend candidate probe failed: {error}")
         return 1
 
     args.evidence_path.parent.mkdir(parents=True, exist_ok=True)
     args.evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if args.compatibility_only:
-        print(f"desktop-backend compatibility accepted: contract={args.expected_contract_version}")
-    else:
-        print(
-            "desktop-backend candidate accepted: "
-            f"sha={args.expected_release_sha} contract={args.expected_contract_version}"
-        )
+    print(f"backend candidate accepted: contract={args.expected_contract_version}")
     return 0
 
 

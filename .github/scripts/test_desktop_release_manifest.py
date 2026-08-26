@@ -34,56 +34,35 @@ class ManifestValidationTests(unittest.TestCase):
         self.assertEqual(set(schema["properties"]), manifest_contract.TOP_LEVEL_FIELDS)
         self.assertEqual(set(schema["required"]), manifest_contract.REQUIRED_FIELDS)
 
-    def test_accepts_app_only_release_without_backend_identity(self) -> None:
+    def test_accepts_app_artifact_without_backend_identity(self) -> None:
         manifest = manifest_contract.validate_manifest(fixture("app-only.json"))
-        self.assertEqual(manifest["backend_mode"], "app_only")
         self.assertTrue(manifest["qualification_passed"])
-        self.assertFalse(manifest_contract.BACKEND_FIELDS & manifest.keys())
-
-    def test_accepts_backend_required_release_with_exact_compatibility(self) -> None:
-        manifest = manifest_contract.validate_manifest(fixture("backend-required.json"))
-        self.assertEqual(manifest["backend_mode"], "backend_required")
-        self.assertEqual(
-            manifest["desktop_backend_oci_index_digest"],
-            manifest["compatibility_contract"]["desktop_backend_oci_index_digest"],
+        self.assertFalse(
+            {
+                "backend_mode",
+                "compatibility_contract",
+                "environment_contract_version",
+                "desktop_backend_source_sha",
+                "desktop_backend_oci_index_digest",
+                "desktop_backend_platform_digest",
+            }
+            & manifest.keys()
         )
 
-    def test_app_only_forbids_backend_identity(self) -> None:
-        manifest = fixture("app-only.json")
-        manifest["desktop_backend_source_sha"] = manifest["app_source_sha"]
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "app_only.*omit backend"):
-            manifest_contract.validate_manifest(manifest)
-
-    def test_backend_required_needs_both_oci_digests(self) -> None:
-        manifest = fixture("backend-required.json")
-        del manifest["desktop_backend_platform_digest"]
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "backend_required.*missing"):
-            manifest_contract.validate_manifest(manifest)
-
-    def test_backend_source_must_come_from_app_tag_context(self) -> None:
-        manifest = fixture("backend-required.json")
-        manifest["desktop_backend_source_sha"] = "1" * 40
-        manifest["compatibility_contract"]["desktop_backend_source_sha"] = "1" * 40
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "same source"):
-            manifest_contract.validate_manifest(manifest)
-
-    def test_rejects_incompatible_app_build(self) -> None:
-        manifest = fixture("backend-required.json")
-        manifest["compatibility_contract"]["app_build_number"] -= 1
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "app_build_number"):
-            manifest_contract.validate_manifest(manifest)
-
-    def test_rejects_incompatible_backend_digest(self) -> None:
-        manifest = fixture("backend-required.json")
-        manifest["compatibility_contract"]["desktop_backend_platform_digest"] = "sha256:" + "0" * 64
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "desktop_backend_platform_digest"):
-            manifest_contract.validate_manifest(manifest)
-
-    def test_rejects_environment_contract_mismatch(self) -> None:
-        manifest = fixture("backend-required.json")
-        manifest["compatibility_contract"]["environment_contract_version"] = "desktop-backend-env-v2"
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "environment_contract_version"):
-            manifest_contract.validate_manifest(manifest)
+    def test_rejects_retired_backend_identity_and_compatibility_fields(self) -> None:
+        for field, value in (
+            ("backend_mode", "backend_required"),
+            ("desktop_backend_source_sha", "1" * 40),
+            ("desktop_backend_oci_index_digest", "sha256:" + "2" * 64),
+            ("desktop_backend_platform_digest", "sha256:" + "3" * 64),
+            ("compatibility_contract", {}),
+            ("environment_contract_version", "desktop-backend-env-v1"),
+        ):
+            with self.subTest(field=field):
+                manifest = fixture("app-only.json")
+                manifest[field] = value
+                with self.assertRaisesRegex(manifest_contract.ManifestError, "unknown field"):
+                    manifest_contract.validate_manifest(manifest)
 
     def test_rejects_unqualified_or_non_t2_release(self) -> None:
         for key, value in (("qualification_passed", False), ("qualification_tier", "T1")):
@@ -144,11 +123,11 @@ class ManifestIntegrityTests(unittest.TestCase):
         )
         self.assertEqual(
             manifest_contract.manifest_digest(manifest),
-            "sha256:bec1b723483d46f415ff57d86b7fc59c3fc8e9faf484043834665453aafc10e7",
+            "sha256:39ae561ce3b302f7b92c4eee39ffa3cc303343df9a3323e8e5d963ad5fd9d662",
         )
 
     def test_valid_identity_and_digest_mutations_fail_detached_verification(self) -> None:
-        original = fixture("backend-required.json")
+        original = fixture("app-only.json")
         expected = manifest_contract.manifest_digest(original)
         mutations: dict[str, dict] = {}
 
@@ -162,29 +141,16 @@ class ManifestIntegrityTests(unittest.TestCase):
                 "dmg_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.73%2B12073-macos/omi.dmg",
             }
         )
-        release_identity["compatibility_contract"].update(
-            {"app_release_id": "v0.12.73+12073-macos", "app_version": "0.12.73", "app_build_number": 12073}
-        )
         mutations["release identity"] = release_identity
 
         source_identity = deepcopy(original)
-        source_identity["app_source_sha"] = "1" * 40
-        source_identity["desktop_backend_source_sha"] = "1" * 40
-        source_identity["compatibility_contract"]["desktop_backend_source_sha"] = "1" * 40
+        source_identity["app_source_sha"] = "a" * 40
         mutations["source identity"] = source_identity
 
-        app_only = deepcopy(original)
-        app_only["backend_mode"] = "app_only"
-        app_only["compatibility_contract"]["backend_mode"] = "app_only"
-        for field in manifest_contract.BACKEND_FIELDS:
-            del app_only[field]
-            del app_only["compatibility_contract"][field]
-        mutations["backend mode"] = app_only
-
         independent_fields = {
-            "zip_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.72+12072-macos/Omi.zip",
+            "zip_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.71+12071-macos/Omi.zip",
             "zip_sha256": "sha256:" + "1" * 64,
-            "dmg_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.72+12072-macos/omi.dmg",
+            "dmg_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.71+12071-macos/omi.dmg",
             "dmg_sha256": "sha256:" + "2" * 64,
             "ed_signature": "another-valid-signature",
             "qualification_evidence_asset": "qualification-evidence-0.12.72+12072-other.json",
@@ -196,16 +162,6 @@ class ManifestIntegrityTests(unittest.TestCase):
             mutation[field] = value
             mutations[field] = mutation
 
-        for field, value in {
-            "desktop_backend_oci_index_digest": "sha256:" + "4" * 64,
-            "desktop_backend_platform_digest": "sha256:" + "5" * 64,
-            "environment_contract_version": "desktop-backend-env-v2",
-        }.items():
-            mutation = deepcopy(original)
-            mutation[field] = value
-            mutation["compatibility_contract"][field] = value
-            mutations[field] = mutation
-
         for label, mutated in mutations.items():
             with self.subTest(label=label):
                 manifest_contract.validate_manifest(mutated)
@@ -214,7 +170,7 @@ class ManifestIntegrityTests(unittest.TestCase):
 
     def test_signature_rejects_manifest_and_colocated_digest_rewrite(self) -> None:
         signing_key = b"release-signing-key-owned-outside-the-manifest"
-        original = fixture("backend-required.json")
+        original = fixture("app-only.json")
         original_signature = manifest_contract.manifest_signature(original, signing_key)
         mutated = deepcopy(original)
         mutated["created_at"] = "2026-07-12T02:05:00Z"
@@ -256,11 +212,11 @@ class ManifestIntegrityTests(unittest.TestCase):
             with self.assertRaisesRegex(manifest_contract.ManifestError, "Omi.zip digest mismatch"):
                 manifest_contract.verify_artifact(artifact, expected, label="Omi.zip")
 
-    def test_oci_index_and_platform_digest_drift_use_same_boundary(self) -> None:
+    def test_detached_digest_drift_uses_the_shared_boundary(self) -> None:
         expected = "sha256:" + "a" * 64
-        manifest_contract.require_digest_match(expected, expected, label="OCI index")
-        with self.assertRaisesRegex(manifest_contract.ManifestError, "OCI index digest mismatch"):
-            manifest_contract.require_digest_match(expected, "sha256:" + "b" * 64, label="OCI index")
+        manifest_contract.require_digest_match(expected, expected, label="artifact")
+        with self.assertRaisesRegex(manifest_contract.ManifestError, "artifact digest mismatch"):
+            manifest_contract.require_digest_match(expected, "sha256:" + "b" * 64, label="artifact")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,6 @@ from . import providers, safety
 FIRESTORE_PORT = 8085
 AUTH_PORT = 9099
 BACKEND_PORT = 8000
-DESKTOP_BACKEND_PORT = 10201
 REDIS_PORT = 6380
 LOCAL_FIREBASE_API_KEY = "local-firebase-auth-emulator-api-key"
 PORT_OFFSET_ENV = "OMI_HARNESS_PORT_OFFSET"
@@ -23,7 +22,6 @@ PORT_OVERRIDE_ENVS = {
     "firestore": "OMI_HARNESS_FIRESTORE_PORT",
     "auth": "OMI_HARNESS_AUTH_PORT",
     "backend": "OMI_HARNESS_BACKEND_PORT",
-    "desktop_backend": "OMI_HARNESS_DESKTOP_BACKEND_PORT",
     "redis": "OMI_HARNESS_REDIS_PORT",
 }
 PROVIDER_MODES = providers.PROVIDER_MODES
@@ -54,7 +52,6 @@ class HarnessConfig:
     firestore_port: int = FIRESTORE_PORT
     auth_port: int = AUTH_PORT
     backend_port: int = BACKEND_PORT
-    desktop_backend_port: int = DESKTOP_BACKEND_PORT
     redis_host: str = "127.0.0.1"
     redis_port: int = REDIS_PORT
 
@@ -71,20 +68,12 @@ class HarnessConfig:
         return f"127.0.0.1:{self.backend_port}"
 
     @property
-    def desktop_backend_host(self) -> str:
-        return f"127.0.0.1:{self.desktop_backend_port}"
-
-    @property
     def redis_url(self) -> str:
         return f"redis://{self.redis_host}:{self.redis_port}/0?omi_instance={self.instance}"
 
     @property
     def backend_url(self) -> str:
         return f"http://{self.backend_host}"
-
-    @property
-    def desktop_backend_url(self) -> str:
-        return f"http://{self.desktop_backend_host}"
 
 
 def repo_root_from(path: Path) -> Path:
@@ -125,7 +114,6 @@ def harness_ports_from_env(env: Mapping[str, str] | None = None) -> dict[str, in
         "firestore": FIRESTORE_PORT,
         "auth": AUTH_PORT,
         "backend": BACKEND_PORT,
-        "desktop_backend": DESKTOP_BACKEND_PORT,
         "redis": REDIS_PORT,
     }
     ports = {name: _port_from_env(source, name, default, offset) for name, default in defaults.items()}
@@ -225,7 +213,6 @@ def load_config(repo_root: Path, env: Mapping[str, str] | None = None, *, create
         firestore_port=ports["firestore"],
         auth_port=ports["auth"],
         backend_port=ports["backend"],
-        desktop_backend_port=ports["desktop_backend"],
         redis_port=ports["redis"],
     )
     parsed = parse_secrets_file(cfg)
@@ -239,7 +226,6 @@ def load_config(repo_root: Path, env: Mapping[str, str] | None = None, *, create
             firestore_port=cfg.firestore_port,
             auth_port=cfg.auth_port,
             backend_port=cfg.backend_port,
-            desktop_backend_port=cfg.desktop_backend_port,
             redis_port=cfg.redis_port,
         )
     safety.validate_harness_runtime_config(
@@ -275,21 +261,6 @@ def child_env_for(cfg: HarnessConfig) -> dict[str, str]:
         **_harness_service_extra(cfg),
         "PORT": str(cfg.backend_port),
         "PYTHONUNBUFFERED": "1",
-        "OMI_ENV_STAGE": "offline" if cfg.provider_mode == "offline" else "local",
-    }
-    if cfg.provider_mode != "offline":
-        extra.update(provider_secrets_from_file(cfg))
-    env = safety.build_child_env(provider_mode=cfg.provider_mode, extra=extra)
-    if cfg.provider_mode == "offline":
-        env.update(safety.offline_provider_placeholders())
-    return env
-
-
-def desktop_backend_child_env_for(cfg: HarnessConfig) -> dict[str, str]:
-    extra = {
-        **_harness_service_extra(cfg),
-        "PORT": str(cfg.desktop_backend_port),
-        "USE_VERTEX_AI": "false",
         "OMI_ENV_STAGE": "offline" if cfg.provider_mode == "offline" else "local",
     }
     if cfg.provider_mode != "offline":

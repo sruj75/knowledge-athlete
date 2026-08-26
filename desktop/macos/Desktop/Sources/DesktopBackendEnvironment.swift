@@ -1,10 +1,8 @@
 import Foundation
 
 enum DesktopBackendEnvironment {
-  static let productionPythonAPIURL = "https://api.omi.me/"
-  static let productionRustBackendURL = "https://desktop-backend-hhibjajaja-uc.a.run.app/"
-  static let developmentPythonAPIURL = "https://api.omiapi.com/"
-  static let developmentRustBackendURL = "https://desktop-backend-dt5lrfkkoa-uc.a.run.app/"
+  static let productionBackendURL = "https://api.omi.me/"
+  static let developmentBackendURL = "https://api.omiapi.com/"
 
   static var shouldUseDevelopmentBackends: Bool {
     shouldUseDevelopmentBackends(
@@ -37,16 +35,16 @@ enum DesktopBackendEnvironment {
     return false
   }
 
-  static func pythonBaseURL(
+  static func backendBaseURL(
     environmentValue: String? = currentEnvironmentValue("OMI_PYTHON_API_URL")
   ) -> String {
-    pythonBaseURL(
+    backendBaseURL(
       useDevelopmentBackends: shouldUseDevelopmentBackends,
       environmentValue: environmentValue
     )
   }
 
-  static func pythonBaseURL(
+  static func backendBaseURL(
     useDevelopmentBackends: Bool,
     environmentValue: String?
   ) -> String {
@@ -54,13 +52,13 @@ enum DesktopBackendEnvironment {
     // config to switch its customer data plane. Development identities retain
     // their explicit override seam for local and signed-preview testing.
     if !useDevelopmentBackends {
-      return productionPythonAPIURL
+      return productionBackendURL
     }
     if let url = normalizedURL(environmentValue) {
       return url
     }
 
-    return developmentPythonAPIURL
+    return developmentBackendURL
   }
 
   static func authBaseURL(
@@ -68,7 +66,7 @@ enum DesktopBackendEnvironment {
     environmentValue: String? = currentEnvironmentValue("OMI_AUTH_API_URL")
   ) -> String {
     if !useDevelopmentBackends {
-      return productionPythonAPIURL
+      return productionBackendURL
     }
     if let url = normalizedURL(environmentValue) {
       return url
@@ -77,46 +75,13 @@ enum DesktopBackendEnvironment {
     // Desktop Apple Sign-In uses the shared Services ID. The registered web
     // callback is on api.omi.me, so beta must not inherit the dev data backend
     // host for OAuth unless a local/dev auth URL is explicitly supplied.
-    return productionPythonAPIURL
-  }
-
-  static func rustBackendURL(
-    environmentValue: String? = currentEnvironmentValue("OMI_DESKTOP_API_URL"),
-    launchEnvironmentValue: String? = ProcessInfo.processInfo.environment["OMI_DESKTOP_API_URL"]
-  ) -> String {
-    rustBackendURL(
-      useDevelopmentBackends: shouldUseDevelopmentBackends,
-      environmentValue: environmentValue,
-      launchEnvironmentValue: launchEnvironmentValue
-    )
-  }
-
-  static func rustBackendURL(
-    useDevelopmentBackends: Bool,
-    environmentValue: String?,
-    launchEnvironmentValue: String?
-  ) -> String {
-    if !useDevelopmentBackends {
-      return productionRustBackendURL
-    }
-    if let url = normalizedURL(environmentValue) {
-      return url
-    }
-
-    if let url = normalizedURL(launchEnvironmentValue) {
-      return url
-    }
-
-    return developmentRustBackendURL
+    return productionBackendURL
   }
 
   static func applyReleaseChannelDefaults() {
     if shouldUseDevelopmentBackends {
       if normalizedURL(currentEnvironmentValue("OMI_PYTHON_API_URL")) == nil {
-        setenv("OMI_PYTHON_API_URL", developmentPythonAPIURL, 1)
-      }
-      if normalizedURL(currentEnvironmentValue("OMI_DESKTOP_API_URL")) == nil {
-        setenv("OMI_DESKTOP_API_URL", developmentRustBackendURL, 1)
+        setenv("OMI_PYTHON_API_URL", developmentBackendURL, 1)
       }
     }
     log("BackendEnvironment: release-channel defaults applied only for missing backend URLs")

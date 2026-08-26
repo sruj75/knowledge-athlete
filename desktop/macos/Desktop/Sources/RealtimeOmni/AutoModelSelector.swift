@@ -53,7 +53,7 @@ final class AutoModelSelector {
   /// Analysis quality/speed scoring server-side, keeping the AA key off the
   /// client). Falls back to Gemini only if we've never had a pick.
   func refresh() async {
-    let httpBase = DesktopBackendEnvironment.pythonBaseURL()
+    let httpBase = DesktopBackendEnvironment.backendBaseURL()
       .replacingOccurrences(of: "wss://", with: "https://")
       .replacingOccurrences(of: "ws://", with: "http://")
     let base = httpBase.hasSuffix("/") ? String(httpBase.dropLast()) : httpBase

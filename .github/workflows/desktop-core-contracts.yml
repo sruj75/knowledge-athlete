@@ -1,9 +1,9 @@
-name: Desktop Backend Contracts
+name: Desktop Core Contracts
 
 on:
   pull_request:
     paths:
-      - ".github/workflows/desktop-backend-contracts.yml"
+      - ".github/workflows/desktop-core-contracts.yml"
       - "desktop/macos/scripts/desktop-core-harness.sh"
       - "desktop/macos/scripts/desktop-flow-lint.py"
       - "desktop/macos/scripts/desktop_flow_contract.py"
