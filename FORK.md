@@ -189,8 +189,11 @@ name with no direct user-visible identity.
   preview, promotion, retry, recovery, and rollback controls. S-29 owns adding a
   fresh Mac build/sign/notarize provider definition; until then this checkout
   does not claim a self-contained artifact-production lane.
-- The universal dylibs in `desktop/macos/vendor/libwebp/` remain protected
-  inputs for S-29 and are not proof that the missing provider lane exists.
+- The universal dylibs in `desktop/macos/vendor/libwebp/` now have checked-in
+  checksum/architecture/install-name/deployment-target/dependency verification,
+  a pinned source-rebuild fallback, and nested-signing preparation scripts.
+  Those repository contracts are not proof that the still-missing provider lane
+  exists or that a signed artifact has been produced.
 - `.github/workflows/desktop-core-contracts.yml` keeps the independent
   `desktop-core-e2e-t0` self-check. S-10 removed conversation parity and S-12
   removed the final hosted Memory parity contract, fixture, job, discovery
