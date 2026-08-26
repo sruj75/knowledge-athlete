@@ -36,7 +36,7 @@ def _bind_fair_use_fakes(monkeypatch):
     """Bind the retained database and Redis seams for each test."""
     monkeypatch.setattr(fair_use_mod, 'fair_use_db', _fair_use_db)
     monkeypatch.setattr(fair_use_mod, 'users_db', _users_db)
-    monkeypatch.setattr(fair_use_mod, 'redis_client', _mock_redis)
+    monkeypatch.setattr(fair_use_mod, 'get_redis_client', lambda: _mock_redis)
 
 
 # ---------------------------------------------------------------------------

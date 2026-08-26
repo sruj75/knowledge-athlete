@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 
 import av
 
-from database.redis_db import r
+from database.redis_connection import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +103,21 @@ return {1, used + request, math.max(0, budget - used - request)}
 """
 
 _consume_lua: Optional[Any] = None
-try:
-    _consume_lua = r.register_script(_CONSUME_LUA_SRC)
-except Exception:
-    logger.warning('voice_duration_limiter: failed to register Lua script (Redis unavailable?)')
+_consume_lua_initialized = False
+
+
+def _get_consume_lua() -> Optional[Any]:
+    """Register the script on first budget use, never during module import."""
+    global _consume_lua, _consume_lua_initialized
+    if _consume_lua is not None:
+        return _consume_lua
+    if not _consume_lua_initialized:
+        _consume_lua_initialized = True
+        try:
+            _consume_lua = get_redis_client().register_script(_CONSUME_LUA_SRC)
+        except Exception:
+            logger.warning('voice_duration_limiter: failed to register Lua script (Redis unavailable?)')
+    return _consume_lua
 
 
 def _budget_key(uid: str) -> str:
@@ -127,11 +138,12 @@ def try_consume_budget(uid: str, duration_ms: int) -> tuple[bool, int, int]:
     if duration_ms < 0:
         return True, 0, DAILY_BUDGET_MS
 
-    if _consume_lua is None:
+    consume_lua = _get_consume_lua()
+    if consume_lua is None:
         return True, 0, DAILY_BUDGET_MS
 
     try:
-        result = _consume_lua(
+        result = consume_lua(
             keys=[_budget_key(uid)],
             args=[time.time(), _WINDOW_S, DAILY_BUDGET_MS, duration_ms],
         )
@@ -167,11 +179,12 @@ def record_actual_duration(uid: str, duration_ms: int) -> bool:
     if duration_ms <= 0:
         return True
 
-    if _consume_lua is None:
+    consume_lua = _get_consume_lua()
+    if consume_lua is None:
         return True
 
     try:
-        _consume_lua(
+        consume_lua(
             keys=[_budget_key(uid)],
             args=[time.time(), _WINDOW_S, DAILY_BUDGET_MS, duration_ms, 1],  # force=1
         )

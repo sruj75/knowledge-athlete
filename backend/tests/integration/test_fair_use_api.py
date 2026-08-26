@@ -46,7 +46,7 @@ def _cleanup():
     _state_store.clear()
     _events.clear()
     try:
-        fair_use.redis_client.delete(
+        fair_use.get_redis_client().delete(
             fair_use._redis_key(TEST_UID),
             f'fair_use:bucket:{TEST_UID}',
             f'fair_use:stage:{TEST_UID}',
@@ -64,7 +64,8 @@ def cleanup(monkeypatch):
     ``monkeypatch.setattr`` (the sanctioned Tier-2 seam). Test bodies and assertions
     are unchanged.
     """
-    monkeypatch.setattr(fair_use, 'redis_client', fakeredis.FakeRedis())
+    redis = fakeredis.FakeRedis()
+    monkeypatch.setattr(fair_use, 'get_redis_client', lambda: redis)
     monkeypatch.setattr(fair_use, 'FAIR_USE_ENABLED', True)
     monkeypatch.setattr(_admin_module, 'ADMIN_KEY', 'test-admin-key-12345')
     monkeypatch.setattr(_admin_module, 'FAIR_USE_ENABLED', True)

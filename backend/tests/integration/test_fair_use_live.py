@@ -76,7 +76,7 @@ _mem_db = InMemoryFairUseDB()
 def _cleanup_redis(uid):
     """Remove all fair_use Redis keys for a test user."""
     try:
-        fair_use.redis_client.delete(
+        fair_use.get_redis_client().delete(
             fair_use._redis_key(uid),
             f'fair_use:bucket:{uid}',
             f'fair_use:stage:{uid}',
@@ -282,7 +282,7 @@ class TestCacheInvalidation:
         assert stage == 'warning'
 
         # Verify it's cached
-        cached = fair_use.redis_client.get(f'fair_use:stage:{TEST_UID}')
+        cached = fair_use.get_redis_client().get(f'fair_use:stage:{TEST_UID}')
         assert cached is not None
         assert (cached.decode() if isinstance(cached, bytes) else cached) == 'warning'
 
@@ -293,7 +293,7 @@ class TestCacheInvalidation:
 
         fair_use.invalidate_enforcement_cache(TEST_UID)
 
-        cached = fair_use.redis_client.get(f'fair_use:stage:{TEST_UID}')
+        cached = fair_use.get_redis_client().get(f'fair_use:stage:{TEST_UID}')
         assert cached is None
 
 
@@ -307,22 +307,22 @@ class TestRedisLockLive:
         import uuid
 
         token = str(uuid.uuid4())
-        acquired = fair_use.redis_client.set(lock_key, token, nx=True, ex=10)
+        acquired = fair_use.get_redis_client().set(lock_key, token, nx=True, ex=10)
         assert acquired is True
 
         # Same key should fail
-        acquired2 = fair_use.redis_client.set(lock_key, 'other', nx=True, ex=10)
+        acquired2 = fair_use.get_redis_client().set(lock_key, 'other', nx=True, ex=10)
         assert acquired2 is not True  # Could be False or None
 
         # Release with correct token
         fair_use._release_lock(lock_key, token)
 
         # Now it should be acquirable again
-        acquired3 = fair_use.redis_client.set(lock_key, 'new', nx=True, ex=10)
+        acquired3 = fair_use.get_redis_client().set(lock_key, 'new', nx=True, ex=10)
         assert acquired3 is True
 
         # Cleanup
-        fair_use.redis_client.delete(lock_key)
+        fair_use.get_redis_client().delete(lock_key)
 
     def test_release_with_wrong_token_does_not_delete(self):
         """Releasing with wrong token should NOT delete the lock."""
@@ -331,18 +331,18 @@ class TestRedisLockLive:
         import uuid
 
         real_token = str(uuid.uuid4())
-        fair_use.redis_client.set(lock_key, real_token, nx=True, ex=10)
+        fair_use.get_redis_client().set(lock_key, real_token, nx=True, ex=10)
 
         # Try to release with wrong token
         fair_use._release_lock(lock_key, 'wrong_token')
 
         # Lock should still exist
-        val = fair_use.redis_client.get(lock_key)
+        val = fair_use.get_redis_client().get(lock_key)
         assert val is not None
         assert (val.decode() if isinstance(val, bytes) else val) == real_token
 
         # Cleanup
-        fair_use.redis_client.delete(lock_key)
+        fair_use.get_redis_client().delete(lock_key)
 
 
 class TestExemptUser:

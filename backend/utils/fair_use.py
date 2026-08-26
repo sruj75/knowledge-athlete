@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 
 import database.fair_use as fair_use_db
 import database.users as users_db
-from database.redis_db import r as redis_client
+from database.redis_connection import get_redis_client
 from models.fair_use import SoftCapTrigger
 from models.users import PlanType
 from utils.subscription import has_transcription_credits, is_paid_plan
@@ -106,7 +106,7 @@ end
 
 def _release_lock(key: str, token: str) -> None:
     """Release a Redis lock only if we still own it (compare-and-delete)."""
-    redis_client.eval(_RELEASE_LOCK_SCRIPT, 1, key, token)
+    get_redis_client().eval(_RELEASE_LOCK_SCRIPT, 1, key, token)
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ def record_speech_ms(
         bucket_minute = now // FAIR_USE_BUCKET_SECONDS
         logger.info(f'fair_use: record_speech_ms uid={uid} ms={speech_ms} source={normalized_source}')
 
-        pipe = redis_client.pipeline(transaction=False)
+        pipe = get_redis_client().pipeline(transaction=False)
         # Increment speech_ms for this minute bucket
         bucket_key = _bucket_key(uid, normalized_source)
         zset_key = _redis_key(uid, normalized_source)
@@ -151,7 +151,7 @@ def record_speech_ms(
         # Prune old zset members older than retention window
         cutoff_ts = now - FAIR_USE_REDIS_RETENTION_SECONDS
         # First, get stale members so we can also prune the hash (#5748 reviewer fix)
-        stale_members = redis_client.zrangebyscore(zset_key, 0, cutoff_ts)
+        stale_members = get_redis_client().zrangebyscore(zset_key, 0, cutoff_ts)
         pipe.zremrangebyscore(zset_key, 0, cutoff_ts)
         # Prune matching hash fields to prevent unbounded growth
         if stale_members:
@@ -188,11 +188,11 @@ def get_rolling_speech_ms(uid: str, sources: Optional[tuple[str, ...]] = None) -
             # in live enforcement until its seven-day TTL naturally expires.
             source_keys.append((f'fair_use:bucket:{uid}', f'fair_use:speech:{uid}'))
         for bucket_key, zset_key in source_keys:
-            members = redis_client.zrangebyscore(zset_key, cutoff_weekly, '+inf')
+            members = get_redis_client().zrangebyscore(zset_key, cutoff_weekly, '+inf')
             if not members:
                 continue
             fields = [m.decode() if isinstance(m, bytes) else m for m in members]
-            bucket_values = redis_client.hmget(bucket_key, fields)
+            bucket_values = get_redis_client().hmget(bucket_key, fields)
             for member, value in zip(members, bucket_values):
                 if value is None:
                     continue
@@ -311,7 +311,7 @@ def get_enforcement_stage(uid: str) -> str:
     cache_key = f'fair_use:stage:{uid}'
     cached_stage: str | None = None
     try:
-        cached = redis_client.get(cache_key)
+        cached = get_redis_client().get(cache_key)
         if cached:
             cached_stage = cached.decode() if isinstance(cached, bytes) else str(cached)
             if cached_stage not in {'throttle', 'restrict'}:
@@ -324,7 +324,7 @@ def get_enforcement_stage(uid: str) -> str:
 
     # Cache for 60s
     try:
-        redis_client.setex(cache_key, 60, stage)
+        get_redis_client().setex(cache_key, 60, stage)
     except Exception:
         pass
 
@@ -334,7 +334,7 @@ def get_enforcement_stage(uid: str) -> str:
 def invalidate_enforcement_cache(uid: str) -> None:
     """Clear cached enforcement state after an update."""
     try:
-        redis_client.delete(f'fair_use:stage:{uid}')
+        get_redis_client().delete(f'fair_use:stage:{uid}')
     except Exception:
         pass
 
@@ -587,7 +587,7 @@ def record_managed_stt_usage_ms(
         return
     try:
         key = _managed_stt_budget_key(uid)
-        pipe = redis_client.pipeline(transaction=False)
+        pipe = get_redis_client().pipeline(transaction=False)
         pipe.incrby(key, ms)
         # TTL = seconds until next midnight UTC + 1h buffer
         now = datetime.now(timezone.utc)
@@ -595,7 +595,7 @@ def record_managed_stt_usage_ms(
         seconds_until_midnight = int((tomorrow - now).total_seconds())
         if idempotency_key:
             ttl = seconds_until_midnight + 3600
-            redis_client.eval(
+            get_redis_client().eval(
                 _RECORD_COUNTER_ONCE_SCRIPT,
                 2,
                 # Share the established once-marker with old pods so a retry
@@ -636,7 +636,7 @@ def get_managed_stt_budget_status(uid: str) -> Dict[str, Any]:
 
     try:
         key = _managed_stt_budget_key(uid)
-        used = redis_client.get(key)
+        used = get_redis_client().get(key)
         used_ms = int(used) if used else 0
         remaining = max(0, limit - used_ms)
         result['used_ms'] = used_ms
@@ -657,7 +657,7 @@ def is_managed_stt_budget_exhausted(uid: str) -> bool:
         return False
     try:
         key = _managed_stt_budget_key(uid)
-        used = redis_client.get(key)
+        used = get_redis_client().get(key)
         if used is None:
             return False
         return int(used) >= FAIR_USE_RESTRICT_DAILY_MANAGED_STT_MS
@@ -696,7 +696,7 @@ async def trigger_free_exhaustion_if_needed(
     try:
         acquired = await run_blocking(
             db_executor,
-            redis_client.set,
+            get_redis_client().set,
             lock_key,
             lock_token,
             nx=True,

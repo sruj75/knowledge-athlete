@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from threading import Lock
 from typing import Any, Callable, Protocol, cast
 
-import redis
 from redis.exceptions import RedisError
 
 from config.translation import TranslationProfile
+from database.redis_connection import get_redis_client
 from utils.translation_core.metrics import TranslationMetrics
 
 
@@ -214,15 +213,7 @@ def get_default_translation_store() -> RedisTranslationStore:
 
 
 def _create_redis_client() -> Any:
-    host = os.getenv('REDIS_DB_HOST')
-    port_raw = os.getenv('REDIS_DB_PORT')
-    return redis.Redis(
-        host=cast(str, host),
-        port=int(port_raw) if port_raw is not None else 6379,
-        username='default',
-        password=os.getenv('REDIS_DB_PASSWORD'),
-        health_check_interval=30,
-    )
+    return get_redis_client()
 
 
 def _translation_key(fingerprint: str, target_language: str) -> str:

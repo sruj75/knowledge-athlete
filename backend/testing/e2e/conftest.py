@@ -200,18 +200,15 @@ def _create_backend_app(fake_firestore_instance, fake_redis_instance, fake_stora
     # Import the real FastAPI app (triggers all backend module imports)
     import main as backend_main
 
-    # Some backend modules bind ``db``/``r`` with ``from database._client import db``
-    # or ``from database.redis_db import r`` at import time. If an import raced ahead
-    # of the constructor monkeypatches above, relink those already-bound module
-    # globals to the hermetic fakes so the e2e harness fails closed instead of
-    # reaching Firestore/Redis on localhost or the public internet.
+    # Some backend modules bind ``db`` with ``from database._client import db``
+    # at import time. Relink that legacy Firestore singleton while Redis uses its
+    # explicit injectable production boundary.
     import database._client as db_client
-    import database.redis_db as redis_db
+    from database.redis_connection import set_redis_client_for_testing
 
     old_db = db_client.db
-    old_r = redis_db.r
     db_client.db = fake_firestore_instance
-    redis_db.r = fake_redis_instance
+    set_redis_client_for_testing(fake_redis_instance)
     for module in list(sys.modules.values()):
         if module is None:
             continue
@@ -219,8 +216,6 @@ def _create_backend_app(fake_firestore_instance, fake_redis_instance, fake_stora
             try:
                 if attr_value is old_db:
                     setattr(module, attr_name, fake_firestore_instance)
-                elif attr_value is old_r:
-                    setattr(module, attr_name, fake_redis_instance)
             except Exception:
                 continue
 
@@ -274,9 +269,9 @@ def isolate_e2e_state(fake_firestore, fake_redis, fake_storage):
         except Exception:
             pass
         try:
-            import database.redis_db as redis_db
+            from database.redis_connection import set_redis_client_for_testing
 
-            redis_db.r = fake_redis
+            set_redis_client_for_testing(fake_redis)
         except Exception:
             pass
 

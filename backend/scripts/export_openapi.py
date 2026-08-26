@@ -322,12 +322,11 @@ def install_hermetic_dependency_patches():
 
 def relink_imported_service_singletons(fake_firestore, fake_redis, get_mock_firestore, get_fake_redis) -> None:
     import database._client as db_client
-    import database.redis_db as redis_db
+    from database.redis_connection import set_redis_client_for_testing
 
     old_db = db_client.db
-    old_r = redis_db.r
     db_client.db = fake_firestore
-    redis_db.r = fake_redis
+    set_redis_client_for_testing(fake_redis)
     for module in list(sys.modules.values()):
         if module is None:
             continue
@@ -335,8 +334,6 @@ def relink_imported_service_singletons(fake_firestore, fake_redis, get_mock_fire
             try:
                 if attr_value is old_db:
                     setattr(module, attr_name, get_mock_firestore())
-                elif attr_value is old_r:
-                    setattr(module, attr_name, get_fake_redis())
             except Exception:
                 continue
 

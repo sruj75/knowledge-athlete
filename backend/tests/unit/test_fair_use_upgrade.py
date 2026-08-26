@@ -25,7 +25,7 @@ _mock_redis = MagicMock()
 @pytest.fixture(autouse=True)
 def _wire_fair_use_mocks(monkeypatch):
     monkeypatch.setattr(fair_use_mod, 'fair_use_db', _fair_use_db)
-    monkeypatch.setattr(fair_use_mod, 'redis_client', _mock_redis)
+    monkeypatch.setattr(fair_use_mod, 'get_redis_client', lambda: _mock_redis)
 
 
 def _make_paid_subscription():
