@@ -82,6 +82,34 @@ import XCTest
     }
   }
 
+  private actor ClearRefreshRaceGate {
+    private var callCount = 0
+    private var lateReadStarted = false
+    private var lateReadWaiters: [CheckedContinuation<Void, Never>] = []
+    private var lateReadRelease: CheckedContinuation<AgentRuntimeProcess.JournalOperationResult, Never>?
+
+    func fetch(
+      initial: AgentRuntimeProcess.JournalOperationResult
+    ) async -> AgentRuntimeProcess.JournalOperationResult {
+      callCount += 1
+      guard callCount > 1 else { return initial }
+      lateReadStarted = true
+      lateReadWaiters.forEach { $0.resume() }
+      lateReadWaiters.removeAll()
+      return await withCheckedContinuation { lateReadRelease = $0 }
+    }
+
+    func waitUntilLateReadStarts() async {
+      guard !lateReadStarted else { return }
+      await withCheckedContinuation { lateReadWaiters.append($0) }
+    }
+
+    func releaseLateRead(with page: AgentRuntimeProcess.JournalOperationResult) {
+      lateReadRelease?.resume(returning: page)
+      lateReadRelease = nil
+    }
+  }
+
   @MainActor
   final class KernelTurnRecordedProjectionTests: XCTestCase {
     override func setUp() {
@@ -975,6 +1003,56 @@ import XCTest
       XCTAssertEqual(clearCalls.map(\.generation), [9])
       XCTAssertTrue(provider.messages.isEmpty)
       XCTAssertNil(statusStore.projection(for: surface))
+    }
+
+    func testClearRevokesARefreshThatWasAdmittedBeforeTheJournalWasCleared() async throws {
+      let provider = ChatProvider()
+      let surface = provider.mainChatSurfaceReference()
+      let firstTurn = try turn(
+        surface: surface,
+        turnId: "before-clear",
+        turnSeq: 1,
+        content: "Visible before clear")
+      let staleLateTurn = try turn(
+        surface: surface,
+        turnId: "stale-after-clear",
+        turnSeq: 2,
+        content: "Must not reappear")
+      let initialPage = journalPage(conversationId: "conversation-1", turns: [firstTurn])
+      let latePage = journalPage(conversationId: "conversation-1", turns: [staleLateTurn])
+      let gate = ClearRefreshRaceGate()
+      var clearGenerations: [Int] = []
+      let projection = KernelTurnProjection(
+        host: provider,
+        client: AgentClient.Session(harnessMode: "piMono"),
+        ownerIDProvider: { "owner-a" },
+        journalListOperation: { _, _, _, _, _ in
+          await gate.fetch(initial: initialPage)
+        },
+        journalClearOperation: { _, _, _, generation, _ in
+          clearGenerations.append(generation)
+          return 1
+        },
+        kernelReadyOperation: { true }
+      )
+
+      let initialRefreshSucceeded = await projection.refresh(surface: surface)
+      XCTAssertTrue(initialRefreshSucceeded)
+      XCTAssertEqual(provider.messages.map(\.id), ["before-clear"])
+
+      let staleRefresh = Task { @MainActor in
+        await projection.refresh(surface: surface)
+      }
+      await gate.waitUntilLateReadStarts()
+      let clearSucceeded = await projection.clear(surface: surface, ownerID: "owner-a")
+      XCTAssertTrue(clearSucceeded)
+      XCTAssertTrue(provider.messages.isEmpty)
+
+      await gate.releaseLateRead(with: latePage)
+      let staleRefreshSucceeded = await staleRefresh.value
+      XCTAssertFalse(staleRefreshSucceeded)
+      XCTAssertTrue(provider.messages.isEmpty)
+      XCTAssertEqual(clearGenerations, [1])
     }
 
     func testClearFailsClosedWhenGenerationBootstrapFails() async throws {

@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
@@ -26,6 +27,17 @@ def evidence(token: str = 'request-token') -> dict:
         'source': 'desktop',
         'created_at': '2026-08-21T07:30:00Z',
     }
+
+
+def assert_redis_fallback(fallback: Mock, from_mode: str) -> None:
+    fallback.assert_called_once_with(
+        component='fair_use',
+        from_mode=from_mode,
+        to_mode='redis_unavailable',
+        reason='other',
+        outcome='degraded',
+        log=review_state.logger,
+    )
 
 
 def test_classification_request_is_strict_bounded_and_content_only():
@@ -115,6 +127,8 @@ def test_pending_review_redis_failure_is_caught_without_stranding_a_cooldown(mon
     redis = Mock()
     redis.eval.side_effect = RuntimeError('redis unavailable')
     monkeypatch.setattr(review_state.redis_db, 'r', redis)
+    fallback = Mock()
+    monkeypatch.setattr(review_state, 'record_fallback', fallback, raising=False)
 
     result = review_state.create_pending_fair_use_review(
         'owner-a',
@@ -126,14 +140,18 @@ def test_pending_review_redis_failure_is_caught_without_stranding_a_cooldown(mon
     assert result is None
     redis.set.assert_not_called()
     redis.setex.assert_not_called()
+    assert_redis_fallback(fallback, 'pending_review_create')
 
 
 def test_pending_review_read_fails_open_when_redis_is_unavailable(monkeypatch):
     redis = Mock()
     redis.get.side_effect = RuntimeError('redis unavailable')
     monkeypatch.setattr(review_state.redis_db, 'r', redis)
+    fallback = Mock()
+    monkeypatch.setattr(review_state, 'record_fallback', fallback, raising=False)
 
     assert review_state.get_pending_fair_use_review('owner-a') is None
+    assert_redis_fallback(fallback, 'pending_review_read')
 
 
 def test_pending_review_consumption_is_compare_and_delete_by_review_id(monkeypatch):
@@ -148,6 +166,42 @@ def test_pending_review_consumption_is_compare_and_delete_by_review_id(monkeypat
         'fair_use:review:pending:owner-a',
         'review-a',
     )
+
+
+def test_pending_review_consume_fails_open_when_redis_is_unavailable(monkeypatch):
+    redis = Mock()
+    redis.eval.side_effect = RuntimeError('redis unavailable')
+    monkeypatch.setattr(review_state.redis_db, 'r', redis)
+    fallback = Mock()
+    monkeypatch.setattr(review_state, 'record_fallback', fallback, raising=False)
+
+    result = review_state.mark_fair_use_review_consumed('owner-a', 'review-a')
+
+    assert result is None
+    assert_redis_fallback(fallback, 'pending_review_consume')
+
+
+def test_pending_review_redis_failures_never_log_the_uid(monkeypatch, caplog):
+    uid = 'private-owner-uid-9284'
+    redis = Mock()
+    redis.eval.side_effect = RuntimeError('redis unavailable')
+    redis.get.side_effect = RuntimeError('redis unavailable')
+    monkeypatch.setattr(review_state.redis_db, 'r', redis)
+
+    with caplog.at_level(logging.WARNING, logger=review_state.logger.name):
+        assert (
+            review_state.create_pending_fair_use_review(
+                uid,
+                [{'trigger': 'daily'}],
+                {'daily_ms': 7_200_001},
+                PlanType.bounded,
+            )
+            is None
+        )
+        assert review_state.get_pending_fair_use_review(uid) is None
+        assert review_state.mark_fair_use_review_consumed(uid, 'review-a') is None
+
+    assert uid not in caplog.text
 
 
 def make_client(uid: str = 'owner-a') -> TestClient:

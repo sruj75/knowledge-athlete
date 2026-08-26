@@ -72,7 +72,7 @@ final class TasksSortOrderBandingTests: XCTestCase {
       ActionItemRecord(description: "Target", source: "manual"),
       authorization: .unrestricted
     ).toTaskActionItem()
-    let tomorrow = Date().addingTimeInterval(86_400)
+    let tomorrow = Date(timeIntervalSince1970: 1_735_086_400)
 
     try await ActionItemStorage.shared.reorderTask(
       surfacedId: first.id,

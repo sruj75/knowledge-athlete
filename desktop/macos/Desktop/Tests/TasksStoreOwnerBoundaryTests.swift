@@ -1,3 +1,4 @@
+@preconcurrency import UserNotifications
 import XCTest
 
 @testable import Omi_Computer
@@ -26,10 +27,23 @@ private actor TasksStorePauseGate {
 }
 
 @MainActor
+private final class TasksStoreNoopReminderNotifications: TaskReminderNotificationBoundary {
+  func add(_ request: UNNotificationRequest) async -> UserNotificationDeliveryResult {
+    UserNotificationDeliveryResult(errorDescription: nil)
+  }
+
+  func pendingRequestIdentifiers() async -> [String] { [] }
+
+  func removePendingRequests(withIdentifiers identifiers: [String]) {}
+}
+
+@MainActor
 final class TasksStoreOwnerBoundaryTests: XCTestCase {
   private var fixture: RewindStorageTestIsolation.Fixture?
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
-  private let store = TasksStore.shared
+  private let store = TasksStore(
+    reminderService: TaskReminderService(notifications: TasksStoreNoopReminderNotifications()),
+    observesNotifications: false)
 
   override func setUp() async throws {
     fixture = try await RewindStorageTestIsolation.setUp(userIdPrefix: "tasks-store-owner")

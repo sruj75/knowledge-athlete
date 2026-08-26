@@ -2,8 +2,21 @@
 
 import base64
 import json
+from pathlib import Path
+from unittest.mock import patch
+
+import yaml
 
 from testing.parity_pack_v0.live_capture import SurfaceParityCapture
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = BACKEND_ROOT.parent
+LOCAL_PARITY_SETTINGS = {
+    "OMI_PARITY_PACK_ALLOWED_PRINCIPALS",
+    "OMI_PARITY_PACK_CAPTURE",
+    "OMI_PARITY_PACK_ROOT",
+}
 
 
 def _env(root):
@@ -58,3 +71,48 @@ def test_surface_capture_preserves_binary_audio_encoding_and_denies_non_allowlis
     denied.observe("client", {"must": "not-persist"})
     denied.persist()
     assert not (tmp_path / "denied" / "cassettes").exists()
+
+
+def test_surface_capture_stays_local_when_legacy_gcs_settings_are_present(tmp_path, monkeypatch):
+    environ = _env(tmp_path)
+    environ.update(
+        {
+            "OMI_PARITY_PACK_GCS_URI": "gs://retired-parity-pack/parity/v0",
+            "OMI_PARITY_PACK_GCS_BUCKET": "retired-parity-pack",
+            "OMI_PARITY_PACK_GCS_PREFIX": "parity/v0",
+            "OMI_PARITY_PACK_EXPORT_INTERVAL_SECONDS": "1",
+        }
+    )
+    for setting, value in environ.items():
+        monkeypatch.setenv(setting, value)
+    capture = SurfaceParityCapture.from_environ(
+        principal_id="allowed-user",
+        session_id="surface-session",
+        surface="ptt",
+        source="desktop_ptt_http",
+        provider_lane="deepgram",
+        route_or_model="deepgram-nova-3",
+        request={"audio_bytes": 20},
+        environ=environ,
+    )
+    capture.observe("client", {"type": "ptt_audio"})
+
+    with patch("google.cloud.storage.Client") as storage_client:
+        capture.persist()
+
+    storage_client.assert_not_called()
+    assert len(list((tmp_path / "cassettes").glob("*.json"))) == 1
+
+
+def test_runtime_and_deployment_classification_retain_only_local_parity_settings():
+    runtime = yaml.safe_load((BACKEND_ROOT / "deploy/runtime_env.yaml").read_text(encoding="utf-8"))
+    runtime_settings = set(runtime["environments"]["dev"]["cloud_run"]["services"]["backend"]["env"])
+    classified = json.loads(
+        (REPOSITORY_ROOT / "config/deployment-setting-classification.json").read_text(encoding="utf-8")
+    )
+    classified_settings = set(classified["kinds"]["config"])
+
+    assert {setting for setting in runtime_settings if setting.startswith("OMI_PARITY_PACK_")} == LOCAL_PARITY_SETTINGS
+    assert {
+        setting for setting in classified_settings if setting.startswith("OMI_PARITY_PACK_")
+    } == LOCAL_PARITY_SETTINGS

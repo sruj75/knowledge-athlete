@@ -9,6 +9,23 @@ import XCTest
 
   @MainActor
   final class RealtimeHubSpawnAgentTests: XCTestCase {
+    func testRejectedLocalProfileCommitDiagnosticRedactsOwnerIdentifier() {
+      let rawOwnerID = "private-owner-id-sentinel"
+
+      let diagnostic = RealtimeLocalProfileRejectedCommitDiagnostics.make(
+        commitResult: "rejected",
+        phase: "finalizing",
+        route: "managed_batch",
+        ownerID: rawOwnerID,
+        recentTimeline: "1:finalize:listening->finalizing")
+
+      XCTAssertEqual(diagnostic.response["owner_present"], "true")
+      XCTAssertNil(diagnostic.response["owner"])
+      XCTAssertTrue(diagnostic.logMessage.contains("owner_present=true"))
+      XCTAssertFalse(diagnostic.logMessage.contains(rawOwnerID))
+      XCTAssertFalse(diagnostic.response.values.contains(rawOwnerID))
+    }
+
     func testLocalProfileTurnPlanIsFailClosedOutsideHermeticProfile() {
       XCTAssertNil(
         RealtimeLocalProfileTurnPlan.make(
@@ -30,6 +47,7 @@ import XCTest
           objective: RealtimeLocalProfileTurnPlan.exactMemoryAgentRequest,
           title: "Today's memory insight"))
       XCTAssertFalse(plan.assistantText.isEmpty)
+      XCTAssertFalse(plan.requestsCurrentScreen)
     }
 
     func testLocalProfileOrdinaryAndRecallTurnsNeverProposeSpawn() throws {
@@ -50,6 +68,20 @@ import XCTest
       XCTAssertNil(recall.spawn)
       XCTAssertTrue(recall.assistantText.contains(marker))
       XCTAssertFalse(recall.assistantText.contains("GAUNTLET-OLD"))
+      XCTAssertFalse(ordinary.requestsCurrentScreen)
+      XCTAssertFalse(recall.requestsCurrentScreen)
+    }
+
+    func testLocalProfileCurrentScreenRequestRunsTheScreenEvidenceProtocol() throws {
+      let plan = try XCTUnwrap(
+        RealtimeLocalProfileTurnPlan.make(
+          transcript: "What is on my screen?",
+          voiceContext: "",
+          localProfileEnabled: true))
+
+      XCTAssertTrue(plan.requestsCurrentScreen)
+      XCTAssertNil(plan.spawn)
+      XCTAssertFalse(plan.assistantText.isEmpty)
     }
 
     func testCanonicalSpawnReceiptKeepsProviderContinuationInNativeVoiceLane() {

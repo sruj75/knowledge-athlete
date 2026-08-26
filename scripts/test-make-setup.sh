@@ -73,8 +73,13 @@ touch \
 cat >"$TMPDIR/sync/bin/uv" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1" = "python" ]; then
+if [ "$1" = "python" ] && [ "$2" = "find" ]; then
+  printf '%s\n' "/managed/python"
   exit 0
+fi
+if [ "$1" = "python" ] && [ "$2" = "install" ]; then
+  echo "an already-installed exact interpreter must not be downloaded again" >&2
+  exit 43
 fi
 if [ "$1" = "venv" ]; then
   target="${!#}"

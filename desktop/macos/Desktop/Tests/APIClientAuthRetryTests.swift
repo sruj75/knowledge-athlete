@@ -347,9 +347,18 @@ import XCTest
       await transitionOwnerForAuthTest(to: ownerID)
     }
 
-    func testTTSProvider401RetriesWithoutInvalidatingFirebaseSession() async throws {
+    func testTTSProvider401DoesNotRefreshOrInvalidateFirebaseSession() async throws {
       AuthRetryURLStub.returnUnauthorizedForEveryAttempt(
-        body: "{\"error\":\"OpenAI TTS request failed: Incorrect API key provided\"}"
+        body: """
+          {
+            "error":"OpenAI TTS request failed",
+            "reason":"provider_auth_failed",
+            "provider":"openai",
+            "backend_route":"/v1/tts/synthesize",
+            "upstream_status_code":401,
+            "retryable":false
+          }
+          """
       )
       setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
       setenv("FIREBASE_API_KEY", "test-key", 1)
@@ -410,11 +419,61 @@ import XCTest
         )
       }
 
-      XCTAssertEqual(AuthRetryURLStub.attempts, 2)
+      XCTAssertEqual(AuthRetryURLStub.attempts, 1)
       XCTAssertEqual(UserDefaults.standard.string(forKey: .authUserId), "user-1")
       let retainedToken = try await auth.getIdToken()
-      XCTAssertEqual(retainedToken, "new-id")
+      XCTAssertEqual(retainedToken, "id-token")
       XCTAssertFalse(try healthSnapshots().contains { $0["area"] as? String == "api_auth" })
+    }
+
+    func testTTSLegacyMessageDoesNotDeclareProviderCredentialFailure() {
+      let legacyBody = Data("{\"detail\":\"OpenAI TTS request failed\"}".utf8)
+
+      XCTAssertFalse(APIClient.isProviderCredentialFailure(statusCode: 401, data: legacyBody))
+    }
+
+    func testRealtimeProvider401DoesNotRefreshOrInvalidateFirebaseSession() async throws {
+      AuthRetryURLStub.returnUnauthorizedForEveryAttempt(
+        body: """
+          {
+            "error":"Incorrect API key provided",
+            "reason":"provider_auth_failed",
+            "provider":"openai",
+            "backend_route":"/v2/realtime/session",
+            "upstream_status_code":401,
+            "retryable":false
+          }
+          """
+      )
+      setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
+      setenv("FIREBASE_API_KEY", "test-key", 1)
+      defer {
+        unsetenv("OMI_DESKTOP_API_URL")
+        unsetenv("FIREBASE_API_KEY")
+      }
+
+      let config = URLSessionConfiguration.ephemeral
+      config.protocolClasses = [AuthRetryURLStub.self]
+      let client = APIClient(session: URLSession(configuration: config))
+      await transitionOwnerForAuthTest(to: "user-1")
+      let ownerToken = try token(ownerID: "user-1")
+      try configureRefreshableSession(idToken: ownerToken)
+
+      do {
+        _ = try await client.mintRealtimeToken(
+          provider: "openai",
+          expectedOwnerID: "user-1")
+        XCTFail("Expected provider authorization failure")
+      } catch let error as RealtimeTokenMintError {
+        XCTAssertEqual(
+          error.healthError.failureClass,
+          .providerAuthFailed(provider: .openai, mode: .managed))
+      }
+
+      XCTAssertEqual(AuthRetryURLStub.attempts, 1)
+      XCTAssertEqual(UserDefaults.standard.string(forKey: .authUserId), "user-1")
+      let retainedToken = try await AuthService.shared.getIdToken()
+      XCTAssertEqual(retainedToken, ownerToken)
     }
 
     func testTTSBare401DoesNotRemapToProviderAuth() async throws {
@@ -484,7 +543,16 @@ import XCTest
     func testTTSProvider429ReturnsTypedQuotaFailure() async throws {
       AuthRetryURLStub.returnStatus(
         429,
-        body: "{\"error\":\"OpenAI TTS request failed: upstream quota exhausted\"}"
+        body: """
+          {
+            "error":"OpenAI TTS request failed",
+            "reason":"provider_quota_exceeded",
+            "provider":"openai",
+            "backend_route":"/v1/tts/synthesize",
+            "upstream_status_code":429,
+            "retryable":true
+          }
+          """
       )
       setenv("OMI_DESKTOP_API_URL", "http://rust-test:9002", 1)
       defer { unsetenv("OMI_DESKTOP_API_URL") }
@@ -529,7 +597,7 @@ import XCTest
       XCTAssertEqual(AuthRetryURLStub.attempts, 1)
     }
 
-    private func configureRefreshableSession() throws {
+    private func configureRefreshableSession(idToken: String = "id-token") throws {
       let auth = AuthService.shared
       auth.tokenStorageHooks = AuthService.TokenStorageHooks(
         usesKeychainTokenStorage: { false },
@@ -540,7 +608,7 @@ import XCTest
         recordsFallbackTelemetry: false
       )
       try auth.saveTokens(
-        idToken: "id-token",
+        idToken: idToken,
         refreshToken: "refresh-token",
         expiresIn: 3600,
         userId: "user-1"
@@ -561,6 +629,17 @@ import XCTest
           return (body, response)
         }
       )
+    }
+
+    private func token(ownerID: String) throws -> String {
+      let payload = try JSONSerialization.data(
+        withJSONObject: ["user_id": ownerID],
+        options: [.sortedKeys])
+      let encoded = payload.base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
+      return "e30.\(encoded).signature"
     }
 
     private func latestHealthSnapshot() throws -> [String: Any] {

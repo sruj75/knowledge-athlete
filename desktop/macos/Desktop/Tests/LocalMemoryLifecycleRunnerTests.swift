@@ -116,10 +116,14 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
           text: "I train for a half marathon every Saturday.",
           startTime: 0, endTime: 2, isUser: true, translations: [])
       ], authorization: .unrestricted)
+    let validDetail = try await storage.conversationDetail(id: validConversation.conversationId)
+    let unwrappedValidDetail = try XCTUnwrap(validDetail)
+    let validGeneration = unwrappedValidDetail.contentGeneration
+    let canonicalSegmentID = try XCTUnwrap(unwrappedValidDetail.segments.first?.segmentId)
     let generation = await RewindDatabase.shared.poolGeneration()
     try await MemoryStorage.shared.enqueueConversationExtraction(
       conversationId: validConversation.conversationId,
-      generation: 0,
+      generation: validGeneration,
       ownerGeneration: generation)
 
     let computer = MemoryComputeStub(extract: { request in
@@ -152,7 +156,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     XCTAssertEqual(rows.count, 1)
     XCTAssertEqual(rows[0].source, .conversation)
     XCTAssertEqual(rows[0].conversationId, validConversation.conversationId)
-    XCTAssertEqual(rows[0].sourceSegmentId, "segment-valid")
+    XCTAssertEqual(rows[0].sourceSegmentId, canonicalSegmentID)
     XCTAssertEqual(Set(rows[0].sensitivityLabels), Set(["health", "intimate", "secret"]))
 
     let invalidConversation = try await storage.beginConversation(
@@ -164,9 +168,11 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
           segmentId: "segment-invalid", speakerId: 0, text: "I drink tea.",
           startTime: 0, endTime: 1, isUser: true, translations: [])
       ], authorization: .unrestricted)
+    let invalidDetail = try await storage.conversationDetail(id: invalidConversation.conversationId)
+    let invalidGeneration = try XCTUnwrap(invalidDetail).contentGeneration
     try await MemoryStorage.shared.enqueueConversationExtraction(
       conversationId: invalidConversation.conversationId,
-      generation: 0,
+      generation: invalidGeneration,
       ownerGeneration: generation)
     let invalidComputer = MemoryComputeStub(extract: { request in
       MemoryExtractComputeResponse(
@@ -204,6 +210,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     let admission = MemoryExtractionAdmission(
       content: "Prefers tea.", category: .system, quote: "I prefer tea.",
       segmentId: "segment-1", confidence: 0.95)
+    let now = Date(timeIntervalSince1970: 2_000_000_000)
 
     let first = try await MemoryStorage.shared.completeExtraction(
       workId: lease.work.id,
@@ -211,14 +218,16 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
       expectedGeneration: 0,
       admissions: [admission],
       receiptId: "receipt-extract",
-      ownerGeneration: ownerGeneration)
+      ownerGeneration: ownerGeneration,
+      now: now)
     let replay = try await MemoryStorage.shared.completeExtraction(
       workId: lease.work.id,
       conversationId: conversation.conversationId,
       expectedGeneration: 0,
       admissions: [admission],
       receiptId: "receipt-extract",
-      ownerGeneration: ownerGeneration)
+      ownerGeneration: ownerGeneration,
+      now: now)
     let storedCount = try await MemoryStorage.shared.count()
 
     XCTAssertEqual(first, replay)
@@ -330,7 +339,7 @@ final class LocalMemoryLifecycleRunnerTests: XCTestCase {
     let lease = try XCTUnwrap(leases.first)
     let application = MemoryConsolidationApplication(
       workId: lease.work.id, memoryId: candidate.id, expectedRevision: candidate.revision,
-      action: .review, reconciliation: .keepBoth, targets: [], memoryText: nil,
+      action: .review, reconciliation: .create, targets: [], memoryText: nil,
       rationale: "Needs more evidence")
 
     let first = try await MemoryStorage.shared.completeConsolidation(

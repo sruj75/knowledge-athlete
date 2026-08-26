@@ -26,7 +26,7 @@ final class ActionItemLocalIdentityMutationTests: XCTestCase {
   }
 
   func testCRUDKeepsOneStableLocalIdentityAcrossReload() async throws {
-    let dueAt = Date().addingTimeInterval(3_600)
+    let dueAt = Date(timeIntervalSince1970: 1_735_003_600)
     let inserted = try await ActionItemStorage.shared.insertLocalActionItem(
       ActionItemRecord(
         description: "local task",

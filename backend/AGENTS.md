@@ -15,6 +15,8 @@ uvicorn main:app --host 0.0.0.0 --port 8080
 
 **Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default and ignores billing credentials. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, and the normalized `DODO_BILLING_CATALOG_JSON` are all present.
 
+Parity-pack capture is a dev-only, allowlisted, local persistence path. `OMI_PARITY_PACK_CAPTURE`, `OMI_PARITY_PACK_ALLOWED_PRINCIPALS`, and an absolute external `OMI_PARITY_PACK_ROOT` are its complete runtime configuration; it never exports cassettes or constructs a cloud-storage client.
+
 When intentionally changing backend Python dependencies, edit the relevant `requirements*.txt` input file and refresh the lock:
 
 ```bash
@@ -157,6 +159,11 @@ HTTP endpoints: `uid: str = Depends(get_current_user_uid)` from `utils.other.end
 WebSocket endpoints: use `WebSocketException(code=1008)`, **not** `HTTPException` — HTTPException exits ASGI without handshake, causing LB 5xx.
 
 Rate limiting: `Depends(auth.with_rate_limit(get_current_user_uid, "policy_name"))` — policies in `utils/rate_limit_config.py`.
+
+Managed provider proxies return provider-owned auth and quota failures as typed JSON with
+`reason`, `provider`, `backend_route`, `upstream_status_code`, and `retryable`. Clients must
+classify these fields at the backend boundary; never infer provider credential ownership from
+human-readable error text.
 
 ## Logging Security
 

@@ -23,24 +23,37 @@ from utils.stt.streaming import (
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
-def test_offline_backend_factory_streaming_socket_finalize_contract_runs_in_child_process():
-    """The harness factory installs the full PTT socket contract in its isolated process."""
+def test_offline_app_provider_contracts_run_in_child_process():
+    """Each harness app installs PTT and conversation fakes in its isolated process."""
 
     code = r'''
 import asyncio
 import sys
 from types import ModuleType
 
-sentinel_app = object()
+sentinel_backend_app = object()
+sentinel_desktop_backend_app = object()
 main_stub = ModuleType("main")
-main_stub.app = sentinel_app
+main_stub.app = sentinel_backend_app
 sys.modules["main"] = main_stub
+desktop_backend_stub = ModuleType("desktop_backend")
+desktop_backend_stub.app = sentinel_desktop_backend_app
+sys.modules["desktop_backend"] = desktop_backend_stub
 
-from testing.e2e.offline_app import backend_app
+from testing.e2e.offline_backend_app import app as backend_app
+from testing.e2e.offline_desktop_backend_app import app as desktop_backend_app
 
-assert backend_app() is sentinel_app
+assert backend_app is sentinel_backend_app
+assert desktop_backend_app is sentinel_desktop_backend_app
 
+from utils.llm import conversation_processing
 from utils.stt import streaming
+
+structure = conversation_processing.get_transcript_structure(transcript="synthetic local fixture")
+assert structure.title == "Hermetic Local Conversation"
+assert structure.category == "other"
+assert conversation_processing.should_discard_conversation("synthetic local fixture", 1) is False
+assert conversation_processing.extract_action_items(transcript="synthetic local fixture") == []
 
 segments = []
 

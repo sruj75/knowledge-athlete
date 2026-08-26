@@ -17,7 +17,7 @@
 
 ## 2. Planning status and pinned baseline
 
-**Status:** ready to start. Cycles 1–4 and 6–11 are immediately safe after their named predecessors; later cycles and final closure retain their explicit gates.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter combined Waves 3–4 closeout remains open. The text below preserves the historical planning baseline.
 
 Planning was performed from a clean checkout whose `HEAD` is exactly the completed
 Wave 2 closeout:
@@ -1425,3 +1425,15 @@ Missing inputs and reopening evidence:
 - [ ] Production Omi bundles, billing providers, live cloud/provider resources, Windows,
       push/PR/merge/deploy, and external infrastructure were untouched unless separately
       authorized outside this planning slice.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-22 implementation merged in PR #40 at `5d6573ff`. Its required registry-only
+lifecycle transition merged in PR #45 at `402d9fea`, and stale OpenRouter fake,
+endpoint, comment, and secret vocabulary was removed in `4b032fce`. Direct-route,
+removed-route, `/v4/listen`, metrics, component, hermetic E2E, and Tier-2 tests
+are green. Controller screen, manager, and natural physical PTT acceptance also
+pass. S-22 is **repository-closed**; the real OpenAI/Gemini/Auto/failover rows are
+recorded `NOT_RUN` because development credentials are unavailable, exactly as
+sections 15, 17, and 18 require. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

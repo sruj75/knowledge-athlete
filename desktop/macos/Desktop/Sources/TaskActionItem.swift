@@ -195,7 +195,7 @@ struct TaskActionItem: Codable, Identifiable, Equatable, Sendable {
   var isRetired: Bool { deleted == true }
 
   var hasDetailMetadata: Bool {
-    source != nil || sourceApp != nil || windowTitle != nil || confidence != nil
+    (source != nil && source != "manual") || sourceApp != nil || windowTitle != nil || confidence != nil
       || contextSummary != nil || currentActivity != nil || !(provenance ?? []).isEmpty
   }
 

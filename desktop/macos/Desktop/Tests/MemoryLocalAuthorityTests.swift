@@ -170,6 +170,9 @@ final class MemoryLocalAuthorityTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: directory) }
     let queue = try DatabaseQueue(path: directory.appendingPathComponent("omi.db").path)
     try queue.write { db in
+      try db.create(table: "screenshots") { table in
+        table.autoIncrementedPrimaryKey("id")
+      }
       try db.create(table: "memories") { table in
         table.autoIncrementedPrimaryKey("id")
         table.column("content", .text).notNull()

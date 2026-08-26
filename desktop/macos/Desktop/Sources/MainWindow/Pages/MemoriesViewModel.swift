@@ -495,11 +495,13 @@ final class MemoriesViewModel: ObservableObject {
       guard let self else { return ["error": "memories view model deallocated"] }
       let query = params["query"] ?? ""
       self.searchText = query
-      let deadline = Date().addingTimeInterval(3)
-      while self.isSearching, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 20_000_000)
-      }
-      return ["query": query, "result_count": "\(self.filteredMemories.count)"]
+      let normalized = DebouncedSearchCoordinator.normalized(query)
+      await self.performSearch(normalized)
+      return [
+        "query": query,
+        "result_count": "\(self.filteredMemories.count)",
+        "search_active": normalized.isEmpty ? "false" : "true",
+      ]
     }
     registry.register(
       name: "memories_set_tag_filter",
@@ -510,11 +512,11 @@ final class MemoriesViewModel: ObservableObject {
       self.selectedTags = Set(
         (params["tags"] ?? "").split(separator: ",")
           .compactMap { MemoryTag(rawValue: $0.trimmingCharacters(in: .whitespaces).lowercased()) })
-      let deadline = Date().addingTimeInterval(3)
-      while self.isLoadingFiltered, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 20_000_000)
-      }
-      return ["filtered_count": "\(self.filteredMemories.count)"]
+      await self.reloadFilteredResults()
+      return [
+        "filtered_count": "\(self.filteredMemories.count)",
+        "tag_filter_active": self.selectedTags.isEmpty ? "false" : "true",
+      ]
     }
   }
 

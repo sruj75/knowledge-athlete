@@ -8,7 +8,7 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
 
     XCTAssertTrue(source.contains("build_desktop_awareness_snapshot"))
     XCTAssertTrue(source.contains("list_desktop_action_queue"))
-    XCTAssertTrue(source.contains("get_desktop_open_loops"))
+    XCTAssertFalse(source.contains("get_desktop_open_loops"))
     XCTAssertTrue(source.contains("route_desktop_intent"))
     XCTAssertTrue(source.contains("create_desktop_dispatch"))
     XCTAssertTrue(source.contains("resolve_desktop_dispatch"))
@@ -403,15 +403,14 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertTrue(contextSnapshot.contains("export function renderContextSnapshot("))
   }
 
-  func testRealtimeStatusReadsCoordinatorOpenLoops() throws {
+  func testRealtimeStatusDoesNotReadRetiredWorkstreamOpenLoops() throws {
     let source = try RealtimeHubControllerSourceTestSupport.moduleSource(testFilePath: #filePath)
     let toolsSource = try sourceFile("FloatingControlBar/RealtimeHubTools.swift")
 
     XCTAssertFalse(source.contains("pendingCompletedAgentDeltaAckIds"))
     XCTAssertFalse(source.contains("pendingCompletedAgentDeltaHighWaterMs"))
-    XCTAssertTrue(source.contains("coordinatorOpenLoopsIsEmpty("))
-    XCTAssertTrue(source.contains("coordinatorOpenLoopsIsEmpty("))
-    XCTAssertTrue(source.contains("voice context"))
+    XCTAssertFalse(source.contains("coordinatorOpenLoopsIsEmpty("))
+    XCTAssertFalse(source.contains("get_desktop_open_loops"))
     XCTAssertTrue(toolsSource.contains("DesktopCapabilityRegistry.realtimeSelfModelPrompt"))
     XCTAssertFalse(toolsSource.contains("floating-bar pill projections"))
   }
@@ -459,8 +458,8 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertFalse(chatSource.contains("func applyKernelTurnRecorded("))
     XCTAssertFalse(chatSource.contains("setTurnRecordedHandler"))
     XCTAssertTrue(hubSource.contains("persistTurnDirectlyToKernel("))
-    XCTAssertTrue(hubSource.contains("let surface = FloatingControlBarManager.shared.mainChatSurfaceReference()"))
-    XCTAssertTrue(hubSource.contains("guard let ownerID = RuntimeOwnerIdentity.currentOwnerId()"))
+    XCTAssertTrue(hubSource.contains("journalPinsByContinuityKey[idempotencyKey]?.surface"))
+    XCTAssertTrue(hubSource.contains("guard AuthorizedToolExecution.isOwnerCurrent(ownerID)"))
     XCTAssertFalse(hubSource.contains("RealtimeVoiceTurnOutbox"))
     XCTAssertTrue(hubSource.contains("origin: \"realtime_voice\""))
     XCTAssertFalse(hubSource.contains("escalateToHigherModel"))
@@ -501,9 +500,9 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     XCTAssertFalse(managerSource.contains("floatingAgentStatusContext()"))
     XCTAssertTrue(hubSource.contains("prefetchVoiceContextSnapshotIfNeeded()"))
     XCTAssertTrue(hubSource.contains("voiceSessionContext(for:"))
-    XCTAssertTrue(hubSource.contains("let kernelContext = voiceSessionContext(for: currentOwnerScope)"))
-    XCTAssertTrue(hubSource.contains("kernelSemanticGuidance: kernelContext.semanticGuidance"))
-    XCTAssertTrue(hubSource.contains("toolContext: toolContext"))
+    XCTAssertTrue(hubSource.contains("let topLevelContext = voiceSessionContext(for: ownerScope)"))
+    XCTAssertTrue(hubSource.contains("kernelSemanticGuidance: topLevelContext.semanticGuidance"))
+    XCTAssertTrue(hubSource.contains("sessionVoiceContextSurface = topLevelContext.surface"))
     XCTAssertTrue(hubSource.contains("prefetchedVoiceContextOwnerScope"))
     XCTAssertTrue(hubSource.contains("kernelContext: topLevelContext.rendered"))
     XCTAssertFalse(hubSource.contains("prefetchedFloatingAgentStatus"))
@@ -553,7 +552,8 @@ final class DesktopCoordinatorServiceTests: XCTestCase {
     let providerSource = try sourceFile("Providers/ChatProvider.swift")
 
     XCTAssertTrue(managerSource.contains("provider.prepareRealtimeVoiceContextSnapshot()"))
-    XCTAssertTrue(providerSource.contains("surface: realtimeVoiceSurfaceReference()"))
+    XCTAssertTrue(providerSource.contains("let surface = realtimeVoiceSurfaceReference()"))
+    XCTAssertTrue(providerSource.contains("surface: surface"))
     XCTAssertTrue(providerSource.contains("includeScreenSource: false"))
     XCTAssertTrue(hubSource.contains("await self.refreshVoiceContextSnapshot()"))
     XCTAssertTrue(hubSource.contains("RealtimeVoiceContextRefreshPolicy.requiresRefresh("))

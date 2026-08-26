@@ -17,7 +17,7 @@ This slice preserves the complete spoken-assistant lifecycle while changing wher
 
 ## 2. Planning status and pinned baseline
 
-**Status:** ready to start. Entry gates in section 5 remain cycle-specific. This document plans future changes; it does not claim that any RED, GREEN, component suite, named-bundle run, or live user path has passed.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter combined Waves 3–4 closeout remains open. The text below preserves the historical planning baseline.
 
 Planning was performed against the exact completed Wave 2 closeout:
 
@@ -714,3 +714,16 @@ There is no unresolved product decision in the assigned IR set. The only unresol
 - [ ] Repository closure and a separately authorized live read-only inventory/decommission remain distinct; no deployment or external mutation occurred in the implementation PR unless separately requested later.
 - [ ] `BILLING_MODE=disabled` remains unchanged and no Dodo/Stripe/provider transaction was used.
 - [ ] Final requirements-ledger validator and clean diff review confirm only intended implementation/docs changed; changes are committed in testable surfaces with commands/evidence in commit/PR text, never pushed/merged without the repository's current authorization rules.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-19 implementation merged in PR #38 at `684d97a4`. The Wave 3–4 residue repair
+tree includes the dormant failure-class merge `402d9fea` and OpenRouter cleanup
+`4b032fce`. Repair commit `b15d07e3` closes the stale suite and PTT lifecycle
+regressions. The `omi-wave34-closeout` Tier-2 run passed 31/31 flows; controller
+screen, manager, and natural physical shortcut probes all reached
+`terminal_success`/`success` without stale transitions or owner loss. S-19 is
+**repository-closed**. Credential-dependent OpenAI/Gemini/Auto/failover rows are
+explicitly `NOT_RUN`, as this plan requires when development credentials are
+unavailable. See
+[`../wave-4/wave-3-4-closeout tdd.md`](../wave-4/wave-3-4-closeout%20tdd.md).

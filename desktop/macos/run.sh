@@ -337,10 +337,13 @@ resolve_signing_identity() {
     if [ -n "$SIGN_IDENTITY" ]; then
         return
     fi
-    # Prefer the development identity so local permissions remain stable.
-    SIGN_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)"/\1/')
+    # Prefer the development identity so local permissions remain stable. Use
+    # the certificate fingerprint, not its display name: Keychain can contain
+    # multiple renewed certificates with the same name, which makes codesign's
+    # name lookup ambiguous even though each identity is valid.
+    SIGN_IDENTITY=$(security find-identity -v -p codesigning | awk '/"Apple Development/ { print $2; exit }')
     if [ -z "$SIGN_IDENTITY" ]; then
-        SIGN_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+        SIGN_IDENTITY=$(security find-identity -v -p codesigning | awk '/"Developer ID Application/ { print $2; exit }')
     fi
     if [ -z "$SIGN_IDENTITY" ] && [ "${OMI_ALLOW_ADHOC_SIGN:-0}" = "1" ] && [ "$IS_NAMED_BUNDLE" = true ]; then
         SIGN_IDENTITY="-"

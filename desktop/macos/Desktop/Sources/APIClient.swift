@@ -214,6 +214,20 @@ actor APIClient {
         statusCode: nil, message: APIError.invalidResponse.localizedDescription)
     }
 
+    if httpResponse.statusCode == 401,
+      Self.isProviderCredentialFailure(statusCode: httpResponse.statusCode, data: data)
+    {
+      let payload = OmiHTTPTransport.extractErrorPayload(from: data)
+      let healthError = CredentialHealthManager.classifyHTTPFailure(
+        statusCode: httpResponse.statusCode,
+        payload: payload,
+        provider: provider)
+      throw RealtimeTokenMintError(
+        statusCode: httpResponse.statusCode,
+        healthError: healthError,
+        payload: payload)
+    }
+
     if httpResponse.statusCode == 401, !retriedAuth {
       guard
         let retry = try await authorizedRetryRequest(
@@ -413,6 +427,11 @@ actor APIClient {
     }
 
     if httpResponse.statusCode == 401 {
+      if authPolicy.returnsPersistent401Response,
+        Self.isProviderCredentialFailure(statusCode: httpResponse.statusCode, data: data)
+      {
+        return (data, httpResponse)
+      }
       if retriedAuth, authPolicy.returnsPersistent401Response {
         return (data, httpResponse)
       }
@@ -455,6 +474,23 @@ actor APIClient {
     }
 
     return (data, httpResponse)
+  }
+
+  /// Provider proxies preserve this wire shape when the caller's Firebase credential was
+  /// accepted but the managed upstream credential was rejected. Inspect it before refreshing
+  /// Firebase so a provider-key failure cannot become an account-session invalidation.
+  nonisolated static func isProviderCredentialFailure(statusCode: Int, data: Data) -> Bool {
+    // session-preserving: this 401 belongs to the managed provider credential, not Firebase.
+    guard statusCode == 401, let payload = OmiHTTPTransport.extractErrorPayload(from: data) else {
+      return false
+    }
+    if payload.managedProviderFailureReason == .authFailed,
+      payload.provider != nil,
+      payload.upstreamStatusCode == 401
+    {
+      return true
+    }
+    return false
   }
 
   /// An owner-bound request may finish after the app has signed out or switched

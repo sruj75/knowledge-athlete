@@ -14,9 +14,17 @@ extension RealtimeHubController {
       }
       return false
     }
-    return hubConnected
-      && (sessionProvider == RealtimeHubSettings.shared.provider
-        || sessionProvider == fallbackProvider)
+    let physicalProviderMatchesSelection =
+      sessionProvider == RealtimeHubSettings.shared.provider
+      || sessionProvider == fallbackProvider
+    #if DEBUG
+      return RealtimeTransportReadinessPolicy.isReady(
+        hubConnected: hubConnected,
+        physicalProviderMatchesSelection: physicalProviderMatchesSelection,
+        localProfileTransportAuthorized: isAuthorizedLocalProfileTransport())
+    #else
+      return hubConnected && physicalProviderMatchesSelection
+    #endif
   }
 
   func replaceSessionAfterDrain(

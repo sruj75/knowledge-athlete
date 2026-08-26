@@ -130,6 +130,47 @@ import XCTest
         "same-UID ABA must not revive a transport from an older authorization generation")
     }
 
+    func testAuthorizedLocalProfileTransportCanBeReadyAcrossPhysicalProviderPreference() {
+      XCTAssertTrue(
+        RealtimeTransportReadinessPolicy.isReady(
+          hubConnected: true,
+          physicalProviderMatchesSelection: false,
+          localProfileTransportAuthorized: true))
+      XCTAssertFalse(
+        RealtimeTransportReadinessPolicy.isReady(
+          hubConnected: true,
+          physicalProviderMatchesSelection: false,
+          localProfileTransportAuthorized: false))
+      XCTAssertFalse(
+        RealtimeTransportReadinessPolicy.isReady(
+          hubConnected: false,
+          physicalProviderMatchesSelection: true,
+          localProfileTransportAuthorized: true))
+    }
+
+    func testAuthorizedLocalProfileTransportAbsorbsVoiceContextRefreshWithoutReplacement() {
+      let controller = RealtimeHubController()
+      let session = RealtimeHubSession(
+        provider: .openai,
+        auth: .hermeticStub,
+        instructions: "local-profile-context-refresh",
+        delegate: controller)
+      controller.session = session
+      controller.sessionProvider = .openai
+      controller.sessionAuth = .hermeticStub
+      controller.testingLocalProfileTransportAuthorized = true
+      controller.prefetchedVoiceContextSessionID = "refreshed-session"
+      controller.prefetchedVoiceContextFreshnessIdentity = "refreshed-freshness"
+      controller.prefetchedVoiceContextOwnerScope = controller.currentOwnerScope
+      controller.prefetchedVoiceContextSurface = .realtimeVoice()
+
+      controller.reconcileWarmSessionForCurrentRequirement()
+
+      XCTAssertTrue(controller.session === session)
+      XCTAssertEqual(controller.sessionVoiceContextFreshnessIdentity, "refreshed-freshness")
+      XCTAssertEqual(controller.sessionVoiceContextSurface, .realtimeVoice())
+    }
+
     func testWarmGeminiBuffersAudioAndCommitUntilActivityWindowOpens() async {
       let delegate = RealtimeHubSessionDelegateSpy()
       let session = makeSession(provider: .gemini, delegate: delegate)

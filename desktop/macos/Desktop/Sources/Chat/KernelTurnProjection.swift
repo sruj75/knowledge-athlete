@@ -1005,6 +1005,14 @@ final class KernelTurnProjection {
         )
       }
       guard isCurrent(lease) else { return false }
+      // A refresh admitted before this clear may still be suspended in its
+      // journal read. Advance the projection epoch before mutating local
+      // checkpoints so that late page can neither restore the cleared rows nor
+      // overwrite the new generation's checkpoint after this method returns.
+      projectionEpoch &+= 1
+      boundOwnerID = lease.ownerID
+      refreshingSurfaceEpochs.removeAll()
+      refreshRequestedSurfaceEpochs.removeAll()
       for key in highWaterByConversation.keys where key.hasSuffix("|\(surface.key)") {
         highWaterByConversation.removeValue(forKey: key)
         generationByConversation.removeValue(forKey: key)

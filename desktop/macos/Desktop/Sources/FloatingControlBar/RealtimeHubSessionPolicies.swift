@@ -15,6 +15,7 @@ import VoiceTurnDomain
 
     let assistantText: String
     let spawn: Spawn?
+    let requestsCurrentScreen: Bool
 
     static func make(
       transcript rawTranscript: String,
@@ -28,7 +29,8 @@ import VoiceTurnDomain
       if transcript == exactMemoryAgentRequest {
         return Self(
           assistantText: "I started a background agent to review today's memories.",
-          spawn: Spawn(objective: transcript, title: "Today's memory insight"))
+          spawn: Spawn(objective: transcript, title: "Today's memory insight"),
+          requestsCurrentScreen: false)
       }
 
       if transcript.localizedCaseInsensitiveContains("what was the last thing i asked you for"),
@@ -36,13 +38,28 @@ import VoiceTurnDomain
       {
         return Self(
           assistantText: "The last request was the background-agent task tagged \(reference).",
-          spawn: nil)
+          spawn: nil,
+          requestsCurrentScreen: false)
       }
 
       if let marker = lastHarnessReference(in: transcript) {
-        return Self(assistantText: "Stub saw marker: \(marker)", spawn: nil)
+        return Self(
+          assistantText: "Stub saw marker: \(marker)",
+          spawn: nil,
+          requestsCurrentScreen: false)
       }
-      return Self(assistantText: "Hermetic realtime stub response.", spawn: nil)
+      let normalized = transcript.lowercased()
+      let requestsCurrentScreen =
+        normalized.contains("what is on my screen")
+        || normalized.contains("what's on my screen")
+        || normalized.contains("which app is frontmost")
+      return Self(
+        assistantText:
+          requestsCurrentScreen
+          ? "I checked the current screen evidence."
+          : "Hermetic realtime stub response.",
+        spawn: nil,
+        requestsCurrentScreen: requestsCurrentScreen)
     }
 
     private static func lastHarnessReference(in text: String) -> String? {
@@ -641,6 +658,16 @@ enum RealtimeHubOwnerScope: Equatable, Sendable {
 }
 
 #if DEBUG
+  enum RealtimeTransportReadinessPolicy {
+    static func isReady(
+      hubConnected: Bool,
+      physicalProviderMatchesSelection: Bool,
+      localProfileTransportAuthorized: Bool
+    ) -> Bool {
+      hubConnected && (physicalProviderMatchesSelection || localProfileTransportAuthorized)
+    }
+  }
+
   struct RealtimeHubOwnerBoundarySnapshot: Equatable {
     let hasPhysicalSession: Bool
     let physicalOwnerID: String?
@@ -987,6 +1014,34 @@ enum RealtimeHeadlessPTTCompletionPolicy {
     return lastTerminal?.reason
   }
 }
+
+#if DEBUG
+  struct RealtimeLocalProfileRejectedCommitDiagnostics: Equatable {
+    let logMessage: String
+    let response: [String: String]
+
+    static func make(
+      commitResult: String,
+      phase: String,
+      route: String,
+      ownerID: String?,
+      recentTimeline: String
+    ) -> Self {
+      let ownerPresent = ownerID != nil ? "true" : "false"
+      return Self(
+        logMessage: "RealtimeHub: local-profile synthetic commit rejected result=\(commitResult) "
+          + "phase=\(phase) route=\(route) owner_present=\(ownerPresent) timeline=[\(recentTimeline)]",
+        response: [
+          "error": "local-profile realtime reducer rejected the synthetic commit",
+          "commit_result": commitResult,
+          "phase": phase,
+          "route": route,
+          "owner_present": ownerPresent,
+          "recent_timeline": recentTimeline,
+        ])
+    }
+  }
+#endif
 
 enum RealtimeHubBargeInContinuity {
   enum Outcome: Equatable {

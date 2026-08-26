@@ -40,7 +40,7 @@ def test_network_guard_blocks_sendto_two_arg_form():
     """UDP sendto(data, address) should fail closed for non-local hosts."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        with pytest.raises(AssertionError, match="blocked outbound network connection"):
+        with pytest.raises(BlockedNetworkError, match="Blocked outbound network connection"):
             sock.sendto(b"payload", ("93.184.216.34", 80))
     finally:
         sock.close()
@@ -50,7 +50,7 @@ def test_network_guard_blocks_sendto_three_arg_form():
     """UDP sendto(data, flags, address) should fail closed, not TypeError."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        with pytest.raises(AssertionError, match="blocked outbound network connection"):
+        with pytest.raises(BlockedNetworkError, match="Blocked outbound network connection"):
             sock.sendto(b"payload", 0, ("93.184.216.34", 80))
     finally:
         sock.close()

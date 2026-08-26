@@ -47,7 +47,7 @@ def test_offline_check_skips_provider_credentials(monkeypatch: pytest.MonkeyPatc
     assert any("offline" in item for item in warnings)
 
 
-def test_offline_app_commands_install_stt_fake_factories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_offline_app_commands_install_provider_fakes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("PROVIDER_MODE", "offline")
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
     cfg = config.load_config(REPO_ROOT)
@@ -55,18 +55,20 @@ def test_offline_app_commands_install_stt_fake_factories(monkeypatch: pytest.Mon
     backend_command = cli._uvicorn_app_command(
         cfg,
         app_target="main:app",
-        offline_factory="backend_app",
+        offline_app_target="testing.e2e.offline_backend_app:app",
         port=cfg.backend_port,
     )
     desktop_command = cli._uvicorn_app_command(
         cfg,
         app_target="desktop_backend:app",
-        offline_factory="desktop_backend_app",
+        offline_app_target="testing.e2e.offline_desktop_backend_app:app",
         port=cfg.desktop_backend_port,
     )
 
-    assert backend_command[3:5] == ["--factory", "testing.e2e.offline_app:backend_app"]
-    assert desktop_command[3:5] == ["--factory", "testing.e2e.offline_app:desktop_backend_app"]
+    assert backend_command[3] == "testing.e2e.offline_backend_app:app"
+    assert desktop_command[3] == "testing.e2e.offline_desktop_backend_app:app"
+    assert "--factory" not in backend_command
+    assert "--factory" not in desktop_command
 
 
 def test_real_app_commands_keep_production_entry_points(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -77,7 +79,7 @@ def test_real_app_commands_keep_production_entry_points(monkeypatch: pytest.Monk
     command = cli._uvicorn_app_command(
         cfg,
         app_target="main:app",
-        offline_factory="backend_app",
+        offline_app_target="testing.e2e.offline_backend_app:app",
         port=cfg.backend_port,
     )
 

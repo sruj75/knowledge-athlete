@@ -36,9 +36,10 @@ tree is intentionally a **pre-S-19/pre-S-23 inventory**. It proves the deletion
 targets and retained siblings, but it is not an executable starting point for
 the cycles below.
 
-**Status:** blocked. Planning is complete. Implementation waits at Gate 0 until S-19 and
-S-23 are integrated and the inventory is refreshed. No planning command is
-reported here as implementation or user-path acceptance.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter
+combined Waves 3–4 closeout remains open. The text
+below preserves the historical planning baseline; section 19 owns the final
+implementation and acceptance evidence.
 
 ## 3. Outcome
 
@@ -1014,3 +1015,13 @@ Additional absolute stops:
   authorized operational action with inventory/retention/rollback evidence.
 - [ ] No Windows code, billing provider, production infrastructure, or
   production Omi/Omi Beta bundle was touched.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-24 implementation merged in PR #43 at `ac3ba541`. Closeout commit `a57b3f8d`
+removed the remaining parity-pack GCS exporter/runtime/deployment residue while
+retaining local redacted capture/replay and update/preview storage support. Its
+focused behavioral and classification tests, full component suites, official
+hermetic E2E runner, and complete 31/31 Tier-2 matrix are green. S-24 is
+**repository-closed**. See
+[`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

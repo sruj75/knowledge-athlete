@@ -162,8 +162,10 @@ import XCTest
     @MainActor
     func testBargeInFailoverWaitsForTransportAcknowledgementBeforeSpecializedStart() async throws {
       let controller = RealtimeHubController()
-      let fixture = try await installDelayedTransport(on: controller, ownerScope: .signedOut)
-      controller.prefetchedVoiceContextOwnerScope = .signedOut
+      let ownerScope = controller.currentOwnerScope
+      let fixture = try await installDelayedTransport(on: controller, ownerScope: ownerScope)
+      controller.prefetchedVoiceContextOwnerScope = ownerScope
+      controller.prefetchedVoiceContextSurface = .realtimeVoice()
       controller.prefetchedVoiceContextSessionID = "fixture-session"
       controller.prefetchedVoiceContextFreshnessIdentity = "fixture-freshness"
       let turnID = VoiceTurnID()
@@ -173,13 +175,13 @@ import XCTest
         responseID: responseID,
         identity: VoiceEffectIdentity(turnID: turnID, effectID: 1))
       controller.voiceResponseID = responseID
-      controller.pendingBargeInOwnerScope = .signedOut
+      controller.pendingBargeInOwnerScope = ownerScope
       let specializedStart = expectation(description: "specialized replacement started")
       var specializedStartCount = 0
       controller.testingSessionStartAfterDrain = { provider, auth, ownerScope in
         specializedStartCount += 1
         XCTAssertEqual(provider, .openai)
-        XCTAssertEqual(ownerScope, .signedOut)
+        XCTAssertEqual(ownerScope, controller.currentOwnerScope)
         XCTAssertFalse(auth.reportsUsage)
         specializedStart.fulfill()
         return true
@@ -234,7 +236,9 @@ import XCTest
     @MainActor
     func testDuplicateTransportTerminalCallbacksAndLateStaleCallbackFinishReducerOnce() async throws {
       let controller = RealtimeHubController()
-      let fixture = try await installDelayedTransport(on: controller, ownerScope: .signedOut)
+      let fixture = try await installDelayedTransport(
+        on: controller,
+        ownerScope: controller.currentOwnerScope)
       let coordinator = VoiceTurnCoordinator.shared
       coordinator.reset()
       defer { coordinator.reset() }

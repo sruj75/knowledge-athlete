@@ -19,7 +19,7 @@ This is an implementation plan, not implementation or verification evidence. Wri
 
 ## 2. Planning status and pinned baseline
 
-**Status:** blocked. The repository plan is complete, but implementation waits for the mandatory predecessor and execution-time inventory gates in §5. Repository deletion and live-resource decommissioning remain separately authorized activities.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter combined Waves 3–4 closeout remains open. The text below preserves the historical planning baseline. Live-resource decommissioning remains separately authorized.
 
 The inspected tree is exactly the required Wave 2 closeout commit:
 
@@ -913,3 +913,13 @@ Stop the affected cycle whenever:
 - [ ] No new `TODO`/`FIXME`/`HACK` lacks a tracking issue; docs and component guides move with changed ownership/config.
 - [ ] Repository closure and separately authorized live inventory/decommission remain distinct; no deploy or external mutation is inferred.
 - [ ] No production Omi app, production account, production data, external infrastructure, or Windows source was touched.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-23 implementation merged in PR #42 at `06a917e7`. Successor-owned OpenRouter
+residue was removed in closeout commit `4b032fce`; retained-neighbor and rejected
+route behavior passed through the assembled FastAPI app. The desktop suite,
+official hermetic E2E runner, and complete 31/31 Tier-2 matrix are green. S-23 is
+**repository-closed**; unavailable real-provider rows remain explicitly
+`NOT_RUN`, not implied passes. See
+[`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).

@@ -470,4 +470,15 @@ def gemini_json_payload(text: str) -> dict[str, object]:
 
 
 def stub_gemini_proxy_json(body_text: str) -> dict[str, object]:
+    try:
+        body = json.loads(body_text)
+    except ValueError:
+        body = {}
+    if isinstance(body, Mapping):
+        generation_config = body.get('generationConfig') or body.get('generation_config')
+        if isinstance(generation_config, Mapping):
+            response_schema = generation_config.get('responseSchema') or generation_config.get('response_schema')
+            properties = response_schema.get('properties') if isinstance(response_schema, Mapping) else None
+            if isinstance(properties, Mapping) and 'questions' in properties:
+                return gemini_json_payload(json.dumps({'questions': []}, separators=(',', ':')))
     return gemini_json_payload(stub_assistant_text(extract_latest_gemini_user_text(body_text)))

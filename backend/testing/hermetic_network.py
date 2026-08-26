@@ -46,6 +46,7 @@ def _is_unix_socket(sock: socket.socket) -> bool:
 def block_outbound_network() -> Iterator[None]:
     original_connect = socket.socket.connect
     original_connect_ex = socket.socket.connect_ex
+    original_sendto = socket.socket.sendto
     original_create_connection = socket.create_connection
     original_getaddrinfo = socket.getaddrinfo
     original_gethostbyname = socket.gethostbyname
@@ -60,6 +61,17 @@ def block_outbound_network() -> Iterator[None]:
         if not _is_unix_socket(sock) and not is_local_address(_host_from_address(address)):
             raise BlockedNetworkError(f'Blocked outbound network connection to {address!r}')
         return original_connect_ex(sock, address)
+
+    def guarded_sendto(sock: socket.socket, data: object, *args):
+        if len(args) == 1:
+            address = args[0]
+        elif len(args) == 2:
+            address = args[1]
+        else:
+            return original_sendto(sock, data, *args)
+        if not _is_unix_socket(sock) and not is_local_address(_host_from_address(address)):
+            raise BlockedNetworkError(f'Blocked outbound network connection to {address!r}')
+        return original_sendto(sock, data, *args)
 
     def guarded_create_connection(address: object, *args, **kwargs):
         if not is_local_address(_host_from_address(address)):
@@ -83,6 +95,7 @@ def block_outbound_network() -> Iterator[None]:
 
     socket.socket.connect = guarded_connect
     socket.socket.connect_ex = guarded_connect_ex
+    socket.socket.sendto = guarded_sendto
     socket.create_connection = guarded_create_connection
     socket.getaddrinfo = guarded_getaddrinfo
     socket.gethostbyname = guarded_gethostbyname
@@ -92,6 +105,7 @@ def block_outbound_network() -> Iterator[None]:
     finally:
         socket.socket.connect = original_connect
         socket.socket.connect_ex = original_connect_ex
+        socket.socket.sendto = original_sendto
         socket.create_connection = original_create_connection
         socket.getaddrinfo = original_getaddrinfo
         socket.gethostbyname = original_gethostbyname

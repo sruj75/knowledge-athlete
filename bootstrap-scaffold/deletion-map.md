@@ -1255,7 +1255,7 @@ IR-835
 ### S-19 — Reconnect PTT to local product data and remove rejected tools
 
 **Type:** cross-domain adaptation<br>
-**Research status:** split; PTT lifecycle remains a regression fence<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-19 tdd.md`](wave-3/s-19%20tdd.md); the stricter combined Waves 3–4 closeout remains open, with final live-provider/continuity qualification explicitly deferred to [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification)<br>
 **Depends on:** S-05 through S-07 and S-10 through S-16, especially local
 Conversations, Memories, Tasks, Focus/Insights, Rewind, and transient listen<br>
 **Primary decisions:** IR-054 through IR-119, IR-600 through IR-602, IR-924
@@ -1281,7 +1281,7 @@ through IR-926, IR-932
 ### S-20 — Move fair-use evidence local and keep only enforcement facts in cloud
 
 **Type:** split-authority adaptation<br>
-**Research status:** ready to start; the local-authority/transient-GPT-5.1 boundary is resolved<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-20 tdd.md`](wave-3/s-20%20tdd.md); the combined Waves 3–4 closeout remains open<br>
 **Depends on:** S-10, S-16, and S-18<br>
 **Primary decisions:** IR-610 through IR-615, IR-700 through IR-709
 
@@ -1304,7 +1304,7 @@ through IR-926, IR-932
 ### S-21 — Simplify navigation, Settings, and the surviving Home shell
 
 **Type:** UI convergence after product deletion<br>
-**Research status:** split; must land after domain owners<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-21 tdd.md`](wave-3/s-21%20tdd.md); the combined Waves 3–4 closeout remains open<br>
 **Depends on:** S-05 through S-07; S-10 through S-15; S-17, S-18, and S-20.
 S-09's repository consent/privacy seam gates only S-21's Privacy/Settings cycle;
 S-09 live owned-project proof remains S-09 operational acceptance.<br>
@@ -1332,7 +1332,7 @@ leftover navigation/search residue
 ### S-22 — Narrow managed models to explicit retained transient workloads
 
 **Type:** model portfolio deletion and result-ownership adaptation<br>
-**Research status:** split; retained caller/model inventory lands first<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-3/s-22 tdd.md`](wave-3/s-22%20tdd.md); the stricter combined Waves 3–4 closeout remains open, with final live-provider/continuity qualification explicitly deferred to [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification)<br>
 **Depends on:** S-05, S-07, S-10, S-11, S-12, S-13, S-14, and S-16<br>
 **Primary decisions:** IR-053, IR-113, IR-600 through IR-609, IR-710 through
 IR-732, IR-827, IR-828
@@ -1373,7 +1373,7 @@ IR-732, IR-827, IR-828
 ### S-23 — Delete rejected hosted products and their product-data schemas
 
 **Type:** backend product teardown<br>
-**Research status:** split by product owner<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-4/s-23 tdd.md`](wave-4/s-23%20tdd.md); the combined Waves 3–4 closeout remains open<br>
 **Depends on:** S-01, S-02, S-06, S-08, S-10 through S-14, S-17, S-18, S-20,
 and S-22<br>
 **Primary decisions:** IR-039, IR-043, IR-121 through IR-123, IR-186 through
@@ -1399,7 +1399,7 @@ IR-714 through IR-725, IR-805, IR-814 through IR-835
 ### S-24 — Delete hosted search, vector, and product-object authority
 
 **Type:** infrastructure deletion after local search authority<br>
-**Research status:** split by Typesense, Pinecone, and object/file storage<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-4/s-24 tdd.md`](wave-4/s-24%20tdd.md); the combined Waves 3–4 closeout remains open<br>
 **Depends on:** S-10, S-11, S-12, S-13, S-15, S-19, and S-23<br>
 **Primary decisions:** IR-011, IR-044, IR-053, IR-093, IR-095, IR-256, IR-291,
 IR-806 through IR-809
@@ -1419,7 +1419,7 @@ IR-806 through IR-809
 ### S-25 — Delete jobs, workers, duplicate services, and GKE control planes
 
 **Type:** service-topology collapse<br>
-**Research status:** split by independently deployed service/job<br>
+**Status:** per-slice repository acceptance is recorded in [`wave-4/s-25 tdd.md`](wave-4/s-25%20tdd.md); its sanitized live inventory currently classifies live state as `unknown`, so operational closure remains open under [`BL-002`](../BACKLOG.md#bl-002-s-25-verified-live-resource-inventory-and-operational-handoff)<br>
 **Depends on:** S-01 through S-03, S-06, S-22, S-23, and S-24<br>
 **Primary decisions:** IR-016, IR-120, IR-608, IR-810 through IR-818, IR-836,
 IR-839, IR-868
@@ -1438,7 +1438,7 @@ IR-839, IR-868
 ### S-26 — Consolidate one canonical Python backend and its development harness
 
 **Type:** backend boundary adaptation<br>
-**Research status:** split; prune product routes before consolidating entrypoints<br>
+**Status:** ready to begin after consuming the complete Waves 3–4 repair tree; by explicit product-owner decision, the remaining live qualification is deferred—not waived—under [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification), so do not branch from merged S-25 alone or omit the closeout commits<br>
 **Depends on:** S-04, S-25, and the local/control-authority slices S-08 and
 S-10 through S-20<br>
 **Primary decisions:** IR-008, IR-803, IR-804, IR-808, IR-839 through IR-849,
@@ -1492,7 +1492,7 @@ IR-890, IR-891
 ### S-28 — Establish clean Mac storage namespaces and installation identity
 
 **Type:** local identity migration without inherited-data takeover<br>
-**Research status:** one coherent migration after local data schemas stabilize<br>
+**Status:** ready to begin after consuming the complete Waves 3–4 repair tree; by explicit product-owner decision, the remaining live qualification is deferred—not waived—under [`BL-001`](../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification), and retained local data/storage evidence does not satisfy that final all-waves gate<br>
 **Depends on:** S-08, S-10 through S-15, and S-17<br>
 **Primary decisions:** IR-929, IR-931
 

@@ -135,6 +135,16 @@ private func assertRoutes(
   XCTAssertEqual(req.method, method, "\(label): wrong HTTP method", file: file, line: line)
 }
 
+private func assertCapturedPath(
+  _ expectedPath: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  let requests = URLCapture.capturedRequests
+  XCTAssertEqual(requests.count, 1, file: file, line: line)
+  XCTAssertEqual(requests.first?.url.path, expectedPath, file: file, line: line)
+}
+
 // MARK: - Tests
 
 final class APIClientRoutingTests: XCTestCase {
@@ -547,6 +557,83 @@ final class APIClientRoutingTests: XCTestCase {
       URLCapture.capturedRequests, host: "python-test", port: 9001,
       pathContains: "v1/users/me/subscription", method: "GET",
       label: "getUserSubscription")
+  }
+
+  func testLocalComputeRoutesDoNotIntroduceDoubleSlashPaths() async {
+    let client = await makeTestClient()
+    let requestId = UUID()
+    let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+    _ = try? await client.computeDiscard(
+      ConversationDiscardComputeRequest(
+        generationId: requestId,
+        transcript: "A complete local transcript.",
+        durationSeconds: 1
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/conversation-compute/discard")
+
+    URLCapture.reset()
+    _ = try? await client.computeStructure(
+      ConversationStructureComputeRequest(
+        generationId: requestId,
+        transcript: "A complete local transcript.",
+        startedAt: startedAt,
+        language: "en",
+        outputLanguage: "en",
+        timezone: "UTC"
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/conversation-compute/structure")
+
+    URLCapture.reset()
+    _ = try? await client.computeActionItems(
+      ConversationActionItemsComputeRequest(
+        generationId: requestId,
+        transcript: "A complete local transcript.",
+        startedAt: startedAt,
+        language: "en",
+        outputLanguage: "en",
+        timezone: "UTC",
+        relatedTasks: []
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/conversation-compute/action-items")
+
+    URLCapture.reset()
+    _ = try? await client.normalizeMemory(
+      MemoryNormalizeComputeRequest(
+        requestId: requestId,
+        revision: 1,
+        assertion: "The user prefers concise answers.",
+        source: "manual",
+        sourceAttribution: "user",
+        provenanceTokens: []
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/memory/compute/normalize")
+
+    URLCapture.reset()
+    _ = try? await client.extractMemories(
+      MemoryExtractComputeRequest(
+        requestId: requestId,
+        generation: 1,
+        segments: [],
+        language: "en"
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/memory/compute/extract")
+
+    URLCapture.reset()
+    _ = try? await client.consolidateMemories(
+      MemoryConsolidateComputeRequest(
+        requestId: requestId,
+        generation: 1,
+        candidates: [],
+        activeMemories: []
+      ),
+      authorizationSnapshot: nil)
+    assertCapturedPath("/v1/memory/compute/consolidate")
   }
 
   // MARK: - Routing behavior: Rust-routed endpoints (customBaseURL: rustBackendURL)

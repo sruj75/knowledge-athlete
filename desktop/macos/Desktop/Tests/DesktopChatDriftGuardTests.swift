@@ -55,7 +55,7 @@ final class DesktopChatDriftGuardTests: XCTestCase {
     XCTAssertEqual(
       dashboardPage.components(separatedBy: "isLoadingInitial: chatProvider.isLoading && !chatProvider.isClearing")
         .count - 1,
-      2
+      1
     )
   }
 

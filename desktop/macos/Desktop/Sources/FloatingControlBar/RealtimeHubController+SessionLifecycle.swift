@@ -532,6 +532,20 @@ extension RealtimeHubController {
   func reconcileWarmSessionForCurrentRequirement() {
     let requirement = voiceSessionContext(for: currentOwnerScope)
     guard requirement.isResolved else { return }
+    #if DEBUG
+      // The hermetic local-profile transport has no provider-side instruction state to
+      // rebuild. A forced snapshot refresh is part of ptt_test_turn admission, so replacing
+      // this exact authorized session here would detach it before markReadyForTesting can
+      // publish readiness. Rebind the local context identity in place; the production path
+      // remains unchanged and every replacement/owner change revokes the exact authority.
+      if isAuthorizedLocalProfileTransport() {
+        idleVoiceContextRefreshTask?.cancel()
+        idleVoiceContextRefreshTask = nil
+        sessionVoiceContextFreshnessIdentity = requirement.snapshotFreshnessIdentity
+        sessionVoiceContextSurface = requirement.surface
+        return
+      }
+    #endif
     if var pending = reconnectAudioBuffer {
       // The speculative key-down read may resolve after capture begins but
       // before a candidate session exists. Move this one buffered turn to the

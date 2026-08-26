@@ -19,7 +19,7 @@ This document is a source-grounded implementation plan. It is not implementation
 
 ## 2. Planning status and pinned baseline
 
-**Status:** blocked. The plan is complete, but implementation waits at Gate G1 until S-22, S-23, and S-24 are integrated and the inventory is refreshed on their combined result. Repository work can then proceed family by family. Live traffic changes, drains, deployments, and decommissioning remain separately authorized operational work.
+**Status:** per-slice repository acceptance is closed by section 19; the stricter combined Waves 3–4 closeout remains open. The text below preserves the historical planning baseline. Live traffic changes, drains, deployments, and decommissioning remain separately authorized operational work.
 
 The required Wave 2 closeout is both the planning baseline and the exact inspected `HEAD`:
 
@@ -819,3 +819,45 @@ Additional stop conditions apply globally:
 - [ ] No deploy, traffic change, drain, deletion, IAM/secret/image/network/GKE mutation is inferred from the repository PR.
 - [ ] Every later operational mutation has explicit named-resource/environment authorization, backup/retention/legal/rollback boundaries, ordered drain evidence, and post-change acceptance.
 - [ ] S-26 receives the source-consolidation handoff and S-27 receives the truthful retained-foundation/live-inventory handoff.
+
+## 19. Integrated closeout record — 2026-08-23
+
+S-25 implementation merged in PR #44 at `fbdb339f`. Closeout commit `a57b3f8d`
+removed parity export settings and deployment classification left after topology
+collapse. The four-line Windows diagnostic cleanup remains a retrospective scope
+exception because reverting it would advertise retired `backend-listen`; this
+closeout changes no Windows file. Canonical health/metrics/listen, removed-worker
+routes, hermetic account-deletion dispatch, full component suites, official E2E,
+complete Tier-2, and all 40 selected preflight checks are green. S-25 is
+**repository-closed under its owning slice plan**. By explicit product-owner
+decision, S-26 may proceed from the complete Waves 3–4 repair tree while the
+stricter live qualification remains open and deferred under
+[`BL-001`](../../BACKLOG.md#bl-001-final-all-waves-provider-and-continuity-qualification).
+Legacy deletion-task audience/payload acceptance remains until verified
+queue-drain proof; live resource inventory/decommission remains separately
+authorized and is tracked under
+[`BL-002`](../../BACKLOG.md#bl-002-s-25-verified-live-resource-inventory-and-operational-handoff).
+See
+[`wave-3-4-closeout tdd.md`](wave-3-4-closeout%20tdd.md).
+
+### 19.1 Sanitized live-resource inventory handoff — 2026-08-26
+
+The repository inventory and topology contracts are available, but this
+worktree has no verified Google Cloud operator identity and the locally
+configured project name is not accepted as authoritative S-27 environment
+evidence. In accordance with section 16.2, every live class is therefore
+`unknown`; no resource query, payload read, secret read, traffic change, drain,
+deploy, or deletion was attempted.
+
+| Resource class | Repository-derived logical scope | Live classification | Required successor evidence / owner |
+|---|---|---|---|
+| Cloud Run / GKE | canonical backend retained; backend-sync, backend-listen, Pusher, hosted VAD, diarizer, LLM gateway, and self-hosted monitoring rejected | `unknown` | Verified environment/project/region, service and traffic inventory, revision/image lineage, shared-consumer graph; S-27/platform owner |
+| Cloud Tasks / schedulers | account deletion retained; audio merge, conversation finalization, backfill, notifications, and maintenance work rejected | `unknown` | Queue location, task counts/oldest age, target/audience/signer, retry state, producer inventory, drain/rollback window; account-deletion and S-27 owners |
+| Images / registries | canonical runtime retained; rejected service images expected absent | `unknown` | Digest/tag reference graph from serving revisions, workflows, and rollback policy; S-27/release owner |
+| Secret Manager / IAM | retained provider/runtime/deploy identities protected; rejected service-exclusive bindings expected removable | `unknown` | Names and reference graph only, never secret values; runtime/deploy/signer separation and last-use evidence; S-27/security owner |
+| Monitoring / storage | provider-native retained observability and update/preview storage protected; retired monitoring and product-data artifacts rejected | `unknown` | Retention/legal/incident/shared-consumer evidence and explicit update/preview bucket protection; S-24/S-27/S-29 owners |
+
+This table is the S-26/S-27 handoff, not operational closure. Each row must be
+refreshed with verified environment identity before any mutation; an `unknown`
+row stops only that resource family and may never be converted into an
+`already absent` or deletion claim from repository evidence alone.
