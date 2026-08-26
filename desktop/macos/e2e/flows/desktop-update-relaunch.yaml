@@ -2,25 +2,27 @@ version: 2
 name: desktop-update-relaunch
 tier: manual
 description: Verify a signed desktop update is reported installed only after the target build relaunches
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/UpdateRelaunchWindowPolicy.swift
   - desktop/macos/Desktop/Sources/UpdaterViewModel.swift
+  - desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift
   - desktop/macos/Desktop/Sources/DesktopUpdatePolicyManager.swift
   - desktop/macos/Desktop/Sources/Startup/AppInstaller.swift
 preconditions:
   - isolated_release_test_host
-  - signed_older_beta_installed
-  - signed_qualified_beta_update_available
+  - s28_owned_beta_identity_configured
+  - signed_older_owned_beta_installed
+  - signed_qualified_owned_beta_update_available
 
 steps:
   - id: S1
     name: Record the source build
-    do: "On an isolated release test host, launch the older signed beta and record its version and build from About. Confirm no pending update-install attempt exists before starting."
+    do: "After S-28 provides the owned non-production Beta identity, launch the older signed owned Beta on an isolated release test host and record its version and build from About. Confirm no pending update-install attempt exists before starting. Do not substitute an inherited Omi bundle identity."
 
   - id: S2
-    name: Install the qualified beta
-    do: "Use Check for Updates, install the exact signed qualified beta offered by Sparkle, and allow the app to relaunch itself. Do not launch or modify the production bundle on a maintainer workstation."
+    name: Hold installation until retained work is idle
+    do: "For each authoritative activity class on an isolated release host—ambient recording/finalization, voice capture/provider/playback/tool/token work, and Chat send/streaming—start that activity before the qualified beta finishes downloading. Verify the app does not relaunch while the activity is live, transition that owner to idle, then verify Sparkle invokes the installer and relaunches exactly once. Repeat from the signed older fixture for each class; never launch or modify a production bundle on a maintainer workstation."
 
   - id: S3
     name: Verify the relaunched target build

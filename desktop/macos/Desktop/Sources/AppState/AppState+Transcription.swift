@@ -5,45 +5,112 @@ import SwiftUI
 
 @MainActor
 extension AppState {
-  func quiesceAmbientCaptureForOwnerTransition() async {
-    let pendingFallbackRestart = localSTTFallbackRestartTask
-    pendingFallbackRestart?.cancel()
-    localSTTFallbackRestartTask = nil
-    if pendingFallbackRestart != nil {
-      sttSession.completeFallback()
+  func withAmbientFinalizationActivity<Result>(
+    _ operation: @MainActor () async -> Result
+  ) async -> Result {
+    activeAmbientFinalizationCount += 1
+    isSavingConversation = true
+    defer {
+      activeAmbientFinalizationCount -= 1
+      isSavingConversation = activeAmbientFinalizationCount > 0
     }
-    // A local→cloud recovery marks capture inactive before its asynchronous
-    // final-tail flush completes. Owner rotation must still await that exact
-    // task so old-owner callbacks finish before the authority generation moves.
-    if let inFlightStop = transcriptionStopTask {
-      await inFlightStop.value
-      return
-    }
-    guard isTranscribing || transcriptionStartTask != nil else { return }
-    recordingGeneration &+= 1
-    transcriptionStartTask?.cancel()
-    transcriptionStartTask = nil
-    conversationLocationTask?.cancel()
-    conversationLocationTask = nil
+    return await operation()
+  }
 
-    let wasLocalSTT = sttSession.useLocalSTT
-    let mic = localMicService
-    let system = localSystemService
-    let cloud = transcriptionService
-    localMicService = nil
-    localSystemService = nil
-    transcriptionService = nil
-    stopAudioCapture()
-    cloud?.stop(discardBufferedAudio: true)
-    if wasLocalSTT {
-      mic?.discardBufferedAudio()
-      system?.discardBufferedAudio()
-    } else {
-      await segmentDeliveryQueue.drain()
+  func handleMaxRecordingDurationReached(
+    rotationOperation: (@MainActor () async -> Void)? = nil
+  ) async {
+    guard isTranscribing else { return }
+
+    await withAmbientFinalizationActivity {
+      if let rotationOperation {
+        await rotationOperation()
+        return
+      }
+
+      log("Transcription: 4-hour limit reached - restarting session")
+      let sessionId = currentSessionId
+      let authorization = currentSessionAuthorization
+      let wasLocalSTT = sttSession.useLocalSTT
+      let mic = localMicService
+      let sys = localSystemService
+      if wasLocalSTT {
+        localMicService = nil
+        localSystemService = nil
+      }
+      stopAudioCapture()
+      if wasLocalSTT {
+        await mic?.finish()
+        await sys?.finish()
+      } else {
+        await segmentDeliveryQueue.drain()
+      }
+      let finishedConversationId = await finishSessionAndRefreshImmediately(
+        sessionId: sessionId,
+        reason: .maxDurationRotation,
+        authorization: authorization)
+      clearTranscriptionState(
+        finalizationReason: .maxDurationRotation,
+        runFinalizer: false,
+        finishSession: false
+      )
+      if let finishedConversationId {
+        Task {
+          await self.processFinishedConversationAndRefresh(
+            conversationId: finishedConversationId)
+        }
+      }
+      startTranscription()
     }
-    localMicAudioSink.clear()
-    localSystemAudioSink.clear()
-    clearTranscriptionState(runFinalizer: false, finishSession: false)
+  }
+
+  func quiesceAmbientCaptureForOwnerTransition(
+    quiescenceOperation: (@MainActor () async -> Void)? = nil
+  ) async {
+    await withAmbientFinalizationActivity {
+      if let quiescenceOperation {
+        await quiescenceOperation()
+        return
+      }
+
+      let pendingFallbackRestart = localSTTFallbackRestartTask
+      pendingFallbackRestart?.cancel()
+      localSTTFallbackRestartTask = nil
+      if pendingFallbackRestart != nil {
+        sttSession.completeFallback()
+      }
+      // Await the local→cloud final-tail task before moving owner authority.
+      // Capture becomes inactive before this asynchronous flush completes.
+      if let inFlightStop = transcriptionStopTask {
+        await inFlightStop.value
+        return
+      }
+      guard isTranscribing || transcriptionStartTask != nil else { return }
+      recordingGeneration &+= 1
+      transcriptionStartTask?.cancel()
+      transcriptionStartTask = nil
+      conversationLocationTask?.cancel()
+      conversationLocationTask = nil
+
+      let wasLocalSTT = sttSession.useLocalSTT
+      let mic = localMicService
+      let system = localSystemService
+      let cloud = transcriptionService
+      localMicService = nil
+      localSystemService = nil
+      transcriptionService = nil
+      stopAudioCapture()
+      cloud?.stop(discardBufferedAudio: true)
+      if wasLocalSTT {
+        mic?.discardBufferedAudio()
+        system?.discardBufferedAudio()
+      } else {
+        await segmentDeliveryQueue.drain()
+      }
+      localMicAudioSink.clear()
+      localSystemAudioSink.clear()
+      clearTranscriptionState(runFinalizer: false, finishSession: false)
+    }
   }
 
   func toggleTranscription() {
@@ -243,41 +310,7 @@ extension AppState {
         withTimeInterval: maxRecordingDuration, repeats: false
       ) { [weak self] _ in
         Task { @MainActor in
-          guard let self = self, self.isTranscribing else { return }
-          log("Transcription: 4-hour limit reached - restarting session")
-          let sessionId = self.currentSessionId
-          let authorization = self.currentSessionAuthorization
-          let wasLocalSTT = self.sttSession.useLocalSTT
-          let mic = self.localMicService
-          let sys = self.localSystemService
-          if wasLocalSTT {
-            self.localMicService = nil
-            self.localSystemService = nil
-          }
-          // Stop, durably queue finalization, and restart.
-          self.stopAudioCapture()
-          if wasLocalSTT {
-            await mic?.finish()
-            await sys?.finish()
-          } else {
-            await self.segmentDeliveryQueue.drain()
-          }
-          let finishedConversationId = await self.finishSessionAndRefreshImmediately(
-            sessionId: sessionId,
-            reason: .maxDurationRotation,
-            authorization: authorization)
-          self.clearTranscriptionState(
-            finalizationReason: .maxDurationRotation,
-            runFinalizer: false,
-            finishSession: false
-          )
-          if let finishedConversationId {
-            Task {
-              await self.processFinishedConversationAndRefresh(
-                conversationId: finishedConversationId)
-            }
-          }
-          self.startTranscription()
+          await self?.handleMaxRecordingDurationReached()
         }
       }
 
@@ -1195,40 +1228,7 @@ extension AppState {
     maxRecordingTimer?.invalidate()
     maxRecordingTimer = Timer.scheduledTimer(withTimeInterval: maxRecordingDuration, repeats: false) { [weak self] _ in
       Task { @MainActor in
-        guard let self = self, self.isTranscribing else { return }
-        log("Transcription: 4-hour limit reached — stopping and restarting")
-        let sessionId = self.currentSessionId
-        let authorization = self.currentSessionAuthorization
-        let wasLocalSTT = self.sttSession.useLocalSTT
-        let mic = self.localMicService
-        let sys = self.localSystemService
-        if wasLocalSTT {
-          self.localMicService = nil
-          self.localSystemService = nil
-        }
-        self.stopAudioCapture()
-        if wasLocalSTT {
-          await mic?.finish()
-          await sys?.finish()
-        } else {
-          await self.segmentDeliveryQueue.drain()
-        }
-        let finishedConversationId = await self.finishSessionAndRefreshImmediately(
-          sessionId: sessionId,
-          reason: .maxDurationRotation,
-          authorization: authorization)
-        self.clearTranscriptionState(
-          finalizationReason: .maxDurationRotation,
-          runFinalizer: false,
-          finishSession: false
-        )
-        if let finishedConversationId {
-          Task {
-            await self.processFinishedConversationAndRefresh(
-              conversationId: finishedConversationId)
-          }
-        }
-        self.startTranscription()
+        await self?.handleMaxRecordingDurationReached()
       }
     }
 
