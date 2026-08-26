@@ -57,6 +57,7 @@ environments:
         signing_service_account: {env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT}
         publisher_access: future-s29-prefix-writer
         retained_prefixes: [updates/, previews/]
+        lifecycle_rules: []
       tasks:
         queue:
           name: account-deletion
@@ -295,6 +296,7 @@ environments:
         signing_service_account: {env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT}
         publisher_access: future-s29-prefix-writer
         retained_prefixes: [updates/, previews/]
+        lifecycle_rules: []
       tasks:
         queue:
           name: account-deletion

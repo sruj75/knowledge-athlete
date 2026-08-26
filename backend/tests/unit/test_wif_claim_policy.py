@@ -13,7 +13,10 @@ from scripts.wif_claim_policy import (  # noqa: E402
     attribute_condition,
     claim_rejections,
     load_manifest,
+    provider_attribute_condition,
+    provider_attribute_mapping,
     resolve_claim_policy,
+    workflow_principal_member,
 )
 
 
@@ -115,3 +118,35 @@ def test_policy_rejects_wildcard_or_missing_external_coordinates() -> None:
     missing_id.pop('GITHUB_REPOSITORY_ID')
     with pytest.raises(ValueError, match='missing required WIF input GITHUB_REPOSITORY_ID'):
         resolve_claim_policy(load_manifest(), environment='dev', principal='deploy', external_inputs=missing_id)
+
+
+def test_provider_contract_maps_and_conditions_every_exact_claim() -> None:
+    policies = [
+        resolve_claim_policy(load_manifest(), environment='dev', principal=principal, external_inputs=inputs('dev'))
+        for principal in ('deploy', 'firestore_readonly', 'firestore_writer')
+    ]
+
+    mapping = provider_attribute_mapping()
+    condition = provider_attribute_condition(policies)
+
+    assert set(mapping) == {
+        'google.subject',
+        'attribute.repository',
+        'attribute.repository_id',
+        'attribute.repository_owner_id',
+        'attribute.ref',
+        'attribute.environment',
+        'attribute.workflow_ref',
+    }
+    assert condition.count('assertion.workflow_ref==') == 3
+    assert '*' not in condition
+
+
+def test_workflow_principal_member_targets_one_provider_pool_and_workflow() -> None:
+    provider = 'projects/123/locations/global/workloadIdentityPools/github/providers/actions-dev'
+    workflow_ref = 'hypermind-ai/knowledge-athlete/.github/workflows/gcp_backend.yml@refs/heads/main'
+
+    assert workflow_principal_member(provider, workflow_ref) == (
+        'principalSet://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/github/'
+        f'attribute.workflow_ref/{workflow_ref}'
+    )

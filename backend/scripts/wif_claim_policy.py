@@ -9,7 +9,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping, Sequence, cast
 
 import yaml
 
@@ -134,6 +134,53 @@ def attribute_condition(policy: ClaimPolicy) -> str:
             f'({workflow_clause})',
         )
     )
+
+
+def provider_attribute_mapping() -> dict[str, str]:
+    """Return the exact GitHub claims required by provider and IAM policy checks."""
+    return {
+        'google.subject': 'assertion.sub',
+        'attribute.repository': 'assertion.repository',
+        'attribute.repository_id': 'assertion.repository_id',
+        'attribute.repository_owner_id': 'assertion.repository_owner_id',
+        'attribute.ref': 'assertion.ref',
+        'attribute.environment': 'assertion.environment',
+        'attribute.workflow_ref': 'assertion.workflow_ref',
+    }
+
+
+def provider_attribute_condition(policies: Sequence[ClaimPolicy]) -> str:
+    """Build one provider condition covering only the exact admitted workflows."""
+    if not policies:
+        raise ValueError('WIF provider must admit at least one claim policy')
+    first = policies[0]
+    common = (first.repository, first.repository_id, first.repository_owner_id, first.ref, first.environment)
+    if any(
+        (item.repository, item.repository_id, item.repository_owner_id, item.ref, item.environment) != common
+        for item in policies[1:]
+    ):
+        raise ValueError('WIF provider policies must share repository, ref, and environment claims')
+    workflow_refs = sorted({workflow_ref for item in policies for workflow_ref in item.workflow_refs})
+    workflow_clause = ' || '.join(f"assertion.workflow_ref=='{workflow_ref}'" for workflow_ref in workflow_refs)
+    return ' && '.join(
+        (
+            f"assertion.repository=='{first.repository}'",
+            f"assertion.repository_id=='{first.repository_id}'",
+            f"assertion.repository_owner_id=='{first.repository_owner_id}'",
+            f"assertion.ref=='{first.ref}'",
+            f"assertion.environment=='{first.environment}'",
+            f'({workflow_clause})',
+        )
+    )
+
+
+def workflow_principal_member(provider_resource: str, workflow_ref: str) -> str:
+    """Return the narrow principalSet member for one mapped workflow identity."""
+    marker = '/providers/'
+    if not provider_resource.startswith('projects/') or marker not in provider_resource:
+        raise ValueError('WIF provider must be a fully-qualified provider resource')
+    pool_resource = provider_resource.split(marker, 1)[0]
+    return f'principalSet://iam.googleapis.com/{pool_resource}/attribute.workflow_ref/{workflow_ref}'
 
 
 def _mapping(value: object, label: str) -> Mapping[str, Any]:

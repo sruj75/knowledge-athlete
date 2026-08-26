@@ -104,6 +104,7 @@ def validation_messages(environment: str, env_config: Mapping[str, Any]) -> list
         'signing_service_account': {'env_var': 'BACKEND_RUNTIME_SERVICE_ACCOUNT'},
         'publisher_access': 'future-s29-prefix-writer',
         'retained_prefixes': ['updates/', 'previews/'],
+        'lifecycle_rules': [],
     }:
         errors.append('GCS foundation must retain read-only IAM signBlob access')
 

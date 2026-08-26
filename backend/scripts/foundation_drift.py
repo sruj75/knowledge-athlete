@@ -9,9 +9,59 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence, cast
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 
 import yaml
+
+try:
+    from scripts.foundation_live_contract import (
+        bucket_lifecycle_rules as _bucket_lifecycle_rules,
+        budget_notification_channels as _budget_notification_channels,
+        cleanup_delete_policies as _cleanup_delete_policies,
+        cloud_run_environment as _cloud_run_environment,
+        cloud_run_service_account as _cloud_run_service_account,
+        csv_values as _csv_values,
+        expected_alerts as _expected_alerts,
+        external_logging_sinks as _external_logging_sinks,
+        member_role_grants as _member_role_grants,
+        normalize_alerts as _normalize_alerts,
+        normalize_budget as _normalize_budget,
+        provider_parts as _provider_parts,
+        role_grants as _role_grants,
+        url_host as _url_host,
+        wif_policies as _wif_policies,
+    )
+except ModuleNotFoundError:  # Direct script execution places backend/scripts on sys.path.
+    from foundation_live_contract import (  # type: ignore[no-redef]
+        bucket_lifecycle_rules as _bucket_lifecycle_rules,
+        budget_notification_channels as _budget_notification_channels,
+        cleanup_delete_policies as _cleanup_delete_policies,
+        cloud_run_environment as _cloud_run_environment,
+        cloud_run_service_account as _cloud_run_service_account,
+        csv_values as _csv_values,
+        expected_alerts as _expected_alerts,
+        external_logging_sinks as _external_logging_sinks,
+        member_role_grants as _member_role_grants,
+        normalize_alerts as _normalize_alerts,
+        normalize_budget as _normalize_budget,
+        provider_parts as _provider_parts,
+        role_grants as _role_grants,
+        url_host as _url_host,
+        wif_policies as _wif_policies,
+    )
+
+try:
+    from scripts.wif_claim_policy import (
+        provider_attribute_condition,
+        provider_attribute_mapping,
+        workflow_principal_member,
+    )
+except ModuleNotFoundError:  # Direct script execution places backend/scripts on sys.path.
+    from wif_claim_policy import (  # type: ignore[no-redef]
+        provider_attribute_condition,
+        provider_attribute_mapping,
+        workflow_principal_member,
+    )
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = ROOT / 'backend/deploy/runtime_env.yaml'
@@ -35,6 +85,7 @@ def collect_live_foundation(
     expected: Mapping[str, Any], *, project: str, runner: Runner | None = None
 ) -> dict[str, Any]:
     run = runner or _run_json
+    wif = _mapping(expected.get('wif'), 'wif')
     network = _mapping(expected.get('network'), 'network')
     psa = _mapping(network.get('private_service_access'), 'private_service_access')
     redis = _mapping(expected.get('redis'), 'redis')
@@ -46,6 +97,56 @@ def collect_live_foundation(
     alerts = _mapping(expected.get('alerts'), 'alerts')
     budget = _mapping(expected.get('budget'), 'budget')
     region = _string(network.get('region'), 'network region')
+
+    provider_resource = _string(wif.get('provider'), 'WIF provider')
+    provider_project, provider_pool, provider_name = _provider_parts(provider_resource)
+    provider_doc = _object(
+        run(
+            (
+                'gcloud',
+                'iam',
+                'workload-identity-pools',
+                'providers',
+                'describe',
+                provider_name,
+                '--workload-identity-pool',
+                provider_pool,
+                '--location=global',
+                '--project',
+                provider_project,
+                '--format=json',
+            )
+        )
+    )
+    wif_policies = _wif_policies(wif)
+    wif_policy_docs = {
+        policy.principal: _object(
+            run(
+                (
+                    'gcloud',
+                    'iam',
+                    'service-accounts',
+                    'get-iam-policy',
+                    policy.service_account,
+                    '--project',
+                    project,
+                    '--format=json',
+                )
+            )
+        )
+        for policy in wif_policies
+    }
+    project_iam_doc = _object(
+        run(
+            (
+                'gcloud',
+                'projects',
+                'get-iam-policy',
+                project,
+                '--format=json',
+            )
+        )
+    )
 
     network_doc = _object(
         run(
@@ -140,6 +241,35 @@ def collect_live_foundation(
             )
         )
     )
+    bucket_iam_doc = _object(
+        run(
+            (
+                'gcloud',
+                'storage',
+                'buckets',
+                'get-iam-policy',
+                f"gs://{_string(gcs.get('bucket'), 'GCS bucket')}",
+                '--project',
+                project,
+                '--format=json',
+            )
+        )
+    )
+    runtime_service_account = _string(gcs.get('signing_service_account'), 'GCS signing service account')
+    runtime_service_account_iam = _object(
+        run(
+            (
+                'gcloud',
+                'iam',
+                'service-accounts',
+                'get-iam-policy',
+                runtime_service_account,
+                '--project',
+                project,
+                '--format=json',
+            )
+        )
+    )
     queue_doc = _object(
         run(
             (
@@ -150,6 +280,53 @@ def collect_live_foundation(
                 _string(tasks.get('name'), 'tasks queue'),
                 '--location',
                 _string(tasks.get('location'), 'tasks location'),
+                '--project',
+                project,
+                '--format=json',
+            )
+        )
+    )
+    queue_iam_doc = _object(
+        run(
+            (
+                'gcloud',
+                'tasks',
+                'queues',
+                'get-iam-policy',
+                _string(tasks.get('name'), 'tasks queue'),
+                '--location',
+                _string(tasks.get('location'), 'tasks location'),
+                '--project',
+                project,
+                '--format=json',
+            )
+        )
+    )
+    task_signer = _string(tasks.get('oidc_signer'), 'task OIDC signer')
+    task_signer_iam = _object(
+        run(
+            (
+                'gcloud',
+                'iam',
+                'service-accounts',
+                'get-iam-policy',
+                task_signer,
+                '--project',
+                project,
+                '--format=json',
+            )
+        )
+    )
+    service_doc = _object(
+        run(
+            (
+                'gcloud',
+                'run',
+                'services',
+                'describe',
+                'backend',
+                '--region',
+                region,
                 '--project',
                 project,
                 '--format=json',
@@ -187,6 +364,9 @@ def collect_live_foundation(
             )
         )
     )
+    logging_sink_docs = _array(run(('gcloud', 'logging', 'sinks', 'list', '--project', project, '--format=json')))
+    channel_docs = _array(run(('gcloud', 'monitoring', 'channels', 'list', '--project', project, '--format=json')))
+    uptime_docs = _array(run(('gcloud', 'monitoring', 'uptime', 'list-configs', '--project', project, '--format=json')))
     alert_docs = _array(run(('gcloud', 'monitoring', 'policies', 'list', '--project', project, '--format=json')))
     budget_docs = _array(
         run(
@@ -213,7 +393,26 @@ def collect_live_foundation(
         ),
         None,
     )
+    service_env = _cloud_run_environment(service_doc)
+    budget_notification_channels = _budget_notification_channels(selected_budget)
     return {
+        'wif': {
+            'provider': _leaf(provider_doc.get('name')),
+            'state': provider_doc.get('state'),
+            'disabled': bool(provider_doc.get('disabled', False)),
+            'issuer_uri': (_mapping(provider_doc.get('oidc'), 'WIF OIDC')).get('issuerUri'),
+            'attribute_mapping': provider_doc.get('attributeMapping'),
+            'attribute_condition': provider_doc.get('attributeCondition'),
+            'service_account_bindings': {
+                policy.principal: {
+                    'service_account': policy.service_account,
+                    'workload_identity_grants': _role_grants(
+                        wif_policy_docs[policy.principal], 'roles/iam.workloadIdentityUser'
+                    ),
+                }
+                for policy in wif_policies
+            },
+        },
         'network': {
             'region': _leaf(subnet_doc.get('region')),
             'vpc': network_name,
@@ -244,6 +443,34 @@ def collect_live_foundation(
             'location': str(bucket_doc.get('location') or '').lower(),
             'uniform_bucket_level_access': ubla.get('enabled'),
             'public_access_prevention': iam.get('publicAccessPrevention'),
+            'lifecycle_rules': _bucket_lifecycle_rules(bucket_doc),
+            'runtime_viewer_grants': _role_grants(bucket_iam_doc, 'roles/storage.objectViewer'),
+            'runtime_bucket_mutating_grants': _member_role_grants(
+                bucket_iam_doc,
+                f'serviceAccount:{runtime_service_account}',
+                roles={
+                    'roles/storage.admin',
+                    'roles/storage.objectAdmin',
+                    'roles/storage.objectCreator',
+                    'roles/storage.legacyBucketOwner',
+                    'roles/storage.legacyObjectOwner',
+                },
+                include_custom_roles=True,
+            ),
+            'runtime_project_storage_grants': _member_role_grants(
+                project_iam_doc,
+                f'serviceAccount:{runtime_service_account}',
+                roles={'roles/editor', 'roles/owner'},
+                role_prefixes=('roles/storage.',),
+                include_custom_roles=True,
+            ),
+            'signing': {
+                'method': 'iamcredentials.signBlob',
+                'service_account': runtime_service_account,
+                'token_creator_grants': _role_grants(
+                    runtime_service_account_iam, 'roles/iam.serviceAccountTokenCreator'
+                ),
+            },
         },
         'tasks': {
             'queue': {
@@ -253,25 +480,54 @@ def collect_live_foundation(
                     'maxConcurrentDispatches'
                 ),
                 'max_attempts': (_mapping(queue_doc.get('retryConfig'), 'queue retry config')).get('maxAttempts'),
+                'dispatch_deadline_seconds': int(service_env.get('HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT') or 0),
+                'oidc_signer': service_env.get('ACCOUNT_DELETION_TASKS_INVOKER_SA'),
+                'handler_audience': service_env.get('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE'),
+                'runtime_service_account': _cloud_run_service_account(service_doc),
+                'enqueuer_grants': _role_grants(queue_iam_doc, 'roles/cloudtasks.enqueuer'),
+                'project_task_or_signer_grants': _member_role_grants(
+                    project_iam_doc,
+                    f'serviceAccount:{runtime_service_account}',
+                    roles={'roles/editor', 'roles/owner'},
+                    role_prefixes=('roles/cloudtasks.', 'roles/iam.serviceAccount'),
+                    include_custom_roles=True,
+                ),
+                'runtime_act_as_grants': _role_grants(task_signer_iam, 'roles/iam.serviceAccountUser'),
+                'signer_token_creator_grants': _role_grants(task_signer_iam, 'roles/iam.serviceAccountTokenCreator'),
             }
         },
         'artifact_registry': {
             'repository': _leaf(registry_doc.get('name')),
             'location': _resource_segment(registry_doc.get('name'), 'locations'),
             'format': registry_doc.get('format'),
+            'cleanup_policy_dry_run': registry_doc.get('cleanupPolicyDryRun'),
+            'cleanup_delete_policies': _cleanup_delete_policies(registry_doc.get('cleanupPolicies')),
         },
         'logging': {
             'bucket': _leaf(logging_doc.get('name')),
             'retention_days': logging_doc.get('retentionDays'),
+            'external_sinks': _external_logging_sinks(logging_sink_docs),
         },
-        'alerts': {
-            'policies': sorted(str(item.get('displayName')) for item in alert_docs if isinstance(item, Mapping))
-        },
-        'budget': _normalize_budget(selected_budget),
+        'alerts': _normalize_alerts(
+            alert_docs,
+            channel_docs,
+            uptime_docs,
+            expected=alerts,
+            expected_health_host=_url_host(_string(tasks.get('handler_audience'), 'task handler audience')),
+        ),
+        'budget': _normalize_budget(
+            selected_budget,
+            channel_docs=channel_docs,
+            notification_channels=budget_notification_channels,
+        ),
     }
 
 
 def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any]:
+    wif = _mapping(expected.get('wif'), 'wif')
+    wif_policies = _wif_policies(wif)
+    provider_resource = _string(wif.get('provider'), 'WIF provider')
+    provider_project_number, _, provider_name = _provider_parts(provider_resource)
     network = _mapping(expected.get('network'), 'network')
     psa = _mapping(network.get('private_service_access'), 'private_service_access')
     firestore = _mapping(expected.get('firestore'), 'firestore')
@@ -281,7 +537,27 @@ def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any
     logging = _mapping(expected.get('logging'), 'logging')
     alerts = _mapping(expected.get('alerts'), 'alerts')
     budget = _mapping(expected.get('budget'), 'budget')
+    runtime_service_account = _string(gcs.get('signing_service_account'), 'GCS signing service account')
+    task_signer = _string(queue.get('oidc_signer'), 'task OIDC signer')
     return {
+        'wif': {
+            'provider': provider_name,
+            'state': 'ACTIVE',
+            'disabled': False,
+            'issuer_uri': 'https://token.actions.githubusercontent.com/',
+            'attribute_mapping': provider_attribute_mapping(),
+            'attribute_condition': provider_attribute_condition(wif_policies),
+            'service_account_bindings': {
+                policy.principal: {
+                    'service_account': policy.service_account,
+                    'workload_identity_grants': _unconditional_grants(
+                        workflow_principal_member(provider_resource, workflow_ref)
+                        for workflow_ref in policy.workflow_refs
+                    ),
+                }
+                for policy in wif_policies
+            },
+        },
         'network': {
             'region': network.get('region'),
             'vpc': network.get('vpc'),
@@ -300,6 +576,15 @@ def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any
             'location': gcs.get('location'),
             'uniform_bucket_level_access': gcs.get('uniform_bucket_level_access'),
             'public_access_prevention': gcs.get('public_access_prevention'),
+            'lifecycle_rules': gcs.get('lifecycle_rules'),
+            'runtime_viewer_grants': _unconditional_grants([f'serviceAccount:{runtime_service_account}']),
+            'runtime_bucket_mutating_grants': [],
+            'runtime_project_storage_grants': [],
+            'signing': {
+                'method': gcs.get('signing_method'),
+                'service_account': runtime_service_account,
+                'token_creator_grants': _unconditional_grants([f'serviceAccount:{runtime_service_account}']),
+            },
         },
         'tasks': {
             'queue': {
@@ -307,19 +592,49 @@ def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any
                 'location': queue.get('location'),
                 'max_concurrent_dispatches': queue.get('max_concurrent_dispatches'),
                 'max_attempts': queue.get('max_attempts'),
+                'dispatch_deadline_seconds': queue.get('dispatch_deadline_seconds'),
+                'oidc_signer': task_signer,
+                'handler_audience': queue.get('handler_audience'),
+                'runtime_service_account': runtime_service_account,
+                'enqueuer_grants': _unconditional_grants([f'serviceAccount:{runtime_service_account}']),
+                'project_task_or_signer_grants': [],
+                'runtime_act_as_grants': _unconditional_grants([f'serviceAccount:{runtime_service_account}']),
+                'signer_token_creator_grants': _unconditional_grants(
+                    [f'serviceAccount:service-{provider_project_number}@gcp-sa-cloudtasks.iam.gserviceaccount.com']
+                ),
             }
         },
         'artifact_registry': {
             'repository': registry.get('repository'),
             'location': registry.get('location'),
             'format': registry.get('format'),
+            'cleanup_policy_dry_run': True,
+            'cleanup_delete_policies': [
+                {
+                    'action': 'DELETE',
+                    'tag_state': 'UNTAGGED',
+                    'older_than': f"{int(_mapping(registry.get('cleanup'), 'registry cleanup').get('delete_only_untagged_older_than_days') or 0) * 86400}s",
+                }
+            ],
         },
-        'logging': {'bucket': logging.get('bucket'), 'retention_days': logging.get('retention_days')},
-        'alerts': {'policies': sorted(cast(list[str], alerts.get('policies') or []))},
+        'logging': {
+            'bucket': logging.get('bucket'),
+            'retention_days': logging.get('retention_days'),
+            'external_sinks': [],
+        },
+        'alerts': _expected_alerts(
+            alerts,
+            expected_health_host=_url_host(_string(queue.get('handler_audience'), 'task handler audience')),
+        ),
         'budget': {
             'amount': str(budget.get('amount')),
             'currency': budget.get('currency'),
             'thresholds': budget.get('thresholds'),
+            'project_number': provider_project_number,
+            'calendar_period': 'MONTH',
+            'recipients': sorted(_csv_values(budget.get('recipients'))),
+            'default_iam_recipients_disabled': True,
+            'alert_only': bool(budget.get('alert_only')),
         },
     }
 
@@ -342,21 +657,8 @@ def environment_name(expected: Mapping[str, Any]) -> str:
     return 'development' if redis.get('tier') == 'BASIC' else 'prod'
 
 
-def _normalize_budget(value: object) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    amount = _mapping(value.get('amount'), 'budget amount')
-    specified = _mapping(amount.get('specifiedAmount'), 'budget specified amount')
-    rules = value.get('thresholdRules')
-    return {
-        'amount': str(specified.get('units') or ''),
-        'currency': specified.get('currencyCode'),
-        'thresholds': (
-            sorted(item.get('thresholdPercent') for item in rules if isinstance(item, Mapping))
-            if isinstance(rules, list)
-            else []
-        ),
-    }
+def _unconditional_grants(members: Iterable[str]) -> list[dict[str, Any]]:
+    return [{'member': member, 'condition': None} for member in sorted(members)]
 
 
 def _resolve(value: object, external_inputs: Mapping[str, str]) -> object:
@@ -445,7 +747,10 @@ def main() -> int:
         for path in paths:
             print(f'ERROR: foundation drift at {path}')
         return 1
-    print(f'backend foundation matches the {args.env} manifest')
+    print(
+        f'backend read-only observable foundation matches the {args.env} manifest; '
+        'separately authorized behavioral probes remain required'
+    )
     return 0
 
 
