@@ -84,10 +84,10 @@ final class ClientDeviceServiceTests: XCTestCase {
     )
   }
 
-  func testUnknownAndForeignBundlesCreateNoPersistentInstallationIdentity() {
+  func testUnknownAndForeignBundlesCreateNoPersistentInstallationIdentity() throws {
     for bundleIdentifier in [nil, "com.omi.computer-macos", "org.example.desktop"] {
       let suiteName = "ClientDeviceServiceTests.foreign.\(UUID().uuidString)"
-      let defaults = UserDefaults(suiteName: suiteName)!
+      let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
       var keychainReads = 0
       var keychainWrites: [String] = []
       defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -103,8 +103,8 @@ final class ClientDeviceServiceTests: XCTestCase {
       )
 
       XCTAssertEqual(service.deviceIdHash, service.deviceIdHash)
-      XCTAssertNil(defaults.object(forKey: "dev-client-device-install-uuid"))
-      XCTAssertNil(defaults.object(forKey: "client-device-install-uuid-mirror"))
+      XCTAssertNil(defaults.object(forKey: .clientDeviceDevInstallId))
+      XCTAssertNil(defaults.object(forKey: .clientDeviceInstallIdMirror))
       XCTAssertEqual(keychainReads, 0)
       XCTAssertTrue(keychainWrites.isEmpty)
     }

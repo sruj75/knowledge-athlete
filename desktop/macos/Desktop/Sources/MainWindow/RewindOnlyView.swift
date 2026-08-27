@@ -289,7 +289,7 @@ struct RewindSettingsView: View {
             DesktopLocalProfile.applicationSupportURL()
               .appendingPathComponent("users", isDirectory: true)
               .appendingPathComponent(
-                UserDefaults.standard.string(forKey: "auth_userId") ?? "anonymous",
+                UserDefaults.standard.string(forKey: .authUserId) ?? "anonymous",
                 isDirectory: true
               ).path
           )

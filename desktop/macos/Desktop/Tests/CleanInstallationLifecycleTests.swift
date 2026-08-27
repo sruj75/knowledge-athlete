@@ -69,13 +69,13 @@ final class CleanInstallationLifecycleTests: XCTestCase {
     try await writeProbe("A-after-return", ownerID: ownerA, database: database)
     await database.close()
 
-    defaults.set("keep-this-user-choice", forKey: "ordinary-user-choice")
+    defaults.set("keep-this-user-choice", forKey: .transcriptionVocabulary)
     for source in [OnboardingReplaySource.settings, .statusMenu, .automation] {
       defaults.set("setup-only", forKey: .onboardingHowDidYouHearSource)
       let plan = await replayPreparation(defaults: defaults).execute(source: source)
       XCTAssertTrue(plan.shouldRestart)
       XCTAssertNil(defaults.object(forKey: .onboardingHowDidYouHearSource))
-      XCTAssertEqual(defaults.string(forKey: "ordinary-user-choice"), "keep-this-user-choice")
+      XCTAssertEqual(defaults.string(forKey: .transcriptionVocabulary), "keep-this-user-choice")
     }
 
     defaults.set("signed-in-owner", forKey: .authUserId)
@@ -90,7 +90,7 @@ final class CleanInstallationLifecycleTests: XCTestCase {
     let didSignOut = try await signOut.execute()
     XCTAssertTrue(didSignOut)
     XCTAssertNil(defaults.object(forKey: .authUserId))
-    XCTAssertEqual(defaults.string(forKey: "ordinary-user-choice"), "keep-this-user-choice")
+    XCTAssertEqual(defaults.string(forKey: .transcriptionVocabulary), "keep-this-user-choice")
 
     // Removing the app bundle models uninstall. Product data and the scoped
     // installation identity remain available to a later build of the same identity.

@@ -50,13 +50,14 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
   private var originalOverride: String?
   private var originalBackup: String?
   private var createdOwnerIDs: [String] = []
-  private var temporaryApplicationSupportDirectory: URL!
+  private var temporaryApplicationSupportDirectory: URL?
 
   override func setUp() async throws {
-    temporaryApplicationSupportDirectory = FileManager.default.temporaryDirectory
+    let temporaryDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent("effective-owner-boundary-\(UUID().uuidString)", isDirectory: true)
+    temporaryApplicationSupportDirectory = temporaryDirectory
     let storageLocation = RewindDatabaseStorageLocation(
-      applicationSupportDirectoryURL: temporaryApplicationSupportDirectory,
+      applicationSupportDirectoryURL: temporaryDirectory,
       productPathComponents: ["Intentive"])
     DesktopLocalProfile.configureApplicationSupportURLForTesting(storageLocation.productRootURL)
     await RewindDatabase.shared.close()
@@ -99,7 +100,9 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
     createdOwnerIDs = []
     await RewindDatabase.shared.configureStorageLocationForTesting(nil)
     DesktopLocalProfile.configureApplicationSupportURLForTesting(nil)
-    try? FileManager.default.removeItem(at: temporaryApplicationSupportDirectory)
+    if let temporaryApplicationSupportDirectory {
+      try? FileManager.default.removeItem(at: temporaryApplicationSupportDirectory)
+    }
     temporaryApplicationSupportDirectory = nil
   }
 

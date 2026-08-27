@@ -79,9 +79,8 @@ final class SingleInstanceGuardTests: XCTestCase {
 
   // MARK: - Lock acquisition mechanism
 
-  func testFirstAcquirerWinsSecondSeesConflict() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
+  func testFirstAcquirerWinsSecondSeesConflict() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     // First instance takes the lock.
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
@@ -97,9 +96,8 @@ final class SingleInstanceGuardTests: XCTestCase {
     SingleInstanceGuard.releaseLock(descriptor)
   }
 
-  func testAcquiredLockRecordsOwnerProcessIdentifier() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
+  func testAcquiredLockRecordsOwnerProcessIdentifier() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
       return XCTFail("lock should be acquirable")
@@ -111,9 +109,8 @@ final class SingleInstanceGuardTests: XCTestCase {
       ProcessInfo.processInfo.processIdentifier)
   }
 
-  func testAcquiredLockDescriptorIsCloseOnExec() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
+  func testAcquiredLockDescriptorIsCloseOnExec() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
       return XCTFail("lock should be acquirable")
@@ -125,11 +122,9 @@ final class SingleInstanceGuardTests: XCTestCase {
       "Child processes must not inherit the app-lifetime lock descriptor")
   }
 
-  func testLockOwnerProcessIdentifierIsModeScopedByLockPath() {
-    let full = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
-    let rewind = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .rewind, directory: tempDir)!
+  func testLockOwnerProcessIdentifierIsModeScopedByLockPath() throws {
+    let full = try ownedLockFilePath(launchMode: .full)
+    let rewind = try ownedLockFilePath(launchMode: .rewind)
 
     guard case .acquired(let fullDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: full)
     else {
@@ -143,9 +138,8 @@ final class SingleInstanceGuardTests: XCTestCase {
       "Reading owner PID from the same lock path used for contention keeps activation scoped to launch mode")
   }
 
-  func testLockIsReacquirableAfterRelease() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
+  func testLockIsReacquirableAfterRelease() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let firstDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path)
     else {
@@ -162,11 +156,9 @@ final class SingleInstanceGuardTests: XCTestCase {
     SingleInstanceGuard.releaseLock(secondDescriptor)
   }
 
-  func testDifferentModesDoNotContend() {
-    let full = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .full, directory: tempDir)!
-    let rewind = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.heyintentive.intentive.dev.lock-test", launchMode: .rewind, directory: tempDir)!
+  func testDifferentModesDoNotContend() throws {
+    let full = try ownedLockFilePath(launchMode: .full)
+    let rewind = try ownedLockFilePath(launchMode: .rewind)
 
     guard case .acquired(let fullDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: full)
     else {
@@ -182,5 +174,13 @@ final class SingleInstanceGuardTests: XCTestCase {
 
     SingleInstanceGuard.releaseLock(rewindDescriptor)
     SingleInstanceGuard.releaseLock(fullDescriptor)
+  }
+
+  private func ownedLockFilePath(launchMode: LaunchMode) throws -> String {
+    try XCTUnwrap(
+      SingleInstanceGuard.lockFilePath(
+        bundleID: "com.heyintentive.intentive.dev.lock-test",
+        launchMode: launchMode,
+        directory: tempDir))
   }
 }
