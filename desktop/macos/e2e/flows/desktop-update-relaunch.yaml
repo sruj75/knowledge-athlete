@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/UpdateRelaunchWindowPolicy.swift
   - desktop/macos/Desktop/Sources/UpdaterViewModel.swift
+  - desktop/macos/Desktop/Sources/WhatsNewToast.swift
   - desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift
   - desktop/macos/Desktop/Sources/DesktopUpdatePolicyManager.swift
   - desktop/macos/Desktop/Sources/Startup/AppInstaller.swift
