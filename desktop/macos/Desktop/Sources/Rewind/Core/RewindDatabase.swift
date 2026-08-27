@@ -104,9 +104,7 @@ actor RewindDatabase {
   static let shared = RewindDatabase()
   private static let terminationStateLock = OSAllocatedUnfairLock<Bool>(initialState: false)
 
-  /// The system Application Support directory and product-relative components
-  /// are injectable together, so tests can place both the selected product root
-  /// and a synthetic foreign sibling behind the same observable boundary.
+  /// Injectable product storage boundary for clean-install and foreign-sibling tests.
   private var storageLocation: RewindDatabaseStorageLocation?
   private let fileSystem: RewindDatabaseFileSystem
 
@@ -168,14 +166,11 @@ actor RewindDatabase {
   }
 
   #if DEBUG
-    /// Rebinds only the system-directory boundary used by tests that exercise shared runtime actors.
-    /// The database must be closed before and after changing this value.
     func configureStorageLocationForTesting(_ storageLocation: RewindDatabaseStorageLocation?) {
       precondition(dbQueue == nil, "close the database before rebinding test storage")
       self.storageLocation = storageLocation
     }
   #endif
-
   /// Whether the database has been successfully initialized
   var isInitialized: Bool { dbQueue != nil }
 
@@ -461,9 +456,8 @@ actor RewindDatabase {
     try await initialize()
   }
 
-  /// Returns the per-user base directory beneath the resolved product root.
-  /// Falls back to the static currentUserId (set synchronously at app start) when
-  /// configure() hasn't been called yet (for example, an early service triggers initialization).
+  /// Returns the per-user base directory beneath the resolved product root, using
+  /// static currentUserId when configure() has not run yet.
   private func targetUserId() -> String {
     if RewindDatabase.currentUserId == nil,
       UserDefaults.standard.string(forKey: .authUserId) == nil
@@ -574,7 +568,6 @@ actor RewindDatabase {
     // never drift to the next owner's path or publish its old pool later.
     let omiDir = userBaseDirectory(for: expectedUserId)
 
-    // Create directory if needed (withIntermediateDirectories creates parents too)
     try fileSystem.createDirectory(at: omiDir, withIntermediateDirectories: true)
 
     let dbPath = omiDir.appendingPathComponent(DesktopProductIdentity.databaseFilename).path
@@ -686,9 +679,7 @@ actor RewindDatabase {
     }
 
     dbQueue = activeQueue
-    // Bump the pool epoch on every (re)open so storage actors that cached the
-    // previous pool revalidate and drop it — recovery may have replaced the
-    // underlying product database file, leaving the old pool pointing at a stale inode.
+    // A reopen may replace the database inode, so invalidate cached pools.
     // This is `poolEpoch`, NOT `initGeneration`: initialize() relies on
     // initGeneration staying unchanged across a normal open to clear its
     // initializationTask.

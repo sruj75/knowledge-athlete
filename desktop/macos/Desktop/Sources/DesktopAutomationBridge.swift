@@ -1646,8 +1646,7 @@ final class DesktopAutomationActionRegistry {
       summary: "Return the owned agent database path and SHA-256 for continuity harness evidence bundles"
     ) { _ in
       let stateDir = try AgentRuntimeProcess.defaultStateDirectory()
-      let dbPath = (stateDir as NSString).appendingPathComponent(
-        DesktopProductIdentity.agentRuntimeDatabaseFilename)
+      let dbPath = (stateDir as NSString).appendingPathComponent(AppBuild.agentDatabaseFilename)
       var detail: [String: String] = [
         "state_dir": stateDir,
         "database_path": dbPath,

@@ -347,6 +347,12 @@ enum AppBuild {
     return url
   }
 
+  static var ownedBundleIdentifier: String? {
+    DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?.bundleIdentifier
+  }
+
+  static let agentDatabaseFilename = DesktopProductIdentity.agentRuntimeDatabaseFilename
+
   static var currentUpdateChannel: String {
     // The Intentive Beta app is permanently a beta-channel client; a stray defaults value
     // (imported settings, sync) must never flip it to stable-identity updates.
