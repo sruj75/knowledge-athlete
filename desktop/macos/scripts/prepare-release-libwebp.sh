@@ -9,7 +9,9 @@ DESTINATION=""
 APP_EXECUTABLE=""
 SIGNING_IDENTITY=""
 VERIFY_ONLY=false
+VERIFY_PREPARED=false
 ALLOW_ADHOC_SIGNING_FOR_TESTS=false
+EXPECTED_TEAM_ID=""
 APP_DEPLOYMENT_TARGET="14.0"
 REBUILD_DIR=""
 
@@ -33,6 +35,8 @@ Options:
   --allow-adhoc-signing-for-tests
                             Permit '-' only in a hermetic test fixture
   --verify-only             Verify cache/fallback without copying or signing
+  --verify-prepared         Verify already-prepared bundle libraries, app linkage, and signing
+  --expected-team-id ID     Required with --verify-prepared; nested code must match the app team
   --app-deployment-target V Maximum permitted dylib deployment target (default: 14.0)
 USAGE
 }
@@ -77,6 +81,15 @@ while [[ $# -gt 0 ]]; do
     --verify-only)
       VERIFY_ONLY=true
       shift
+      ;;
+    --verify-prepared)
+      VERIFY_PREPARED=true
+      shift
+      ;;
+    --expected-team-id)
+      [[ $# -ge 2 ]] || fail "--expected-team-id requires a value"
+      EXPECTED_TEAM_ID="$2"
+      shift 2
       ;;
     --allow-adhoc-signing-for-tests)
       ALLOW_ADHOC_SIGNING_FOR_TESTS=true
@@ -323,6 +336,85 @@ prepare_app_executable() {
   [[ "$framework_rpath_count" -eq 2 ]] \
     || fail "candidate app Frameworks rpath is missing from one or more architectures"
 }
+
+validate_prepared_app_executable() {
+  local executable="$1"
+  local bundled_webp="$2"
+  [[ -f "$executable" ]] || fail "candidate app executable is missing: $executable"
+  validate_architectures "$executable" \
+    || fail "candidate app executable is not exactly arm64 + x86_64: $executable"
+
+  local dependencies count framework_rpath_count arch required_line provided_line
+  local required_version provided_version
+  dependencies="$(app_webp_dependencies "$executable")" \
+    || fail "could not inspect candidate app libwebp dependencies: $executable"
+  count="$(printf '%s\n' "$dependencies" \
+    | awk '$1 == "@rpath/libwebp.7.dylib" {count += 1} END {print count + 0}')"
+  [[ "$count" -eq 2 ]] \
+    || fail "prepared candidate app must use @rpath/libwebp.7.dylib for both architectures"
+
+  framework_rpath_count="$(app_framework_rpaths "$executable" \
+    | awk '$1 == "@executable_path/../Frameworks" {count += 1} END {print count + 0}')"
+  [[ "$framework_rpath_count" -eq 2 ]] \
+    || fail "prepared candidate app Frameworks rpath is missing from one or more architectures"
+
+  for arch in arm64 x86_64; do
+    required_line="$(otool -arch "$arch" -L "$executable" \
+      | awk '$1 == "@rpath/libwebp.7.dylib" {print; exit}')"
+    provided_line="$(otool -arch "$arch" -L "$bundled_webp" \
+      | awk '$1 == "@rpath/libwebp.7.dylib" {print; exit}')"
+    required_version="$(printf '%s\n' "$required_line" \
+      | sed -E -n 's/.*compatibility version ([0-9.]+),.*/\1/p')"
+    provided_version="$(printf '%s\n' "$provided_line" \
+      | sed -E -n 's/.*compatibility version ([0-9.]+),.*/\1/p')"
+    [[ -n "$required_version" && -n "$provided_version" ]] \
+      || fail "could not inspect prepared libwebp compatibility for architecture $arch"
+    awk -v required="$required_version" -v provided="$provided_version" '
+      BEGIN {
+        split(required, r, ".")
+        split(provided, p, ".")
+        for (i = 1; i <= 4; i += 1) {
+          rv = r[i] + 0
+          pv = p[i] + 0
+          if (rv < pv) exit 0
+          if (rv > pv) exit 1
+        }
+        exit 0
+      }
+    ' || fail "candidate $arch requires libwebp compatibility $required_version, but the bundle provides $provided_version"
+  done
+}
+
+validate_prepared_signing() {
+  local directory="$1"
+  local expected_team_id="$2"
+  local name path signing_details team
+  for name in libwebp.7.dylib libsharpyuv.0.dylib; do
+    path="$directory/$name"
+    codesign --verify --strict --verbose=2 "$path" >/dev/null 2>&1 \
+      || fail "prepared release library failed codesign verification: $path"
+    signing_details="$(codesign -dv "$path" 2>&1 || true)"
+    team="$(printf '%s\n' "$signing_details" | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+    [[ "$team" == "$expected_team_id" ]] \
+      || fail "prepared release library TeamIdentifier mismatch for $name: expected $expected_team_id, got ${team:-missing}"
+  done
+}
+
+if [[ "$VERIFY_ONLY" == true && "$VERIFY_PREPARED" == true ]]; then
+  fail "--verify-only and --verify-prepared are mutually exclusive"
+fi
+
+if [[ "$VERIFY_PREPARED" == true ]]; then
+  [[ -n "$DESTINATION" ]] || fail "--destination is required with --verify-prepared"
+  [[ -n "$APP_EXECUTABLE" ]] || fail "--app-executable is required with --verify-prepared"
+  [[ -n "$EXPECTED_TEAM_ID" ]] || fail "--expected-team-id is required with --verify-prepared"
+  validate_directory "$DESTINATION" false \
+    || fail "prepared release libraries do not satisfy the structural contract"
+  validate_prepared_app_executable "$APP_EXECUTABLE" "$DESTINATION/libwebp.7.dylib"
+  validate_prepared_signing "$DESTINATION" "$EXPECTED_TEAM_ID"
+  echo "Verified prepared libwebp $WEBP_VERSION release libraries, app linkage, and signing"
+  exit 0
+fi
 
 if [[ "$VERIFY_ONLY" != true ]]; then
   [[ -n "$DESTINATION" ]] || fail "--destination is required unless --verify-only is used"

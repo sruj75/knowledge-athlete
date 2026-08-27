@@ -2,7 +2,7 @@ version: 2
 name: navigation
 tier: manual
 description: Top navigation bar smoke — verify Home, Memory, Tasks, and the unified Insights hub plus Settings and Rewind
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift

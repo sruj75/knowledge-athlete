@@ -137,4 +137,25 @@ test "$(otool -L "$app_executable" | awk '$1 == "@rpath/libwebp.7.dylib" {count 
 test "$(otool -l "$app_executable" | awk '/cmd LC_RPATH/ {inside = 1; next} inside && $1 == "path" && $2 == "@executable_path/../Frameworks" {count += 1; inside = 0} END {print count + 0}')" -eq 2 \
   || fail "prepared app executable is missing the bundle Frameworks rpath"
 
+verify_bin="$TMP_ROOT/verify-bin"
+mkdir -p "$verify_bin"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'if [[ "${1:-}" == "-dv" ]]; then'
+  printf '%s\n' '  printf "TeamIdentifier=TESTTEAM01\\n" >&2'
+  printf '%s\n' 'fi'
+  printf '%s\n' 'exit 0'
+} >"$verify_bin/codesign"
+chmod +x "$verify_bin/codesign"
+PATH="$verify_bin:$PATH" "$SCRIPT" \
+  --verify-prepared \
+  --destination "$destination" \
+  --app-executable "$app_executable" \
+  --expected-team-id TESTTEAM01
+expect_failure wrong-prepared-team env PATH="$verify_bin:$PATH" \
+  "$SCRIPT" --verify-prepared \
+  --destination "$destination" \
+  --app-executable "$app_executable" \
+  --expected-team-id WRONGTEAM1
+
 echo "PASS: release libwebp cache, fallback, app linkage, copy, and signing contracts"

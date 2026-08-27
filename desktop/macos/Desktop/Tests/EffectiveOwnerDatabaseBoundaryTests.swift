@@ -50,8 +50,18 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
   private var originalOverride: String?
   private var originalBackup: String?
   private var createdOwnerIDs: [String] = []
+  private var temporaryApplicationSupportDirectory: URL!
 
   override func setUp() async throws {
+    temporaryApplicationSupportDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("effective-owner-boundary-\(UUID().uuidString)", isDirectory: true)
+    let storageLocation = RewindDatabaseStorageLocation(
+      applicationSupportDirectoryURL: temporaryApplicationSupportDirectory,
+      productPathComponents: ["Intentive"])
+    DesktopLocalProfile.configureApplicationSupportURLForTesting(storageLocation.productRootURL)
+    await RewindDatabase.shared.close()
+    await RewindDatabase.shared.configureStorageLocationForTesting(storageLocation)
+
     originalAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
     originalOverride = UserDefaults.standard.string(forKey: .automationOwnerOverride)
     originalBackup = UserDefaults.standard.string(forKey: .automationOwnerABackup)
@@ -87,6 +97,10 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
       try? FileManager.default.removeItem(at: userDirectory(ownerID))
     }
     createdOwnerIDs = []
+    await RewindDatabase.shared.configureStorageLocationForTesting(nil)
+    DesktopLocalProfile.configureApplicationSupportURLForTesting(nil)
+    try? FileManager.default.removeItem(at: temporaryApplicationSupportDirectory)
+    temporaryApplicationSupportDirectory = nil
   }
 
   func testOwnerTransitionWaitsForACommitThenAdmitsBWithBPool() async throws {
@@ -165,7 +179,7 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
 
   private func readProbeValues(ownerID: String) throws -> [String] {
     let pool = try DatabasePool(
-      path: userDirectory(ownerID).appendingPathComponent("omi.db").path)
+      path: userDirectory(ownerID).appendingPathComponent("heyintentive.db").path)
     return try pool.read { db in
       try String.fetchAll(db, sql: "SELECT value FROM owner_probe ORDER BY rowid")
     }

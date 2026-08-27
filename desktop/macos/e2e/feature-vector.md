@@ -175,5 +175,5 @@ T2 qualification matrix: **32/32 flows green** (2026-07-09 manual qualification 
 - Primary AX navigation is the top bar: Home, Memory, Tasks, and Insights. Memory owns Memories and Conversations; Insights owns Insights and Focus. Refer a Friend lives in the profile menu popover.
 - System tray menu items: `openOmiFromMenu`, `checkForUpdates`, `resetOnboarding`, `reportIssue`, `signOut`, `quitApp`
 - Keyboard shortcuts via View menu: Cmd+1 (Home), Cmd+2 (Memories), Cmd+3 (Tasks), Cmd+4 (Insights), Cmd+, (Settings). Cmd+Option-R retains Rewind.
-- Beta app bundle ID: `com.omi.computer-macos` (flow-walker default)
-- Dev / hermetic bundle: `com.omi.omi-core-e2e` with `make desktop-run-local` (Auth emulator)
+- Flow-walker target: an owned named non-production bundle until S-29 supplies the signed `com.heyintentive.intentive.beta` candidate
+- Dev / hermetic bundle: `com.heyintentive.intentive.dev.omi-core-e2e` with `make desktop-run-local` (Auth emulator)

@@ -52,9 +52,18 @@ KEY_VALUE_END -->"""
         "isPrerelease": False,
         "publishedAt": "2026-07-09T11:00:00Z",
         "assets": [
-            {"name": "Omi.zip", "url": f"https://github.com/BasedHardware/omi/releases/download/{tag}/Omi.zip"},
-            {"name": "omi.dmg", "url": f"https://github.com/BasedHardware/omi/releases/download/{tag}/omi.dmg"},
-            {"name": evidence, "url": f"https://github.com/BasedHardware/omi/releases/download/{tag}/{evidence}"},
+            {
+                "name": "Intentive.zip",
+                "url": f"https://github.com/sruj75/knowledge-athlete/releases/download/{tag}/Intentive.zip",
+            },
+            {
+                "name": "intentive.dmg",
+                "url": f"https://github.com/sruj75/knowledge-athlete/releases/download/{tag}/intentive.dmg",
+            },
+            {
+                "name": evidence,
+                "url": f"https://github.com/sruj75/knowledge-athlete/releases/download/{tag}/{evidence}",
+            },
         ],
     }
 
@@ -149,14 +158,15 @@ def test_managed_pi_release_does_not_stage_retired_sharp_runtime():
 def test_qualified_artifact_replacement_is_rejected_before_beta_or_stable_pointering():
     release = _release()
     release["assets"] = [
-        {"name": name, "url": f"https://example.com/{name}", "digest": ""} for name in ("Omi.zip", "omi.dmg")
+        {"name": name, "url": f"https://example.com/{name}", "digest": ""}
+        for name in ("Intentive.zip", "intentive.dmg")
     ]
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         paths = {}
         for name, content in (
-            ("Omi.zip", b"stable zip"),
-            ("omi.dmg", b"stable dmg"),
+            ("Intentive.zip", b"stable zip"),
+            ("intentive.dmg", b"stable dmg"),
         ):
             path = root / name
             path.write_bytes(content)
@@ -166,8 +176,8 @@ def test_qualified_artifact_replacement_is_rejected_before_beta_or_stable_pointe
         evidence = qualification_evidence.build_evidence(
             release, release["tagName"], "a" * 40, {**paths, "__candidate_gate__": gate}
         )
-        paths["Omi.zip"].write_bytes(b"replacement")
-        with pytest.raises(ValueError, match="Omi.zip hash differs"):
+        paths["Intentive.zip"].write_bytes(b"replacement")
+        with pytest.raises(ValueError, match="Intentive.zip hash differs"):
             qualification_evidence.verify_evidence(
                 evidence,
                 release,
@@ -186,16 +196,16 @@ def test_qualification_evidence_accepts_the_side_by_side_beta_artifact_pair():
     release = _release(body=body)
     release["assets"] = [
         {"name": name, "url": f"https://example.com/{name}", "digest": ""}
-        for name in ("Omi.zip", "omi.dmg", "Omi.Beta.zip", "omi-beta.dmg")
+        for name in ("Intentive.zip", "intentive.dmg", "Intentive.Beta.zip", "intentive-beta.dmg")
     ]
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         paths = {}
         for name, content in (
-            ("Omi.zip", b"stable zip"),
-            ("omi.dmg", b"stable dmg"),
-            ("Omi.Beta.zip", b"beta zip"),
-            ("omi-beta.dmg", b"beta dmg"),
+            ("Intentive.zip", b"stable zip"),
+            ("intentive.dmg", b"stable dmg"),
+            ("Intentive.Beta.zip", b"beta zip"),
+            ("intentive-beta.dmg", b"beta dmg"),
         ):
             path = root / name
             path.write_bytes(content)
@@ -205,12 +215,17 @@ def test_qualification_evidence_accepts_the_side_by_side_beta_artifact_pair():
         evidence = qualification_evidence.build_evidence(
             release, release["tagName"], "a" * 40, {**paths, "__candidate_gate__": gate}
         )
-        assert set(evidence["artifacts"]) == {"Omi.zip", "omi.dmg", "Omi.Beta.zip", "omi-beta.dmg"}
-        assert evidence["artifacts"]["Omi.Beta.zip"]["signature"] == "beta-signature"
+        assert set(evidence["artifacts"]) == {
+            "Intentive.zip",
+            "intentive.dmg",
+            "Intentive.Beta.zip",
+            "intentive-beta.dmg",
+        }
+        assert evidence["artifacts"]["Intentive.Beta.zip"]["signature"] == "beta-signature"
 
         # A partial beta pair must fail closed.
         partial = dict(paths)
-        del partial["omi-beta.dmg"]
+        del partial["intentive-beta.dmg"]
         with pytest.raises(ValueError, match="exact qualified"):
             qualification_evidence.build_evidence(
                 release, release["tagName"], "a" * 40, {**partial, "__candidate_gate__": gate}
@@ -218,7 +233,7 @@ def test_qualification_evidence_accepts_the_side_by_side_beta_artifact_pair():
 
 
 def test_qualification_evidence_cli_accepts_the_beta_artifact_pair_end_to_end():
-    # Regression: the qualify workflow passes --asset Omi.Beta.zip=…/omi-beta.dmg=…;
+    # Regression: the qualify workflow passes --asset Intentive.Beta.zip=…/intentive-beta.dmg=…;
     # the CLI must accept them through the same shape the workflow uses.
     import subprocess
     import sys
@@ -229,7 +244,7 @@ def test_qualification_evidence_cli_accepts_the_beta_artifact_pair_end_to_end():
     release = _release(body=body)
     release["assets"] = [
         {"name": name, "url": f"https://example.com/{name}", "digest": ""}
-        for name in ("Omi.zip", "omi.dmg", "Omi.Beta.zip", "omi-beta.dmg")
+        for name in ("Intentive.zip", "intentive.dmg", "Intentive.Beta.zip", "intentive-beta.dmg")
     ]
     script = Path(__file__).parents[3] / ".github/scripts/desktop_qualification_evidence.py"
     with tempfile.TemporaryDirectory() as directory:
@@ -239,10 +254,10 @@ def test_qualification_evidence_cli_accepts_the_beta_artifact_pair_end_to_end():
         release_json.write_text(json.dumps(release))
         asset_args = []
         for name, content in (
-            ("Omi.zip", b"stable zip"),
-            ("omi.dmg", b"stable dmg"),
-            ("Omi.Beta.zip", b"beta zip"),
-            ("omi-beta.dmg", b"beta dmg"),
+            ("Intentive.zip", b"stable zip"),
+            ("intentive.dmg", b"stable dmg"),
+            ("Intentive.Beta.zip", b"beta zip"),
+            ("intentive-beta.dmg", b"beta dmg"),
         ):
             path = root / name
             path.write_bytes(content)
@@ -272,7 +287,12 @@ def test_qualification_evidence_cli_accepts_the_beta_artifact_pair_end_to_end():
         )
         assert result.returncode == 0, result.stderr or result.stdout
         written = json.loads(evidence_out.read_text(encoding="utf-8"))
-        assert set(written["artifacts"]) == {"Omi.zip", "omi.dmg", "Omi.Beta.zip", "omi-beta.dmg"}
+        assert set(written["artifacts"]) == {
+            "Intentive.zip",
+            "intentive.dmg",
+            "Intentive.Beta.zip",
+            "intentive-beta.dmg",
+        }
 
 
 def test_qualification_evidence_rejects_candidate_gate_from_a_different_source():
@@ -280,7 +300,7 @@ def test_qualification_evidence_rejects_candidate_gate_from_a_different_source()
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         paths = {}
-        for name, content in (("Omi.zip", b"zip"), ("omi.dmg", b"dmg")):
+        for name, content in (("Intentive.zip", b"zip"), ("intentive.dmg", b"dmg")):
             path = root / name
             path.write_bytes(content)
             paths[name] = path
@@ -350,7 +370,7 @@ def test_stable_repair_bundle_uses_the_retained_manifest_installer_identity():
     assert bundle["repair"]["installer_sha256"] == "sha256:" + "c" * 64
     assert (
         bundle["repair"]["installer_url"]
-        == "https://github.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/omi.dmg"
+        == "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/intentive.dmg"
     )
     assert "/Applications" in bundle["landing_page"]
 
@@ -388,7 +408,7 @@ def test_qualification_is_serialized_by_machine_without_release_body_state():
 def test_qualification_publishes_the_single_artifact_pair_and_immutable_evidence_for_server_readback():
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
 
-    for asset in ("Omi.zip", "omi.dmg"):
+    for asset in ("Intentive.zip", "intentive.dmg"):
         assert asset in qualification
     assert "actions/upload-artifact@v7" in qualification
     assert "--qualification-run-id \"$GITHUB_RUN_ID\"" in qualification

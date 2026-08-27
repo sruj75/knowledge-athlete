@@ -66,7 +66,7 @@ if _auth_emulator_host:
     for _adc_key in ("GOOGLE_APPLICATION_CREDENTIALS", "SERVICE_ACCOUNT_JSON"):
         os.environ.pop(_adc_key, None)
     _firebase_project_id = (
-        os.environ.get("FIREBASE_AUTH_PROJECT_ID") or os.environ.get("FIREBASE_PROJECT_ID") or "demo-omi-local"
+        os.environ.get("FIREBASE_AUTH_PROJECT_ID") or os.environ.get("FIREBASE_PROJECT_ID") or "demo-heyintentive-local"
     )
     firebase_admin.initialize_app(options={"projectId": _firebase_project_id})  # type: ignore[reportUnknownMemberType]  # firebase_admin untyped
 else:

@@ -27,7 +27,7 @@ if [ -x "$OMI_CTL" ]; then
     sleep 2
   done
   if [ "$signed_in" != true ]; then
-    echo "omi-ctl state: isSignedIn not true within 30s (is Omi Dev running?)" >&2
+    echo "omi-ctl state: isSignedIn not true within 30s (is Intentive Dev running?)" >&2
     failures=$((failures + 1))
   fi
 else

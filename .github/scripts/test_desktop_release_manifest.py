@@ -100,10 +100,10 @@ class ManifestValidationTests(unittest.TestCase):
 
     def test_artifact_urls_are_bound_to_repository_release_and_asset(self) -> None:
         invalid_urls = {
-            "arbitrary host": "https://example.com/Omi.zip",
-            "other release": ("https://github.com/BasedHardware/omi/releases/download/v0.12.70%2B12070-macos/Omi.zip"),
-            "other repository": ("https://github.com/attacker/omi/releases/download/v0.12.71%2B12071-macos/Omi.zip"),
-            "wrong asset": ("https://github.com/BasedHardware/omi/releases/download/v0.12.71%2B12071-macos/other.zip"),
+            "arbitrary host": "https://example.com/Intentive.zip",
+            "other release": ("https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.70%2B12070-macos/Intentive.zip"),
+            "other repository": ("https://github.com/attacker/omi/releases/download/v0.12.71%2B12071-macos/Intentive.zip"),
+            "wrong asset": ("https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.71%2B12071-macos/other.zip"),
         }
         for label, value in invalid_urls.items():
             with self.subTest(label=label):
@@ -123,7 +123,7 @@ class ManifestIntegrityTests(unittest.TestCase):
         )
         self.assertEqual(
             manifest_contract.manifest_digest(manifest),
-            "sha256:39ae561ce3b302f7b92c4eee39ffa3cc303343df9a3323e8e5d963ad5fd9d662",
+            "sha256:5f507562b1ea237f8ae9552317d04bd45eea383a06f907ac8c789f46a4c671e2",
         )
 
     def test_valid_identity_and_digest_mutations_fail_detached_verification(self) -> None:
@@ -137,8 +137,8 @@ class ManifestIntegrityTests(unittest.TestCase):
                 "release_id": "v0.12.73+12073-macos",
                 "version": "0.12.73",
                 "build_number": 12073,
-                "zip_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.73%2B12073-macos/Omi.zip",
-                "dmg_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.73%2B12073-macos/omi.dmg",
+                "zip_url": "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73%2B12073-macos/Intentive.zip",
+                "dmg_url": "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73%2B12073-macos/intentive.dmg",
             }
         )
         mutations["release identity"] = release_identity
@@ -148,9 +148,9 @@ class ManifestIntegrityTests(unittest.TestCase):
         mutations["source identity"] = source_identity
 
         independent_fields = {
-            "zip_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.71+12071-macos/Omi.zip",
+            "zip_url": "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.71+12071-macos/Intentive.zip",
             "zip_sha256": "sha256:" + "1" * 64,
-            "dmg_url": "https://github.com/BasedHardware/omi/releases/download/v0.12.71+12071-macos/omi.dmg",
+            "dmg_url": "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.71+12071-macos/intentive.dmg",
             "dmg_sha256": "sha256:" + "2" * 64,
             "ed_signature": "another-valid-signature",
             "qualification_evidence_asset": "qualification-evidence-0.12.72+12072-other.json",
@@ -204,13 +204,13 @@ class ManifestIntegrityTests(unittest.TestCase):
 
     def test_artifact_digest_drift_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            artifact = Path(directory) / "Omi.zip"
+            artifact = Path(directory) / "Intentive.zip"
             artifact.write_bytes(b"qualified artifact")
             expected = manifest_contract.file_digest(artifact)
-            manifest_contract.verify_artifact(artifact, expected, label="Omi.zip")
+            manifest_contract.verify_artifact(artifact, expected, label="Intentive.zip")
             artifact.write_bytes(b"drifted artifact")
-            with self.assertRaisesRegex(manifest_contract.ManifestError, "Omi.zip digest mismatch"):
-                manifest_contract.verify_artifact(artifact, expected, label="Omi.zip")
+            with self.assertRaisesRegex(manifest_contract.ManifestError, "Intentive.zip digest mismatch"):
+                manifest_contract.verify_artifact(artifact, expected, label="Intentive.zip")
 
     def test_detached_digest_drift_uses_the_shared_boundary(self) -> None:
         expected = "sha256:" + "a" * 64

@@ -7,31 +7,49 @@ final class AppInstallerTests: XCTestCase {
   // MARK: - Installer-location detection
 
   func testMountedDMGPathIsInstallerLocation() {
-    XCTAssertTrue(AppInstaller.isInstallerLocation("/Volumes/Omi Beta/Omi Beta.app"))
-    XCTAssertTrue(AppInstaller.isInstallerLocation("/Volumes/Omi/Omi.app"))
+    XCTAssertTrue(AppInstaller.isInstallerLocation("/Volumes/Intentive Beta/Intentive Beta.app"))
+    XCTAssertTrue(AppInstaller.isInstallerLocation("/Volumes/Intentive/Intentive.app"))
   }
 
   func testTranslocatedPathIsInstallerLocation() {
     XCTAssertTrue(
       AppInstaller.isInstallerLocation(
-        "/private/var/folders/ab/x1/T/AppTranslocation/1B2F3C4D/d/Omi Beta.app"))
+        "/private/var/folders/ab/x1/T/AppTranslocation/1B2F3C4D/d/Intentive Beta.app"))
   }
 
   func testInstalledAndDevPathsAreNotInstallerLocations() {
-    XCTAssertFalse(AppInstaller.isInstallerLocation("/Applications/Omi Beta.app"))
+    XCTAssertFalse(AppInstaller.isInstallerLocation("/Applications/Intentive Beta.app"))
     XCTAssertFalse(AppInstaller.isInstallerLocation("/Applications/omi-fix-rewind.app"))
     // Local dev builds run from checkouts and temp build dirs — never gated.
     XCTAssertFalse(
-      AppInstaller.isInstallerLocation("/Users/nik/projects/omi/desktop/macos/.build/Omi.app"))
-    XCTAssertFalse(AppInstaller.isInstallerLocation("/Users/nik/Downloads/Omi Beta.app"))
+      AppInstaller.isInstallerLocation("/Users/nik/projects/intentive/desktop/macos/.build/Intentive.app"))
+    XCTAssertFalse(AppInstaller.isInstallerLocation("/Users/nik/Downloads/Intentive Beta.app"))
   }
 
   // MARK: - Install destination
 
   func testInstalledURLKeepsBundleName() {
     let url = AppInstaller.installedURL(
-      forBundleURL: URL(fileURLWithPath: "/Volumes/Omi Beta/Omi Beta.app"))
-    XCTAssertEqual(url.path, "/Applications/Omi Beta.app")
+      forBundleURL: URL(fileURLWithPath: "/Volumes/Intentive Beta/Intentive Beta.app"))
+    XCTAssertEqual(url.path, "/Applications/Intentive Beta.app")
+  }
+
+  func testInstallGateUsesOnlyOwnedProductionBundleIdentities() {
+    XCTAssertTrue(AppInstaller.shouldRunInstallGate(bundleIdentifier: "com.heyintentive.intentive"))
+    XCTAssertTrue(AppInstaller.shouldRunInstallGate(bundleIdentifier: "com.heyintentive.intentive.beta"))
+    for bundleIdentifier in [
+      "com.heyintentive.intentive.dev",
+      "com.heyintentive.intentive.dev.omi-wave5-s28",
+      "com.heyintentive.intentive.preview.review",
+      "com.omi.computer-macos",
+      "org.example.app",
+    ] {
+      XCTAssertFalse(AppInstaller.shouldRunInstallGate(bundleIdentifier: bundleIdentifier))
+    }
+  }
+
+  func testInstallGateSkipVariableUsesOwnedTechnicalIdentity() {
+    XCTAssertEqual(AppInstaller.skipEnvironmentKey, "HEYINTENTIVE_SKIP_INSTALL_GATE")
   }
 
   // MARK: - Replace-vs-launch decision (never downgrade)
@@ -68,7 +86,7 @@ final class AppInstallerTests: XCTestCase {
     defer { try? fm.removeItem(at: root) }
 
     // Pre-existing "installed" bundle with known content.
-    let destination = root.appendingPathComponent("Omi.app", isDirectory: true)
+    let destination = root.appendingPathComponent("Intentive.app", isDirectory: true)
     try fm.createDirectory(at: destination, withIntermediateDirectories: true)
     let marker = destination.appendingPathComponent("build.txt")
     try "installed-101".write(to: marker, atomically: true, encoding: .utf8)
@@ -86,7 +104,7 @@ final class AppInstallerTests: XCTestCase {
     XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), "installed-101")
     // No staging litter left behind.
     let leftovers = try fm.contentsOfDirectory(atPath: root.path)
-    XCTAssertFalse(leftovers.contains { $0.hasPrefix(".Omi.app.staging") })
+    XCTAssertFalse(leftovers.contains { $0.hasPrefix(".Intentive.app.staging") })
   }
 
   func testReplaceSwapsInNewBundleContent() throws {
@@ -95,7 +113,7 @@ final class AppInstallerTests: XCTestCase {
     try fm.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? fm.removeItem(at: root) }
 
-    let destination = root.appendingPathComponent("Omi.app", isDirectory: true)
+    let destination = root.appendingPathComponent("Intentive.app", isDirectory: true)
     try fm.createDirectory(at: destination, withIntermediateDirectories: true)
     try "installed-101".write(
       to: destination.appendingPathComponent("build.txt"), atomically: true, encoding: .utf8)
@@ -111,6 +129,6 @@ final class AppInstallerTests: XCTestCase {
       contentsOf: destination.appendingPathComponent("build.txt"), encoding: .utf8)
     XCTAssertEqual(installed, "installed-102", "the new bundle must be swapped in")
     let leftovers = try fm.contentsOfDirectory(atPath: root.path)
-    XCTAssertFalse(leftovers.contains { $0.hasPrefix(".Omi.app.staging") })
+    XCTAssertFalse(leftovers.contains { $0.hasPrefix(".Intentive.app.staging") })
   }
 }

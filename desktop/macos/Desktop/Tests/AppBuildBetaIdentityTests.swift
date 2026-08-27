@@ -2,14 +2,21 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// The Intuitive Beta identity must behave as a shipped
+/// The Intentive Beta identity must behave as a shipped
 /// production artifact — never as a dev/test bundle — while keeping its own update
 /// channel, storage root, and log path so it can run beside stable.
 final class AppBuildBetaIdentityTests: XCTestCase {
+  private let validReleaseInfo: [String: Any] = [
+    AppBuild.sparkleFeedInfoKey: "https://updates.heyintentive.com/v2/desktop/appcast.xml",
+    AppBuild.sparklePublicKeyInfoKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    AppBuild.manualDownloadInfoKey: "https://updates.heyintentive.com/v2/desktop/download/latest",
+    AppBuild.releasesInfoKey: "https://github.com/sruj75/knowledge-athlete/releases",
+  ]
+
   func testBetaIdentityIsProductionGrade() {
     let config = AppBuild.configuration(
       bundleIdentifier: AppBuild.betaProductionBundleIdentifier,
-      infoDictionary: [:])
+      infoDictionary: validReleaseInfo)
 
     XCTAssertFalse(config.isNonProduction)
     XCTAssertFalse(config.allowsLocalAutomation)
@@ -20,7 +27,7 @@ final class AppBuildBetaIdentityTests: XCTestCase {
   func testStableIdentityGatingIsUnchanged() {
     let config = AppBuild.configuration(
       bundleIdentifier: AppBuild.productionBundleIdentifier,
-      infoDictionary: [:])
+      infoDictionary: validReleaseInfo)
 
     XCTAssertFalse(config.isNonProduction)
     XCTAssertFalse(config.allowsLocalAutomation)
@@ -29,8 +36,8 @@ final class AppBuildBetaIdentityTests: XCTestCase {
 
   func testNamedDevBundleStaysNonProduction() {
     let config = AppBuild.configuration(
-      bundleIdentifier: "com.heyintentive.intuitive.dev.feature-test",
-      infoDictionary: [:])
+      bundleIdentifier: "com.heyintentive.intentive.dev.feature-test",
+      infoDictionary: validReleaseInfo)
 
     XCTAssertTrue(config.isNonProduction)
     XCTAssertTrue(config.allowsLocalAutomation)
@@ -44,28 +51,109 @@ final class AppBuildBetaIdentityTests: XCTestCase {
 
   func testManualDownloadURLCarriesBetaIdentity() {
     XCTAssertEqual(
-      AppBuild.manualDownloadURL(channel: "beta", isBetaIdentity: true).absoluteString,
-      "https://api.omi.me/v2/desktop/download/latest?channel=beta&identity=beta")
+      AppBuild.manualDownloadURL(
+        infoDictionary: validReleaseInfo, channel: "beta", isBetaIdentity: true)?.absoluteString,
+      "https://updates.heyintentive.com/v2/desktop/download/latest?channel=beta&identity=beta")
     XCTAssertEqual(
-      AppBuild.manualDownloadURL(channel: "beta", isBetaIdentity: false).absoluteString,
-      "https://api.omi.me/v2/desktop/download/latest?channel=beta")
+      AppBuild.manualDownloadURL(
+        infoDictionary: validReleaseInfo, channel: "beta", isBetaIdentity: false)?.absoluteString,
+      "https://updates.heyintentive.com/v2/desktop/download/latest?channel=beta")
     XCTAssertEqual(
-      AppBuild.manualDownloadURL(channel: "stable", isBetaIdentity: false).absoluteString,
-      "https://api.omi.me/v2/desktop/download/latest?channel=stable")
+      AppBuild.manualDownloadURL(
+        infoDictionary: validReleaseInfo, channel: "stable", isBetaIdentity: false)?.absoluteString,
+      "https://updates.heyintentive.com/v2/desktop/download/latest?channel=stable")
+  }
+
+  func testChangelogURLUsesExactOwnedRunningVersionTag() {
+    XCTAssertEqual(
+      AppBuild.changelogURL(
+        infoDictionary: validReleaseInfo,
+        isProductionBundle: true,
+        releaseTag: "v1.2.3+12003-macos")?.absoluteString,
+      "https://github.com/sruj75/knowledge-athlete/releases/tag/v1.2.3%2B12003-macos"
+    )
+    XCTAssertEqual(
+      AppBuild.changelogURL(
+        infoDictionary: validReleaseInfo,
+        isProductionBundle: false,
+        releaseTag: "v1.2.3+12003-macos")?.absoluteString,
+      "https://github.com/sruj75/knowledge-athlete/releases"
+    )
+  }
+
+  func testProductionUpdaterFailsClosedWithoutSignedReleaseMetadata() {
+    let config = AppBuild.configuration(
+      bundleIdentifier: AppBuild.productionBundleIdentifier,
+      infoDictionary: [:])
+
+    XCTAssertTrue(config.identity?.isProductionFamily == true)
+    XCTAssertNil(config.releaseConfiguration)
+    XCTAssertFalse(config.allowsSparkleUpdates)
+  }
+
+  func testProductionUpdaterRejectsInheritedOmiReleaseMetadata() {
+    var inherited = validReleaseInfo
+    inherited[AppBuild.sparkleFeedInfoKey] = "https://api.omi.me/v2/desktop/appcast.xml"
+
+    let config = AppBuild.configuration(
+      bundleIdentifier: AppBuild.productionBundleIdentifier,
+      infoDictionary: inherited)
+
+    XCTAssertNil(config.releaseConfiguration)
+    XCTAssertFalse(config.allowsSparkleUpdates)
+  }
+
+  func testProductionUpdaterRejectsMalformedSparklePublicKey() {
+    var malformed = validReleaseInfo
+    malformed[AppBuild.sparklePublicKeyInfoKey] = "not-a-32-byte-base64-key"
+
+    let config = AppBuild.configuration(
+      bundleIdentifier: AppBuild.productionBundleIdentifier,
+      infoDictionary: malformed)
+
+    XCTAssertNil(config.releaseConfiguration)
+    XCTAssertFalse(config.allowsSparkleUpdates)
+  }
+
+  func testProductionUpdaterRejectsAReleaseRepositoryIdentityMismatch() {
+    var mismatched = validReleaseInfo
+    mismatched[AppBuild.releasesInfoKey] = "https://github.com/BasedHardware/omi/releases"
+
+    let config = AppBuild.configuration(
+      bundleIdentifier: AppBuild.productionBundleIdentifier,
+      infoDictionary: mismatched)
+
+    XCTAssertNil(config.releaseConfiguration)
+    XCTAssertFalse(config.allowsSparkleUpdates)
+  }
+
+  func testPublicDestinationsAcceptOnlyTheOwnedDomain() {
+    XCTAssertEqual(
+      AppBuild.publicDestinationURL(
+        infoDictionary: [AppBuild.termsInfoKey: "https://heyintentive.com/terms"],
+        infoKey: AppBuild.termsInfoKey
+      )?.absoluteString,
+      "https://heyintentive.com/terms")
+    XCTAssertNil(
+      AppBuild.publicDestinationURL(
+        infoDictionary: [AppBuild.termsInfoKey: "https://omi.me/terms"],
+        infoKey: AppBuild.termsInfoKey))
+    XCTAssertNil(
+      AppBuild.publicDestinationURL(
+        infoDictionary: [AppBuild.termsInfoKey: "https://example.com/terms"],
+        infoKey: AppBuild.termsInfoKey))
   }
 
   func testProductionLogPathsAreSeparatePerIdentity() {
     XCTAssertEqual(
       OmiLogPathResolver.logPath(
-        isNonProduction: false,
         bundleIdentifier: AppBuild.productionBundleIdentifier,
         processID: 1),
-      "/tmp/omi.log")
+      "/tmp/heyintentive.log")
     XCTAssertEqual(
       OmiLogPathResolver.logPath(
-        isNonProduction: false,
         bundleIdentifier: AppBuild.betaProductionBundleIdentifier,
         processID: 1),
-      "/tmp/omi-beta.log")
+      "/tmp/heyintentive-beta.log")
   }
 }

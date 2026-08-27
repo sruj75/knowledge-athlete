@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import OmiSupport
 import Security
 
 /// File-based (login) keychain helpers for desktop secrets.
@@ -11,17 +12,15 @@ import Security
 ///   fail closed (`nil` / `false`).
 /// - Scope service names by signing Team ID **and** bundle id so:
 ///   - Apple Development / named-bundle builds cannot poison notarized Beta/Prod
-///   - Local contributors' Omi Dev / `omi-*` / ad-hoc rebuilds cannot poison each other
+///   - Local contributors' Intentive Dev / `omi-*` / ad-hoc rebuilds cannot poison each other
 ///     (path/signature ACL mismatches between same-team apps)
 /// - Do **not** query the pre-scoping legacy service names from app code. Those items may
 ///   carry a foreign-team ACL; even with `LAContext.interactionNotAllowed`, SecItem can
 ///   still surface the login-keychain password sheet (`errSecUserCanceled` / -128). Leave
 ///   orphans alone — UserDefaults migration covers auth continuity for older installs.
 enum DesktopKeychainStore {
-  /// Pre-scoping service names. Kept as constants for dump/seed scripts and docs only —
-  /// app runtime must not SecItem-query these (see file header).
-  static let legacyAuthTokenService = "com.omi.desktop.firebase-rest-session"
-  static let legacyClientDeviceService = "com.omi.client-device-id"
+  static let authTokenServiceBase = DesktopProductIdentity.authKeychainServiceBase
+  static let clientDeviceServiceBase = DesktopProductIdentity.clientDeviceKeychainServiceBase
 
   /// Signing Team ID of the running binary (e.g. `9536L8KLMP` for Developer ID,
   /// `JVMXE5G542` for a personal Apple Development cert). Falls back to an ad-hoc
@@ -41,10 +40,9 @@ enum DesktopKeychainStore {
   ///
   /// Format: `<base>.v2.team.<TeamID>.bundle.<bundleID>`
   ///
-  /// Beta and stable share `com.omi.computer-macos` + Developer ID team, so they keep one
-  /// auth item. Every local contributor bundle (`com.omi.desktop-dev`, `com.omi.omi-*`,
-  /// ad-hoc) gets its own item — dump/seed scripts write into the *target* bundle's
-  /// scoped service explicitly.
+  /// Stable, Beta, and every local contributor bundle get separate items because the
+  /// bundle identifier remains part of the scope. Dump/seed scripts write into the
+  /// exact target bundle's scoped service explicitly.
   static func scopedService(
     _ base: String,
     teamID: String = signingTeamID,

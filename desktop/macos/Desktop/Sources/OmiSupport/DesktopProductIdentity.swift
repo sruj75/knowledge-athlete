@@ -1,6 +1,6 @@
 import Foundation
 
-/// The single display-independent identity authority for every Intuitive desktop bundle.
+/// The single display-independent identity authority for every Intentive desktop bundle.
 ///
 /// A bundle identifier that is not one of the approved families is rejected. Callers must
 /// never turn an unknown identity into the stable product's privileges or writable paths.
@@ -14,28 +14,30 @@ package struct DesktopProductIdentity: Equatable {
   }
 
   package static let reverseDNSOwner = "com.heyintentive"
-  package static let productSlug = "intuitive"
+  package static let productSlug = "heyintentive"
 
-  package static let stableBundleIdentifier = "com.heyintentive.intuitive"
-  package static let betaBundleIdentifier = "com.heyintentive.intuitive.beta"
-  package static let canonicalDevelopmentBundleIdentifier = "com.heyintentive.intuitive.dev"
-  package static let namedDevelopmentBundlePrefix = "com.heyintentive.intuitive.dev."
-  package static let previewBundlePrefix = "com.heyintentive.intuitive.preview."
+  package static let stableBundleIdentifier = "com.heyintentive.intentive"
+  package static let betaBundleIdentifier = "com.heyintentive.intentive.beta"
+  package static let canonicalDevelopmentBundleIdentifier = "com.heyintentive.intentive.dev"
+  package static let namedDevelopmentBundlePrefix = "com.heyintentive.intentive.dev."
+  package static let previewBundlePrefix = "com.heyintentive.intentive.preview."
 
-  package static let applicationFilename = "Intuitive.app"
-  package static let databaseFilename = "intuitive.db"
-  package static let agentRuntimeDatabaseFilename = "intuitive-agent.sqlite3"
-  package static let logPrefix = "intuitive"
-  package static let lockPrefix = "intuitive"
-  package static let automationTokenPrefix = "intuitive-automation"
-  package static let archiveCacheRootName = "IntuitiveDesktop"
-  package static let runtimeManifestFilename = ".intuitive-dev-runtime.json"
-  package static let agentStateEnvironmentVariable = "INTUITIVE_AGENT_STATE_DIR"
-  package static let installerSkipEnvironmentVariable = "INTUITIVE_SKIP_INSTALL_GATE"
+  package static let applicationFilename = "Intentive.app"
+  package static let databaseFilename = "heyintentive.db"
+  package static let runningFlagFilename = ".heyintentive_running"
+  package static let agentRuntimeDatabaseFilename = "heyintentive-agent.sqlite3"
+  package static let logPrefix = "heyintentive"
+  package static let lockPrefix = "heyintentive"
+  package static let automationTokenPrefix = "heyintentive-automation"
+  package static let archiveCacheRootName = "heyintentive-desktop"
+  package static let runtimeManifestFilename = ".heyintentive-dev-runtime.json"
+  package static let agentStateEnvironmentVariable = "HEYINTENTIVE_AGENT_STATE_DIR"
+  package static let agentArtifactsEnvironmentVariable = "HEYINTENTIVE_AGENT_ARTIFACTS_DIR"
+  package static let installerSkipEnvironmentVariable = "HEYINTENTIVE_SKIP_INSTALL_GATE"
   package static let authKeychainServiceBase =
-    "com.heyintentive.intuitive.firebase-rest-session"
+    "com.heyintentive.intentive.firebase-rest-session"
   package static let clientDeviceKeychainServiceBase =
-    "com.heyintentive.intuitive.client-device-id"
+    "com.heyintentive.intentive.client-device-id"
 
   package let bundleIdentifier: String
   package let family: Family
@@ -86,15 +88,15 @@ package struct DesktopProductIdentity: Equatable {
   package var applicationSupportPathComponents: [String] {
     switch family {
     case .stable:
-      return ["Intuitive"]
+      return ["Intentive"]
     case .beta:
-      return ["Intuitive Beta"]
+      return ["Intentive Beta"]
     case .canonicalDevelopment:
-      return ["Intuitive Dev"]
+      return ["Intentive Dev"]
     case .namedDevelopment:
-      return ["Intuitive Dev Bundles", bundleIdentifier]
+      return ["Intentive Dev Bundles", bundleIdentifier]
     case .preview:
-      return ["Intuitive Preview Builds", bundleIdentifier]
+      return ["Intentive Preview Builds", bundleIdentifier]
     }
   }
 
@@ -102,18 +104,28 @@ package struct DesktopProductIdentity: Equatable {
     applicationSupportPathComponents
   }
 
+  package func applicationSupportURL(homeDirectory: URL) -> URL {
+    applicationSupportPathComponents.reduce(
+      homeDirectory
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+    ) { partialResult, component in
+      partialResult.appendingPathComponent(component, isDirectory: true)
+    }
+  }
+
   package var urlScheme: String {
     switch family {
     case .stable:
-      return "intuitive"
+      return "heyintentive"
     case .beta:
-      return "intuitive-beta"
+      return "heyintentive-beta"
     case .canonicalDevelopment:
-      return "intuitive-dev"
+      return "heyintentive-dev"
     case .namedDevelopment(let slug):
-      return "intuitive-\(slug)"
+      return "heyintentive-\(slug)"
     case .preview(let identifier):
-      return "intuitive-preview-\(identifier)"
+      return "heyintentive-preview-\(identifier)"
     }
   }
 

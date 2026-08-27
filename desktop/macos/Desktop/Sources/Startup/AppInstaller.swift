@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OmiSupport
 
 /// Moves the app into /Applications when it is launched from a mounted DMG or an
 /// App Translocation mount, then relaunches the installed copy.
@@ -7,14 +8,14 @@ import Foundation
 /// Running off the DMG is what produced the beta-user trio of bugs this fixes:
 /// - App Translocation gives the bundle a randomized path/identity every launch,
 ///   so TCC grants (Screen Recording, System Audio) never stick — System Settings
-///   shows the "omi" toggle ON while `CGPreflightScreenCaptureAccess()` returns
+///   shows the app toggle ON while `CGPreflightScreenCaptureAccess()` returns
 ///   false for the running copy, and onboarding keeps re-asking.
 /// - "Reset onboarding" relaunches via `open <bundlePath>`, which for a DMG-resident
 ///   bundle re-reveals the DMG's "Drag to Applications to install" Finder window.
 /// - Sparkle updates fail on the read-only volume.
 enum AppInstaller {
   /// Escape hatch for harnesses that intentionally run from unusual paths.
-  static let skipEnvironmentKey = "OMI_SKIP_INSTALL_GATE"
+  static let skipEnvironmentKey = DesktopProductIdentity.installerSkipEnvironmentVariable
 
   /// Counts consecutive gate-triggered relaunches (shared across copies via the
   /// bundle-id UserDefaults domain). Reset on any launch that clears the gate.
@@ -33,6 +34,10 @@ enum AppInstaller {
     URL(fileURLWithPath: "/Applications").appendingPathComponent(bundleURL.lastPathComponent)
   }
 
+  static func shouldRunInstallGate(bundleIdentifier: String?) -> Bool {
+    DesktopProductIdentity(bundleIdentifier: bundleIdentifier)?.isProductionFamily == true
+  }
+
   /// Whether the copy at the installer location should replace an existing installed
   /// copy. Never downgrade: if the installed build is the same or newer, launch it
   /// as-is instead of overwriting it with the (possibly old) DMG contents.
@@ -48,6 +53,7 @@ enum AppInstaller {
   /// from the DMG exactly as before.
   static func moveToApplicationsIfNeeded() -> Bool {
     guard ProcessInfo.processInfo.environment[skipEnvironmentKey] == nil else { return false }
+    guard shouldRunInstallGate(bundleIdentifier: Bundle.main.bundleIdentifier) else { return false }
     let bundleURL = Bundle.main.bundleURL
     guard isInstallerLocation(bundleURL.path) else {
       // Clean (installed) launch — the gate is done, reset the loop guard.
@@ -177,10 +183,10 @@ enum AppInstaller {
   private static func showManualInstallHint() {
     DispatchQueue.main.async {
       let alert = NSAlert()
-      alert.messageText = "Move omi to Applications"
+      alert.messageText = "Move Intentive to Applications"
       alert.informativeText =
-        "omi is running from the installer image, so macOS permissions and updates won't work. "
-        + "Drag omi to the Applications folder, then open it from there."
+        "Intentive is running from the installer image, so macOS permissions and updates won't work. "
+        + "Drag Intentive to the Applications folder, then open it from there."
       alert.alertStyle = .warning
       alert.addButton(withTitle: "OK")
       alert.runModal()

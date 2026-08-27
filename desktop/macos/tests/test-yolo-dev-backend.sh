@@ -18,19 +18,27 @@ if [[ -z "$NAMED_DEFAULT_FUNCTION" ]]; then
   exit 1
 fi
 
+if env -u OMI_SKIP_BACKEND -u OMI_SKIP_TUNNEL -u OMI_PYTHON_API_URL -u FIREBASE_API_KEY \
+  bash -c "$YOLO_FUNCTION; apply_yolo_env" 2>/dev/null; then
+  echo "FAIL: --yolo accepted missing owned Firebase configuration" >&2
+  exit 1
+fi
+
 (
-  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL FIREBASE_API_KEY
+  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL
+  export FIREBASE_API_KEY="fixture-owned-firebase-key"
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 
   test "$OMI_SKIP_BACKEND" = "1"
   test "$OMI_SKIP_TUNNEL" = "1"
-  test "$OMI_PYTHON_API_URL" = "https://api.omiapi.com"
-  test -n "$FIREBASE_API_KEY"
+  test "$OMI_PYTHON_API_URL" = "https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app"
+  test "$FIREBASE_API_KEY" = "fixture-owned-firebase-key"
 )
 
 (
   export OMI_PYTHON_API_URL="https://canonical-override.test"
+  export FIREBASE_API_KEY="fixture-owned-firebase-key"
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 

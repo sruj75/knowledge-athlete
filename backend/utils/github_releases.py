@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 MAX_PAGES = 20  # Safety cap to prevent runaway pagination
 
 
-async def get_omi_github_releases(
-    cache_key: str, tag_filter: Optional[re.Pattern[str]] = None
+async def get_github_releases(
+    cache_key: str, repository: str, tag_filter: Optional[re.Pattern[str]] = None
 ) -> Optional[List[Dict[str, Any]]]:
     """Fetch releases from GitHub API with caching.
 
@@ -23,9 +23,11 @@ async def get_omi_github_releases(
     the first page of releases unfiltered.
 
     Resilience: if GitHub returns errors or an empty list during an upstream
-    outage, we fall back to a longer-lived "last known good" cache so the
-    macos.omi.me download endpoint keeps serving the previous DMG link.
+    outage, fall back to a longer-lived repository-scoped last-known-good cache.
     """
+
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+        raise ValueError("repository must be an owner/name GitHub slug")
 
     lkg_key = f"{cache_key}:lkg"
 
@@ -48,7 +50,7 @@ async def get_omi_github_releases(
         page = 1
         client = get_web_fetch_client()
         while page <= MAX_PAGES:
-            url = f"https://api.github.com/repos/BasedHardware/omi/releases?per_page=100&page={page}"
+            url = f"https://api.github.com/repos/{repository}/releases?per_page=100&page={page}"
             response = await client.get(url, headers=headers)
             if response.status_code != 200:
                 logger.error(

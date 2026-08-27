@@ -185,7 +185,8 @@ private final class EffectiveOwnerAuthorizationRevocation: @unchecked Sendable {
 extension Notification.Name {
   /// Effective owner changed (sign-in, sign-out, account switch, or an
   /// automation override). Carries no owner id or other user content.
-  static let runtimeOwnerDidChange = Notification.Name("com.omi.desktop.runtimeOwnerDidChange")
+  static let runtimeOwnerDidChange = Notification.Name(
+    "com.heyintentive.intentive.runtimeOwnerDidChange")
 }
 
 /// Resolves the owner id used by kernel / continuity surfaces.

@@ -38,7 +38,7 @@ enum ViewExporter {
         return args[idx + 2]
       }
     }
-    return "/tmp/omi-view-exports"
+    return "/tmp/heyintentive-view-exports"
   }
 
   // MARK: - Standalone view registry

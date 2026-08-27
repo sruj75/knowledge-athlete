@@ -1047,7 +1047,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
 
 function newDatabasePath(): string {
   const dir = mkdtempTracked("omi-agent-kernel-");
-  return join(dir, "omi-agentd.sqlite3");
+  return join(dir, "heyintentive-agent.sqlite3");
 }
 
 function mkdtempTracked(prefix: string): string {

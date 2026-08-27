@@ -55,10 +55,10 @@ if os.name == "nt":
         return Path(buffer.value) / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 
 
-DEFAULT_LOCAL_FIREBASE_PROJECT_ID = "demo-omi-local"
+DEFAULT_LOCAL_FIREBASE_PROJECT_ID = "demo-heyintentive-local"
 DEFAULT_FIRESTORE_DATABASE_ID = "(default)"
 DEFAULT_INSTANCE_NAME = "default"
-HARNESS_SENTINEL_FILENAME = ".omi-dev-harness-owned.json"
+HARNESS_SENTINEL_FILENAME = ".heyintentive-dev-harness-owned.json"
 SENTINEL_SCHEMA_VERSION = 1
 
 _STATE_SUBDIRECTORIES = (
@@ -112,9 +112,9 @@ _STRIPPED_ENV_PREFIXES = (
 )
 _LOCAL_BACKEND_SECRET_KEYS = {"ADMIN_KEY", "FIREBASE_API_KEY"}
 _OFFLINE_PROVIDER_PLACEHOLDERS = {
-    "OPENAI_API_KEY": "sk-omi-local-harness-offline-not-real",
-    "GEMINI_API_KEY": "omi-local-harness-offline-gemini-not-real",
-    "ANTHROPIC_API_KEY": "omi-local-harness-offline-anthropic-not-real",
+    "OPENAI_API_KEY": "sk-heyintentive-local-harness-offline-not-real",
+    "GEMINI_API_KEY": "heyintentive-local-harness-offline-gemini-not-real",
+    "ANTHROPIC_API_KEY": "heyintentive-local-harness-offline-anthropic-not-real",
 }
 _PROVIDER_SECRET_RE = re.compile(
     r"(API_KEY|ACCESS_TOKEN|AUTH_TOKEN|SECRET|DEEPGRAM|OPENAI|ANTHROPIC|GROQ)", re.IGNORECASE

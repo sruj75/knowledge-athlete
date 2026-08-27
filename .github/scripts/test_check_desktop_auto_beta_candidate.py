@@ -24,6 +24,7 @@ TAG = "v0.12.99+12099-macos"
 SHA = "a" * 40
 ZIP_SHA = "b" * 64
 DMG_SHA = "c" * 64
+TEAM_ID = "TESTTEAM01"
 
 
 def fixtures(root: Path) -> argparse.Namespace:
@@ -34,8 +35,8 @@ def fixtures(root: Path) -> argparse.Namespace:
         "publishedAt": "2026-07-10T12:00:00Z",
         "body": "<!-- KEY_VALUE_START\nisLive: false\nchannel: candidate\nKEY_VALUE_END -->",
         "assets": [
-            {"name": "Omi.zip", "digest": f"sha256:{ZIP_SHA}"},
-            {"name": "omi.dmg", "digest": f"sha256:{DMG_SHA}"},
+            {"name": "Intentive.zip", "digest": f"sha256:{ZIP_SHA}"},
+            {"name": "intentive.dmg", "digest": f"sha256:{DMG_SHA}"},
         ],
     }
     smoke = {
@@ -43,15 +44,15 @@ def fixtures(root: Path) -> argparse.Namespace:
         "release_tag": TAG,
         "source_sha": SHA,
         "expected_channel": "beta",
-        "bundle_id": "com.omi.computer-macos",
+        "bundle_id": "com.heyintentive.intentive",
         "version": "0.12.99",
         "build": "12099",
-        "team_id": "9536L8KLMP",
+        "team_id": TEAM_ID,
         "checks": sorted(REQUIRED_SMOKE_CHECKS),
         "notification_callback_canary": {
             "schema": 1,
             "event": "user-notifications-settings-callback-completed",
-            "bundle_id": "com.omi.computer-macos",
+            "bundle_id": "com.heyintentive.intentive",
             "main_actor": True,
             "authorization_status": 2,
             "validated": True,
@@ -73,6 +74,7 @@ def fixtures(root: Path) -> argparse.Namespace:
         latest_tag=TAG,
         tag_sha=SHA,
         checkout_sha=SHA,
+        expected_team_id=TEAM_ID,
         output=str(root / "result.json"),
     )
 
@@ -82,13 +84,13 @@ BETA_DMG_SHA = "f" * 64
 
 
 def beta_fixtures(root: Path) -> argparse.Namespace:
-    """Fixtures for a release that ships the side-by-side Omi Beta assets."""
+    """Fixtures for a release that ships the side-by-side Intentive Beta assets."""
     args = fixtures(root)
     release_path = Path(args.release_json)
     release = json.loads(release_path.read_text())
     release["assets"] += [
-        {"name": "Omi.Beta.zip", "digest": f"sha256:{BETA_ZIP_SHA}"},
-        {"name": "omi-beta.dmg", "digest": f"sha256:{BETA_DMG_SHA}"},
+        {"name": "Intentive.Beta.zip", "digest": f"sha256:{BETA_ZIP_SHA}"},
+        {"name": "intentive-beta.dmg", "digest": f"sha256:{BETA_DMG_SHA}"},
     ]
     release_path.write_text(json.dumps(release), encoding="utf-8")
 
@@ -97,15 +99,15 @@ def beta_fixtures(root: Path) -> argparse.Namespace:
         "release_tag": TAG,
         "source_sha": SHA,
         "expected_channel": "beta",
-        "bundle_id": "com.omi.computer-macos.beta",
+        "bundle_id": "com.heyintentive.intentive.beta",
         "version": "0.12.99",
         "build": "12099",
-        "team_id": "9536L8KLMP",
+        "team_id": TEAM_ID,
         "checks": sorted(REQUIRED_SMOKE_CHECKS),
         "notification_callback_canary": {
             "schema": 1,
             "event": "user-notifications-settings-callback-completed",
-            "bundle_id": "com.omi.computer-macos.beta",
+            "bundle_id": "com.heyintentive.intentive.beta",
             "main_actor": True,
             "authorization_status": 2,
             "validated": True,
@@ -140,7 +142,7 @@ def main() -> int:
         args = fixtures(Path(temp_dir))
         result = validate(args)
         assert result["passed"] is True
-        assert result["artifact_digests"]["Omi.zip"] == ZIP_SHA
+        assert result["artifact_digests"]["Intentive.zip"] == ZIP_SHA
 
         smoke_path = Path(args.smoke_result)
         smoke = json.loads(smoke_path.read_text())
@@ -156,7 +158,7 @@ def main() -> int:
         smoke = json.loads(smoke_path.read_text())
         smoke["artifacts"][0]["sha256"] = "d" * 64
         smoke_path.write_text(json.dumps(smoke))
-        expect_failure(args, "Omi.zip digest")
+        expect_failure(args, "Intentive.zip digest")
 
         smoke["artifacts"][0]["sha256"] = ZIP_SHA
         smoke["notification_callback_canary"]["validated"] = False
@@ -168,14 +170,14 @@ def main() -> int:
         smoke_path.write_text(json.dumps(smoke))
         expect_failure(args, "source SHA does not match the candidate tag")
 
-    # Releases shipping the side-by-side Omi Beta assets: the beta artifact must
+    # Releases shipping the side-by-side Intentive Beta assets: the beta artifact must
     # satisfy the same smoke contract as stable, under its own bundle id.
     with tempfile.TemporaryDirectory() as temp_dir:
         args = beta_fixtures(Path(temp_dir))
         result = validate(args)
         assert result["passed"] is True
-        assert result["artifact_digests"]["Omi.Beta.zip"] == BETA_ZIP_SHA
-        assert result["artifact_digests"]["omi-beta.dmg"] == BETA_DMG_SHA
+        assert result["artifact_digests"]["Intentive.Beta.zip"] == BETA_ZIP_SHA
+        assert result["artifact_digests"]["intentive-beta.dmg"] == BETA_DMG_SHA
 
         missing = argparse.Namespace(**{**vars(args), "beta_smoke_result": ""})
         expect_failure(missing, "no beta smoke result was provided")
@@ -184,7 +186,7 @@ def main() -> int:
         original = beta_smoke_path.read_text()
 
         beta_smoke = json.loads(original)
-        beta_smoke["bundle_id"] = "com.omi.computer-macos"
+        beta_smoke["bundle_id"] = "com.heyintentive.intentive"
         beta_smoke_path.write_text(json.dumps(beta_smoke))
         expect_failure(args, "beta smoke result bundle_id mismatch")
 
@@ -201,7 +203,7 @@ def main() -> int:
         beta_smoke = json.loads(original)
         beta_smoke["artifacts"][0]["sha256"] = "d" * 64
         beta_smoke_path.write_text(json.dumps(beta_smoke))
-        expect_failure(args, "Omi.Beta.zip digest")
+        expect_failure(args, "Intentive.Beta.zip digest")
 
         # The canary must have run inside the beta artifact itself — evidence
         # missing entirely, or recorded under the stable bundle id, both fail.
@@ -216,7 +218,7 @@ def main() -> int:
         expect_failure(args, "beta smoke source SHA does not match the candidate tag")
 
         beta_smoke = json.loads(original)
-        beta_smoke["notification_callback_canary"]["bundle_id"] = "com.omi.computer-macos"
+        beta_smoke["notification_callback_canary"]["bundle_id"] = "com.heyintentive.intentive"
         beta_smoke_path.write_text(json.dumps(beta_smoke))
         expect_failure(args, "beta smoke UserNotifications callback canary bundle_id mismatch")
 

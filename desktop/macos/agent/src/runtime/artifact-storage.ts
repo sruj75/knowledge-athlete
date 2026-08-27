@@ -273,16 +273,15 @@ export class OmiArtifactStorage {
 }
 
 export function defaultArtifactRoot(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.OMI_AGENT_ARTIFACTS_DIR) {
-    return env.OMI_AGENT_ARTIFACTS_DIR;
+  if (env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR) {
+    return env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
   }
-  if (env.OMI_AGENT_STATE_DIR) {
-    const runtimeRoot = dirname(env.OMI_AGENT_STATE_DIR);
-    const bundleComponent = basename(env.OMI_AGENT_STATE_DIR);
-    return join(dirname(runtimeRoot), "Artifacts", bundleComponent);
+  if (env.HEYINTENTIVE_AGENT_STATE_DIR) {
+    return join(dirname(env.HEYINTENTIVE_AGENT_STATE_DIR), "Artifacts");
   }
-  const bundleId = env.__CFBundleIdentifier || "com.omi.computer-macos";
-  return join(homedir(), "Library", "Application Support", "Omi", "Artifacts", bundleId);
+  throw new Error(
+    "Agent artifact storage requires HEYINTENTIVE_AGENT_ARTIFACTS_DIR or HEYINTENTIVE_AGENT_STATE_DIR"
+  );
 }
 
 function shouldKeepExternalLocation(artifact: AdapterArtifactReference): boolean {

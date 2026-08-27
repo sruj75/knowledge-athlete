@@ -21,14 +21,14 @@ enum UpdateChannel: String, CaseIterable {
     }
   }
 
-  /// App display name based on update channel: "omi" for stable, "Omi Beta" for beta.
+  /// App display name based on update channel: "Intentive" for stable or Beta.
   /// Local hot-swap builds (self-beta.sh) stamp `OMISelfBuild=true` into Info.plist, so
   /// they show "Omi Beta (dev)" — a clear signal you're on a locally-rebuilt bundle, not a
   /// Codemagic-distributed one. A real Codemagic build never sets the key, and when it later
   /// replaces the hot-swap bundle via Sparkle the suffix disappears.
   static var appDisplayName: String {
     let channel = UserDefaults.standard.string(forKey: "update_channel") ?? "stable"
-    let base = (channel == "beta" || channel == "staging") ? "Omi Beta" : "omi"
+    let base = (channel == "beta" || channel == "staging") ? "Intentive Beta" : "Intentive"
     let isSelfBuild = (Bundle.main.object(forInfoDictionaryKey: "OMISelfBuild") as? Bool) ?? false
     return isSelfBuild ? "\(base) (dev)" : base
   }
@@ -80,32 +80,32 @@ struct UpdateFailureDiagnostics: Equatable {
   var userMessage: String {
     if isRecoverableLaunchLocation {
       return
-        "Omi cannot update from its current location. Move it to Applications, reopen it, then check again."
+        "Intentive cannot update from its current location. Move it to Applications, reopen it, then check again."
     }
 
     switch reason {
     case .appcastRetrieval:
       return
-        "Omi could not retrieve update information. You can try again or download the latest version manually."
+        "Intentive could not retrieve update information. You can try again or download the latest version manually."
     case .download:
       return
-        "Omi found an update but could not download it. You can try again or download the latest version manually."
+        "Intentive found an update but could not download it. You can try again or download the latest version manually."
     case .signature:
-      return "Omi could not verify the downloaded update. Download the latest version manually."
+      return "Intentive could not verify the downloaded update. Download the latest version manually."
     case .network:
       return
-        "Omi could not reach the update server. Check your connection or download the latest version manually."
+        "Intentive could not reach the update server. Check your connection or download the latest version manually."
     case .installerLaunch:
       return
-        "Omi downloaded an update but could not start the installer. Try again or download the latest version manually."
+        "Intentive downloaded an update but could not start the installer. Try again or download the latest version manually."
     case .noUpdate:
-      return "Omi is up to date."
+      return "Intentive is up to date."
     case .unknown:
       return
-        "Omi could not complete the update check. You can try again or download the latest version manually."
+        "Intentive could not complete the update check. You can try again or download the latest version manually."
     case .readOnlyLocation, .downloadsLocation, .temporaryLocation:
       return
-        "Omi cannot update from its current location. Move it to Applications, reopen it, then check again."
+        "Intentive cannot update from its current location. Move it to Applications, reopen it, then check again."
     }
   }
 

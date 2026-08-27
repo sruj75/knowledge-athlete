@@ -5,7 +5,7 @@ import packageMetadata from "../package.json" with { type: "json" };
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { createServer as createNetServer, type Socket } from "net";
-import { homedir, tmpdir } from "os";
+import { tmpdir } from "os";
 import { unlinkSync, appendFileSync } from "fs";
 import type {
   InboundMessage,
@@ -183,7 +183,11 @@ function sendCatalogError(request: ChatCatalogRequest, error: unknown): void {
 }
 
 function agentStateDir(): string {
-  return process.env.OMI_AGENT_STATE_DIR ?? join(homedir(), "Library", "Application Support", "Omi", "agent");
+  const stateDir = process.env.HEYINTENTIVE_AGENT_STATE_DIR?.trim();
+  if (!stateDir) {
+    throw new Error("Agent runtime requires HEYINTENTIVE_AGENT_STATE_DIR");
+  }
+  return stateDir;
 }
 
 function agentArtifactsDir(): string {

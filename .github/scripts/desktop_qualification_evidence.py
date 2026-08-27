@@ -17,11 +17,11 @@ from pathlib import Path
 import re
 from typing import Any
 
-ARTIFACTS = ("Omi.zip", "omi.dmg")
+ARTIFACTS = ("Intentive.zip", "intentive.dmg")
 # INV-BETA-1: releases that ship the side-by-side Omi Beta identity carry two
 # additional qualified artifacts; older single-identity releases remain valid.
-BETA_ARTIFACTS = ("Omi.Beta.zip", "omi-beta.dmg")
-ZIP_SIGNATURES = {"Omi.zip": "edSignature", "Omi.Beta.zip": "betaEdSignature"}
+BETA_ARTIFACTS = ("Intentive.Beta.zip", "intentive-beta.dmg")
+ZIP_SIGNATURES = {"Intentive.zip": "edSignature", "Intentive.Beta.zip": "betaEdSignature"}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -74,10 +74,10 @@ def build_evidence(
         _fail("was not created after the passing candidate gate")
     metadata = _metadata(str(release.get("body") or ""))
     artifacts: dict[str, dict[str, str]] = {}
-    required = {"Omi.zip", "omi.dmg"}
+    required = {"Intentive.zip", "intentive.dmg"}
     with_beta = required | set(BETA_ARTIFACTS)
     if set(files) not in (required, with_beta):
-        _fail("does not contain the exact qualified Omi.zip and omi.dmg (plus both beta artifacts when present)")
+        _fail("does not contain the exact qualified Intentive.zip and intentive.dmg (plus both beta artifacts when present)")
     for name, path in files.items():
         if not path.is_file():
             _fail(f"is missing downloaded {name}")

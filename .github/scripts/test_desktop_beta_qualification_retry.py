@@ -93,7 +93,7 @@ class RetryDecisionTests(unittest.TestCase):
                 self.assertFalse(d["should_retry"])
 
     def test_missing_canonical_asset_denies(self):
-        release = _release(assets=("Omi.zip", "omi.dmg"))  # no smoke result
+        release = _release(assets=("Intentive.zip", "intentive.dmg"))  # no smoke result
         d = _decide(release, [_run(conclusion="failure")])
         self.assertFalse(d["should_retry"])
         self.assertIn("missing canonical assets", d["reason"])

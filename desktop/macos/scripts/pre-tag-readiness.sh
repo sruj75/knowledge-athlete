@@ -253,7 +253,7 @@ git -C "$SOURCE_REPOSITORY" merge-base --is-ancestor "$SOURCE_SHA" origin/main |
 run_watchdog runner-self-clean 1200 \
   "$PYTHON_BIN" "$SELF_CLEAN_COMMAND" \
     --repo-root "$REPO_ROOT" \
-    --cache-root "${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$HOME/Library/Caches/OmiDesktop/qualification-swiftpm-v2}" \
+    --cache-root "${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$HOME/Library/Caches/heyintentive-desktop/qualification-swiftpm-v2}" \
     --qualification-lease-root "$LEASE_ROOT" \
     --stage-root "$RUNNER_TEMP_ROOT/desktop-beta-qualification" \
     --capacity-path "$RUNNER_TEMP_ROOT" \

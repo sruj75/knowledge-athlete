@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Combine
+import OmiSupport
 import SwiftUI
 @preconcurrency import UserNotifications
 
@@ -217,9 +218,15 @@ extension AppState {
     return hasCompletedOnboarding && !hasNotificationPermission
   }
 
-  /// Open notification preferences in System Settings (directly to Omi's settings)
+  /// Open notification preferences in System Settings for the current owned bundle.
   func openNotificationPreferences() {
-    let bundleId = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleId = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else {
+      log("Refusing to open notification preferences for an unknown bundle identity")
+      return
+    }
     if let url = URL(
       string: "x-apple.systempreferences:com.apple.preference.notifications?id=\(bundleId)")
     {

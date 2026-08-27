@@ -2,7 +2,7 @@ version: 2
 name: focus
 tier: manual
 description: Focus history loading and refresh keep the page content stable
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/FocusPage.swift
 preconditions:

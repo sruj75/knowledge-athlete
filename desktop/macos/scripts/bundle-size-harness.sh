@@ -125,8 +125,7 @@ run_bundle_build() {
     cd "$MACOS_DIR"
     OMI_APP_NAME="$APP_NAME" \
       OMI_ALLOW_ADHOC_SIGN="$ad_hoc" \
-      OMI_SKIP_AUTH_SEED="${OMI_SKIP_AUTH_SEED:-1}" \
-      OMI_SKIP_SETTINGS_SEED="${OMI_SKIP_SETTINGS_SEED:-1}" \
+      OMI_SEED_FROM_CANONICAL_DEV=0 \
       OMI_SKIP_STALE_BUNDLE_SCAN="${OMI_SKIP_STALE_BUNDLE_SCAN:-1}" \
       ./run.sh --yolo
   ) >"$LOG_PATH" 2>&1 &

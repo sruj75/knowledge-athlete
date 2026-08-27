@@ -12,17 +12,20 @@ This skill teaches you the Omi desktop macOS app's navigation structure, screen 
 
 Two things make iterating on the desktop app slow: signing in (web OAuth) and clicking through the UI to reach a screen. Both are solved — use these before reaching for `agent-swift`.
 
-### 1. Skip the web login (seed auth/settings once, reuse forever)
-Named bundles clone auth state + Firebase tokens into UserDefaults; on first launch the app migrates tokens into its own Keychain item (correct `teamid:` partition — avoids the login-keychain password sheet). Prefer `./run.sh` for named bundles — it dumps/seeds after install. Manual seed:
+### 1. Start clean, or explicitly seed from owned Intentive Dev
+Named bundles start clean by default. When feature iteration genuinely needs parity with the
+owned canonical development profile, set `OMI_SEED_FROM_CANONICAL_DEV=1`; the app then migrates
+the copied tokens into its own bundle-scoped Keychain item. Manual seed:
 ```bash
 cd desktop/macos
-./scripts/omi-auth-dump.sh                                  # capture Omi Dev's session -> tmp/desktop-auth.json
-./scripts/omi-auth-seed.sh com.omi.omi-myfeature \
+./scripts/omi-auth-dump.sh com.heyintentive.intentive.dev   # owned canonical source only
+./scripts/omi-auth-seed.sh com.heyintentive.intentive.dev.omi-myfeature \
   tmp/desktop-auth.json \
   "/Applications/omi-myfeature.app"                         # optional: Team ID for clearing stale Keychain
-./scripts/omi-settings-seed.sh com.omi.omi-myfeature       # replay shortcuts/settings
+./scripts/omi-settings-seed.sh com.heyintentive.intentive.dev.omi-myfeature \
+  com.heyintentive.intentive.dev                            # replay shortcuts/settings
 ```
-The seeded bundle boots already signed-in and past onboarding, with Omi Dev's shortcuts/settings — no browser. The captured Firebase idToken expires (~1h); re-run `omi-auth-dump.sh` after signing in again if backend calls start 401ing. **Scope:** this is for dev iteration only — when validating the onboarding or auth flows themselves (or running flow-walker E2E), use the real flow per Guard Conditions below.
+The explicitly seeded bundle boots already signed-in and past onboarding with the owned canonical Intentive Dev settings. The captured Firebase idToken expires (~1h); re-run `omi-auth-dump.sh` after signing in again if backend calls start 401ing. **Scope:** this is for dev iteration only — when validating onboarding or auth themselves, use the real flow per Guard Conditions below.
 
 ### 2. Jump straight to any screen (automation bridge)
 The app runs a local HTTP control bridge (`DesktopAutomationBridge.swift`) that **auto-enables on every non-production bundle** (off on prod). `scripts/omi-ctl` drives it — jump to a screen in ~150ms instead of clicking through the top nav bar:
@@ -136,12 +139,12 @@ next manual audit. One-time setup — build and seed a dedicated named bundle:
 ```bash
 cd desktop/macos
 OMI_APP_NAME="omi-smoke" ./run.sh          # build + install /Applications/omi-smoke.app, then quit it
-./scripts/omi-auth-dump.sh                 # capture the signed-in Omi Dev session
-./scripts/omi-auth-seed.sh com.omi.omi-smoke tmp/desktop-auth.json "/Applications/omi-smoke.app"
+./scripts/omi-auth-dump.sh                 # capture the signed-in Intentive Dev session
+./scripts/omi-auth-seed.sh com.heyintentive.intentive.dev.omi-smoke tmp/desktop-auth.json "/Applications/omi-smoke.app"
 ```
 Then re-run any time (launches the installed bundle on an isolated port, ends with it stopped):
 ```bash
-./scripts/omi-hardening-smoke.sh run                          # all probes, defaults: com.omi.omi-smoke, port 47797
+./scripts/omi-hardening-smoke.sh run                          # all probes, defaults: com.heyintentive.intentive.dev.omi-smoke, port 47797
 ./scripts/omi-hardening-smoke.sh run --only set-01,set-04     # subset
 ./scripts/omi-hardening-smoke.sh run --attach --port 47795    # against an already-running bundle (skips lifecycle probes)
 ./scripts/omi-hardening-smoke.sh scan <dir>                   # credential-pattern sweep of any evidence dir
@@ -152,8 +155,8 @@ guard · `chat-03` agent-kill recovery · `auth-03` expired-token refresh (**rel
 app) · `lnch-07` shutdown flush (**stops** the app) · `self-hygiene` report-dir scan.
 Exit codes: `0` all PASS · `1` any FAIL (a regression — investigate) · `2` usage/prod-refusal ·
 `3` BLOCKED only (harness couldn't run: port busy, stale auth seed, app missing). Reports +
-`smoke-summary.json` land under `${TMPDIR}/omi-hardening-smoke/<ts>/` unless `--report-dir` is
-given. Safety: only `com.omi.omi-*` bundles are accepted; the sole production interaction is
+`smoke-summary.json` land under `${TMPDIR}/heyintentive-hardening-smoke/<ts>/` unless `--report-dir` is
+given. Safety: only exact `com.heyintentive.intentive.dev.omi-*` bundles are accepted; the sole production interaction is
 the read-only `defaults read` in `auth-06`.
 
 ### 2e. Stall the agent stream (chat watchdog testing)
@@ -351,11 +354,11 @@ signal on the workspace center, non-prod gated).
 ```bash
 cd desktop/macos
 OMI_APP_NAME="omi-myfeature" ./run.sh &                 # build + launch once
-./scripts/omi-auth-seed.sh com.omi.omi-myfeature tmp/desktop-auth.json "/Applications/omi-myfeature.app"  # after install; relaunch to apply
-./scripts/omi-settings-seed.sh com.omi.omi-myfeature    # copy shortcuts/settings from Omi Dev
+./scripts/omi-auth-seed.sh com.heyintentive.intentive.dev.omi-myfeature tmp/desktop-auth.json "/Applications/omi-myfeature.app"  # after install; relaunch to apply
+./scripts/omi-settings-seed.sh com.heyintentive.intentive.dev.omi-myfeature com.heyintentive.intentive.dev
 ./scripts/omi-ctl wait-ready
 ./scripts/omi-ctl navigate memories                      # jump to the screen you changed
-agent-swift connect --bundle-id com.omi.omi-myfeature    # then drive/inspect with agent-swift
+agent-swift connect --bundle-id com.heyintentive.intentive.dev.omi-myfeature
 agent-swift snapshot -i --json
 ```
 After a code change, an incremental `xcrun swift build` + relaunch is fast — the slow parts (login, navigation) are gone. For pure visual checks without launching at all, SwiftUI snapshot tests are an option, but most pages are entangled with `AppState.shared`/Firebase singletons, so the live-app bridge loop above is usually the better path.
@@ -368,7 +371,7 @@ You can interact with the running app via `agent-swift` — a CLI that clicks el
 ```bash
 # App must be running via ./run.sh from desktop/macos/
 agent-swift doctor                                   # check Accessibility permission
-agent-swift connect --bundle-id com.omi.desktop-dev  # connect to Omi Dev
+agent-swift connect --bundle-id com.heyintentive.intentive.dev  # connect to Intentive Dev
 agent-swift snapshot -i --json                       # see what's on screen
 ```
 
@@ -508,7 +511,7 @@ Create `desktop/macos/e2e/flows/<name>.yaml` in v2 format:
 version: 2
 name: my-flow
 description: What this flow covers
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/Desktop/Sources/path/to/YourView.swift
 preconditions:
@@ -548,7 +551,7 @@ After making changes, verify them in the live app:
 
 **NEVER:**
 - Kill or restart the production Omi app
-- Enable the automation bridge or seed auth on the production bundle (`com.omi.computer-macos`) — both are gated to non-production builds; keep it that way
+- Enable the automation bridge or seed auth on any production-family bundle — both are gated to non-production builds; keep it that way
 - Modify source code to make tests pass — report the failure instead
 
-**When validating auth or onboarding themselves, or running flow-walker E2E:** drive the real flows — do NOT use the seeded-auth / `hasCompletedOnboarding` fast-path, which exists only for iterating on *other* screens. The beta app (`com.omi.computer-macos`) is the standard target for flow-walker E2E testing; the dev app (`com.omi.desktop-dev`) and named `omi-*` bundles are for local development only.
+**When validating auth or onboarding themselves, or running flow-walker E2E:** drive the real flows — do NOT use the seeded-auth / `hasCompletedOnboarding` fast-path, which exists only for iterating on *other* screens. Use an owned named non-production bundle today. The owned Beta identity may be used only after S-29 supplies a signed, isolated candidate; never substitute an inherited Omi bundle.

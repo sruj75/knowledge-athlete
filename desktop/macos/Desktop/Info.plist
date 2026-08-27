@@ -41,28 +41,44 @@
 	<string>Omi can attach one location snapshot to a conversation when you allow it.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>Omi needs permission to capture system audio for transcription of calls and meetings.</string>
-    <key>CFBundleURLTypes</key>
+	<key>CFBundleURLTypes</key>
     <array>
         <dict>
-            <key>CFBundleURLName</key>
-            <string>Omi Auth Callback</string>
+			<key>CFBundleURLName</key>
+			<string>Intentive Auth Callback</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>omi-computer-dev</string>
+				<string>heyintentive-dev</string>
             </array>
         </dict>
     </array>
-    <!-- Codemagic sets both keys for published preview artifacts. The preview identity
-         (`com.omi.preview.*`) remains the runtime safety boundary if this marker is absent. -->
+    <!-- The release provider sets both keys for published preview artifacts. The owned preview
+         identity remains the runtime safety boundary if this marker is absent. -->
     <key>OMIExternalPreview</key>
     <false/>
     <key>OMIExternalPreviewBackend</key>
     <string>production</string>
     <!-- Sparkle Auto-Update Configuration -->
-    <key>SUFeedURL</key>
-    <string>https://api.omi.me/v2/desktop/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>vWleho4gIOl932wM4v9Gz+FTCt90+vUVdPHsRReFX40=</string>
+	<!-- Release provider must stamp these four values before signing. Empty values
+	     deliberately disable Sparkle; there is no inherited Omi fallback. -->
+	<key>IntentiveManualDownloadURL</key>
+	<string></string>
+	<key>IntentivePrivacyURL</key>
+	<string></string>
+	<key>IntentiveProductURL</key>
+	<string></string>
+	<key>IntentiveProductionAPIURL</key>
+	<string></string>
+	<key>IntentiveReleasesURL</key>
+	<string></string>
+	<key>IntentiveSupportURL</key>
+	<string></string>
+	<key>IntentiveTermsURL</key>
+	<string></string>
+	<key>SUFeedURL</key>
+	<string></string>
+	<key>SUPublicEDKey</key>
+	<string></string>
     <key>SUEnableAutomaticChecks</key>
     <true/>
     <key>SUAutomaticallyUpdate</key>

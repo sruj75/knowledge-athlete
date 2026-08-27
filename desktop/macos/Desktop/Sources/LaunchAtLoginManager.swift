@@ -1,5 +1,12 @@
 import Foundation
+import OmiSupport
 import ServiceManagement
+
+enum LaunchAtLoginBundlePolicy {
+  static func allowsRegistration(bundleIdentifier: String?) -> Bool {
+    DesktopProductIdentity(bundleIdentifier: bundleIdentifier)?.allowsLoginItem == true
+  }
+}
 
 enum LaunchAtLoginIntentSource: Equatable {
   case onboardingCompletion
@@ -80,11 +87,12 @@ class LaunchAtLoginManager: ObservableObject {
   /// - Returns: true if the operation succeeded
   @discardableResult
   func setEnabled(_ enabled: Bool) -> Bool {
-    // Only the production/beta bundle (com.omi.computer-macos) is allowed to manage login items.
-    // Dev (com.omi.desktop-dev) and named test bundles (com.omi.<slug>) must never register —
+    // Only owned stable/Beta bundles are allowed to manage login items.
+    // Dev, named, preview, malformed, and foreign bundles must never register —
     // otherwise every local build piles up in System Settings > Login Items and relaunches on
     // every restart. If such a bundle was previously registered, unregister it now to self-clean.
-    guard AppBuild.isProductionBundle else {
+    guard LaunchAtLoginBundlePolicy.allowsRegistration(bundleIdentifier: AppBuild.bundleIdentifier)
+    else {
       if enabled {
         try? SMAppService.mainApp.unregister()
         log("LaunchAtLogin: Skipped + unregistered non-production bundle '\(AppBuild.bundleIdentifier)'")

@@ -37,7 +37,7 @@ package struct DesktopDevRuntimeManifest: Codable, Equatable {
 }
 
 package enum DesktopDevRuntimeManifestStore {
-  package static let filename = ".omi-dev-runtime.json"
+  package static let filename = DesktopProductIdentity.runtimeManifestFilename
 
   package static func path(in profileRoot: URL) -> URL {
     profileRoot.appendingPathComponent(filename, isDirectory: false)
@@ -55,7 +55,7 @@ package enum DesktopDevRuntimeManifestStore {
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     let data = try encoder.encode(manifest)
     let destination = path(in: profileRoot)
-    let temporary = profileRoot.appendingPathComponent(".omi-dev-runtime-\(UUID().uuidString).tmp")
+    let temporary = profileRoot.appendingPathComponent(".heyintentive-dev-runtime-\(UUID().uuidString).tmp")
 
     guard
       fileManager.createFile(

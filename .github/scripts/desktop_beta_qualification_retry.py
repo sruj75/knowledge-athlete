@@ -32,7 +32,7 @@ from typing import Any
 
 QUALIFICATION_WORKFLOW = ".github/workflows/desktop_qualify_beta.yml"
 # The three immutable assets Codemagic attaches to every canonical candidate.
-CANONICAL_ASSETS = ("Omi.zip", "omi.dmg", "desktop-smoke-result.json")
+CANONICAL_ASSETS = ("Intentive.zip", "intentive.dmg", "desktop-smoke-result.json")
 # A terminal qualification conclusion a transient retry may recover. "neutral"
 # and "skipped" are excluded: they are operator/policy outcomes, not transient.
 RETRYABLE_CONCLUSIONS = frozenset({"failure", "cancelled", "timed_out", "startup_failure"})

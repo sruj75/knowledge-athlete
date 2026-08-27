@@ -7,7 +7,7 @@ import Cocoa
 class GlobalShortcutManager: @unchecked Sendable {
   static let shared = GlobalShortcutManager()
 
-  static let askAINotification = Notification.Name("com.omi.desktop.askAI")
+  static let askAINotification = Notification.Name("com.heyintentive.intentive.askAI")
 
   private var hotKeyRefs: [HotKeyID: HotKeyReference] = [:]
   private var isRegistrationSuspended = false

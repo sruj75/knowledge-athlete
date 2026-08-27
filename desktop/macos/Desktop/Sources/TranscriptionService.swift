@@ -205,7 +205,7 @@ class TranscriptionService: @unchecked Sendable {
     var errorDescription: String? {
       switch self {
       case .missingBackendURL:
-        return "Python backend URL not configured (OMI_PYTHON_API_URL or api.omi.me)"
+        return "Python backend URL is not configured for this build"
       case .connectionFailed(let error):
         return "Connection failed: \(error.localizedDescription)"
       case .invalidResponse:

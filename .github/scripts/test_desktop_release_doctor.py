@@ -49,7 +49,7 @@ def healthy_snapshot(*, phase: str = "beta") -> dict[str, object]:
                 "isLive": "true",
                 "qualifiedBetaEvidence": "qualification-evidence-0.12.72+12072.json",
             },
-            "asset_names": ["Omi.zip", "omi.dmg", "qualification-evidence-0.12.72+12072.json"],
+            "asset_names": ["Intentive.zip", "intentive.dmg", "qualification-evidence-0.12.72+12072.json"],
             "stale_human_prose": False,
         },
         "manifest": {
@@ -86,6 +86,15 @@ def surface(report: dict[str, object], identifier: str) -> dict[str, object]:
 
 
 class DesktopReleaseDoctorTests(unittest.TestCase):
+    def test_release_doctor_rejects_inherited_or_non_https_endpoints(self) -> None:
+        for value in ("https://api.omi.me", "http://updates.heyintentive.com", "file:///tmp/feed"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                doctor._owned_https_url(value, label="endpoint")
+        self.assertEqual(
+            doctor._owned_https_url("https://updates.heyintentive.com/", label="endpoint"),
+            "https://updates.heyintentive.com",
+        )
+
     def test_healthy_beta_snapshot_passes(self) -> None:
         report = doctor.evaluate_snapshot(healthy_snapshot())
         self.assertEqual(report["overall"], "PASS")
@@ -171,7 +180,7 @@ class DesktopReleaseDoctorTests(unittest.TestCase):
                 "tagName": RELEASE_ID,
                 "isDraft": False,
                 "isPrerelease": False,
-                "assets": [{"name": "Omi.zip"}],
+                "assets": [{"name": "Intentive.zip"}],
                 "body": "Sensitive release prose\n<!-- KEY_VALUE_START\nchannel: stable\nqualifiedBetaEvidence: evidence.json\nKEY_VALUE_END -->\nstable remains blocked",
             }
         )

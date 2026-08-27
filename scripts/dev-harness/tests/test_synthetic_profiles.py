@@ -33,7 +33,7 @@ def test_desktop_profile_uses_neutral_manifest_credentials(tmp_path: Path) -> No
     )
 
     assert profile.selected_user == "alice"
-    assert profile.selected_user_email == "alice@local.omi.invalid"
+    assert profile.selected_user_email == "alice@local.heyintentive.invalid"
     assert profile.selected_user_display_name == "Synthetic Alice"
 
 

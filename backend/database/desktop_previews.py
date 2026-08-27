@@ -25,8 +25,8 @@ PREVIEW_BUCKET_HOST = "storage.googleapis.com"
 PREVIEW_SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
-BUNDLE_ID_RE = re.compile(r"^com\.omi\.preview\.[a-z0-9-]{1,63}$")
-URL_SCHEME_RE = re.compile(r"^omi-preview-[a-z0-9-]{1,63}$")
+BUNDLE_ID_RE = re.compile(r"^com\.heyintentive\.intentive\.preview\.[a-z0-9-]{1,63}$")
+URL_SCHEME_RE = re.compile(r"^heyintentive-preview-[a-z0-9-]{1,63}$")
 MAX_NOTES_LENGTH = 2_000
 
 
@@ -131,11 +131,11 @@ def normalize_preview_manifest(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("app_name must identify this as an Omi Preview build")
     bundle_id = _required_string(data, "bundle_id", max_length=96)
     preview_id = preview_identity(slug)
-    if not BUNDLE_ID_RE.fullmatch(bundle_id) or bundle_id != f"com.omi.preview.{preview_id}":
-        raise ValueError("bundle_id must match the slug-derived com.omi.preview.<id> identity")
+    if not BUNDLE_ID_RE.fullmatch(bundle_id) or bundle_id != f"com.heyintentive.intentive.preview.{preview_id}":
+        raise ValueError("bundle_id must match the slug-derived com.heyintentive.intentive.preview.<id> identity")
     url_scheme = _required_string(data, "url_scheme", max_length=96)
-    if not URL_SCHEME_RE.fullmatch(url_scheme) or url_scheme != f"omi-preview-{preview_id}":
-        raise ValueError("url_scheme must match the slug-derived omi-preview-<id> identity")
+    if not URL_SCHEME_RE.fullmatch(url_scheme) or url_scheme != f"heyintentive-preview-{preview_id}":
+        raise ValueError("url_scheme must match the slug-derived heyintentive-preview-<id> identity")
 
     notarization = _required_string(data, "notarization", max_length=32).lower()
     if notarization != "stapled":

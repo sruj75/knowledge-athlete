@@ -25,7 +25,7 @@ final class ClientDeviceServiceTests: XCTestCase {
     }
 
     let service = ClientDeviceService(
-      bundleIdentifier: "com.omi.omi-menubar-logo",
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-menubar-logo",
       userDefaults: defaults
     )
     let hash = service.deviceIdHash
@@ -34,14 +34,14 @@ final class ClientDeviceServiceTests: XCTestCase {
     XCTAssertEqual(
       hash,
       ClientDeviceService(
-        bundleIdentifier: "com.omi.omi-menubar-logo",
+        bundleIdentifier: "com.heyintentive.intentive.dev.omi-menubar-logo",
         userDefaults: defaults
       ).deviceIdHash
     )
   }
 
   func testDesktopDevBundleAlsoUsesUserDefaultsInstallId() {
-    // Omi Dev must not touch the shared login-keychain device-id item either.
+    // Intentive Dev must not touch a production login-keychain device-id item.
     let suiteName = "ClientDeviceServiceTests.dev.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suiteName)!
     defer {
@@ -67,11 +67,11 @@ final class ClientDeviceServiceTests: XCTestCase {
     }
 
     let first = ClientDeviceService(
-      bundleIdentifier: "com.omi.omi-first-feature",
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-first-feature",
       userDefaults: firstDefaults
     )
     let second = ClientDeviceService(
-      bundleIdentifier: "com.omi.omi-second-feature",
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-second-feature",
       userDefaults: secondDefaults
     )
 
@@ -82,6 +82,32 @@ final class ClientDeviceServiceTests: XCTestCase {
       firstDefaults.string(forKey: "dev-client-device-install-uuid"),
       secondDefaults.string(forKey: "dev-client-device-install-uuid")
     )
+  }
+
+  func testUnknownAndForeignBundlesCreateNoPersistentInstallationIdentity() {
+    for bundleIdentifier in [nil, "com.omi.computer-macos", "org.example.desktop"] {
+      let suiteName = "ClientDeviceServiceTests.foreign.\(UUID().uuidString)"
+      let defaults = UserDefaults(suiteName: suiteName)!
+      var keychainReads = 0
+      var keychainWrites: [String] = []
+      defer { defaults.removePersistentDomain(forName: suiteName) }
+
+      let service = ClientDeviceService(
+        bundleIdentifier: bundleIdentifier,
+        userDefaults: defaults,
+        keychainReader: {
+          keychainReads += 1
+          return .missing
+        },
+        keychainWriter: { keychainWrites.append($0) }
+      )
+
+      XCTAssertEqual(service.deviceIdHash, service.deviceIdHash)
+      XCTAssertNil(defaults.object(forKey: "dev-client-device-install-uuid"))
+      XCTAssertNil(defaults.object(forKey: "client-device-install-uuid-mirror"))
+      XCTAssertEqual(keychainReads, 0)
+      XCTAssertTrue(keychainWrites.isEmpty)
+    }
   }
 
   func testProductionMigratesMirroredInstallIdWhenScopedKeychainIsMissing() {

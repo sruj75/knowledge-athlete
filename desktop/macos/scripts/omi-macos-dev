@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Agent-oriented diagnostics and safe cleanup for macOS Omi dev bundles.
+"""Agent-oriented diagnostics and safe cleanup for macOS Intentive dev bundles.
 
-This tool intentionally manages only identity-derived `com.omi.omi-*` bundles.
-It never reads Keychain data, database content, or the shared legacy Omi root.
+This tool intentionally manages only identity-derived
+`com.heyintentive.intentive.dev.*` bundles. It never reads Keychain data,
+database content, or another product's root.
 JSON is the default stdout contract; use --human for interactive inspection.
 """
 
@@ -27,9 +28,13 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
-NAMED_PREFIX = "com.omi.omi-"
-PROTECTED_BUNDLE_IDS = {"com.omi.computer-macos", "com.omi.desktop-dev"}
-MANIFEST_NAME = ".omi-dev-runtime.json"
+NAMED_PREFIX = "com.heyintentive.intentive.dev."
+PROTECTED_BUNDLE_IDS = {
+    "com.heyintentive.intentive",
+    "com.heyintentive.intentive.beta",
+    "com.heyintentive.intentive.dev",
+}
+MANIFEST_NAME = ".heyintentive-dev-runtime.json"
 SUMMARY_ITEM_LIMIT = 20
 
 
@@ -44,20 +49,20 @@ def app_roots() -> list[Path]:
 
 
 def support_root() -> Path:
-    return home() / "Library" / "Application Support" / "Omi Dev Bundles"
-
-
-def legacy_root() -> Path:
-    return home() / "Library" / "Application Support" / "Omi"
+    return home() / "Library" / "Application Support" / "Intentive Dev Bundles"
 
 
 def log_roots() -> list[Path]:
     configured = os.environ.get("OMI_MACOS_DEV_LOG_ROOTS")
-    return [Path(item) for item in configured.split(os.pathsep)] if configured else [Path("/private/tmp"), Path("/private/tmp/omi")]
+    return [Path(item) for item in configured.split(os.pathsep)] if configured else [Path("/private/tmp")]
 
 
 def candidate(bundle_id: object) -> bool:
-    return isinstance(bundle_id, str) and re.fullmatch(r"com\.omi\.omi-[A-Za-z0-9.-]+", bundle_id) is not None
+    return (
+        isinstance(bundle_id, str)
+        and re.fullmatch(r"com\.heyintentive\.intentive\.dev\.omi-[a-z0-9][a-z0-9-]*", bundle_id)
+        is not None
+    )
 
 
 def resolved(path: Path) -> Path:
@@ -212,7 +217,11 @@ def lsof_holders(paths: list[Path]) -> tuple[dict[str, list[int]], str | None]:
 def database_paths(profile: Path) -> list[Path]:
     if not profile.is_dir() or profile.is_symlink():
         return []
-    return [path for path in [profile / "omi.db", *sorted(profile.glob("users/*/omi.db"))] if path.is_file()]
+    return [
+        path
+        for path in [profile / "heyintentive.db", *sorted(profile.glob("users/*/heyintentive.db"))]
+        if path.is_file()
+    ]
 
 
 def profile_databases(
@@ -297,7 +306,6 @@ def inventory_output(state: dict[str, Any], verbose: bool) -> dict[str, Any]:
 
     bundles = [bundle_summary(record) for record in state["bundles"]]
     visible_bundles, omitted_bundles = limited_entries(bundles)
-    legacy_databases = state["legacy_databases"]
     visible_shared, omitted_shared = limited_entries(state["shared_storage_bundle_ids"])
     all_bundle_databases = [database for record in state["bundles"] for database in record["databases"]]
     all_bundle_logs = [log for record in state["bundles"] for log in record["logs"]]
@@ -307,9 +315,7 @@ def inventory_output(state: dict[str, Any], verbose: bool) -> dict[str, Any]:
         "detail_mode": "summary",
         "details_available": True,
         "protected_bundle_ids": state["protected_bundle_ids"],
-        "legacy_shared_root": state["legacy_shared_root"],
-        "legacy_shared_bytes": state["legacy_shared_bytes"],
-        "legacy_database_summary": database_summary(legacy_databases),
+        "foreign_roots_read": state["foreign_roots_read"],
         "bundle_summary": {
             "count": len(bundles),
             "active_count": sum(record["active"] for record in state["bundles"]),
@@ -346,7 +352,7 @@ def logs_for_bundle(bundle_id: str) -> list[dict[str, Any]]:
     safe_id = "".join(character if character.isalnum() or character in ".-_" else "-" for character in bundle_id)
     found: list[dict[str, Any]] = []
     for root in log_roots():
-        patterns = [f"omi-dev-{safe_id}-*.log", f"{safe_id}/pid-*.log"]
+        patterns = [f"heyintentive-dev-{safe_id}-*.log", f"{safe_id}/pid-*.log"]
         for pattern in patterns:
             for path in sorted(root.glob(pattern)):
                 try:
@@ -410,24 +416,15 @@ def inventory(selected_bundle: str | None = None) -> dict[str, Any]:
         bundle_ids = [bundle_id for bundle_id in bundle_ids if bundle_id == selected_bundle or by_id[bundle_id] and by_id[bundle_id]["app_name"] == selected_bundle]
     records = [record_for(bundle_id, by_id[bundle_id]) for bundle_id in bundle_ids]
     profiles = [expected_profile(record["bundle_id"]) for record in records]
-    legacy_profile = legacy_root()
-    all_database_paths = [path for profile in [*profiles, legacy_profile] for path in database_paths(profile)]
+    all_database_paths = [path for profile in profiles for path in database_paths(profile)]
     holder_map, holder_error = lsof_holders(all_database_paths)
     for record, profile in zip(records, profiles):
         record["databases"] = profile_databases(profile, holder_map, holder_error)
-    legacy_databases = profile_databases(legacy_profile, holder_map, holder_error)
-    legacy_holders = {pid for database in legacy_databases for pid in database["holders"]}
-    for record in records:
-        app_path = record["installed_app_path"]
-        if app_path and any(app_path in process_command(pid) for pid in legacy_holders):
-            record["isolation"] = "shared_legacy_storage"
-    shared = [record["bundle_id"] for record in records if record["isolation"] in {"shared_or_invalid", "shared_legacy_storage"}]
+    shared = [record["bundle_id"] for record in records if record["isolation"] == "shared_or_invalid"]
     return {
         "schema_version": SCHEMA_VERSION,
         "protected_bundle_ids": sorted(PROTECTED_BUNDLE_IDS),
-        "legacy_shared_root": str(legacy_root()),
-        "legacy_shared_bytes": bytes_used(legacy_root()),
-        "legacy_databases": legacy_databases,
+        "foreign_roots_read": [],
         "bundles": records,
         "shared_storage_bundle_ids": shared,
         "diagnostic": "shared_named_bundle_storage" if shared else None,
@@ -435,8 +432,8 @@ def inventory(selected_bundle: str | None = None) -> dict[str, Any]:
 
 
 def log_bundle_id(path: Path) -> str | None:
-    if path.name.startswith("omi-dev-") and path.suffix == ".log":
-        bundle_id, separator, pid = path.name[len("omi-dev-"):-len(".log")].rpartition("-")
+    if path.name.startswith("heyintentive-dev-") and path.suffix == ".log":
+        bundle_id, separator, pid = path.name[len("heyintentive-dev-"):-len(".log")].rpartition("-")
         if separator and pid.isdigit() and candidate(bundle_id):
             return bundle_id
     if re.fullmatch(r"pid-\d+\.log", path.name) and candidate(path.parent.name):
@@ -447,7 +444,10 @@ def log_bundle_id(path: Path) -> str | None:
 def all_logs() -> list[dict[str, Any]]:
     found: dict[str, dict[str, Any]] = {}
     for root in log_roots():
-        candidates = [*root.glob("omi-dev-*.log"), *root.glob("com.omi.omi-*/pid-*.log")]
+        candidates = [
+            *root.glob("heyintentive-dev-*.log"),
+            *root.glob("com.heyintentive.intentive.dev.*/pid-*.log"),
+        ]
         for path in sorted(set(candidates)):
             try:
                 info = path.lstat()
@@ -508,8 +508,7 @@ def clean_plan(older_than_days: int) -> dict[str, Any]:
         "actions": actions,
         "reclaimable_bytes": sum(action["bytes"] for action in actions),
         "plan": hashlib.sha256(canonical.encode()).hexdigest(),
-        "legacy_shared_root": str(legacy_root()),
-        "legacy_shared_root_touched": False,
+        "foreign_roots_read": [],
     }
 
 

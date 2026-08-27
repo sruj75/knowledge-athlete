@@ -11,11 +11,13 @@ DMG_PATH=""
 RELEASE_TAG=""
 SOURCE_SHA=""
 EXPECTED_CHANNEL="${OMI_SIGNED_ARTIFACT_SMOKE_CHANNEL:-beta}"
-EXPECTED_TEAM_ID="${OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID:-9536L8KLMP}"
-EXPECTED_BUNDLE_ID="${OMI_SIGNED_ARTIFACT_SMOKE_BUNDLE_ID:-com.omi.computer-macos}"
-EXPECTED_URL_SCHEME="${OMI_SIGNED_ARTIFACT_SMOKE_URL_SCHEME:-omi-computer}"
-EXPECTED_FEED_URL="${OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL:-https://api.omi.me/v2/desktop/appcast.xml}"
-EXPECTED_PYTHON_API_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL:-https://api.omi.me}"
+EXPECTED_TEAM_ID="${OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID:-}"
+EXPECTED_BUNDLE_ID="${OMI_SIGNED_ARTIFACT_SMOKE_BUNDLE_ID:-com.heyintentive.intentive}"
+EXPECTED_URL_SCHEME="${OMI_SIGNED_ARTIFACT_SMOKE_URL_SCHEME:-heyintentive}"
+EXPECTED_FEED_URL="${OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL:-}"
+EXPECTED_MANUAL_DOWNLOAD_URL="${OMI_SIGNED_ARTIFACT_SMOKE_MANUAL_DOWNLOAD_URL:-}"
+EXPECTED_RELEASES_URL="${OMI_SIGNED_ARTIFACT_SMOKE_RELEASES_URL:-https://github.com/sruj75/knowledge-athlete/releases}"
+EXPECTED_PYTHON_API_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL:-}"
 IS_EXTERNAL_PREVIEW=false
 RUN_LAUNCH=false
 RUN_NETWORK=false
@@ -40,7 +42,7 @@ NOTIFICATION_CALLBACK_PROOF=""
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/smoke-signed-desktop-artifact.sh --app /path/to/omi.app [options]
+Usage: scripts/smoke-signed-desktop-artifact.sh --app /path/to/Intentive.app [options]
 
 Verifies the signed/notarized macOS desktop artifact before user exposure.
 The default mode is deterministic and safe for Codemagic: it audits bundle
@@ -57,7 +59,11 @@ Options:
   --expected-bundle-id ID    Expected app bundle identifier
   --expected-url-scheme URL  Expected app URL scheme
   --expected-feed-url URL    Expected SUFeedURL (default: plain shared appcast;
-                             the Omi Beta variant passes its identity-scoped feed)
+                             no inherited provider default)
+  --expected-manual-download-url URL
+                             Expected IntentiveManualDownloadURL
+  --expected-releases-url URL
+                             Expected IntentiveReleasesURL
   --expected-python-api-url URL
                              Expected OMI_PYTHON_API_URL in the artifact
   --preview                  Assert external-preview isolation (no Sparkle feed)
@@ -89,7 +95,7 @@ Optional live-probe environment:
   OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER='Bearer ...'
       Required for --chat until a dedicated release canary OAuth fixture exists.
   OMI_SIGNED_ARTIFACT_SMOKE_CHAT_URL='https://...'
-      Chat API URL to probe; defaults to https://api.omi.me/v2/chat/completions.
+      Chat API URL to probe; defaults to the declared Python API origin.
   OMI_NOTIFICATION_CALLBACK_SMOKE_RESULT_PATH
       Passed to the app only with --notification-callback-canary. The app must
       atomically write the callback result after its
@@ -156,6 +162,8 @@ parse_args() {
       --expected-bundle-id) require_option_value "$1" "${2:-}"; EXPECTED_BUNDLE_ID="$2"; shift 2 ;;
       --expected-url-scheme) require_option_value "$1" "${2:-}"; EXPECTED_URL_SCHEME="$2"; shift 2 ;;
       --expected-feed-url) require_option_value "$1" "${2:-}"; EXPECTED_FEED_URL="$2"; shift 2 ;;
+      --expected-manual-download-url) require_option_value "$1" "${2:-}"; EXPECTED_MANUAL_DOWNLOAD_URL="$2"; shift 2 ;;
+      --expected-releases-url) require_option_value "$1" "${2:-}"; EXPECTED_RELEASES_URL="$2"; shift 2 ;;
       --expected-python-api-url) require_option_value "$1" "${2:-}"; EXPECTED_PYTHON_API_URL="$2"; shift 2 ;;
       --preview) IS_EXTERNAL_PREVIEW=true; shift ;;
       --launch) RUN_LAUNCH=true; shift ;;
@@ -178,6 +186,42 @@ parse_args() {
   done
 }
 
+validate_release_expectations() {
+  [[ "$EXPECTED_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] \
+    || fail "release smoke requires a 10-character Apple Team ID via OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID"
+  [[ -n "$EXPECTED_PYTHON_API_URL" ]] \
+    || fail "release smoke requires --expected-python-api-url"
+  [[ "$EXPECTED_RELEASES_URL" == "https://github.com/sruj75/knowledge-athlete/releases" ]] \
+    || fail "release repository must be https://github.com/sruj75/knowledge-athlete/releases"
+
+  VALIDATE_PYTHON_API_URL="$EXPECTED_PYTHON_API_URL" \
+    VALIDATE_RELEASES_URL="$EXPECTED_RELEASES_URL" \
+    VALIDATE_FEED_URL="$EXPECTED_FEED_URL" \
+    VALIDATE_MANUAL_DOWNLOAD_URL="$EXPECTED_MANUAL_DOWNLOAD_URL" \
+    python3 - <<'PY' || fail "release URLs must be HTTPS and must not use an inherited Omi/BasedHardware host"
+import os
+from urllib.parse import urlparse
+
+for name in (
+    "VALIDATE_PYTHON_API_URL",
+    "VALIDATE_RELEASES_URL",
+    "VALIDATE_FEED_URL",
+    "VALIDATE_MANUAL_DOWNLOAD_URL",
+):
+    raw_url = os.environ.get(name, "")
+    if not raw_url:
+        continue
+    parsed = urlparse(raw_url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host or parsed.username or parsed.password or parsed.fragment:
+        raise SystemExit(1)
+    if host == "omi.me" or host.endswith(".omi.me"):
+        raise SystemExit(1)
+    if host == "basedhardware.com" or host.endswith(".basedhardware.com"):
+        raise SystemExit(1)
+PY
+}
+
 version_from_tag() {
   [[ "$1" =~ ^v([0-9]+[.][0-9]+[.][0-9]+)[+]([0-9]+)-macos$ ]] || return 1
   printf '%s\n' "${BASH_REMATCH[1]}"
@@ -190,8 +234,8 @@ build_from_tag() {
 
 expected_app_bundle_name() {
   case "$EXPECTED_BUNDLE_ID" in
-    com.omi.computer-macos) printf '%s\n' "Omi.app" ;;
-    com.omi.computer-macos.beta) printf '%s\n' "Omi Beta.app" ;;
+    com.heyintentive.intentive) printf '%s\n' "Intentive.app" ;;
+    com.heyintentive.intentive.beta) printf '%s\n' "Intentive Beta.app" ;;
     *) basename "$APP_BUNDLE" ;;
   esac
 }
@@ -201,7 +245,7 @@ extract_zip_if_needed() {
   [[ -f "$SPARKLE_ZIP" ]] || fail "Sparkle ZIP not found: $SPARKLE_ZIP"
 
   require_cmd ditto
-  ZIP_EXTRACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/omi-signed-smoke-zip.XXXXXX")"
+  ZIP_EXTRACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/heyintentive-signed-smoke-zip.XXXXXX")"
   ditto -x -k "$SPARKLE_ZIP" "$ZIP_EXTRACT_DIR"
 
   local found
@@ -217,7 +261,7 @@ extract_zip_if_needed() {
 
 maybe_copy_for_launch() {
   [[ "$RUN_LAUNCH" == true || "$RUN_AUTH_STORAGE_CANARY" == true ]] || return 0
-  [[ -n "$INSTALL_DIR" ]] || INSTALL_DIR="$(mktemp -d "${TMPDIR:-/tmp}/omi-signed-smoke-install.XXXXXX")"
+  [[ -n "$INSTALL_DIR" ]] || INSTALL_DIR="$(mktemp -d "${TMPDIR:-/tmp}/heyintentive-signed-smoke-install.XXXXXX")"
   mkdir -p "$INSTALL_DIR"
 
   local target="$INSTALL_DIR/$(basename "$APP_BUNDLE")"
@@ -226,7 +270,7 @@ maybe_copy_for_launch() {
   ditto "$APP_BUNDLE" "$target"
   APP_BUNDLE="$target"
   if [[ "$APPLY_QUARANTINE" == true ]]; then
-    xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");CodemagicSmoke;https://github.com/BasedHardware/omi" "$APP_BUNDLE" \
+    xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");CodemagicSmoke;https://github.com/sruj75/knowledge-athlete" "$APP_BUNDLE" \
       || fail "failed to apply quarantine attribute"
   fi
   pass "Copied app to launch install dir: $APP_BUNDLE"
@@ -246,7 +290,7 @@ cleanup() {
   if [[ -n "$ZIP_EXTRACT_DIR" && -d "$ZIP_EXTRACT_DIR" ]]; then
     rm -rf "$ZIP_EXTRACT_DIR"
   fi
-  if [[ "$KEEP_INSTALL" != true && -n "$INSTALL_DIR" && "$INSTALL_DIR" == "${TMPDIR:-/tmp}"/omi-signed-smoke-install.* ]]; then
+  if [[ "$KEEP_INSTALL" != true && -n "$INSTALL_DIR" && "$INSTALL_DIR" == "${TMPDIR:-/tmp}"/heyintentive-signed-smoke-install.* ]]; then
     rm -rf "$INSTALL_DIR"
   fi
   if [[ "$NOTIFICATION_CALLBACK_MARKER_IS_TEMP" == true && -n "$NOTIFICATION_CALLBACK_MARKER" ]]; then
@@ -363,13 +407,19 @@ PY
 assert_bundle_identity() {
   [[ -d "$APP_BUNDLE/Contents" ]] || fail "app bundle not found: $APP_BUNDLE"
 
-  local bundle_id version build executable url_scheme feed_url external_preview_marker automatic_checks
+  local bundle_id version build executable url_scheme feed_url public_key manual_download_url releases_url
+  local production_api_url
+  local external_preview_marker automatic_checks
   local app_bundle_name required_app_bundle_name
   bundle_id="$(plist_read CFBundleIdentifier)"
   version="$(plist_read CFBundleShortVersionString)"
   build="$(plist_read CFBundleVersion)"
   executable="$(plist_read CFBundleExecutable)"
   feed_url="$(plist_read SUFeedURL)"
+  public_key="$(plist_read SUPublicEDKey)"
+  manual_download_url="$(plist_read IntentiveManualDownloadURL)"
+  releases_url="$(plist_read IntentiveReleasesURL)"
+  production_api_url="$(plist_read IntentiveProductionAPIURL)"
   url_scheme="$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true)"
   external_preview_marker="$(plist_read OMIExternalPreview)"
   automatic_checks="$(plist_read SUEnableAutomaticChecks)"
@@ -381,20 +431,40 @@ assert_bundle_identity() {
     || fail "app bundle name for $EXPECTED_BUNDLE_ID must be $required_app_bundle_name, got $app_bundle_name"
   [[ "$url_scheme" == "$EXPECTED_URL_SCHEME" ]] || fail "URL scheme must be $EXPECTED_URL_SCHEME, got ${url_scheme:-missing}"
   if [[ "$IS_EXTERNAL_PREVIEW" == true ]]; then
-    [[ "$bundle_id" =~ ^com[.]omi[.]preview[.][a-z0-9-]+$ ]] \
+    [[ "$bundle_id" =~ ^com[.]heyintentive[.]intentive[.]preview[.][a-z0-9-]+$ ]] \
       || fail "external preview bundle id must use the preview namespace"
-    [[ "$url_scheme" =~ ^omi-preview-[a-z0-9-]+$ ]] \
+    [[ "$url_scheme" =~ ^heyintentive-preview-[a-z0-9-]+$ ]] \
       || fail "external preview URL scheme must use the preview namespace"
     [[ "$external_preview_marker" == "true" || "$external_preview_marker" == "1" ]] \
       || fail "external preview marker must be enabled"
     [[ -z "$feed_url" ]] || fail "external preview must not carry a shared Sparkle feed"
+    [[ -z "$public_key" ]] || fail "external preview must not carry a shared Sparkle public key"
     [[ "$automatic_checks" == "false" || "$automatic_checks" == "0" ]] \
       || fail "external preview must disable automatic update checks"
   else
-    # The Omi Beta variant carries an identity-scoped feed; the expected URL is
-    # passed per artifact (default: the plain shared feed).
+    [[ -n "$EXPECTED_FEED_URL" ]] || fail "release smoke requires --expected-feed-url"
+    [[ -n "$EXPECTED_MANUAL_DOWNLOAD_URL" ]] \
+      || fail "release smoke requires --expected-manual-download-url"
     [[ "$feed_url" == "$EXPECTED_FEED_URL" ]] \
       || fail "SUFeedURL mismatch: expected $EXPECTED_FEED_URL, got ${feed_url:-missing}"
+    [[ "$manual_download_url" == "$EXPECTED_MANUAL_DOWNLOAD_URL" ]] \
+      || fail "IntentiveManualDownloadURL mismatch: expected $EXPECTED_MANUAL_DOWNLOAD_URL, got ${manual_download_url:-missing}"
+    [[ "$releases_url" == "$EXPECTED_RELEASES_URL" ]] \
+      || fail "IntentiveReleasesURL mismatch: expected $EXPECTED_RELEASES_URL, got ${releases_url:-missing}"
+    [[ "${production_api_url%/}" == "${EXPECTED_PYTHON_API_URL%/}" ]] \
+      || fail "IntentiveProductionAPIURL mismatch: expected $EXPECTED_PYTHON_API_URL, got ${production_api_url:-missing}"
+    PUBLIC_KEY="$public_key" python3 - <<'PY' \
+      || fail "SUPublicEDKey must be one base64-encoded 32-byte Ed25519 public key"
+import base64
+import binascii
+import os
+
+try:
+    decoded = base64.b64decode(os.environ.get("PUBLIC_KEY", ""), validate=True)
+except (binascii.Error, ValueError):
+    raise SystemExit(1)
+raise SystemExit(0 if len(decoded) == 32 else 1)
+PY
   fi
   [[ -n "$executable" && -x "$APP_BUNDLE/Contents/MacOS/$executable" ]] || fail "main executable missing or not executable"
 
@@ -426,8 +496,8 @@ assert_signing_and_entitlements() {
   local entitlements
   # macOS mktemp does not substitute X's followed by a suffix — the literal
   # template file then collides when the smoke runs twice in one build
-  # (stable + Omi Beta). Templates must end with XXXXXX.
-  entitlements="$(mktemp "${TMPDIR:-/tmp}/omi-entitlements.XXXXXX")"
+  # (stable + Intentive Beta). Templates must end with XXXXXX.
+  entitlements="$(mktemp "${TMPDIR:-/tmp}/heyintentive-entitlements.XXXXXX")"
   codesign -d --entitlements :- "$APP_BUNDLE" >"$entitlements" 2>/dev/null || fail "could not read app entitlements"
 
   if /usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" "$entitlements" >/dev/null 2>&1; then
@@ -498,7 +568,7 @@ assert_sparkle_and_artifacts() {
       xcrun stapler validate "$DMG_PATH" >/dev/null 2>&1 \
         || fail "DMG stapler validation failed"
     fi
-    DMG_MOUNTPOINT="$(mktemp -d "${TMPDIR:-/tmp}/omi-signed-smoke-dmg.XXXXXX")"
+    DMG_MOUNTPOINT="$(mktemp -d "${TMPDIR:-/tmp}/heyintentive-signed-smoke-dmg.XXXXXX")"
     hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$DMG_MOUNTPOINT" -quiet \
       || fail "DMG attach failed"
     local dmg_app_name dmg_app
@@ -525,6 +595,18 @@ assert_sparkle_and_artifacts() {
 
 assert_helper_runtime_integrity() {
   "$MACOS_DIR/scripts/audit-desktop-bundle-deps.sh" "$APP_BUNDLE" >/dev/null
+
+  local executable libwebp_verifier
+  executable="$APP_BUNDLE/Contents/MacOS/$(plist_read CFBundleExecutable)"
+  libwebp_verifier="${OMI_SIGNED_ARTIFACT_SMOKE_LIBWEBP_VERIFY_SCRIPT:-$MACOS_DIR/scripts/prepare-release-libwebp.sh}"
+  [[ -x "$libwebp_verifier" ]] || fail "release libwebp verifier is unavailable: $libwebp_verifier"
+  "$libwebp_verifier" \
+    --verify-prepared \
+    --destination "$APP_BUNDLE/Contents/Frameworks" \
+    --app-executable "$executable" \
+    --expected-team-id "$EXPECTED_TEAM_ID" >/dev/null \
+    || fail "bundled libwebp/libsharpyuv provenance, linkage, or signing verification failed"
+  pass "Bundled universal libwebp linkage and nested signing passed"
 
   local resources="$APP_BUNDLE/Contents/Resources"
   [[ -d "$resources/agent" ]] || fail "agent runtime missing"
@@ -560,14 +642,14 @@ probe_url() {
   local url="$1"
   local expected_prefix="${2:-2}"
   local status
-  status="$(curl -L -sS -o /tmp/omi-smoke-probe.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" "$url")" \
+  status="$(curl -L -sS -o /tmp/heyintentive-smoke-probe.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" "$url")" \
     || fail "network probe failed: $url"
   [[ "$status" == "$expected_prefix"* ]] || fail "network probe $url returned HTTP $status"
 }
 
 run_network_probes() {
-  probe_url "https://api.omi.me/v2/desktop/appcast.xml" "2"
-  probe_url "https://api.omi.me/health" "2"
+  probe_url "$EXPECTED_FEED_URL" "2"
+  probe_url "${EXPECTED_PYTHON_API_URL%/}/v1/health" "2"
   pass "Backend routing + appcast network probes passed"
 }
 
@@ -585,23 +667,23 @@ run_launch_probe() {
   # propagates shell environment variables into a newly launched app.
   if [[ "$RUN_NOTIFICATION_CALLBACK_CANARY" == true ]]; then
     OMI_NOTIFICATION_CALLBACK_SMOKE_RESULT_PATH="$NOTIFICATION_CALLBACK_MARKER" \
-      "$executable" >/tmp/omi-signed-artifact-smoke.out 2>/tmp/omi-signed-artifact-smoke.err &
+      "$executable" >/tmp/heyintentive-signed-artifact-smoke.out 2>/tmp/heyintentive-signed-artifact-smoke.err &
     SMOKE_PID=$!
     pass "Signed app launched for UserNotifications callback canary"
     return 0
   fi
 
-  open -n "$APP_BUNDLE" >/tmp/omi-signed-artifact-smoke.out 2>/tmp/omi-signed-artifact-smoke.err \
+  open -n "$APP_BUNDLE" >/tmp/heyintentive-signed-artifact-smoke.out 2>/tmp/heyintentive-signed-artifact-smoke.err \
     || fail "LaunchServices failed to open signed app"
 
   sleep 8
   SMOKE_PID="$(pgrep -f "$executable" | head -1 || true)"
   [[ -n "$SMOKE_PID" ]] || {
-    cat /tmp/omi-signed-artifact-smoke.err >&2 || true
+    cat /tmp/heyintentive-signed-artifact-smoke.err >&2 || true
     fail "signed app did not stay running after LaunchServices open"
   }
   kill -0 "$SMOKE_PID" >/dev/null 2>&1 || {
-    cat /tmp/omi-signed-artifact-smoke.err >&2 || true
+    cat /tmp/heyintentive-signed-artifact-smoke.err >&2 || true
     fail "signed app exited during launch smoke"
   }
 
@@ -613,7 +695,7 @@ prepare_notification_callback_canary() {
   [[ "$RUN_LAUNCH" == true ]] || fail "--notification-callback-canary requires --launch"
 
   if [[ -z "$NOTIFICATION_CALLBACK_MARKER" ]]; then
-    NOTIFICATION_CALLBACK_MARKER="$(mktemp "${TMPDIR:-/tmp}/omi-notification-callback.XXXXXX")"
+    NOTIFICATION_CALLBACK_MARKER="$(mktemp "${TMPDIR:-/tmp}/heyintentive-notification-callback.XXXXXX")"
     NOTIFICATION_CALLBACK_MARKER_IS_TEMP=true
   fi
   rm -f "$NOTIFICATION_CALLBACK_MARKER"
@@ -687,13 +769,13 @@ run_auth_storage_canary() {
     || fail "--auth-storage-canary for production bundle requires OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1"
 
   local result_path executable started_at canary_pid
-  result_path="$(mktemp "${TMPDIR:-/tmp}/omi-auth-storage-canary.XXXXXX")"
+  result_path="$(mktemp "${TMPDIR:-/tmp}/heyintentive-auth-storage-canary.XXXXXX")"
   rm -f "$result_path"
   executable="$APP_BUNDLE/Contents/MacOS/$(plist_read CFBundleExecutable)"
   [[ -x "$executable" ]] || fail "executable missing before auth storage canary"
 
   "$executable" "--auth-storage-canary-result=$result_path" \
-    >/tmp/omi-auth-storage-canary.out 2>/tmp/omi-auth-storage-canary.err &
+    >/tmp/heyintentive-auth-storage-canary.out 2>/tmp/heyintentive-auth-storage-canary.err &
   canary_pid=$!
 
   started_at=$SECONDS
@@ -701,7 +783,7 @@ run_auth_storage_canary() {
     sleep 1
   done
   [[ -s "$result_path" ]] || {
-    cat /tmp/omi-auth-storage-canary.err >&2 || true
+    cat /tmp/heyintentive-auth-storage-canary.err >&2 || true
     kill "$canary_pid" >/dev/null 2>&1 || true
     wait "$canary_pid" >/dev/null 2>&1 || true
     fail "signed app auth storage canary did not produce a result"
@@ -730,12 +812,12 @@ PY
 
 run_chat_probe() {
   local auth_header="${OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER:-}"
-  local chat_url="${OMI_SIGNED_ARTIFACT_SMOKE_CHAT_URL:-https://api.omi.me/v2/chat/completions}"
+  local chat_url="${OMI_SIGNED_ARTIFACT_SMOKE_CHAT_URL:-${EXPECTED_PYTHON_API_URL%/}/v2/chat/completions}"
   [[ -n "$auth_header" ]] || fail "--chat requires OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER"
 
   local payload status
   payload='{"model":"omi-sonnet","messages":[{"role":"user","content":"Reply with ok."}],"stream":false}'
-  status="$(curl -sS -o /tmp/omi-smoke-chat.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" \
+  status="$(curl -sS -o /tmp/heyintentive-smoke-chat.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" \
     -H "Authorization: $auth_header" -H "Content-Type: application/json" \
     -d "$payload" "$chat_url")" || fail "chat probe request failed"
   [[ "$status" == 2* ]] || fail "chat probe returned HTTP $status"
@@ -755,13 +837,14 @@ run_permission_surface_probe() {
 run_storage_live_probe() {
   [[ "$RUN_LAUNCH" == true ]] || fail "--storage requires --launch so storage open can be observed"
   sleep 2
-  ! grep -E "RewindDatabase.*(fatal|crash|migration failed)|SQLite.*(fatal|malformed)" /tmp/omi-signed-artifact-smoke.err >/dev/null 2>&1 \
+  ! grep -E "RewindDatabase.*(fatal|crash|migration failed)|SQLite.*(fatal|malformed)" /tmp/heyintentive-signed-artifact-smoke.err >/dev/null 2>&1 \
     || fail "storage/database error observed during launch"
   pass "Local storage/database live probe passed"
 }
 
 main() {
   parse_args "$@"
+  validate_release_expectations
   extract_zip_if_needed
   [[ -n "$APP_BUNDLE" ]] || fail "--app or --zip is required"
   APP_BUNDLE="$(cd "$APP_BUNDLE" && pwd)"

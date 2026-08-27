@@ -1,12 +1,13 @@
 import AppKit
 import Darwin
 import Foundation
+import OmiSupport
 
 /// Prevents a second live copy of the app (same bundle id + launch mode) from
 /// running concurrently against the same on-disk state.
 ///
-/// Why this matters: two live instances share `~/Library/Application Support/Omi/`
-/// (the Rewind SQLite DB and its `.omi_running` crash flag) and the `UserDefaults`
+/// Why this matters: two live instances share one resolved Intentive profile
+/// (the Rewind SQLite DB and its running flag) and the `UserDefaults`
 /// domain keyed by the bundle id. A second instance racing the first can corrupt the
 /// database, clobber `lastSessionCleanExit` / auth state, and double-register global
 /// shortcuts. LaunchServices usually coalesces a double-click into the running app,
@@ -16,9 +17,8 @@ import Foundation
 /// Mechanism: a per-`(bundle id, launch mode)` advisory `flock`. The OS releases the
 /// lock automatically when the process dies, so a crashed instance never leaves a
 /// stale lock behind (unlike a PID file). Keying on the bundle id keeps parallel
-/// *named* dev/test bundles (`com.omi.omi-*`, `com.omi.desktop-dev`) independent of
-/// each other and of production — and lets the separately-identified Omi Beta app
-/// (`com.omi.computer-macos.beta`, isolated "Omi Beta" storage root) run beside
+/// *named* dev/test bundles independent of each other and of production — and lets
+/// the separately identified Beta app run beside
 /// stable while still refusing a true duplicate of itself. Keying on the launch mode keeps rewind-only mode
 /// (`--mode=rewind`) and the full app — which the rewind window intentionally spawns
 /// via `open -n` — from evicting one another.
@@ -44,7 +44,10 @@ enum SingleInstanceGuard {
     guard !isExporting else { return }
 
     let bundleID = AppBuild.bundleIdentifier
-    let path = lockFilePath(bundleID: bundleID, launchMode: launchMode)
+    guard let path = lockFilePath(bundleID: bundleID, launchMode: launchMode) else {
+      log("SingleInstanceGuard: refusing lock for unrecognized bundle identity")
+      return
+    }
 
     switch acquireExclusiveLock(at: path) {
     case .acquired(let descriptor):
@@ -78,8 +81,11 @@ enum SingleInstanceGuard {
     bundleID: String,
     launchMode: LaunchMode,
     directory: String = NSTemporaryDirectory()
-  ) -> String {
-    let name = "omi-single-instance-\(sanitizeForFilename(bundleID))-\(launchMode.rawValue).lock"
+  ) -> String? {
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleID) else { return nil }
+    let name =
+      "\(DesktopProductIdentity.lockPrefix)-single-instance-"
+      + "\(sanitizeForFilename(identity.bundleIdentifier))-\(launchMode.rawValue).lock"
     return (directory as NSString).appendingPathComponent(name)
   }
 

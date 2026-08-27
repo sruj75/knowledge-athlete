@@ -2,7 +2,7 @@
  * INV-CHAT-1 — One shared transcript across surfaces.
  *
  * Behavioral + source ratchet. Surfaces (main_chat, floating_chat / notch) are
- * I/O devices against kernel-owned conversation turns in omi-agentd.sqlite3.
+ * I/O devices against kernel-owned conversation turns in heyintentive-agent.sqlite3.
  * Do not introduce a second authoritative chat/history store.
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";

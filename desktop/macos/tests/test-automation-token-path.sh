@@ -26,7 +26,7 @@ DARWIN_TMP="$(getconf DARWIN_USER_TEMP_DIR)"
 [[ -n "$DARWIN_TMP" ]] || fail "getconf DARWIN_USER_TEMP_DIR returned empty"
 
 PORT=59847
-EXPECTED="${DARWIN_TMP%/}/omi-automation-${PORT}.token"
+EXPECTED="${DARWIN_TMP%/}/heyintentive-automation-${PORT}.token"
 GOT="$(omi_automation_token_file "$PORT")"
 [[ "$GOT" == "$EXPECTED" ]] || fail "shell resolver expected $EXPECTED got $GOT"
 
@@ -55,16 +55,16 @@ os.environ.pop("OMI_AUTOMATION_TOKEN", None)
 os.environ.pop("OMI_AUTOMATION_TOKEN_FILE", None)
 os.environ["TMPDIR"] = "/tmp"
 candidates = module.automation_token_file_candidates(port)
-assert candidates[0] == darwin / f"omi-automation-{port}.token", candidates
-assert any(path.name == f"omi-automation-{port}.token" and path.parent == Path("/tmp") for path in candidates), candidates
+assert candidates[0] == darwin / f"heyintentive-automation-{port}.token", candidates
+assert any(path.name == f"heyintentive-automation-{port}.token" and path.parent == Path("/tmp") for path in candidates), candidates
 
 with tempfile.TemporaryDirectory() as fake_darwin:
     fake = Path(fake_darwin)
-    token_path = fake / f"omi-automation-{port}.token"
-    token_path.write_text("omi_auto_testtoken1234567890ab", encoding="utf-8")
+    token_path = fake / f"heyintentive-automation-{port}.token"
+    token_path.write_text("heyintentive_auto_testtoken1234567890ab", encoding="utf-8")
     # Monkeypatch darwin lookup to the fake dir while TMPDIR remains /tmp (empty).
     module.darwin_user_temp_dir = lambda: fake  # type: ignore[method-assign]
-    assert module.automation_token(port) == "omi_auto_testtoken1234567890ab"
+    assert module.automation_token(port) == "heyintentive_auto_testtoken1234567890ab"
 
     os.environ["OMI_AUTOMATION_TOKEN"] = "env-token"
     assert module.automation_token(port) == "env-token"

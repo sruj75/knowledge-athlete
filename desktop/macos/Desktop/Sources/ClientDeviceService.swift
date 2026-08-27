@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import OmiSupport
 import Security
 
 enum ClientDeviceKeychainReadResult {
@@ -23,12 +24,11 @@ final class ClientDeviceService {
   private let cacheLock = NSLock()
   private var cachedInstallId: String?
 
-  /// Team+bundle scoped service for this process. Never the shared legacy
-  /// `com.omi.client-device-id` name — querying that from a binary not on its ACL
-  /// is what caused keychain password prompt spam (#8799).
+  /// Team+bundle scoped service for this process. It never queries a foreign or
+  /// unscoped service whose ACL could trigger a Keychain password prompt.
   private var keychainService: String {
     DesktopKeychainStore.scopedService(
-      DesktopKeychainStore.legacyClientDeviceService,
+      DesktopKeychainStore.clientDeviceServiceBase,
       bundleID: bundleIdentifier ?? Bundle.main.bundleIdentifier ?? "unknown.bundle"
     )
   }
@@ -68,10 +68,16 @@ final class ClientDeviceService {
   }
 
   private func loadOrCreateInstallId() -> String {
-    // All non-production bundles (Omi Dev + named omi-*) stay out of Keychain
-    // entirely — UserDefaults is enough for throwaway local identity and never
-    // prompts. Production Beta/Prod use the team+bundle scoped Keychain item.
-    if usesUserDefaultsInstallId {
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier) else {
+      // An unrecognized or foreign bundle may run in a test host, but it must not
+      // create product defaults or Keychain state. Keep one process-local value.
+      log("ClientDeviceService: refusing persistent installation identity for unknown bundle")
+      return UUID().uuidString
+    }
+    // All owned non-production bundles stay out of Keychain entirely —
+    // UserDefaults is enough for disposable local identity and never prompts.
+    // Owned production Beta/Stable use the team+bundle scoped Keychain item.
+    if !identity.isProductionFamily {
       return loadOrCreateDevInstallId()
     }
     switch keychainReader?() ?? readKeychainInstallId() {
@@ -101,14 +107,6 @@ final class ClientDeviceService {
       userDefaults.set(fallback, forKey: installIdMirrorDefaultsKey)
       return fallback
     }
-  }
-
-  private var usesUserDefaultsInstallId: Bool {
-    guard let bundleIdentifier else { return false }
-    // Any non-production com.omi.* bundle (desktop-dev + omi-*) — avoid Keychain.
-    // Production-family bundles (stable + Omi Beta) keep the durable Keychain id.
-    return bundleIdentifier.hasPrefix("com.omi.")
-      && !AppBuild.productionFamilyBundleIdentifiers.contains(bundleIdentifier)
   }
 
   private func loadOrCreateDevInstallId() -> String {

@@ -6,19 +6,19 @@ This document locks the Phase 0 boundary for the macOS Desktop Agent Coordinator
 
 The first coordinator wave is macOS Desktop only. Backend canonical AgentRun APIs, mobile unification, public MCP coordinator controls, cross-device artifact sync, full artifact browsing, and model-assisted routing remain deferred. Track follow-up work in repo issues or checked-in planning docs before implementation.
 
-The coordinator uses the existing TypeScript desktop runtime kernel as the execution substrate and `omi-agentd.sqlite3` as the only durable local agent/coordinator authority. Swift is a projection and control-client layer through `AgentRuntimeProcess` / `AgentBridge`; it may cache UI projections, but it must not own run success, failure, approval, grant, or artifact-delivery truth.
+The coordinator uses the existing TypeScript desktop runtime kernel as the execution substrate and `heyintentive-agent.sqlite3` as the only durable local agent/coordinator authority. Swift is a projection and control-client layer through `AgentRuntimeProcess` / `AgentBridge`; it may cache UI projections, but it must not own run success, failure, approval, grant, or artifact-delivery truth.
 
 ## Roles
 
-- **TypeScript runtime kernel:** owns `AgentSession`, `AgentRun`, `RunAttempt`, `AdapterBinding`, events, artifacts, delegations, grants, terminal state, and future coordinator tables in `omi-agentd.sqlite3`.
+- **TypeScript runtime kernel:** owns `AgentSession`, `AgentRun`, `RunAttempt`, `AdapterBinding`, events, artifacts, delegations, grants, terminal state, and future coordinator tables in `heyintentive-agent.sqlite3`.
 - **Desktop Coordinator:** owns deterministic routing, scoped context packets, dispatch decisions, lifecycle monitoring, approval/artifact/memory/task candidate projection, and the derived action queue.
 - **Swift app:** renders Ask Omi, task chat, voice, floating-pill, and future Agents & Attention surfaces; sends control/query requests; displays projections from kernel/coordinator state.
 - **Adapters:** execute attempts and request capabilities. They never approve grants or establish product lifecycle truth.
 
 ## Core Invariants
 
-1. No second lifecycle authority: the TypeScript runtime kernel and `omi-agentd.sqlite3` remain authoritative for local execution state.
-2. Coordinator durable state extends `omi-agentd.sqlite3` through migrations; do not create a separate coordinator database.
+1. No second lifecycle authority: the TypeScript runtime kernel and `heyintentive-agent.sqlite3` remain authoritative for local execution state.
+2. Coordinator durable state extends `heyintentive-agent.sqlite3` through migrations; do not create a separate coordinator database.
 3. Swift/UI state is a projection. UI dismissal, local success helpers, voice refs, pill state, or adapter-native IDs never imply kernel success or failure.
 4. `DesktopActionQueueItem` is derived, not persisted authority. It is computed from runs, dispatches, artifact deliveries, memory/task candidates, task-chat waiting states, legacy pill projections, and attention overrides.
 5. Worker prompts must come from explicit `DesktopContextPacket` records with provenance, redacted preview, hash, TTL, retention class, and audit rows.

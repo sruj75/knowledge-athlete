@@ -28,8 +28,8 @@ class RuntimeProcessFixture {
         HARNESS_MODE: "piMono",
         OMI_AGENT_ALLOW_CONTROL_ONLY: "1",
         OMI_AUTH_TOKEN: "",
-        OMI_AGENT_STATE_DIR: join(this.root, "state"),
-        OMI_AGENT_ARTIFACTS_DIR: join(this.root, "artifacts"),
+        HEYINTENTIVE_AGENT_STATE_DIR: join(this.root, "state"),
+        HEYINTENTIVE_AGENT_ARTIFACTS_DIR: join(this.root, "artifacts"),
       },
       stdio: ["pipe", "pipe", "pipe"],
     });

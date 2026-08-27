@@ -12,9 +12,8 @@ from pathlib import Path
 from desktop_release_metadata import fail, parse_metadata
 
 TAG_RE = re.compile(r"^v(?P<version>\d+\.\d+\.\d+)\+(?P<build>\d+)-macos$")
-EXPECTED_BUNDLE_ID = "com.omi.computer-macos"
-EXPECTED_BETA_BUNDLE_ID = "com.omi.computer-macos.beta"
-EXPECTED_TEAM_ID = "9536L8KLMP"
+EXPECTED_BUNDLE_ID = "com.heyintentive.intentive"
+EXPECTED_BETA_BUNDLE_ID = "com.heyintentive.intentive.beta"
 REQUIRED_SMOKE_CHECKS = {
     "Launch + identity metadata is aligned",
     "Auth persistence prerequisites: signing identity and Keychain-compatible entitlements are sane",
@@ -61,6 +60,7 @@ def _validate_smoke_contract(
     expected_version: str,
     expected_build: str,
     expected_source_sha: str,
+    expected_team_id: str,
     label: str,
 ) -> set[str]:
     """Enforce the shared success/tag/version/build/team/channel contract on a
@@ -73,7 +73,7 @@ def _validate_smoke_contract(
         "bundle_id": bundle_id,
         "version": expected_version,
         "build": expected_build,
-        "team_id": EXPECTED_TEAM_ID,
+        "team_id": expected_team_id,
     }
     for field, value in expected.items():
         if smoke.get(field) != value:
@@ -118,6 +118,10 @@ def _validate_callback_canary(smoke: dict, *, bundle_id: str, label: str) -> Non
 
 
 def validate(args: argparse.Namespace) -> dict:
+    expected_team_id = str(getattr(args, "expected_team_id", "")).strip()
+    if not re.fullmatch(r"[A-Z0-9]{10}", expected_team_id):
+        fail("automatic beta qualification requires the owned 10-character Apple Team ID")
+
     match = TAG_RE.match(args.release_tag)
     if not match:
         fail(f"invalid macOS release tag: {args.release_tag}")
@@ -152,31 +156,32 @@ def validate(args: argparse.Namespace) -> dict:
         expected_version=expected_version,
         expected_build=expected_build,
         expected_source_sha=args.tag_sha,
+        expected_team_id=expected_team_id,
         label="signed",
     )
 
     callback_canary = smoke.get("notification_callback_canary")
 
-    zip_release = asset_by_name(release, {"Omi.zip"})
-    dmg_release = asset_by_name(release, {"omi.dmg"})
+    zip_release = asset_by_name(release, {"Intentive.zip"})
+    dmg_release = asset_by_name(release, {"intentive.dmg"})
     zip_smoke = smoke_artifact(smoke, "sparkle_zip")
     dmg_smoke = smoke_artifact(smoke, "dmg")
     artifact_digests = {
-        "Omi.zip": normalized_digest(zip_release),
+        "Intentive.zip": normalized_digest(zip_release),
         dmg_release["name"]: normalized_digest(dmg_release),
     }
-    if zip_smoke.get("sha256") != artifact_digests["Omi.zip"]:
-        fail("published Omi.zip digest does not match the signed artifact smoke")
+    if zip_smoke.get("sha256") != artifact_digests["Intentive.zip"]:
+        fail("published Intentive.zip digest does not match the signed artifact smoke")
     if dmg_smoke.get("sha256") != artifact_digests[dmg_release["name"]]:
         fail("published DMG digest does not match the signed artifact smoke")
 
-    # Releases that ship the side-by-side Omi Beta identity carry a second smoke
+    # Releases that ship the side-by-side Intentive Beta identity carry a second smoke
     # result; when those assets exist the beta artifact must satisfy the same
     # contract as stable (older releases without beta assets stay valid).
     beta_assets = {a.get("name") for a in release.get("assets", [])}
-    if "Omi.Beta.zip" in beta_assets:
+    if "Intentive.Beta.zip" in beta_assets:
         if not getattr(args, "beta_smoke_result", "") or not Path(args.beta_smoke_result).exists():
-            fail("release ships Omi Beta assets but no beta smoke result was provided")
+            fail("release ships Intentive Beta assets but no beta smoke result was provided")
         beta_smoke = load_json(args.beta_smoke_result)
         _validate_smoke_contract(
             beta_smoke,
@@ -185,18 +190,19 @@ def validate(args: argparse.Namespace) -> dict:
             expected_version=expected_version,
             expected_build=expected_build,
             expected_source_sha=args.tag_sha,
+            expected_team_id=expected_team_id,
             label="beta",
         )
-        beta_zip_release = asset_by_name(release, {"Omi.Beta.zip"})
-        beta_dmg_release = asset_by_name(release, {"omi-beta.dmg"})
+        beta_zip_release = asset_by_name(release, {"Intentive.Beta.zip"})
+        beta_dmg_release = asset_by_name(release, {"intentive-beta.dmg"})
         beta_zip_smoke = smoke_artifact(beta_smoke, "sparkle_zip")
         beta_dmg_smoke = smoke_artifact(beta_smoke, "dmg")
-        artifact_digests["Omi.Beta.zip"] = normalized_digest(beta_zip_release)
-        artifact_digests["omi-beta.dmg"] = normalized_digest(beta_dmg_release)
-        if beta_zip_smoke.get("sha256") != artifact_digests["Omi.Beta.zip"]:
-            fail("published Omi.Beta.zip digest does not match the beta artifact smoke")
-        if beta_dmg_smoke.get("sha256") != artifact_digests["omi-beta.dmg"]:
-            fail("published omi-beta.dmg digest does not match the beta artifact smoke")
+        artifact_digests["Intentive.Beta.zip"] = normalized_digest(beta_zip_release)
+        artifact_digests["intentive-beta.dmg"] = normalized_digest(beta_dmg_release)
+        if beta_zip_smoke.get("sha256") != artifact_digests["Intentive.Beta.zip"]:
+            fail("published Intentive.Beta.zip digest does not match the beta artifact smoke")
+        if beta_dmg_smoke.get("sha256") != artifact_digests["intentive-beta.dmg"]:
+            fail("published intentive-beta.dmg digest does not match the beta artifact smoke")
 
     return {
         "passed": True,
@@ -219,6 +225,7 @@ def main() -> int:
     parser.add_argument("--latest-tag", required=True)
     parser.add_argument("--tag-sha", required=True)
     parser.add_argument("--checkout-sha", required=True)
+    parser.add_argument("--expected-team-id", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     result = validate(args)

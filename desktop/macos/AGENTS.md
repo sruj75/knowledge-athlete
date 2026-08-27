@@ -6,7 +6,7 @@ OMI Desktop App for macOS (Swift)
 ## Logs & Debugging
 
 ### Local App Logs
-- **App log file**: `/private/tmp/omi.log` (production). Each non-production
+- **App log files**: `/tmp/heyintentive.log` (Stable) and `/tmp/heyintentive-beta.log` (Beta). Each non-production
   launch writes to its own owner-only log; ask the running named bundle for its
   exact path with `./scripts/omi-ctl log-path` rather than reading a shared dev log.
 
@@ -49,17 +49,27 @@ When debugging issues for a specific user, check Sentry dashboard for crashes an
 Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.recordFallback(area:from:to:reason:outcome:)` (PostHog `desktop_health_event` / `fallback_triggered`) or Rust `fallback::record_fallback`. Same field contract as root `AGENTS.md` → Fallback / resilience telemetry. Do not invent new health-event enum cases or product “Recording Error” events for successful heals (`outcome=recovered`).
 
 ## Repository
-- This is the `desktop/macos/` subfolder of the **OMI monorepo** (`BasedHardware/omi`)
+- This is the `desktop/macos/` subfolder of the `sruj75/knowledge-athlete` repository
 - macOS Swift app lives here; its canonical Python backend lives under `../../backend`
 
 ## Release Pipeline
 
-Beta candidate tags are cut **deliberately through the manual `Build Desktop Release Candidate` workflow**. The planner selects the newest retained macOS/release-control change since the last tag and waits for its exact-SHA checks. A candidate reaches beta only after qualification passes:
+No Intentive candidate may be built or published from this checkout yet. Repository-safe S-29
+work has re-owned the Mac identities, artifact names, signed-smoke contract, nested libwebp
+verification, and qualification admission checks, but the external release control plane is
+intentionally incomplete:
 
-1. **GitHub Actions** (`desktop_auto_release.yml`) — a maintainer invokes `workflow_dispatch`; it auto-increments the version and pushes a `v*-macos` tag only after the one-active-release fence and the exact selected SHA's `Release Eligibility`, `Desktop Swift Build & Tests`, and `Desktop Swift Release Compile` checks pass. After publication, a read-only 10-minute assertion uses the GitHub `CODEMAGIC_API_TOKEN` secret to require exactly one same-tag `omi-desktop-swift-release` build and retains JSON intake evidence; absence, duplicate intake, wrong workflow/source, and provider API visibility failures are distinct failures and never dispatch a fallback build.
-2. **Artifact build provider (deferred)** — this checkout intentionally has no tracked provider definition. S-29 owns adding a fresh Mac build/sign/notarize lane, including universal app/dSYM production, Sentry symbol upload, Developer ID signing, notarization, DMG + Sparkle ZIP creation, signed-artifact smoke, immutable candidate publication, and qualification dispatch. Do not treat the missing document as valid or restore inherited whole-document locks.
-3. **Qualification** (`desktop_qualify_beta.yml`) — accepts the exact published candidate tag, but executes only on `qualify-m1-studio` (label `omi-qual-m1-studio`). The global non-cancelling `desktop-beta-qualification-m1` lock queues all candidates and never cancels local cleanup. It rebuilds the exact tag, runs hermetic T2 and fault injection, and writes evidence. No build-provider or M4 path can qualify. See `desktop/macos/docs/qualification-environment.md` for lease, port, retention, and cleanup controls; its local stack reaps only matching lease-token/process-group/port provenance and leaves foreign listeners alone.
-4. **Automatic beta promotion** (`desktop_promote_beta.yml`) — a separate `workflow_run` starts only after successful qualification, derives and validates the immutable `v*-macos` tag against the qualification SHA, then invokes the same internal-only backend admission authority. The backend captures the server-owned Beta admission generation before validating digest-matched evidence, then atomically verifies that the reservation and pause state are unchanged while registering the immutable manifest and advancing the explicit beta pointer. If that handoff fails after qualification, use only `desktop_recover_beta.yml` with the exact tag, `confirm=recover-beta`, and a reason.
+1. The MVP release repository is exactly `sruj75/knowledge-athlete`.
+2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
+3. The trusted runner labels are `intentive-desktop-qualification` and
+   `intentive-qual-m1-studio`. They are not provisioned yet.
+4. The repository has no approved root `codemagic.yaml`, Codemagic application/workflow IDs,
+   Sparkle private key, notarization credential, protected GitHub release app, or production
+   backend/feed input. Never substitute inherited Omi values.
+5. Existing candidate/promotion/rollback workflow files are retained control logic, not an
+   executable Intentive release path. They must not be dispatched until their remaining Omi
+   provider endpoints/secrets are removed and the complete owned inputs in
+   `OWNER-PROVIDER-DECISIONS.md` are configured.
 
 The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
 
@@ -74,30 +84,19 @@ Signed artifact smoke scope:
 Stable is manual:
 - Automatic qualification never promotes Stable. `desktop_promote_prod.yml` remains `workflow_dispatch` only and protected by the `prod` environment.
 - Run it with the current qualified Beta `release_tag` and `confirm=promote-stable`. It reads and compare-and-swaps the current Stable pointer itself, advances only that pointer, updates the existing legacy/static bridges, and verifies hashes and feed output.
-- Canonical backend deployment remains independent from desktop release promotion. Stable promotion checks live process health and Chat-contract compatibility through `api.omi.me` but does not deploy the backend. Do not manually edit release visibility or pointers outside the promotion workflow.
+- Canonical backend deployment remains independent from desktop release promotion. Stable
+  promotion must check the configured owned production API; no production API is approved yet.
+  Do not manually edit release visibility or pointers outside the promotion workflow.
 
-**Codemagic CLI & API:**
-- Token: `$CODEMAGIC_API_TOKEN` (set in `~/.zshrc`)
-- App ID: `66c95e6ec76853c447b8bcbb`
-- List builds: `curl -s -H "x-auth-token: $CODEMAGIC_API_TOKEN" "https://api.codemagic.io/builds?appId=66c95e6ec76853c447b8bcbb" | python3 -c "import json,sys; [print(f\"{b.get('status','?'):12} tag={b.get('tag','-'):30} start={(b.get('startedAt') or '-')[:19]}\") for b in json.load(sys.stdin).get('builds',[])[:5]]"`
-
-Promotion from beta to stable is handled by `desktop_promote_prod.yml`, not Codemagic.
+**Artifact provider:** the Codemagic login is established, but this repository deliberately has
+no approved provider application/workflow ID yet. Do not reuse the inherited Omi Codemagic
+application. Create and record the owned provider definition before candidate builds.
 
 ## Firebase Connection
-Use the `/firebase` command if your agent provides it.
-
-Quick connect:
-```bash
-cd ../backend && source venv/bin/activate && python3 -c "
-import firebase_admin
-from firebase_admin import credentials, firestore, auth
-cred = credentials.Certificate('google-credentials.json')
-try: firebase_admin.initialize_app(cred)
-except ValueError: pass
-db = firestore.client()
-print('Connected to Firebase: based-hardware')
-"
-```
+Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
+The `(default)` Firestore database exists in `us-west1` with deny-all rules. Desktop app
+registrations and downloaded Firebase plists remain an explicit provider step; never copy or
+edit the inherited `based-hardware` credentials into an Intentive identity.
 
 ## Module Layout (SwiftPM)
 
@@ -222,7 +221,9 @@ do not hand-edit those paths to match a specific machine.
 - Apple Sign-In: Only one Services ID per Firebase project
 
 ## API Endpoints
-- Production: `https://api.omi.me`
+- Production: unconfigured; signed production builds fail closed until
+  `IntentiveProductionAPIURL` is supplied by the owned release provider
+- Owned private development service: `https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app`
 - Local: `http://localhost:8080`
 
 ## Credentials
@@ -239,19 +240,19 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **Focused feedback loop**: `./scripts/dev-feedback.py --once|--watch swift '<XCTest filter>'` or `... python '<pytest path>'` runs exactly the regression you selected and reports each iteration time. It watches only the matching component inputs, keeps watching after a failure, and never replaces the full component suite. Pre-push deliberately adds only `xcrun swift build -c debug`; never promote it to the full pinned-Xcode suite or release compile, because that push-time budget belongs to CI.
 - **Swift suite throughput**: Local suites default to four workers; CI pins one for the shared `.build` lock. Do not raise it without isolated builds. Set `OMI_SWIFT_TEST_SUITE_WORKERS=1` to diagnose concurrency failures.
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
-- **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/OmiDesktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
+- **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/heyintentive-desktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
 - **Managed agent boundary**: production Chat, background Pills, and voice work use `pi-mono`, managed Sonnet, and the owned Unix socket. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
 - **Release builds**: The provider definition is absent and deferred to S-29; retained GitHub controls only observe intake, qualify artifacts, and promote or recover channels.
 - **DO NOT** use bare `swift build` — it will fail with SDK version mismatch
 - **DO NOT** use `xcodebuild` — there is no `.xcodeproj`
-- **DO NOT** launch the app directly from `build/` — always use `./run.sh`. These scripts install to `/Applications/Omi Dev.app` and launch from there, which is required for macOS "Quit & Reopen" (after granting permissions) to find the correct binary. Launching from `build/` causes stale binaries to run after permission restarts.
+- **DO NOT** launch the app directly from `build/` — always use `./run.sh`. The canonical build installs to `/Applications/Intentive Dev.app`; named builds install to `/Applications/<OMI_APP_NAME>.app`. This is required for macOS "Quit & Reopen" to find the correct binary.
 - **DO NOT** manually copy binaries into app bundles and launch them — this bypasses signing, `/Applications/` installation, and LaunchServices registration
 
 - **DO NOT** kill, delete, or interfere with running "Omi", "omi", or "Omi Beta" app bundles — these are production/release installs the user relies on
 
 ### App Names & Build Artifacts
-- `./run.sh` builds **"Omi Dev"** → installs to `/Applications/Omi Dev.app` (bundle ID: `com.omi.desktop-dev`)
-- **"Omi"** stable (bundle ID: `com.omi.computer-macos`) and **"Omi Beta"** (bundle ID: `com.omi.computer-macos.beta`, isolated "Omi Beta" storage root, runs side-by-side with stable) require the S-29 provider definition before new release artifacts can be built from this checkout.
+- `./run.sh` builds **"Intentive Dev"** → installs to `/Applications/Intentive Dev.app` (bundle ID: `com.heyintentive.intentive.dev`)
+- **Intentive** Stable (`com.heyintentive.intentive`) and Beta (`com.heyintentive.intentive.beta`) require the S-29 provider definition before signed release artifacts can be built.
 - To check which app is currently running: `ps aux | grep "Omi"`
 
 ### Testing with Named Bundles
@@ -259,17 +260,17 @@ When the user asks to test a feature or bug fix, **always create a separate name
 ```bash
 OMI_APP_NAME="omi-fix-rewind" ./run.sh
 ```
-This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.omi.omi-fix-rewind`, completely independent of "Omi Dev" and "Omi Beta". Name it after the feature/bug being tested. The user can then run multiple test builds simultaneously without interfering with each other or the production app.
+This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.heyintentive.intentive.dev.omi-fix-rewind`, completely independent of canonical Intentive Dev and production-family bundles.
 
 **Build-lock invariant:** `./run.sh` locks per worktree (repo-root `.dev/run-sh-build.lock.d`), through build→install→seed→`open`, then releases before the long-running wait. Parallel worktrees must not block each other. Two named-bundle builds in the *same* worktree still serialize (shared `Desktop/.build/`). Do not reuse the same explicit `OMI_APP_NAME` across worktrees — `/Applications/$APP_NAME.app` is machine-global and not cross-locked.
 
 **Rules:**
-- NEVER use the default `./run.sh` (which overwrites "Omi Dev") when testing a specific feature — always set `OMI_APP_NAME`
-- **ALWAYS prefix the name with `omi-`** (e.g., `omi-fix-rewind`, `omi-6512-polling`, `omi-vision-test`) so named bundles are visually grouped in `/Applications/` alongside "Omi Dev" and "Omi Beta"
+- NEVER use the default `./run.sh` (which overwrites canonical Intentive Dev) when testing a specific feature — always set `OMI_APP_NAME`
+- **ALWAYS prefix the name with `omi-`** (e.g., `omi-fix-rewind`, `omi-6512-polling`, `omi-vision-test`) so disposable named bundles are recognizable
 - Keep the name short and descriptive (it becomes both the app name and bundle ID suffix)
-- The named bundle gets its own permissions and writable database. `./run.sh` auto-seeds auth/onboarding, curated settings, and a one-time consistent Rewind snapshot from "Omi Dev"; set `OMI_SKIP_REWIND_SEED=1` to start with an empty Rewind profile.
-- To connect agent-swift: `agent-swift connect --bundle-id com.omi.omi-fix-rewind`
-- **Skip the web login:** sign into "Omi Dev" once; named bundles launched by `./run.sh` clone that session before launch.
+- The named bundle gets its own permissions and writable database and starts clean by default.
+- To connect agent-swift: `agent-swift connect --bundle-id com.heyintentive.intentive.dev.omi-fix-rewind`
+- **Optional owned parity seed:** set `OMI_SEED_FROM_CANONICAL_DEV=1` to copy auth, curated settings, and a consistent Rewind snapshot only from `com.heyintentive.intentive.dev`. No Omi source or fallback is allowed.
 - **Jump to a screen without clicking:** the automation bridge auto-enables on non-prod bundles — `./scripts/omi-ctl navigate <screen>` (e.g. `rewind`, `memories`, `settings rewind`). See "Fast-Path for Local Iteration" in `e2e/SKILL.md`.
 - Named/dev bundles default to the canonical development Python backend unless
   an explicit launch URL overrides them. Before QA, run
@@ -284,8 +285,8 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.omi.omi-fix-
 
 ### Run Variants & Parallel Worktrees
 - `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_PYTHON_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
-- **Parallel worktrees auto-isolate.** `scripts/dev-instance.sh` derives a unique instance from each linked git worktree, so `run.sh` (and `backend/scripts/dev-serve.sh`) pick one per-worktree canonical backend port (8080+) plus an automation port (47777+) and bundle name (`omi-<worktree>`). Kills are pidfile-scoped, and a taken port fails loud instead of clobbering. The primary checkout is unchanged (`Omi Dev`, backend 8080, automation 47777). Override any of `OMI_INSTANCE` / `PORT` / `PYTHON_PORT` / `OMI_AUTOMATION_PORT` / `OMI_APP_NAME` to opt out.
-- `Omi Dev` is the canonical shared development profile (reusable permissions, auth seed source). Do not pass `OMI_APP_NAME="Omi Dev"` from a linked worktree; that creates a named bundle displayed as Omi Dev with a different bundle id and breaks permission reuse.
+- **Parallel worktrees auto-isolate.** `scripts/dev-instance.sh` derives a unique instance from each linked git worktree, so `run.sh` (and `backend/scripts/dev-serve.sh`) pick one per-worktree canonical backend port (8080+) plus an automation port (47777+) and bundle name (`omi-<worktree>`). Kills are pidfile-scoped, and a taken port fails loud instead of clobbering. The primary checkout uses `Intentive Dev`, backend 8080, and automation 47777. Override any of `OMI_INSTANCE` / `PORT` / `PYTHON_PORT` / `OMI_AUTOMATION_PORT` / `OMI_APP_NAME` to opt out.
+- `Intentive Dev` is the canonical shared development profile and the only allowed opt-in seed source. Do not pass `OMI_APP_NAME="Intentive Dev"` from a linked worktree.
 - Local Python backend (per-worktree port): `cd backend && ./scripts/dev-serve.sh`.
 
 ### Self-Testing the App (agents)
@@ -294,12 +295,12 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.omi.omi-fix-
 
 Fast path (skips web login and sidebar click-through):
 
-1. **Build + launch a named bundle** (see Testing with Named Bundles above). `./run.sh` auto-clones Omi Dev auth/onboarding plus common shortcuts/settings **before launch**. Manual seeding:
+1. **Build + launch a clean named bundle** (see Testing with Named Bundles above). For deliberate parity, opt in with `OMI_SEED_FROM_CANONICAL_DEV=1`. Manual seeding:
    ```bash
-   ./scripts/omi-auth-dump.sh                                  # capture the Omi Dev session
-   ./scripts/omi-auth-seed.sh com.omi.omi-<feature> \
+   ./scripts/omi-auth-dump.sh com.heyintentive.intentive.dev
+   ./scripts/omi-auth-seed.sh com.heyintentive.intentive.dev.omi-<feature> \
      tmp/desktop-auth.json "/Applications/omi-<feature>.app"   # clears stale Keychain; UD→KC migrate
-   ./scripts/omi-settings-seed.sh com.omi.omi-<feature>        # replay shortcuts/settings
+   ./scripts/omi-settings-seed.sh com.heyintentive.intentive.dev.omi-<feature> com.heyintentive.intentive.dev
    ```
 2. **Prefer the local bridge — it never touches the cursor.** It calls the app's real code in-process (no synthetic mouse events). Use it before reaching for `agent-swift click`/`cliclick`/computer-use. Auto-enables on non-prod bundles; run several at once via distinct `OMI_AUTOMATION_PORT` (default 47777).
    - `./scripts/omi-ctl state` — app-state snapshot (selected tab, auth, onboarding).
@@ -307,8 +308,8 @@ Fast path (skips web login and sidebar click-through):
    - `./scripts/omi-ctl actions` then `./scripts/omi-ctl action <name> [k=v …]` — semantic actions (e.g. `refresh_all_data`). Add new ones in `DesktopAutomationActionRegistry`. See `e2e/SKILL.md` §2b.
    - `agent-swift` only for UI the bridge can't reach yet (`click` moves the cursor).
 3. **Read logs to confirm behavior:** app + chat bridge in the exact path from
-   `./scripts/omi-ctl log-path` (named dev bundles) or `/private/tmp/omi.log`
-   (production); `./run.sh` prints the isolated local Python backend log path at
+   `./scripts/omi-ctl log-path` (named dev bundles), `/tmp/heyintentive.log`
+   (Stable), or `/tmp/heyintentive-beta.log` (Beta); `./run.sh` prints the isolated local Python backend log path at
    launch; per-user issues in Sentry/PostHog.
 4. **Verify the actual behavior**, not just that the app launched — exercise the feature and check the logs/UI reflect the change.
 
@@ -431,8 +432,8 @@ timeline identity/open, or pill projection is incomplete until:
    ```bash
    cd desktop/macos && OMI_APP_NAME=omi-gauntlet OMI_SKIP_TUNNEL=1 ./run.sh
    # run.sh seeds auth after install (UD tokens → app Keychain migrate). Manual reseed:
-   # ./scripts/omi-auth-seed.sh com.omi.omi-gauntlet tmp/desktop-auth.json "/Applications/omi-gauntlet.app"
-   ./scripts/agent-continuity-gauntlet.sh --suite continuity --bundle-id com.omi.omi-gauntlet
+   # ./scripts/omi-auth-seed.sh com.heyintentive.intentive.dev.omi-gauntlet tmp/desktop-auth.json "/Applications/omi-gauntlet.app"
+   ./scripts/agent-continuity-gauntlet.sh --suite continuity --bundle-id com.heyintentive.intentive.dev.omi-gauntlet
    ./scripts/check-gauntlet-evidence-at-head.sh
    ```
    CI only runs gauntlet `--self-check` (wiring). Live suite is a PR/RC gate,
@@ -484,7 +485,7 @@ After editing Swift UI code, verify the change programmatically using [agent-swi
 ```bash
 # After ./run.sh launches the app:
 agent-swift doctor                                   # verify Accessibility permission
-agent-swift connect --bundle-id com.omi.desktop-dev  # connect to running app
+agent-swift connect --bundle-id com.heyintentive.intentive.dev  # connect to running app
 agent-swift snapshot -i                              # see interactive elements
 agent-swift click @e3                                # CGEvent click (SwiftUI)
 agent-swift press @e3                                # AXPress (AppKit buttons)
@@ -502,7 +503,7 @@ agent-swift screenshot /tmp/evidence.png             # capture app window
 - Argument order: `get <property> <ref>`, `is <condition> <ref>`, `wait <condition> [<target>]`, `find <locator> <value>`.
 - 15 commands: `doctor`, `connect`, `disconnect`, `status`, `snapshot`, `press`, `click`, `fill`, `get`, `find`, `screenshot`, `is`, `wait`, `scroll`, `schema`.
 - No app-side instrumentation needed — works via macOS Accessibility API on any Cocoa/SwiftUI app.
-- Dev bundle ID: `com.omi.desktop-dev`. Prod: `com.omi.computer-macos` (stable) and `com.omi.computer-macos.beta` (Omi Beta) — never automate prod.
+- Dev bundle ID: `com.heyintentive.intentive.dev`. Stable/Beta are `com.heyintentive.intentive` and `.beta` — never automate production-family bundles.
 
 ### Changelog Entries
 

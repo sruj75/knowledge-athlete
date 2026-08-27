@@ -259,6 +259,12 @@ target/
 .mypy_cache/
 .ruff_cache/
 
+# Understand Anything: share the graph/config, keep local scratch out of Git.
+.ua/intermediate/
+.ua/tmp/
+.ua/.trash-*/
+.ua/diff-overlay.json
+
 # Coverage output
 coverage/
 htmlcov/

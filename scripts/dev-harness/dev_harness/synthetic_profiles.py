@@ -28,12 +28,12 @@ class SyntheticProfile:
 PROFILES = (
     SyntheticProfile(
         "local_default_user",
-        "local_default_user@local.omi.invalid",
+        "local_default_user@local.heyintentive.invalid",
         "Synthetic Default",
         "local_default_user-local-password-030",
     ),
-    SyntheticProfile("alice", "alice@local.omi.invalid", "Synthetic Alice", "alice-local-password-030"),
-    SyntheticProfile("bob", "bob@local.omi.invalid", "Synthetic Bob", "bob-local-password-030"),
+    SyntheticProfile("alice", "alice@local.heyintentive.invalid", "Synthetic Alice", "alice-local-password-030"),
+    SyntheticProfile("bob", "bob@local.heyintentive.invalid", "Synthetic Bob", "bob-local-password-030"),
 )
 
 

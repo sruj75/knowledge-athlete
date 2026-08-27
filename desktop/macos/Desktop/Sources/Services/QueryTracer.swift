@@ -438,11 +438,11 @@ final class QueryTracer: @unchecked Sendable {
   // MARK: - File I/O
 
   private static let maxLogBytes: UInt64 = 5 * 1024 * 1024  // 5 MB
-  private static let fileQueue = DispatchQueue(label: "com.omi.querytracer.file")
+  private static let fileQueue = DispatchQueue(label: "com.heyintentive.intentive.querytracer.file")
 
   private static let logDir: URL = {
     let dir = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Logs/Omi")
+      .appendingPathComponent("Library/Logs/Intentive")
     prepareLogDirectory(dir)
     return dir
   }()

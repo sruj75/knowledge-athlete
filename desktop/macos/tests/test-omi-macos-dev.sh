@@ -31,8 +31,8 @@ PY
 make_manifest() {
   local bundle_id="$1" profile="$2" profile_root="$3"
   mkdir -p "$profile/users/test-user"
-  printf 'sqlite-fixture' >"$profile/users/test-user/omi.db"
-  python3 - "$profile/.omi-dev-runtime.json" "$bundle_id" "$profile_root" <<'PY'
+  printf 'sqlite-fixture' >"$profile/users/test-user/heyintentive.db"
+  python3 - "$profile/.heyintentive-dev-runtime.json" "$bundle_id" "$profile_root" <<'PY'
 import json
 import sys
 payload = {
@@ -55,16 +55,18 @@ exit 1
 SH
 chmod +x "$bin/lsof"
 
-good_id="com.omi.omi-good"
-old_id="com.omi.omi-old"
-shared_id="com.omi.omi-shared"
-support="$home/Library/Application Support/Omi Dev Bundles"
+good_id="com.heyintentive.intentive.dev.omi-good"
+old_id="com.heyintentive.intentive.dev.omi-old"
+shared_id="com.heyintentive.intentive.dev.omi-shared"
+support="$home/Library/Application Support/Intentive Dev Bundles"
 legacy="$home/Library/Application Support/Omi"
 
 make_app "omi-good" "$good_id"
 make_app "omi-old" "$old_id"
-make_app "Omi Dev" "com.omi.desktop-dev"
-make_app "invalid-named" "com.omi.omi-../escape"
+make_app "Intentive Dev" "com.heyintentive.intentive.dev"
+make_app "Intentive Stable" "com.heyintentive.intentive"
+make_app "Omi Foreign" "com.omi.computer-macos"
+make_app "invalid-named" "com.heyintentive.intentive.dev.omi-../escape"
 make_manifest "$good_id" "$support/$good_id" "$support/$good_id"
 make_manifest "$old_id" "$support/$old_id" "$support/$old_id"
 make_manifest "$shared_id" "$support/$shared_id" "$legacy"
@@ -73,11 +75,13 @@ printf 'protected shared data' >"$legacy/omi.db"
 for ((index = 1; index <= 24; index++)); do
   mkdir -p "$legacy/users/test-$index"
   printf 'legacy test data' >"$legacy/users/test-$index/omi.db"
-  printf 'preference fixture' >"$prefs/com.omi.omi-preference-$index.plist"
-  printf 'recent log' >"$logs/omi-dev-com.omi.omi-extra-$index-321.log"
+  printf 'preference fixture' >"$prefs/com.heyintentive.intentive.dev.omi-preference-$index.plist"
+  printf 'recent log' >"$logs/heyintentive-dev-com.heyintentive.intentive.dev.omi-extra-$index-321.log"
 done
-printf 'old log' >"$logs/omi-dev-$old_id-321.log"
-printf 'protected dev log' >"$logs/omi-dev-com.omi.desktop-dev-777.log"
+printf 'foreign preference' >"$prefs/com.omi.omi-foreign.plist"
+printf 'foreign log' >"$logs/omi-dev-com.omi.omi-foreign-888.log"
+printf 'old log' >"$logs/heyintentive-dev-$old_id-321.log"
+printf 'protected dev log' >"$logs/heyintentive-dev-com.heyintentive.intentive.dev-777.log"
 
 python3 - "$tcc_dir/TCC.db" <<'PY'
 import sqlite3
@@ -85,12 +89,13 @@ import sys
 
 conn = sqlite3.connect(sys.argv[1])
 conn.execute("CREATE TABLE access (service TEXT, client TEXT, auth_value INTEGER)")
-conn.execute("INSERT INTO access VALUES (?, ?, ?)", ("kTCCServiceMicrophone", "com.omi.omi-good", 2))
+conn.execute("INSERT INTO access VALUES (?, ?, ?)", ("kTCCServiceMicrophone", "com.heyintentive.intentive.dev.omi-good", 2))
+conn.execute("INSERT INTO access VALUES (?, ?, ?)", ("kTCCServiceMicrophone", "com.omi.omi-foreign", 2))
 conn.commit()
 conn.close()
 PY
 
-python3 - "$apps/omi-old.app" "$support/$old_id" "$logs/omi-dev-$old_id-321.log" "$logs/omi-dev-com.omi.desktop-dev-777.log" <<'PY'
+python3 - "$apps/omi-old.app" "$support/$old_id" "$logs/heyintentive-dev-$old_id-321.log" "$logs/heyintentive-dev-com.heyintentive.intentive.dev-777.log" <<'PY'
 import os
 import sys
 import time
@@ -115,7 +120,7 @@ payload = json.load(open(sys.argv[1]))
 assert payload["diagnostic"] is None, payload
 assert payload["detail_mode"] == "summary", payload
 assert payload["details_available"] is True, payload
-assert payload["legacy_database_summary"]["count"] == 25, payload
+assert payload["foreign_roots_read"] == [], payload
 record = payload["bundles"][0]
 assert record["bundle_id"] == sys.argv[2]
 assert record["isolation"] == "isolated", record
@@ -132,7 +137,7 @@ import json
 import sys
 payload = json.load(open(sys.argv[1]))
 assert payload["detail_mode"] == "full", payload
-assert len(payload["legacy_databases"]) == 25, payload
+assert payload["foreign_roots_read"] == [], payload
 record = payload["bundles"][0]
 assert record["bundle_id"] == sys.argv[2]
 assert record["databases"][0]["holders"] == []
@@ -154,7 +159,7 @@ import json
 import sys
 payload = json.load(open(sys.argv[1]))
 assert payload["detail_mode"] == "full", payload
-assert len(payload["legacy_databases"]) == 25, payload
+assert payload["foreign_roots_read"] == [], payload
 assert len(payload["bundles"]) >= 3, payload
 PY
 
@@ -187,6 +192,7 @@ import sys
 payload = json.load(open(sys.argv[1]))
 assert payload["detail_mode"] == "full", payload
 assert len(payload["logs"]) == 25, payload
+assert all("com.omi" not in entry["path"] for entry in payload["logs"]), payload
 PY
 
 env "${env[@]}" "$CLI" logs prune --older-than 14 >"$TMPDIR/log-prune.json"
@@ -237,7 +243,7 @@ import sys
 payload = json.load(open(sys.argv[1]))
 assert payload["detail_mode"] == "summary", payload
 assert payload["action_summary"]["kind_counts"] == {"delete_bundle": 1, "delete_log": 1, "delete_profile": 1}, payload
-assert payload["legacy_shared_root_touched"] is False
+assert payload["foreign_roots_read"] == []
 print(payload["plan"])
 PY
 )"
@@ -269,20 +275,24 @@ assert "completed" not in payload, payload
 PY
 test ! -e "$apps/omi-old.app"
 test ! -e "$support/$old_id"
-test ! -e "$logs/omi-dev-$old_id-321.log"
+test ! -e "$logs/heyintentive-dev-$old_id-321.log"
 test -f "$legacy/omi.db"
-test -d "$apps/Omi Dev.app"
+test -d "$apps/Intentive Dev.app"
+test -d "$apps/Intentive Stable.app"
+test -d "$apps/Omi Foreign.app"
 test -d "$apps/invalid-named.app"
-test -f "$logs/omi-dev-com.omi.desktop-dev-777.log"
+test -f "$logs/heyintentive-dev-com.heyintentive.intentive.dev-777.log"
+test -f "$logs/omi-dev-com.omi.omi-foreign-888.log"
+test -f "$prefs/com.omi.omi-foreign.plist"
 
 if env "${env[@]}" "$CLI" clean plan --older-than -1 >/dev/null; then
   echo "FAIL: negative cleanup age unexpectedly succeeded" >&2
   exit 1
 fi
-recent_id="com.omi.omi-immediate"
+recent_id="com.heyintentive.intentive.dev.omi-immediate"
 make_app "omi-immediate" "$recent_id"
 make_manifest "$recent_id" "$support/$recent_id" "$support/$recent_id"
-printf 'immediate cleanup log' >"$logs/omi-dev-$recent_id-321.log"
+printf 'immediate cleanup log' >"$logs/heyintentive-dev-$recent_id-321.log"
 
 env "${env[@]}" "$CLI" clean plan --older-than 0 >"$TMPDIR/immediate-plan.json"
 immediate_plan="$(python3 - "$TMPDIR/immediate-plan.json" <<'PY'
@@ -299,7 +309,7 @@ PY
 )"
 
 env "${env[@]}" "$CLI" clean plan --older-than 0 --verbose >"$TMPDIR/immediate-plan-verbose.json"
-python3 - "$TMPDIR/immediate-plan-verbose.json" "$immediate_plan" "$apps/omi-immediate.app" "$support/$recent_id" "$logs/omi-dev-$recent_id-321.log" <<'PY'
+python3 - "$TMPDIR/immediate-plan-verbose.json" "$immediate_plan" "$apps/omi-immediate.app" "$support/$recent_id" "$logs/heyintentive-dev-$recent_id-321.log" <<'PY'
 import json
 import sys
 payload = json.load(open(sys.argv[1]))
@@ -310,7 +320,7 @@ assert set(sys.argv[3:]).issubset(paths), payload
 PY
 
 env "${env[@]}" "$CLI" clean apply --older-than 0 --plan "$immediate_plan" --yes --verbose >"$TMPDIR/immediate-applied.json"
-python3 - "$TMPDIR/immediate-applied.json" "$apps/omi-immediate.app" "$support/$recent_id" "$logs/omi-dev-$recent_id-321.log" <<'PY'
+python3 - "$TMPDIR/immediate-applied.json" "$apps/omi-immediate.app" "$support/$recent_id" "$logs/heyintentive-dev-$recent_id-321.log" <<'PY'
 import json
 import sys
 payload = json.load(open(sys.argv[1]))
@@ -320,10 +330,12 @@ assert set(sys.argv[2:]).issubset(paths), payload
 PY
 test ! -e "$apps/omi-immediate.app"
 test ! -e "$support/$recent_id"
-test ! -e "$logs/omi-dev-$recent_id-321.log"
+test ! -e "$logs/heyintentive-dev-$recent_id-321.log"
 test -f "$legacy/omi.db"
-test -d "$apps/Omi Dev.app"
-test -f "$logs/omi-dev-com.omi.desktop-dev-777.log"
+test -d "$apps/Intentive Dev.app"
+test -d "$apps/Omi Foreign.app"
+test -f "$logs/heyintentive-dev-com.heyintentive.intentive.dev-777.log"
+test -f "$logs/omi-dev-com.omi.omi-foreign-888.log"
 
 bash "$MACOS_DIR/tests/test-cleanup-omi-tcc.sh"
 

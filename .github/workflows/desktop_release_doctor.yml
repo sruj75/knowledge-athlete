@@ -28,14 +28,17 @@ jobs:
       - name: Google Auth
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT }}
 
       - name: Generate advisory release evidence
         env:
           GH_TOKEN: ${{ github.token }}
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          GCS_DESKTOP_UPDATES_BUCKET: ${{ vars.GCS_DESKTOP_UPDATES_BUCKET || 'gs://omi_macos_updates' }}
+          GCS_DESKTOP_UPDATES_BUCKET: ${{ vars.GCS_DESKTOP_UPDATES_BUCKET }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
+          INTENTIVE_APPCAST_URL: ${{ vars.INTENTIVE_APPCAST_URL }}
         run: |
           set -euo pipefail
           python3 .github/scripts/desktop_release_doctor.py doctor \
@@ -43,6 +46,8 @@ jobs:
             --project-id "$PROJECT_ID" \
             --repository "$GITHUB_REPOSITORY" \
             --gcs-bucket "$GCS_DESKTOP_UPDATES_BUCKET" \
+            --backend-url "$INTENTIVE_PRODUCTION_API_URL" \
+            --appcast-url "$INTENTIVE_APPCAST_URL" \
             --output /tmp/desktop-release-evidence-v1.json \
             --summary /tmp/desktop-release-doctor.txt \
             --snapshot-output /tmp/desktop-release-doctor-snapshot-v1.json

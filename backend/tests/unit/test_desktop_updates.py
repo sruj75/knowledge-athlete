@@ -47,7 +47,7 @@ def _preview_manifest(**overrides):
         "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{PREVIEW_SLUG}/{PREVIEW_SHA}/Omi-Preview.dmg",
         "dmg_sha256": "b" * 64,
         "app_name": "Omi Preview – new-onboarding",
-        "bundle_id": "com.omi.preview.p04a26d265d",
+        "bundle_id": "com.heyintentive.intentive.preview.p04a26d265d",
         "url_scheme": "omi-preview-p04a26d265d",
         "built_at": "2026-07-15T12:00:00Z",
         "signer": "Developer ID Application: Omi, Inc.",
@@ -202,7 +202,7 @@ class TestXmlAttr:
 
 
 class TestGenerateAppcastXml:
-    def _make_item(self, channel="beta", version="1.0.0+100", url="https://example.com/Omi.zip"):
+    def _make_item(self, channel="beta", version="1.0.0+100", url="https://example.com/Intentive.zip"):
         return {
             "version": version,
             "shortVersion": "100",
@@ -263,19 +263,19 @@ class TestGenerateAppcastXml:
 
 class TestAssetHelpers:
     def test_sparkle_zip_found(self):
-        release = {"assets": [{"name": "Omi.zip", "browser_download_url": "https://example.com/Omi.zip"}]}
-        assert _get_sparkle_zip_download_url(release) == "https://example.com/Omi.zip"
+        release = {"assets": [{"name": "Intentive.zip", "browser_download_url": "https://example.com/Intentive.zip"}]}
+        assert _get_sparkle_zip_download_url(release) == "https://example.com/Intentive.zip"
 
     def test_sparkle_zip_missing(self):
         release = {"assets": [{"name": "other.zip", "browser_download_url": "https://example.com/other.zip"}]}
         assert _get_sparkle_zip_download_url(release) is None
 
     def test_dmg_found(self):
-        release = {"assets": [{"name": "omi.dmg", "browser_download_url": "https://example.com/omi.dmg"}]}
-        assert _get_dmg_download_url(release) == "https://example.com/omi.dmg"
+        release = {"assets": [{"name": "intentive.dmg", "browser_download_url": "https://example.com/intentive.dmg"}]}
+        assert _get_dmg_download_url(release) == "https://example.com/intentive.dmg"
 
     def test_dmg_missing(self):
-        release = {"assets": [{"name": "Omi.zip", "browser_download_url": "https://example.com/Omi.zip"}]}
+        release = {"assets": [{"name": "Intentive.zip", "browser_download_url": "https://example.com/Intentive.zip"}]}
         assert _get_dmg_download_url(release) is None
 
     def test_empty_assets(self):
@@ -316,11 +316,11 @@ class TestAssetHelpers:
     def test_installer_dispatch_by_platform(self):
         release = {
             "assets": [
-                {"name": "omi.dmg", "browser_download_url": "https://example.com/omi.dmg"},
+                {"name": "intentive.dmg", "browser_download_url": "https://example.com/intentive.dmg"},
                 {"name": "omi-setup.exe", "browser_download_url": "https://example.com/omi-setup.exe"},
             ]
         }
-        assert _get_installer_download_url(release, "macos") == "https://example.com/omi.dmg"
+        assert _get_installer_download_url(release, "macos") == "https://example.com/intentive.dmg"
         assert _get_installer_download_url(release, "windows") == "https://example.com/omi-setup.exe"
 
 
@@ -377,12 +377,12 @@ def _make_github_release(tag, body_kv=None, assets=None, published_at="2026-03-0
     }
 
 
-def _zip_asset(url="https://example.com/Omi.zip"):
-    return {"name": "Omi.zip", "browser_download_url": url}
+def _zip_asset(url="https://example.com/Intentive.zip"):
+    return {"name": "Intentive.zip", "browser_download_url": url}
 
 
-def _dmg_asset(url="https://example.com/omi.dmg"):
-    return {"name": "omi.dmg", "browser_download_url": url}
+def _dmg_asset(url="https://example.com/intentive.dmg"):
+    return {"name": "intentive.dmg", "browser_download_url": url}
 
 
 def _exe_asset(url="https://example.com/omi-setup.exe"):
@@ -401,7 +401,7 @@ class TestGetLiveDesktopReleases:
     async def test_empty_releases(self):
         from routers.updates import _get_legacy_live_desktop_releases as get_releases
 
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=[]) as mock_releases:
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=[]) as mock_releases:
             result = await get_releases("macos")
         assert result == []
         _, kwargs = mock_releases.await_args
@@ -415,7 +415,7 @@ class TestGetLiveDesktopReleases:
             _make_github_release("v1.0.0+100-ios", body_kv={"isLive": "true"}),
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true"}, assets=[_zip_asset()]),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert len(result) == 1
         assert result[0]["version_info"]["build"] == "100"
@@ -435,7 +435,7 @@ def _pointer_release(channel="beta", build=200):
             "platform": "macos",
             "version": f"1.0.0+{build}",
             "build_number": build,
-            "zip_url": f"https://example.com/{build}/Omi.zip",
+            "zip_url": f"https://example.com/{build}/Intentive.zip",
             "dmg_url": f"https://example.com/{build}/Omi.dmg",
             "ed_signature": "signature",
             "published_at": "2026-03-01T00:00:00Z",
@@ -455,14 +455,14 @@ def test_legacy_download_fallback_selects_only_lowercase_canonical_omi_dmg():
 
     release = {
         "assets": [
-            {"name": "omi-beta.dmg", "browser_download_url": "https://example.com/retired-lowercase.dmg"},
-            {"name": "Omi Beta.dmg", "browser_download_url": "https://example.com/retired-title.dmg"},
+            {"name": "intentive-beta.dmg", "browser_download_url": "https://example.com/retired-lowercase.dmg"},
+            {"name": "Intentive Beta.dmg", "browser_download_url": "https://example.com/retired-title.dmg"},
             {"name": "anything.dmg", "browser_download_url": "https://example.com/arbitrary.dmg"},
-            {"name": "omi.dmg", "browser_download_url": "https://example.com/omi.dmg"},
+            {"name": "intentive.dmg", "browser_download_url": "https://example.com/intentive.dmg"},
         ]
     }
 
-    assert _get_dmg_download_url(release) == "https://example.com/omi.dmg"
+    assert _get_dmg_download_url(release) == "https://example.com/intentive.dmg"
     assert _get_dmg_download_url({"assets": release["assets"][:-1]}) is None
 
 
@@ -591,7 +591,7 @@ class TestWindowsReleaseStateMapping:
         releases = [
             {**_make_github_release("v1.0.1-windows", assets=[_exe_asset()]), "prerelease": True},
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("windows")
         assert len(result) == 1
         assert result[0]["channel"] == "beta"
@@ -605,7 +605,7 @@ class TestWindowsReleaseStateMapping:
         releases = [
             {**_make_github_release("v1.0.1-windows", assets=[_exe_asset()]), "prerelease": False},
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("windows")
         assert len(result) == 1
         assert result[0]["channel"] == "stable"
@@ -620,7 +620,7 @@ class TestWindowsReleaseStateMapping:
                 "prerelease": False,
             },
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("windows")
         assert result == []
 
@@ -631,7 +631,7 @@ class TestWindowsReleaseStateMapping:
         releases = [
             {**_make_github_release("v1.0.0+100-macos", assets=[_dmg_asset()]), "prerelease": False},
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result == []
 
@@ -644,7 +644,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true"}, draft=True),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result == []
 
@@ -655,7 +655,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "false"}),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result == []
 
@@ -666,7 +666,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true"}),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result[0]["channel"] == "beta"
 
@@ -677,7 +677,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true", "channel": "nightly"}),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result[0]["channel"] == "beta"
 
@@ -688,7 +688,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true", "channel": "stable"}),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result[0]["channel"] == "stable"
 
@@ -700,7 +700,7 @@ class TestLegacyDesktopReleaseFiltering:
             _make_github_release("v1.0.0+100-macos", body_kv={"isLive": "true"}, published_at="2026-01-01T00:00:00Z"),
             _make_github_release("v2.0.0+200-macos", body_kv={"isLive": "true"}, published_at="2026-03-01T00:00:00Z"),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert result[0]["version_info"]["build"] == "200"
         assert result[1]["version_info"]["build"] == "100"
@@ -712,7 +712,7 @@ class TestLegacyDesktopReleaseFiltering:
         releases = [
             _make_github_release("v1.0.0+100-desktop-cm", body_kv={"isLive": "true"}),
         ]
-        with patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=releases):
+        with patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=releases):
             result = await get_releases("macos")
         assert len(result) == 1
 
@@ -758,7 +758,7 @@ class TestAppcastEndpoint:
                 "release": {
                     "published_at": "2026-03-02T00:00:00Z",
                     "body": "",
-                    "assets": [_zip_asset("https://a.com/Omi.zip")],
+                    "assets": [_zip_asset("https://a.com/Intentive.zip")],
                 },
                 "version_info": {"version": "2.0.0+200", "build": "200"},
                 "metadata": {},
@@ -768,7 +768,7 @@ class TestAppcastEndpoint:
                 "release": {
                     "published_at": "2026-03-01T00:00:00Z",
                     "body": "",
-                    "assets": [_zip_asset("https://b.com/Omi.zip")],
+                    "assets": [_zip_asset("https://b.com/Intentive.zip")],
                 },
                 "version_info": {"version": "1.0.0+100", "build": "100"},
                 "metadata": {},
@@ -1530,7 +1530,7 @@ class TestDesktopUpdatePolicyEndpoint:
 
         assert resp.status_code == 200
         assert resp.json()["active"] is False
-        assert resp.json()["download_url"].endswith("/v2/desktop/download/latest?channel=stable")
+        assert resp.json()["download_url"] == "https://github.com/sruj75/knowledge-athlete/releases/latest"
         fallback.assert_called_once_with(
             component="other",
             from_mode="desktop_update_policy",
@@ -1556,7 +1556,7 @@ class TestDesktopUpdatePolicyDatabase:
 
         assert policy["active"] is False
         assert policy["severity"] == "none"
-        assert policy["download_url"].endswith("/v2/desktop/download/latest?channel=stable")
+        assert policy["download_url"] == "https://github.com/sruj75/knowledge-athlete/releases/latest"
 
     def test_invalid_policy_download_url_uses_stable_manual_download_path(self):
         doc = self._mock_doc(
@@ -1572,7 +1572,7 @@ class TestDesktopUpdatePolicyDatabase:
         policy = get_desktop_update_policy(current_build=11400, firestore_client=mock_db)
 
         assert policy["active"] is True
-        assert policy["download_url"].endswith("/v2/desktop/download/latest?channel=stable")
+        assert policy["download_url"] == "https://github.com/sruj75/knowledge-athlete/releases/latest"
 
     def test_required_policy_applies_through_maximum_build(self):
         doc = self._mock_doc(
@@ -1713,12 +1713,12 @@ class TestDesktopPreviewEndpoints:
 # --- Beta identity (side-by-side "Omi Beta" app, PR #10059 re-land) ---
 
 
-def _beta_zip_asset(url="https://example.com/Omi.Beta.zip"):
-    return {"name": "Omi.Beta.zip", "browser_download_url": url}
+def _beta_zip_asset(url="https://example.com/Intentive.Beta.zip"):
+    return {"name": "Intentive.Beta.zip", "browser_download_url": url}
 
 
-def _beta_dmg_asset(url="https://example.com/omi-beta.dmg"):
-    return {"name": "omi-beta.dmg", "browser_download_url": url}
+def _beta_dmg_asset(url="https://example.com/intentive-beta.dmg"):
+    return {"name": "intentive-beta.dmg", "browser_download_url": url}
 
 
 def _beta_live_entry(channel="beta", assets=None, metadata=None, tag="v1.0.0+100-macos"):
@@ -1750,7 +1750,7 @@ class TestBetaIdentityServing:
         assert resp.status_code == 200
         xml = resp.text
         assert xml.count("<item>") == 1
-        assert "Omi.Beta.zip" in xml
+        assert "Intentive.Beta.zip" in xml
         assert 'edSignature="beta-sig"' in xml
         assert "stable-sig" not in xml
 
@@ -1768,15 +1768,15 @@ class TestBetaIdentityServing:
                 resp = await client.get("/v2/desktop/appcast.xml")
 
         assert resp.status_code == 200
-        assert "Omi.Beta.zip" not in resp.text
-        assert "https://example.com/Omi.zip" in resp.text
+        assert "Intentive.Beta.zip" not in resp.text
+        assert "https://example.com/Intentive.zip" in resp.text
 
     @pytest.mark.asyncio
     async def test_appcast_identity_beta_omits_releases_without_beta_artifacts(self):
         entries = [_beta_live_entry(channel="beta", assets=[_zip_asset()], metadata={"edSignature": "sig"})]
         with (
             patch("routers.updates._get_live_desktop_releases", new_callable=AsyncMock, return_value=entries),
-            patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=[]),
+            patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=[]),
         ):
             async with AsyncClient(transport=ASGITransport(app=_test_app), base_url="http://test") as client:
                 resp = await client.get("/v2/desktop/appcast.xml", params={"identity": "beta"})
@@ -1792,17 +1792,17 @@ class TestBetaIdentityServing:
             "draft": False,
             "published_at": "2026-03-01T00:00:00Z",
             "body": "<!-- KEY_VALUE_START\nbetaEdSignature: beta-sig-from-body\nKEY_VALUE_END -->",
-            "assets": [_zip_asset(), _beta_zip_asset("https://example.com/by-tag/Omi.Beta.zip")],
+            "assets": [_zip_asset(), _beta_zip_asset("https://example.com/by-tag/Intentive.Beta.zip")],
         }
         with (
             patch("routers.updates._get_live_desktop_releases", new_callable=AsyncMock, return_value=entries),
-            patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=[gh_release]),
+            patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=[gh_release]),
         ):
             async with AsyncClient(transport=ASGITransport(app=_test_app), base_url="http://test") as client:
                 resp = await client.get("/v2/desktop/appcast.xml", params={"identity": "beta"})
 
         assert resp.status_code == 200
-        assert "https://example.com/by-tag/Omi.Beta.zip" in resp.text
+        assert "https://example.com/by-tag/Intentive.Beta.zip" in resp.text
         assert 'edSignature="beta-sig-from-body"' in resp.text
 
     @pytest.mark.asyncio
@@ -1810,7 +1810,7 @@ class TestBetaIdentityServing:
         entries = [
             _beta_live_entry(
                 channel="beta",
-                assets=[_zip_asset(), _dmg_asset(), _beta_dmg_asset("https://example.com/dl/omi-beta.dmg")],
+                assets=[_zip_asset(), _dmg_asset(), _beta_dmg_asset("https://example.com/dl/intentive-beta.dmg")],
                 metadata={"edSignature": "sig"},
             ),
         ]
@@ -1819,7 +1819,7 @@ class TestBetaIdentityServing:
                 resp = await client.get("/v2/desktop/download/latest", params={"identity": "beta"})
 
         assert resp.status_code == 200
-        assert "https://example.com/dl/omi-beta.dmg" in resp.text
+        assert "https://example.com/dl/intentive-beta.dmg" in resp.text
 
     @pytest.mark.asyncio
     async def test_download_beta_endpoint_falls_back_to_stable_dmg_pre_rollout(self):
@@ -1830,12 +1830,12 @@ class TestBetaIdentityServing:
         ]
         with (
             patch("routers.updates._get_live_desktop_releases", new_callable=AsyncMock, return_value=entries),
-            patch("routers.updates.get_omi_github_releases", new_callable=AsyncMock, return_value=[]),
+            patch("routers.updates.get_github_releases", new_callable=AsyncMock, return_value=[]),
             patch("routers.updates.record_fallback") as fallback,
         ):
             async with AsyncClient(transport=ASGITransport(app=_test_app), base_url="http://test") as client:
                 resp = await client.get("/v2/desktop/download/beta")
 
         assert resp.status_code == 200
-        assert "https://example.com/omi.dmg" in resp.text
+        assert "https://example.com/intentive.dmg" in resp.text
         fallback.assert_called_once()

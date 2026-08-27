@@ -3,7 +3,7 @@
 
 `desktop-release-manifest-v1.schema.json` is what a published Stable manifest is
 validated against. The invariant it carries is that a Stable manifest describes
-*one* app: `zip_url`/`dmg_url` pointing at `Omi.zip`/`omi.dmg`, with no parallel
+*one* app: `zip_url`/`dmg_url` pointing at `Intentive.zip`/`intentive.dmg`, with no parallel
 beta artifact fields. A `beta_zip_url` re-entering the schema is how a beta build
 becomes describable as Stable, so the absence of those fields is load-bearing
 rather than tidiness.
@@ -27,8 +27,8 @@ from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas/desktop-release-manifest-v1.schema.json"
 
-STABLE_ZIP = "https://github.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/Omi.zip"
-STABLE_DMG = "https://github.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/omi.dmg"
+STABLE_ZIP = "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/Intentive.zip"
+STABLE_DMG = "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/intentive.dmg"
 
 
 def _load_schema() -> dict:
@@ -61,16 +61,16 @@ class ArtifactUrlDefinitions(unittest.TestCase):
     def test_rejects_a_beta_named_artifact(self):
         """The pattern, not just the field list, is what keeps a beta build out."""
         defs = _load_schema()["$defs"]
-        beta_zip = "https://github.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/Omi-Beta.zip"
-        beta_dmg = "https://github.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/omi-beta.dmg"
+        beta_zip = "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/Omi-Beta.zip"
+        beta_dmg = "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/intentive-beta.dmg"
         self.assertFalse(_matches(defs["zipUrl"], beta_zip), "zipUrl accepted a beta-named zip")
         self.assertFalse(_matches(defs["dmgUrl"], beta_dmg), "dmgUrl accepted a beta-named dmg")
 
     def test_rejects_an_artifact_from_another_host_or_repo(self):
         defs = _load_schema()["$defs"]
         for bad in (
-            "https://example.com/BasedHardware/omi/releases/download/v0.12.64+12064-macos/Omi.zip",
-            "https://github.com/attacker/omi/releases/download/v0.12.64+12064-macos/Omi.zip",
+            "https://example.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/Intentive.zip",
+            "https://github.com/attacker/omi/releases/download/v0.12.64+12064-macos/Intentive.zip",
         ):
             self.assertFalse(_matches(defs["zipUrl"], bad), f"zipUrl accepted {bad}")
 

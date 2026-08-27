@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
+import OmiSupport
 import ScreenCaptureKit
 
 final class ScreenCaptureService: Sendable {
@@ -364,7 +365,13 @@ final class ScreenCaptureService: Sendable {
   /// This removes the TCC entry entirely — user must re-grant in System Settings.
   /// Only use as a last resort when soft recovery has already failed.
   static func resetScreenCapturePermission() -> Bool {
-    let bundleId = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleId = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else {
+      log("Refusing screen capture permission reset for an unknown bundle identity")
+      return false
+    }
     log("Resetting screen capture permission for \(bundleId) via tccutil (hard reset)...")
 
     let process = Process()

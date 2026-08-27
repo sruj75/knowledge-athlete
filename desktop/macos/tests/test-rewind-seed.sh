@@ -16,7 +16,7 @@ source_user="$source_root/users/$user_id"
 target_user="$target_root/users/$user_id"
 mkdir -p "$source_user/Videos" "$source_user/Screenshots" "$source_user/backups"
 
-python3 - "$source_user/omi.db" <<'PY'
+python3 - "$source_user/heyintentive.db" <<'PY'
 import sqlite3
 import sys
 
@@ -28,23 +28,23 @@ connection.close()
 PY
 printf 'video fixture' >"$source_user/Videos/chunk.mp4"
 printf 'screenshot fixture' >"$source_user/Screenshots/legacy.jpg"
-printf 'backup fixture' >"$source_user/backups/omi.db"
+printf 'backup fixture' >"$source_user/backups/heyintentive.db"
 printf '{"positions":[]}' >"$source_user/memory-graph-layout.json"
 
 env \
   OMI_REWIND_SEED_USER_ID="$user_id" \
   OMI_REWIND_SEED_SOURCE_ROOT="$source_root" \
   OMI_REWIND_SEED_TARGET_ROOT="$target_root" \
-  "$SEED_SCRIPT" com.omi.omi-rewind-seed >"$TMPDIR/first.out"
+  "$SEED_SCRIPT" com.heyintentive.intentive.dev.omi-rewind-seed >"$TMPDIR/first.out"
 
 grep -q 'Rewind seed complete: frames=1' "$TMPDIR/first.out"
-test -f "$target_user/omi.db"
+test -f "$target_user/heyintentive.db"
 test -f "$target_user/Videos/chunk.mp4"
 test -f "$target_user/Screenshots/legacy.jpg"
-test -f "$target_user/backups/omi.db"
+test -f "$target_user/backups/heyintentive.db"
 test -f "$target_user/memory-graph-layout.json"
 
-python3 - "$target_user/omi.db" <<'PY'
+python3 - "$target_user/heyintentive.db" <<'PY'
 import sqlite3
 import sys
 
@@ -58,7 +58,7 @@ env \
   OMI_REWIND_SEED_USER_ID="$user_id" \
   OMI_REWIND_SEED_SOURCE_ROOT="$source_root" \
   OMI_REWIND_SEED_TARGET_ROOT="$target_root" \
-  "$SEED_SCRIPT" com.omi.omi-rewind-seed >"$TMPDIR/second.out"
+  "$SEED_SCRIPT" com.heyintentive.intentive.dev.omi-rewind-seed >"$TMPDIR/second.out"
 grep -q 'already has a Rewind profile' "$TMPDIR/second.out"
 test -f "$target_user/Videos/named-only.mp4"
 
@@ -67,7 +67,7 @@ env \
   OMI_REWIND_SEED_USER_ID="$user_id" \
   OMI_REWIND_SEED_SOURCE_ROOT="$source_root" \
   OMI_REWIND_SEED_TARGET_ROOT="$target_root" \
-  "$SEED_SCRIPT" com.omi.omi-rewind-seed >"$TMPDIR/force.out"
+  "$SEED_SCRIPT" com.heyintentive.intentive.dev.omi-rewind-seed >"$TMPDIR/force.out"
 grep -q 'Preserved existing named-bundle Rewind profile' "$TMPDIR/force.out"
 grep -q 'Rewind seed complete: frames=1' "$TMPDIR/force.out"
 
@@ -76,5 +76,17 @@ preserved=("$target_root/users"/.rewind-before-seed-*)
 test "${#preserved[@]}" -eq 1
 test -f "${preserved[0]}/Videos/named-only.mp4"
 test ! -f "$target_user/Videos/named-only.mp4"
+
+foreign_sentinel="$TMPDIR/foreign-sentinel"
+printf 'untouched' >"$foreign_sentinel"
+if env \
+  OMI_REWIND_SEED_USER_ID="$user_id" \
+  OMI_REWIND_SEED_SOURCE_ROOT="$source_root" \
+  OMI_REWIND_SEED_TARGET_ROOT="$target_root" \
+  "$SEED_SCRIPT" com.omi.omi-rewind-seed >/dev/null 2>&1; then
+  echo "FAIL: rewind seed accepted a foreign Omi target" >&2
+  exit 1
+fi
+test "$(cat "$foreign_sentinel")" = "untouched"
 
 echo "rewind-seed tests passed"

@@ -20,18 +20,17 @@ from desktop_release_manifest import validate_manifest
 from utils.github_releases import extract_key_value_pairs
 from utils.http_client import get_web_fetch_client
 
-REPOSITORY = "BasedHardware/omi"
+REPOSITORY = "sruj75/knowledge-athlete"
 TAG_RE = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+(?:\.[0-9]+)?)\+(?P<build>[1-9][0-9]*)-macos$")
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 QUALIFICATION_EVIDENCE_ASSET_RE = re.compile(
     r"^qualification-evidence-(?P<source_sha>[0-9a-f]{40})-(?P<digest>[0-9a-f]{64})[.]json$"
 )
 UTC_RFC3339_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$")
-# INV-BETA-1: the side-by-side Omi Beta app ships these two sanctioned assets on
-# every macOS candidate. Any OTHER "omi beta"-ish asset name is still a retired
-# identity and rejected. Kept in canonical form used by codemagic/updates.py.
-SANCTIONED_BETA_ASSET_NAMES = ("Omi.Beta.zip", "omi-beta.dmg")
-RETIRED_ASSET_NAMES = frozenset({"Omi Beta.zip", "Omi Beta.dmg"})
+# INV-BETA-1: the side-by-side Intentive Beta app ships these two sanctioned assets
+# on every macOS candidate. Inherited Beta-like identities remain rejected.
+SANCTIONED_BETA_ASSET_NAMES = ("Intentive.Beta.zip", "intentive-beta.dmg")
+RETIRED_ASSET_NAMES = frozenset({"Omi Beta.zip", "Omi Beta.dmg", "Omi.Beta.zip", "omi-beta.dmg"})
 QUALIFICATION_WORKFLOW = "desktop_qualify_beta.yml"
 QUALIFICATION_ARTIFACT_PREFIX = "desktop-qualification-evidence-"
 QUALIFICATION_EVIDENCE_FILE = "qualification-evidence.json"
@@ -475,7 +474,7 @@ async def build_qualified_beta_manifest(
     if names & RETIRED_ASSET_NAMES or disallowed_beta:
         _fail("candidate contains a retired desktop identity")
     has_beta_identity = sanctioned_beta.issubset(names)
-    zip_asset, dmg_asset = _asset(assets, "Omi.zip"), _asset(assets, "omi.dmg")
+    zip_asset, dmg_asset = _asset(assets, "Intentive.zip"), _asset(assets, "intentive.dmg")
     source_sha = await _read_github(source, "tag_sha", tag)
     if not isinstance(source_sha, str):
         _fail("candidate source is not a trusted merged source")
@@ -484,13 +483,13 @@ async def build_qualified_beta_manifest(
         _fail("candidate source is not a trusted merged source")
     evidence_asset, evidence_name = _qualification_evidence_asset(assets, source_sha=source_sha)
     zip_url, dmg_url, evidence_url = (
-        _asset_url(zip_asset, tag, "Omi.zip"),
-        _asset_url(dmg_asset, tag, "omi.dmg"),
+        _asset_url(zip_asset, tag, "Intentive.zip"),
+        _asset_url(dmg_asset, tag, "intentive.dmg"),
         _asset_url(evidence_asset, tag, evidence_name),
     )
     expected_digests = {
-        "Omi.zip": _asset_digest(zip_asset),
-        "omi.dmg": _asset_digest(dmg_asset),
+        "Intentive.zip": _asset_digest(zip_asset),
+        "intentive.dmg": _asset_digest(dmg_asset),
         evidence_name: _asset_digest(evidence_asset),
     }
     beta_assets: dict[str, dict[str, Any]] = {}
@@ -512,7 +511,7 @@ async def build_qualified_beta_manifest(
         _fail("candidate trusted qualification evidence does not bind its run")
     if not _is_exact_integer(evidence.get("schema_version")) or evidence.get("schema_version") != 1:
         _fail("candidate trusted qualification evidence is invalid")
-    download_targets = [("Omi.zip", zip_url), ("omi.dmg", dmg_url), (evidence_name, evidence_url)]
+    download_targets = [("Intentive.zip", zip_url), ("intentive.dmg", dmg_url), (evidence_name, evidence_url)]
     for beta_name in SANCTIONED_BETA_ASSET_NAMES:
         if beta_name in beta_assets:
             download_targets.append((beta_name, _asset_url(beta_assets[beta_name], tag, beta_name)))
@@ -531,8 +530,8 @@ async def build_qualified_beta_manifest(
     # verify_evidence requires the digest set to equal the evidence's artifact set;
     # when the beta identity ships, its two assets are in the evidence too.
     verify_digests = {
-        "Omi.zip": actual_digests["Omi.zip"].removeprefix("sha256:"),
-        "omi.dmg": actual_digests["omi.dmg"].removeprefix("sha256:"),
+        "Intentive.zip": actual_digests["Intentive.zip"].removeprefix("sha256:"),
+        "intentive.dmg": actual_digests["intentive.dmg"].removeprefix("sha256:"),
     }
     for beta_name in SANCTIONED_BETA_ASSET_NAMES:
         if beta_name in beta_assets:
@@ -559,9 +558,9 @@ async def build_qualified_beta_manifest(
         "build_number": int(match.group("build")),
         "app_source_sha": source_sha,
         "zip_url": zip_url,
-        "zip_sha256": actual_digests["Omi.zip"],
+        "zip_sha256": actual_digests["Intentive.zip"],
         "dmg_url": dmg_url,
-        "dmg_sha256": actual_digests["omi.dmg"],
+        "dmg_sha256": actual_digests["intentive.dmg"],
         "ed_signature": signature,
         "qualification_evidence_asset": evidence_name,
         "qualification_evidence_sha256": actual_digests[evidence_name],

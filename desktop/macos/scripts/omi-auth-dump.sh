@@ -3,7 +3,7 @@
 #
 # Auth tokens (idToken, refreshToken, expiry, tokenUserId) live in the macOS
 # Keychain on ALL builds under a Team+bundle scoped service name derived from
-# "com.omi.desktop.firebase-rest-session" (see DesktopKeychainStore.scopedService).
+# "com.heyintentive.intentive.firebase-rest-session" (see DesktopKeychainStore.scopedService).
 # Format: <base>.v2.team.<TeamID>.bundle.<bundleID>
 # The remaining auth-state keys (isSignedIn, userEmail, userId, names, onboarding)
 # are in UserDefaults. This script reads BOTH so the captured session can be
@@ -14,11 +14,11 @@
 # The captured Firebase idToken expires (~1h); re-run this after signing in again.
 #
 # Usage: omi-auth-dump.sh [source-bundle-id] [out-file]
-#   source-bundle-id  default: com.omi.desktop-dev   (the "Omi Dev" build)
+#   source-bundle-id  default: com.heyintentive.intentive.dev
 #   out-file          default: desktop/tmp/desktop-auth.json (gitignored)
 set -euo pipefail
 
-SRC="${1:-com.omi.desktop-dev}"
+SRC="${1:-com.heyintentive.intentive.dev}"
 OUT="${2:-$(cd "$(dirname "$0")/.." && pwd)/tmp/desktop-auth.json}"
 
 # Auth-state keys that remain in UserDefaults (not token secrets).
@@ -26,7 +26,12 @@ UD_KEYS=(auth_isSignedIn auth_userEmail auth_userId auth_givenName auth_familyNa
          hasCompletedOnboarding)
 
 # Keychain base service/account. The actual service is team+bundle scoped at runtime.
-KC_SERVICE_BASE="com.omi.desktop.firebase-rest-session"
+if [ "$SRC" != "com.heyintentive.intentive.dev" ]; then
+  echo "Refusing auth dump from non-canonical Intentive development source '$SRC'." >&2
+  exit 1
+fi
+
+KC_SERVICE_BASE="com.heyintentive.intentive.firebase-rest-session"
 KC_ACCOUNT="firebase-rest-tokens"
 
 mkdir -p "$(dirname "$OUT")"
@@ -40,11 +45,9 @@ resolve_app_path() {
     printf '%s\n' "$path"
     return 0
   fi
-  # Common install locations for Omi Dev / named bundles.
+  # Common install location for the owned canonical development bundle.
   for candidate in \
-    "/Applications/Omi Dev.app" \
-    "/Applications/${bid#com.omi.}.app" \
-    "/Applications/omi.app"
+    "/Applications/Intentive Dev.app"
   do
     if [ -d "$candidate" ]; then
       local found

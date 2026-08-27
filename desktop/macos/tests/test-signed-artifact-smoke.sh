@@ -5,6 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MACOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SMOKE="$MACOS_DIR/scripts/smoke-signed-desktop-artifact.sh"
 
+export OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID="TESTTEAM01"
+export OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL="https://api.heyintentive.com"
+export OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL="https://updates.heyintentive.com/v2/desktop/appcast.xml"
+export OMI_SIGNED_ARTIFACT_SMOKE_MANUAL_DOWNLOAD_URL="https://updates.heyintentive.com/v2/desktop/download/latest"
+
 fail() {
   echo "FAIL: $*" >&2
   exit 1
@@ -71,7 +76,7 @@ grep -q -- "--expected-bundle-id requires a value" /tmp/omi-smoke-preview-missin
 
 tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/omi-smoke-test.XXXXXX")"
 TMP_ROOTS+=("$tmp_root")
-tmp_app="$tmp_root/Omi.app"
+tmp_app="$tmp_root/Intentive.app"
 mkdir -p "$tmp_app/Contents/MacOS" "$tmp_app/Contents/Resources" "$tmp_app/Contents/Frameworks"
 cat > "$tmp_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -79,12 +84,16 @@ cat > "$tmp_app/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>Omi Computer</string>
-  <key>CFBundleIdentifier</key><string>com.omi.computer-macos</string>
+  <key>CFBundleIdentifier</key><string>com.heyintentive.intentive</string>
   <key>CFBundleShortVersionString</key><string>0.12.34</string>
   <key>CFBundleVersion</key><string>12034</string>
   <key>CFBundleURLTypes</key>
-  <array><dict><key>CFBundleURLSchemes</key><array><string>omi-computer</string></array></dict></array>
-  <key>SUFeedURL</key><string>https://api.omi.me/v2/desktop/appcast.xml</string>
+  <array><dict><key>CFBundleURLSchemes</key><array><string>heyintentive</string></array></dict></array>
+  <key>SUFeedURL</key><string>https://updates.heyintentive.com/v2/desktop/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</string>
+  <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
+  <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
+  <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
 </dict>
 </plist>
 PLIST
@@ -96,9 +105,9 @@ if "$SMOKE" --app "$tmp_app" --tag "bad-tag" >/tmp/omi-smoke-badtag.out 2>/tmp/o
 fi
 grep -q "invalid release tag" /tmp/omi-smoke-badtag.err || fail "bad tag failure should be explicit"
 
-# Omi Beta variant: identity-scoped feed URL is accepted only when passed
+# Intentive Beta variant: identity-scoped feed URL is accepted only when passed
 # explicitly; the default expectation stays the plain shared feed.
-beta_app="$tmp_root/Omi Beta.app"
+beta_app="$tmp_root/Intentive Beta.app"
 mkdir -p "$beta_app/Contents/MacOS" "$beta_app/Contents/Resources" "$beta_app/Contents/Frameworks"
 cat > "$beta_app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -106,12 +115,16 @@ cat > "$beta_app/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>Omi Computer</string>
-  <key>CFBundleIdentifier</key><string>com.omi.computer-macos.beta</string>
+  <key>CFBundleIdentifier</key><string>com.heyintentive.intentive.beta</string>
   <key>CFBundleShortVersionString</key><string>0.12.34</string>
   <key>CFBundleVersion</key><string>12034</string>
   <key>CFBundleURLTypes</key>
-  <array><dict><key>CFBundleURLSchemes</key><array><string>omi-computer</string></array></dict></array>
-  <key>SUFeedURL</key><string>https://api.omi.me/v2/desktop/appcast.xml?identity=beta</string>
+  <array><dict><key>CFBundleURLSchemes</key><array><string>heyintentive-beta</string></array></dict></array>
+  <key>SUFeedURL</key><string>https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta</string>
+  <key>SUPublicEDKey</key><string>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</string>
+  <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
+  <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
+  <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
 </dict>
 </plist>
 PLIST
@@ -119,7 +132,8 @@ touch "$beta_app/Contents/MacOS/Omi Computer"
 chmod +x "$beta_app/Contents/MacOS/Omi Computer"
 
 if "$SMOKE" --app "$beta_app" --tag "v0.12.34+12034-macos" \
-  --expected-bundle-id com.omi.computer-macos.beta \
+  --expected-bundle-id com.heyintentive.intentive.beta \
+  --expected-url-scheme heyintentive-beta \
   >/tmp/omi-smoke-beta-default.out 2>/tmp/omi-smoke-beta-default.err; then
   fail "beta feed URL must be rejected without --expected-feed-url"
 fi
@@ -127,8 +141,9 @@ grep -q "SUFeedURL mismatch" /tmp/omi-smoke-beta-default.err \
   || fail "default feed expectation should reject the identity-scoped feed"
 
 if "$SMOKE" --app "$beta_app" --tag "v0.12.34+12034-macos" \
-  --expected-bundle-id com.omi.computer-macos.beta \
-  --expected-feed-url "https://api.omi.me/v2/desktop/appcast.xml?identity=beta" \
+  --expected-bundle-id com.heyintentive.intentive.beta \
+  --expected-url-scheme heyintentive-beta \
+  --expected-feed-url "https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta" \
   >/tmp/omi-smoke-beta-feed.out 2>/tmp/omi-smoke-beta-feed.err; then
   fail "unsigned fixture should still fail later (signing), not pass entirely"
 fi
@@ -158,18 +173,26 @@ make_signed_smoke_fixture() {
   <key>CFBundleShortVersionString</key><string>0.12.34</string>
   <key>CFBundleVersion</key><string>12034</string>
   <key>CFBundleURLTypes</key>
-  <array><dict><key>CFBundleURLSchemes</key><array><string>omi-computer</string></array></dict></array>
+  <array><dict><key>CFBundleURLSchemes</key><array><string>$(
+    [[ "$bundle_id" == "com.heyintentive.intentive.beta" ]] && printf heyintentive-beta || printf heyintentive
+  )</string></array></dict></array>
   <key>SUFeedURL</key><string>$feed_url</string>
+  <key>SUPublicEDKey</key><string>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</string>
+  <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
+  <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
+  <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
 </dict>
 </plist>
 PLIST
   cat > "$app/Contents/Resources/.env" <<'ENV'
-OMI_PYTHON_API_URL=https://api.omi.me
+OMI_PYTHON_API_URL=https://api.heyintentive.com
 ENV
   printf '#!/usr/bin/env bash\nexit 0\n' > "$app/Contents/MacOS/Omi Computer"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"
   chmod +x "$app/Contents/MacOS/Omi Computer" "$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"
   touch \
+    "$app/Contents/Frameworks/libwebp.7.dylib" \
+    "$app/Contents/Frameworks/libsharpyuv.0.dylib" \
     "$app/Contents/Resources/agent/dist/index.js" \
     "$app/Contents/Resources/agent/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" \
     "$app/Contents/Resources/pi-mono-extension/index.ts" \
@@ -183,7 +206,7 @@ cat > "$mock_bin/codesign" <<'SH'
 if [[ " $* " == *" --entitlements "* ]]; then
   printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>'
 elif [[ "${1:-}" == "-dv" ]]; then
-  printf 'TeamIdentifier=9536L8KLMP\nRuntime Version=15.0.0\n' >&2
+  printf 'TeamIdentifier=TESTTEAM01\nRuntime Version=15.0.0\n' >&2
 fi
 SH
 cat > "$mock_bin/spctl" <<'SH'
@@ -219,24 +242,41 @@ cat > "$mock_bin/strings" <<'SH'
 #!/usr/bin/env bash
 printf 'RewindDatabase\n'
 SH
+cat > "$mock_bin/libwebp-verify" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == "--verify-prepared" ]]
+[[ "$2" == "--destination" ]]
+test -f "$3/libwebp.7.dylib"
+test -f "$3/libsharpyuv.0.dylib"
+[[ "$4" == "--app-executable" ]]
+test -x "$5"
+[[ "$6" == "--expected-team-id" ]]
+[[ "$7" == "TESTTEAM01" ]]
+SH
+cat > "$mock_bin/libwebp-fail" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
 chmod +x "$mock_bin"/*
+export OMI_SIGNED_ARTIFACT_SMOKE_LIBWEBP_VERIFY_SCRIPT="$mock_bin/libwebp-verify"
 
-canonical_dmg_app="$tmp_root/Omi.app"
-signed_beta_app="$tmp_root/signed/Omi Beta.app"
+canonical_dmg_app="$tmp_root/Intentive.app"
+signed_beta_app="$tmp_root/signed/Intentive Beta.app"
 renamed_canonical_app="$tmp_root/Anything.app"
 renamed_beta_app="$tmp_root/signed/Anything Beta.app"
 make_signed_smoke_fixture "$canonical_dmg_app" \
-  com.omi.computer-macos \
-  https://api.omi.me/v2/desktop/appcast.xml
+  com.heyintentive.intentive \
+  https://updates.heyintentive.com/v2/desktop/appcast.xml
 make_signed_smoke_fixture "$signed_beta_app" \
-  com.omi.computer-macos.beta \
-  'https://api.omi.me/v2/desktop/appcast.xml?identity=beta'
+  com.heyintentive.intentive.beta \
+  'https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta'
 make_signed_smoke_fixture "$renamed_canonical_app" \
-  com.omi.computer-macos \
-  https://api.omi.me/v2/desktop/appcast.xml
+  com.heyintentive.intentive \
+  https://updates.heyintentive.com/v2/desktop/appcast.xml
 make_signed_smoke_fixture "$renamed_beta_app" \
-  com.omi.computer-macos.beta \
-  'https://api.omi.me/v2/desktop/appcast.xml?identity=beta'
+  com.heyintentive.intentive.beta \
+  'https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta'
 dummy_dmg="$tmp_root/fixture.dmg"
 touch "$dummy_dmg"
 
@@ -256,25 +296,27 @@ PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$canonical_dmg_app" \
   "$SMOKE" --app "$canonical_dmg_app" --dmg "$dummy_dmg" \
   --tag v0.12.34+12034-macos \
   >/tmp/omi-smoke-canonical-dmg.out 2>/tmp/omi-smoke-canonical-dmg.err \
-  || fail "canonical Omi.app DMG should pass: $(cat /tmp/omi-smoke-canonical-dmg.err)"
+  || fail "canonical Intentive.app DMG should pass: $(cat /tmp/omi-smoke-canonical-dmg.err)"
 
 PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$signed_beta_app" \
   "$SMOKE" --app "$signed_beta_app" --dmg "$dummy_dmg" \
   --tag v0.12.34+12034-macos \
-  --expected-bundle-id com.omi.computer-macos.beta \
-  --expected-feed-url 'https://api.omi.me/v2/desktop/appcast.xml?identity=beta' \
+  --expected-bundle-id com.heyintentive.intentive.beta \
+  --expected-url-scheme heyintentive-beta \
+  --expected-feed-url 'https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta' \
   >/tmp/omi-smoke-beta-dmg.out 2>/tmp/omi-smoke-beta-dmg.err \
-  || fail "Omi Beta.app DMG should pass: $(cat /tmp/omi-smoke-beta-dmg.err)"
+  || fail "Intentive Beta.app DMG should pass: $(cat /tmp/omi-smoke-beta-dmg.err)"
 
 if PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$canonical_dmg_app" \
   "$SMOKE" --app "$signed_beta_app" --dmg "$dummy_dmg" \
   --tag v0.12.34+12034-macos \
-  --expected-bundle-id com.omi.computer-macos.beta \
-  --expected-feed-url 'https://api.omi.me/v2/desktop/appcast.xml?identity=beta' \
+  --expected-bundle-id com.heyintentive.intentive.beta \
+  --expected-url-scheme heyintentive-beta \
+  --expected-feed-url 'https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta' \
   >/tmp/omi-smoke-beta-wrong-dmg.out 2>/tmp/omi-smoke-beta-wrong-dmg.err; then
-  fail "beta smoke must reject a DMG containing only Omi.app"
+  fail "beta smoke must reject a DMG containing only Intentive.app"
 fi
-grep -q "DMG must contain exact Omi Beta.app" /tmp/omi-smoke-beta-wrong-dmg.err \
+grep -q "DMG must contain exact Intentive Beta.app" /tmp/omi-smoke-beta-wrong-dmg.err \
   || fail "wrong-name DMG rejection should name the exact expected bundle"
 
 if PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$renamed_canonical_app" \
@@ -283,21 +325,31 @@ if PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$renamed_canonical_app" \
   >/tmp/omi-smoke-renamed-canonical.out 2>/tmp/omi-smoke-renamed-canonical.err; then
   fail "canonical identity must reject a renamed app and matching DMG"
 fi
-grep -q "app bundle name for com.omi.computer-macos must be Omi.app, got Anything.app" \
+grep -q "app bundle name for com.heyintentive.intentive must be Intentive.app, got Anything.app" \
   /tmp/omi-smoke-renamed-canonical.err \
-  || fail "renamed canonical rejection should bind Omi.app to its bundle identity"
+  || fail "renamed canonical rejection should bind Intentive.app to its bundle identity"
 
 if PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$renamed_beta_app" \
   "$SMOKE" --app "$renamed_beta_app" --dmg "$dummy_dmg" \
   --tag v0.12.34+12034-macos \
-  --expected-bundle-id com.omi.computer-macos.beta \
-  --expected-feed-url 'https://api.omi.me/v2/desktop/appcast.xml?identity=beta' \
+  --expected-bundle-id com.heyintentive.intentive.beta \
+  --expected-url-scheme heyintentive-beta \
+  --expected-feed-url 'https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta' \
   >/tmp/omi-smoke-renamed-beta.out 2>/tmp/omi-smoke-renamed-beta.err; then
   fail "beta identity must reject a renamed app and matching DMG"
 fi
-grep -q "app bundle name for com.omi.computer-macos.beta must be Omi Beta.app, got Anything Beta.app" \
+grep -q "app bundle name for com.heyintentive.intentive.beta must be Intentive Beta.app, got Anything Beta.app" \
   /tmp/omi-smoke-renamed-beta.err \
-  || fail "renamed beta rejection should bind Omi Beta.app to its bundle identity"
+  || fail "renamed beta rejection should bind Intentive Beta.app to its bundle identity"
+
+if PATH="$mock_bin:$PATH" OMI_SIGNED_ARTIFACT_SMOKE_LIBWEBP_VERIFY_SCRIPT="$mock_bin/libwebp-fail" \
+  "$SMOKE" --app "$canonical_dmg_app" --tag v0.12.34+12034-macos \
+  >/tmp/omi-smoke-libwebp-failure.out 2>/tmp/omi-smoke-libwebp-failure.err; then
+  fail "signed smoke must fail closed when bundled libwebp verification fails"
+fi
+grep -q "bundled libwebp/libsharpyuv provenance, linkage, or signing verification failed" \
+  /tmp/omi-smoke-libwebp-failure.err \
+  || fail "libwebp rejection should identify the nested release boundary"
 
 # Regression (v0.12.91 build failure): macOS mktemp creates the LITERAL template
 # file when characters follow the final XXXXXX, so the second smoke invocation

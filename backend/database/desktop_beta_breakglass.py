@@ -23,8 +23,12 @@ from database.desktop_update_channels import (
 )
 
 BETA_BREAKGLASS_AUDITS_COLLECTION = "desktop_beta_breakglass_audits"
-_INCIDENT_URL = re.compile(r"^https://github\.com/BasedHardware/omi/(?:issues|discussions)/[1-9][0-9]*(?:[/?#].*)?$")
-_REQUEST_ID = re.compile(r"^https://github\.com/BasedHardware/omi/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*$")
+_INCIDENT_URL = re.compile(
+    r"^https://github\.com/sruj75/knowledge-athlete/(?:issues|discussions)/[1-9][0-9]*(?:[/?#].*)?$"
+)
+_REQUEST_ID = re.compile(
+    r"^https://github\.com/sruj75/knowledge-athlete/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*$"
+)
 
 
 def _required(value: object, field: str) -> str:
@@ -42,7 +46,7 @@ def _request(request: dict[str, Any], operation: str) -> dict[str, Any]:
     request_id = _required(request.get("request_id"), "request_id")
     generation = request.get("expected_generation")
     if not _INCIDENT_URL.fullmatch(incident_url):
-        raise ValueError("incident_url must identify an Omi GitHub incident")
+        raise ValueError("incident_url must identify an Intentive GitHub incident")
     if not _REQUEST_ID.fullmatch(request_id):
         raise ValueError("request_id must identify this GitHub Actions attempt")
     if type(generation) is not int or generation < 0:

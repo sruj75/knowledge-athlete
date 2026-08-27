@@ -111,7 +111,7 @@ executable_path="$app_path/Contents/MacOS/Omi Computer"
 # the expected executable path and run-unique launch token, so the harness uses
 # the same real ps-based ownership validation as it does for an app launched by
 # `open` rather than a fixture-only ps response.
-bundle_id="com.omi.${OMI_APP_NAME}"
+bundle_id="com.heyintentive.intentive.dev.${OMI_APP_NAME}"
 server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2];
 class H(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
@@ -171,16 +171,15 @@ expected = {
     "OMI_AUTOMATION_PORT": sys.argv[3],
     "OMI_DESKTOP_LOCAL_PROFILE": "1",
     "OMI_HARNESS_INSTANCE": "fault-suite",
-    "OMI_SKIP_AUTH_SEED": "1",
-    "OMI_SKIP_SETTINGS_SEED": "1",
+    "OMI_SEED_FROM_CANONICAL_DEV": "0",
     "OMI_LOCAL_PROFILE_STORAGE_NAME": fault_bundle,
     "OMI_LOCAL_AUTH_USER": "alice",
     "OMI_LOCAL_AUTH_EMAIL": "alice@local.omi.invalid",
     "OMI_LOCAL_AUTH_PASSWORD": "alice-local-password-030",
     "OMI_LOCAL_AUTH_DISPLAY_NAME": "Synthetic Alice",
     "FIREBASE_AUTH_EMULATOR_HOST": "127.0.0.1:9099",
-    "FIREBASE_PROJECT_ID": "demo-omi-local",
-    "FIREBASE_AUTH_PROJECT_ID": "demo-omi-local",
+    "FIREBASE_PROJECT_ID": "demo-heyintentive-local",
+    "FIREBASE_AUTH_PROJECT_ID": "demo-heyintentive-local",
     "FIRESTORE_DATABASE_ID": "(default)",
     "FIREBASE_API_KEY": "local-firebase-auth-emulator-api-key",
     "OMI_ALLOW_ADHOC_SIGN": "1",
@@ -202,7 +201,7 @@ assert len(records) == 1, records
 record = json.loads(records[0].read_text(encoding="utf-8"))
 assert record["run_token"] == sys.argv[5], record
 assert record["bundle"] == fault_bundle, record
-assert record["bundle_id"] == f"com.omi.{fault_bundle}", record
+assert record["bundle_id"] == f"com.heyintentive.intentive.dev.{fault_bundle}", record
 assert record["automation_port"] == int(sys.argv[3]), record
 assert record["launch_transport"] == "open", record
 PY

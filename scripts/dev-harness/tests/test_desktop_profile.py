@@ -33,7 +33,14 @@ def test_validate_profile_blocks_default_omi_dev() -> None:
 def test_validate_profile_allows_omi_memory_named_bundle() -> None:
     profile = _resolve({"OMI_APP_NAME": "omi-memory"})
     assert profile.app_name == "omi-memory"
-    assert profile.bundle_id == "com.omi.omi-memory"
+    assert profile.bundle_id == "com.heyintentive.intentive.dev.omi-memory"
+    assert profile.url_scheme == "heyintentive-omi-memory"
+    assert profile.application_support_dir.endswith(
+        "/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-memory"
+    )
+    assert profile.keychain_access_group == ""
+    assert profile.env["OMI_SEED_FROM_CANONICAL_DEV"] == "0"
+    assert "OMI_SKIP_AUTH_SEED" not in profile.env
     assert profile.backend_url == "http://127.0.0.1:8000"
     assert profile.env["OMI_PYTHON_API_URL"] == profile.backend_url
     assert "OMI_DESKTOP_API_URL" not in profile.env

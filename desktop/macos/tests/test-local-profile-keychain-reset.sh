@@ -7,7 +7,7 @@ RUN="$ROOT/run.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/omi-local-profile-keychain-reset.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-BUNDLE_ID="com.omi.omi-keychain-reset-test"
+BUNDLE_ID="com.heyintentive.intentive.dev.omi-keychain-reset-test"
 APP="$TMP/omi-keychain-reset-test.app"
 mkdir -p "$APP/Contents" "$TMP/bin"
 plutil -create xml1 "$APP/Contents/Info.plist"
@@ -30,8 +30,8 @@ PATH="$TMP/bin:$PATH" "$RESET" "$BUNDLE_ID" "$APP" >/dev/null
 
 EXPECTED="$TMP/expected.log"
 cat >"$EXPECTED" <<EOF
-delete-generic-password -s com.omi.desktop.firebase-rest-session.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a firebase-rest-tokens
-delete-generic-password -s com.omi.client-device-id.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a install-uuid
+delete-generic-password -s com.heyintentive.intentive.firebase-rest-session.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a firebase-rest-tokens
+delete-generic-password -s com.heyintentive.intentive.client-device-id.v2.team.TESTTEAM123.bundle.$BUNDLE_ID -a install-uuid
 EOF
 diff -u "$EXPECTED" "$SECURITY_LOG"
 

@@ -55,13 +55,16 @@ with open(sys.argv[1], "wb") as handle:
 PY
 }
 
-make_app "Omi" "com.omi.computer-macos" "Omi"
-make_app "Omi Dev" "com.omi.desktop-dev" "Omi Dev"
-make_app "omi-test-one" "com.omi.omi-test-one" "omi-test-one"
-make_app "omi-review" "com.omi.review-build" "omi-review"
+make_app "Intentive" "com.heyintentive.intentive" "Intentive"
+make_app "Intentive Beta" "com.heyintentive.intentive.beta" "Intentive Beta"
+make_app "Intentive Dev" "com.heyintentive.intentive.dev" "Intentive Dev"
+make_app "omi-test-one" "com.heyintentive.intentive.dev.omi-test-one" "omi-test-one"
+make_app "preview-review" "com.heyintentive.intentive.preview.review-build" "Intentive Preview"
+make_app "Omi Foreign" "com.omi.computer-macos" "Omi"
 make_app "Other" "com.example.other" "Other"
-make_pref "com.omi.omi-pref-only"
-make_pref "com.omi.review-pref"
+make_pref "com.heyintentive.intentive.dev.omi-pref-only"
+make_pref "com.heyintentive.intentive.preview.review-pref"
+make_pref "com.omi.omi-foreign"
 
 python3 - "$tcc_dir/TCC.db" <<'PY'
 import sqlite3
@@ -74,12 +77,12 @@ conn.execute(
 conn.executemany(
     "INSERT INTO access VALUES (?, ?, ?, ?, ?)",
     [
-        ("kTCCServiceMicrophone", "com.omi.omi-test-one", 0, 2, 1),
-        ("kTCCServiceScreenCapture", "com.omi.omi-pref-only", 0, 2, 1),
-        ("kTCCServiceMicrophone", "com.omi.desktop-dev", 0, 2, 1),
-        ("kTCCServiceMicrophone", "com.omi.review-build", 0, 2, 1),
-        ("kTCCServiceMicrophone", "/Applications/Omi.app/Contents/MacOS/Omi", 1, 2, 1),
-        ("kTCCServiceMicrophone", "/Applications/Omi Dev.app/Contents/MacOS/Omi", 1, 2, 1),
+        ("kTCCServiceMicrophone", "com.heyintentive.intentive.dev.omi-test-one", 0, 2, 1),
+        ("kTCCServiceScreenCapture", "com.heyintentive.intentive.dev.omi-pref-only", 0, 2, 1),
+        ("kTCCServiceMicrophone", "com.heyintentive.intentive.dev", 0, 2, 1),
+        ("kTCCServiceMicrophone", "com.heyintentive.intentive", 0, 2, 1),
+        ("kTCCServiceMicrophone", "com.heyintentive.intentive.preview.review-build", 0, 2, 1),
+        ("kTCCServiceMicrophone", "com.omi.omi-foreign", 0, 2, 1),
         ("kTCCServiceMicrophone", "/Applications/omi-path-only.app/Contents/MacOS/Omi", 1, 2, 1),
     ],
 )
@@ -99,7 +102,7 @@ assert data["detail_mode"] == "summary", data
 assert data["details_available"] is True, data
 assert data["candidate_bundle_ids_count"] == 2, data
 assert data["tccutil_bundle_ids_count"] == 1, data
-assert data["tcc"]["row_count"] == 7, data
+assert data["tcc"]["row_count"] == 5, data
 assert "apps" not in data, data
 assert "preferences" not in data, data
 PY
@@ -113,18 +116,27 @@ import sys
 
 data = json.load(open(sys.argv[1]))
 assert data["tcc"]["readable"] is True
-assert data["candidate_prefixes"] == ["com.omi.omi-"]
-assert data["tccutil_bundle_ids"] == ["com.omi.omi-test-one"], data["tccutil_bundle_ids"]
-assert set(data["candidate_bundle_ids"]) == {"com.omi.omi-test-one", "com.omi.omi-pref-only"}
-assert "com.omi.computer-macos" in data["keep_bundle_ids"]
-assert "com.omi.desktop-dev" in data["keep_bundle_ids"]
-assert data["summary"]["apps"].get("keep") == 2, data["summary"]
+assert data["candidate_prefixes"] == ["com.heyintentive.intentive.dev.omi-"]
+assert data["tccutil_bundle_ids"] == ["com.heyintentive.intentive.dev.omi-test-one"], data["tccutil_bundle_ids"]
+assert set(data["candidate_bundle_ids"]) == {
+    "com.heyintentive.intentive.dev.omi-test-one",
+    "com.heyintentive.intentive.dev.omi-pref-only",
+}
+assert set(data["keep_bundle_ids"]) == {
+    "com.heyintentive.intentive",
+    "com.heyintentive.intentive.beta",
+    "com.heyintentive.intentive.dev",
+}
+assert data["summary"]["apps"].get("keep") == 3, data["summary"]
 assert data["summary"]["apps"].get("candidate") == 1, data["summary"]
 assert data["summary"]["apps"].get("review") == 1, data["summary"]
 tcc_classes = {row["client"]: row["classification"] for row in data["tcc"]["rows"]}
-assert tcc_classes["/Applications/Omi.app/Contents/MacOS/Omi"] == "keep", tcc_classes
-assert tcc_classes["/Applications/Omi Dev.app/Contents/MacOS/Omi"] == "keep", tcc_classes
-assert tcc_classes["/Applications/omi-path-only.app/Contents/MacOS/Omi"] == "candidate", tcc_classes
+assert tcc_classes["com.heyintentive.intentive"] == "keep", tcc_classes
+assert tcc_classes["com.heyintentive.intentive.dev"] == "keep", tcc_classes
+assert tcc_classes["com.heyintentive.intentive.preview.review-build"] == "review", tcc_classes
+serialized = json.dumps(data)
+assert "com.omi" not in serialized, serialized
+assert "/Applications/omi-path-only.app" not in serialized, serialized
 PY
 
 cat >"$bin/tccutil" <<'SH'
@@ -146,7 +158,7 @@ import sys
 
 data = json.load(open(sys.argv[1]))
 log = open(sys.argv[2]).read().splitlines()
-assert log == ["reset All com.omi.omi-test-one"], log
+assert log == ["reset All com.heyintentive.intentive.dev.omi-test-one"], log
 assert data["detail_mode"] == "summary", data
 assert data["details_available"] is True, data
 assert data["apply"]["summary"] == {"ok": 1}, data["apply"]
@@ -166,7 +178,7 @@ import sys
 
 data = json.load(open(sys.argv[1]))
 log = open(sys.argv[2]).read().splitlines()
-assert log == ["reset All com.omi.omi-test-one"], log
+assert log == ["reset All com.heyintentive.intentive.dev.omi-test-one"], log
 assert data["detail_mode"] == "full", data
 assert len(data["apply"]["results"]) == 1, data["apply"]
 assert data["apply"]["summary"] == {"ok": 1}, data["apply"]
@@ -174,22 +186,24 @@ PY
 
 custom_json="$TMPDIR/custom.json"
 OMI_TCC_HOME="$home" OMI_TCC_APP_ROOTS="$apps" \
-  "$SCRIPT" --json --verbose --candidate-prefix com.omi.review- --keep-bundle-id com.omi.review-build >"$custom_json"
+  "$SCRIPT" --json --verbose \
+    --candidate-prefix com.heyintentive.intentive.dev.omi-review- \
+    --keep-bundle-id com.heyintentive.intentive.dev.omi-review-build >"$custom_json"
 python3 - "$custom_json" <<'PY'
 import json
 import sys
 
 data = json.load(open(sys.argv[1]))
 # Explicit keep wins over a broader candidate prefix.
-assert "com.omi.review-build" in data["keep_bundle_ids"]
-assert data["tccutil_bundle_ids"] == ["com.omi.omi-test-one"], data["tccutil_bundle_ids"]
+assert "com.heyintentive.intentive.dev.omi-review-build" in data["keep_bundle_ids"]
+assert data["tccutil_bundle_ids"] == ["com.heyintentive.intentive.dev.omi-test-one"], data["tccutil_bundle_ids"]
 PY
 
-if "$SCRIPT" --candidate-prefix org.example. >/tmp/cleanup-omi-tcc-invalid.out 2>/tmp/cleanup-omi-tcc-invalid.err; then
-  fail "invalid non-Omi candidate prefix unexpectedly succeeded"
+if "$SCRIPT" --candidate-prefix com.omi. >/tmp/cleanup-omi-tcc-invalid.out 2>/tmp/cleanup-omi-tcc-invalid.err; then
+  fail "foreign Omi candidate prefix unexpectedly succeeded"
 fi
-if ! grep -q "expected an Omi bundle ID" /tmp/cleanup-omi-tcc-invalid.err; then
-  fail "invalid candidate prefix did not explain Omi bundle ID requirement"
+if ! grep -q "expected an Intentive named-development prefix" /tmp/cleanup-omi-tcc-invalid.err; then
+  fail "invalid candidate prefix did not explain the owned target requirement"
 fi
 
 echo "cleanup-omi-tcc tests passed"

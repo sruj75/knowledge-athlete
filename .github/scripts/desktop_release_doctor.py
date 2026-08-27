@@ -25,7 +25,7 @@ from desktop_release_doctor_report import (
     format_summary,
 )
 
-REPOSITORY = "BasedHardware/omi"
+REPOSITORY = "sruj75/knowledge-athlete"
 PRIVATE_KEY_VALUE_BLOCK_RE = re.compile(r"<!--\s*KEY_VALUE_START.*?KEY_VALUE_END\s*-->", re.DOTALL)
 STALE_STABLE_PROSE_RE = re.compile(r"stable\s+(?:remains\s+)?blocked", re.IGNORECASE)
 SPARKLE_NAMESPACE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
@@ -127,7 +127,7 @@ def _http_text(url: str) -> str:
 def _release_id_from_url(url: object) -> str:
     if not isinstance(url, str):
         return ""
-    prefix = "/BasedHardware/omi/releases/download/"
+    prefix = "/sruj75/knowledge-athlete/releases/download/"
     path = urllib.parse.urlparse(url).path
     if prefix not in path:
         return ""
@@ -235,10 +235,34 @@ def _safe_appcast(url: str) -> dict[str, object]:
     return {"channels": items}
 
 
-def collect_snapshot(*, release_tag: str, project_id: str, repository: str, bucket: str) -> dict[str, object]:
+def _owned_https_url(value: str, *, label: str) -> str:
+    parsed = urllib.parse.urlparse(value)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host or parsed.username or parsed.password or parsed.fragment:
+        raise ValueError(f"{label} must be a clean HTTPS URL")
+    if host == "omi.me" or host.endswith(".omi.me") or host == "basedhardware.com" or host.endswith(
+        ".basedhardware.com"
+    ):
+        raise ValueError(f"{label} must not use inherited Omi infrastructure")
+    return value.rstrip("/")
+
+
+def collect_snapshot(
+    *,
+    release_tag: str,
+    project_id: str,
+    repository: str,
+    bucket: str,
+    backend_url: str,
+    appcast_url: str,
+) -> dict[str, object]:
     """Collect every currently accessible surface without persisting secrets or prose."""
     if not TAG_RE.fullmatch(release_tag):
         raise ValueError("release_tag must use v<version>+<build>-macos form")
+    if repository != REPOSITORY:
+        raise ValueError(f"repository must be {REPOSITORY}")
+    backend_url = _owned_https_url(backend_url, label="backend_url")
+    appcast_url = _owned_https_url(appcast_url, label="appcast_url")
     _run("git", "fetch", "--force", "origin", f"+refs/tags/{release_tag}:refs/tags/{release_tag}")
     tag_sha = _run("git", "rev-list", "-n1", release_tag).strip()
     release_raw = json.loads(
@@ -320,13 +344,13 @@ def collect_snapshot(*, release_tag: str, project_id: str, repository: str, buck
             allowed_fields=("version", "build_number", "channel", "is_live"),
         ),
         "appcasts": {
-            "canonical": _safe_appcast("https://api.omi.me/v2/desktop/appcast.xml?platform=macos"),
+            "canonical": _safe_appcast(appcast_url),
         },
         "static": {
             "beta": _safe_static_json(bucket, "beta/redirect.json"),
             "stable": _safe_static_json(bucket, "stable/latest.json"),
         },
-        "backend": _safe_backend_contract("https://api.omi.me"),
+        "backend": _safe_backend_contract(backend_url),
         "tracking": {
             "status": "retired",
             "reason": "canonical deploy evidence owns backend provenance",
@@ -355,6 +379,8 @@ def main() -> int:
     doctor.add_argument("--project-id", required=True)
     doctor.add_argument("--repository", default=REPOSITORY)
     doctor.add_argument("--gcs-bucket", required=True)
+    doctor.add_argument("--backend-url", required=True)
+    doctor.add_argument("--appcast-url", required=True)
     doctor.add_argument("--output", type=Path, required=True)
     doctor.add_argument("--summary", type=Path)
     doctor.add_argument("--snapshot-output", type=Path)
@@ -370,6 +396,8 @@ def main() -> int:
                 project_id=args.project_id,
                 repository=args.repository,
                 bucket=args.gcs_bucket,
+                backend_url=args.backend_url,
+                appcast_url=args.appcast_url,
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as error:
             raise SystemExit(f"FAIL: could not collect desktop release snapshot: {error}") from error

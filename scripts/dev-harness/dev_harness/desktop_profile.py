@@ -1,7 +1,7 @@
 """Desktop local profile resolution and static safety scanning.
 
 This module is the harness-owned source of truth for the macOS desktop
-``Omi Dev`` local harness profile.  It intentionally resolves a launch
+``Intentive Dev`` local harness profile. It intentionally resolves a launch
 configuration without reading provider-bearing ``.env`` files and can be
 exercised on Linux for static verification when the native macOS build/launch
 path is unavailable.
@@ -19,20 +19,20 @@ from urllib.parse import urlparse
 
 from . import config, safety, synthetic_profiles
 
-LOCAL_APP_NAME = "Omi Dev"
-LOCAL_DISPLAY_NAME = "Omi Dev"
-LOCAL_BUNDLE_ID = "com.omi.desktop-dev"
-LOCAL_URL_SCHEME = "omi-computer-dev"
-LOCAL_STORAGE_NAME = "Omi"
+LOCAL_APP_NAME = "Intentive Dev"
+LOCAL_DISPLAY_NAME = "Intentive Dev"
+LOCAL_BUNDLE_ID = "com.heyintentive.intentive.dev"
+LOCAL_URL_SCHEME = "heyintentive-dev"
+LOCAL_STORAGE_NAME = "Intentive Dev"
 LOCAL_NAMED_BUNDLE_PREFIX = "omi-"
 LOCAL_FIREBASE_API_KEY = "local-firebase-auth-emulator-api-key"
-LOCAL_FIREBASE_APP_ID = "1:000000000000:ios:omi-dev-local"
-LOCAL_FIREBASE_CLIENT_ID = "local-omi-dev-local.apps.localhost"
+LOCAL_FIREBASE_APP_ID = "1:000000000000:ios:heyintentive-dev-local"
+LOCAL_FIREBASE_CLIENT_ID = "local-heyintentive-dev.apps.localhost"
 LOCAL_FIREBASE_GCM_SENDER_ID = "000000000000"
 LOCAL_FIREBASE_PLIST = "GoogleService-Info-Local.plist"
-LOCAL_ACCESS_GROUP = "com.omi.desktop-dev.local-auth"
+LOCAL_ACCESS_GROUP = ""
 LOCAL_PROFILE_OMI_DEV_BLOCKED = (
-    "local profile cannot target Omi Dev (com.omi.desktop-dev); "
+    "local profile cannot target Intentive Dev (com.heyintentive.intentive.dev); "
     "use a named omi- bundle (e.g. DESKTOP_APP_NAME=omi-memory make desktop-run-local)"
 )
 
@@ -55,13 +55,13 @@ def _local_bundle_id(app_name: str) -> str:
     slug = _slugify_identifier(app_name)
     if not slug:
         raise ValueError(f"OMI_APP_NAME {app_name!r} must contain at least one letter or number")
-    return f"com.omi.{slug}"
+    return f"com.heyintentive.intentive.dev.{slug}"
 
 
 def _local_url_scheme(app_name: str) -> str:
     if app_name == LOCAL_APP_NAME:
         return LOCAL_URL_SCHEME
-    return f"omi-{_slugify_identifier(app_name)}"
+    return f"heyintentive-{_slugify_identifier(app_name)}"
 
 
 def _local_storage_name(app_name: str) -> str:
@@ -146,7 +146,7 @@ def resolve_profile(
 ) -> DesktopLocalProfile:
     users = tuple(sorted(set(str(item) for item in seeded_users)))
     payload = synthetic_profiles.profile_payload(cfg, user)
-    email = payload.get("email", f"{user}@local.omi.invalid")
+    email = payload.get("email", f"{user}@local.heyintentive.invalid")
     display_name = payload.get("display_name", f"Synthetic {user}")
     password = payload.get("password", f"{user}-local-password-030")
     backend_url = cfg.backend_url
@@ -157,7 +157,7 @@ def resolve_profile(
     env = {
         "OMI_DESKTOP_LOCAL_PROFILE": "1",
         "OMI_HARNESS_INSTANCE": cfg.instance,
-        "OMI_SKIP_AUTH_SEED": "1",
+        "OMI_SEED_FROM_CANONICAL_DEV": "0",
         "OMI_SKIP_BACKEND": "1",
         "OMI_SKIP_TUNNEL": "1",
         "OMI_PYTHON_API_URL": backend_url,
@@ -184,8 +184,16 @@ def resolve_profile(
         url_scheme=url_scheme,
         preferences_domain=bundle_id,
         keychain_access_group=LOCAL_ACCESS_GROUP,
-        application_support_dir=f"~/Library/Application Support/{storage_name}",
-        caches_dir=f"~/Library/Caches/{storage_name}",
+        application_support_dir=(
+            f"~/Library/Application Support/Intentive Dev"
+            if app_name == LOCAL_APP_NAME
+            else f"~/Library/Application Support/Intentive Dev Bundles/{bundle_id}"
+        ),
+        caches_dir=(
+            f"~/Library/Caches/Intentive Dev"
+            if app_name == LOCAL_APP_NAME
+            else f"~/Library/Caches/Intentive Dev Bundles/{bundle_id}"
+        ),
         firebase_project_id=cfg.project_id,
         firebase_database_id=cfg.database_id,
         firebase_auth_emulator_host=cfg.auth_host,
@@ -211,7 +219,7 @@ def validate_profile(profile: DesktopLocalProfile) -> list[str]:
     errors: list[str] = []
     if profile.bundle_id == LOCAL_BUNDLE_ID:
         errors.append(LOCAL_PROFILE_OMI_DEV_BLOCKED)
-    if profile.bundle_id == "com.omi.computer-macos":
+    if profile.bundle_id in {"com.heyintentive.intentive", "com.heyintentive.intentive.beta"}:
         errors.append("local profile must not use production bundle")
     if profile.app_name == LOCAL_APP_NAME:
         if profile.bundle_id != LOCAL_BUNDLE_ID:
@@ -228,7 +236,7 @@ def validate_profile(profile: DesktopLocalProfile) -> list[str]:
         if profile.url_scheme != expected_scheme:
             errors.append(f"named bundle URL scheme must be {expected_scheme}")
     if profile.firebase_project_id != safety.DEFAULT_LOCAL_FIREBASE_PROJECT_ID:
-        errors.append("local profile must use demo-omi-local only")
+        errors.append("local profile must use demo-heyintentive-local only")
     if profile.firebase_database_id != safety.DEFAULT_FIRESTORE_DATABASE_ID:
         errors.append("local profile must use Firestore database (default)")
     if not _is_loopback_url(profile.backend_url):

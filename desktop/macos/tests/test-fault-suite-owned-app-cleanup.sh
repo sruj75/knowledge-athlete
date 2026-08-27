@@ -120,7 +120,7 @@ set -euo pipefail
 : "${OMI_AUTOMATION_PORT:?}"
 app_path="/Applications/${OMI_APP_NAME}.app"
 executable_path="$app_path/Contents/MacOS/Omi Computer"
-bundle_id="com.omi.${OMI_APP_NAME}"
+bundle_id="com.heyintentive.intentive.dev.${OMI_APP_NAME}"
 server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2];
 class H(http.server.BaseHTTPRequestHandler):
  def do_GET(self):

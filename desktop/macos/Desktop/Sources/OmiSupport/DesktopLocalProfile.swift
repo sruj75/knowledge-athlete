@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The identity-derived storage boundary for a running desktop bundle.
 ///
@@ -39,7 +40,7 @@ package struct DesktopStorageIdentity: Equatable {
   package var applicationSupportPathComponents: [String]? {
     guard let productIdentity else { return nil }
     if usesHarnessLocalProfile {
-      return ["Intuitive Test Profiles", validatedLocalProfileStorageName ?? "default"]
+      return ["Intentive Test Profiles", validatedLocalProfileStorageName ?? "default"]
     }
     return productIdentity.applicationSupportPathComponents
   }
@@ -47,7 +48,7 @@ package struct DesktopStorageIdentity: Equatable {
   package var cachePathComponents: [String]? {
     guard let productIdentity else { return nil }
     if usesHarnessLocalProfile {
-      return ["Intuitive Test Profiles", validatedLocalProfileStorageName ?? "default"]
+      return ["Intentive Test Profiles", validatedLocalProfileStorageName ?? "default"]
     }
     return productIdentity.cachePathComponents
   }
@@ -81,6 +82,14 @@ package struct DesktopStorageIdentity: Equatable {
 /// development bundle storage. Production, beta, and canonical Omi Dev preserve
 /// their existing shared storage roots.
 package enum DesktopLocalProfile {
+  #if DEBUG
+    private static let testApplicationSupportURL = OSAllocatedUnfairLock<URL?>(initialState: nil)
+
+    package static func configureApplicationSupportURLForTesting(_ url: URL?) {
+      testApplicationSupportURL.withLock { $0 = url }
+    }
+  #endif
+
   package static var isEnabled: Bool {
     value("OMI_DESKTOP_LOCAL_PROFILE") == "1"
   }
@@ -112,6 +121,11 @@ package enum DesktopLocalProfile {
   package static var selectedDisplayName: String? { nonEmpty(value("OMI_LOCAL_AUTH_DISPLAY_NAME")) }
 
   package static func applicationSupportURL() -> URL {
+    #if DEBUG
+      if let testURL = testApplicationSupportURL.withLock({ $0 }) {
+        return testURL
+      }
+    #endif
     guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
       fatalError("Application Support directory not available on this system")
     }

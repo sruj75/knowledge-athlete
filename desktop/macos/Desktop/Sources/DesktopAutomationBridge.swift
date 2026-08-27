@@ -14,7 +14,7 @@ enum DesktopAutomationLaunchOptions {
   static let tokenFileEnvironmentKey = "OMI_AUTOMATION_TOKEN_FILE"
 
   private static let generatedToken =
-    "omi_auto_\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
+    "heyintentive_auto_\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
 
   static var isEnabled: Bool {
     isEnabled(
@@ -75,7 +75,7 @@ enum DesktopAutomationLaunchOptions {
       return URL(fileURLWithPath: rawValue).standardizedFileURL
     }
     return URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("omi-automation-\(port).token")
+      .appendingPathComponent("\(DesktopProductIdentity.automationTokenPrefix)-\(port).token")
       .standardizedFileURL
   }
 
@@ -1643,10 +1643,11 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "agent_runtime_evidence",
-      summary: "Return omi-agentd.sqlite3 path and SHA-256 for continuity harness evidence bundles"
+      summary: "Return the owned agent database path and SHA-256 for continuity harness evidence bundles"
     ) { _ in
-      let stateDir = AgentRuntimeProcess.defaultStateDirectory()
-      let dbPath = (stateDir as NSString).appendingPathComponent("omi-agentd.sqlite3")
+      let stateDir = try AgentRuntimeProcess.defaultStateDirectory()
+      let dbPath = (stateDir as NSString).appendingPathComponent(
+        DesktopProductIdentity.agentRuntimeDatabaseFilename)
       var detail: [String: String] = [
         "state_dir": stateDir,
         "database_path": dbPath,

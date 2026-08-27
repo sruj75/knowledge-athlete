@@ -290,54 +290,55 @@ final class AuthTokenStorageTests: XCTestCase {
         + "the unscoped firebase-rest-session item (that query is what triggers the password dialog)")
   }
 
-  func testAuthTokenServiceIsTeamScopedAndNeverTouchesLegacyItem() throws {
+  func testAuthTokenServiceIsTeamScopedAndUsesOwnedBase() throws {
     let source = try sourceFile("AuthService.swift")
     XCTAssertTrue(
-      source.contains("DesktopKeychainStore.scopedService(DesktopKeychainStore.legacyAuthTokenService)"),
+      source.contains("DesktopKeychainStore.scopedService(DesktopKeychainStore.authTokenServiceBase)"),
       "AuthService must store tokens under the team+bundle scoped Keychain service")
     XCTAssertFalse(
       source.contains("private let authTokenKeychainService = \"com.omi.desktop.firebase-rest-session\""),
       "AuthService must not hardcode the unscoped firebase-rest-session service name")
     // Live hooks must not pass the unscoped legacy name into SecItem (read or delete).
     XCTAssertFalse(
-      source.contains("legacyServices: [DesktopKeychainStore.legacyAuthTokenService]"),
+      source.contains("legacyServices: ["),
       "AuthService must not migrate by reading the unscoped legacy Keychain item")
     XCTAssertFalse(
-      source.contains("delete(\n                    service: DesktopKeychainStore.legacyAuthTokenService"),
+      source.contains("service: \"com.omi."),
       "AuthService must not delete the unscoped legacy Keychain item (can itself prompt)")
   }
 
   func testScopedServiceIncludesTeamAndBundle() {
     let prod = DesktopKeychainStore.scopedService(
-      "com.omi.desktop.firebase-rest-session",
+      "com.heyintentive.intentive.firebase-rest-session",
       teamID: "9536L8KLMP",
-      bundleID: "com.omi.computer-macos"
+      bundleID: "com.heyintentive.intentive"
     )
     XCTAssertEqual(
       prod,
-      "com.omi.desktop.firebase-rest-session.v2.team.9536L8KLMP.bundle.com.omi.computer-macos")
+      "com.heyintentive.intentive.firebase-rest-session.v2.team.9536L8KLMP.bundle.com.heyintentive.intentive")
 
     let sameTeamDifferentBundle = DesktopKeychainStore.scopedService(
-      "com.omi.desktop.firebase-rest-session",
+      "com.heyintentive.intentive.firebase-rest-session",
       teamID: "JVMXE5G542",
-      bundleID: "com.omi.desktop-dev"
+      bundleID: "com.heyintentive.intentive.dev"
     )
     let named = DesktopKeychainStore.scopedService(
-      "com.omi.desktop.firebase-rest-session",
+      "com.heyintentive.intentive.firebase-rest-session",
       teamID: "JVMXE5G542",
-      bundleID: "com.omi.omi-fix-rewind"
+      bundleID: "com.heyintentive.intentive.dev.omi-fix-rewind"
     )
     XCTAssertEqual(
       sameTeamDifferentBundle,
-      "com.omi.desktop.firebase-rest-session.v2.team.JVMXE5G542.bundle.com.omi.desktop-dev")
+      "com.heyintentive.intentive.firebase-rest-session.v2.team.JVMXE5G542.bundle.com.heyintentive.intentive.dev")
     XCTAssertEqual(
       named,
-      "com.omi.desktop.firebase-rest-session.v2.team.JVMXE5G542.bundle.com.omi.omi-fix-rewind")
+      "com.heyintentive.intentive.firebase-rest-session.v2.team.JVMXE5G542.bundle.com.heyintentive.intentive.dev.omi-fix-rewind"
+    )
     XCTAssertNotEqual(prod, sameTeamDifferentBundle)
     XCTAssertNotEqual(sameTeamDifferentBundle, named)
   }
 
-  func testClientDeviceServiceNeverUsesSharedLegacyKeychain() throws {
+  func testClientDeviceServiceUsesOwnedScopedKeychain() throws {
     let source = try sourceFile("ClientDeviceService.swift")
     XCTAssertTrue(
       source.contains("DesktopKeychainStore.scopedService"),
@@ -346,12 +347,12 @@ final class AuthTokenStorageTests: XCTestCase {
       source.contains("interactionNotAllowed = true"),
       "ClientDeviceService Keychain access must be silent")
     XCTAssertFalse(
-      source.contains("private let keychainService = \"com.omi.client-device-id\""),
+      source.contains("com.omi.client-device-id"),
       "ClientDeviceService must not hardcode the shared legacy device-id Keychain service")
     // All non-production bundles must stay on UserDefaults (no Keychain prompt risk).
-    // Stable and the side-by-side Omi Beta identity each use their own scoped service.
+    // Stable and the side-by-side Intentive Beta identity each use their own scoped service.
     XCTAssertTrue(
-      source.contains("productionFamilyBundleIdentifiers"),
+      source.contains("DesktopProductIdentity(bundleIdentifier: bundleIdentifier)"),
       "ClientDeviceService must gate Keychain use to production-family bundles only")
   }
 

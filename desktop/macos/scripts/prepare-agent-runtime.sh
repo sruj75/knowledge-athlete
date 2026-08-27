@@ -2,6 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=app-config.sh
+source "$SCRIPT_DIR/app-config.sh"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 AGENT_DIR="$DESKTOP_DIR/agent"
 PI_MONO_DIR="$DESKTOP_DIR/pi-mono-extension"
@@ -11,7 +13,7 @@ AGENT_PACKAGED_NODE_MODULES="$PACKAGED_RUNTIME_DIR/agent-node_modules"
 PI_MONO_PACKAGED_NODE_MODULES="$PACKAGED_RUNTIME_DIR/pi-mono-extension-node_modules"
 CACHE_STAMP="$PACKAGED_RUNTIME_DIR/cache.stamp"
 CACHE_LOCK="$DESKTOP_DIR/.harness/agent-runtime-prepare.lock.d"
-NODE_ARCHIVE_CACHE_DIR="${OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/Library/Caches}/OmiDesktop/node-archives}"
+NODE_ARCHIVE_CACHE_DIR="${OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR:-$(intentive_archive_cache_dir)}"
 
 # shellcheck source-path=SCRIPTDIR
 # shellcheck source=agent-runtime-cache.sh
@@ -543,7 +545,7 @@ download_node_archive() {
 
 stage_universal_node() {
   local temp_dir
-  temp_dir="$(mktemp -d /tmp/omi-node-universal-XXXXXX)"
+  temp_dir="$(mktemp -d /tmp/heyintentive-node-universal-XXXXXX)"
   PREP_TEMP_DIR="$temp_dir"
 
   download_node_archive "arm64" "$NODE_DARWIN_ARM64_SHA256" "$temp_dir/arm64.tar.gz"

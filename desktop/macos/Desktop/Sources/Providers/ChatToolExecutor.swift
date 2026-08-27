@@ -3,6 +3,7 @@ import AppKit
 @preconcurrency import ApplicationServices
 import Foundation
 @preconcurrency import GRDB
+import OmiSupport
 @preconcurrency import UserNotifications
 
 private enum ChatToolOwnerAuthorization {
@@ -1571,7 +1572,10 @@ class ChatToolExecutor {
         expectedOwnerID,
         authorizationSnapshot: authorizationSnapshot)
     else { return false }
-    let bundleID = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleID = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else { return false }
     guard
       let url = URL(
         string: "x-apple.systempreferences:com.apple.preference.notifications?id=\(bundleID)")

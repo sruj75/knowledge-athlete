@@ -725,32 +725,57 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertTrue(bridgeSource.contains("let retryRequestId = UUID().uuidString"))
   }
 
-  func testNamedBundleStateDirectoriesAreIsolated() {
+  func testNamedBundleStateDirectoriesAreIsolated() throws {
     let home = URL(fileURLWithPath: "/tmp/test-home")
 
-    let firstState = AgentRuntimeProcess.defaultStateDirectory(
-      bundleIdentifier: "com.omi.omi-ticket-five-a",
+    let firstState = try AgentRuntimeProcess.defaultStateDirectory(
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-ticket-five-a",
       homeDirectory: home
     )
-    let secondState = AgentRuntimeProcess.defaultStateDirectory(
-      bundleIdentifier: "com.omi.omi-ticket-five-b",
+    let secondState = try AgentRuntimeProcess.defaultStateDirectory(
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-ticket-five-b",
       homeDirectory: home
     )
-    let firstArtifacts = AgentRuntimeProcess.defaultArtifactsDirectory(
-      bundleIdentifier: "com.omi.omi-ticket-five-a",
+    let firstArtifacts = try AgentRuntimeProcess.defaultArtifactsDirectory(
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-ticket-five-a",
       homeDirectory: home
     )
-    let secondArtifacts = AgentRuntimeProcess.defaultArtifactsDirectory(
-      bundleIdentifier: "com.omi.omi-ticket-five-b",
+    let secondArtifacts = try AgentRuntimeProcess.defaultArtifactsDirectory(
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-ticket-five-b",
       homeDirectory: home
     )
 
     XCTAssertNotEqual(firstState, secondState)
     XCTAssertNotEqual(firstArtifacts, secondArtifacts)
-    XCTAssertTrue(firstState.hasSuffix("AgentRuntime/com.omi.omi-ticket-five-a"))
-    XCTAssertTrue(secondState.hasSuffix("AgentRuntime/com.omi.omi-ticket-five-b"))
-    XCTAssertTrue(firstArtifacts.hasSuffix("Artifacts/com.omi.omi-ticket-five-a"))
-    XCTAssertTrue(secondArtifacts.hasSuffix("Artifacts/com.omi.omi-ticket-five-b"))
+    XCTAssertEqual(
+      firstState,
+      "/tmp/test-home/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-ticket-five-a/AgentRuntime"
+    )
+    XCTAssertEqual(
+      secondState,
+      "/tmp/test-home/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-ticket-five-b/AgentRuntime"
+    )
+    XCTAssertEqual(
+      firstArtifacts,
+      "/tmp/test-home/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-ticket-five-a/Artifacts"
+    )
+    XCTAssertEqual(
+      secondArtifacts,
+      "/tmp/test-home/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-ticket-five-b/Artifacts"
+    )
+  }
+
+  func testUnknownBundleCannotResolveAgentRuntimeStorage() {
+    let home = URL(fileURLWithPath: "/tmp/test-home")
+
+    XCTAssertThrowsError(
+      try AgentRuntimeProcess.defaultStateDirectory(
+        bundleIdentifier: "com.omi.desktop-dev",
+        homeDirectory: home))
+    XCTAssertThrowsError(
+      try AgentRuntimeProcess.defaultArtifactsDirectory(
+        bundleIdentifier: nil,
+        homeDirectory: home))
   }
 
   func testCompatibilitySessionIdPrefersAdapterSession() {

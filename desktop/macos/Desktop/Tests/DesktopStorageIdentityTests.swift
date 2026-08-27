@@ -6,11 +6,11 @@ import XCTest
 final class DesktopStorageIdentityTests: XCTestCase {
   func testNamedDevelopmentBundlesHaveDistinctIdentityDerivedRoots() {
     let first = DesktopStorageIdentity(
-      bundleIdentifier: "com.heyintentive.intuitive.dev.memory-atlas",
+      bundleIdentifier: "com.heyintentive.intentive.dev.memory-atlas",
       localProfileEnabled: false,
       localProfileStorageName: nil)
     let second = DesktopStorageIdentity(
-      bundleIdentifier: "com.heyintentive.intuitive.dev.rewind-fix",
+      bundleIdentifier: "com.heyintentive.intentive.dev.rewind-fix",
       localProfileEnabled: false,
       localProfileStorageName: nil)
 
@@ -18,45 +18,45 @@ final class DesktopStorageIdentityTests: XCTestCase {
     XCTAssertTrue(second.usesIsolatedStorage)
     XCTAssertEqual(
       first.applicationSupportPathComponents,
-      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.memory-atlas"])
+      ["Intentive Dev Bundles", "com.heyintentive.intentive.dev.memory-atlas"])
     XCTAssertEqual(
       second.applicationSupportPathComponents,
-      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.rewind-fix"])
+      ["Intentive Dev Bundles", "com.heyintentive.intentive.dev.rewind-fix"])
     XCTAssertNotEqual(first.applicationSupportPathComponents, second.applicationSupportPathComponents)
   }
 
   func testCanonicalDevelopmentOwnsItsRootAndUnknownIdentityFailsClosed() {
     let dev = DesktopStorageIdentity(
-      bundleIdentifier: "com.heyintentive.intuitive.dev",
+      bundleIdentifier: "com.heyintentive.intentive.dev",
       localProfileEnabled: false,
       localProfileStorageName: nil)
     let review = DesktopStorageIdentity(
-      bundleIdentifier: "com.heyintentive.intuitive.review-build",
+      bundleIdentifier: "com.heyintentive.intentive.review-build",
       localProfileEnabled: false,
       localProfileStorageName: nil)
 
     XCTAssertTrue(dev.usesIsolatedStorage)
     XCTAssertFalse(review.usesIsolatedStorage)
-    XCTAssertEqual(dev.applicationSupportPathComponents, ["Intuitive Dev"])
+    XCTAssertEqual(dev.applicationSupportPathComponents, ["Intentive Dev"])
     XCTAssertNil(review.applicationSupportPathComponents)
   }
 
   func testNamedLocalProfileStillUsesTheBundleIDBoundary() {
     let identity = DesktopStorageIdentity(
-      bundleIdentifier: "com.heyintentive.intuitive.dev.local-memory",
+      bundleIdentifier: "com.heyintentive.intentive.dev.local-memory",
       localProfileEnabled: true,
       localProfileStorageName: "caller-controlled-name")
 
     XCTAssertEqual(
       identity.applicationSupportPathComponents,
-      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.local-memory"])
+      ["Intentive Dev Bundles", "com.heyintentive.intentive.dev.local-memory"])
   }
 
   func testInvalidNamedBundleIDCannotSelectAnIsolatedPath() {
     for bundleID in [
-      "com.heyintentive.intuitive.dev.",
-      "com.heyintentive.intuitive.dev.../escape",
-      "com.heyintentive.intuitive.dev.测试",
+      "com.heyintentive.intentive.dev.",
+      "com.heyintentive.intentive.dev.../escape",
+      "com.heyintentive.intentive.dev.测试",
       "com.omi.omi-wave5-s28",
     ] {
       let identity = DesktopStorageIdentity(
@@ -77,7 +77,7 @@ final class DesktopStorageIdentityTests: XCTestCase {
 
     XCTAssertTrue(beta.isBetaProductionBundle)
     XCTAssertTrue(beta.usesIsolatedStorage)
-    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intuitive Beta"])
+    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intentive Beta"])
   }
 
   func testBetaProductionIdentityIgnoresHarnessLocalProfile() {
@@ -86,27 +86,28 @@ final class DesktopStorageIdentityTests: XCTestCase {
     let beta = DesktopStorageIdentity(
       bundleIdentifier: DesktopProductIdentity.betaBundleIdentifier,
       localProfileEnabled: true,
-      localProfileStorageName: "IntuitiveHarness")
+      localProfileStorageName: "IntentiveHarness")
 
-    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intuitive Beta"])
+    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intentive Beta"])
   }
 
   func testRuntimeManifestIsOwnerOnlyAndContainsNoCredentials() throws {
     let root = FileManager.default.temporaryDirectory
-      .appendingPathComponent("omi-runtime-manifest-\(UUID().uuidString)", isDirectory: true)
+      .appendingPathComponent("heyintentive-runtime-manifest-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
     let manifest = DesktopDevRuntimeManifest(
-      bundleIdentifier: "com.omi.omi-manifest-test",
+      bundleIdentifier: "com.heyintentive.intentive.dev.omi-manifest-test",
       processID: 42,
       startedAt: Date(timeIntervalSince1970: 1_700_000_000),
       appPath: "/Applications/omi-manifest-test.app",
       profileRoot: root.path,
-      logPath: "/private/tmp/omi-dev-com.omi.omi-manifest-test-42.log",
+      logPath: "/private/tmp/heyintentive-dev-com.heyintentive.intentive.dev.omi-manifest-test-42.log",
       automationPort: 47777)
     try DesktopDevRuntimeManifestStore.write(manifest, in: root)
 
     let path = DesktopDevRuntimeManifestStore.path(in: root)
+    XCTAssertEqual(path.lastPathComponent, ".heyintentive-dev-runtime.json")
     let attributes = try FileManager.default.attributesOfItem(atPath: path.path)
     XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
 

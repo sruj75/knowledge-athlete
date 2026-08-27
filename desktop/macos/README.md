@@ -47,7 +47,7 @@ After a successful full launch, `run.sh` automatically uses its fast lane for or
 
 `git push` is the bounded desktop acceptance gate: desktop source changes run only the fast `xcrun swift build -c debug --package-path Desktop` check on the installed Xcode. This is intentionally less than CI: the serial, isolated Swift suite, clean release compile, and pinned `/Applications/Xcode_16.4.app` (Xcode 16.4 build 16F6) belong to GitHub Actions. Do not move those CI jobs into pre-push; preserving push-time budget keeps normal iteration fast. Use `dev-feedback.py --watch` while editing.
 
-Named bundles derive an isolated bundle ID and OAuth callback URL scheme from `OMI_APP_NAME`. `Omi Dev` keeps `com.omi.desktop-dev` / `omi-computer-dev`, while `OMI_APP_NAME="omi-subagent-test"` uses `com.omi.omi-subagent-test` / `omi-omi-subagent-test`. The app reads that scheme from `CFBundleURLTypes` for OAuth redirects, so parallel dev bundles do not claim the canonical `omi-computer-dev` callback.
+Named bundles derive an isolated bundle ID and OAuth callback URL scheme from `OMI_APP_NAME`. `Intentive Dev` uses `com.heyintentive.intentive.dev` / `heyintentive-dev`, while `OMI_APP_NAME="omi-subagent-test"` uses `com.heyintentive.intentive.dev.omi-subagent-test` / `heyintentive-omi-subagent-test`. The app reads that scheme from `CFBundleURLTypes`, so parallel development bundles cannot claim the canonical callback.
 
 ## License
 

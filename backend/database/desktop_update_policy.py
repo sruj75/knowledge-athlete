@@ -7,7 +7,7 @@ from database._client import get_firestore_client
 # static repair page. Operators can point an active recovery policy at that
 # immutable page once it exists; an absent or malformed policy must not send
 # clients to a not-yet-published route.
-DEFAULT_DESKTOP_DOWNLOAD_URL = "https://api.omi.me/v2/desktop/download/latest?channel=stable"
+DEFAULT_DESKTOP_DOWNLOAD_URL = "https://github.com/sruj75/knowledge-athlete/releases/latest"
 VALID_DESKTOP_UPDATE_SEVERITIES = {"none", "banner", "required"}
 
 

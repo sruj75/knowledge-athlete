@@ -147,7 +147,7 @@ def _github_surfaces(
     metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
     assets = github.get("asset_names")
     asset_names = set(assets) if isinstance(assets, list) and all(isinstance(item, str) for item in assets) else set()
-    expected_assets = {"Omi.zip"}
+    expected_assets = {"Intentive.zip"}
     missing_assets = sorted(expected_assets - asset_names)
     valid = (
         github.get("tag_name") == release_id

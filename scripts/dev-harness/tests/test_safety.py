@@ -45,7 +45,7 @@ def test_state_root_layout_and_sentinel(tmp_path: Path) -> None:
 
 
 def test_project_database_and_loopback_validation() -> None:
-    assert safety.validate_project_id("demo-omi-local", require_canonical=True) == "demo-omi-local"
+    assert safety.validate_project_id("demo-heyintentive-local", require_canonical=True) == "demo-heyintentive-local"
     assert safety.validate_project_id("demo-other") == "demo-other"
     assert safety.validate_database_id("(default)") == "(default)"
 
@@ -54,7 +54,7 @@ def test_project_database_and_loopback_validation() -> None:
 
     with pytest.raises(safety.SafetyError, match="non-demo"):
         safety.validate_project_id("omi-prod")
-    with pytest.raises(safety.SafetyError, match="demo-omi-local"):
+    with pytest.raises(safety.SafetyError, match="demo-heyintentive-local"):
         safety.validate_project_id("demo-memory", require_canonical=True)
     with pytest.raises(safety.SafetyError, match="database"):
         safety.validate_database_id("customer-data")
@@ -81,7 +81,7 @@ def test_child_environment_strips_cloud_defaults_and_offline_provider_secrets() 
 
     assert env["PATH"] == "/usr/bin"
     assert env["OMI_VISIBLE"] == "1"
-    assert env["FIREBASE_PROJECT_ID"] == "demo-omi-local"
+    assert env["FIREBASE_PROJECT_ID"] == "demo-heyintentive-local"
     assert env["FIRESTORE_DATABASE_ID"] == "(default)"
     assert env["FIRESTORE_EMULATOR_HOST"] == "127.0.0.1:8085"
     for stripped in (

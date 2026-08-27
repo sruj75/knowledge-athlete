@@ -1,4 +1,5 @@
 import AppKit
+import OmiSupport
 import XCTest
 
 @testable import Omi_Computer
@@ -7,22 +8,14 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
 
   func testCloseClearsRunningFlag() async throws {
     let testUserId = "rewind-db-lifecycle-\(UUID().uuidString)"
-    let applicationSupportDirectory = try XCTUnwrap(
-      FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    )
-    let userDir =
-      applicationSupportDirectory
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: userDir) }
+    let userDir = try await configureTestStorage(ownerID: testUserId)
 
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = testUserId
     await RewindDatabase.shared.configure(userId: testUserId)
     try await RewindDatabase.shared.initialize()
 
-    let runningFlag = userDir.appendingPathComponent(".omi_running")
+    let runningFlag = userDir.appendingPathComponent(".heyintentive_running")
     XCTAssertTrue(FileManager.default.fileExists(atPath: runningFlag.path))
 
     await RewindDatabase.shared.close()
@@ -33,15 +26,7 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
 
   func testPoolGenerationAdvancesAcrossReopen() async throws {
     let testUserId = "rewind-db-pool-generation-\(UUID().uuidString)"
-    let applicationSupportDirectory = try XCTUnwrap(
-      FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    )
-    let userDir =
-      applicationSupportDirectory
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: userDir) }
+    _ = try await configureTestStorage(ownerID: testUserId)
 
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = testUserId
@@ -76,15 +61,7 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
 
   func testInitializeReopensDatabaseClosedAfterIndexerInitialization() async throws {
     let testUserId = "rewind-indexer-reinitialize-\(UUID().uuidString)"
-    let applicationSupportDirectory = try XCTUnwrap(
-      FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    )
-    let userDir =
-      applicationSupportDirectory
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: userDir) }
+    _ = try await configureTestStorage(ownerID: testUserId)
 
     await RewindIndexer.shared.reset()
     await RewindStorage.shared.reset()
@@ -117,15 +94,7 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
 
   func testProcessFrameReopensDatabaseClosedAfterIndexerInitialization() async throws {
     let testUserId = "rewind-indexer-process-frame-reinitialize-\(UUID().uuidString)"
-    let applicationSupportDirectory = try XCTUnwrap(
-      FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-    )
-    let userDir =
-      applicationSupportDirectory
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: userDir) }
+    _ = try await configureTestStorage(ownerID: testUserId)
 
     await RewindIndexer.shared.reset()
     await RewindStorage.shared.reset()
@@ -166,6 +135,31 @@ final class RewindDatabaseLifecycleTests: XCTestCase {
     await RewindDatabase.shared.close()
     RewindDatabase.currentUserId = nil
     await ownerFixture.restore()
+  }
+
+  private func configureTestStorage(ownerID: String) async throws -> URL {
+    let temporaryRoot = FileManager.default.temporaryDirectory
+      .appendingPathComponent("rewind-lifecycle-\(UUID().uuidString)", isDirectory: true)
+    let storageLocation = RewindDatabaseStorageLocation(
+      applicationSupportDirectoryURL: temporaryRoot,
+      productPathComponents: ["Intentive"])
+
+    await RewindDatabase.shared.close()
+    await RewindDatabase.shared.configureStorageLocationForTesting(storageLocation)
+    DesktopLocalProfile.configureApplicationSupportURLForTesting(storageLocation.productRootURL)
+    RewindDatabase.currentUserId = ownerID
+
+    addTeardownBlock {
+      await RewindDatabase.shared.close()
+      await RewindDatabase.shared.configureStorageLocationForTesting(nil)
+      DesktopLocalProfile.configureApplicationSupportURLForTesting(nil)
+      RewindDatabase.currentUserId = nil
+      try? FileManager.default.removeItem(at: temporaryRoot)
+    }
+
+    return storageLocation.productRootURL
+      .appendingPathComponent("users", isDirectory: true)
+      .appendingPathComponent(ownerID, isDirectory: true)
   }
 
   private func makeTestFrameImage() throws -> CGImage {

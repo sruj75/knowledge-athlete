@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Create the separately-installable "Omi Beta" variant from the signed stable app.
+# Create the separately-installable "Intentive Beta" variant from the signed stable app.
 #
 # The variant is the same binary re-identified (CFBundleIdentifier
-# com.omi.computer-macos.beta + "Omi Beta" name) so it runs beside stable with its
+# com.heyintentive.intentive.beta + "Intentive Beta" name) so it runs beside stable with its
 # own UserDefaults, TCC grants, Keychain ACL, storage root, and single-instance
 # lock. Only the outer bundle signature covers Info.plist, so nested component
 # signatures from the stable signing pass remain valid; the outer bundle is
@@ -14,19 +14,39 @@
 #   APP_STORE_CONNECT_ISSUER_ID, SPARKLE_PRIVATE_KEY, DMGBUILD_VERSION
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MACOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 SOURCE_APP=""
 BUILD_DIR=""
-BETA_APP_NAME="Omi Beta"
-BETA_BUNDLE_ID="com.omi.computer-macos.beta"
+BETA_APP_NAME="Intentive Beta"
+BETA_BUNDLE_ID="com.heyintentive.intentive.beta"
+BETA_URL_SCHEME="heyintentive-beta"
+BETA_FEED_URL="${INTENTIVE_BETA_FEED_URL:-}"
 SPARKLE_ZIP_OUT=""
 DMG_OUT=""
 CM_ENV_OUT=""
+NOTARY_KEY_PATH=""
+STAGING_DIR=""
+
+cleanup() {
+  [[ -z "$NOTARY_KEY_PATH" ]] || rm -f -- "$NOTARY_KEY_PATH"
+  if [[ -n "$STAGING_DIR" ]]; then
+    case "$STAGING_DIR" in
+      "${TMPDIR:-/tmp}/heyintentive-beta-dmg-staging."*) rm -rf -- "$STAGING_DIR" ;;
+      *) echo "Refusing unsafe cleanup path: $STAGING_DIR" >&2 ;;
+    esac
+  fi
+}
+trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
-Usage: scripts/create-omi-beta-variant.sh --source-app build/omi.app --build-dir build \
-  --sparkle-zip-out build/Omi.Beta.zip --dmg-out build/omi-beta.dmg [--cm-env "$CM_ENV"]
-  [--beta-app-name "Omi Beta"] [--beta-bundle-id com.omi.computer-macos.beta]
+Usage: scripts/create-intentive-beta-variant.sh \
+  --source-app build/Intentive.app --build-dir build \
+  --beta-feed-url https://OWNED_HOST/v2/desktop/appcast.xml?identity=beta \
+  --sparkle-zip-out build/Intentive.Beta.zip \
+  --dmg-out build/intentive-beta.dmg [--cm-env "$CM_ENV"]
 EOF
   exit 2
 }
@@ -35,8 +55,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --source-app) SOURCE_APP="$2"; shift 2 ;;
     --build-dir) BUILD_DIR="$2"; shift 2 ;;
-    --beta-app-name) BETA_APP_NAME="$2"; shift 2 ;;
-    --beta-bundle-id) BETA_BUNDLE_ID="$2"; shift 2 ;;
+    --beta-feed-url) BETA_FEED_URL="$2"; shift 2 ;;
     --sparkle-zip-out) SPARKLE_ZIP_OUT="$2"; shift 2 ;;
     --dmg-out) DMG_OUT="$2"; shift 2 ;;
     --cm-env) CM_ENV_OUT="$2"; shift 2 ;;
@@ -46,24 +65,49 @@ done
 
 [[ -n "$SOURCE_APP" && -n "$BUILD_DIR" && -n "$SPARKLE_ZIP_OUT" && -n "$DMG_OUT" ]] || usage
 [[ -d "$SOURCE_APP" ]] || { echo "ERROR: source app not found: $SOURCE_APP" >&2; exit 1; }
+: "${BETA_FEED_URL:?--beta-feed-url or INTENTIVE_BETA_FEED_URL is required}"
 : "${SIGN_IDENTITY:?SIGN_IDENTITY is required}"
 : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?notary key id required}"
 : "${APP_STORE_CONNECT_PRIVATE_KEY:?notary private key required}"
 : "${APP_STORE_CONNECT_ISSUER_ID:?notary issuer required}"
 : "${SPARKLE_PRIVATE_KEY:?Sparkle EdDSA key required}"
 
+BUILD_DIR="$(mkdir -p "$BUILD_DIR" && cd "$BUILD_DIR" && pwd)"
+SOURCE_APP="$(cd "$SOURCE_APP" && pwd)"
 BETA_APP="$BUILD_DIR/$BETA_APP_NAME.app"
 PLIST="$BETA_APP/Contents/Info.plist"
 
+SOURCE_PLIST="$SOURCE_APP/Contents/Info.plist"
+SOURCE_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SOURCE_PLIST" 2>/dev/null || true)"
+[[ "$SOURCE_BUNDLE_ID" == "com.heyintentive.intentive" ]] \
+  || { echo "ERROR: source app must use stable Intentive identity" >&2; exit 1; }
+[[ "$(basename "$SOURCE_APP")" == "Intentive.app" ]] \
+  || { echo "ERROR: stable source app must be named Intentive.app" >&2; exit 1; }
+python3 - "$BETA_FEED_URL" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+url = urlparse(sys.argv[1])
+host = (url.hostname or "").lower()
+if url.scheme != "https" or not host or url.username or url.password or url.fragment:
+    raise SystemExit("ERROR: beta feed must be a clean HTTPS URL")
+if host == "omi.me" or host.endswith(".omi.me"):
+    raise SystemExit("ERROR: inherited Omi beta feeds are forbidden")
+if host == "basedhardware.com" or host.endswith(".basedhardware.com"):
+    raise SystemExit("ERROR: inherited BasedHardware beta feeds are forbidden")
+PY
+
 notarize_and_staple() {
   local artifact="$1"
-  mkdir -p ~/private_keys
-  local key_path=~/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8
-  echo -e "$APP_STORE_CONNECT_PRIVATE_KEY" > "$key_path"
+  if [[ -z "$NOTARY_KEY_PATH" ]]; then
+    NOTARY_KEY_PATH="$(mktemp "${TMPDIR:-/tmp}/heyintentive-notary-key.XXXXXX")"
+    chmod 600 "$NOTARY_KEY_PATH"
+    printf '%b' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$NOTARY_KEY_PATH"
+  fi
 
   local result status submission_id
   result=$(xcrun notarytool submit "$artifact" \
-    --key "$key_path" \
+    --key "$NOTARY_KEY_PATH" \
     --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
     --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
     --wait \
@@ -75,7 +119,7 @@ notarize_and_staple() {
   if [[ "$status" != "Accepted" ]]; then
     echo "ERROR: notarization failed for $artifact: $status" >&2
     [[ -n "$submission_id" ]] && xcrun notarytool log "$submission_id" \
-      --key "$key_path" \
+      --key "$NOTARY_KEY_PATH" \
       --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
       --issuer "$APP_STORE_CONNECT_ISSUER_ID" || true
     exit 1
@@ -83,23 +127,27 @@ notarize_and_staple() {
 }
 
 echo "== Duplicating $SOURCE_APP -> $BETA_APP"
-rm -rf "$BETA_APP"
+case "$BETA_APP" in
+  "$BUILD_DIR/Intentive Beta.app") rm -rf -- "$BETA_APP" ;;
+  *) echo "ERROR: refusing unsafe beta app replacement path: $BETA_APP" >&2; exit 1 ;;
+esac
 ditto "$SOURCE_APP" "$BETA_APP"
 
 echo "== Patching identity"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BETA_BUNDLE_ID" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName $BETA_APP_NAME" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $BETA_APP_NAME" "$PLIST"
-# Identity-aware feed: the backend serves beta-channel items with beta-identity
-# enclosures only to clients that ask with identity=beta. Legacy stable-identity
-# installs keep the plain URL and their current update behavior.
 /usr/libexec/PlistBuddy -c \
-  "Set :SUFeedURL https://api.omi.me/v2/desktop/appcast.xml?identity=beta" "$PLIST"
+  "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $BETA_URL_SCHEME" "$PLIST"
+# Identity-aware feed: beta enclosures are requested only by the Beta identity.
+# The exact owned provider URL is required; this script has no inherited fallback.
+/usr/libexec/PlistBuddy -c \
+  "Set :SUFeedURL $BETA_FEED_URL" "$PLIST"
 
 echo "== Re-signing outer bundle (nested signatures unchanged)"
 codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" \
-  --entitlements Desktop/Omi-Release.entitlements \
+  --entitlements "$MACOS_DIR/Desktop/Omi-Release.entitlements" \
   "$BETA_APP"
 codesign --verify --deep --strict --verbose=2 "$BETA_APP"
 
@@ -112,18 +160,18 @@ xcrun stapler staple "$BETA_APP"
 
 echo "== Creating beta DMG"
 pip3 install --break-system-packages "dmgbuild==${DMGBUILD_VERSION:?}" >/dev/null
-STAGING_DIR="/tmp/omi-beta-dmg-staging-$$"
-mkdir -p "$STAGING_DIR"
+STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/heyintentive-beta-dmg-staging.XXXXXX")"
 ditto "$BETA_APP" "$STAGING_DIR/$BETA_APP_NAME.app"
 xcrun stapler validate "$STAGING_DIR/$BETA_APP_NAME.app" 2>/dev/null || \
   xcrun stapler staple "$STAGING_DIR/$BETA_APP_NAME.app"
-dmgbuild -s dmg-assets/dmgbuild_settings.py \
+dmgbuild -s "$MACOS_DIR/dmg-assets/dmgbuild_settings.py" \
   -D app_path="$STAGING_DIR/$BETA_APP_NAME.app" \
   -D app_name="$BETA_APP_NAME" \
   -D assets_dir="$(pwd)/dmg-assets" \
   "$BETA_APP_NAME" \
   "$DMG_OUT"
-rm -rf "$STAGING_DIR"
+rm -rf -- "$STAGING_DIR"
+STAGING_DIR=""
 
 codesign --force --sign "$SIGN_IDENTITY" "$DMG_OUT"
 echo "== Notarizing beta DMG"
@@ -132,7 +180,7 @@ xcrun stapler staple "$DMG_OUT"
 
 echo "== Creating beta Sparkle ZIP"
 ditto -c -k --keepParent "$BETA_APP" "$SPARKLE_ZIP_OUT"
-SPARKLE_BIN="Desktop/.build/artifacts/sparkle/Sparkle/bin"
+SPARKLE_BIN="${INTENTIVE_SPARKLE_BIN:-$MACOS_DIR/Desktop/.build/artifacts/sparkle/Sparkle/bin}"
 BETA_ED_SIGNATURE=""
 if [[ -f "$SPARKLE_BIN/sign_update" ]]; then
   BETA_ED_SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | \

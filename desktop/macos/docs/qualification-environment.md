@@ -20,7 +20,7 @@ artifacts are listed in `qualification-cleanup.md`.
   `OMI_QUALIFICATION_RETENTION_AGE_SECONDS` — bounded retention for completed,
   sentinel-proven state/log pairs (defaults: 3 runs and 14 days).
 - `OMI_QUALIFICATION_SWIFT_CACHE_ROOT` — owner-only exact-SHA SwiftPM cache.
-  Defaults to `~/Library/Caches/OmiDesktop/qualification-swiftpm-v2`.
+  Defaults to `~/Library/Caches/heyintentive-desktop/qualification-swiftpm-v2`.
 - `OMI_HARNESS_PORT_OFFSET` and `OMI_HARNESS_{FIRESTORE,AUTH,BACKEND,REDIS}_PORT` — dev-harness controls. The qualifier exports the offset; direct per-service overrides remain available for debugging.
 
 The offset applies to Firestore, Firebase Auth, the canonical backend, and
@@ -46,7 +46,7 @@ passing evidence.
 
 `desktop_auto_release.yml` keeps final source binding, offline readiness receipt
 creation, receipt verification, and immutable tag publication in the same
-non-cancelling `desktop-auto-release-tag-main` job on `omi-qual-m1-studio`.
+non-cancelling `desktop-auto-release-tag-main` job on `intentive-qual-m1-studio`.
 There is no independent readiness job or cross-job artifact handoff.
 
 The job invokes `desktop/macos/scripts/pre-tag-readiness.sh` against the exact
@@ -164,8 +164,8 @@ this report; no Tier-2 or fault UX gate is skipped to meet it.
 Use this section when bringing up a new macOS ARM64 host as a desktop
 qualification runner. Official Beta qualification (`desktop_qualify_beta.yml`)
 only admits jobs that land on the M1 Studio label set; additional hosts may
-share the `omi-desktop-qualification` pool for non-gating work but cannot
-replace `omi-qual-m1-studio`.
+share the `intentive-desktop-qualification` pool for non-gating work but cannot
+replace `intentive-qual-m1-studio`.
 
 ### Hardware
 
@@ -185,7 +185,7 @@ Install and verify before registering the runner:
   `/Applications/Xcode_16.4.app` when that path is used for Swift CI)
 - Docker Desktop (daemon running; `docker info` must succeed)
 - GitHub CLI (`gh`) authenticated to an account that can create repo runner
-  registration tokens for `BasedHardware/omi`
+  registration tokens for `sruj75/knowledge-athlete`
 - Python 3.11+ on `PATH` (`python3 --version`)
 - Node.js 20+ on `PATH` (`node --version`)
 - Flutter SDK on `PATH` (`flutter --version`) for monorepo tooling that still
@@ -193,13 +193,13 @@ Install and verify before registering the runner:
 - `make`, `curl`, `jq`, `git` on `PATH`
 - Homebrew tools commonly needed by the harness (`/opt/homebrew/bin` on PATH)
 
-### Clone and Omi setup
+### Clone and Intentive setup
 
 ```bash
 # Durable cache clone used by local evidence-only services and worktrees
 mkdir -p ~/.cache/hermes
-git clone --filter=blob:none git@github.com:BasedHardware/omi.git ~/.cache/hermes/omi
-cd ~/.cache/hermes/omi
+git clone --filter=blob:none git@github.com:sruj75/knowledge-athlete.git ~/.cache/hermes/knowledge-athlete
+cd ~/.cache/hermes/knowledge-athlete
 make setup          # hooks + backend pre-push env
 make setup-backend  # if you need the desktop Python backend venv immediately
 ```
@@ -215,23 +215,23 @@ make dev-up && make dev-status && make dev-down
 ### GitHub Actions runner registration
 
 Download the latest macOS ARM64 actions runner into a durable home (example:
-`~/.local/share/omi-actions-runner`), then register it with `config.sh`.
+`~/.local/share/intentive-actions-runner`), then register it with `config.sh`.
 
 Labels required by `.github/workflows/desktop_qualify_beta.yml` for the
 official qualifier:
 
 ```text
-self-hosted, macOS, ARM64, omi-desktop-qualification, omi-qual-m1-studio
+self-hosted, macOS, ARM64, intentive-desktop-qualification, intentive-qual-m1-studio
 ```
 
 `self-hosted`, `macOS`, and `ARM64` are applied by the runner binary. Pass the
-Omi-specific labels explicitly:
+Intentive-specific labels explicitly:
 
 ```bash
-RUNNER_HOME=~/.local/share/omi-actions-runner
-REPO=BasedHardware/omi
+RUNNER_HOME=~/.local/share/intentive-actions-runner
+REPO=sruj75/knowledge-athlete
 NAME=m1-mac-studio-qualification
-LABELS=omi-desktop-qualification,omi-qual-m1-studio
+LABELS=intentive-desktop-qualification,intentive-qual-m1-studio
 
 api_token=$(gh auth token)
 registration_token=$(curl -fsS -X POST \
@@ -249,7 +249,7 @@ registration_token=$(curl -fsS -X POST \
 ```
 
 A secondary capacity host (for example the M4 Mini) may register with
-`omi-desktop-qualification` only (plus an optional host-specific label such as
+`intentive-desktop-qualification` only (plus an optional host-specific label such as
 `omi-qual-m4-mini`). It will not receive `qualify-m1-studio` jobs.
 
 Keep the runner alive across reboots with a GUI-session launch agent that
@@ -263,8 +263,8 @@ The runner must reach:
 
 - `github.com` / `api.github.com` / Actions service endpoints (checkout, release
   download/upload, app-token flows)
-- Live canonical process health and Chat compatibility used by the workflow
-  (`https://api.omi.me/v1/health` and `https://api.omi.me/`)
+- The configured owned production process health and Chat compatibility endpoints
+  (`$INTENTIVE_PRODUCTION_API_URL/v1/health` and `$INTENTIVE_PRODUCTION_API_URL/`)
 - Docker Hub / GHCR as required by the hermetic harness images
 - Apple notarization is **not** required on the qualifier; signed candidate
   assets arrive from Codemagic via the GitHub Release
@@ -300,18 +300,18 @@ need heartbeat + bounded process-group enforcement.
 
 ```bash
 # Runner online with expected labels
-gh api repos/BasedHardware/omi/actions/runners \
+gh api repos/sruj75/knowledge-athlete/actions/runners \
   --jq '.runners[] | {name,status,labels:[.labels[].name]}'
 
 # Launch agent / process
 launchctl print "gui/$(id -u)/com.omi.desktop-qualification-runner" | head
-pgrep -lf 'Runner.Listener|omi-actions-runner' || true
+pgrep -lf 'Runner.Listener|intentive-actions-runner' || true
 
 # Capacity gate the workflow will enforce
 python3 desktop/macos/scripts/qualification-runner-self-clean.py \
   --dry-run --report /tmp/runner-hygiene.json \
   --repo-root "$PWD" \
-  --cache-root "${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$HOME/Library/Caches/OmiDesktop/qualification-swiftpm-v2}" \
+  --cache-root "${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$HOME/Library/Caches/heyintentive-desktop/qualification-swiftpm-v2}" \
   --qualification-lease-root "${OMI_QUALIFICATION_LEASE_ROOT:-${TMPDIR:-/tmp}/omi-desktop-qualification}" \
   --stage-root "${RUNNER_TEMP:-/tmp}/desktop-beta-qualification" \
   --fault-temp-root "${TMPDIR:-/tmp}" \

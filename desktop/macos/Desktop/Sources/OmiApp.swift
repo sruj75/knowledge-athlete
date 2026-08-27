@@ -260,7 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     if AuthStorageCanary.isRequested { return }
     // Single-instance guard: a second live copy of the same bundle id + launch mode
     // would race the first against the shared Rewind SQLite DB
-    // (~/Library/Application Support/Omi/…) and the bundle-id UserDefaults domain,
+    // (the identity-owned Application Support root) and the bundle-id UserDefaults domain,
     // corrupting state. Enforce here — the earliest delegate callback — so a duplicate
     // exits before any DB open or UserDefaults write in applicationDidFinishLaunching.
     SingleInstanceGuard.enforceSingleInstanceOrExit(
@@ -1307,7 +1307,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   private func updateOnboardingLifecyclePolicy(reason: String) {
-    // Only the production/beta bundle (com.omi.computer-macos) should relaunch on login.
+    // Only the owned stable/Beta bundle family should relaunch on login.
     // Dev and named test bundles must always opt out — otherwise every local build that was
     // open at shutdown gets relaunched on the next restart, swarming the screen with dev apps.
     MainActor.assumeIsolated {

@@ -650,7 +650,7 @@ expected = {
     "schema_version": 2,
     "run_token": run_token,
     "bundle": bundle,
-    "bundle_id": f"com.omi.{bundle}",
+    "bundle_id": f"com.heyintentive.intentive.dev.{bundle}",
     "app_path": f"/Applications/{bundle}.app",
     "executable_path": f"/Applications/{bundle}.app/Contents/MacOS/Omi Computer",
     "automation_port": int(port),
@@ -822,16 +822,15 @@ start_fault_stack() {
     OMI_DESKTOP_LOCAL_PROFILE=1 \
       OMI_HARNESS_INSTANCE="${OMI_HARNESS_INSTANCE:-${OMI_LOCAL_INSTANCE:-fault-suite}}" \
       OMI_HARNESS_OWNERSHIP_TOKEN="${OMI_HARNESS_OWNERSHIP_TOKEN:-${OMI_FAULT_OWNERSHIP_TOKEN:-}}" \
-      OMI_SKIP_AUTH_SEED=1 \
-      OMI_SKIP_SETTINGS_SEED=1 \
+      OMI_SEED_FROM_CANONICAL_DEV=0 \
       OMI_LOCAL_PROFILE_STORAGE_NAME="$FAULT_BUNDLE" \
       OMI_LOCAL_AUTH_USER=alice \
       OMI_LOCAL_AUTH_EMAIL=alice@local.omi.invalid \
       OMI_LOCAL_AUTH_PASSWORD=alice-local-password-030 \
       OMI_LOCAL_AUTH_DISPLAY_NAME='Synthetic Alice' \
       FIREBASE_AUTH_EMULATOR_HOST="$auth_host" \
-      FIREBASE_PROJECT_ID=demo-omi-local \
-      FIREBASE_AUTH_PROJECT_ID=demo-omi-local \
+      FIREBASE_PROJECT_ID=demo-heyintentive-local \
+      FIREBASE_AUTH_PROJECT_ID=demo-heyintentive-local \
       FIRESTORE_DATABASE_ID='(default)' \
       FIREBASE_API_KEY=local-firebase-auth-emulator-api-key \
       OMI_ALLOW_ADHOC_SIGN=1 \
@@ -848,7 +847,7 @@ start_fault_stack() {
   FAULT_RUN_PID=$!
   FAULT_RUN_STARTED=1
   FAULT_APP_LAUNCH_REQUESTED=1
-  local expected_bundle="com.omi.${FAULT_BUNDLE}"
+  local expected_bundle="com.heyintentive.intentive.dev.${FAULT_BUNDLE}"
   # A cold qualification cache can spend several minutes creating the named
   # fault bundle before the bridge exists. Do not turn that bounded build time
   # into a false fault-suite failure; an explicit override keeps local probes
@@ -1068,7 +1067,7 @@ PY
   fi
   if [[ "$TIER" -eq 3 ]]; then
     set +e
-    OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/agent-continuity-gauntlet.sh" --bundle-id "com.omi.${BUNDLE}"
+    OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/agent-continuity-gauntlet.sh" --bundle-id "com.heyintentive.intentive.dev.${BUNDLE}"
     gauntlet_status=$?
     set -e
     if [[ "$gauntlet_status" -ne 0 ]]; then

@@ -39,7 +39,7 @@ class QualificationRunnerSelfCleanTests(unittest.TestCase):
                     "schema_version": 2,
                     "run_token": token,
                     "bundle": bundle,
-                    "bundle_id": f"com.omi.{bundle}",
+                    "bundle_id": f"com.heyintentive.intentive.dev.{bundle}",
                     "app_path": f"/Applications/{bundle}.app",
                     "executable_path": executable,
                     "automation_port": 47791,
@@ -76,6 +76,17 @@ class QualificationRunnerSelfCleanTests(unittest.TestCase):
     def test_fault_classifier_rejects_production_bundle_even_with_self_consistent_record(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             record, process = self._fault_record(Path(directory), bundle="Omi")
+
+            with self.assertRaisesRegex(self_clean.HygieneError, "disposable bundle"):
+                self_clean._validate_fault_app_target(record, {process.pid: process})
+
+    def test_fault_classifier_rejects_foreign_omi_bundle_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            record, process = self._fault_record(Path(directory))
+            payload = json.loads(record.read_text(encoding="utf-8"))
+            payload["bundle_id"] = "com.omi.omi-fault-owned-contract"
+            record.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            record.chmod(0o600)
 
             with self.assertRaisesRegex(self_clean.HygieneError, "disposable bundle"):
                 self_clean._validate_fault_app_target(record, {process.pid: process})

@@ -5,46 +5,46 @@ final class DesktopProductIdentityTests: XCTestCase {
   func testApprovedBundleFamilyResolvesExactCapabilitiesAndNamespaces() throws {
     let cases: [(String, DesktopProductIdentity.Family, [String], String, Bool, Bool, Bool)] = [
       (
-        "com.heyintentive.intuitive",
+        "com.heyintentive.intentive",
         .stable,
-        ["Intuitive"],
-        "intuitive",
+        ["Intentive"],
+        "heyintentive",
         false,
         true,
         true
       ),
       (
-        "com.heyintentive.intuitive.beta",
+        "com.heyintentive.intentive.beta",
         .beta,
-        ["Intuitive Beta"],
-        "intuitive-beta",
+        ["Intentive Beta"],
+        "heyintentive-beta",
         false,
         true,
         true
       ),
       (
-        "com.heyintentive.intuitive.dev",
+        "com.heyintentive.intentive.dev",
         .canonicalDevelopment,
-        ["Intuitive Dev"],
-        "intuitive-dev",
+        ["Intentive Dev"],
+        "heyintentive-dev",
         true,
         true,
         false
       ),
       (
-        "com.heyintentive.intuitive.dev.omi-wave5-s28",
+        "com.heyintentive.intentive.dev.omi-wave5-s28",
         .namedDevelopment("omi-wave5-s28"),
-        ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.omi-wave5-s28"],
-        "intuitive-omi-wave5-s28",
+        ["Intentive Dev Bundles", "com.heyintentive.intentive.dev.omi-wave5-s28"],
+        "heyintentive-omi-wave5-s28",
         true,
         false,
         false
       ),
       (
-        "com.heyintentive.intuitive.preview.p8b1f42a9",
+        "com.heyintentive.intentive.preview.p8b1f42a9",
         .preview("p8b1f42a9"),
-        ["Intuitive Preview Builds", "com.heyintentive.intuitive.preview.p8b1f42a9"],
-        "intuitive-preview-p8b1f42a9",
+        ["Intentive Preview Builds", "com.heyintentive.intentive.preview.p8b1f42a9"],
+        "heyintentive-preview-p8b1f42a9",
         false,
         false,
         false
@@ -66,24 +66,28 @@ final class DesktopProductIdentityTests: XCTestCase {
 
   func testExactTechnicalComponentsAreOwnedAndDisplayIndependent() {
     XCTAssertEqual(DesktopProductIdentity.reverseDNSOwner, "com.heyintentive")
-    XCTAssertEqual(DesktopProductIdentity.productSlug, "intuitive")
-    XCTAssertEqual(DesktopProductIdentity.applicationFilename, "Intuitive.app")
-    XCTAssertEqual(DesktopProductIdentity.databaseFilename, "intuitive.db")
-    XCTAssertEqual(DesktopProductIdentity.agentRuntimeDatabaseFilename, "intuitive-agent.sqlite3")
-    XCTAssertEqual(DesktopProductIdentity.logPrefix, "intuitive")
-    XCTAssertEqual(DesktopProductIdentity.lockPrefix, "intuitive")
-    XCTAssertEqual(DesktopProductIdentity.automationTokenPrefix, "intuitive-automation")
-    XCTAssertEqual(DesktopProductIdentity.archiveCacheRootName, "IntuitiveDesktop")
-    XCTAssertEqual(DesktopProductIdentity.runtimeManifestFilename, ".intuitive-dev-runtime.json")
-    XCTAssertEqual(DesktopProductIdentity.agentStateEnvironmentVariable, "INTUITIVE_AGENT_STATE_DIR")
-    XCTAssertEqual(DesktopProductIdentity.installerSkipEnvironmentVariable, "INTUITIVE_SKIP_INSTALL_GATE")
+    XCTAssertEqual(DesktopProductIdentity.productSlug, "heyintentive")
+    XCTAssertEqual(DesktopProductIdentity.applicationFilename, "Intentive.app")
+    XCTAssertEqual(DesktopProductIdentity.databaseFilename, "heyintentive.db")
+    XCTAssertEqual(DesktopProductIdentity.runningFlagFilename, ".heyintentive_running")
+    XCTAssertEqual(DesktopProductIdentity.agentRuntimeDatabaseFilename, "heyintentive-agent.sqlite3")
+    XCTAssertEqual(DesktopProductIdentity.logPrefix, "heyintentive")
+    XCTAssertEqual(DesktopProductIdentity.lockPrefix, "heyintentive")
+    XCTAssertEqual(DesktopProductIdentity.automationTokenPrefix, "heyintentive-automation")
+    XCTAssertEqual(DesktopProductIdentity.archiveCacheRootName, "heyintentive-desktop")
+    XCTAssertEqual(DesktopProductIdentity.runtimeManifestFilename, ".heyintentive-dev-runtime.json")
+    XCTAssertEqual(DesktopProductIdentity.agentStateEnvironmentVariable, "HEYINTENTIVE_AGENT_STATE_DIR")
+    XCTAssertEqual(
+      DesktopProductIdentity.agentArtifactsEnvironmentVariable,
+      "HEYINTENTIVE_AGENT_ARTIFACTS_DIR")
+    XCTAssertEqual(DesktopProductIdentity.installerSkipEnvironmentVariable, "HEYINTENTIVE_SKIP_INSTALL_GATE")
     XCTAssertEqual(
       DesktopProductIdentity.authKeychainServiceBase,
-      "com.heyintentive.intuitive.firebase-rest-session"
+      "com.heyintentive.intentive.firebase-rest-session"
     )
     XCTAssertEqual(
       DesktopProductIdentity.clientDeviceKeychainServiceBase,
-      "com.heyintentive.intuitive.client-device-id"
+      "com.heyintentive.intentive.client-device-id"
     )
   }
 
@@ -91,11 +95,11 @@ final class DesktopProductIdentityTests: XCTestCase {
     for bundleID in [
       nil,
       "",
-      "com.heyintentive.intuitive.dev.",
-      "com.heyintentive.intuitive.dev.../escape",
-      "com.heyintentive.intuitive.dev.测试",
-      "com.heyintentive.intuitive.preview.",
-      "com.heyintentive.intuitive.preview.bad.value",
+      "com.heyintentive.intentive.dev.",
+      "com.heyintentive.intentive.dev.../escape",
+      "com.heyintentive.intentive.dev.测试",
+      "com.heyintentive.intentive.preview.",
+      "com.heyintentive.intentive.preview.bad.value",
       "com.heyintentive.other",
       "com.omi.computer-macos",
       "com.omi.computer-macos.beta",
@@ -107,19 +111,19 @@ final class DesktopProductIdentityTests: XCTestCase {
   }
 
   func testStableBetaAndCanonicalDevelopmentConstantsStayExact() {
-    XCTAssertEqual(DesktopProductIdentity.stableBundleIdentifier, "com.heyintentive.intuitive")
-    XCTAssertEqual(DesktopProductIdentity.betaBundleIdentifier, "com.heyintentive.intuitive.beta")
+    XCTAssertEqual(DesktopProductIdentity.stableBundleIdentifier, "com.heyintentive.intentive")
+    XCTAssertEqual(DesktopProductIdentity.betaBundleIdentifier, "com.heyintentive.intentive.beta")
     XCTAssertEqual(
       DesktopProductIdentity.canonicalDevelopmentBundleIdentifier,
-      "com.heyintentive.intuitive.dev"
+      "com.heyintentive.intentive.dev"
     )
     XCTAssertEqual(
       DesktopProductIdentity.namedDevelopmentBundlePrefix,
-      "com.heyintentive.intuitive.dev."
+      "com.heyintentive.intentive.dev."
     )
     XCTAssertEqual(
       DesktopProductIdentity.previewBundlePrefix,
-      "com.heyintentive.intuitive.preview."
+      "com.heyintentive.intentive.preview."
     )
   }
 }
