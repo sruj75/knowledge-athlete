@@ -76,6 +76,9 @@ def check_desktop_preview_controls() -> list[str]:
     dispatcher = _read(".github/workflows/desktop_publish_preview.yml", errors)
     runtime_env = _read("backend/deploy/runtime_env.yaml", errors)
     app_build = _read("desktop/macos/Desktop/Sources/AppBuild.swift", errors)
+    product_identity = _read(
+        "desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift", errors
+    )
     updater = _read("desktop/macos/Desktop/Sources/UpdaterViewModel.swift", errors)
     smoke = _read("desktop/macos/scripts/smoke-signed-desktop-artifact.sh", errors)
     preview_router = _read("backend/routers/updates.py", errors)
@@ -128,13 +131,15 @@ def check_desktop_preview_controls() -> list[str]:
         if fragment not in preview_registry:
             errors.append(f"desktop preview delisting is missing required registry guard fragment: {fragment}")
     for fragment in (
-        'externalPreviewBundleIdentifierPrefix = "com.omi.preview."',
+        "externalPreviewBundleIdentifierPrefix = DesktopProductIdentity.previewBundlePrefix",
         "allowsLocalAutomation",
         "allowsSparkleUpdates",
         "hasValidExternalPreviewConfiguration",
     ):
         if fragment not in app_build:
             errors.append(f"external preview build classification is missing: {fragment}")
+    if 'previewBundlePrefix = "com.heyintentive.intentive.preview."' not in product_identity:
+        errors.append("typed product identity is missing the owned Intentive preview namespace")
     if "startingUpdater: AppBuild.allowsSparkleUpdates" not in updater:
         errors.append("external preview builds must not start the shared Sparkle updater")
     for fragment in ("--preview", "IS_EXTERNAL_PREVIEW", "external preview must not carry a shared Sparkle feed"):
@@ -154,7 +159,7 @@ def check_desktop_qualification_and_promotion() -> list[str]:
         "workflow_dispatch:",
         "self-hosted",
         "macos",
-        "omi-desktop-qualification",
+        "intentive-desktop-qualification",
         'git -C "$source_dir" checkout --quiet --detach "refs/tags/$RELEASE_TAG"',
         "check-desktop-auto-beta-candidate.py",
         "--automatic",
