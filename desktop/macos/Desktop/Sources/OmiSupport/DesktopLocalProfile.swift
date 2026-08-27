@@ -7,15 +7,10 @@ import Foundation
 /// of a launcher environment variable: macOS can reopen an installed app without
 /// `run.sh`, and that relaunch must remain isolated.
 package struct DesktopStorageIdentity: Equatable {
-  package static let namedDevelopmentBundlePrefix = "com.omi.omi-"
-  /// The separately-installable "Omi Beta" app. Kept in sync with
-  /// `AppBuild.betaProductionBundleIdentifier` (asserted by a unit test); OmiSupport
-  /// sits below the main target, so the literal is duplicated rather than imported.
-  package static let betaProductionBundleIdentifier = "com.omi.computer-macos.beta"
-
   package let bundleIdentifier: String?
   package let localProfileEnabled: Bool
   package let localProfileStorageName: String?
+  package let productIdentity: DesktopProductIdentity?
 
   package init(
     bundleIdentifier: String?,
@@ -25,45 +20,60 @@ package struct DesktopStorageIdentity: Equatable {
     self.bundleIdentifier = bundleIdentifier
     self.localProfileEnabled = localProfileEnabled
     self.localProfileStorageName = localProfileStorageName
+    self.productIdentity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier)
   }
 
   package var isNamedDevelopmentBundle: Bool {
-    guard let bundleIdentifier else { return false }
-    guard bundleIdentifier.hasPrefix(Self.namedDevelopmentBundlePrefix) else { return false }
-    let suffix = bundleIdentifier.dropFirst(Self.namedDevelopmentBundlePrefix.count)
-    guard !suffix.isEmpty else { return false }
-    return suffix.unicodeScalars.allSatisfy { scalar in
-      switch scalar.value {
-      case 48...57, 65...90, 97...122, 45, 46:
-        true
-      default:
-        false
-      }
-    }
+    productIdentity?.isNamedDevelopment == true
   }
 
   package var isBetaProductionBundle: Bool {
-    bundleIdentifier == Self.betaProductionBundleIdentifier
+    productIdentity?.family == .beta
   }
 
   package var usesIsolatedStorage: Bool {
-    localProfileEnabled || isNamedDevelopmentBundle || isBetaProductionBundle
+    guard let productIdentity else { return false }
+    return productIdentity.family != .stable || usesHarnessLocalProfile
   }
 
-  package var applicationSupportPathComponents: [String] {
-    if let bundleIdentifier, isNamedDevelopmentBundle {
-      return ["Omi Dev Bundles", bundleIdentifier]
+  package var applicationSupportPathComponents: [String]? {
+    guard let productIdentity else { return nil }
+    if usesHarnessLocalProfile {
+      return ["Intuitive Test Profiles", validatedLocalProfileStorageName ?? "default"]
     }
-    // Omi Beta owns a separate root so a live beta and a live stable instance never
-    // share one SQLite database. It deliberately does not claim the legacy shared
-    // `Omi/` data (isolated ⇒ no legacy migration): beta starts fresh.
-    if isBetaProductionBundle {
-      return ["Omi Beta"]
+    return productIdentity.applicationSupportPathComponents
+  }
+
+  package var cachePathComponents: [String]? {
+    guard let productIdentity else { return nil }
+    if usesHarnessLocalProfile {
+      return ["Intuitive Test Profiles", validatedLocalProfileStorageName ?? "default"]
     }
-    if localProfileEnabled {
-      return [localProfileStorageName ?? "Omi"]
+    return productIdentity.cachePathComponents
+  }
+
+  private var usesHarnessLocalProfile: Bool {
+    localProfileEnabled && productIdentity?.family == .canonicalDevelopment
+  }
+
+  private var validatedLocalProfileStorageName: String? {
+    guard let localProfileStorageName, !localProfileStorageName.isEmpty else { return nil }
+    guard localProfileStorageName.first != "-", localProfileStorageName.last != "-" else {
+      return nil
     }
-    return ["Omi"]
+    guard
+      localProfileStorageName.unicodeScalars.allSatisfy({ scalar in
+        switch scalar.value {
+        case 48...57, 65...90, 97...122, 45:
+          return true
+        default:
+          return false
+        }
+      })
+    else {
+      return nil
+    }
+    return localProfileStorageName
   }
 }
 
@@ -76,7 +86,8 @@ package enum DesktopLocalProfile {
   }
 
   package static var storageDirectoryName: String {
-    storageIdentity.applicationSupportPathComponents.joined(separator: "/")
+    resolvedPathComponents(storageIdentity.applicationSupportPathComponents)
+      .joined(separator: "/")
   }
 
   package static var usesIsolatedStorage: Bool { storageIdentity.usesIsolatedStorage }
@@ -104,7 +115,7 @@ package enum DesktopLocalProfile {
     guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
       fatalError("Application Support directory not available on this system")
     }
-    return storageIdentity.applicationSupportPathComponents.reduce(base) {
+    return resolvedPathComponents(storageIdentity.applicationSupportPathComponents).reduce(base) {
       $0.appendingPathComponent($1, isDirectory: true)
     }
   }
@@ -113,9 +124,18 @@ package enum DesktopLocalProfile {
     guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
       fatalError("Caches directory not available on this system")
     }
-    return storageIdentity.applicationSupportPathComponents.reduce(base) {
+    return resolvedPathComponents(storageIdentity.cachePathComponents).reduce(base) {
       $0.appendingPathComponent($1, isDirectory: true)
     }
+  }
+
+  private static func resolvedPathComponents(_ components: [String]?) -> [String] {
+    guard let components else {
+      fatalError(
+        "Refusing to open desktop storage for an unknown bundle identifier: \(Bundle.main.bundleIdentifier ?? "nil")"
+      )
+    }
+    return components
   }
 
   private static func value(_ key: String) -> String? {

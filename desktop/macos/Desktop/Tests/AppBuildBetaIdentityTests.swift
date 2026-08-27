@@ -2,7 +2,7 @@ import XCTest
 
 @testable import Omi_Computer
 
-/// The Omi Beta identity (`com.omi.computer-macos.beta`) must behave as a shipped
+/// The Intuitive Beta identity must behave as a shipped
 /// production artifact — never as a dev/test bundle — while keeping its own update
 /// channel, storage root, and log path so it can run beside stable.
 final class AppBuildBetaIdentityTests: XCTestCase {
@@ -29,7 +29,7 @@ final class AppBuildBetaIdentityTests: XCTestCase {
 
   func testNamedDevBundleStaysNonProduction() {
     let config = AppBuild.configuration(
-      bundleIdentifier: "com.omi.omi-feature-test",
+      bundleIdentifier: "com.heyintentive.intuitive.dev.feature-test",
       infoDictionary: [:])
 
     XCTAssertTrue(config.isNonProduction)

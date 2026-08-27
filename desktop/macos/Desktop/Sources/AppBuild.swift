@@ -1,17 +1,18 @@
 import Foundation
+import OmiSupport
 
 enum AppBuild {
-  static let productionBundleIdentifier = "com.omi.computer-macos"
-  /// The separately-installable beta app ("Omi Beta.app"). A distinct bundle id gives it
+  static let productionBundleIdentifier = DesktopProductIdentity.stableBundleIdentifier
+  /// The separately-installable beta app. A distinct bundle id gives it
   /// its own UserDefaults domain, TCC grants, Keychain ACL, and single-instance lock, so
-  /// it runs side-by-side with stable. Must stay in sync with
-  /// `DesktopStorageIdentity.betaProductionBundleIdentifier` (asserted by a unit test).
-  static let betaProductionBundleIdentifier = "com.omi.computer-macos.beta"
+  /// it runs side-by-side with stable.
+  static let betaProductionBundleIdentifier = DesktopProductIdentity.betaBundleIdentifier
   static let productionFamilyBundleIdentifiers: Set<String> = [
     productionBundleIdentifier, betaProductionBundleIdentifier,
   ]
-  static let desktopDevBundleIdentifier = "com.omi.desktop-dev"
-  static let externalPreviewBundleIdentifierPrefix = "com.omi.preview."
+  static let desktopDevBundleIdentifier =
+    DesktopProductIdentity.canonicalDevelopmentBundleIdentifier
+  static let externalPreviewBundleIdentifierPrefix = DesktopProductIdentity.previewBundlePrefix
   static let externalPreviewMarkerInfoKey = "OMIExternalPreview"
   static let externalPreviewBackendInfoKey = "OMIExternalPreviewBackend"
   private static let updateChannelDefaultsKey = "update_channel"
@@ -39,29 +40,31 @@ enum AppBuild {
   /// a preview identity is always restricted, even if a packaging error omits its marker.
   struct Configuration: Equatable {
     let bundleIdentifier: String
+    let identity: DesktopProductIdentity?
     let isExternalPreview: Bool
     let hasExternalPreviewMarker: Bool
     let externalPreviewBackend: ExternalPreviewBackend?
 
     var isNonProduction: Bool {
-      bundleIdentifier.hasPrefix("com.omi.")
-        && !AppBuild.productionFamilyBundleIdentifiers.contains(bundleIdentifier)
+      guard let identity else { return false }
+      return !identity.isProductionFamily
     }
 
     var allowsLocalAutomation: Bool {
-      isNonProduction && !isExternalPreview
+      identity?.allowsLocalAutomation == true && !isExternalPreview
     }
 
     var isNamedDevelopmentBundle: Bool {
-      isNonProduction && !isExternalPreview && bundleIdentifier != AppBuild.desktopDevBundleIdentifier
+      identity?.isNamedDevelopment == true
     }
 
     var allowsSparkleUpdates: Bool {
-      !isExternalPreview && !isNamedDevelopmentBundle
+      identity?.allowsSparkleUpdates == true
     }
 
     var hasValidExternalPreviewConfiguration: Bool {
-      !isExternalPreview || (hasExternalPreviewMarker && externalPreviewBackend != nil)
+      !isExternalPreview
+        || (identity?.isPreview == true && hasExternalPreviewMarker && externalPreviewBackend != nil)
     }
   }
 
@@ -69,13 +72,17 @@ enum AppBuild {
     bundleIdentifier: String,
     infoDictionary: [String: Any]
   ) -> Configuration {
-    let isExternalPreview = isExternalPreviewBundleIdentifier(bundleIdentifier)
+    let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier)
+    // Any bundle in the reserved preview namespace remains restricted even when
+    // malformed. Only a valid typed preview can pass the packaging-metadata gate.
+    let isExternalPreview = bundleIdentifier.hasPrefix(externalPreviewBundleIdentifierPrefix)
     let hasExternalPreviewMarker = infoDictionary[externalPreviewMarkerInfoKey] as? Bool == true
     let externalPreviewBackend = ExternalPreviewBackend(
       infoValue: infoDictionary[externalPreviewBackendInfoKey])
 
     return Configuration(
       bundleIdentifier: bundleIdentifier,
+      identity: identity,
       isExternalPreview: isExternalPreview,
       hasExternalPreviewMarker: hasExternalPreviewMarker,
       externalPreviewBackend: externalPreviewBackend
@@ -83,8 +90,7 @@ enum AppBuild {
   }
 
   static func isExternalPreviewBundleIdentifier(_ bundleIdentifier: String) -> Bool {
-    let suffix = bundleIdentifier.dropFirst(externalPreviewBundleIdentifierPrefix.count)
-    return bundleIdentifier.hasPrefix(externalPreviewBundleIdentifierPrefix) && !suffix.isEmpty
+    DesktopProductIdentity(bundleIdentifier: bundleIdentifier)?.isPreview == true
   }
 
   private static var buildConfiguration: Configuration {
@@ -95,7 +101,10 @@ enum AppBuild {
   }
 
   static var bundleIdentifier: String {
-    Bundle.main.bundleIdentifier ?? productionBundleIdentifier
+    guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+      fatalError("The desktop app bundle has no identifier")
+    }
+    return bundleIdentifier
   }
 
   static var isNonProduction: Bool {
@@ -105,13 +114,13 @@ enum AppBuild {
   /// True for every shipped production-family artifact (stable *and* the beta app).
   /// Use `isBetaProductionBundle` when behavior differs between the two.
   static var isProductionBundle: Bool {
-    productionFamilyBundleIdentifiers.contains(bundleIdentifier)
+    buildConfiguration.identity?.isProductionFamily == true
   }
 
   /// The separately-installable "Omi Beta" app. Its update channel is pinned to beta
   /// and it keeps its own isolated on-disk state, so it can run beside stable.
   static var isBetaProductionBundle: Bool {
-    bundleIdentifier == betaProductionBundleIdentifier
+    buildConfiguration.identity?.family == .beta
   }
 
   static var isExternalPreview: Bool {

@@ -5,23 +5,27 @@ final class DesktopLocalProfileTests: XCTestCase {
   func testNamedDevelopmentBundleUsesDedicatedStorageRoot() {
     XCTAssertEqual(
       DesktopStorageIdentity(
-        bundleIdentifier: "com.omi.omi-memory-atlas-types",
+        bundleIdentifier: "com.heyintentive.intuitive.dev.memory-atlas-types",
         localProfileEnabled: false,
         localProfileStorageName: nil
       ).applicationSupportPathComponents,
-      ["Omi Dev Bundles", "com.omi.omi-memory-atlas-types"]
+      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.memory-atlas-types"]
     )
   }
 
-  func testProductionAndDefaultDevBundleKeepSharedStorageRoot() {
-    for bundleIdentifier in ["com.omi.computer-macos", "com.omi.desktop-dev"] {
+  func testStableAndCanonicalDevelopmentUseTheirOwnedRoots() {
+    let cases = [
+      ("com.heyintentive.intuitive", ["Intuitive"]),
+      ("com.heyintentive.intuitive.dev", ["Intuitive Dev"]),
+    ]
+    for (bundleIdentifier, expectedComponents) in cases {
       XCTAssertEqual(
         DesktopStorageIdentity(
           bundleIdentifier: bundleIdentifier,
           localProfileEnabled: false,
           localProfileStorageName: nil
         ).applicationSupportPathComponents,
-        ["Omi"]
+        expectedComponents
       )
     }
   }
@@ -29,11 +33,11 @@ final class DesktopLocalProfileTests: XCTestCase {
   func testNamedDevelopmentBundleTakesPrecedenceOverLocalProfileStorage() {
     XCTAssertEqual(
       DesktopStorageIdentity(
-        bundleIdentifier: "com.omi.omi-memory-atlas-types",
+        bundleIdentifier: "com.heyintentive.intuitive.dev.memory-atlas-types",
         localProfileEnabled: true,
-        localProfileStorageName: "Omi-local-test"
+        localProfileStorageName: "intuitive-local-test"
       ).applicationSupportPathComponents,
-      ["Omi Dev Bundles", "com.omi.omi-memory-atlas-types"]
+      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.memory-atlas-types"]
     )
   }
 }

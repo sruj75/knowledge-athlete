@@ -6,84 +6,89 @@ import XCTest
 final class DesktopStorageIdentityTests: XCTestCase {
   func testNamedDevelopmentBundlesHaveDistinctIdentityDerivedRoots() {
     let first = DesktopStorageIdentity(
-      bundleIdentifier: "com.omi.omi-memory-atlas",
+      bundleIdentifier: "com.heyintentive.intuitive.dev.memory-atlas",
       localProfileEnabled: false,
       localProfileStorageName: nil)
     let second = DesktopStorageIdentity(
-      bundleIdentifier: "com.omi.omi-rewind-fix",
+      bundleIdentifier: "com.heyintentive.intuitive.dev.rewind-fix",
       localProfileEnabled: false,
       localProfileStorageName: nil)
 
     XCTAssertTrue(first.usesIsolatedStorage)
     XCTAssertTrue(second.usesIsolatedStorage)
-    XCTAssertEqual(first.applicationSupportPathComponents, ["Omi Dev Bundles", "com.omi.omi-memory-atlas"])
-    XCTAssertEqual(second.applicationSupportPathComponents, ["Omi Dev Bundles", "com.omi.omi-rewind-fix"])
+    XCTAssertEqual(
+      first.applicationSupportPathComponents,
+      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.memory-atlas"])
+    XCTAssertEqual(
+      second.applicationSupportPathComponents,
+      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.rewind-fix"])
     XCTAssertNotEqual(first.applicationSupportPathComponents, second.applicationSupportPathComponents)
   }
 
-  func testProtectedAndReviewBundleIDsKeepLegacyStorage() {
+  func testCanonicalDevelopmentOwnsItsRootAndUnknownIdentityFailsClosed() {
     let dev = DesktopStorageIdentity(
-      bundleIdentifier: "com.omi.desktop-dev",
+      bundleIdentifier: "com.heyintentive.intuitive.dev",
       localProfileEnabled: false,
       localProfileStorageName: nil)
     let review = DesktopStorageIdentity(
-      bundleIdentifier: "com.omi.review-build",
+      bundleIdentifier: "com.heyintentive.intuitive.review-build",
       localProfileEnabled: false,
       localProfileStorageName: nil)
 
-    XCTAssertFalse(dev.usesIsolatedStorage)
+    XCTAssertTrue(dev.usesIsolatedStorage)
     XCTAssertFalse(review.usesIsolatedStorage)
-    XCTAssertEqual(dev.applicationSupportPathComponents, ["Omi"])
-    XCTAssertEqual(review.applicationSupportPathComponents, ["Omi"])
+    XCTAssertEqual(dev.applicationSupportPathComponents, ["Intuitive Dev"])
+    XCTAssertNil(review.applicationSupportPathComponents)
   }
 
   func testNamedLocalProfileStillUsesTheBundleIDBoundary() {
     let identity = DesktopStorageIdentity(
-      bundleIdentifier: "com.omi.omi-local-memory",
+      bundleIdentifier: "com.heyintentive.intuitive.dev.local-memory",
       localProfileEnabled: true,
       localProfileStorageName: "caller-controlled-name")
 
-    XCTAssertEqual(identity.applicationSupportPathComponents, ["Omi Dev Bundles", "com.omi.omi-local-memory"])
+    XCTAssertEqual(
+      identity.applicationSupportPathComponents,
+      ["Intuitive Dev Bundles", "com.heyintentive.intuitive.dev.local-memory"])
   }
 
   func testInvalidNamedBundleIDCannotSelectAnIsolatedPath() {
-    for bundleID in ["com.omi.omi-", "com.omi.omi-../escape", "com.omi.omi-测试"] {
+    for bundleID in [
+      "com.heyintentive.intuitive.dev.",
+      "com.heyintentive.intuitive.dev.../escape",
+      "com.heyintentive.intuitive.dev.测试",
+      "com.omi.omi-wave5-s28",
+    ] {
       let identity = DesktopStorageIdentity(
         bundleIdentifier: bundleID,
         localProfileEnabled: false,
         localProfileStorageName: nil)
 
       XCTAssertFalse(identity.isNamedDevelopmentBundle, "Unexpected named bundle ID: \(bundleID)")
-      XCTAssertEqual(identity.applicationSupportPathComponents, ["Omi"])
+      XCTAssertNil(identity.applicationSupportPathComponents)
     }
   }
 
   func testBetaProductionIdentityOwnsAnIsolatedRoot() {
     let beta = DesktopStorageIdentity(
-      bundleIdentifier: DesktopStorageIdentity.betaProductionBundleIdentifier,
+      bundleIdentifier: DesktopProductIdentity.betaBundleIdentifier,
       localProfileEnabled: false,
       localProfileStorageName: nil)
 
     XCTAssertTrue(beta.isBetaProductionBundle)
     XCTAssertTrue(beta.usesIsolatedStorage)
-    XCTAssertEqual(beta.applicationSupportPathComponents, ["Omi Beta"])
+    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intuitive Beta"])
   }
 
   func testBetaProductionIdentityIgnoresHarnessLocalProfile() {
     // A shipped Omi Beta must never follow harness environment overrides into
     // another storage root.
     let beta = DesktopStorageIdentity(
-      bundleIdentifier: DesktopStorageIdentity.betaProductionBundleIdentifier,
+      bundleIdentifier: DesktopProductIdentity.betaBundleIdentifier,
       localProfileEnabled: true,
-      localProfileStorageName: "Omi Harness")
+      localProfileStorageName: "IntuitiveHarness")
 
-    XCTAssertEqual(beta.applicationSupportPathComponents, ["Omi Beta"])
-  }
-
-  func testBetaBundleIdentifierStaysInSyncWithAppBuild() {
-    XCTAssertEqual(
-      DesktopStorageIdentity.betaProductionBundleIdentifier,
-      AppBuild.betaProductionBundleIdentifier)
+    XCTAssertEqual(beta.applicationSupportPathComponents, ["Intuitive Beta"])
   }
 
   func testRuntimeManifestIsOwnerOnlyAndContainsNoCredentials() throws {
