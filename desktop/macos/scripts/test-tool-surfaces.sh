@@ -53,6 +53,13 @@ select_node22() {
 NODE22="$(select_node22)"
 export PATH="$(dirname "$NODE22"):$PATH"
 
+# Production fails closed unless Swift supplies an owned artifact root. The
+# hermetic tool-surface suite supplies the same boundary explicitly instead of
+# inheriting a developer machine path or weakening the production default.
+TEST_ARTIFACT_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/intentive-agent-artifacts.XXXXXX")"
+trap 'rm -rf "$TEST_ARTIFACT_ROOT"' EXIT
+export HEYINTENTIVE_AGENT_ARTIFACTS_DIR="$TEST_ARTIFACT_ROOT"
+
 ensure_npm_deps "$DESKTOP_DIR/agent"
 
 (
