@@ -54,7 +54,7 @@ ARCHIVE="$TEST_ROOT/Omi.dSYM.zip"
 export SENTRY_AUTH_TOKEN="test-token"
 export OMI_TEST_NPX_ARGS="$TEST_ROOT/npx-args"
 "$SCRIPT" upload --binary "$TEST_ROOT/Omi" --dsym "$DSYM"
-grep -Fq '@sentry/cli@2.52.0 debug-files upload --org omi-nk3 --project omi-desktop --wait' \
+grep -Fq '@sentry/cli@2.52.0 debug-files upload --org heyintentive --project desktop-macos --wait' \
   "$OMI_TEST_NPX_ARGS"
 
 if OMI_TEST_MISMATCH=1 "$SCRIPT" upload --binary "$TEST_ROOT/Omi" --dsym "$DSYM" \

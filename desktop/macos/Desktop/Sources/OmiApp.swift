@@ -368,8 +368,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     // context and have caused named dogfood bundles to crash while reporting.
     let isDev = AnalyticsManager.isDevBuild
     SentrySDK.start { options in
-      options.dsn =
-        "https://bbffa02d948c81ea4dccd36246c7bd20@o4511085999816704.ingest.us.sentry.io/4511086024851456"
+      options.dsn = DesktopSentryConfiguration.dsn
       options.debug = false
       options.enableAutoSessionTracking = !isDev
       options.enableCrashHandler = !isDev

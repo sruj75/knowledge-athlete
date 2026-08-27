@@ -3,8 +3,8 @@
 set -euo pipefail
 
 SENTRY_CLI_VERSION="2.52.0"
-SENTRY_ORG="${SENTRY_ORG:-omi-nk3}"
-SENTRY_PROJECT="${SENTRY_PROJECT:-omi-desktop}"
+SENTRY_ORG="${SENTRY_ORG:-heyintentive}"
+SENTRY_PROJECT="${SENTRY_PROJECT:-desktop-macos}"
 
 usage() {
   cat >&2 <<'EOF'
