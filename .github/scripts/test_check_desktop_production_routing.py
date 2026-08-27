@@ -76,6 +76,16 @@ class DesktopProductionRoutingContractTests(unittest.TestCase):
 
                 self.assertTrue(CHECKER.validate(root))
 
+    def test_rejects_inherited_omi_bundle_identities(self) -> None:
+        for token in CHECKER.FORBIDDEN_IDENTITY_TOKENS:
+            with self.subTest(token=token), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                _copy_protected_sources(root)
+                target = root / CHECKER.DESKTOP_PRODUCT_IDENTITY_PATH
+                target.write_text(target.read_text(encoding="utf-8") + f"\n// {token}\n", encoding="utf-8")
+
+                self.assertTrue(CHECKER.validate(root))
+
 
 if __name__ == "__main__":
     unittest.main()

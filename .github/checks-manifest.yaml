@@ -463,9 +463,9 @@ checks:
     reason: "mutation-tests prod/all admission, serving smoke order, token handling, and rollback coverage"
   - id: production-data-plane-routing
     command: ["python3", ".github/scripts/test_check_desktop_production_routing.py"]
-    triggers: ["desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift", "desktop/macos/Desktop/Sources/GoogleService-Info*.plist", "backend/charts/**", ".github/workflows/**", ".github/scripts/check-desktop-production-routing.py", ".github/scripts/test_check_desktop_production_routing.py", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift", "desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift", "backend/charts/**", ".github/workflows/**", ".github/scripts/check-desktop-production-routing.py", ".github/scripts/test_check_desktop_production_routing.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "INV-DATA-1 mutation-tests retain the single macOS production backend URL and reject retired GKE backend ownership"
+    reason: "INV-DATA-1 mutation-tests retain owned macOS identity, signed-metadata production routing, and reject retired GKE backend ownership"
   - id: backend-candidate-probe-fixtures
     command: ["python3", ".github/scripts/test_backend_candidate_probe.py"]
     triggers: [".github/scripts/backend_candidate_probe.py", ".github/scripts/test_backend_candidate_probe.py", "backend/**/*.py", "backend/pylock.runtime.toml", ".github/checks-manifest.yaml"]
