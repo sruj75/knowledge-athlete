@@ -1,3 +1,6 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
 # Owner provider decisions
 
 Repository-tracked operator handoff. This file records account ownership and
@@ -40,6 +43,20 @@ Last confirmed: 2026-08-29
     `intentive-macos-release` and `intentive-macos-preview`.
   - The second empty application record `6a8ff02926a0b2fbc893544e` was permanently deleted on
     2026-08-29 after explicit owner confirmation. It had no configuration file or build history.
+  - Codemagic detected the root `codemagic.yaml` on `main` on 2026-08-29. The selected application's
+    GitHub webhook is active for repository create, pull-request, and push events; the workflow's
+    tag filter remains the release admission boundary.
+
+## Sparkle update identity
+
+- Generated 2026-08-29 with the repository-pinned Sparkle tooling under the separate macOS Keychain
+  account `heyintentive`; no inherited or default Omi update key was reused.
+- Public EdDSA key: `APqAXab2u3W8phgwmTmaHu1ztQgpdr+MR2046hUhflM=`.
+- SHA-256 fingerprint of the decoded public key:
+  `f9007cb82a319a6343cbcddd6707372c30c4e4984350a15e47e9e386a60076ab`.
+- The private key remains in the local login Keychain, with an owner-only ignored backup under
+  `.context/release-secrets/`, and is stored as protected Codemagic variable `SPARKLE_PRIVATE_KEY`
+  in `intentive_macos_release`. It must never be committed.
 
 ## Google Cloud topology
 
@@ -138,13 +155,15 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Connect `sruj75/knowledge-athlete` from the `srujan24@icloud.com` Codemagic account and record the selected application ID `6a8ff0296fc70d39540cb56a`.
 - [x] Create and record exact repository workflow IDs `intentive-macos-release` and `intentive-macos-preview`; GitHub dispatch and observation use those owned IDs.
 - [x] Delete the empty duplicate Codemagic application `6a8ff02926a0b2fbc893544e`; only the selected application remains.
-- [ ] After this provider document reaches the default branch, finish YAML setup for the selected Codemagic app, create its tag webhook, and add `CODEMAGIC_API_TOKEN` only to the protected GitHub secret store.
-- [ ] Create protected Codemagic groups `intentive_macos_signing`, `intentive_macos_release`, and `intentive_macos_preview`. Populate only the exact variable names validated by `desktop/macos/scripts/codemagic-release.sh`; never commit their values.
+- [x] Finish YAML setup for the selected Codemagic app and create/update its GitHub webhook after the provider document reached the default branch.
+- [x] Store the existing Codemagic API token only as protected GitHub Actions secret `CODEMAGIC_API_TOKEN`.
+- [ ] Finish protected Codemagic groups `intentive_macos_signing`, `intentive_macos_release`, and `intentive_macos_preview`. The release group exists and contains the owned Sparkle public/private pair; signing/preview groups and remaining exact variables are pending. Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`; never commit their values.
 - [ ] Import the supplied Developer ID `.p12` into Codemagic. This requires the `.p12` password; the password must be entered into Codemagic's secret store, never committed or pasted into documentation.
 - [ ] Renew/confirm the Apple Developer Program membership for team `24D6NXS6H7` before relying on notarization or creating new identifiers.
 - [ ] Create an App Store Connect API key or an accepted notarytool keychain profile for notarization, and store the issuer ID, key ID, and private key only in protected provider secrets.
 - [ ] Register the stable, Beta, development, and preview identifiers/schemes with Apple/provider services where registration is required.
-- [ ] Generate a new Sparkle EdDSA keypair. Put only the public key in the signed app; put the private key only in Codemagic's protected secret store. Record and approve its public-key fingerprint.
+- [x] Generate a new Sparkle EdDSA keypair, store it under the separate `heyintentive` Keychain account, configure the public key in Codemagic, and record its public-key fingerprint above.
+- [x] Add the Sparkle private key only to Codemagic's protected `intentive_macos_release` group.
 - [ ] Configure a Sentry auth token for dSYM upload to `heyintentive/desktop-macos`; the public DSN already in the app is not an upload credential.
 - [ ] Configure the owned production backend URL, appcast/feed URL, manual-download URL, and GitHub release URL as release inputs. Store the exact production API origin separately as protected `INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN` in every release environment and both Codemagic groups; it must match the production app URL and preview-registry URL before any credential is loaded or sent. No origin is approved yet, so missing values must keep release/update behavior disabled.
 - [ ] Configure an owned GitHub App for release automation, install it on `sruj75/knowledge-athlete`, and record its app ID/private key as protected GitHub secrets.
