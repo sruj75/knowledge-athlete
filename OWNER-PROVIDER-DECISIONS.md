@@ -20,10 +20,9 @@ Last confirmed: 2026-08-29
 - Google Cloud CLI cleanup account: `srujan@intentive.life`
   - This remains the locally authenticated `gcloud` account used only to remove the abandoned Intentive development service from `agentic-accountability`.
   - Do not create new Intentive resources through this account or in `agentic-accountability`.
-- Intended Google Cloud operator account: exact address must be verified before the next login.
-  - The live `knowledge-athlete` project Owner is `srujan@heyintentive.com`.
-  - The owner's latest instruction typed `srujan@intentive.com`, which is neither locally authenticated nor present in the live project Owner policy. A previous instruction named `srujan@heyintentive.com`. Do not guess between them.
-  - The verified replacement account will use browser-based `gcloud` OAuth; do not create or document a permanent user access token.
+- Google Cloud operator account: `srujan@heyintentive.com`
+  - The owner confirmed this exact address on 2026-08-29, and it is present in the live `knowledge-athlete` project Owner policy.
+  - Use browser-based `gcloud` OAuth for the next CLI login; do not create or document a permanent user access token.
 - Firebase Console primary owner: `srujan@heyintentive.com`
   - Existing Firebase project: `knowledge-athlete`.
   - Use for owned Firebase Authentication and Firestore configuration.
@@ -82,6 +81,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Use slug `heyintentive`, public domain `heyintentive.com`, and owned bundle namespace `com.heyintentive.intentive`.
 - [x] Use Apple Team ID `24D6NXS6H7`; an owned Developer ID Application identity is installed locally.
 - [x] Use Codemagic login `srujan24@icloud.com` and Apple Developer login `22btrsn071@gmail.com`.
+- [x] Use `srujan@heyintentive.com` as the Google Cloud operator for future Intentive resources.
 - [x] Use the existing Firebase/GCP project `knowledge-athlete` for future Intentive development cloud resources; do not create another project.
 - [x] Use Firebase project `knowledge-athlete`; its `(default)` Firestore database exists in `us-west1` with deny-all client rules.
 - [x] Use Sentry organization `heyintentive` and macOS project `desktop-macos`; the macOS DSN and dSYM upload destination are repository-wired.
@@ -96,7 +96,7 @@ already done. An unchecked item is still required before the corresponding live 
 
 ### Needed before a private development backend is fully usable
 
-- [ ] Verify the exact replacement Google Cloud operator email, connect billing to `knowledge-athlete`, and enable only the APIs required by the retained backend.
+- [ ] Connect billing to `knowledge-athlete` and enable only the APIs required by the retained backend.
 - [ ] Create a new private `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1`; no replacement service exists today.
 - [ ] Decide and provision an owned Redis service. Redis is a running database service, not only an SDK. The backend will need its TLS URL/password as a secret; no separate Redis login email has been chosen yet.
 - [ ] Add the development provider secrets needed by the retained backend and wire them through Secret Manager rather than repository files.
