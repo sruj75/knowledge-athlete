@@ -483,15 +483,15 @@ def test_beta_pointer_lost_response_retry_remains_exact_and_generation_stable():
 
 
 def test_stable_repair_is_published_immutably_before_stable_pointer_advances():
-    """Static wiring contract: a stable pointer is never advanced ahead of its repair artifact."""
+    """Static wiring contract: stable advances only after its repair artifact, without a legacy bridge."""
     workflow = PROMOTE_PROD_WORKFLOW.read_text(encoding="utf-8")
 
     immutable_repair = workflow.index("      - name: Publish immutable stable repair installer")
     pointer = workflow.index("      - name: Advance explicit stable pointer")
-    legacy_bridge = workflow.index("      - name: Bridge stable for legacy desktop clients")
     latest_route = workflow.index("      - name: Publish latest stable repair route")
 
-    assert immutable_repair < pointer < legacy_bridge < latest_route
+    assert immutable_repair < pointer < latest_route
+    assert "Bridge stable for legacy desktop clients" not in workflow
     assert "Fetch exact retained qualified manifest" in workflow
     assert "gh release download" not in workflow
     assert "--if-generation-match=0" in workflow
