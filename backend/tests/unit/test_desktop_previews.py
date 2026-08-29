@@ -28,16 +28,16 @@ def _manifest(**overrides):
     data = {
         "slug": SLUG,
         "source_sha": SOURCE_SHA,
-        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/{SOURCE_SHA}/Omi-Preview.dmg",
+        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/{SOURCE_SHA}/Intentive-Preview.dmg",
         "dmg_sha256": "b" * 64,
-        "app_name": "Omi Preview – new-onboarding",
+        "app_name": "Intentive Preview – new-onboarding",
         "bundle_id": f"com.heyintentive.intentive.preview.{preview_identity(SLUG)}",
         "url_scheme": f"heyintentive-preview-{preview_identity(SLUG)}",
         "built_at": "2026-07-15T12:00:00Z",
-        "signer": "Developer ID Application: Omi, Inc.",
+        "signer": "Developer ID Application: Intentive (24D6NXS6H7)",
         "notarization": "stapled",
         "notes": "Try the redesigned onboarding.",
-        "backend_url": "https://api.omi.me",
+        "backend_url": "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app",
     }
     data.update(overrides)
     return data
@@ -62,18 +62,36 @@ class TestPreviewManifestNormalization:
     def test_requires_exact_immutable_preview_artifact_url(self):
         with pytest.raises(ValueError, match="canonical immutable"):
             normalize_preview_manifest(
-                _manifest(dmg_url=f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/latest/Omi-Preview.dmg")
+                _manifest(
+                    dmg_url=f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/latest/Intentive-Preview.dmg"
+                )
+            )
+        with pytest.raises(ValueError, match="canonical immutable"):
+            normalize_preview_manifest(
+                _manifest(
+                    dmg_url=f"https://storage.googleapis.com/{BUCKET}/previews/{SLUG}/{SOURCE_SHA}/Omi-Preview.dmg"
+                )
             )
 
     def test_requires_preview_identity_and_stapling(self):
         with pytest.raises(ValueError, match="app_name"):
-            normalize_preview_manifest(_manifest(app_name="Omi"))
+            normalize_preview_manifest(_manifest(app_name="Intentive"))
+        with pytest.raises(ValueError, match="app_name"):
+            normalize_preview_manifest(_manifest(app_name="Omi Preview – new-onboarding"))
         with pytest.raises(ValueError, match="bundle_id"):
             normalize_preview_manifest(_manifest(bundle_id="com.omi.computer-macos"))
         with pytest.raises(ValueError, match="url_scheme"):
             normalize_preview_manifest(_manifest(url_scheme="omi-preview-pwrong"))
         with pytest.raises(ValueError, match="notarization"):
             normalize_preview_manifest(_manifest(notarization="submitted"))
+
+    @pytest.mark.parametrize(
+        "backend_url",
+        ["https://api.omi.me", "https://preview.omiapi.com", "https://api.basedhardware.com"],
+    )
+    def test_rejects_inherited_backend_hosts(self, backend_url):
+        with pytest.raises(ValueError, match="backend_url.*inherited"):
+            normalize_preview_manifest(_manifest(backend_url=backend_url))
 
 
 class TestPreviewPointers:
@@ -149,7 +167,7 @@ class TestPreviewLookup:
         result = get_preview_manifest(SLUG, SOURCE_SHA, firestore_client=client)
 
         assert result is not None
-        assert result["dmg_url"].endswith("/Omi-Preview.dmg")
+        assert result["dmg_url"].endswith("/Intentive-Preview.dmg")
         client.collection.assert_called_once_with(PREVIEW_MANIFESTS_COLLECTION)
         collection.document.assert_called_once_with(f"{SLUG}:{SOURCE_SHA}")
 

@@ -619,25 +619,45 @@ def _download_landing_html(
     channel_label = "Beta " if channel == "beta" else ""
     version_display = f"v{version}" if version else ""
     notice_html = f'<p class="notice">{notice}</p>' if notice else ""
-    os_name = "Windows" if platform == "windows" else "macOS"
-    if platform == "windows":
+    is_windows = platform == "windows"
+    os_name = "Windows" if is_windows else "macOS"
+    product_name = "Omi" if is_windows else "Intentive"
+    if is_windows:
         install_steps = (
             "1. Open the downloaded installer (omi-setup.exe)<br>"
             "2. If Windows SmartScreen appears, click <b>More info</b> &rarr; <b>Run anyway</b><br>"
             "3. Follow the setup wizard and launch Omi"
         )
+        video_html = """
+        <div class="video-container" id="demo-video">
+            <video autoplay muted loop playsinline>
+                <source src="https://storage.googleapis.com/omi_macos_updates/omi-demo.mp4" type="video/mp4">
+            </video>
+            <p class="video-label">See how Omi works</p>
+        </div>"""
+        support_html = (
+            '<p class="discord">Need help? Join our '
+            '<a href="https://discord.com/invite/8MP3b9ymvx">Discord community</a></p>'
+        )
+        demo_reveal_script = 'document.getElementById("demo-video").style.display = "block";'
     else:
         install_steps = (
             "1. Open the downloaded .dmg file<br>"
-            "2. Drag Omi to your Applications folder<br>"
-            "3. Launch Omi from Applications"
+            "2. Drag Intentive to your Applications folder<br>"
+            "3. Launch Intentive from Applications"
         )
+        video_html = ""
+        support_html = (
+            '<p class="discord">Need help? Visit '
+            '<a href="https://heyintentive.com/support">Intentive support</a></p>'
+        )
+        demo_reveal_script = ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Download Omi {channel_label}for {os_name}</title>
+    <title>Download {product_name} {channel_label}for {os_name}</title>
     <meta http-equiv="refresh" content="2;url={dmg_url}">
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -673,7 +693,7 @@ def _download_landing_html(
 </head>
 <body>
     <div class="container">
-        <h1>Downloading Omi {channel_label}for {os_name}</h1>
+        <h1>Downloading {product_name} {channel_label}for {os_name}</h1>
         <p class="version">{version_display}</p>
         {notice_html}
         <p class="subtitle" id="status-text">Your download should start automatically&hellip;</p>
@@ -682,24 +702,19 @@ def _download_landing_html(
             <div class="checkmark">&#10003;</div>
         </div>
         <p><a class="download-link" href="{dmg_url}">Click here if the download doesn&rsquo;t start</a></p>
-        <div class="video-container" id="demo-video">
-            <video autoplay muted loop playsinline>
-                <source src="https://storage.googleapis.com/omi_macos_updates/omi-demo.mp4" type="video/mp4">
-            </video>
-            <p class="video-label">See how Omi works</p>
-        </div>
+        {video_html}
         <div class="steps">
             <b>Installation steps:</b><br>
             {install_steps}
         </div>
-        <p class="discord">Need help? Join our <a href="https://discord.com/invite/8MP3b9ymvx">Discord community</a></p>
+        {support_html}
     </div>
     <script>
         setTimeout(function() {{
             window.location.href = "{dmg_url}";
             document.getElementById("status-icon").classList.add("done");
             document.getElementById("status-text").textContent = "Download started!";
-            document.getElementById("demo-video").style.display = "block";
+            {demo_reveal_script}
         }}, 2000);
     </script>
 </body>

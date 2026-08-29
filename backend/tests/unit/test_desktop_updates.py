@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from routers.updates import (
     VALID_CHANNELS,
+    _download_landing_html,
     _format_changelog_html,
     _generate_appcast_xml,
     _get_dmg_download_url,
@@ -44,16 +45,16 @@ def _preview_manifest(**overrides):
     manifest = {
         "slug": PREVIEW_SLUG,
         "source_sha": PREVIEW_SHA,
-        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{PREVIEW_SLUG}/{PREVIEW_SHA}/Omi-Preview.dmg",
+        "dmg_url": f"https://storage.googleapis.com/{BUCKET}/previews/{PREVIEW_SLUG}/{PREVIEW_SHA}/Intentive-Preview.dmg",
         "dmg_sha256": "b" * 64,
-        "app_name": "Omi Preview – new-onboarding",
+        "app_name": "Intentive Preview – new-onboarding",
         "bundle_id": "com.heyintentive.intentive.preview.p04a26d265d",
-        "url_scheme": "omi-preview-p04a26d265d",
+        "url_scheme": "heyintentive-preview-p04a26d265d",
         "built_at": "2026-07-15T12:00:00Z",
-        "signer": "Developer ID Application: Omi, Inc.",
+        "signer": "Developer ID Application: Intentive (24D6NXS6H7)",
         "notarization": "stapled",
         "notes": "Try the redesigned onboarding.",
-        "backend_url": "https://api.omi.me",
+        "backend_url": "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app",
     }
     manifest.update(overrides)
     return manifest
@@ -816,20 +817,33 @@ class TestAppcastEndpoint:
 
 
 class TestDownloadEndpoint:
+    def test_macos_landing_is_intentive_owned_while_windows_copy_stays_scoped(self):
+        macos_html = _download_landing_html("https://downloads.heyintentive.com/intentive.dmg", platform="macos")
+        assert "Download Intentive" in macos_html
+        assert "Drag Intentive to your Applications folder" in macos_html
+        assert "https://heyintentive.com/support" in macos_html
+        for inherited in ("Download Omi", "Drag Omi", "omi-demo.mp4", "discord.com"):
+            assert inherited not in macos_html
+
+        windows_html = _download_landing_html("https://example.com/omi-setup.exe", platform="windows")
+        assert "Download Omi" in windows_html
+        assert "omi-setup.exe" in windows_html
+        assert "discord.com" in windows_html
+
     @pytest.mark.asyncio
     async def test_redirects_to_dmg(self):
         mock_releases = [
             {
                 "channel": "stable",
                 "version_info": {"version": "1.0.0+100", "build": "100"},
-                "release": {"assets": [_dmg_asset("https://example.com/Omi-stable.dmg")]},
+                "release": {"assets": [_dmg_asset("https://example.com/intentive.dmg")]},
             },
         ]
         with patch("routers.updates._get_live_desktop_releases", new_callable=AsyncMock, return_value=mock_releases):
             async with AsyncClient(transport=ASGITransport(app=_test_app), base_url="http://test") as client:
                 resp = await client.get("/v2/desktop/download/latest?channel=stable")
         assert resp.status_code == 200
-        assert "https://example.com/Omi-stable.dmg" in resp.text
+        assert "https://example.com/intentive.dmg" in resp.text
 
     @pytest.mark.asyncio
     async def test_404_no_releases(self):
@@ -1644,7 +1658,7 @@ class TestDesktopPreviewEndpoints:
 
         assert response.status_code == 200
         assert PREVIEW_SHA in response.text
-        assert "Omi-Preview.dmg" in response.text
+        assert "Intentive-Preview.dmg" in response.text
         assert response.headers["cache-control"] == "no-store"
         get_current.assert_called_once_with(PREVIEW_SLUG)
 

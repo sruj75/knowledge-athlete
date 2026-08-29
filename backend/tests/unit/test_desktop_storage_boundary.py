@@ -69,7 +69,7 @@ def test_preview_url_uses_same_owned_bucket_coordinate(monkeypatch):
     slug = 'new-onboarding'
     source_sha = 'a' * 40
     data = {
-        'dmg_url': f'https://storage.googleapis.com/owned-desktop-artifacts/previews/{slug}/{source_sha}/Omi-Preview.dmg'
+        'dmg_url': f'https://storage.googleapis.com/owned-desktop-artifacts/previews/{slug}/{source_sha}/Intentive-Preview.dmg'
     }
 
     assert desktop_previews._preview_dmg_url(data, slug=slug, source_sha=source_sha) == data['dmg_url']

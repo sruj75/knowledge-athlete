@@ -32,7 +32,12 @@ def _smoke_evidence(payload: bytes, *, tag: str, source_sha: str) -> None:
         candidate_fail("emergency target signed-artifact smoke is invalid")
     if not isinstance(smoke, dict):
         candidate_fail("emergency target signed-artifact smoke is invalid")
-    required = {"ok": True, "release_tag": tag, "expected_channel": "beta", "bundle_id": "com.omi.computer-macos"}
+    required = {
+        "ok": True,
+        "release_tag": tag,
+        "expected_channel": "beta",
+        "bundle_id": "com.heyintentive.intentive",
+    }
     if any(smoke.get(key) != value for key, value in required.items()):
         candidate_fail("emergency target signed-artifact smoke does not bind the target")
     checks = smoke.get("checks")

@@ -21,6 +21,7 @@ from database._client import get_firestore_client
 PREVIEW_MANIFESTS_COLLECTION = "desktop_preview_manifests"
 PREVIEW_POINTERS_COLLECTION = "desktop_preview_pointers"
 PREVIEW_BUCKET_HOST = "storage.googleapis.com"
+INHERITED_PREVIEW_BACKEND_HOSTS = frozenset({"omi.me", "omiapi.com", "basedhardware.com"})
 
 PREVIEW_SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$", re.IGNORECASE)
@@ -93,7 +94,7 @@ def _preview_dmg_url(data: dict[str, Any], *, slug: str, source_sha: str) -> str
     value = _https_url(data, "dmg_url", required=True)
     assert value is not None
     parsed = urlparse(value)
-    expected_path = f"/{desktop_updates_bucket()}/previews/{slug}/{source_sha}/Omi-Preview.dmg"
+    expected_path = f"/{desktop_updates_bucket()}/previews/{slug}/{source_sha}/Intentive-Preview.dmg"
     if (
         parsed.netloc != PREVIEW_BUCKET_HOST
         or parsed.path != expected_path
@@ -102,6 +103,18 @@ def _preview_dmg_url(data: dict[str, Any], *, slug: str, source_sha: str) -> str
         or parsed.fragment
     ):
         raise ValueError("dmg_url must be the canonical immutable preview artifact URL")
+    return value
+
+
+def _preview_backend_url(data: dict[str, Any]) -> str | None:
+    value = _https_url(data, "backend_url", required=False)
+    if value is None:
+        return None
+    hostname = (urlparse(value).hostname or "").lower().rstrip(".")
+    if any(
+        hostname == inherited or hostname.endswith(f".{inherited}") for inherited in INHERITED_PREVIEW_BACKEND_HOSTS
+    ):
+        raise ValueError("backend_url must not use inherited provider infrastructure")
     return value
 
 
@@ -127,8 +140,8 @@ def normalize_preview_manifest(data: dict[str, Any]) -> dict[str, Any]:
     slug = _slug(_required_string(data, "slug", max_length=63))
     source_sha = _source_sha(_required_string(data, "source_sha", max_length=40))
     app_name = _required_string(data, "app_name", max_length=128)
-    if not app_name.startswith("Omi Preview"):
-        raise ValueError("app_name must identify this as an Omi Preview build")
+    if not app_name.startswith("Intentive Preview"):
+        raise ValueError("app_name must identify this as an Intentive Preview build")
     bundle_id = _required_string(data, "bundle_id", max_length=96)
     preview_id = preview_identity(slug)
     if not BUNDLE_ID_RE.fullmatch(bundle_id) or bundle_id != f"com.heyintentive.intentive.preview.{preview_id}":
@@ -153,7 +166,7 @@ def normalize_preview_manifest(data: dict[str, Any]) -> dict[str, Any]:
         "signer": _required_string(data, "signer", max_length=512),
         "notarization": notarization,
         "notes": _optional_string(data, "notes", max_length=MAX_NOTES_LENGTH),
-        "backend_url": _https_url(data, "backend_url", required=False),
+        "backend_url": _preview_backend_url(data),
     }
 
 
