@@ -17,8 +17,8 @@ intake = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(intake)
 
 ROOT = Path(__file__).resolve().parents[2]
-APP_ID = "66c95e6ec76853c447b8bcbb"
-WORKFLOW_ID = "omi-desktop-swift-release"
+APP_ID = "6a8ff0296fc70d39540cb56a"
+WORKFLOW_ID = "intentive-macos-release"
 TAG = "v1.2.3+10203-macos"
 SOURCE_SHA = "a" * 40
 
@@ -316,7 +316,7 @@ class CodemagicTagIntakeTests(unittest.TestCase):
             "Verify native Codemagic tag intake or dispatch fenced fallback",
             "CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}",
             "check-codemagic-tag-intake.py",
-            '--workflow-id "omi-desktop-swift-release"',
+            '--workflow-id "intentive-macos-release"',
             "--timeout-seconds 600",
             "--dispatch-fallback-on-absence",
             "Retain native Codemagic tag intake evidence",

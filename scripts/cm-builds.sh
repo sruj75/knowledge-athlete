@@ -5,7 +5,7 @@
 #
 
 LIMIT=${1:-10}
-APP_ID="66c95e6ec76853c447b8bcbb"
+APP_ID="6a8ff0296fc70d39540cb56a"
 
 # Check for API token
 if [ -z "$CODEMAGIC_API_TOKEN" ]; then

@@ -23,6 +23,7 @@ BETA_APP_NAME="Intentive Beta"
 BETA_BUNDLE_ID="com.heyintentive.intentive.beta"
 BETA_URL_SCHEME="heyintentive-beta"
 BETA_FEED_URL="${INTENTIVE_BETA_FEED_URL:-}"
+BETA_FIREBASE_PLIST=""
 SPARKLE_ZIP_OUT=""
 DMG_OUT=""
 CM_ENV_OUT=""
@@ -45,6 +46,7 @@ usage() {
 Usage: scripts/create-intentive-beta-variant.sh \
   --source-app build/Intentive.app --build-dir build \
   --beta-feed-url https://OWNED_HOST/v2/desktop/appcast.xml?identity=beta \
+  [--beta-firebase-plist /protected/GoogleService-Info-Beta.plist] \
   --sparkle-zip-out build/Intentive.Beta.zip \
   --dmg-out build/intentive-beta.dmg [--cm-env "$CM_ENV"]
 EOF
@@ -56,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --source-app) SOURCE_APP="$2"; shift 2 ;;
     --build-dir) BUILD_DIR="$2"; shift 2 ;;
     --beta-feed-url) BETA_FEED_URL="$2"; shift 2 ;;
+    --beta-firebase-plist) BETA_FIREBASE_PLIST="$2"; shift 2 ;;
     --sparkle-zip-out) SPARKLE_ZIP_OUT="$2"; shift 2 ;;
     --dmg-out) DMG_OUT="$2"; shift 2 ;;
     --cm-env) CM_ENV_OUT="$2"; shift 2 ;;
@@ -143,6 +146,24 @@ echo "== Patching identity"
 # The exact owned provider URL is required; this script has no inherited fallback.
 /usr/libexec/PlistBuddy -c \
   "Set :SUFeedURL $BETA_FEED_URL" "$PLIST"
+if [[ -n "$BETA_FIREBASE_PLIST" ]]; then
+  [[ -f "$BETA_FIREBASE_PLIST" ]] || {
+    echo "ERROR: Beta Firebase plist not found: $BETA_FIREBASE_PLIST" >&2
+    exit 1
+  }
+  beta_firebase_project="$(/usr/libexec/PlistBuddy -c 'Print :PROJECT_ID' "$BETA_FIREBASE_PLIST" 2>/dev/null || true)"
+  beta_firebase_bundle="$(/usr/libexec/PlistBuddy -c 'Print :BUNDLE_ID' "$BETA_FIREBASE_PLIST" 2>/dev/null || true)"
+  [[ "$beta_firebase_project" == "knowledge-athlete" ]] || {
+    echo "ERROR: Beta Firebase plist must belong to knowledge-athlete" >&2
+    exit 1
+  }
+  [[ "$beta_firebase_bundle" == "$BETA_BUNDLE_ID" ]] || {
+    echo "ERROR: Beta Firebase plist must use $BETA_BUNDLE_ID" >&2
+    exit 1
+  }
+  mkdir -p "$BETA_APP/Contents/Resources"
+  cp "$BETA_FIREBASE_PLIST" "$BETA_APP/Contents/Resources/GoogleService-Info.plist"
+fi
 
 echo "== Re-signing outer bundle (nested signatures unchanged)"
 codesign --force --options runtime --timestamp \

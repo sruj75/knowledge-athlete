@@ -117,9 +117,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
 - Apple Team `24D6NXS6H7` has an installed Developer ID Application identity valid
   through 2030-11-18. Codemagic still needs the supplied `.p12` password, active Apple
   membership, notarization credentials, and the owned Sparkle private key.
-- The root Codemagic provider definition, owned provider application/workflow IDs,
-  protected GitHub release app, trusted Intentive M1 runner, production backend/feed,
-  public site, and approved legal/support destinations are not configured.
+- Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
+  `intentive-macos-release` / `intentive-macos-preview`. Protected provider groups, the GitHub
+  release app/token boundary, trusted Intentive M1 runner, production backend/feed, public site,
+  and approved legal/support destinations are not configured.
 - The complete beginner-facing checklist and account map are tracked in
   [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md).
 
@@ -200,28 +201,28 @@ name with no direct user-visible identity.
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
 | Backend data plane | Externally named Firestore plus environment-isolated private Redis, one retained update/preview GCS bucket, the account-deletion queue, and canonical Cloud Run, all in `us-west1` | `backend/database/`, `backend/config/desktop_storage.py`, `backend/deploy/runtime_env.yaml`, backend workflows | The manifest owns the redacted shape: ADC/exact secrets, Redis AUTH and verified TLS, survivor-only create-safe indexes, update/preview prefixes, queue signer/audience, logging/alerts/budgets, and dry-run-only registry cleanup. Mac conversations and Memories remain excluded; live conformance remains unverified. | Repository contract; product cloud operator; cloud providers | service endpoint; persistent identity |
 | Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
-| macOS build lane | External workflow identity `omi-desktop-swift-release`, `CODEMAGIC_API_TOKEN`, self-hosted `omi-qual-m1-studio`, then GitHub promotion workflows | `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | GitHub can observe same-tag provider intake and qualify/publish an artifact, but this checkout has no tracked build-provider definition. S-29 owns adding that definition before the lane is self-contained. | Omi/BasedHardware; external build provider/self-hosted runner | release infrastructure |
+| macOS build lane | Codemagic app `6a8ff0296fc70d39540cb56a`, workflows `intentive-macos-release` / `intentive-macos-preview`, `CODEMAGIC_API_TOKEN`, trusted runner labels `intentive-desktop-qualification` / `intentive-qual-m1-studio`, then GitHub promotion workflows | `codemagic.yaml`, `desktop/macos/scripts/codemagic-release.sh`, `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | The tracked provider definition binds exact tag/SHA, build, signing, notarization, Sparkle, symbols, smoke, and immutable publication. It is deliberately non-executable until protected provider groups, production inputs, and the trusted runner are configured. | Intentive operator; Codemagic; GitHub; trusted self-hosted runner | release infrastructure |
 | Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
 | Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
 
 ### Current retained boundaries
 
-- `app/`, `web/`, `omi/`, `omiGlass/`, `plugins/`, `sdks/`, `mcp/`, `docs/`,
-  and the root Mac build-provider definition are absent.
+- `app/`, `web/`, `omi/`, `omiGlass/`, `plugins/`, `sdks/`, `mcp/`, and `docs/`
+  are absent. The root Mac build-provider definition is now tracked as `codemagic.yaml`.
 - Repository preflight, CI routing, runtime-image ownership, OpenAPI generation,
   and live agent documentation cover only present backend and desktop sources.
 - Backend cloud ownership is a direct v1 workflow/WIF plus redacted manifest
   contract, not an in-repository IaC platform. Creation, IAM changes, deploys,
   traffic changes, and cleanup require separately authorized operator evidence.
 - GitHub retains candidate tagging and intake observation plus qualification,
-  preview, promotion, retry, recovery, and rollback controls. S-29 owns adding a
-  fresh Mac build/sign/notarize provider definition; until then this checkout
-  does not claim a self-contained artifact-production lane.
+  preview, promotion, retry, recovery, and rollback controls. The new Mac provider
+  definition owns build/sign/notarize/package/smoke/publish but stays fail-closed until
+  protected provider groups and the production/public inputs are configured.
 - The universal dylibs in `desktop/macos/vendor/libwebp/` now have checked-in
   checksum/architecture/install-name/deployment-target/dependency verification,
   a pinned source-rebuild fallback, and nested-signing preparation scripts.
-  Those repository contracts are not proof that the still-missing provider lane
-  exists or that a signed artifact has been produced.
+  Those repository contracts and the provider definition are not proof that a signed
+  artifact has been produced or accepted by Apple.
 - `.github/workflows/desktop-core-contracts.yml` keeps the independent
   `desktop-core-e2e-t0` self-check. S-10 removed conversation parity and S-12
   removed the final hosted Memory parity contract, fixture, job, discovery

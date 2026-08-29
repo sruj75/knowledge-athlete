@@ -13,7 +13,7 @@ GUARDS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(GUARDS)
 
 
-def test_current_repository_release_controls_pass_without_provider_document():
+def test_current_repository_release_controls_include_owned_provider_document():
     assert GUARDS.main() == 0
 
 
@@ -68,12 +68,61 @@ def test_preview_guard_rejects_a_floating_publish_key_version(monkeypatch):
     assert "production backend must receive the preview publishing key from Secret Manager" in errors
 
 
-def test_guard_has_no_live_provider_document_read():
-    """Static ownership tripwire; the real CLI test above is behavioral."""
-    source = SCRIPT.read_text(encoding="utf-8")
+def test_provider_guard_rejects_inherited_omi_identity(monkeypatch):
+    real_read = GUARDS._read
 
-    assert "codemagic.yaml" not in source
-    assert "missing means pass" not in source
+    def read_with_inherited_identity(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == "codemagic.yaml":
+            return text + '\nINHERITED_PROVIDER_APP_ID: "66c95e6ec76853c447b8bcbb"\n'
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_inherited_identity)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any("inherited provider identity" in error for error in errors)
+
+
+def test_provider_guard_rejects_preview_production_publication(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_preview_publication(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == "codemagic.yaml":
+            return text.replace(
+                'PREVIEW_PUBLICATION_MODE: "preview-only"',
+                'PREVIEW_PUBLICATION_MODE: "production"',
+            )
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_preview_publication)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any("preview-only publication fence" in error for error in errors)
+
+
+def test_provider_guard_rejects_reordered_release_phases(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_reordered_phases(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == "codemagic.yaml":
+            return text.replace(
+                "    - name: Sign Sparkle archives\n",
+                "    - name: Sign Sparkle archives too early\n",
+            ).replace(
+                "    - name: Notarize and staple release artifacts\n",
+                "    - name: Sign Sparkle archives\n    - name: Notarize and staple release artifacts\n",
+            )
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_reordered_phases)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any("ordered release phase" in error for error in errors)
 
 
 def test_windows_only_workflows_are_excluded_before_release_guard_reads():

@@ -481,8 +481,8 @@ jobs:
           # most one tag-bound fallback only after a final all-state same-tag
           # absence fence; any existing same-tag build remains canonical.
           python3 .github/scripts/check-codemagic-tag-intake.py \
-            --app-id "66c95e6ec76853c447b8bcbb" \
-            --workflow-id "omi-desktop-swift-release" \
+            --app-id "6a8ff0296fc70d39540cb56a" \
+            --workflow-id "intentive-macos-release" \
             --release-tag "${{ steps.version.outputs.release_tag }}" \
             --source-sha "${{ steps.identity.outputs.candidate_sha }}" \
             --timeout-seconds 600 \

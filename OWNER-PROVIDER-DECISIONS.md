@@ -36,6 +36,10 @@ Last confirmed: 2026-08-29
 - Codemagic account login: `srujan24@icloud.com`, connected to the repository owner account `sruj75`.
   - Codemagic login does not have to match the Apple Developer Apple ID.
   - Connect Apple Developer separately with `22btrsn071@gmail.com` only when configuring signing/notarization.
+  - Selected application ID: `6a8ff0296fc70d39540cb56a`. Repository workflow IDs are
+    `intentive-macos-release` and `intentive-macos-preview`.
+  - A second empty application record, `6a8ff02926a0b2fbc893544e`, was created at the same time.
+    It remains untouched until the owner confirms deletion at action time.
 
 ## Google Cloud topology
 
@@ -102,6 +106,8 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Use slug `heyintentive`, public domain `heyintentive.com`, and owned bundle namespace `com.heyintentive.intentive`.
 - [x] Use Apple Team ID `24D6NXS6H7`; an owned Developer ID Application identity is installed locally.
 - [x] Use Codemagic login `srujan24@icloud.com` and Apple Developer login `22btrsn071@gmail.com`.
+- [x] Use Codemagic app `6a8ff0296fc70d39540cb56a` with repository-owned workflow IDs
+  `intentive-macos-release` and `intentive-macos-preview`; the root `codemagic.yaml` owns both.
 - [x] Use `srujan@heyintentive.com` as the Google Cloud operator for future Intentive resources.
 - [x] Use the existing Firebase/GCP project `knowledge-athlete` for future Intentive development cloud resources; do not create another project.
 - [x] Use Firebase project `knowledge-athlete`; its `(default)` Firestore database exists in `us-west1` with deny-all client rules.
@@ -129,8 +135,10 @@ already done. An unchecked item is still required before the corresponding live 
 
 ### Needed before Codemagic can build a signed candidate
 
-- [ ] In Codemagic, connect `sruj75/knowledge-athlete` from the `srujan24@icloud.com` account and record the resulting Codemagic application ID.
-- [ ] Create and record the exact release and preview workflow IDs. The inherited Omi workflow IDs are forbidden.
+- [x] Connect `sruj75/knowledge-athlete` from the `srujan24@icloud.com` Codemagic account and record the selected application ID `6a8ff0296fc70d39540cb56a`.
+- [x] Create and record exact repository workflow IDs `intentive-macos-release` and `intentive-macos-preview`; GitHub dispatch and observation use those owned IDs.
+- [ ] After this provider document reaches the default branch, finish YAML setup for the selected Codemagic app, create its tag webhook, and add `CODEMAGIC_API_TOKEN` only to the protected GitHub secret store. Do not configure or build from the duplicate empty app.
+- [ ] Create protected Codemagic groups `intentive_macos_signing`, `intentive_macos_release`, and `intentive_macos_preview`. Populate only the exact variable names validated by `desktop/macos/scripts/codemagic-release.sh`; never commit their values.
 - [ ] Import the supplied Developer ID `.p12` into Codemagic. This requires the `.p12` password; the password must be entered into Codemagic's secret store, never committed or pasted into documentation.
 - [ ] Renew/confirm the Apple Developer Program membership for team `24D6NXS6H7` before relying on notarization or creating new identifiers.
 - [ ] Create an App Store Connect API key or an accepted notarytool keychain profile for notarization, and store the issuer ID, key ID, and private key only in protected provider secrets.

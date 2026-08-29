@@ -1,10 +1,12 @@
 # Desktop release
 
-No Intentive release lane is executable yet. Repository-safe S-29 work owns the bundle,
-artifact, GitHub, signed-smoke, libwebp, and qualification contracts, but candidate creation
-remains blocked until an owned root `codemagic.yaml`, Codemagic application/workflow IDs,
-Apple/notarization/Sparkle secrets, release GitHub App, trusted runner, and production
-backend/feed are configured. See the complete checklist in
+No Intentive release lane is executable yet. Root `codemagic.yaml` now owns Codemagic app
+`6a8ff0296fc70d39540cb56a`, workflow `intentive-macos-release`, and workflow
+`intentive-macos-preview`; it delegates the ordered release boundary to the checked-in driver and
+fails before building when a required protected input is missing. Candidate creation remains
+blocked until Apple/notarization/Sparkle/Firebase-production secrets, protected publication
+credentials, trusted runner, website destinations, and production backend/feed are configured.
+See the complete checklist in
 [`../../../OWNER-PROVIDER-DECISIONS.md`](../../../OWNER-PROVIDER-DECISIONS.md).
 
 After those blockers are closed, the intended normal path is deliberate and manual: a

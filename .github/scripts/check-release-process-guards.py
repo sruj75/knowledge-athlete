@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Fail fast on the repository-owned desktop release-process contracts.
-
-This guard intentionally owns only controls present in this checkout. The Mac
-build-provider definition is deferred to S-29; GitHub-side candidate,
-qualification, promotion, preview, retry, and rollback controls remain
-fail-closed here.
-"""
+"""Fail fast on the repository-owned desktop release-process contracts."""
 
 from __future__ import annotations
 
@@ -45,7 +39,8 @@ def check_desktop_candidate_controls() -> list[str]:
         "Verify native Codemagic tag intake or dispatch fenced fallback",
         "CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}",
         "check-codemagic-tag-intake.py",
-        '--workflow-id "omi-desktop-swift-release"',
+        '--app-id "6a8ff0296fc70d39540cb56a"',
+        '--workflow-id "intentive-macos-release"',
         "--timeout-seconds 600",
         "--dispatch-fallback-on-absence",
         "Retain native Codemagic tag intake evidence",
@@ -76,9 +71,7 @@ def check_desktop_preview_controls() -> list[str]:
     dispatcher = _read(".github/workflows/desktop_publish_preview.yml", errors)
     runtime_env = _read("backend/deploy/runtime_env.yaml", errors)
     app_build = _read("desktop/macos/Desktop/Sources/AppBuild.swift", errors)
-    product_identity = _read(
-        "desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift", errors
-    )
+    product_identity = _read("desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift", errors)
     updater = _read("desktop/macos/Desktop/Sources/UpdaterViewModel.swift", errors)
     smoke = _read("desktop/macos/scripts/smoke-signed-desktop-artifact.sh", errors)
     preview_router = _read("backend/routers/updates.py", errors)
@@ -97,9 +90,11 @@ def check_desktop_preview_controls() -> list[str]:
         "^preview/",
         "environment: desktop-preview-publish",
         "CODEMAGIC_API_TOKEN",
-        'workflowId: "omi-desktop-swift-preview"',
         'branch: "main"',
         "PREVIEW_SOURCE_SHA",
+        'CODEMAGIC_APP_ID: 6a8ff0296fc70d39540cb56a',
+        'workflowId: "intentive-macos-preview"',
+        'test "$REPOSITORY" = "sruj75/knowledge-athlete"',
         "### Preview approval context",
         "https://github.com/${GITHUB_REPOSITORY}/commit/${PREVIEW_SOURCE_SHA}",
     ):
@@ -145,6 +140,90 @@ def check_desktop_preview_controls() -> list[str]:
     for fragment in ("--preview", "IS_EXTERNAL_PREVIEW", "external preview must not carry a shared Sparkle feed"):
         if fragment not in smoke:
             errors.append(f"signed artifact smoke is missing external-preview check: {fragment}")
+    return errors
+
+
+def check_codemagic_provider_controls() -> list[str]:
+    errors: list[str] = []
+    provider = _read("codemagic.yaml", errors)
+    driver = _read("desktop/macos/scripts/codemagic-release.sh", errors)
+
+    for fragment in (
+        "intentive-macos-release:",
+        "intentive-macos-preview:",
+        'APP_NAME: "Intentive"',
+        'BUNDLE_ID: "com.heyintentive.intentive"',
+        'BETA_BUNDLE_ID: "com.heyintentive.intentive.beta"',
+        'APPLE_TEAM_ID: "24D6NXS6H7"',
+        'CODEMAGIC_APP_ID: "6a8ff0296fc70d39540cb56a"',
+        'GITHUB_REPOSITORY: "sruj75/knowledge-athlete"',
+        'PREVIEW_PUBLICATION_MODE: "preview-only"',
+        "intentive_macos_signing",
+        "intentive_macos_release",
+        "intentive_macos_preview",
+        "scripts/codemagic-release.sh validate",
+        "desktop/macos/build/Intentive.zip",
+        "desktop/macos/build/intentive.dmg",
+        "desktop/macos/build/Intentive.Beta.zip",
+        "desktop/macos/build/intentive-beta.dmg",
+        "desktop/macos/build/desktop-smoke-result.json",
+    ):
+        if fragment not in provider:
+            errors.append(f"Codemagic provider document is missing owned contract fragment: {fragment}")
+
+    release_phases = (
+        "    - name: Build universal app and dSYM\n",
+        "    - name: Prepare pinned libwebp and sign nested code\n",
+        "    - name: Sign outer release bundle\n",
+        "    - name: Notarize and staple release artifacts\n",
+        "    - name: Sign Sparkle archives\n",
+        "    - name: Upload exact dSYM to Sentry\n",
+        "    - name: Smoke signed artifacts\n",
+        "    - name: Publish immutable artifact and evidence\n",
+    )
+    previous = -1
+    for phase in release_phases:
+        position = provider.find(phase)
+        if position < 0 or position <= previous:
+            errors.append(f"Codemagic provider document is missing ordered release phase: {phase.strip()}")
+        previous = position
+
+    for fragment in (
+        '"${CM_TAG}^{commit}"',
+        'git checkout --detach "$PREVIEW_SOURCE_SHA"',
+        "INTENTIVE_BETA_FIREBASE_PLIST_BASE64",
+        "MACOS_DEVELOPER_ID_P12_PASSWORD",
+        "APP_STORE_CONNECT_PRIVATE_KEY",
+        "SPARKLE_PRIVATE_KEY",
+        "SENTRY_AUTH_TOKEN",
+        "prepare-release-libwebp.sh",
+        "create-intentive-beta-variant.sh",
+        "publish-desktop-debug-symbols.sh",
+        "smoke-signed-desktop-artifact.sh",
+        "--auth-storage-canary",
+        'gh release create "$CM_TAG"',
+        "--if-generation-match=0",
+    ):
+        if fragment not in driver:
+            errors.append(f"Codemagic release driver is missing required boundary: {fragment}")
+
+    if 'PREVIEW_PUBLICATION_MODE: "preview-only"' not in provider:
+        errors.append("Codemagic preview workflow is missing its preview-only publication fence")
+
+    inherited_values = (
+        "66c95e6ec76853c447b8bcbb",
+        "omi-desktop-swift-release",
+        "omi-desktop-swift-preview",
+        "BasedHardware/omi",
+        "api.omi.me",
+        "api.omiapi.com",
+        "macos.omi.me",
+        "com.omi.computer-macos",
+        "omi_macos_updates",
+    )
+    for value in inherited_values:
+        if value in provider or value in driver:
+            errors.append(f"Codemagic release controls retain inherited provider identity: {value}")
     return errors
 
 
@@ -225,6 +304,7 @@ def check_no_unprovisioned_beta_backend_hosts() -> list[str]:
 
 def main() -> int:
     errors = [
+        *check_codemagic_provider_controls(),
         *check_desktop_candidate_controls(),
         *check_desktop_preview_controls(),
         *check_desktop_qualification_and_promotion(),
