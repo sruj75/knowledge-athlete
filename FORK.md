@@ -53,10 +53,10 @@ run `PROVIDER_MODE=offline make dev-up` without provider credentials. Real mode
 requires OpenAI, Modulate, Gemini, and Anthropic keys in
 `backend/.env.local-dev`; `make dev-init` creates that untracked file.
 
-`desktop/macos/run.sh --yolo` skips the local backend and selects the owned private
-`knowledge-athlete-dev` Cloud Run URL. It still requires an explicitly supplied owned
-Firebase API key, and the desktop cannot directly invoke the private service until its
-authentication boundary is configured. Use the emulator path for normal development.
+`desktop/macos/run.sh --yolo` skips the local backend, but no owned remote development
+Cloud Run service currently exists. The former `agentic-accountability` service was
+deleted on 2026-08-29; use the emulator path for normal development until the replacement
+is provisioned in `knowledge-athlete` after billing is authorized.
 
 Prerequisites: Xcode + an Apple signing identity, `brew install webp`, Node 22.x
 (`>=22.19 <23`), pnpm, Python 3.11 + `uv`, JDK 21+ (the Firebase emulators need it),
@@ -82,9 +82,9 @@ and the current external-resource handoff are recorded in
 | Public domain | `heyintentive.com` |
 | Stable / Beta / canonical development bundles | `com.heyintentive.intentive`, `com.heyintentive.intentive.beta`, `com.heyintentive.intentive.dev` |
 | Named development / preview prefixes | `com.heyintentive.intentive.dev.`, `com.heyintentive.intentive.preview.` |
-| Google Cloud project | existing `agentic-accountability`; no separate MVP dev/prod projects |
-| Development Cloud Run service | `knowledge-athlete-dev` in `us-west1` |
-| Container repository | existing `us-west1` Artifact Registry repository `intentive` |
+| Google Cloud project | existing Firebase/GCP project `knowledge-athlete`; billing currently disabled |
+| Development Cloud Run service | not provisioned; future private `knowledge-athlete-dev` in `knowledge-athlete/us-west1` |
+| Container repository | not provisioned in `knowledge-athlete`; the abandoned build remains only as recovery evidence in the shared `agentic-accountability/intentive` repository |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
 
@@ -101,9 +101,9 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
 - The retained Mac backend update resolver and release manifests use
   `sruj75/knowledge-athlete` and Intentive asset names. Windows release ownership is
   intentionally unchanged because S-29 excludes Windows.
-- The private development Cloud Run service and deny-all Firestore database exist, but
-  Firebase app registrations, Firebase/Auth IAM, Redis, and direct desktop invocation
-  are not configured yet.
+- The deny-all Firestore database and owned development Firebase app exist. The abandoned
+  `agentic-accountability` Cloud Run service was deleted and its runtime permissions were
+  revoked; a replacement service, Redis, and direct desktop invocation are not configured.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
 

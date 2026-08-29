@@ -17,10 +17,13 @@ Last confirmed: 2026-08-29
 
 ## Provider accounts and boundaries
 
-- Google Cloud: `srujan@intentive.life`
-  - This is the account currently verified by `gcloud auth list` and it has access to project `agentic-accountability`.
-  - The owner's latest message typed `srujan@intuitive.life`, but the live authenticated account and the owner's earlier instruction both say `srujan@intentive.life`. Treat the live verified address as authoritative unless the owner explicitly changes accounts.
-  - This login address is only a Google Cloud operator identity. It is not a product domain or support address.
+- Google Cloud CLI cleanup account: `srujan@intentive.life`
+  - This remains the locally authenticated `gcloud` account used only to remove the abandoned Intentive development service from `agentic-accountability`.
+  - Do not create new Intentive resources through this account or in `agentic-accountability`.
+- Intended Google Cloud operator account: exact address must be verified before the next login.
+  - The live `knowledge-athlete` project Owner is `srujan@heyintentive.com`.
+  - The owner's latest instruction typed `srujan@intentive.com`, which is neither locally authenticated nor present in the live project Owner policy. A previous instruction named `srujan@heyintentive.com`. Do not guess between them.
+  - The verified replacement account will use browser-based `gcloud` OAuth; do not create or document a permanent user access token.
 - Firebase Console primary owner: `srujan@heyintentive.com`
   - Existing Firebase project: `knowledge-athlete`.
   - Use for owned Firebase Authentication and Firestore configuration.
@@ -38,18 +41,14 @@ Last confirmed: 2026-08-29
 ## Google Cloud topology
 
 - Do not create a new Google Cloud project for the MVP.
-- Existing project/container: `agentic-accountability`.
-- Existing reference Cloud Run service: `once-upon-a-time` in `us-west1`.
-- New development backend service: `knowledge-athlete-dev` in `us-west1`, beside `once-upon-a-time`.
-- Existing Artifact Registry repository to reuse: `intentive` in `us-west1`.
-- Created 2026-08-27: private Cloud Run service `knowledge-athlete-dev`.
-  - Canonical current URL: `https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app`
-  - Runtime service account: `knowledge-athlete-dev-runtime@agentic-accountability.iam.gserviceaccount.com`
-  - Image digest: `us-west1-docker.pkg.dev/agentic-accountability/intentive/backend@sha256:684eba6a51c8fbf5cf5a09d510bff4ce0aebeecf515b6496686430a61c41e97d`
-  - Revision: `knowledge-athlete-dev-00001-9qb`
-  - Verified `/v1/health` returned HTTP 200 with authenticated invocation.
-  - No `allUsers` invoker binding exists. The service is not a public beta or release.
-  - Redis, Firebase cross-project IAM, provider secrets, public invocation, and full workflow/WIF wiring remain intentionally unconfigured.
+- Existing Firebase project `knowledge-athlete` is also the intended Google Cloud project for future Intentive Cloud Run, Vertex AI, Redis, Secret Manager, and Artifact Registry resources.
+- Billing is currently disabled on `knowledge-athlete`; Cloud Run cannot be provisioned there until the owner handles billing later.
+- Deleted 2026-08-29: the abandoned private `knowledge-athlete-dev` Cloud Run service in `agentic-accountability`.
+  - Verified afterward that `once-upon-a-time` is the only remaining Cloud Run service in `agentic-accountability/us-west1`.
+  - Removed the Intentive runtime account's `roles/aiplatform.user`, `roles/cloudtasks.enqueuer`, self token-creator binding, and conditional cross-project `roles/datastore.user` binding.
+  - Disabled `knowledge-athlete-dev-runtime@agentic-accountability.iam.gserviceaccount.com`.
+  - Preserved the exact backend container image in the shared `intentive` Artifact Registry for recovery; do not delete the shared repository or unrelated images.
+- No replacement hosted Intentive backend currently exists. After billing is authorized, create a new private `knowledge-athlete-dev` service in `knowledge-athlete/us-west1`, verify it, and only then configure desktop development routing.
 - Do not deploy a production service or publish a release until the owner separately authorizes the release stage after all slices and product cleanup are complete.
 
 ## Firebase topology
@@ -83,7 +82,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Use slug `heyintentive`, public domain `heyintentive.com`, and owned bundle namespace `com.heyintentive.intentive`.
 - [x] Use Apple Team ID `24D6NXS6H7`; an owned Developer ID Application identity is installed locally.
 - [x] Use Codemagic login `srujan24@icloud.com` and Apple Developer login `22btrsn071@gmail.com`.
-- [x] Use GCP project `agentic-accountability`; the private development Cloud Run service exists in `us-west1`.
+- [x] Use the existing Firebase/GCP project `knowledge-athlete` for future Intentive development cloud resources; do not create another project.
 - [x] Use Firebase project `knowledge-athlete`; its `(default)` Firestore database exists in `us-west1` with deny-all client rules.
 - [x] Use Sentry organization `heyintentive` and macOS project `desktop-macos`; the macOS DSN and dSYM upload destination are repository-wired.
 
@@ -97,6 +96,8 @@ already done. An unchecked item is still required before the corresponding live 
 
 ### Needed before a private development backend is fully usable
 
+- [ ] Verify the exact replacement Google Cloud operator email, connect billing to `knowledge-athlete`, and enable only the APIs required by the retained backend.
+- [ ] Create a new private `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1`; no replacement service exists today.
 - [ ] Decide and provision an owned Redis service. Redis is a running database service, not only an SDK. The backend will need its TLS URL/password as a secret; no separate Redis login email has been chosen yet.
 - [ ] Add the development provider secrets needed by the retained backend and wire them through Secret Manager rather than repository files.
 - [ ] Decide how authenticated desktop builds invoke the currently private Cloud Run service, or explicitly authorize a bounded public development endpoint. Do not make it public by accident.
@@ -117,7 +118,7 @@ already done. An unchecked item is still required before the corresponding live 
 
 ### Needed before Beta or Stable publication
 
-- [ ] Create the production Cloud Run/backend resources and public release endpoints only after the owner gives a new explicit release-stage authorization. The current `knowledge-athlete-dev` service is private development infrastructure, not production.
+- [ ] Create production Cloud Run/backend resources and public release endpoints only after the owner gives a new explicit release-stage authorization. No current development service should be mistaken for production authority.
 - [ ] Configure the release/preview object bucket, public origin, Firestore release documents, service identities, and protected GitHub environments against owned resources.
 - [ ] Publish the minimal owned website on `heyintentive.com` with product, download, preview, Terms, Privacy, and support/contact destinations.
 - [ ] Decide the exact support and privacy contacts. The valid domain is `heyintentive.com`; earlier spellings such as `heyintuitive.com` or `heintuitive.com` are not owned product identities and must not ship. Likely choices are `support@heyintentive.com` and `privacy@heyintentive.com`, but they are not approved or created yet.
