@@ -2929,7 +2929,7 @@ class ChatProvider: ObservableObject {
 
   /// Formats raw DDL into a compact, LLM-friendly schema block
   private func formatSchema(tables: [(name: String, sql: String)]) -> String {
-    var lines: [String] = ["**Database schema (omi.db):**", ""]
+    var lines: [String] = ["**Database schema (\(DesktopProductIdentity.databaseFilename)):**", ""]
 
     for (name, sql) in tables {
       // Skip internal tables

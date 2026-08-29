@@ -125,6 +125,16 @@ package enum DesktopLocalProfile {
       if let testURL = testApplicationSupportURL.withLock({ $0 }) {
         return testURL
       }
+      // SwiftPM's XCTest host is not an Intentive product bundle. Keep test-only
+      // persistence isolated without admitting that host into the identity model.
+      if Bundle.main.bundleIdentifier == "com.apple.dt.xctest.tool" {
+        return FileManager.default.temporaryDirectory
+          .appendingPathComponent(
+            "Intentive-XCTest-\(ProcessInfo.processInfo.processIdentifier)",
+            isDirectory: true
+          )
+          .appendingPathComponent("Application Support", isDirectory: true)
+      }
     #endif
     guard let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
       fatalError("Application Support directory not available on this system")

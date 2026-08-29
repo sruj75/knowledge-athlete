@@ -19,7 +19,7 @@ protocol MemoryEmbeddingComputing: Sendable {
 
 extension EmbeddingService: MemoryEmbeddingComputing {}
 
-/// Owns retryable Memory processing while `omi.db` remains the only durable authority.
+/// Owns retryable Memory processing while `heyintentive.db` remains the only durable authority.
 /// External services return proposals; every accepted result crosses the owner/revision
 /// fence and commits atomically to the current owner's database.
 actor LocalMemoryLifecycleRunner {

@@ -1,6 +1,6 @@
 # Rewind local authority
 
-`RewindDatabase` opens one GRDB `omi.db` for the current effective owner. The
+`RewindDatabase` opens one GRDB `heyintentive.db` for the current effective owner. The
 database path is the owner boundary: local records do not carry an owner ID and
 must never be copied between owner databases.
 

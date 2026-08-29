@@ -56,7 +56,8 @@ For `ui` lane AX assertions, pass the named bundle id:
 
 ```bash
 python3 scripts/omi-harness run e2e/flows/harness-smoke.yaml \
-  --allow-legacy-flow-version --lane ui --bundle-id com.omi.omi-harness-test
+  --allow-legacy-flow-version --lane ui \
+  --bundle-id com.heyintentive.intentive.dev.omi-harness-test
 ```
 
 ## Typed Steps

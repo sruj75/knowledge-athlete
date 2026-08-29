@@ -40,4 +40,17 @@ final class DesktopLocalProfileTests: XCTestCase {
       ["Intentive Dev Bundles", "com.heyintentive.intentive.dev.memory-atlas-types"]
     )
   }
+
+  func testUnknownAndInheritedOmiBundlesCannotResolveWritableStorage() {
+    for bundleIdentifier in [nil, "com.omi.desktop", "com.omi.computer-macos"] {
+      XCTAssertNil(
+        DesktopStorageIdentity(
+          bundleIdentifier: bundleIdentifier,
+          localProfileEnabled: false,
+          localProfileStorageName: nil
+        ).applicationSupportPathComponents,
+        bundleIdentifier ?? "nil"
+      )
+    }
+  }
 }

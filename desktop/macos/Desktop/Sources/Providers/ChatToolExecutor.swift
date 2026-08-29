@@ -53,7 +53,7 @@ private final class CancellablePermissionContinuation<Value: Sendable>: @uncheck
 }
 
 /// Executes tool calls from Gemini and returns results
-/// Tools: execute_sql (read/write SQL on omi.db), semantic_search (vector similarity)
+/// Tools: execute_sql (read/write SQL on heyintentive.db), semantic_search (vector similarity)
 @MainActor
 class ChatToolExecutor {
 
@@ -560,7 +560,7 @@ class ChatToolExecutor {
     "DROP", "ALTER", "CREATE", "PRAGMA", "ATTACH", "DETACH", "VACUUM",
   ]
 
-  /// Execute a SQL query on omi.db
+  /// Execute a SQL query on heyintentive.db
   private static func executeSQL(
     _ args: [String: Any],
     expectedOwnerID: String?

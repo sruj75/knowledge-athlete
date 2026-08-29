@@ -33,7 +33,7 @@ enum GeneratedToolCapabilities {
       title: "Execute SQL",
       latency: .fastLocal,
       surfaces: Set([.desktopChat]),
-      summary: "Run SQL on the local omi.db database for structured local data.",
+      summary: "Run SQL on the local heyintentive.db database for structured local data.",
       bullets: [
       "Supports SELECT, INSERT, UPDATE, DELETE.",
       "Use for personal facts, app usage stats, time queries, task lookups, conversations, memories, aggregations, and anything structured.",

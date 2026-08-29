@@ -1,4 +1,5 @@
 import Foundation
+import OmiSupport
 
 /// Stable identity for unsent text in one conversational composer.
 ///
@@ -117,13 +118,8 @@ final class ChatDraftStore {
     if let rootURL {
       self.rootURL = rootURL
     } else {
-      let applicationSupport =
-        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-      let bundleID = Bundle.main.bundleIdentifier ?? "com.omi.desktop"
       self.rootURL =
-        applicationSupport
-        .appendingPathComponent(bundleID, isDirectory: true)
+        DesktopLocalProfile.applicationSupportURL()
         .appendingPathComponent("Drafts/v1", isDirectory: true)
     }
   }

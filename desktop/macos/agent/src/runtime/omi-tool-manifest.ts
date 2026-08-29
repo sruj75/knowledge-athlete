@@ -177,12 +177,14 @@ function finalizeManifestEntries(drafts: OmiToolManifestEntryDraft[], patches: R
   });
 }
 
+const DESKTOP_DATABASE_FILENAME = "heyintentive.db";
+
 const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
   execute_sql: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
       "Execute SQL",
-      "Run SQL on the local omi.db database for structured local data.",
+      `Run SQL on the local ${DESKTOP_DATABASE_FILENAME} database for structured local data.`,
       [
         "Supports SELECT, INSERT, UPDATE, DELETE.",
         "Use for personal facts, app usage stats, time queries, task lookups, conversations, memories, aggregations, and anything structured.",
@@ -469,8 +471,8 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     name: "execute_sql",
     label: "Execute SQL",
     description:
-      "Run SQL on the user's local omi.db SQLite database. Use for app usage stats, screen time, activity counts, task lookups, aggregations. Read-only in agent adapters.",
-    promptSnippet: "execute_sql - Query the user's local omi.db SQLite database (SELECT only)",
+      `Run SQL on the user's local ${DESKTOP_DATABASE_FILENAME} SQLite database. Use for app usage stats, screen time, activity counts, task lookups, aggregations. Read-only in agent adapters.`,
+    promptSnippet: `execute_sql - Query the user's local ${DESKTOP_DATABASE_FILENAME} SQLite database (SELECT only)`,
     promptGuidelines: [
       "Use execute_sql for quantitative queries (counts, sums, date ranges, aggregations).",
       "Use semantic_search instead for fuzzy or conceptual queries about screen content.",
