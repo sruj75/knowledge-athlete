@@ -340,15 +340,7 @@ enum AppBuild {
   }
 
   static var currentSettingsExternalDestinations: [SettingsExternalDestination] {
-    [
-      ("Visit Website", productWebsiteURL),
-      ("Privacy Policy", privacyURL),
-      ("Terms of Service", termsURL),
-      ("Support", supportURL),
-    ].compactMap { title, url in
-      guard let url else { return nil }
-      return SettingsExternalDestination(title: title, url: url)
-    }
+    settingsExternalDestinations(infoDictionary: Bundle.main.infoDictionary ?? [:])
   }
 
   static func settingsExternalDestinations(
