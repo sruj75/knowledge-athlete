@@ -54,21 +54,17 @@ Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.
 
 ## Release Pipeline
 
-No Intentive candidate may be built or published from this checkout yet. Repository-safe S-29
-work has re-owned the Mac identities, artifact names, signed-smoke contract, nested libwebp
+No Intentive candidate may be built or published from this checkout yet. Repository-safe S-29 work has re-owned the Mac identities, artifact names, signed-smoke contract, nested libwebp
 verification, and qualification admission checks, but the external release control plane is
 intentionally incomplete:
 
 1. The MVP release repository is exactly `sruj75/knowledge-athlete`.
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
-3. The trusted runner labels are `intentive-desktop-qualification` and
-   `intentive-qual-m1-studio`. They are not provisioned yet.
-4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows
-   `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
+3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
+4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
    Sparkle, notarization, Firebase production, website, protected publication, or production
    backend/feed inputs are missing. Never substitute inherited Omi values.
-5. Existing candidate/promotion/rollback workflow files are retained control logic, not an
-   executable Intentive release path. They must not be dispatched until their remaining Omi
+5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until their remaining Omi
    provider endpoints/secrets are removed and the complete owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
