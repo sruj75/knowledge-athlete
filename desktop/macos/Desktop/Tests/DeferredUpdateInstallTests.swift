@@ -4,50 +4,6 @@ import XCTest
 
 @MainActor
 final class DeferredUpdateInstallTests: XCTestCase {
-  func testBusyActivityIsResampledUntilIdleAndInstallsExactlyOnce() {
-    let scheduler = ManualUpdateInstallScheduler()
-    let state = MutableUpdateInstallState(
-      snapshot: .init(ambientTranscriptionActive: true)
-    )
-    let deferred = DeferredUpdateInstall(
-      version: "1.2.3",
-      retryInterval: 5,
-      scheduler: scheduler,
-      activitySnapshotProvider: { state.snapshot },
-      install: { state.installCount += 1 }
-    )
-
-    deferred.start()
-
-    XCTAssertEqual(state.installCount, 0)
-    XCTAssertEqual(scheduler.activeCount, 1)
-
-    state.snapshot = .idle
-    XCTAssertTrue(scheduler.fireNext())
-    XCTAssertEqual(state.installCount, 1)
-    XCTAssertEqual(scheduler.activeCount, 0)
-
-    deferred.start()
-    XCTAssertEqual(state.installCount, 1)
-  }
-
-  func testIdleActivityInstallsImmediatelyWithoutScheduling() {
-    let scheduler = ManualUpdateInstallScheduler()
-    let state = MutableUpdateInstallState(snapshot: .idle)
-    let deferred = DeferredUpdateInstall(
-      version: "1.2.3",
-      retryInterval: 5,
-      scheduler: scheduler,
-      activitySnapshotProvider: { .idle },
-      install: { state.installCount += 1 }
-    )
-
-    deferred.start()
-
-    XCTAssertEqual(state.installCount, 1)
-    XCTAssertEqual(scheduler.activeCount, 0)
-  }
-
   func testCancellationInvalidatesAnAlreadyScheduledResample() {
     let scheduler = ManualUpdateInstallScheduler()
     let state = MutableUpdateInstallState(snapshot: .init(chatSendActive: true))

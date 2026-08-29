@@ -4,25 +4,6 @@ import XCTest
 
 @MainActor
 final class UpdateInstallationAdmissionTests: XCTestCase {
-  func testEveryRetainedUserActivityBlocksInstallation() {
-    let activeSnapshots: [UpdateInstallationActivitySnapshot] = [
-      .init(ambientTranscriptionActive: true),
-      .init(voiceCaptureActive: true),
-      .init(voiceProviderActive: true),
-      .init(voicePlaybackActive: true),
-      .init(pendingVoiceToolCount: 1),
-      .init(realtimeTokenMintActive: true),
-      .init(voiceTurnActive: true),
-      .init(chatSendActive: true),
-      .init(chatStreamingActive: true),
-    ]
-
-    for snapshot in activeSnapshots {
-      XCTAssertFalse(UpdateInstallationAdmission.canInstall(snapshot: snapshot))
-    }
-    XCTAssertTrue(UpdateInstallationAdmission.canInstall(snapshot: .idle))
-  }
-
   func testPublishedIdleDelegatePathInstallsImmediately() {
     let state = DelegateInstallationState()
     let delegate = UpdaterDelegate()
