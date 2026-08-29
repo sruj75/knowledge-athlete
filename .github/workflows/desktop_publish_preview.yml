@@ -19,9 +19,9 @@ on:
         type: choice
         options:
           - production
-          - preview
+          - development
       backend_url:
-        description: 'Required only for preview; one non-production HTTPS backend URL'
+        description: 'Required only for development; one non-production HTTPS backend URL'
         required: false
         default: ''
         type: string
@@ -97,7 +97,7 @@ jobs:
               }
               backend_url="$CANONICAL_PRODUCTION_BACKEND_URL"
               ;;
-            preview)
+            development)
               python3 - "$BACKEND_URL" <<'PY'
           import sys
           from urllib.parse import urlsplit
@@ -118,7 +118,7 @@ jobs:
               or parsed.query
               or parsed.fragment
           ):
-              raise SystemExit("preview requires one absolute HTTPS backend URL without credentials, query, or fragment.")
+              raise SystemExit("development preview requires one absolute HTTPS backend URL without credentials, query, or fragment.")
           if hostname == "omi.me" or hostname.endswith(".omi.me") or hostname == "omiapi.com" or hostname.endswith(".omiapi.com"):
               raise SystemExit("preview backend overrides must not target a production-family URL or inherited Omi URL.")
           PY
@@ -181,6 +181,14 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate an approved production preview backend
+        if: inputs.backend_environment == 'production'
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ needs.resolve.outputs.backend_url }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
 
       - name: Start the trusted Codemagic preview workflow
         env:

@@ -95,6 +95,8 @@ def check_desktop_preview_controls() -> list[str]:
         'CODEMAGIC_APP_ID: 6a8ff0296fc70d39540cb56a',
         'workflowId: "intentive-macos-preview"',
         'test "$REPOSITORY" = "sruj75/knowledge-athlete"',
+        "Validate an approved production preview backend",
+        "validate-intentive-production-origin.py",
         "### Preview approval context",
         "https://github.com/${GITHUB_REPOSITORY}/commit/${PREVIEW_SOURCE_SHA}",
     ):
@@ -220,6 +222,7 @@ def check_codemagic_provider_controls() -> list[str]:
         "--auth-storage-canary",
         'gh release create "$CM_TAG"',
         "--if-generation-match=0",
+        "validate-intentive-production-origin.py",
     ):
         if fragment not in driver:
             errors.append(f"Codemagic release driver is missing required boundary: {fragment}")
@@ -252,6 +255,25 @@ def check_codemagic_provider_controls() -> list[str]:
         for value in inherited_values:
             if value in text:
                 errors.append(f"Mac release control {relative_path} retains inherited provider identity: {value}")
+
+    sensitive_backend_workflows = {
+        ".github/workflows/desktop_beta_admission_control.yml": "ADMIN_KEY=\"$(gcloud",
+        ".github/workflows/desktop_breakglass_credential_preflight.yml": "ADMIN_KEY=\"$(gcloud",
+        ".github/workflows/desktop_breakglass_rollout_beta.yml": "ADMIN_KEY=\"$(gcloud",
+        ".github/workflows/desktop_promote_beta.yml": "BETA_PROMOTION_TOKEN: ${{ secrets.BETA_PROMOTION_TOKEN }}",
+        ".github/workflows/desktop_promote_prod.yml": "ADMIN_KEY=$(gcloud",
+        ".github/workflows/desktop_rollback_beta.yml": "ADMIN_KEY=\"$(gcloud",
+    }
+    for relative_path, credential_marker in sensitive_backend_workflows.items():
+        workflow = release_graph[relative_path]
+        trusted_checkout = workflow.find("ref: main")
+        validator = workflow.find("validate-intentive-production-origin.py")
+        credential = workflow.find(credential_marker)
+        if min(trusted_checkout, validator, credential) < 0 or not trusted_checkout < validator < credential:
+            errors.append(
+                "sensitive desktop release workflow must validate the exact approved API origin from trusted "
+                f"main before loading credentials: {relative_path}"
+            )
     return errors
 
 

@@ -147,6 +147,7 @@ validate_release_secrets_and_urls() {
     SENTRY_AUTH_TOKEN \
     GH_TOKEN \
     INTENTIVE_PRODUCTION_API_URL \
+    INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN \
     INTENTIVE_STABLE_FEED_URL \
     INTENTIVE_BETA_FEED_URL \
     INTENTIVE_MANUAL_DOWNLOAD_URL \
@@ -156,6 +157,9 @@ validate_release_secrets_and_urls() {
     INTENTIVE_SUPPORT_URL; do
     require_env "$name"
   done
+  INTENTIVE_PRODUCTION_API_URL="$INTENTIVE_PRODUCTION_API_URL" \
+    INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN="$INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN" \
+    python3 "$REPO_ROOT/.github/scripts/validate-intentive-production-origin.py"
   for name in \
     INTENTIVE_PRODUCTION_API_URL \
     INTENTIVE_STABLE_FEED_URL \
@@ -189,19 +193,28 @@ validate_preview_secrets_and_urls() {
     GCP_DESKTOP_PREVIEW_SERVICE_ACCOUNT_BASE64 \
     DESKTOP_PREVIEW_PUBLISH_KEY \
     INTENTIVE_PREVIEW_BUCKET \
-    INTENTIVE_PREVIEW_REGISTRY_URL; do
+    INTENTIVE_PREVIEW_REGISTRY_URL \
+    INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN; do
     require_env "$name"
   done
   validate_url OMI_PYTHON_API_URL
   validate_url INTENTIVE_PREVIEW_REGISTRY_URL
+  INTENTIVE_PRODUCTION_API_URL="$INTENTIVE_PREVIEW_REGISTRY_URL" \
+    INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN="$INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN" \
+    python3 "$REPO_ROOT/.github/scripts/validate-intentive-production-origin.py"
   [[ "$PREVIEW_SLUG" =~ ^[a-z][a-z0-9-]{0,47}$ ]] || fail "invalid preview slug"
   [[ "$PREVIEW_SOURCE_REF" == "preview/$PREVIEW_SLUG" ]] || fail "preview ref and slug do not match"
   [[ "$PREVIEW_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || fail "preview source SHA must be complete"
   local expected_id
   expected_id="p$(printf '%s' "$PREVIEW_SLUG" | shasum -a 256 | cut -c1-10)"
   [[ "$PREVIEW_ID" == "$expected_id" ]] || fail "preview ID does not match its slug"
-  [[ "$PREVIEW_BACKEND_ENVIRONMENT" == "production" || "$PREVIEW_BACKEND_ENVIRONMENT" == "preview" ]] ||
+  [[ "$PREVIEW_BACKEND_ENVIRONMENT" == "production" || "$PREVIEW_BACKEND_ENVIRONMENT" == "development" ]] ||
     fail "unsupported preview backend environment"
+  if [[ "$PREVIEW_BACKEND_ENVIRONMENT" == "production" ]]; then
+    INTENTIVE_PRODUCTION_API_URL="$OMI_PYTHON_API_URL" \
+      INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN="$INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN" \
+      python3 "$REPO_ROOT/.github/scripts/validate-intentive-production-origin.py"
+  fi
   [[ "$INTENTIVE_PREVIEW_BUCKET" =~ ^gs://[a-z0-9][a-z0-9._-]*[a-z0-9]$ ]] ||
     fail "preview bucket must be one explicit gs:// bucket without an object path"
 }

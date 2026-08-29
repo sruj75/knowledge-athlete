@@ -60,6 +60,18 @@ jobs:
             exit 1
           }
 
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
       - name: Use the existing production Google identity
         uses: google-github-actions/auth@v3
         with:
@@ -74,10 +86,6 @@ jobs:
           INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
-          test -n "$INTENTIVE_PRODUCTION_API_URL" || {
-            echo 'ERROR: INTENTIVE_PRODUCTION_API_URL is required' >&2
-            exit 1
-          }
           case "$OPERATION" in
             enable) promotion_enabled=true ;;
             disable) promotion_enabled=false ;;

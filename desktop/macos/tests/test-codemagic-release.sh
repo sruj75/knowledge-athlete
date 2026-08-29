@@ -103,13 +103,14 @@ common_env=(
   "PREVIEW_SOURCE_REF=preview/$preview_slug"
   "PREVIEW_SOURCE_SHA=$preview_sha"
   "PREVIEW_NOTES_BASE64=$(printf '%s' "$preview_notes" | base64 | tr -d '\n')"
-  "PREVIEW_BACKEND_ENVIRONMENT=preview"
+  "PREVIEW_BACKEND_ENVIRONMENT=development"
   "OMI_PYTHON_API_URL=https://preview-api.heyintentive.com"
   "GCP_DESKTOP_PREVIEW_SERVICE_ACCOUNT_BASE64=$gcp_key_base64"
   "DESKTOP_PREVIEW_PUBLISH_KEY=fixture-publish-key"
   "INTENTIVE_PREVIEW_BUCKET=gs://intentive-previews"
   "INTENTIVE_PREVIEW_PUBLIC_ORIGIN=https://downloads.heyintentive.com"
   "INTENTIVE_PREVIEW_REGISTRY_URL=https://api.heyintentive.com"
+  "INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN=https://api.heyintentive.com"
 )
 
 env "${common_env[@]}" "$SCRIPT" validate >/dev/null
@@ -128,6 +129,15 @@ if env "${common_env[@]}" OMI_PYTHON_API_URL=https://api.omi.me \
 fi
 grep -q 'inherited provider host' "$TMP_ROOT/rejected-host.err" ||
   fail "inherited provider rejection was not explicit"
+
+if env "${common_env[@]}" INTENTIVE_PREVIEW_REGISTRY_URL=https://attacker.example \
+  CM_ENV="$TMP_ROOT/rejected-registry-origin.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-registry-origin.err"; then
+  fail "unapproved preview registry origin unexpectedly passed"
+fi
+grep -q 'does not match the separately approved release origin' \
+  "$TMP_ROOT/rejected-registry-origin.err" ||
+  fail "preview registry origin rejection was not explicit"
 
 if env "${common_env[@]}" PREVIEW_PUBLICATION_MODE=production \
   CM_ENV="$TMP_ROOT/rejected-fence.env" "$SCRIPT" validate >/dev/null 2>"$TMP_ROOT/rejected-fence.err"; then
@@ -149,6 +159,7 @@ release_env=(
   "SENTRY_AUTH_TOKEN=fixture-sentry-token"
   "GH_TOKEN=fixture-github-token"
   "INTENTIVE_PRODUCTION_API_URL=https://api.heyintentive.com"
+  "INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN=https://api.heyintentive.com"
   "INTENTIVE_STABLE_FEED_URL=https://updates.heyintentive.com/v2/desktop/appcast.xml"
   "INTENTIVE_BETA_FEED_URL=https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta"
   "INTENTIVE_MANUAL_DOWNLOAD_URL=https://heyintentive.com/download"
@@ -157,6 +168,16 @@ release_env=(
   "INTENTIVE_PRIVACY_URL=https://heyintentive.com/privacy"
   "INTENTIVE_SUPPORT_URL=https://heyintentive.com/support"
 )
+if env "${release_env[@]}" \
+  INTENTIVE_PRODUCTION_API_URL=https://attacker.example \
+  CM_ENV="$TMP_ROOT/rejected-production-origin.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-production-origin.err"; then
+  fail "unapproved production API origin unexpectedly passed"
+fi
+grep -q 'does not match the separately approved release origin' \
+  "$TMP_ROOT/rejected-production-origin.err" ||
+  fail "production API origin rejection was not explicit"
+
 for public_destination in \
   INTENTIVE_PRODUCT_URL \
   INTENTIVE_TERMS_URL \

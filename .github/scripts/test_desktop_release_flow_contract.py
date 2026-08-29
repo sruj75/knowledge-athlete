@@ -66,7 +66,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
             output = Path(directory) / "github-output"
             base_env = {
                 **clean_git_environment(dict(os.environ)),
-                "BACKEND_ENVIRONMENT": "preview",
+                "BACKEND_ENVIRONMENT": "development",
                 "GITHUB_OUTPUT": str(output),
             }
             script = self._preview_workflow_script("Validate the declared backend environment")

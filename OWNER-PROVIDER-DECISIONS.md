@@ -146,7 +146,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [ ] Register the stable, Beta, development, and preview identifiers/schemes with Apple/provider services where registration is required.
 - [ ] Generate a new Sparkle EdDSA keypair. Put only the public key in the signed app; put the private key only in Codemagic's protected secret store. Record and approve its public-key fingerprint.
 - [ ] Configure a Sentry auth token for dSYM upload to `heyintentive/desktop-macos`; the public DSN already in the app is not an upload credential.
-- [ ] Configure the owned production backend URL, appcast/feed URL, manual-download URL, and GitHub release URL as release inputs. Missing values must keep release/update behavior disabled.
+- [ ] Configure the owned production backend URL, appcast/feed URL, manual-download URL, and GitHub release URL as release inputs. Store the exact production API origin separately as protected `INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN` in every release environment and both Codemagic groups; it must match the production app URL and preview-registry URL before any credential is loaded or sent. No origin is approved yet, so missing values must keep release/update behavior disabled.
 - [ ] Configure an owned GitHub App for release automation, install it on `sruj75/knowledge-athlete`, and record its app ID/private key as protected GitHub secrets.
 - [ ] Provision the trusted Apple Silicon qualification runner and apply only the Intentive runner labels documented by this repository.
 

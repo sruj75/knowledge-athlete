@@ -157,6 +157,28 @@ def test_provider_guard_rejects_reordered_release_phases(monkeypatch):
     assert any("ordered release phase" in error for error in errors)
 
 
+def test_provider_guard_rejects_credentials_loaded_before_origin_validation(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_without_origin_validator(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == ".github/workflows/desktop_promote_beta.yml":
+            return text.replace(
+                "validate-intentive-production-origin.py",
+                "missing-production-origin-validator.py",
+            )
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_without_origin_validator)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any(
+        "must validate the exact approved API origin" in error and "desktop_promote_beta.yml" in error
+        for error in errors
+    )
+
+
 def test_windows_only_workflows_are_excluded_before_release_guard_reads():
     assert GUARDS._is_windows_only_workflow(Path("desktop-windows-ci.yml"))
     assert GUARDS._is_windows_only_workflow(Path("desktop_windows_release.yml"))

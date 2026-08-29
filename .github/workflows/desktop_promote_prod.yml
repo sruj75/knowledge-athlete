@@ -33,19 +33,27 @@ jobs:
     environment: prod
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout promotion controls
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
+      - name: Checkout promotion candidate
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_tag }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify live canonical backend chat compatibility
         run: |
           set -euo pipefail
-          test -n "$INTENTIVE_PRODUCTION_API_URL" || {
-            echo "INTENTIVE_PRODUCTION_API_URL is required for Stable promotion." >&2
-            exit 1
-          }
           [[ "$GCS_DESKTOP_UPDATES_BUCKET" == gs://* ]] || {
             echo "GCS_DESKTOP_UPDATES_BUCKET must be one owned gs:// bucket." >&2
             exit 1
