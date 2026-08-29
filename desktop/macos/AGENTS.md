@@ -93,7 +93,7 @@ Stable is manual:
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
 protected Codemagic groups are not populated yet, so no candidate may be dispatched. The second
-empty provider record listed in `OWNER-PROVIDER-DECISIONS.md` is not a build authority.
+empty provider record was deleted; only the selected application is a build authority.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.

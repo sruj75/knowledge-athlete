@@ -38,8 +38,8 @@ Last confirmed: 2026-08-29
   - Connect Apple Developer separately with `22btrsn071@gmail.com` only when configuring signing/notarization.
   - Selected application ID: `6a8ff0296fc70d39540cb56a`. Repository workflow IDs are
     `intentive-macos-release` and `intentive-macos-preview`.
-  - A second empty application record, `6a8ff02926a0b2fbc893544e`, was created at the same time.
-    It remains untouched until the owner confirms deletion at action time.
+  - The second empty application record `6a8ff02926a0b2fbc893544e` was permanently deleted on
+    2026-08-29 after explicit owner confirmation. It had no configuration file or build history.
 
 ## Google Cloud topology
 
@@ -137,7 +137,8 @@ already done. An unchecked item is still required before the corresponding live 
 
 - [x] Connect `sruj75/knowledge-athlete` from the `srujan24@icloud.com` Codemagic account and record the selected application ID `6a8ff0296fc70d39540cb56a`.
 - [x] Create and record exact repository workflow IDs `intentive-macos-release` and `intentive-macos-preview`; GitHub dispatch and observation use those owned IDs.
-- [ ] After this provider document reaches the default branch, finish YAML setup for the selected Codemagic app, create its tag webhook, and add `CODEMAGIC_API_TOKEN` only to the protected GitHub secret store. Do not configure or build from the duplicate empty app.
+- [x] Delete the empty duplicate Codemagic application `6a8ff02926a0b2fbc893544e`; only the selected application remains.
+- [ ] After this provider document reaches the default branch, finish YAML setup for the selected Codemagic app, create its tag webhook, and add `CODEMAGIC_API_TOKEN` only to the protected GitHub secret store.
 - [ ] Create protected Codemagic groups `intentive_macos_signing`, `intentive_macos_release`, and `intentive_macos_preview`. Populate only the exact variable names validated by `desktop/macos/scripts/codemagic-release.sh`; never commit their values.
 - [ ] Import the supplied Developer ID `.p12` into Codemagic. This requires the `.p12` password; the password must be entered into Codemagic's secret store, never committed or pasted into documentation.
 - [ ] Renew/confirm the Apple Developer Program membership for team `24D6NXS6H7` before relying on notarization or creating new identifiers.
