@@ -40,15 +40,33 @@ Last confirmed: 2026-08-29
 ## Google Cloud topology
 
 - Do not create a new Google Cloud project for the MVP.
-- Existing Firebase project `knowledge-athlete` is also the intended Google Cloud project for future Intentive Cloud Run, Vertex AI, Redis, Secret Manager, and Artifact Registry resources.
-- Billing is currently disabled on `knowledge-athlete`; Cloud Run cannot be provisioned there until the owner handles billing later.
+- Existing Firebase project `knowledge-athlete` is also the Google Cloud project for Intentive Cloud Run and Secret Manager resources. No Artifact Registry repository exists there yet.
+- Billing is active on `knowledge-athlete` as of 2026-08-29. The account has a 90-day, $300 trial, but the operating constraint is to stay within the ongoing Google Cloud Free Tier both during and after the trial. Trial credit is not a spending target.
+- Budget alerts are warnings, not a hard spending cap. Do not deploy a configuration merely because trial credit is available.
+- Created 2026-08-29: dedicated development runtime identity `knowledge-athlete-dev-runtime@knowledge-athlete.iam.gserviceaccount.com` with only project role `roles/datastore.user` and secret-level `roles/secretmanager.secretAccessor` on `REDIS_DB_PASSWORD`. It has no Owner, Editor, deploy, project-wide Secret Manager, Vertex AI, Storage, Tasks, or index-administration role.
+- Google Memorystore for Redis is not approved for development because its provisioned capacity is continuously billable and has no ongoing free tier. Do not provision it while the permanent-free constraint applies.
 - Deleted 2026-08-29: the abandoned private `knowledge-athlete-dev` Cloud Run service in `agentic-accountability`.
   - Verified afterward that `once-upon-a-time` is the only remaining Cloud Run service in `agentic-accountability/us-west1`.
   - Removed the Intentive runtime account's `roles/aiplatform.user`, `roles/cloudtasks.enqueuer`, self token-creator binding, and conditional cross-project `roles/datastore.user` binding.
   - Disabled `knowledge-athlete-dev-runtime@agentic-accountability.iam.gserviceaccount.com`.
   - Preserved the exact backend container image in the shared `intentive` Artifact Registry for recovery; do not delete the shared repository or unrelated images.
-- No replacement hosted Intentive backend currently exists. After billing is authorized, create a new private `knowledge-athlete-dev` service in `knowledge-athlete/us-west1`, verify it, and only then configure desktop development routing.
+- Created and verified 2026-08-29: private Cloud Run service `knowledge-athlete-dev` in `knowledge-athlete/us-west1`.
+  - Canonical discovered URL: `https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`.
+  - Active revision: `knowledge-athlete-dev-bootstrap-8c870c8`, imported from the immutable backend image for source commit `8c870c83c83131d91e7536ceef73ef7b07f3461e` and serving 100% of traffic.
+  - The service requires Cloud Run IAM authentication; an unauthenticated `/v1/health` request returned `403`, while an authenticated request returned `200` with `{"status":"ok"}`.
+  - Permanent-free bootstrap shape: zero minimum instances, one maximum instance, request-based CPU, 1 vCPU, 2 GiB memory, billing mode disabled, Vertex AI disabled, and no Google Memorystore. This intentionally does **not** claim full S-27 release-manifest conformance or production readiness.
+  - Cloud Run imported its own serving copy from the preserved recovery image. Temporary cross-project Artifact Registry reader bindings were removed after deployment, and no Artifact Registry repository/storage was created in `knowledge-athlete`.
+  - The Firebase-authenticated release probe verified Firestore write/read through the runtime identity and verified that the same request created its Redis coordination lock. The Firebase probe user, Firestore document, Redis lock, protected token file, and temporary token-signing permission were all removed afterward.
 - Do not deploy a production service or publish a release until the owner separately authorizes the release stage after all slices and product cleanup are complete.
+
+## Redis topology
+
+- Provider account: `srujan@heyintentive.com` at Upstash.
+- Created 2026-08-29: free database `intentive-development`, AWS Oregon (`us-west-2`), TLS endpoint `smart-sunfish-221745.upstash.io:6379`.
+- Current free-plan limits observed in the provider console: one free database, 500,000 commands per month, 256 MB storage, and 50 GB monthly bandwidth. Adding a second database currently requires a payment method.
+- Owner decision: development and the early MVP production backend may share `intentive-development` until the startup has traction. This is a cost-saving compromise, not production-grade isolation: simultaneous development and production traffic can collide in authentication codes, rate limits, locks, fair-use counters, and caches. Revisit before meaningful production traffic.
+- Secret Manager API is enabled in `knowledge-athlete`. Exact enabled version 1 exists for `REDIS_DB_PASSWORD` (development runtime) and `DESKTOP_REDIS_DB_PASSWORD` (future production workflow contract); both currently refer to the owner-approved shared database. Secret values must never be committed to Git or copied into this file.
+- Verified 2026-08-29: TLS hostname/certificate validation, ping, temporary set/read/delete, and absence after cleanup all passed.
 
 ## Firebase topology
 
@@ -64,6 +82,7 @@ Last confirmed: 2026-08-29
   `com.heyintentive.intentive.dev` (Firebase App ID
   `1:674306938907:ios:befed665f1aa0cd09b40be`). Its downloaded configuration is tracked
   as `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`.
+- Secret Manager contains exact enabled version 1 of `FIREBASE_API_KEY`, copied from the owned development app configuration for the canonical release-probe tooling. The API key value is not recorded in Git, and the runtime identity has no accessor binding to this secret.
 - Enabled 2026-08-29: Google and Apple Firebase Authentication providers. Google uses public-facing
   name `Intentive` and support email `srujan@heyintentive.com`. The refreshed development plist
   contains the generated Google OAuth client. Apple Developer identifier/capability registration is
@@ -92,14 +111,17 @@ already done. An unchecked item is still required before the corresponding live 
 - [ ] Before Beta/Stable registration, approve the production Firebase project boundary. Register `com.heyintentive.intentive.beta` and `com.heyintentive.intentive` there and download their real Google service plists; do not silently point production-family builds at the development project.
 - [x] Enable and configure Google sign-in in Firebase Authentication with public-facing name `Intentive` and support email `srujan@heyintentive.com`; track the refreshed development plist containing its OAuth client.
 - [x] Enable Apple sign-in in Firebase Authentication. Native use still requires the Apple Developer identifier/capability under account `22btrsn071@gmail.com`.
-- [ ] Grant the runtime service account only the Firestore permissions the development backend needs, then verify one development read/write path. The database currently denies direct client access on purpose.
+- [x] Grant the development runtime identity only application-level Firestore data access (`roles/datastore.user`). The database continues to deny direct third-party client access on purpose.
+- [x] Verify one development Firestore read/write path through the runtime identity after the private Cloud Run service exists; the fixed release-probe user wrote and read `language=en`, then all probe state was deleted. No service-account key file was created.
 
 ### Needed before a private development backend is fully usable
 
-- [ ] Connect billing to `knowledge-athlete` and enable only the APIs required by the retained backend.
-- [ ] Create a new private `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1`; no replacement service exists today.
-- [ ] Decide and provision an owned Redis service. Redis is a running database service, not only an SDK. The backend will need its TLS URL/password as a secret; no separate Redis login email has been chosen yet.
-- [ ] Add the development provider secrets needed by the retained backend and wire them through Secret Manager rather than repository files.
+- [x] Connect billing to `knowledge-athlete`; confirmed active on 2026-08-29.
+- [ ] Review the currently enabled APIs and retain/enable only those required by the development backend. API availability is not authorization to provision a paid service.
+- [x] Create and verify the private `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1` using the documented permanent-free bootstrap shape.
+- [x] Use the one free Upstash database `intentive-development` for development and owner-approved early MVP production. Do not provision Google Memorystore under the current cost constraint; revisit environment isolation before meaningful production traffic.
+- [x] Store the current development Redis password and Firebase API key as exact Secret Manager version 1 values. The runtime identity can read only the development Redis secret.
+- [ ] Add the remaining managed-provider secrets only when their retained feature is configured. Modulate is deliberately skipped for now; no provider secret may be invented, committed, or copied from Omi.
 - [ ] Decide how authenticated desktop builds invoke the currently private Cloud Run service, or explicitly authorize a bounded public development endpoint. Do not make it public by accident.
 
 ### Needed before Codemagic can build a signed candidate
