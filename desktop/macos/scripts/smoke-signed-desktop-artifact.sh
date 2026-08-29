@@ -18,6 +18,10 @@ EXPECTED_FEED_URL="${OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL:-}"
 EXPECTED_MANUAL_DOWNLOAD_URL="${OMI_SIGNED_ARTIFACT_SMOKE_MANUAL_DOWNLOAD_URL:-}"
 EXPECTED_RELEASES_URL="${OMI_SIGNED_ARTIFACT_SMOKE_RELEASES_URL:-https://github.com/sruj75/knowledge-athlete/releases}"
 EXPECTED_PYTHON_API_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL:-}"
+EXPECTED_PRODUCT_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PRODUCT_URL:-}"
+EXPECTED_TERMS_URL="${OMI_SIGNED_ARTIFACT_SMOKE_TERMS_URL:-}"
+EXPECTED_PRIVACY_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PRIVACY_URL:-}"
+EXPECTED_SUPPORT_URL="${OMI_SIGNED_ARTIFACT_SMOKE_SUPPORT_URL:-}"
 IS_EXTERNAL_PREVIEW=false
 RUN_LAUNCH=false
 RUN_NETWORK=false
@@ -66,6 +70,10 @@ Options:
                              Expected IntentiveReleasesURL
   --expected-python-api-url URL
                              Expected OMI_PYTHON_API_URL in the artifact
+  --expected-product-url URL Expected IntentiveProductURL
+  --expected-terms-url URL   Expected IntentiveTermsURL
+  --expected-privacy-url URL Expected IntentivePrivacyURL
+  --expected-support-url URL Expected IntentiveSupportURL
   --preview                  Assert external-preview isolation (no Sparkle feed)
   --launch                   Launch the app and assert it stays alive briefly
   --network                  Probe configured backend/appcast URLs
@@ -165,6 +173,10 @@ parse_args() {
       --expected-manual-download-url) require_option_value "$1" "${2:-}"; EXPECTED_MANUAL_DOWNLOAD_URL="$2"; shift 2 ;;
       --expected-releases-url) require_option_value "$1" "${2:-}"; EXPECTED_RELEASES_URL="$2"; shift 2 ;;
       --expected-python-api-url) require_option_value "$1" "${2:-}"; EXPECTED_PYTHON_API_URL="$2"; shift 2 ;;
+      --expected-product-url) require_option_value "$1" "${2:-}"; EXPECTED_PRODUCT_URL="$2"; shift 2 ;;
+      --expected-terms-url) require_option_value "$1" "${2:-}"; EXPECTED_TERMS_URL="$2"; shift 2 ;;
+      --expected-privacy-url) require_option_value "$1" "${2:-}"; EXPECTED_PRIVACY_URL="$2"; shift 2 ;;
+      --expected-support-url) require_option_value "$1" "${2:-}"; EXPECTED_SUPPORT_URL="$2"; shift 2 ;;
       --preview) IS_EXTERNAL_PREVIEW=true; shift ;;
       --launch) RUN_LAUNCH=true; shift ;;
       --network) RUN_NETWORK=true; shift ;;
@@ -194,6 +206,12 @@ validate_release_expectations() {
   [[ "$EXPECTED_RELEASES_URL" == "https://github.com/sruj75/knowledge-athlete/releases" ]] \
     || fail "release repository must be https://github.com/sruj75/knowledge-athlete/releases"
 
+  if [[ "$IS_EXTERNAL_PREVIEW" != true ]]; then
+    for name in EXPECTED_PRODUCT_URL EXPECTED_TERMS_URL EXPECTED_PRIVACY_URL EXPECTED_SUPPORT_URL; do
+      [[ -n "${!name}" ]] || fail "release smoke requires $name"
+    done
+  fi
+
   VALIDATE_PYTHON_API_URL="$EXPECTED_PYTHON_API_URL" \
     VALIDATE_RELEASES_URL="$EXPECTED_RELEASES_URL" \
     VALIDATE_FEED_URL="$EXPECTED_FEED_URL" \
@@ -220,6 +238,30 @@ for name in (
     if host == "basedhardware.com" or host.endswith(".basedhardware.com"):
         raise SystemExit(1)
 PY
+
+  if [[ "$IS_EXTERNAL_PREVIEW" != true ]]; then
+    VALIDATE_PRODUCT_URL="$EXPECTED_PRODUCT_URL" \
+      VALIDATE_TERMS_URL="$EXPECTED_TERMS_URL" \
+      VALIDATE_PRIVACY_URL="$EXPECTED_PRIVACY_URL" \
+      VALIDATE_SUPPORT_URL="$EXPECTED_SUPPORT_URL" \
+      python3 - <<'PY' || fail "public destinations must use heyintentive.com or one of its subdomains"
+import os
+from urllib.parse import urlparse
+
+for name in ("VALIDATE_PRODUCT_URL", "VALIDATE_TERMS_URL", "VALIDATE_PRIVACY_URL", "VALIDATE_SUPPORT_URL"):
+    parsed = urlparse(os.environ[name])
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if (
+        parsed.scheme != "https"
+        or not host
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+        or (host != "heyintentive.com" and not host.endswith(".heyintentive.com"))
+    ):
+        raise SystemExit(1)
+PY
+  fi
 }
 
 version_from_tag() {
@@ -408,6 +450,7 @@ assert_bundle_identity() {
   [[ -d "$APP_BUNDLE/Contents" ]] || fail "app bundle not found: $APP_BUNDLE"
 
   local bundle_id version build executable url_scheme feed_url public_key manual_download_url releases_url
+  local product_url terms_url privacy_url support_url
   local production_api_url
   local external_preview_marker automatic_checks
   local app_bundle_name required_app_bundle_name
@@ -420,6 +463,10 @@ assert_bundle_identity() {
   manual_download_url="$(plist_read IntentiveManualDownloadURL)"
   releases_url="$(plist_read IntentiveReleasesURL)"
   production_api_url="$(plist_read IntentiveProductionAPIURL)"
+  product_url="$(plist_read IntentiveProductURL)"
+  terms_url="$(plist_read IntentiveTermsURL)"
+  privacy_url="$(plist_read IntentivePrivacyURL)"
+  support_url="$(plist_read IntentiveSupportURL)"
   url_scheme="$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true)"
   external_preview_marker="$(plist_read OMIExternalPreview)"
   automatic_checks="$(plist_read SUEnableAutomaticChecks)"
@@ -453,6 +500,14 @@ assert_bundle_identity() {
       || fail "IntentiveReleasesURL mismatch: expected $EXPECTED_RELEASES_URL, got ${releases_url:-missing}"
     [[ "${production_api_url%/}" == "${EXPECTED_PYTHON_API_URL%/}" ]] \
       || fail "IntentiveProductionAPIURL mismatch: expected $EXPECTED_PYTHON_API_URL, got ${production_api_url:-missing}"
+    [[ "$product_url" == "$EXPECTED_PRODUCT_URL" ]] \
+      || fail "IntentiveProductURL mismatch: expected $EXPECTED_PRODUCT_URL, got ${product_url:-missing}"
+    [[ "$terms_url" == "$EXPECTED_TERMS_URL" ]] \
+      || fail "IntentiveTermsURL mismatch: expected $EXPECTED_TERMS_URL, got ${terms_url:-missing}"
+    [[ "$privacy_url" == "$EXPECTED_PRIVACY_URL" ]] \
+      || fail "IntentivePrivacyURL mismatch: expected $EXPECTED_PRIVACY_URL, got ${privacy_url:-missing}"
+    [[ "$support_url" == "$EXPECTED_SUPPORT_URL" ]] \
+      || fail "IntentiveSupportURL mismatch: expected $EXPECTED_SUPPORT_URL, got ${support_url:-missing}"
     PUBLIC_KEY="$public_key" python3 - <<'PY' \
       || fail "SUPublicEDKey must be one base64-encoded 32-byte Ed25519 public key"
 import base64

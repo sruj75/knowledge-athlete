@@ -84,6 +84,38 @@ def test_provider_guard_rejects_inherited_omi_identity(monkeypatch):
     assert any("inherited provider identity" in error for error in errors)
 
 
+def test_provider_guard_scans_the_downstream_mac_release_graph(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_inherited_downstream_backend(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == ".github/workflows/desktop_promote_beta.yml":
+            return text + "\nINHERITED_BACKEND=https://api.omi.me\n"
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_inherited_downstream_backend)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any("desktop_promote_beta.yml" in error and "inherited provider identity" in error for error in errors)
+
+
+def test_provider_guard_scans_the_actionlint_runner_registry(monkeypatch):
+    real_read = GUARDS._read
+
+    def read_with_inherited_runner_label(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == ".github/actionlint.yaml":
+            return text.replace("- intentive-qual-m1-studio", "- omi-qual-m1-studio")
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_with_inherited_runner_label)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any(".github/actionlint.yaml" in error and "inherited provider identity" in error for error in errors)
+
+
 def test_provider_guard_rejects_preview_production_publication(monkeypatch):
     real_read = GUARDS._read
 

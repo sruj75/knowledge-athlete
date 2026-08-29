@@ -71,8 +71,13 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
+          test -n "$INTENTIVE_PRODUCTION_API_URL" || {
+            echo 'ERROR: INTENTIVE_PRODUCTION_API_URL is required' >&2
+            exit 1
+          }
           case "$OPERATION" in
             enable) promotion_enabled=true ;;
             disable) promotion_enabled=false ;;
@@ -92,7 +97,7 @@ jobs:
                 --header 'Content-Type: application/json' \
                 --header "secret-key: $ADMIN_KEY" \
                 --data-binary @- \
-                https://api.omi.me/v2/desktop/beta/admission \
+                "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/admission" \
                 --output "$response"
           jq -e --argjson expected "$promotion_enabled" \
             'keys == ["generation", "promotion_enabled"] and

@@ -13,13 +13,15 @@ REQUIRED = (
     "confirm:",
     "promote-stable",
     "environment: prod",
+    "GCS_DESKTOP_UPDATES_BUCKET: ${{ vars.GCS_DESKTOP_UPDATES_BUCKET }}",
+    "INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}",
     "Verify live canonical backend chat compatibility",
-    'https://api.omi.me/v1/health',
+    '"${INTENTIVE_PRODUCTION_API_URL%/}/v1/health"',
     '.status == "ok"',
     '.chat_contract_version == "1"',
     "Select and validate the exact trusted qualification",
     "Fetch exact retained qualified manifest",
-    '"https://api.omi.me/v2/desktop/releases/$RELEASE_TAG"',
+    '"${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/releases/$RELEASE_TAG"',
     "manifest_sha256",
     "Read current pointers and capture workflow-owned CAS inputs",
     '"$BASE/macos-beta"',
@@ -29,10 +31,9 @@ REQUIRED = (
     "desktop_release_manifests/$RELEASE_TAG",
     "Publish immutable stable repair installer",
     "Advance explicit stable pointer",
-    "Bridge stable for legacy desktop clients",
     "Publish latest stable repair route",
     "Verify exact pointer, hashes, and stable feed",
-    "https://api.omi.me/v2/desktop/channels/promote",
+    '"${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/channels/promote"',
     "appcast.xml?identity=stable",
     "verify_stable_appcast.py",
     "desktop_qualification_admission.py",
@@ -46,7 +47,6 @@ ORDERED_STEPS = (
     "Read current pointers and capture workflow-owned CAS inputs",
     "Publish immutable stable repair installer",
     "Advance explicit stable pointer",
-    "Bridge stable for legacy desktop clients",
     "Publish latest stable repair route",
     "Verify exact pointer, hashes, and stable feed",
 )
@@ -54,7 +54,14 @@ ORDERED_STEPS = (
 
 def validate(text: str) -> list[str]:
     errors = [f"missing Stable pointer-promotion guard: {fragment}" for fragment in REQUIRED if fragment not in text]
-    for forbidden in ("break_glass", "Deploy Desktop Backend", "gcloud run deploy", "desktop-backend-prod-deployed"):
+    for forbidden in (
+        "break_glass",
+        "Deploy Desktop Backend",
+        "gcloud run deploy",
+        "desktop-backend-prod-deployed",
+        "Bridge stable for legacy desktop clients",
+        "/updates/releases",
+    ):
         if forbidden in text:
             errors.append(f"stable pointer promotion must not contain backend deployment or bypass path: {forbidden}")
     if "\n  push:" in text or "\n  schedule:" in text or "\n  release:" in text:
@@ -62,7 +69,7 @@ def validate(text: str) -> list[str]:
     order = [text.find(fragment) for fragment in ORDERED_STEPS]
     if -1 in order or order != sorted(order):
         errors.append(
-            "stable promotion must fetch and verify retained identity before pointer mutation, then bridge and verify"
+            "stable promotion must fetch and verify retained identity before pointer mutation, then publish and verify"
         )
     return errors
 

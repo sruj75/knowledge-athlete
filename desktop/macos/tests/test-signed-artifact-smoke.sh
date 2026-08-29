@@ -9,6 +9,10 @@ export OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID="TESTTEAM01"
 export OMI_SIGNED_ARTIFACT_SMOKE_PYTHON_API_URL="https://api.heyintentive.com"
 export OMI_SIGNED_ARTIFACT_SMOKE_FEED_URL="https://updates.heyintentive.com/v2/desktop/appcast.xml"
 export OMI_SIGNED_ARTIFACT_SMOKE_MANUAL_DOWNLOAD_URL="https://updates.heyintentive.com/v2/desktop/download/latest"
+export OMI_SIGNED_ARTIFACT_SMOKE_PRODUCT_URL="https://heyintentive.com"
+export OMI_SIGNED_ARTIFACT_SMOKE_TERMS_URL="https://heyintentive.com/terms"
+export OMI_SIGNED_ARTIFACT_SMOKE_PRIVACY_URL="https://heyintentive.com/privacy"
+export OMI_SIGNED_ARTIFACT_SMOKE_SUPPORT_URL="https://heyintentive.com/support"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -94,6 +98,10 @@ cat > "$tmp_app/Contents/Info.plist" <<'PLIST'
   <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
   <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
   <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
+  <key>IntentiveProductURL</key><string>https://heyintentive.com</string>
+  <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
+  <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
+  <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
 </dict>
 </plist>
 PLIST
@@ -125,6 +133,10 @@ cat > "$beta_app/Contents/Info.plist" <<'PLIST'
   <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
   <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
   <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
+  <key>IntentiveProductURL</key><string>https://heyintentive.com</string>
+  <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
+  <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
+  <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
 </dict>
 </plist>
 PLIST
@@ -181,6 +193,10 @@ make_signed_smoke_fixture() {
   <key>IntentiveManualDownloadURL</key><string>https://updates.heyintentive.com/v2/desktop/download/latest</string>
   <key>IntentiveReleasesURL</key><string>https://github.com/sruj75/knowledge-athlete/releases</string>
   <key>IntentiveProductionAPIURL</key><string>https://api.heyintentive.com</string>
+  <key>IntentiveProductURL</key><string>https://heyintentive.com</string>
+  <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
+  <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
+  <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
 </dict>
 </plist>
 PLIST
@@ -297,6 +313,18 @@ PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$canonical_dmg_app" \
   --tag v0.12.34+12034-macos \
   >/tmp/omi-smoke-canonical-dmg.out 2>/tmp/omi-smoke-canonical-dmg.err \
   || fail "canonical Intentive.app DMG should pass: $(cat /tmp/omi-smoke-canonical-dmg.err)"
+
+/usr/libexec/PlistBuddy -c 'Set :IntentiveProductURL https://example.com' \
+  "$canonical_dmg_app/Contents/Info.plist"
+if PATH="$mock_bin:$PATH" \
+  "$SMOKE" --app "$canonical_dmg_app" --tag v0.12.34+12034-macos \
+  >/tmp/omi-smoke-unowned-product.out 2>/tmp/omi-smoke-unowned-product.err; then
+  fail "signed smoke unexpectedly accepted an unowned stamped product URL"
+fi
+grep -q "IntentiveProductURL mismatch" /tmp/omi-smoke-unowned-product.err \
+  || fail "unowned stamped product URL rejection should name IntentiveProductURL"
+/usr/libexec/PlistBuddy -c 'Set :IntentiveProductURL https://heyintentive.com' \
+  "$canonical_dmg_app/Contents/Info.plist"
 
 PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$signed_beta_app" \
   "$SMOKE" --app "$signed_beta_app" --dmg "$dummy_dmg" \

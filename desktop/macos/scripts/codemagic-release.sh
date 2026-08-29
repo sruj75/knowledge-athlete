@@ -87,6 +87,21 @@ for inherited in ("omi.me", "omiapi.com", "basedhardware.com"):
 PY
 }
 
+validate_owned_public_url() {
+  local name="$1"
+  local value="${!name:-}"
+  validate_url "$name"
+  URL_NAME="$name" URL_VALUE="$value" python3 - <<'PY'
+import os
+from urllib.parse import urlsplit
+
+name = os.environ["URL_NAME"]
+host = (urlsplit(os.environ["URL_VALUE"]).hostname or "").lower().rstrip(".")
+if host != "heyintentive.com" and not host.endswith(".heyintentive.com"):
+    raise SystemExit(f"ERROR: {name} must use heyintentive.com or one of its subdomains")
+PY
+}
+
 validate_owned_identity() {
   [[ "$APPLE_TEAM_ID" == "24D6NXS6H7" ]] || fail "unexpected Apple Team ID: $APPLE_TEAM_ID"
   [[ "$GITHUB_REPOSITORY" == "sruj75/knowledge-athlete" ]] ||
@@ -152,6 +167,13 @@ validate_release_secrets_and_urls() {
     INTENTIVE_SUPPORT_URL; do
     validate_url "$name"
   done
+  for name in \
+    INTENTIVE_PRODUCT_URL \
+    INTENTIVE_TERMS_URL \
+    INTENTIVE_PRIVACY_URL \
+    INTENTIVE_SUPPORT_URL; do
+    validate_owned_public_url "$name"
+  done
   [[ "${GITHUB_RELEASES_URL:-}" == "https://github.com/sruj75/knowledge-athlete/releases" ]] ||
     fail "unexpected GitHub releases URL"
 }
@@ -167,12 +189,10 @@ validate_preview_secrets_and_urls() {
     GCP_DESKTOP_PREVIEW_SERVICE_ACCOUNT_BASE64 \
     DESKTOP_PREVIEW_PUBLISH_KEY \
     INTENTIVE_PREVIEW_BUCKET \
-    INTENTIVE_PREVIEW_PUBLIC_ORIGIN \
     INTENTIVE_PREVIEW_REGISTRY_URL; do
     require_env "$name"
   done
   validate_url OMI_PYTHON_API_URL
-  validate_url INTENTIVE_PREVIEW_PUBLIC_ORIGIN
   validate_url INTENTIVE_PREVIEW_REGISTRY_URL
   [[ "$PREVIEW_SLUG" =~ ^[a-z][a-z0-9-]{0,47}$ ]] || fail "invalid preview slug"
   [[ "$PREVIEW_SOURCE_REF" == "preview/$PREVIEW_SLUG" ]] || fail "preview ref and slug do not match"
@@ -182,7 +202,8 @@ validate_preview_secrets_and_urls() {
   [[ "$PREVIEW_ID" == "$expected_id" ]] || fail "preview ID does not match its slug"
   [[ "$PREVIEW_BACKEND_ENVIRONMENT" == "production" || "$PREVIEW_BACKEND_ENVIRONMENT" == "preview" ]] ||
     fail "unsupported preview backend environment"
-  [[ "$INTENTIVE_PREVIEW_BUCKET" == gs://* ]] || fail "preview bucket must be a gs:// URL"
+  [[ "$INTENTIVE_PREVIEW_BUCKET" =~ ^gs://[a-z0-9][a-z0-9._-]*[a-z0-9]$ ]] ||
+    fail "preview bucket must be one explicit gs:// bucket without an object path"
 }
 
 validate_source_and_export_state() {
@@ -654,6 +675,10 @@ smoke() {
       --expected-manual-download-url "$INTENTIVE_MANUAL_DOWNLOAD_URL" \
       --expected-releases-url "$GITHUB_RELEASES_URL" \
       --expected-python-api-url "$INTENTIVE_PRODUCTION_API_URL" \
+      --expected-product-url "$INTENTIVE_PRODUCT_URL" \
+      --expected-terms-url "$INTENTIVE_TERMS_URL" \
+      --expected-privacy-url "$INTENTIVE_PRIVACY_URL" \
+      --expected-support-url "$INTENTIVE_SUPPORT_URL" \
       --launch \
       --auth-storage-canary \
       --timeout 90 \
@@ -673,6 +698,10 @@ smoke() {
       --expected-manual-download-url "$INTENTIVE_MANUAL_DOWNLOAD_URL" \
       --expected-releases-url "$GITHUB_RELEASES_URL" \
       --expected-python-api-url "$INTENTIVE_PRODUCTION_API_URL" \
+      --expected-product-url "$INTENTIVE_PRODUCT_URL" \
+      --expected-terms-url "$INTENTIVE_TERMS_URL" \
+      --expected-privacy-url "$INTENTIVE_PRIVACY_URL" \
+      --expected-support-url "$INTENTIVE_SUPPORT_URL" \
       --launch \
       --auth-storage-canary \
       --timeout 90 \
@@ -738,12 +767,13 @@ preview_key_cleanup() {
 publish_preview() {
   require_env GCP_DESKTOP_PREVIEW_SERVICE_ACCOUNT_BASE64
   require_env DESKTOP_PREVIEW_PUBLISH_KEY
+  require_env SIGN_IDENTITY
   [[ -s "$PREVIEW_DMG" && -s "$BUILD_DIR/desktop-smoke-result.json" ]] ||
     fail "preview artifact or signed-smoke evidence is missing"
   [[ "$INTENTIVE_PREVIEW_BUCKET" != *omi* && "$INTENTIVE_PREVIEW_BUCKET" != *basedhardware* ]] ||
     fail "preview bucket uses an inherited provider identity"
 
-  local object_root dmg_object smoke_object dmg_sha public_dmg_url payload
+  local object_root dmg_object smoke_object dmg_sha public_dmg_url payload preview_notes bucket_name
   preview_key_path="$(mktemp "${TMPDIR:-/tmp}/intentive-preview-gcp.json.XXXXXX")"
   trap preview_key_cleanup EXIT
   chmod 600 "$preview_key_path"
@@ -759,7 +789,11 @@ publish_preview() {
   publish_immutable_preview_object "$PREVIEW_DMG" "$dmg_object"
   publish_immutable_preview_object "$BUILD_DIR/desktop-smoke-result.json" "$smoke_object"
 
-  public_dmg_url="${INTENTIVE_PREVIEW_PUBLIC_ORIGIN%/}/previews/$PREVIEW_SLUG/$PREVIEW_SOURCE_SHA/Intentive-Preview.dmg"
+  if ! preview_notes="$(printf '%s' "${PREVIEW_NOTES_BASE64:-}" | base64 --decode 2>/dev/null)"; then
+    fail "PREVIEW_NOTES_BASE64 is not valid base64"
+  fi
+  bucket_name="${INTENTIVE_PREVIEW_BUCKET#gs://}"
+  public_dmg_url="https://storage.googleapis.com/$bucket_name/previews/$PREVIEW_SLUG/$PREVIEW_SOURCE_SHA/Intentive-Preview.dmg"
   payload="$(jq -n \
     --arg slug "$PREVIEW_SLUG" \
     --arg source_sha "$PREVIEW_SOURCE_SHA" \
@@ -770,7 +804,9 @@ publish_preview() {
     --arg url_scheme "$URL_SCHEME" \
     --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg backend_url "$OMI_PYTHON_API_URL" \
-    '{slug: $slug, source_sha: $source_sha, dmg_url: $dmg_url, dmg_sha256: $dmg_sha256, app_name: $app_name, bundle_id: $bundle_id, url_scheme: $url_scheme, built_at: $built_at, notarization: "stapled", backend_url: $backend_url}')"
+    --arg signer "$SIGN_IDENTITY" \
+    --arg notes "$preview_notes" \
+    '{slug: $slug, source_sha: $source_sha, dmg_url: $dmg_url, dmg_sha256: $dmg_sha256, app_name: $app_name, bundle_id: $bundle_id, url_scheme: $url_scheme, built_at: $built_at, notarization: "stapled", backend_url: $backend_url, signer: $signer, notes: $notes}')"
   curl --fail-with-body --silent --show-error \
     --retry 3 \
     -H 'Content-Type: application/json' \

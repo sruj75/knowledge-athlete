@@ -64,11 +64,16 @@ jobs:
       - name: Ask the backend to admit and promote the exact qualified candidate
         env:
           BETA_PROMOTION_TOKEN: ${{ secrets.BETA_PROMOTION_TOKEN }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
           RELEASE_TAG: ${{ needs.resolve-candidate.outputs.release_tag }}
         run: |
           set -euo pipefail
+          test -n "$INTENTIVE_PRODUCTION_API_URL" || {
+            echo "INTENTIVE_PRODUCTION_API_URL is required for Beta promotion." >&2
+            exit 1
+          }
           curl --fail-with-body --silent --show-error \
-            --request POST https://api.omi.me/v2/desktop/beta/promote-qualified \
+            --request POST "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/promote-qualified" \
             --header "Authorization: Bearer ${BETA_PROMOTION_TOKEN}" \
             --header 'Content-Type: application/json' \
             --data "{\"tag\":\"${RELEASE_TAG}\"}"

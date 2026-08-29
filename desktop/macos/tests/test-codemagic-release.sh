@@ -61,15 +61,23 @@ make_executable "$mock_bin/gcloud" \
   '[[ -f "$mapped_source" ]] || exit 1' \
   'mkdir -p "$(dirname "$mapped_destination")"' \
   '/bin/cp "$mapped_source" "$mapped_destination"'
-make_executable "$mock_bin/curl" 'exit 0'
+make_executable "$mock_bin/curl" \
+  'payload=""' \
+  'while [[ "$#" -gt 0 ]]; do' \
+  '  if [[ "$1" == "--data" ]]; then payload="$2"; shift 2; else shift; fi' \
+  'done' \
+  'printf "%s\n" "$payload" > "${TEST_CURL_PAYLOAD:?}"'
 
 preview_slug="focus-notes"
 preview_id="p$(printf '%s' "$preview_slug" | shasum -a 256 | cut -c1-10)"
+preview_notes=$'Try the focus flow.\nCheck the new keyboard shortcut.'
 cm_env="$TMP_ROOT/cm.env"
+curl_payload="$TMP_ROOT/preview-payload.json"
 gcp_key_base64="$(printf '{}\n' | base64)"
 common_env=(
   "PATH=$mock_bin:$PATH"
   "TEST_PREVIEW_SHA=$preview_sha"
+  "TEST_CURL_PAYLOAD=$curl_payload"
   "PREVIEW_MODE=true"
   "PREVIEW_PUBLICATION_MODE=preview-only"
   "APP_NAME=Intentive Preview"
@@ -89,10 +97,12 @@ common_env=(
   "APP_STORE_CONNECT_ISSUER_ID=fixture-issuer"
   "INTENTIVE_FIREBASE_PLIST_BASE64=fixture-firebase"
   "INTENTIVE_DESKTOP_APP_ENV_BASE64=fixture-app-env"
+  "SIGN_IDENTITY=Developer ID Application: Intentive (24D6NXS6H7)"
   "PREVIEW_SLUG=$preview_slug"
   "PREVIEW_ID=$preview_id"
   "PREVIEW_SOURCE_REF=preview/$preview_slug"
   "PREVIEW_SOURCE_SHA=$preview_sha"
+  "PREVIEW_NOTES_BASE64=$(printf '%s' "$preview_notes" | base64 | tr -d '\n')"
   "PREVIEW_BACKEND_ENVIRONMENT=preview"
   "OMI_PYTHON_API_URL=https://preview-api.heyintentive.com"
   "GCP_DESKTOP_PREVIEW_SERVICE_ACCOUNT_BASE64=$gcp_key_base64"
@@ -126,12 +136,54 @@ fi
 grep -q 'preview publication fence must remain preview-only' "$TMP_ROOT/rejected-fence.err" ||
   fail "preview publication-fence rejection was not explicit"
 
+release_env=(
+  "${common_env[@]}"
+  "PREVIEW_MODE=false"
+  "APP_NAME=Intentive"
+  "BUNDLE_ID=com.heyintentive.intentive"
+  "URL_SCHEME=heyintentive"
+  "CM_TAG=v1.2.3+1002003-macos"
+  "INTENTIVE_BETA_FIREBASE_PLIST_BASE64=fixture-beta-firebase"
+  "INTENTIVE_SPARKLE_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+  "SPARKLE_PRIVATE_KEY=fixture-sparkle-private-key"
+  "SENTRY_AUTH_TOKEN=fixture-sentry-token"
+  "GH_TOKEN=fixture-github-token"
+  "INTENTIVE_PRODUCTION_API_URL=https://api.heyintentive.com"
+  "INTENTIVE_STABLE_FEED_URL=https://updates.heyintentive.com/v2/desktop/appcast.xml"
+  "INTENTIVE_BETA_FEED_URL=https://updates.heyintentive.com/v2/desktop/appcast.xml?identity=beta"
+  "INTENTIVE_MANUAL_DOWNLOAD_URL=https://heyintentive.com/download"
+  "INTENTIVE_PRODUCT_URL=https://heyintentive.com"
+  "INTENTIVE_TERMS_URL=https://heyintentive.com/terms"
+  "INTENTIVE_PRIVACY_URL=https://heyintentive.com/privacy"
+  "INTENTIVE_SUPPORT_URL=https://heyintentive.com/support"
+)
+for public_destination in \
+  INTENTIVE_PRODUCT_URL \
+  INTENTIVE_TERMS_URL \
+  INTENTIVE_PRIVACY_URL \
+  INTENTIVE_SUPPORT_URL; do
+  if env "${release_env[@]}" "$public_destination=https://example.com/retired" \
+    CM_ENV="$TMP_ROOT/rejected-$public_destination.env" "$SCRIPT" validate \
+    >/dev/null 2>"$TMP_ROOT/rejected-$public_destination.err"; then
+    fail "$public_destination unexpectedly accepted a non-owned host"
+  fi
+  grep -q 'must use heyintentive.com or one of its subdomains' \
+    "$TMP_ROOT/rejected-$public_destination.err" ||
+    fail "$public_destination rejection did not explain the owned-host requirement"
+done
+
 preview_build="$TMP_ROOT/build"
 gcs_root="$TMP_ROOT/gcs"
 mkdir -p "$preview_build"
 printf 'signed preview fixture\n' > "$preview_build/Intentive-Preview.dmg"
 printf '{"status":"passed"}\n' > "$preview_build/desktop-smoke-result.json"
 env "${common_env[@]}" TEST_GCS_DIR="$gcs_root" "$SCRIPT" publish >/dev/null
+jq -e \
+  --arg notes "$preview_notes" \
+  --arg signer "Developer ID Application: Intentive (24D6NXS6H7)" \
+  --arg dmg_url "https://storage.googleapis.com/intentive-previews/previews/$preview_slug/$preview_sha/Intentive-Preview.dmg" \
+  '.notes == $notes and .signer == $signer and .dmg_url == $dmg_url' \
+  "$curl_payload" >/dev/null || fail "preview registry payload lost notes, signer, or canonical GCS URL"
 env "${common_env[@]}" TEST_GCS_DIR="$gcs_root" "$SCRIPT" publish >/dev/null
 
 printf '{"status":"different"}\n' > "$preview_build/desktop-smoke-result.json"

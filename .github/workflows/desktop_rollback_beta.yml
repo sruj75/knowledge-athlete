@@ -6,7 +6,7 @@ on:
       current_release_id: {description: 'Exact broken macOS Beta tag currently served', required: true, type: string}
       target_release_id: {description: 'Exact retained T2-qualified known-good macOS tag', required: true, type: string}
       expected_generation: {description: 'Exact current macos-beta pointer generation', required: true, type: string}
-      incident_url: {description: 'Omi GitHub issue or discussion documenting the incident', required: true, type: string}
+      incident_url: {description: 'Intentive GitHub issue or discussion documenting the incident', required: true, type: string}
       reason: {description: 'Observed failure and containment reason', required: true, type: string}
 
 permissions: {}
@@ -33,9 +33,14 @@ jobs:
           INCIDENT: ${{ inputs.incident_url }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
           REQUEST_ID: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
           set -euo pipefail
+          test -n "$INTENTIVE_PRODUCTION_API_URL" || {
+            echo 'ERROR: INTENTIVE_PRODUCTION_API_URL is required' >&2
+            exit 1
+          }
           ADMIN_KEY="$(gcloud secrets versions access latest --secret=ADMIN_KEY --project "$PROJECT_ID")"
           trap 'unset ADMIN_KEY' EXIT
           jq -cn --arg operation rollback --arg current_release_id "$CURRENT" --arg target_release_id "$TARGET" \
@@ -43,4 +48,4 @@ jobs:
             --arg reason "$REASON" --arg actor "$ACTOR" --arg request_id "$REQUEST_ID" '$ARGS.named' \
             | curl --fail-with-body --silent --show-error --request POST \
                 --header 'Content-Type: application/json' --header "secret-key: $ADMIN_KEY" \
-                --data-binary @- https://api.omi.me/v2/desktop/beta/breakglass
+                --data-binary @- "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/breakglass"

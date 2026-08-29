@@ -147,6 +147,23 @@ def check_codemagic_provider_controls() -> list[str]:
     errors: list[str] = []
     provider = _read("codemagic.yaml", errors)
     driver = _read("desktop/macos/scripts/codemagic-release.sh", errors)
+    release_graph_paths = (
+        ".github/workflows/desktop_auto_release.yml",
+        ".github/workflows/desktop_beta_admission_control.yml",
+        ".github/workflows/desktop_breakglass_credential_preflight.yml",
+        ".github/workflows/desktop_breakglass_rollout_beta.yml",
+        ".github/workflows/desktop_promote_beta.yml",
+        ".github/workflows/desktop_promote_prod.yml",
+        ".github/workflows/desktop_publish_preview.yml",
+        ".github/workflows/desktop_qualify_beta.yml",
+        ".github/workflows/desktop_recover_beta.yml",
+        ".github/workflows/desktop_release_doctor.yml",
+        ".github/workflows/desktop_retry_beta_qualification.yml",
+        ".github/workflows/desktop_rollback_beta.yml",
+        ".github/scripts/check-desktop-prod-promotion-policy.py",
+        ".github/actionlint.yaml",
+    )
+    release_graph = {path: _read(path, errors) for path in release_graph_paths}
 
     for fragment in (
         "intentive-macos-release:",
@@ -220,10 +237,21 @@ def check_codemagic_provider_controls() -> list[str]:
         "macos.omi.me",
         "com.omi.computer-macos",
         "omi_macos_updates",
+        "OMI_BOT",
+        "Omi Bot",
+        "runs-on: [self-hosted, macos, omi-desktop-qualification, omi-qual-m1-studio]",
+        "- omi-desktop-qualification",
+        "- omi-qual-m1-studio",
     )
-    for value in inherited_values:
-        if value in provider or value in driver:
-            errors.append(f"Codemagic release controls retain inherited provider identity: {value}")
+    release_controls = {
+        "codemagic.yaml": provider,
+        "desktop/macos/scripts/codemagic-release.sh": driver,
+        **release_graph,
+    }
+    for relative_path, text in release_controls.items():
+        for value in inherited_values:
+            if value in text:
+                errors.append(f"Mac release control {relative_path} retains inherited provider identity: {value}")
     return errors
 
 
