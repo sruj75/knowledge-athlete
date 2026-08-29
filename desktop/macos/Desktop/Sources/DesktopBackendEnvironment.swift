@@ -4,7 +4,7 @@ import OmiSupport
 enum DesktopBackendEnvironment {
   static let productionBackendInfoKey = "IntentiveProductionAPIURL"
   static let developmentBackendURL =
-    "https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app/"
+    "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app/"
 
   static var productionBackendURL: String? {
     validatedProductionURL(

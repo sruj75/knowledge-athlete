@@ -225,7 +225,8 @@ do not hand-edit those paths to match a specific machine.
 ## API Endpoints
 - Production: unconfigured; signed production builds fail closed until
   `IntentiveProductionAPIURL` is supplied by the owned release provider
-- Owned private development service: `https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app`
+- Owned public-ingress development service: `https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`
+  (protected routes require the owned Firebase user's bearer token)
 - Local: `http://localhost:8080`
 
 ## Credentials

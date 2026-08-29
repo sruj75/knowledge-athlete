@@ -23,6 +23,11 @@ Cloud IAM gate in front of the existing Firebase gate. A normal Firebase user
 does not have a Google Cloud service identity, so the request is rejected by
 Cloud Run before the Python backend can inspect the Firebase token.
 
+Status update: on 2026-08-29 the development service was returned to the
+repository's public-ingress contract without changing its revision or free-tier
+bootstrap settings. Development desktop defaults were also corrected from the
+deleted earlier service URL to the discovered live URL.
+
 In plain English: we accidentally put a staff-only security guard outside a
 door that already had the correct customer-login check.
 
@@ -154,8 +159,8 @@ The repository contract is already correct:
   Google Cloud service identity. They say to
   [keep internet reachability and enforce authentication per route](../bootstrap-scaffold/requirements-challenge.md#L670).
 
-The live bootstrap does not match that contract. A read-only inventory on
-2026-08-29 showed:
+At the start of this investigation, the live bootstrap did not match that
+contract. A read-only inventory on 2026-08-29 showed:
 
 - service: `knowledge-athlete-dev`
 - project/region: `knowledge-athlete/us-west1`
@@ -171,6 +176,11 @@ upstream Omi and the already-merged S-27 contract.
 
 This was an over-cautious deployment decision, not a product requirement, not a
 Firebase limitation, and not a provider paywall.
+
+The same day, `allUsers` received only `roles/run.invoker`. Public health then
+returned `200`, a protected route without a Firebase token returned FastAPI
+`401`, the active revision stayed unchanged, and the maximum-one-instance,
+scale-to-zero, request-based-CPU bootstrap remained intact.
 
 ## The monkey-see-monkey-do correction
 

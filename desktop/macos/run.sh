@@ -94,8 +94,8 @@ fi
 
 # ─── YOLO mode: use dev backend, zero local setup ────────────────────
 # Keep this endpoint aligned with DesktopBackendEnvironment's owned dev default.
-# The service is private until its Firebase/IAM dependencies are configured, so
-# this mode fails explicitly instead of falling back to inherited Omi services.
+# Cloud Run admits internet traffic; protected application routes still require
+# the owned Firebase user's bearer token.
 apply_yolo_env() {
     export OMI_SKIP_BACKEND=1
     export OMI_SKIP_TUNNEL=1
@@ -103,7 +103,7 @@ apply_yolo_env() {
     # explicitly targeted backend. Named QA and fault-injection bundles use
     # these overrides to exercise a chosen service revision without requiring
     # a local backend or .env file.
-    export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app}"
+    export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app}"
     : "${FIREBASE_API_KEY:?--yolo requires the owned Firebase desktop app API key}"
 }
 
@@ -113,9 +113,9 @@ if [ "$YOLO_MODE" = "1" ]; then
     echo "  YOLO MODE — using development backend"
     echo "=========================================="
     echo ""
-    echo "  WARNING: This connects directly to the dev Cloud Run backends."
-    echo "  The owned service is private and may reject requests until IAM is wired."
-    echo "  No local Python backend, no local auth, no tunnel."
+    echo "  This connects directly to the owned development Cloud Run backend."
+    echo "  Cloud Run admits internet traffic; protected routes require Firebase authentication."
+    echo "  No local Python backend, no local auth emulator, no tunnel."
     echo "  This is a temporary shortcut — will be removed once"
     echo "  desktop dev setup friction is fully resolved."
     echo ""
@@ -1089,7 +1089,7 @@ if [ -z "$PYTHON_API_URL" ] && [ -f "$BACKEND_DIR/.env" ]; then
     PYTHON_API_URL=$(grep "^OMI_PYTHON_API_URL=" "$BACKEND_DIR/.env" | head -1 | cut -d= -f2-)
 fi
 if [ -z "$PYTHON_API_URL" ]; then
-    PYTHON_API_URL="https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app"
+    PYTHON_API_URL="https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app"
     substep "OMI_PYTHON_API_URL not set — using the owned development service: $PYTHON_API_URL"
 fi
 if grep -q "^OMI_PYTHON_API_URL=" "$APP_BUNDLE/Contents/Resources/.env"; then

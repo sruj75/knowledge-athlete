@@ -50,13 +50,15 @@ Last confirmed: 2026-08-29
   - Removed the Intentive runtime account's `roles/aiplatform.user`, `roles/cloudtasks.enqueuer`, self token-creator binding, and conditional cross-project `roles/datastore.user` binding.
   - Disabled `knowledge-athlete-dev-runtime@agentic-accountability.iam.gserviceaccount.com`.
   - Preserved the exact backend container image in the shared `intentive` Artifact Registry for recovery; do not delete the shared repository or unrelated images.
-- Created and verified 2026-08-29: private Cloud Run service `knowledge-athlete-dev` in `knowledge-athlete/us-west1`.
+- Created and verified 2026-08-29: public-ingress Cloud Run service `knowledge-athlete-dev` in `knowledge-athlete/us-west1`.
   - Canonical discovered URL: `https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`.
   - Active revision: `knowledge-athlete-dev-bootstrap-8c870c8`, imported from the immutable backend image for source commit `8c870c83c83131d91e7536ceef73ef7b07f3461e` and serving 100% of traffic.
-  - The service requires Cloud Run IAM authentication; an unauthenticated `/v1/health` request returned `403`, while an authenticated request returned `200` with `{"status":"ok"}`.
+  - Cloud Run grants `roles/run.invoker` only to `allUsers`, matching the repository's `--allow-unauthenticated` ingress contract. Public `/v1/health` returns `200`; a protected route without a Firebase token reaches FastAPI and returns `401`.
   - Permanent-free bootstrap shape: zero minimum instances, one maximum instance, request-based CPU, 1 vCPU, 2 GiB memory, billing mode disabled, Vertex AI disabled, and no Google Memorystore. This intentionally does **not** claim full S-27 release-manifest conformance or production readiness.
   - Cloud Run imported its own serving copy from the preserved recovery image. Temporary cross-project Artifact Registry reader bindings were removed after deployment, and no Artifact Registry repository/storage was created in `knowledge-athlete`.
   - The Firebase-authenticated release probe verified Firestore write/read through the runtime identity and verified that the same request created its Redis coordination lock. The Firebase probe user, Firestore document, Redis lock, protected token file, and temporary token-signing permission were all removed afterward.
+  - Making ingress public changed no revision, traffic, runtime identity, CPU, memory, concurrency, scaling, provider setting, secret permission, Firestore permission, or Redis configuration. Public traffic can still consume Cloud Run's monthly allowance; maximum one instance bounds concurrency but is not a hard monetary cap.
+- The Cloud Billing Budget API is not enabled in `knowledge-athlete`, so no live budget-alert inventory has been verified. Enabling that API and configuring alerts is a separate cost-observability step; alerts warn but do not cap spend.
 - Do not deploy a production service or publish a release until the owner separately authorizes the release stage after all slices and product cleanup are complete.
 
 ## Redis topology
@@ -112,17 +114,18 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Enable and configure Google sign-in in Firebase Authentication with public-facing name `Intentive` and support email `srujan@heyintentive.com`; track the refreshed development plist containing its OAuth client.
 - [x] Enable Apple sign-in in Firebase Authentication. Native use still requires the Apple Developer identifier/capability under account `22btrsn071@gmail.com`.
 - [x] Grant the development runtime identity only application-level Firestore data access (`roles/datastore.user`). The database continues to deny direct third-party client access on purpose.
-- [x] Verify one development Firestore read/write path through the runtime identity after the private Cloud Run service exists; the fixed release-probe user wrote and read `language=en`, then all probe state was deleted. No service-account key file was created.
+- [x] Verify one development Firestore read/write path through the runtime identity after the hosted Cloud Run service exists; the fixed release-probe user wrote and read `language=en`, then all probe state was deleted. No service-account key file was created.
 
-### Needed before a private development backend is fully usable
+### Needed before the hosted development backend is fully usable
 
 - [x] Connect billing to `knowledge-athlete`; confirmed active on 2026-08-29.
 - [ ] Review the currently enabled APIs and retain/enable only those required by the development backend. API availability is not authorization to provision a paid service.
-- [x] Create and verify the private `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1` using the documented permanent-free bootstrap shape.
+- [x] Create and verify the public-ingress `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1` using the documented permanent-free bootstrap shape.
 - [x] Use the one free Upstash database `intentive-development` for development and owner-approved early MVP production. Do not provision Google Memorystore under the current cost constraint; revisit environment isolation before meaningful production traffic.
 - [x] Store the current development Redis password and Firebase API key as exact Secret Manager version 1 values. The runtime identity can read only the development Redis secret.
 - [ ] Add the remaining managed-provider secrets only when their retained feature is configured. Modulate is deliberately skipped for now; no provider secret may be invented, committed, or copied from Omi.
-- [ ] Decide how authenticated desktop builds invoke the currently private Cloud Run service, or explicitly authorize a bounded public development endpoint. Do not make it public by accident.
+- [x] Admit public Cloud Run invocation while retaining Firebase authentication on protected routes, and point development desktop defaults at the discovered owned URL.
+- [ ] Enable the Cloud Billing Budget API and configure owner-approved alerts if cost notifications are wanted. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
 
 ### Needed before Codemagic can build a signed candidate
 

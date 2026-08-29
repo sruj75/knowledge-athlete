@@ -53,11 +53,10 @@ run `PROVIDER_MODE=offline make dev-up` without provider credentials. Real mode
 requires OpenAI, Modulate, Gemini, and Anthropic keys in
 `backend/.env.local-dev`; `make dev-init` creates that untracked file.
 
-`desktop/macos/run.sh --yolo` skips the local backend. A private bootstrap development
-service now exists at the discovered `knowledge-athlete-dev` Cloud Run URL recorded in
-`OWNER-PROVIDER-DECISIONS.md`, but desktop routing is not configured for its required Cloud
-Run IAM authentication. Use the emulator path for normal development until that caller
-contract is decided; do not make the service public by accident.
+`desktop/macos/run.sh --yolo` skips the local backend and targets the owned
+`knowledge-athlete-dev` Cloud Run URL recorded in `OWNER-PROVIDER-DECISIONS.md`. Cloud Run
+admits internet traffic so native clients can reach FastAPI; protected routes still require
+the owned Firebase user's bearer token. The local emulator path remains the hermetic default.
 
 Prerequisites: Xcode + an Apple signing identity, `brew install webp`, Node 22.x
 (`>=22.19 <23`), pnpm, Python 3.11 + `uv`, JDK 21+ (the Firebase emulators need it),
@@ -84,7 +83,7 @@ and the current external-resource handoff are recorded in
 | Stable / Beta / canonical development bundles | `com.heyintentive.intentive`, `com.heyintentive.intentive.beta`, `com.heyintentive.intentive.dev` |
 | Named development / preview prefixes | `com.heyintentive.intentive.dev.`, `com.heyintentive.intentive.preview.` |
 | Google Cloud project | existing Firebase/GCP project `knowledge-athlete`; billing active, with a permanent-Free-Tier operating constraint |
-| Development Cloud Run service | private `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; verified bootstrap revision exists, but desktop invocation is not configured |
+| Development Cloud Run service | public-ingress `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; protected routes enforce Firebase authentication and development desktop defaults target its discovered URL |
 | Container repository | not provisioned in `knowledge-athlete`; Cloud Run imported the immutable recovery image and all temporary cross-project reader bindings were removed |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
@@ -102,10 +101,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
 - The retained Mac backend update resolver and release manifests use
   `sruj75/knowledge-athlete` and Intentive asset names. Windows release ownership is
   intentionally unchanged because S-29 excludes Windows.
-- The deny-all Firestore database and owned development Firebase app exist. The private
+- The deny-all Firestore database and owned development Firebase app exist. The public-ingress
   `knowledge-athlete-dev` bootstrap service and free Upstash Redis are verified, including
-  Firebase-authenticated Firestore write/read and Redis coordination. Direct desktop
-  invocation is not configured, and the bootstrap service is not production authority.
+  per-route Firebase rejection, Firebase-authenticated Firestore write/read, and Redis
+  coordination. Development desktop defaults target it; it is not production authority.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
 
@@ -166,7 +165,7 @@ name with no direct user-visible identity.
 | OAuth callback schemes | Production `omi-computer`; dev `omi-computer-dev`; named bundles `omi-<slug>`; previews `omi-preview-<id>` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/scripts/app-config.sh`, `desktop/macos/scripts/smoke-signed-desktop-artifact.sh`, `backend/routers/auth.py`, `backend/database/desktop_previews.py` | OAuth providers and macOS route callbacks only to registered schemes; unchanged callbacks remain in the Omi namespace. | Omi/BasedHardware plus provider registration | external identifier |
 | Google OAuth/Firebase app registrations | Inherited production client/app remain in `GoogleService-Info.plist`; owned development app `1:674306938907:ios:befed665f1aa0cd09b40be` is registered for `com.heyintentive.intentive.dev`; Google sign-in is enabled and its generated OAuth client is tracked in the refreshed development plist; the local emulator app remains synthetic. | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Development selects the owned Firebase app and hosted Google provider. Production-family builds remain fail-closed work and must not consume the inherited plist. | Intentive development; Omi/BasedHardware production residue; local harness; Google | external identifier |
 | Firebase apps | Owned development project `knowledge-athlete`, app `com.heyintentive.intentive.dev`; inherited production project `based-hardware` remains only as removal evidence; local project `demo-heyintentive-local` is emulator-only. | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Canonical development builds receive the owned project configuration; local profiles stay on emulators. Beta/Stable require separately approved production registrations and may not inherit the Omi app. | Intentive development; Omi/BasedHardware production residue; local harness | service endpoint; external identifier |
-| API routing | Canonical production `api.omi.me`, development `api.omiapi.com`, share host `h.omi.me` | `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift`, `desktop/macos/Desktop/Sources/APIClient.swift`, `desktop/macos/run.sh` | Production-family builds use one fail-closed backend data-plane URL; named/dev bundles may explicitly override `OMI_PYTHON_API_URL`. Auth callback routing remains an explicit separate rule. | Omi/BasedHardware | service endpoint |
+| API routing | Production unconfigured; owned development `knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`; inherited share host `h.omi.me` remains separate residue | `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift`, `desktop/macos/Desktop/Sources/APIClient.swift`, `desktop/macos/run.sh` | Production-family builds use one fail-closed backend data-plane URL; named/dev bundles default to the owned development service and may explicitly override `OMI_PYTHON_API_URL`. Auth callback routing remains an explicit separate rule. | Intentive development; Omi/BasedHardware share-host residue | service endpoint |
 | PostHog | Hardcoded publishable token `phc_z3qU…v3sez3Y` at `us.i.posthog.com` | `desktop/macos/Desktop/Sources/PostHogManager.swift` | Product analytics and feature flags report to the existing Omi PostHog project. | Omi/BasedHardware; PostHog | service endpoint |
 | Sentry | Organization/project `o4511085999816704 / 4511086024851456` | `desktop/macos/Desktop/Sources/OmiApp.swift` | Production crashes, hangs, feedback, and diagnostics report to the existing Sentry project. | Omi/BasedHardware; Sentry | service endpoint |
 | Sparkle feed and trust key | `https://api.omi.me/v2/desktop/appcast.xml`; EdDSA public key `vWleho4gIOl932wM4v9Gz+FTCt90+vUVdPHsRReFX40=` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/Desktop/Sources/AppBuild.swift` | Stable/beta clients poll Omi's feed and accept only update archives signed by the matching private key. | Omi/BasedHardware | service endpoint; release infrastructure |

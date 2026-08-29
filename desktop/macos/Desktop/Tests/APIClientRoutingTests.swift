@@ -200,13 +200,13 @@ final class APIClientRoutingTests: XCTestCase {
     }
   }
 
-  func testDevelopmentDefaultUsesDevelopmentBackendWithoutOverride() {
+  func testDevelopmentDefaultUsesOwnedCloudRunBackendWithoutOverride() {
     let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
       useDevelopmentBackends: true,
       environmentValue: nil,
       productionMetadataValue: nil
     )
-    XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
+    XCTAssertEqual(url, "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app/")
   }
 
   func testProductionAuthUsesSignedOwnedBackendMetadata() {

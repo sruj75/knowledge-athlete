@@ -32,7 +32,7 @@ fi
 
   test "$OMI_SKIP_BACKEND" = "1"
   test "$OMI_SKIP_TUNNEL" = "1"
-  test "$OMI_PYTHON_API_URL" = "https://knowledge-athlete-dev-pqenui44sa-uw.a.run.app"
+  test "$OMI_PYTHON_API_URL" = "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app"
   test "$FIREBASE_API_KEY" = "fixture-owned-firebase-key"
 )
 
