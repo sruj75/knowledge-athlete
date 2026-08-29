@@ -7,7 +7,7 @@ final class SingleInstanceGuardTests: XCTestCase {
 
   override func setUpWithError() throws {
     try super.setUpWithError()
-    tempDir = NSTemporaryDirectory().appending("omi-single-instance-tests-\(UUID().uuidString)/")
+    tempDir = NSTemporaryDirectory().appending("heyintentive-single-instance-tests-\(UUID().uuidString)/")
     try FileManager.default.createDirectory(
       atPath: tempDir, withIntermediateDirectories: true)
   }
@@ -23,20 +23,20 @@ final class SingleInstanceGuardTests: XCTestCase {
 
   func testLockPathIsDeterministicForSameInputs() {
     let first = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.computer-macos", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive", launchMode: .full, directory: tempDir)
     let second = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.computer-macos", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive", launchMode: .full, directory: tempDir)
     XCTAssertEqual(first, second)
   }
 
   func testLockPathDiffersByBundleID() {
     // Parallel named dev/test bundles must not contend with each other or production.
     let prod = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.computer-macos", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive", launchMode: .full, directory: tempDir)
     let dev = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.desktop-dev", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive.dev", launchMode: .full, directory: tempDir)
     let named = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.omi-fix-rewind", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive.dev.omi-fix-rewind", launchMode: .full, directory: tempDir)
     XCTAssertNotEqual(prod, dev)
     XCTAssertNotEqual(prod, named)
     XCTAssertNotEqual(dev, named)
@@ -45,30 +45,42 @@ final class SingleInstanceGuardTests: XCTestCase {
   func testLockPathDiffersByLaunchMode() {
     // Rewind-only mode and the full app it spawns via `open -n` must not evict each other.
     let full = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.computer-macos", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive", launchMode: .full, directory: tempDir)
     let rewind = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.computer-macos", launchMode: .rewind, directory: tempDir)
+      bundleID: "com.heyintentive.intentive", launchMode: .rewind, directory: tempDir)
     XCTAssertNotEqual(full, rewind)
   }
 
   func testLockPathSanitizesUnsafeCharacters() {
     let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi/../evil id", launchMode: .full, directory: tempDir)
+      bundleID: "com.heyintentive.intentive.dev/../evil id", launchMode: .full, directory: tempDir)
+    XCTAssertNil(path)
+  }
+
+  func testLockPathRejectsForeignAndUnknownBundleIdentifiers() {
+    for bundleIdentifier in ["com.omi.computer-macos", "com.omi.omi-wave5-s28", "org.example.app", ""] {
+      XCTAssertNil(
+        SingleInstanceGuard.lockFilePath(
+          bundleID: bundleIdentifier, launchMode: .full, directory: tempDir))
+    }
+  }
+
+  func testLockPathUsesOwnedTechnicalPrefix() throws {
+    let path = try XCTUnwrap(
+      SingleInstanceGuard.lockFilePath(
+        bundleID: "com.heyintentive.intentive.dev.omi-wave5-s28", launchMode: .full, directory: tempDir))
     let filename = (path as NSString).lastPathComponent
-    // No path separators or spaces survive into the filename, so an unusual bundle id
-    // can neither escape the directory nor break the path.
-    XCTAssertFalse(filename.contains("/"))
-    XCTAssertFalse(filename.contains(" "))
-    // The lock stays inside the requested directory.
+    XCTAssertEqual(
+      filename,
+      "heyintentive-single-instance-com.heyintentive.intentive.dev.omi-wave5-s28-full.lock")
     XCTAssertEqual(
       (path as NSString).deletingLastPathComponent, (tempDir as NSString).standardizingPath)
   }
 
   // MARK: - Lock acquisition mechanism
 
-  func testFirstAcquirerWinsSecondSeesConflict() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
+  func testFirstAcquirerWinsSecondSeesConflict() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     // First instance takes the lock.
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
@@ -84,9 +96,8 @@ final class SingleInstanceGuardTests: XCTestCase {
     SingleInstanceGuard.releaseLock(descriptor)
   }
 
-  func testAcquiredLockRecordsOwnerProcessIdentifier() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
+  func testAcquiredLockRecordsOwnerProcessIdentifier() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
       return XCTFail("lock should be acquirable")
@@ -98,9 +109,8 @@ final class SingleInstanceGuardTests: XCTestCase {
       ProcessInfo.processInfo.processIdentifier)
   }
 
-  func testAcquiredLockDescriptorIsCloseOnExec() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
+  func testAcquiredLockDescriptorIsCloseOnExec() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let descriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path) else {
       return XCTFail("lock should be acquirable")
@@ -112,11 +122,9 @@ final class SingleInstanceGuardTests: XCTestCase {
       "Child processes must not inherit the app-lifetime lock descriptor")
   }
 
-  func testLockOwnerProcessIdentifierIsModeScopedByLockPath() {
-    let full = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
-    let rewind = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .rewind, directory: tempDir)
+  func testLockOwnerProcessIdentifierIsModeScopedByLockPath() throws {
+    let full = try ownedLockFilePath(launchMode: .full)
+    let rewind = try ownedLockFilePath(launchMode: .rewind)
 
     guard case .acquired(let fullDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: full)
     else {
@@ -130,9 +138,8 @@ final class SingleInstanceGuardTests: XCTestCase {
       "Reading owner PID from the same lock path used for contention keeps activation scoped to launch mode")
   }
 
-  func testLockIsReacquirableAfterRelease() {
-    let path = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
+  func testLockIsReacquirableAfterRelease() throws {
+    let path = try ownedLockFilePath(launchMode: .full)
 
     guard case .acquired(let firstDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: path)
     else {
@@ -149,11 +156,9 @@ final class SingleInstanceGuardTests: XCTestCase {
     SingleInstanceGuard.releaseLock(secondDescriptor)
   }
 
-  func testDifferentModesDoNotContend() {
-    let full = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .full, directory: tempDir)
-    let rewind = SingleInstanceGuard.lockFilePath(
-      bundleID: "com.omi.test", launchMode: .rewind, directory: tempDir)
+  func testDifferentModesDoNotContend() throws {
+    let full = try ownedLockFilePath(launchMode: .full)
+    let rewind = try ownedLockFilePath(launchMode: .rewind)
 
     guard case .acquired(let fullDescriptor) = SingleInstanceGuard.acquireExclusiveLock(at: full)
     else {
@@ -169,5 +174,13 @@ final class SingleInstanceGuardTests: XCTestCase {
 
     SingleInstanceGuard.releaseLock(rewindDescriptor)
     SingleInstanceGuard.releaseLock(fullDescriptor)
+  }
+
+  private func ownedLockFilePath(launchMode: LaunchMode) throws -> String {
+    try XCTUnwrap(
+      SingleInstanceGuard.lockFilePath(
+        bundleID: "com.heyintentive.intentive.dev.lock-test",
+        launchMode: launchMode,
+        directory: tempDir))
   }
 }

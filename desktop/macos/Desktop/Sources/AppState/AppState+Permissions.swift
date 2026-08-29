@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 @preconcurrency import ApplicationServices
 import Combine
+import OmiSupport
 import SwiftUI
 @preconcurrency import UserNotifications
 
@@ -405,7 +406,13 @@ extension AppState {
 
   /// Reset accessibility permission (requires terminal command)
   nonisolated func resetAccessibilityPermissionDirect(shouldRestart: Bool = false) -> Bool {
-    let bundleId = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleId = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else {
+      log("Refusing accessibility permission reset for an unknown bundle identity")
+      return false
+    }
     log("Resetting accessibility permission for \(bundleId) via tccutil...")
 
     let success = SystemCommand.runLogging(

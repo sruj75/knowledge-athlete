@@ -243,7 +243,10 @@ trap early_exit_finalize_timing EXIT
 
 phase_begin "candidate-and-lease-preflight" "immutable-artifact-security"
 RELEASE_FILE="$QUALIFICATION_STAGE/release.json"
-gh release view "$RELEASE_TAG" --repo BasedHardware/omi --json tagName,isDraft,isPrerelease,publishedAt,assets,body \
+RELEASE_REPOSITORY="${INTENTIVE_RELEASE_REPOSITORY:-sruj75/knowledge-athlete}"
+[[ "$RELEASE_REPOSITORY" == "sruj75/knowledge-athlete" ]] \
+  || { echo "qualification repository must be sruj75/knowledge-athlete" >&2; exit 1; }
+gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json tagName,isDraft,isPrerelease,publishedAt,assets,body \
   > "$RELEASE_FILE"
 
 python3 "$KEYVALUE_PY" preflight-release "$RELEASE_FILE" "$RELEASE_TAG"
@@ -855,10 +858,10 @@ source "$SCRIPT_DIR/automation-token-path.sh"
 export OMI_AUTOMATION_TOKEN_FILE="${OMI_AUTOMATION_TOKEN_FILE:-$(omi_automation_token_file "$AUTOMATION_PORT")}"
 (
   cd "$WORKTREE"
-  OMI_DESKTOP_LAUNCH_SIGNAL_FILE="$LAUNCH_SIGNAL_FILE" \
+    OMI_DESKTOP_LAUNCH_SIGNAL_FILE="$LAUNCH_SIGNAL_FILE" \
     OMI_DESKTOP_LAUNCH_TOKEN="$DESKTOP_LAUNCH_TOKEN" \
     OMI_AUTOMATION_TOKEN_FILE="$OMI_AUTOMATION_TOKEN_FILE" \
-    OMI_SKIP_SETTINGS_SEED=1 \
+    OMI_SEED_FROM_CANONICAL_DEV=0 \
     make desktop-run-local DESKTOP_APP_NAME="$BUNDLE" DESKTOP_USER=alice
 ) >>"$LAUNCH_LOG" 2>&1 &
 DESKTOP_LAUNCH_PID=$!
@@ -1006,12 +1009,12 @@ ASSET_FILE="$QUALIFICATION_STAGE/$ASSET"
 mv "$EVIDENCE_FILE" "$ASSET_FILE"
 
 BODY_FILE="$QUALIFICATION_STAGE/release-body.md"
-gh release view "$RELEASE_TAG" --repo BasedHardware/omi --json body --jq .body > "$BODY_FILE"
+gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json body --jq .body > "$BODY_FILE"
 
 python3 "$KEYVALUE_PY" update-qualified-beta "$BODY_FILE" "$STAMP" "$SHA" "$ASSET"
 
-gh release upload "$RELEASE_TAG" "$ASSET_FILE" --repo BasedHardware/omi
-gh release edit "$RELEASE_TAG" --repo BasedHardware/omi --notes-file "$BODY_FILE"
+gh release upload "$RELEASE_TAG" "$ASSET_FILE" --repo "$RELEASE_REPOSITORY"
+gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --notes-file "$BODY_FILE"
 
 QUALIFICATION_SUCCESS=1
 echo "Qualified $RELEASE_TAG for beta at $SHA (evidence asset: $ASSET, automation port: $AUTOMATION_PORT)"

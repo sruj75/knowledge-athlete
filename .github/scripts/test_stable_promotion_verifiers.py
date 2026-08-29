@@ -50,12 +50,12 @@ class StablePromotionVerifierTests(unittest.TestCase):
         manifest = {
             "build_number": 9,
             "version": "1.0",
-            "zip_url": "https://example.test/Omi.zip",
+            "zip_url": "https://example.test/Intentive.zip",
             "ed_signature": "sig",
         }
         xml = '''<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel>
-<item><enclosure url="https://example.test/Omi.zip" sparkle:edSignature="sig"/><sparkle:version>9</sparkle:version><sparkle:shortVersionString>1.0</sparkle:shortVersionString></item>
-<item><enclosure url="https://example.test/Omi.zip" sparkle:edSignature="sig"/><sparkle:version>9</sparkle:version><sparkle:shortVersionString>1.0</sparkle:shortVersionString><sparkle:channel>beta</sparkle:channel></item></channel></rss>'''
+<item><enclosure url="https://example.test/Intentive.zip" sparkle:edSignature="sig"/><sparkle:version>9</sparkle:version><sparkle:shortVersionString>1.0</sparkle:shortVersionString></item>
+<item><enclosure url="https://example.test/Intentive.zip" sparkle:edSignature="sig"/><sparkle:version>9</sparkle:version><sparkle:shortVersionString>1.0</sparkle:shortVersionString><sparkle:channel>beta</sparkle:channel></item></channel></rss>'''
         with tempfile.TemporaryDirectory() as directory:
             feed = Path(directory) / "feed.xml"
             feed.write_text(xml, encoding="utf-8")

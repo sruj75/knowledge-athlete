@@ -1,36 +1,41 @@
 import Foundation
 import OSLog
+import OmiSupport
 import Sentry
 
 enum OmiLogPathResolver {
   static func launchID(processID: Int32) -> String { "pid-\(processID)" }
 
   static func logPath(
-    isNonProduction: Bool,
     bundleIdentifier: String?,
     processID: Int32
-  ) -> String {
-    // Stable and Omi Beta can run at the same time; interleaving one shared log file
-    // would corrupt both transcripts, so each production identity owns its own path.
-    guard isNonProduction else {
-      return bundleIdentifier == AppBuild.betaProductionBundleIdentifier
-        ? "/tmp/omi-beta.log" : "/tmp/omi.log"
+  ) -> String? {
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier) else {
+      return nil
     }
-    let rawBundleID = bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown"
-    let safeBundleID = rawBundleID.replacingOccurrences(
-      of: #"[^A-Za-z0-9._-]+"#,
-      with: "-",
-      options: .regularExpression)
-    return "/private/tmp/omi-dev-\(safeBundleID)-\(processID).log"
+
+    // Stable and Beta can run at the same time; each production identity owns a path.
+    switch identity.family {
+    case .stable:
+      return "/tmp/\(DesktopProductIdentity.logPrefix).log"
+    case .beta:
+      return "/tmp/\(DesktopProductIdentity.logPrefix)-beta.log"
+    case .canonicalDevelopment, .namedDevelopment, .preview:
+      let safeBundleID = identity.bundleIdentifier.replacingOccurrences(
+        of: #"[^A-Za-z0-9._-]+"#,
+        with: "-",
+        options: .regularExpression)
+      return "/private/tmp/\(DesktopProductIdentity.logPrefix)-dev-\(safeBundleID)-\(processID).log"
+    }
   }
 }
 
 private let logBundleIdentifier = Bundle.main.bundleIdentifier ?? "unknown"
 private let logProcessID = getpid()
-private let logFile: String = OmiLogPathResolver.logPath(
-  isNonProduction: AppBuild.isNonProduction,
-  bundleIdentifier: logBundleIdentifier,
-  processID: logProcessID)
+private let logFile: String =
+  OmiLogPathResolver.logPath(
+    bundleIdentifier: logBundleIdentifier,
+    processID: logProcessID) ?? "/dev/null"
 private let logLaunchID = OmiLogPathResolver.launchID(processID: logProcessID)
 /// The on-disk app-log path for the current build. Single source of truth for
 /// the log location so callers (feedback export, diagnostics bundle) don't
@@ -38,8 +43,9 @@ private let logLaunchID = OmiLogPathResolver.launchID(processID: logProcessID)
 func omiLogFilePath() -> String { logFile }
 func omiLogLaunchID() -> String { logLaunchID }
 
-private let logQueue = DispatchQueue(label: "me.omi.logger", qos: .utility)
-private let logFailureDiagnostics = Logger(subsystem: "me.omi.desktop", category: "file-logger")
+private let logQueue = DispatchQueue(label: "com.heyintentive.intentive.logger", qos: .utility)
+private let logFailureDiagnostics = Logger(
+  subsystem: "com.heyintentive.intentive.desktop", category: "file-logger")
 private let dateFormatter: DateFormatter = {
   let formatter = DateFormatter()
   formatter.dateFormat = "HH:mm:ss.SSS"  // Added milliseconds for perf tracking
@@ -542,7 +548,7 @@ struct DesktopErrorTelemetryDescriptor: Equatable {
     case NSMachErrorDomain:
       return "mach"
     default:
-      if domain.hasPrefix("com.omi.") || domain.hasPrefix("me.omi.") {
+      if domain.hasPrefix("com.heyintentive.intentive.") {
         return "app"
       }
       return "other"

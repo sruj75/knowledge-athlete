@@ -31,7 +31,7 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 DESKTOP_DIR = SCRIPT_DIR.parent
 DEFAULT_PORT = int(os.environ.get("OMI_AUTOMATION_PORT", "47777"))
-TRACE_LOG = Path.home() / "Library/Logs/Omi/traces.jsonl"
+TRACE_LOG = Path.home() / "Library/Logs/Intentive/traces.jsonl"
 DEFAULT_BUNDLE_SUFFIX = "omi-gauntlet"
 GAUNTLET_ROOT = DESKTOP_DIR / ".harness/agent-continuity-gauntlet"
 PRUNE_ABORTED_BUNDLE_DAYS = 7
@@ -139,12 +139,12 @@ def automation_token(port: int) -> str | None:
 
     Resolution order matches the Swift writer (NSTemporaryDirectory / Darwin
     user temp) before falling back to TMPDIR. Keep the OMI_AUTOMATION_TOKEN /
-    omi-automation- / FileNotFoundError / AutomationTokenError markers in this
+    heyintentive-automation- / FileNotFoundError / AutomationTokenError markers in this
     wrapper so bridge_auth_self_check continues to validate the contract.
     """
     # Self-check needles (must remain literal in this function body):
     _ = "OMI_AUTOMATION_TOKEN"
-    _ = "omi-automation-"
+    _ = "heyintentive-automation-"
     try:
         return _shared_automation_token(port, fail_closed_unreadable=True)
     except FileNotFoundError:
@@ -1083,7 +1083,7 @@ def exact_voice_agent_turn_signature(
 
 
 def kernel_surface_identity(database_path: str, owner_id: str) -> dict[str, str] | None:
-    """Read kernel-owned main_chat identity from omi-agentd.sqlite3."""
+    """Read kernel-owned main_chat identity from heyintentive-agent.sqlite3."""
     if not owner_id or not database_path or not Path(database_path).is_file():
         return None
     try:
@@ -3761,12 +3761,12 @@ def self_check() -> int:
     if not script.is_file():
         print("self-check failed: agent-continuity-gauntlet.sh missing", file=sys.stderr)
         return 1
-    enveloped_health = {"ok": True, "result": {"logFilePath": "/private/tmp/omi-gauntlet.log"}}
-    if health_log_path(enveloped_health) != "/private/tmp/omi-gauntlet.log":
+    enveloped_health = {"ok": True, "result": {"logFilePath": "/private/tmp/heyintentive-gauntlet.log"}}
+    if health_log_path(enveloped_health) != "/private/tmp/heyintentive-gauntlet.log":
         print("self-check failed: health log path must read the standard result envelope", file=sys.stderr)
         return 1
-    legacy_health = {"ok": True, "logFilePath": "/private/tmp/omi-gauntlet.log"}
-    if health_log_path(legacy_health) != "/private/tmp/omi-gauntlet.log":
+    legacy_health = {"ok": True, "logFilePath": "/private/tmp/heyintentive-gauntlet.log"}
+    if health_log_path(legacy_health) != "/private/tmp/heyintentive-gauntlet.log":
         print("self-check failed: health log path must preserve legacy top-level compatibility", file=sys.stderr)
         return 1
     trace_cursor_failures = trace_cursor_self_check_failures()
@@ -3812,11 +3812,11 @@ def self_check() -> int:
             file=sys.stderr,
         )
         return 1
-    restart_bundle = "com.omi.omi-gauntlet"
+    restart_bundle = "com.heyintentive.intentive.dev.omi-gauntlet"
     restart_transitional = {
         "ok": True,
         "result": {
-            "bundleIdentifier": "com.omi.omi-gauntlet",
+            "bundleIdentifier": "com.heyintentive.intentive.dev.omi-gauntlet",
             "bridgePort": 47777,
             "isSignedIn": False,
             "hasCompletedOnboarding": True,
@@ -3825,7 +3825,7 @@ def self_check() -> int:
     restart_ready = {
         "ok": True,
         "result": {
-            "bundleIdentifier": "com.omi.omi-gauntlet",
+            "bundleIdentifier": "com.heyintentive.intentive.dev.omi-gauntlet",
             "bridgePort": 47777,
             "isSignedIn": True,
             "hasCompletedOnboarding": True,
@@ -3837,7 +3837,10 @@ def self_check() -> int:
     if classify_restarted_bundle_state(restart_ready, restart_bundle, 47777)[0] != "ready":
         print("self-check failed: restored restart auth state must become ready", file=sys.stderr)
         return 1
-    restart_wrong_bundle = {"ok": True, "result": {**restart_ready["result"], "bundleIdentifier": "com.omi.other"}}
+    restart_wrong_bundle = {
+        "ok": True,
+        "result": {**restart_ready["result"], "bundleIdentifier": "org.example.other"},
+    }
     if classify_restarted_bundle_state(restart_wrong_bundle, restart_bundle, 47777)[0] != "fail":
         print("self-check failed: replacement bundle mismatch must remain terminal", file=sys.stderr)
         return 1
@@ -4255,8 +4258,8 @@ def bridge_auth_self_check_failures(driver_source: str) -> list[str]:
     else:
         if not method_contains_string(token_fn, "OMI_AUTOMATION_TOKEN"):
             failures.append("automation_token reads OMI_AUTOMATION_TOKEN")
-        if not method_contains_string(token_fn, "omi-automation-"):
-            failures.append("automation_token reads omi-automation-{port}.token")
+        if not method_contains_string(token_fn, "heyintentive-automation-"):
+            failures.append("automation_token reads heyintentive-automation-{port}.token")
         if not method_references_name(token_fn, "FileNotFoundError"):
             failures.append("automation_token treats missing file as optional")
         if not method_references_name(token_fn, "AutomationTokenError"):
@@ -4422,7 +4425,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Desktop agent continuity gauntlet (INV-6)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument(
-        "--bundle-id", default=os.environ.get("OMI_GAUNTLET_BUNDLE_ID", f"com.omi.{DEFAULT_BUNDLE_SUFFIX}")
+        "--bundle-id",
+        default=os.environ.get(
+            "OMI_GAUNTLET_BUNDLE_ID",
+            f"com.heyintentive.intentive.dev.{DEFAULT_BUNDLE_SUFFIX}",
+        ),
     )
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--run-dir", default=None)

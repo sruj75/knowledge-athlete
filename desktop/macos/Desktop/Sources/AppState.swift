@@ -88,6 +88,9 @@ class AppState: ObservableObject {
   let segmentDeliveryQueue = OrderedAsyncOperationQueue()
   let localMicAudioSink = LocalTranscriptionAudioSink()
   let localSystemAudioSink = LocalTranscriptionAudioSink()
+  /// Number of ambient finalizers that still own buffered audio or session state.
+  /// Main-actor ownership makes the counter safe across interleaved async work.
+  var activeAmbientFinalizationCount = 0
   @Published var isSavingConversation = false
   // currentTranscript is internal-only (not observed by views), so no @Published needed
   var currentTranscript: String = ""

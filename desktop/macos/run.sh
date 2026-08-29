@@ -51,17 +51,15 @@ if [ "$SHOW_HELP" = "1" ]; then
     cat <<'USAGE'
 Usage: ./run.sh [options]
 
-Build and run the Omi Desktop dev app with local backend services.
+Build and run the Intentive Desktop dev app with local backend services.
 
 Options (via environment variables):
   OMI_SKIP_BACKEND=1      Skip starting Python backend (use remote backend via OMI_PYTHON_API_URL)
   OMI_SKIP_TUNNEL=1        Skip Cloudflare tunnel (use OMI_PYTHON_API_URL from .env directly)
   PORT=8080                Canonical backend port (default: 8080)
-  OMI_APP_NAME="Omi Dev"   App name (default: "Omi Dev")
-  OMI_SKIP_AUTH_SEED=1     Do not copy auth/onboarding from Omi Dev into named bundles
-  OMI_SKIP_SETTINGS_SEED=1  Do not copy shortcuts/settings from Omi Dev into named bundles
-  OMI_SKIP_REWIND_SEED=1    Do not copy the local Rewind history into a new named bundle
-  OMI_FORCE_REWIND_SEED=1   Replace an existing named-bundle Rewind history with a fresh Omi Dev snapshot
+  OMI_APP_NAME="Intentive Dev"   App name (default: "Intentive Dev")
+  OMI_SEED_FROM_CANONICAL_DEV=1  Opt in to copying auth/settings/Rewind from Intentive Dev into a named bundle
+  OMI_FORCE_REWIND_SEED=1   With parity seeding enabled, preserve and replace a named Rewind snapshot
   OMI_DEV_EAGER_PERMISSIONS=1  Preserve eager mic/screen/file startup behavior in named bundles
   OMI_PYTHON_API_URL="..."  Python backend URL (explicit override; named bundles default to dev)
   OMI_SIGN_IDENTITY="..."  Code signing identity (auto-detected if not set)
@@ -94,10 +92,27 @@ USAGE
     exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ─── YOLO mode: use dev backend, zero local setup ────────────────────
-# Keep these endpoint values aligned with DesktopBackendEnvironment's dev
-# defaults. The dev services currently mint prod Firebase identities, so this
-# is a service-revision target, not an isolated local-data harness.
+# Keep this endpoint aligned with DesktopBackendEnvironment's owned dev default.
+# Cloud Run admits internet traffic; protected application routes still require
+# the owned Firebase user's bearer token.
+load_owned_dev_firebase_api_key() {
+    if [ -n "${FIREBASE_API_KEY:-}" ]; then
+        return
+    fi
+
+    local development_plist="$SCRIPT_DIR/Desktop/Sources/GoogleService-Info-Dev.plist"
+    local owned_key=""
+    if [ -f "$development_plist" ]; then
+        owned_key=$(/usr/libexec/PlistBuddy -c 'Print :API_KEY' "$development_plist" 2>/dev/null || true)
+    fi
+    if [ -n "$owned_key" ]; then
+        export FIREBASE_API_KEY="$owned_key"
+    fi
+}
+
 apply_yolo_env() {
     export OMI_SKIP_BACKEND=1
     export OMI_SKIP_TUNNEL=1
@@ -105,8 +120,9 @@ apply_yolo_env() {
     # explicitly targeted backend. Named QA and fault-injection bundles use
     # these overrides to exercise a chosen service revision without requiring
     # a local backend or .env file.
-    export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://api.omiapi.com}"
-    export FIREBASE_API_KEY="AIzaSyD9dzBdglc7IO9pPDIOvqnCoTis_xKkkC8"
+    export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app}"
+    load_owned_dev_firebase_api_key
+    : "${FIREBASE_API_KEY:?--yolo requires the owned Firebase desktop app API key}"
 }
 
 if [ "$YOLO_MODE" = "1" ]; then
@@ -115,9 +131,9 @@ if [ "$YOLO_MODE" = "1" ]; then
     echo "  YOLO MODE — using development backend"
     echo "=========================================="
     echo ""
-    echo "  WARNING: This connects directly to the dev Cloud Run backends."
-    echo "  They currently use production Firebase identities and data stores."
-    echo "  No local Python backend, no local auth, no tunnel."
+    echo "  This connects directly to the owned development Cloud Run backend."
+    echo "  Cloud Run admits internet traffic; protected routes require Firebase authentication."
+    echo "  No local Python backend, no local auth emulator, no tunnel."
     echo "  This is a temporary shortcut — will be removed once"
     echo "  desktop dev setup friction is fully resolved."
     echo ""
@@ -132,8 +148,6 @@ unset OPENAI_API_KEY
 
 # Use Xcode's default toolchain to match the SDK version
 unset TOOLCHAINS
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # shellcheck source=fast-dev-bundle.sh
 source "$SCRIPT_DIR/scripts/fast-dev-bundle.sh"
@@ -195,7 +209,7 @@ trap 'omi_run_sh_release_build_lock' EXIT INT TERM
 # App configuration
 BINARY_NAME="Omi Computer"  # Package.swift target — binary paths, pkill, CFBundleExecutable
 source "$SCRIPT_DIR/scripts/app-config.sh"
-derive_omi_app_config "${OMI_APP_NAME:-Omi Dev}" || exit 1
+derive_omi_app_config "${OMI_APP_NAME:-Intentive Dev}" || exit 1
 LOCAL_PROFILE=false
 [ "${OMI_DESKTOP_LOCAL_PROFILE:-0}" = "1" ] && LOCAL_PROFILE=true
 
@@ -249,9 +263,9 @@ APP_DESKTOP_PATH="$HOME/Desktop/$APP_NAME.app"
 APP_DOWNLOADS_PATH="$HOME/Downloads/$APP_NAME.app"
 SIGN_IDENTITY="${OMI_SIGN_IDENTITY:-}"
 if [ "$LOCAL_PROFILE" = true ]; then
-    if [ "$BUNDLE_ID" = "com.omi.desktop-dev" ] || { [ "$IS_NAMED_BUNDLE" = false ] && [ "$APP_NAME" = "Omi Dev" ]; }; then
-        echo "ERROR: OMI_DESKTOP_LOCAL_PROFILE=1 cannot target Omi Dev (com.omi.desktop-dev)."
-        echo "       Local profile would overwrite Omi Dev auth/state/binary. Use a named omi- bundle instead:"
+    if [ "$BUNDLE_ID" = "com.heyintentive.intentive.dev" ] || { [ "$IS_NAMED_BUNDLE" = false ] && [ "$APP_NAME" = "Intentive Dev" ]; }; then
+        echo "ERROR: OMI_DESKTOP_LOCAL_PROFILE=1 cannot target Intentive Dev (com.heyintentive.intentive.dev)."
+        echo "       Local profile would overwrite canonical Intentive Dev auth/state/binary. Use a named omi- bundle instead:"
         echo "         DESKTOP_APP_NAME=omi-memory make desktop-run-local"
         echo "       or:  cd desktop/macos && OMI_APP_NAME=omi-memory OMI_DESKTOP_LOCAL_PROFILE=1 OMI_SKIP_BACKEND=1 OMI_SKIP_TUNNEL=1 ./run.sh"
         exit 1
@@ -270,12 +284,12 @@ if [ "$LOCAL_PROFILE" = true ]; then
         exit 1
     fi
     if [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ "${OMI_SKIP_TUNNEL:-0}" != "1" ]; then
-        echo "ERROR: Omi Dev local harness requires OMI_SKIP_BACKEND=1 and OMI_SKIP_TUNNEL=1; start the harness with make dev-up first"
+        echo "ERROR: Intentive Dev local harness requires OMI_SKIP_BACKEND=1 and OMI_SKIP_TUNNEL=1; start the harness with make dev-up first"
         exit 1
     fi
-    case "${OMI_PYTHON_API_URL:-}" in http://127.*|http://localhost*) ;; *) echo "ERROR: OMI_PYTHON_API_URL must be localhost for Omi Dev local harness"; exit 1 ;; esac
-    if [ "${FIREBASE_PROJECT_ID:-}" != "demo-omi-local" ] || [ "${FIREBASE_AUTH_PROJECT_ID:-demo-omi-local}" != "demo-omi-local" ]; then
-        echo "ERROR: Omi Dev local harness must use Firebase project demo-omi-local"
+    case "${OMI_PYTHON_API_URL:-}" in http://127.*|http://localhost*) ;; *) echo "ERROR: OMI_PYTHON_API_URL must be localhost for Intentive Dev local harness"; exit 1 ;; esac
+    if [ "${FIREBASE_PROJECT_ID:-}" != "demo-heyintentive-local" ] || [ "${FIREBASE_AUTH_PROJECT_ID:-demo-heyintentive-local}" != "demo-heyintentive-local" ]; then
+        echo "ERROR: Intentive Dev local harness must use Firebase project demo-heyintentive-local"
         exit 1
     fi
 fi
@@ -325,10 +339,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-AUTH_DEBUG_LOG=/private/tmp/auth-debug.log
-rm -f $AUTH_DEBUG_LOG
-auth_debug() { echo "[AUTH DEBUG][$(date +%H:%M:%S)] $1" >> $AUTH_DEBUG_LOG; }
-touch $AUTH_DEBUG_LOG
+SAFE_AUTH_LOG_BUNDLE="$(printf '%s' "$BUNDLE_ID" | tr -c 'A-Za-z0-9._-' '-')"
+AUTH_DEBUG_LOG="/private/tmp/heyintentive-auth-${SAFE_AUTH_LOG_BUNDLE}-$$.log"
+rm -f "$AUTH_DEBUG_LOG"
+umask 077
+touch "$AUTH_DEBUG_LOG"
+auth_debug() { echo "[AUTH DEBUG][$(date +%H:%M:%S)] $1" >> "$AUTH_DEBUG_LOG"; }
 
 resolve_signing_identity() {
     if [ -n "$SIGN_IDENTITY" ]; then
@@ -369,11 +385,7 @@ fast_bundle_fingerprint() {
 }
 
 fast_bundle_profile_root() {
-    if [ "$IS_NAMED_BUNDLE" = true ]; then
-        printf '%s\n' "$HOME/Library/Application Support/Omi Dev Bundles/$BUNDLE_ID"
-    else
-        printf '%s\n' "$HOME/Library/Application Support/Omi"
-    fi
+    intentive_dev_profile_root "$HOME" "$BUNDLE_ID"
 }
 
 reset_local_profile_keychain_state() {
@@ -487,7 +499,7 @@ sign_app_bundle() {
     elif [ -f "$profile_path" ]; then
         local identity_team_id profile_team_id profile_plist
         identity_team_id=$(echo "$SIGN_IDENTITY" | sed -n 's/.*(\([A-Z0-9]*\)).*/\1/p')
-        profile_plist=$(mktemp /tmp/omi-dev-profile.XXXXXX)
+        profile_plist=$(mktemp /tmp/heyintentive-dev-profile.XXXXXX)
         profile_team_id=$(security cms -D -i "$profile_path" > "$profile_plist" 2>/dev/null && \
             /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" "$profile_plist" 2>/dev/null || true)
         rm -f "$profile_plist"
@@ -581,7 +593,6 @@ rewrite_bundled_dylib_load_path() {
 
 step "Killing existing instances..."
 auth_debug "BEFORE pkill: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
-auth_debug "BEFORE pkill: ALL_KEYS=$(defaults read "$BUNDLE_ID" 2>&1 | grep -E 'auth_|hasCompleted|hasLaunched|currentTier|userShow' || true)"
 # Only kill the dev app — never touch Omi Beta (production)
 pkill -f "$APP_NAME.app" 2>/dev/null || true
 # Note: don't pkill cloudflared here — other agents may have tunnels running on this machine
@@ -602,7 +613,6 @@ else
 fi
 sleep 0.5  # Let cfprefsd flush after process death
 auth_debug "AFTER pkill: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
-auth_debug "AFTER pkill: ALL_KEYS=$(defaults read "$BUNDLE_ID" 2>&1 | grep -E 'auth_|hasCompleted|hasLaunched|currentTier|userShow' || true)"
 
 # Each non-production app writes to its own bundle-and-launch log path. Never clear a
 # machine-global log here: another named QA or qualification bundle may still be running.
@@ -892,7 +902,7 @@ if [ "$FAST_BUNDLE" = "1" ]; then
     xcrun swift build -c debug --package-path Desktop
 
     step "Patching installed app executable..."
-    PATCHED_BINARY="$(mktemp "$APP_PATH/Contents/MacOS/.omi-fast-executable.XXXXXX")"
+    PATCHED_BINARY="$(mktemp "$APP_PATH/Contents/MacOS/.heyintentive-fast-executable.XXXXXX")"
     cp -f "Desktop/.build/debug/$BINARY_NAME" "$PATCHED_BINARY"
     chmod +x "$PATCHED_BINARY"
     install_name_tool -add_rpath "@executable_path/../Frameworks" "$PATCHED_BINARY" 2>/dev/null || true
@@ -1095,8 +1105,8 @@ if [ -z "$PYTHON_API_URL" ] && [ -f "$BACKEND_DIR/.env" ]; then
     PYTHON_API_URL=$(grep "^OMI_PYTHON_API_URL=" "$BACKEND_DIR/.env" | head -1 | cut -d= -f2-)
 fi
 if [ -z "$PYTHON_API_URL" ]; then
-    PYTHON_API_URL="https://api.omi.me"
-    substep "OMI_PYTHON_API_URL not set — defaulting to production: $PYTHON_API_URL"
+    PYTHON_API_URL="https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app"
+    substep "OMI_PYTHON_API_URL not set — using the owned development service: $PYTHON_API_URL"
 fi
 if grep -q "^OMI_PYTHON_API_URL=" "$APP_BUNDLE/Contents/Resources/.env"; then
     sed -i '' "s|^OMI_PYTHON_API_URL=.*|OMI_PYTHON_API_URL=$PYTHON_API_URL|" "$APP_BUNDLE/Contents/Resources/.env"
@@ -1113,7 +1123,7 @@ substep "Creating PkgInfo"
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
 # Embed provisioning profile (required for Sign In with Apple entitlement).
-# Named bundles skip this — the profile is bundle-specific to com.omi.desktop-dev,
+# Named bundles skip this — the profile is bundle-specific to canonical Intentive Dev,
 # embedding it in a different bundle ID causes RBSRequestErrorDomain Code=5.
 if [ "$IS_NAMED_BUNDLE" = false ]; then
     if [ -f "Desktop/embedded-dev.provisionprofile" ]; then
@@ -1163,12 +1173,6 @@ step "Clearing stale LaunchServices registration..."
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 $LSREGISTER -u "$APP_BUNDLE" 2>/dev/null || true
 $LSREGISTER -u "$APP_PATH" 2>/dev/null || true
-# Purge stale registrations from old DMG staging dirs and unmounted volumes
-# These create ghost entries that can cause notification icons to show a
-# generic folder instead of the app icon
-for stale in /private/tmp/omi-dmg-staging-*/Omi\ Beta.app; do
-    [ -d "$stale" ] || $LSREGISTER -u "$stale" 2>/dev/null || true
-done
 # Register the /Applications/ copy as the canonical bundle for this bundle ID
 $LSREGISTER -f "$APP_PATH" 2>/dev/null || true
 
@@ -1180,10 +1184,10 @@ substep "Recorded reusable bundle fingerprint"
 
 reset_local_profile_keychain_state
 
-if [ "$IS_NAMED_BUNDLE" = true ] && [ "${OMI_SKIP_AUTH_SEED:-0}" != "1" ]; then
-    step "Seeding auth from Omi Dev..."
-    if AUTH_CACHE="$(mktemp "${TMPDIR:-/tmp}/omi-desktop-auth.XXXXXX")"; then
-        if ./scripts/omi-auth-dump.sh com.omi.desktop-dev "$AUTH_CACHE"; then
+if intentive_should_seed_named_profile "$IS_NAMED_BUNDLE" "${OMI_SEED_FROM_CANONICAL_DEV:-0}"; then
+    step "Seeding auth from canonical Intentive Dev..."
+    if AUTH_CACHE="$(mktemp "${TMPDIR:-/tmp}/heyintentive-desktop-auth.XXXXXX")"; then
+        if ./scripts/omi-auth-dump.sh com.heyintentive.intentive.dev "$AUTH_CACHE"; then
             # Pass the just-installed app path so seed can resolve Team ID and
             # clear any prior CLI-written Keychain item (apple-tool: partition).
             # Tokens are seeded into UserDefaults; the app migrates them into
@@ -1194,27 +1198,21 @@ if [ "$IS_NAMED_BUNDLE" = true ] && [ "${OMI_SKIP_AUTH_SEED:-0}" != "1" ]; then
                 echo "Warning: could not seed auth into $BUNDLE_ID. Launching cold."
             fi
         else
-            echo "Warning: could not seed auth from Omi Dev. Launching cold."
+            echo "Warning: could not seed auth from Intentive Dev. Launching cold."
         fi
         rm -f "$AUTH_CACHE"
         AUTH_CACHE=""
     else
         echo "Warning: could not create temporary auth cache. Launching cold."
     fi
-fi
-
-if [ "$IS_NAMED_BUNDLE" = true ] && [ "${OMI_SKIP_SETTINGS_SEED:-0}" != "1" ]; then
-    step "Seeding shortcuts/settings from Omi Dev..."
-    if ./scripts/omi-settings-seed.sh "$BUNDLE_ID" com.omi.desktop-dev; then
+    step "Seeding shortcuts/settings from canonical Intentive Dev..."
+    if ./scripts/omi-settings-seed.sh "$BUNDLE_ID" com.heyintentive.intentive.dev; then
         auth_debug "AFTER settings seed: shortcut_askOmiEnabled=$(defaults read "$BUNDLE_ID" shortcut_askOmiEnabled 2>&1 || true)"
         auth_debug "AFTER settings seed: devLazyPermissionsEnabled=$(defaults read "$BUNDLE_ID" devLazyPermissionsEnabled 2>&1 || true)"
     else
-        echo "Warning: could not seed shortcuts/settings from Omi Dev. Continuing with bundle defaults."
+        echo "Warning: could not seed shortcuts/settings from Intentive Dev. Continuing with bundle defaults."
     fi
-fi
-
-if [ "$IS_NAMED_BUNDLE" = true ] && [ "${OMI_SKIP_REWIND_SEED:-0}" != "1" ]; then
-    step "Seeding Rewind history from Omi Dev..."
+    step "Seeding Rewind history from canonical Intentive Dev..."
     if ! ./scripts/omi-rewind-seed.sh "$BUNDLE_ID"; then
         echo "Warning: could not seed Rewind history into $BUNDLE_ID. Launching with its existing local profile."
     fi
@@ -1279,10 +1277,7 @@ echo ""
 
 LAUNCH_MODE="full"
 [ "$FAST_BUNDLE" = "1" ] && LAUNCH_MODE="fast"
-PROFILE_ROOT="$HOME/Library/Application Support/Omi"
-if [ "$IS_NAMED_BUNDLE" = true ]; then
-    PROFILE_ROOT="$HOME/Library/Application Support/Omi Dev Bundles/$BUNDLE_ID"
-fi
+PROFILE_ROOT="$(intentive_dev_profile_root "$HOME" "$BUNDLE_ID")"
 printf 'launch_mode=%s fast_reason=%s bundle_id=%s profile_root=%q\n' \
     "$LAUNCH_MODE" "$FAST_BUNDLE_REASON" "$BUNDLE_ID" "$PROFILE_ROOT"
 

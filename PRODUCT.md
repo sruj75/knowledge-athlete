@@ -153,6 +153,16 @@ Firestore deletion. It does not restore cleanup clients for retired recordings,
 People/voice identity, phone calling, notifications, hosted search, or hosted
 product data.
 
+## macOS update installation
+
+Published builds automatically check for and download updates. A downloaded
+update may relaunch the app immediately only when the Mac's authoritative local
+activity snapshot is idle. Ambient capture/finalization, an active voice turn,
+realtime capture/provider/playback/tool/token work, and Chat send/streaming work
+all keep the update scheduled for quit. The app resamples until idle and never
+uses a timeout to interrupt active work; development builds remain
+install-on-quit only.
+
 ## Before you build
 
 - Large or ambiguous features start as a GitHub issue.

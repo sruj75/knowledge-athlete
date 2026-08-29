@@ -9,6 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/BrowserAutomationTarget.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Environment.swift
   - desktop/macos/Desktop/Sources/AppBuild.swift
+  - desktop/macos/Desktop/Sources/Observability/DesktopSentryConfiguration.swift
   - desktop/macos/Desktop/Sources/BundleEnvironment.swift
   - desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift
   - desktop/macos/Desktop/Sources/AuthService.swift
@@ -28,6 +29,8 @@ covers:
   - desktop/macos/Desktop/Sources/OmiApp.swift
   - desktop/macos/Desktop/Sources/OmiSupport/DesktopDevRuntimeManifest.swift
   - desktop/macos/Desktop/Sources/OmiSupport/DesktopLocalProfile.swift
+  - desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift
+  - desktop/macos/Desktop/Sources/SingleInstanceGuard.swift
   - desktop/macos/Desktop/Sources/ViewModelContainer.swift
   - desktop/macos/Desktop/Sources/Telemetry/SentryHeartbeatTelemetry.swift
   - desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift

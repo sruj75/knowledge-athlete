@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   qualify-m1-studio:
-    runs-on: [self-hosted, macos, omi-desktop-qualification, omi-qual-m1-studio]
+    runs-on: [self-hosted, macos, intentive-desktop-qualification, intentive-qual-m1-studio]
     timeout-minutes: 250
     permissions:
       contents: write
@@ -106,8 +106,8 @@ jobs:
       - id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.OMI_BOT_APP_ID }}
-          private-key: ${{ secrets.OMI_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
       - name: Bind tag and checkout to the same immutable commit
         id: candidate
         working-directory: ${{ runner.temp }}/desktop-beta-qualification/${{ github.run_id }}-${{ github.run_attempt }}/source
@@ -122,14 +122,23 @@ jobs:
       - name: Verify live canonical backend chat compatibility
         env:
           QUALIFICATION_STAGE: ${{ runner.temp }}/desktop-beta-qualification/${{ github.run_id }}-${{ github.run_attempt }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
+          [[ "$INTENTIVE_PRODUCTION_API_URL" == https://* ]] || {
+            echo "INTENTIVE_PRODUCTION_API_URL must be an owned HTTPS backend" >&2
+            exit 1
+          }
+          [[ "$INTENTIVE_PRODUCTION_API_URL" != *omi.me* && "$INTENTIVE_PRODUCTION_API_URL" != *basedhardware* ]] || {
+            echo "Inherited backend hosts are forbidden" >&2
+            exit 1
+          }
           curl -fsS --max-time 15 \
-            https://api.omi.me/v1/health \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/v1/health" \
             > "$QUALIFICATION_STAGE/backend-process-health.json"
           jq -e '.status == "ok"' "$QUALIFICATION_STAGE/backend-process-health.json" >/dev/null
           curl -fsS --max-time 15 \
-            https://api.omi.me/ \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/" \
             > "$QUALIFICATION_STAGE/backend-compatibility-source.json"
           jq -e '
             .status == "healthy"
@@ -161,9 +170,9 @@ jobs:
           if jq -e '[.assets[].name] | index("desktop-smoke-result-beta.json")' "$QUALIFICATION_STAGE/release.json" >/dev/null; then
             gh release download "$RELEASE_TAG" --repo "$REPO" --pattern desktop-smoke-result-beta.json --dir "$QUALIFICATION_STAGE"
           fi
-          gh release download "$RELEASE_TAG" --repo "$REPO" --pattern Omi.zip --pattern omi.dmg --dir "$QUALIFICATION_STAGE/assets"
-          if jq -e '[.assets[].name] | index("Omi.Beta.zip") and index("omi-beta.dmg")' "$QUALIFICATION_STAGE/release.json" >/dev/null; then
-            gh release download "$RELEASE_TAG" --repo "$REPO" --pattern Omi.Beta.zip --pattern omi-beta.dmg --dir "$QUALIFICATION_STAGE/assets"
+          gh release download "$RELEASE_TAG" --repo "$REPO" --pattern Intentive.zip --pattern intentive.dmg --dir "$QUALIFICATION_STAGE/assets"
+          if jq -e '[.assets[].name] | index("Intentive.Beta.zip") and index("intentive-beta.dmg")' "$QUALIFICATION_STAGE/release.json" >/dev/null; then
+            gh release download "$RELEASE_TAG" --repo "$REPO" --pattern Intentive.Beta.zip --pattern intentive-beta.dmg --dir "$QUALIFICATION_STAGE/assets"
           fi
       - name: Validate candidate evidence
         working-directory: ${{ runner.temp }}/desktop-beta-qualification/${{ github.run_id }}-${{ github.run_attempt }}/source
@@ -171,10 +180,11 @@ jobs:
           QUALIFICATION_STAGE: ${{ runner.temp }}/desktop-beta-qualification/${{ github.run_id }}-${{ github.run_attempt }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           TARGET_SHA: ${{ steps.candidate.outputs.target_sha }}
+          EXPECTED_TEAM_ID: 24D6NXS6H7
         run: |
           set -euo pipefail
           LATEST_TAG=$(git for-each-ref --count=1 --sort=-v:refname --format='%(refname:strip=2)' 'refs/tags/v*-macos')
-          python3 .github/scripts/check-desktop-auto-beta-candidate.py --release-json "$QUALIFICATION_STAGE/release.json" --smoke-result "$QUALIFICATION_STAGE/desktop-smoke-result.json" --beta-smoke-result "$QUALIFICATION_STAGE/desktop-smoke-result-beta.json" --release-tag "$RELEASE_TAG" --latest-tag "$LATEST_TAG" --tag-sha "$TARGET_SHA" --checkout-sha "$TARGET_SHA" --output "$QUALIFICATION_STAGE/candidate-gate.json"
+          python3 .github/scripts/check-desktop-auto-beta-candidate.py --release-json "$QUALIFICATION_STAGE/release.json" --smoke-result "$QUALIFICATION_STAGE/desktop-smoke-result.json" --beta-smoke-result "$QUALIFICATION_STAGE/desktop-smoke-result-beta.json" --release-tag "$RELEASE_TAG" --latest-tag "$LATEST_TAG" --tag-sha "$TARGET_SHA" --checkout-sha "$TARGET_SHA" --expected-team-id "$EXPECTED_TEAM_ID" --output "$QUALIFICATION_STAGE/candidate-gate.json"
       - name: Qualify exact candidate on the M1 Studio hermetic stack
         id: qualify
         timeout-minutes: 245
@@ -208,10 +218,10 @@ jobs:
         run: |
           set -euo pipefail
           BETA_ASSETS=()
-          if [ -f "$QUALIFICATION_STAGE/assets/Omi.Beta.zip" ] && [ -f "$QUALIFICATION_STAGE/assets/omi-beta.dmg" ]; then
-            BETA_ASSETS=(--asset Omi.Beta.zip="$QUALIFICATION_STAGE/assets/Omi.Beta.zip" --asset omi-beta.dmg="$QUALIFICATION_STAGE/assets/omi-beta.dmg")
+          if [ -f "$QUALIFICATION_STAGE/assets/Intentive.Beta.zip" ] && [ -f "$QUALIFICATION_STAGE/assets/intentive-beta.dmg" ]; then
+            BETA_ASSETS=(--asset Intentive.Beta.zip="$QUALIFICATION_STAGE/assets/Intentive.Beta.zip" --asset intentive-beta.dmg="$QUALIFICATION_STAGE/assets/intentive-beta.dmg")
           fi
-          python3 .github/scripts/desktop_qualification_evidence.py build --release-json "$QUALIFICATION_STAGE/release.json" --release-tag "$RELEASE_TAG" --source-sha "$TARGET_SHA" --candidate-gate "$QUALIFICATION_STAGE/candidate-gate.json" --qualification-run-id "$GITHUB_RUN_ID" --asset Omi.zip="$QUALIFICATION_STAGE/assets/Omi.zip" --asset omi.dmg="$QUALIFICATION_STAGE/assets/omi.dmg" "${BETA_ASSETS[@]}" --evidence "$QUALIFICATION_STAGE/qualification-evidence.json"
+          python3 .github/scripts/desktop_qualification_evidence.py build --release-json "$QUALIFICATION_STAGE/release.json" --release-tag "$RELEASE_TAG" --source-sha "$TARGET_SHA" --candidate-gate "$QUALIFICATION_STAGE/candidate-gate.json" --qualification-run-id "$GITHUB_RUN_ID" --asset Intentive.zip="$QUALIFICATION_STAGE/assets/Intentive.zip" --asset intentive.dmg="$QUALIFICATION_STAGE/assets/intentive.dmg" "${BETA_ASSETS[@]}" --evidence "$QUALIFICATION_STAGE/qualification-evidence.json"
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-qualification-evidence-${{ inputs.release_tag }}-m1-${{ github.run_id }}-${{ github.run_attempt }}

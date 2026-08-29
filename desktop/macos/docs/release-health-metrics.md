@@ -180,7 +180,7 @@ emitted (enforced by `MemoryAssistantTelemetryTests` and
   intentionally silent.
 - **Activation metric:** proactive extraction users (`Memory Extracted`) ÷
   monitoring users (`Monitoring Started`) with `notifications_enabled = true`,
-  scoped `$app_namespace='com.omi.computer-macos'` AND `$os='macOS'`. Stop
+  scoped `$app_namespace='com.heyintentive.intentive'` AND `$os='macOS'`. Stop
   dividing extraction by recording users.
 
 #### 2. Proactive analysis-outcome distribution — `Memory Assistant Analysis Run`

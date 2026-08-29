@@ -2,7 +2,7 @@ version: 2
 name: settings-basic
 tier: manual
 description: Settings navigation smoke — open Settings via gear icon, navigate all 9 sections (v0.12.119+ redesign)
-app: com.omi.computer-macos
+app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+LocalStats.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift

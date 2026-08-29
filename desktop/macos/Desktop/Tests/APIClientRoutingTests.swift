@@ -148,68 +148,91 @@ private func assertCapturedPath(
 // MARK: - Tests
 
 final class APIClientRoutingTests: XCTestCase {
+  private let ownedProductionBackendURL = "https://api.heyintentive.com/"
 
   // MARK: - URL property tests
 
   func testBackendBaseURLUsesOneCanonicalOverride() {
     XCTAssertEqual(
-      DesktopBackendEnvironment.backendBaseURL(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
         useDevelopmentBackends: true,
-        environmentValue: "http://canonical.test:8080"
+        environmentValue: "http://canonical.test:8080",
+        productionMetadataValue: nil
       ),
       "http://canonical.test:8080/"
     )
     XCTAssertEqual(
-      DesktopBackendEnvironment.backendBaseURL(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
         useDevelopmentBackends: false,
-        environmentValue: "http://contaminated.test:8080"
+        environmentValue: "http://contaminated.test:8080",
+        productionMetadataValue: ownedProductionBackendURL
       ),
-      DesktopBackendEnvironment.productionBackendURL
+      ownedProductionBackendURL
     )
   }
 
-  func testNonProductionAppDefaultsToDevelopmentBackend() async {
-    unsetenv("OMI_PYTHON_API_URL")
-    let client = APIClient()
-    let url = await client.baseURL
+  func testNonProductionAppDefaultsToDevelopmentBackend() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
+      useDevelopmentBackends: true,
+      environmentValue: nil,
+      productionMetadataValue: nil)
     XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
   }
 
-  func testExplicitBackendOverrideWinsOverDevelopmentDefault() {
-    let url = DesktopBackendEnvironment.backendBaseURL(
+  func testInheritedOmiBackendOverrideIsRejected() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
       useDevelopmentBackends: true,
-      environmentValue: "https://api.omi.me"
-    )
-    XCTAssertEqual(url, "https://api.omi.me/")
-  }
-
-  func testDevelopmentDefaultUsesDevelopmentBackendWithoutOverride() {
-    let url = DesktopBackendEnvironment.backendBaseURL(
-      useDevelopmentBackends: true,
-      environmentValue: nil
+      environmentValue: "https://api.omi.me",
+      productionMetadataValue: nil
     )
     XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
   }
 
-  func testBetaProductionBundleKeepsProductionAuthBackendByDefault() {
-    let url = DesktopBackendEnvironment.authBaseURL(environmentValue: nil)
-    XCTAssertEqual(url, "https://api.omi.me/")
+  func testMalformedDevelopmentOverrideIsRejected() {
+    for candidate in ["ftp://example.test", "https://user:secret@example.test", "https://example.test/#fragment"] {
+      XCTAssertEqual(
+        DesktopBackendEnvironment.resolvedBackendBaseURL(
+          useDevelopmentBackends: true,
+          environmentValue: candidate,
+          productionMetadataValue: nil),
+        DesktopBackendEnvironment.developmentBackendURL
+      )
+    }
+  }
+
+  func testDevelopmentDefaultUsesOwnedCloudRunBackendWithoutOverride() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
+      useDevelopmentBackends: true,
+      environmentValue: nil,
+      productionMetadataValue: nil
+    )
+    XCTAssertEqual(url, "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app/")
+  }
+
+  func testProductionAuthUsesSignedOwnedBackendMetadata() {
+    let url = DesktopBackendEnvironment.resolvedAuthBaseURL(
+      useDevelopmentBackends: false,
+      environmentValue: nil,
+      productionMetadataValue: ownedProductionBackendURL)
+    XCTAssertEqual(url, ownedProductionBackendURL)
   }
 
   func testDevelopmentAuthBackendCanBeExplicitlyOverridden() {
-    let url = DesktopBackendEnvironment.authBaseURL(
+    let url = DesktopBackendEnvironment.resolvedAuthBaseURL(
       useDevelopmentBackends: true,
-      environmentValue: "http://localhost:8080"
+      environmentValue: "http://localhost:8080",
+      productionMetadataValue: nil
     )
     XCTAssertEqual(url, "http://localhost:8080/")
   }
 
   func testStableProductionBundleKeepsProductionBackend() {
-    let url = DesktopBackendEnvironment.backendBaseURL(
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
       useDevelopmentBackends: false,
-      environmentValue: "https://api.omi.me"
+      environmentValue: "https://api.omi.me",
+      productionMetadataValue: ownedProductionBackendURL
     )
-    XCTAssertEqual(url, "https://api.omi.me/")
+    XCTAssertEqual(url, ownedProductionBackendURL)
   }
 
   func testDevelopmentDefaultsDoNotOverwriteExplicitBackendURL() {
@@ -251,33 +274,34 @@ final class APIClientRoutingTests: XCTestCase {
   func testBetaProductionChannelUsesProductionBackendRatherThanDevelopment() {
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.computer-macos",
+        bundleIdentifier: AppBuild.productionBundleIdentifier,
         updateChannel: "beta"
       ))
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.computer-macos",
+        bundleIdentifier: AppBuild.productionBundleIdentifier,
         updateChannel: "staging"
       ))
     XCTAssertEqual(
-      DesktopBackendEnvironment.backendBaseURL(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
         useDevelopmentBackends: false,
-        environmentValue: nil
+        environmentValue: nil,
+        productionMetadataValue: ownedProductionBackendURL
       ),
-      "https://api.omi.me/"
+      ownedProductionBackendURL
     )
   }
 
   func testStableProductionBundleKeepsProductionBackends() {
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.computer-macos",
+        bundleIdentifier: AppBuild.productionBundleIdentifier,
         updateChannel: "stable"
       ))
   }
 
   func testBetaIdentityBundleUsesTheProductionBackend() {
-    // The Omi Beta app is production-family: its isolated app identity does not
+    // The Intentive Beta app is production-family: its isolated app identity does not
     // create a second backend environment.
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
@@ -285,20 +309,23 @@ final class APIClientRoutingTests: XCTestCase {
         updateChannel: "beta"
       ))
     XCTAssertEqual(
-      DesktopBackendEnvironment.backendBaseURL(useDevelopmentBackends: false, environmentValue: nil),
-      "https://api.omi.me/"
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
+        useDevelopmentBackends: false,
+        environmentValue: nil,
+        productionMetadataValue: ownedProductionBackendURL),
+      ownedProductionBackendURL
     )
   }
 
   func testNonProductionBundlesDefaultToDevelopmentBackends() {
     XCTAssertTrue(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.desktop-dev",
+        bundleIdentifier: AppBuild.desktopDevBundleIdentifier,
         updateChannel: "beta"
       ))
     XCTAssertTrue(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.omi-beta-dev-test",
+        bundleIdentifier: "com.heyintentive.intentive.dev.beta-test",
         updateChannel: "stable"
       ))
   }
@@ -306,7 +333,7 @@ final class APIClientRoutingTests: XCTestCase {
   func testProductionFamilyHasNoDevelopmentOverrideSeam() {
     XCTAssertTrue(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
-        bundleIdentifier: "com.omi.desktop-dev",
+        bundleIdentifier: AppBuild.desktopDevBundleIdentifier,
         updateChannel: "stable"
       ))
     XCTAssertFalse(
@@ -323,42 +350,64 @@ final class APIClientRoutingTests: XCTestCase {
 
   func testProductionFamilyIgnoresContaminatedProcessEndpoints() {
     XCTAssertEqual(
-      DesktopBackendEnvironment.backendBaseURL(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
         useDevelopmentBackends: false,
-        environmentValue: "https://staging.example.test"
+        environmentValue: "https://staging.example.test",
+        productionMetadataValue: ownedProductionBackendURL
       ),
-      DesktopBackendEnvironment.productionBackendURL
+      ownedProductionBackendURL
     )
     XCTAssertEqual(
-      DesktopBackendEnvironment.authBaseURL(
+      DesktopBackendEnvironment.resolvedAuthBaseURL(
         useDevelopmentBackends: false,
-        environmentValue: "https://staging.example.test"
+        environmentValue: "https://staging.example.test",
+        productionMetadataValue: ownedProductionBackendURL
       ),
-      DesktopBackendEnvironment.productionBackendURL
+      ownedProductionBackendURL
     )
   }
 
-  func testBaseURLReadsFromPythonEnvVar() async {
-    setenv("OMI_PYTHON_API_URL", "http://localhost:8080", 1)
-    defer { unsetenv("OMI_PYTHON_API_URL") }
-    let client = APIClient()
-    let url = await client.baseURL
+  func testMissingOrInheritedProductionMetadataFailsClosed() {
+    XCTAssertNil(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
+        useDevelopmentBackends: false,
+        environmentValue: nil,
+        productionMetadataValue: nil))
+    XCTAssertNil(
+      DesktopBackendEnvironment.resolvedBackendBaseURL(
+        useDevelopmentBackends: false,
+        environmentValue: nil,
+        productionMetadataValue: "https://api.omi.me"))
+  }
+
+  func testForeignOmiBundleDoesNotInheritDevelopmentRouting() {
+    XCTAssertFalse(
+      DesktopBackendEnvironment.shouldUseDevelopmentBackends(
+        bundleIdentifier: "com.omi.computer-macos",
+        updateChannel: "stable"))
+  }
+
+  func testBaseURLReadsFromPythonEnvVar() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
+      useDevelopmentBackends: true,
+      environmentValue: "http://localhost:8080",
+      productionMetadataValue: nil)
     XCTAssertEqual(url, "http://localhost:8080/")
   }
 
-  func testBaseURLAddsTrailingSlash() async {
-    setenv("OMI_PYTHON_API_URL", "http://localhost:8080", 1)
-    defer { unsetenv("OMI_PYTHON_API_URL") }
-    let client = APIClient()
-    let url = await client.baseURL
-    XCTAssertTrue(url.hasSuffix("/"))
+  func testBaseURLAddsTrailingSlash() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
+      useDevelopmentBackends: true,
+      environmentValue: "http://localhost:8080",
+      productionMetadataValue: nil)
+    XCTAssertTrue(url?.hasSuffix("/") == true)
   }
 
-  func testBaseURLPreservesExistingTrailingSlash() async {
-    setenv("OMI_PYTHON_API_URL", "http://localhost:8080/", 1)
-    defer { unsetenv("OMI_PYTHON_API_URL") }
-    let client = APIClient()
-    let url = await client.baseURL
+  func testBaseURLPreservesExistingTrailingSlash() {
+    let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
+      useDevelopmentBackends: true,
+      environmentValue: "http://localhost:8080/",
+      productionMetadataValue: nil)
     XCTAssertEqual(url, "http://localhost:8080/")
   }
 

@@ -72,7 +72,7 @@ class FakeQualifiedBetaReader:
                 "name": f"desktop-qualification-evidence-{release['tag_name']}",
                 "expired": False,
                 "size_in_bytes": len(artifact),
-                "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/456/zip",
+                "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/456/zip",
             }
         ]
         self.artifact_downloads = {456: artifact}
@@ -124,21 +124,21 @@ async def test_github_merged_source_uses_head_relative_to_base_direction(monkeyp
     (TAG, TAG.replace("+", "%2B")),
 )
 def test_asset_url_accepts_only_literal_or_github_canonical_plus_encoding(tag_path):
-    url = f"https://github.com/{REPOSITORY}/releases/download/{tag_path}/Omi.zip"
-    assert _asset_url({"browser_download_url": url}, TAG, "Omi.zip") == url
+    url = f"https://github.com/{REPOSITORY}/releases/download/{tag_path}/Intentive.zip"
+    assert _asset_url({"browser_download_url": url}, TAG, "Intentive.zip") == url
 
 
 @pytest.mark.parametrize(
     "url",
     (
-        f"https://github.com/{REPOSITORY}/releases/download/{TAG.replace('+', '%2b')}/Omi.zip",
-        f"https://github.com/attacker/omi/releases/download/{TAG}/Omi.zip",
+        f"https://github.com/{REPOSITORY}/releases/download/{TAG.replace('+', '%2b')}/Intentive.zip",
+        f"https://github.com/attacker/omi/releases/download/{TAG}/Intentive.zip",
         f"https://github.com/{REPOSITORY}/releases/download/{TAG}/other.zip",
     ),
 )
 def test_asset_url_rejects_noncanonical_or_wrong_identity(url):
     with pytest.raises(QualifiedBetaAdmissionError, match="asset identity"):
-        _asset_url({"browser_download_url": url}, TAG, "Omi.zip")
+        _asset_url({"browser_download_url": url}, TAG, "Intentive.zip")
 
 
 class FakeHTTPResponse:
@@ -168,7 +168,10 @@ async def test_github_asset_download_follows_one_exact_asset_host_redirect_witho
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     reader = GitHubQualifiedBetaReader()
-    assert await reader.download("https://github.com/BasedHardware/omi/releases/download/tag/Omi.zip") == b"artifact"
+    assert (
+        await reader.download("https://github.com/sruj75/knowledge-athlete/releases/download/tag/Intentive.zip")
+        == b"artifact"
+    )
     assert client.calls[0][1]["headers"]["Authorization"] == "Bearer test-token"
     assert client.calls[1] == (redirect, {})
 
@@ -189,7 +192,9 @@ async def test_github_asset_download_rejects_untrusted_redirects(monkeypatch, re
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     with pytest.raises(QualifiedBetaAdmissionError, match="asset is unavailable"):
-        await GitHubQualifiedBetaReader().download("https://github.com/BasedHardware/omi/releases/download/tag/Omi.zip")
+        await GitHubQualifiedBetaReader().download(
+            "https://github.com/sruj75/knowledge-athlete/releases/download/tag/Intentive.zip"
+        )
     assert len(client.calls) == 1
 
 
@@ -203,7 +208,9 @@ async def test_github_asset_download_rejects_a_second_redirect(monkeypatch):
     monkeypatch.setenv("GITHUB_TOKEN", "test-token")
 
     with pytest.raises(QualifiedBetaAdmissionError, match="asset is unavailable"):
-        await GitHubQualifiedBetaReader().download("https://github.com/BasedHardware/omi/releases/download/tag/Omi.zip")
+        await GitHubQualifiedBetaReader().download(
+            "https://github.com/sruj75/knowledge-athlete/releases/download/tag/Intentive.zip"
+        )
 
 
 def _digest(value):
@@ -211,8 +218,8 @@ def _digest(value):
 
 
 def _candidate():
-    zip_url = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/Omi.zip"
-    dmg_url = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/omi.dmg"
+    zip_url = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/Intentive.zip"
+    dmg_url = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/intentive.dmg"
     evidence = {
         "schema_version": 1,
         "release_id": TAG,
@@ -221,13 +228,17 @@ def _candidate():
         "source_qualification": {"passed": True, "tier": "T2", "subject": "source-built named-bundle"},
         "signed_artifact_verification": {"passed": True, "subject": "exact signed ZIP/DMG bytes"},
         "artifacts": {
-            "Omi.zip": {"url": zip_url, "sha256": hashlib.sha256(b"zip bytes").hexdigest(), "signature": "sparkle"},
-            "omi.dmg": {"url": dmg_url, "sha256": hashlib.sha256(b"dmg bytes").hexdigest()},
+            "Intentive.zip": {
+                "url": zip_url,
+                "sha256": hashlib.sha256(b"zip bytes").hexdigest(),
+                "signature": "sparkle",
+            },
+            "intentive.dmg": {"url": dmg_url, "sha256": hashlib.sha256(b"dmg bytes").hexdigest()},
         },
     }
     evidence_bytes = json.dumps(evidence).encode()
     evidence_name = f"qualification-evidence-{SHA}-{hashlib.sha256(evidence_bytes).hexdigest()}.json"
-    evidence_url = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/{evidence_name}"
+    evidence_url = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/{evidence_name}"
     release = {
         "tag_name": TAG,
         "draft": False,
@@ -235,8 +246,8 @@ def _candidate():
         "published_at": "2026-07-21T12:00:00Z",
         "body": "<!-- KEY_VALUE_START\nedSignature: sparkle\nchangelog: Qualified candidate\nKEY_VALUE_END -->",
         "assets": [
-            {"name": "Omi.zip", "browser_download_url": zip_url, "digest": _digest(b"zip bytes")},
-            {"name": "omi.dmg", "browser_download_url": dmg_url, "digest": _digest(b"dmg bytes")},
+            {"name": "Intentive.zip", "browser_download_url": zip_url, "digest": _digest(b"zip bytes")},
+            {"name": "intentive.dmg", "browser_download_url": dmg_url, "digest": _digest(b"dmg bytes")},
             {"name": evidence_name, "browser_download_url": evidence_url, "digest": _digest(evidence_bytes)},
         ],
     }
@@ -244,8 +255,8 @@ def _candidate():
         "id": 123,
         "status": "completed",
         "conclusion": "success",
-        "repository": {"full_name": "BasedHardware/omi"},
-        "head_repository": {"full_name": "BasedHardware/omi"},
+        "repository": {"full_name": "sruj75/knowledge-athlete"},
+        "head_repository": {"full_name": "sruj75/knowledge-athlete"},
         "event": "workflow_dispatch",
         "path": ".github/workflows/desktop_qualify_beta.yml",
         "head_branch": TAG,
@@ -259,8 +270,8 @@ def _candidate():
 def _candidate_with_beta():
     """A candidate that also ships the sanctioned INV-BETA-1 Omi Beta assets."""
     release, _evidence_bytes, run = _candidate()
-    beta_zip_url = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/Omi.Beta.zip"
-    beta_dmg_url = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/omi-beta.dmg"
+    beta_zip_url = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/Intentive.Beta.zip"
+    beta_dmg_url = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/intentive-beta.dmg"
     evidence = {
         "schema_version": 1,
         "release_id": TAG,
@@ -269,21 +280,21 @@ def _candidate_with_beta():
         "source_qualification": {"passed": True, "tier": "T2", "subject": "source-built named-bundle"},
         "signed_artifact_verification": {"passed": True, "subject": "exact signed ZIP/DMG bytes"},
         "artifacts": {
-            "Omi.zip": {
+            "Intentive.zip": {
                 "url": release["assets"][0]["browser_download_url"],
                 "sha256": hashlib.sha256(b"zip bytes").hexdigest(),
                 "signature": "sparkle",
             },
-            "omi.dmg": {
+            "intentive.dmg": {
                 "url": release["assets"][1]["browser_download_url"],
                 "sha256": hashlib.sha256(b"dmg bytes").hexdigest(),
             },
-            "Omi.Beta.zip": {
+            "Intentive.Beta.zip": {
                 "url": beta_zip_url,
                 "sha256": hashlib.sha256(b"beta zip bytes").hexdigest(),
                 "signature": "beta-sparkle",
             },
-            "omi-beta.dmg": {"url": beta_dmg_url, "sha256": hashlib.sha256(b"beta dmg bytes").hexdigest()},
+            "intentive-beta.dmg": {"url": beta_dmg_url, "sha256": hashlib.sha256(b"beta dmg bytes").hexdigest()},
         },
     }
     evidence_bytes = json.dumps(evidence).encode()
@@ -295,22 +306,22 @@ def _candidate_with_beta():
     )
     release["assets"] = [
         {
-            "name": "Omi.zip",
+            "name": "Intentive.zip",
             "browser_download_url": release["assets"][0]["browser_download_url"],
             "digest": _digest(b"zip bytes"),
         },
         {
-            "name": "omi.dmg",
+            "name": "intentive.dmg",
             "browser_download_url": release["assets"][1]["browser_download_url"],
             "digest": _digest(b"dmg bytes"),
         },
         {
             "name": evidence_name,
-            "browser_download_url": f"https://github.com/BasedHardware/omi/releases/download/{TAG}/{evidence_name}",
+            "browser_download_url": f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/{evidence_name}",
             "digest": _digest(evidence_bytes),
         },
-        {"name": "Omi.Beta.zip", "browser_download_url": beta_zip_url, "digest": _digest(b"beta zip bytes")},
-        {"name": "omi-beta.dmg", "browser_download_url": beta_dmg_url, "digest": _digest(b"beta dmg bytes")},
+        {"name": "Intentive.Beta.zip", "browser_download_url": beta_zip_url, "digest": _digest(b"beta zip bytes")},
+        {"name": "intentive-beta.dmg", "browser_download_url": beta_dmg_url, "digest": _digest(b"beta dmg bytes")},
     ]
     return release, evidence_bytes, run, {beta_zip_url: b"beta zip bytes", beta_dmg_url: b"beta dmg bytes"}
 
@@ -329,7 +340,7 @@ def _replace_trusted_evidence(reader, evidence):
     evidence_name = f"qualification-evidence-{SHA}-{hashlib.sha256(evidence_bytes).hexdigest()}.json"
     evidence_asset["name"] = evidence_name
     evidence_asset["browser_download_url"] = (
-        f"https://github.com/BasedHardware/omi/releases/download/{TAG}/{evidence_name}"
+        f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/{evidence_name}"
     )
     reader.downloaded = {
         evidence_asset["browser_download_url"] if url == evidence_asset.get("browser_download_url") else url: content
@@ -655,8 +666,8 @@ async def test_server_builds_the_canonical_manifest_from_qualified_immutable_ass
     )
 
     assert manifest["release_id"] == TAG
-    assert manifest["zip_url"].endswith("/Omi.zip")
-    assert manifest["dmg_url"].endswith("/omi.dmg")
+    assert manifest["zip_url"].endswith("/Intentive.zip")
+    assert manifest["dmg_url"].endswith("/intentive.dmg")
     assert manifest["qualification_evidence_sha256"] == _digest(evidence)
     assert (
         manifest["qualification_evidence_asset"]
@@ -693,7 +704,7 @@ async def test_release_evidence_selection_is_content_addressed_and_fails_closed(
 
 @pytest.mark.asyncio
 async def test_server_admits_a_candidate_that_ships_the_side_by_side_beta_assets():
-    # INV-BETA-1: Omi.Beta.zip/omi-beta.dmg are sanctioned, not retired; the
+    # INV-BETA-1: Intentive.Beta.zip/intentive-beta.dmg are sanctioned, not retired; the
     # manifest builds and the beta digests are verified against the evidence.
     release, evidence, run, beta_downloads = _candidate_with_beta()
     reader = FakeQualifiedBetaReader(release, evidence, run)
@@ -706,7 +717,7 @@ async def test_server_admits_a_candidate_that_ships_the_side_by_side_beta_assets
     )
 
     assert manifest["release_id"] == TAG
-    assert manifest["zip_url"].endswith("/Omi.zip")
+    assert manifest["zip_url"].endswith("/Intentive.zip")
 
 
 @pytest.mark.asyncio
@@ -715,7 +726,7 @@ async def test_server_rejects_a_non_sanctioned_beta_like_identity():
     release["assets"].append(
         {
             "name": "Omi Beta.zip",
-            "browser_download_url": f"https://github.com/BasedHardware/omi/releases/download/{TAG}/Omi%20Beta.zip",
+            "browser_download_url": f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/Omi%20Beta.zip",
             "digest": _digest(b"rogue"),
         }
     )
@@ -926,7 +937,7 @@ async def test_malformed_timestamp_in_otherwise_trusted_run_rejects_before_endpo
                 "name": "unrelated-artifact",
                 "expired": False,
                 "size_in_bytes": 0,
-                "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/457/zip",
+                "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/457/zip",
             },
         ),
     ],
@@ -1049,8 +1060,8 @@ async def test_release_asset_replacement_with_self_consistent_release_evidence_i
     replacement_zip = b"replacement zip"
     replacement_dmg = b"replacement dmg"
     replacement_evidence = json.loads(trusted_evidence)
-    replacement_evidence["artifacts"]["Omi.zip"]["sha256"] = hashlib.sha256(replacement_zip).hexdigest()
-    replacement_evidence["artifacts"]["omi.dmg"]["sha256"] = hashlib.sha256(replacement_dmg).hexdigest()
+    replacement_evidence["artifacts"]["Intentive.zip"]["sha256"] = hashlib.sha256(replacement_zip).hexdigest()
+    replacement_evidence["artifacts"]["intentive.dmg"]["sha256"] = hashlib.sha256(replacement_dmg).hexdigest()
     replacement_evidence_bytes = json.dumps(replacement_evidence).encode()
     release["assets"][0]["digest"] = _digest(replacement_zip)
     release["assets"][1]["digest"] = _digest(replacement_dmg)
@@ -1061,7 +1072,7 @@ async def test_release_asset_replacement_with_self_consistent_release_evidence_i
     release["assets"][2]["name"] = replacement_evidence_name
     release["assets"][2][
         "browser_download_url"
-    ] = f"https://github.com/BasedHardware/omi/releases/download/{TAG}/{replacement_evidence_name}"
+    ] = f"https://github.com/sruj75/knowledge-athlete/releases/download/{TAG}/{replacement_evidence_name}"
 
     reader = FakeQualifiedBetaReader(release, replacement_evidence_bytes, run)
     reader.downloaded[release["assets"][0]["browser_download_url"]] = replacement_zip
@@ -1073,7 +1084,7 @@ async def test_release_asset_replacement_with_self_consistent_release_evidence_i
             "name": f"desktop-qualification-evidence-{TAG}",
             "expired": False,
             "size_in_bytes": len(_artifact_archive(trusted_evidence)),
-            "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/456/zip",
+            "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/456/zip",
         }
     ]
     reader.artifact_downloads[456] = _artifact_archive(trusted_evidence)
@@ -1199,14 +1210,14 @@ async def test_corrupted_deflated_artifact_returns_typed_rejection_without_post_
                 "name": f"desktop-qualification-evidence-{TAG}",
                 "expired": False,
                 "size_in_bytes": 1,
-                "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/456/zip",
+                "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/456/zip",
             },
             {
                 "id": 457,
                 "name": f"desktop-qualification-evidence-{TAG}",
                 "expired": False,
                 "size_in_bytes": 1,
-                "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/457/zip",
+                "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/457/zip",
             },
         ],
         [
@@ -1215,7 +1226,7 @@ async def test_corrupted_deflated_artifact_returns_typed_rejection_without_post_
                 "name": f"desktop-qualification-evidence-{TAG}",
                 "expired": True,
                 "size_in_bytes": 1,
-                "archive_download_url": "https://api.github.com/repos/BasedHardware/omi/actions/artifacts/456/zip",
+                "archive_download_url": "https://api.github.com/repos/sruj75/knowledge-athlete/actions/artifacts/456/zip",
             }
         ],
     ],

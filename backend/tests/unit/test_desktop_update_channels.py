@@ -58,7 +58,7 @@ class TestNormalizeReleaseManifest:
 
     def test_rejects_non_https_assets(self):
         with pytest.raises(ValueError, match="github.com release asset URL"):
-            normalize_release_manifest(_manifest(zip_url="http://example.com/Omi.zip"))
+            normalize_release_manifest(_manifest(zip_url="http://example.com/Intentive.zip"))
 
     def test_requires_dmg_for_macos(self):
         with pytest.raises(ValueError, match="dmg_url"):
@@ -285,8 +285,8 @@ class TestBetaAdmissionControl:
             release_id="v0.12.63+12063-macos",
             version="0.12.63",
             build_number=12063,
-            zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.63+12063-macos/Omi.zip",
-            dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.63+12063-macos/omi.dmg",
+            zip_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.63+12063-macos/Intentive.zip",
+            dmg_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.63+12063-macos/intentive.dmg",
         )
         ref = MagicMock()
         ref.get.return_value = snapshot
@@ -340,8 +340,8 @@ class TestChannelPromotionRules:
                 release_id="v0.12.93+12093-macos",
                 version="0.12.93",
                 build_number=12093,
-                zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.93+12093-macos/Omi.zip",
-                dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.93+12093-macos/omi.dmg",
+                zip_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.93+12093-macos/Intentive.zip",
+                dmg_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.93+12093-macos/intentive.dmg",
             )
         )
         missing_manifest = MagicMock(exists=False)
@@ -524,8 +524,8 @@ class TestPointerRepointRules:
                 release_id="v0.12.73+12073-macos",
                 version="0.12.73",
                 build_number=12073,
-                zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/Omi.zip",
-                dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/omi.dmg",
+                zip_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73+12073-macos/Intentive.zip",
+                dmg_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73+12073-macos/intentive.dmg",
             )
         )
 
@@ -557,8 +557,8 @@ class TestPointerRepointRules:
                 release_id="v0.12.73+12073-macos",
                 version="0.12.73",
                 build_number=12073,
-                zip_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/Omi.zip",
-                dmg_url="https://github.com/BasedHardware/omi/releases/download/v0.12.73+12073-macos/omi.dmg",
+                zip_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73+12073-macos/Intentive.zip",
+                dmg_url="https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.73+12073-macos/intentive.dmg",
             )
         )
         with pytest.raises(ValueError, match=message):
@@ -597,8 +597,8 @@ class TestBetaBreakglass:
                 release_id=tag,
                 version=f"0.12.{build - 12000}",
                 build_number=build,
-                zip_url=f"https://github.com/BasedHardware/omi/releases/download/{tag}/Omi.zip",
-                dmg_url=f"https://github.com/BasedHardware/omi/releases/download/{tag}/omi.dmg",
+                zip_url=f"https://github.com/sruj75/knowledge-athlete/releases/download/{tag}/Intentive.zip",
+                dmg_url=f"https://github.com/sruj75/knowledge-athlete/releases/download/{tag}/intentive.dmg",
                 qualification_tier="T2" if qualified else "emergency",
                 qualification_passed=qualified,
                 qualification_evidence_asset=(
@@ -614,8 +614,8 @@ class TestBetaBreakglass:
             "expected_generation": generation,
             "actor": "release-operator",
             "reason": "Beta crashes before startup",
-            "incident_url": "https://github.com/BasedHardware/omi/issues/12345",
-            "request_id": "https://github.com/BasedHardware/omi/actions/runs/12345/attempts/1",
+            "incident_url": "https://github.com/sruj75/knowledge-athlete/issues/12345",
+            "request_id": "https://github.com/sruj75/knowledge-athlete/actions/runs/12345/attempts/1",
             "normal_path_unavailable": "qualification runner is unavailable" if operation == "rollout" else None,
         }
 
@@ -641,7 +641,7 @@ class TestBetaBreakglass:
         assert receipt["pointer"]["release_id"] == known_good["release_id"]
         assert client.rows[(BETA_ADMISSION_COLLECTION, BETA_ADMISSION_DOCUMENT)]["promotion_enabled"] is False
         audit_id = hashlib.sha256(
-            "https://github.com/BasedHardware/omi/actions/runs/12345/attempts/1".encode()
+            "https://github.com/sruj75/knowledge-athlete/actions/runs/12345/attempts/1".encode()
         ).hexdigest()
         audit = client.rows[(BETA_BREAKGLASS_AUDITS_COLLECTION, audit_id)]
         assert audit["operation"] == "rollback"

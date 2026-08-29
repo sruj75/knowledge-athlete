@@ -189,7 +189,7 @@ def _validate_fault_app_target(
         or not FAULT_BUNDLE_RE.fullmatch(bundle)
         or not isinstance(run_token, str)
         or not RUN_TOKEN_RE.fullmatch(run_token)
-        or bundle_id != f"com.omi.{bundle}"
+        or bundle_id != f"com.heyintentive.intentive.dev.{bundle}"
         or app_path_value != f"/Applications/{bundle}.app"
         or executable_value != f"/Applications/{bundle}.app/Contents/MacOS/Omi Computer"
         or not isinstance(process_start, str)
@@ -535,7 +535,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cache-root",
         type=Path,
-        default=Path.home() / "Library/Caches/OmiDesktop/qualification-swiftpm-v2",
+        default=Path.home() / "Library/Caches/heyintentive-desktop/qualification-swiftpm-v2",
     )
     parser.add_argument(
         "--qualification-lease-root",

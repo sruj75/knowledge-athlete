@@ -1,8 +1,15 @@
 import Foundation
+import OmiSupport
 
 enum DesktopBackendEnvironment {
-  static let productionBackendURL = "https://api.omi.me/"
-  static let developmentBackendURL = "https://api.omiapi.com/"
+  static let productionBackendInfoKey = "IntentiveProductionAPIURL"
+  static let developmentBackendURL =
+    "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app/"
+
+  static var productionBackendURL: String? {
+    validatedProductionURL(
+      Bundle.main.object(forInfoDictionaryKey: productionBackendInfoKey) as? String)
+  }
 
   static var shouldUseDevelopmentBackends: Bool {
     shouldUseDevelopmentBackends(
@@ -24,15 +31,15 @@ enum DesktopBackendEnvironment {
       return externalPreviewBackend == .development
     }
 
-    // Named/dev bundles route to the dev backend by default. Explicit launch
-    // URLs still win below so local harnesses and intentionally-targeted tests
-    // remain possible. The Omi Beta app is a production-family artifact, not a
-    // dev bundle: it falls through to channel-based routing like stable.
-    if !AppBuild.productionFamilyBundleIdentifiers.contains(bundleIdentifier) {
-      return true
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier) else {
+      return false
     }
 
-    return false
+    // Named/dev bundles route to the dev backend by default. Explicit launch
+    // URLs still win below so local harnesses and intentionally-targeted tests
+    // remain possible. The Intentive Beta app is a production-family artifact, not a
+    // dev bundle: it falls through to channel-based routing like stable.
+    return !identity.isProductionFamily
   }
 
   static func backendBaseURL(
@@ -48,11 +55,29 @@ enum DesktopBackendEnvironment {
     useDevelopmentBackends: Bool,
     environmentValue: String?
   ) -> String {
+    guard
+      let resolved = resolvedBackendBaseURL(
+        useDevelopmentBackends: useDevelopmentBackends,
+        environmentValue: environmentValue,
+        productionMetadataValue: Bundle.main.object(
+          forInfoDictionaryKey: productionBackendInfoKey) as? String)
+    else {
+      preconditionFailure(
+        "Production Intentive bundle is missing a valid signed \(productionBackendInfoKey)")
+    }
+    return resolved
+  }
+
+  static func resolvedBackendBaseURL(
+    useDevelopmentBackends: Bool,
+    environmentValue: String?,
+    productionMetadataValue: String?
+  ) -> String? {
     // A production-family app must not allow a launch environment or bundled
     // config to switch its customer data plane. Development identities retain
     // their explicit override seam for local and signed-preview testing.
     if !useDevelopmentBackends {
-      return productionBackendURL
+      return validatedProductionURL(productionMetadataValue)
     }
     if let url = normalizedURL(environmentValue) {
       return url
@@ -65,17 +90,32 @@ enum DesktopBackendEnvironment {
     useDevelopmentBackends: Bool = shouldUseDevelopmentBackends,
     environmentValue: String? = currentEnvironmentValue("OMI_AUTH_API_URL")
   ) -> String {
+    guard
+      let resolved = resolvedAuthBaseURL(
+        useDevelopmentBackends: useDevelopmentBackends,
+        environmentValue: environmentValue,
+        productionMetadataValue: Bundle.main.object(
+          forInfoDictionaryKey: productionBackendInfoKey) as? String)
+    else {
+      preconditionFailure(
+        "Production Intentive bundle is missing a valid signed \(productionBackendInfoKey)")
+    }
+    return resolved
+  }
+
+  static func resolvedAuthBaseURL(
+    useDevelopmentBackends: Bool,
+    environmentValue: String?,
+    productionMetadataValue: String?
+  ) -> String? {
     if !useDevelopmentBackends {
-      return productionBackendURL
+      return validatedProductionURL(productionMetadataValue)
     }
     if let url = normalizedURL(environmentValue) {
       return url
     }
 
-    // Desktop Apple Sign-In uses the shared Services ID. The registered web
-    // callback is on api.omi.me, so beta must not inherit the dev data backend
-    // host for OAuth unless a local/dev auth URL is explicitly supplied.
-    return productionBackendURL
+    return developmentBackendURL
   }
 
   static func applyReleaseChannelDefaults() {
@@ -91,7 +131,40 @@ enum DesktopBackendEnvironment {
     guard let raw else { return nil }
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
-    return trimmed.hasSuffix("/") ? trimmed : trimmed + "/"
+    let normalized = trimmed.hasSuffix("/") ? trimmed : trimmed + "/"
+    guard
+      let components = URLComponents(string: normalized),
+      let scheme = components.scheme?.lowercased(),
+      scheme == "http" || scheme == "https",
+      components.user == nil,
+      components.password == nil,
+      components.fragment == nil,
+      let host = components.host?.lowercased(),
+      !host.isEmpty,
+      host != "omi.me",
+      !host.hasSuffix(".omi.me"),
+      host != "basedhardware.com",
+      !host.hasSuffix(".basedhardware.com")
+    else { return nil }
+    return normalized
+  }
+
+  private static func validatedProductionURL(_ raw: String?) -> String? {
+    guard
+      let normalized = normalizedURL(raw),
+      let components = URLComponents(string: normalized),
+      components.scheme?.lowercased() == "https",
+      components.user == nil,
+      components.password == nil,
+      components.fragment == nil,
+      let host = components.host?.lowercased(),
+      !host.isEmpty,
+      host != "omi.me",
+      !host.hasSuffix(".omi.me"),
+      host != "basedhardware.com",
+      !host.hasSuffix(".basedhardware.com")
+    else { return nil }
+    return normalized
   }
 
   private static func currentEnvironmentValue(_ key: String) -> String? {

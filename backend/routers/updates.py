@@ -28,7 +28,7 @@ from database.desktop_update_policy import default_desktop_update_policy, get_de
 from database.redis_db import delete_generic_cache
 from utils.desktop_update_resolver import live_cache_key, resolve_pointer_release
 from utils.executors import db_executor, run_blocking
-from utils.github_releases import get_omi_github_releases, extract_key_value_pairs
+from utils.github_releases import get_github_releases, extract_key_value_pairs
 from utils.qualified_beta_promotion import QualifiedBetaAdmissionError, build_qualified_beta_manifest
 from utils.beta_breakglass_evidence import build_emergency_beta_manifest
 from utils.metrics import (
@@ -40,6 +40,8 @@ from utils.observability.fallback import record_fallback
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+INTENTIVE_RELEASE_REPOSITORY = "sruj75/knowledge-athlete"
 
 
 class DesktopUpdatePolicyResponse(BaseModel):
@@ -113,10 +115,10 @@ class BetaBreakglassRequest(BaseModel):
     actor: str = Field(min_length=1, max_length=128)
     reason: str = Field(min_length=1, max_length=1000)
     incident_url: str = Field(
-        pattern=r"^https://github\.com/BasedHardware/omi/(?:issues|discussions)/[1-9][0-9]*(?:[/?#].*)?$"
+        pattern=r"^https://github\.com/sruj75/knowledge-athlete/(?:issues|discussions)/[1-9][0-9]*(?:[/?#].*)?$"
     )
     request_id: str = Field(
-        pattern=r"^https://github\.com/BasedHardware/omi/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*$"
+        pattern=r"^https://github\.com/sruj75/knowledge-athlete/actions/runs/[1-9][0-9]*/attempts/[1-9][0-9]*$"
     )
     normal_path_unavailable: Optional[str] = Field(default=None, min_length=1, max_length=1000)
 
@@ -269,28 +271,27 @@ def _parse_changelog_to_changes(changelog: List[str], release_body: str) -> List
 def _get_sparkle_zip_download_url(release: Dict) -> Optional[str]:
     """Get the Sparkle ZIP download URL from GitHub release assets."""
     for asset in release.get("assets", []):
-        if asset.get("name", "") == "Omi.zip":
+        if asset.get("name", "") == "Intentive.zip":
             return asset.get("browser_download_url")
     return None
 
 
 def _get_dmg_download_url(release: Dict) -> Optional[str]:
-    """Get only the canonical lowercase ``omi.dmg`` installer URL.
+    """Get only the canonical lowercase ``intentive.dmg`` installer URL.
 
     The release contract is case-sensitive.  Legacy names (including Omi Beta
     and arbitrary ``*.dmg`` assets) are deliberately ignored for both beta and
     stable fallback routes.
     """
     for asset in release.get("assets", []):
-        if asset.get("name") == "omi.dmg":
+        if asset.get("name") == "intentive.dmg":
             return asset.get("browser_download_url")
     return None
 
 
-# Assets for the separately-installable "Omi Beta" identity (side-by-side with
-# stable, PR #10059 re-land). Releases predating the dual-identity pipeline lack them.
-BETA_IDENTITY_SPARKLE_ASSET = "Omi.Beta.zip"
-BETA_IDENTITY_DMG_ASSET = "omi-beta.dmg"
+# Assets for the separately-installable Intentive Beta identity.
+BETA_IDENTITY_SPARKLE_ASSET = "Intentive.Beta.zip"
+BETA_IDENTITY_DMG_ASSET = "intentive-beta.dmg"
 
 
 def _get_asset_download_url(release: Dict, names: set) -> Optional[str]:
@@ -308,7 +309,11 @@ async def _find_desktop_release_by_tag(tag_name: str) -> Optional[Dict]:
     """
     if not tag_name:
         return None
-    releases = await get_omi_github_releases("github_releases_desktop", tag_filter=DESKTOP_RELEASE_TAG_PATTERN)
+    releases = await get_github_releases(
+        "github_releases_desktop_intentive",
+        INTENTIVE_RELEASE_REPOSITORY,
+        tag_filter=DESKTOP_RELEASE_TAG_PATTERN,
+    )
     for release in releases or []:
         if release.get("tag_name") == tag_name:
             return release
@@ -353,7 +358,7 @@ async def _resolve_beta_identity_dmg(entry: Dict) -> Optional[str]:
 def _get_windows_installer_download_url(release: Dict) -> Optional[str]:
     """Get only the canonical lowercase ``omi-setup.exe`` installer URL.
 
-    Mirrors the case-sensitive macOS ``omi.dmg`` contract: versioned or
+    Mirrors the case-sensitive macOS ``intentive.dmg`` contract: versioned or
     otherwise-named ``*.exe`` assets are deliberately ignored.
     desktop_windows_release.yml uploads this canonical copy next to the
     versioned installer.
@@ -389,10 +394,11 @@ async def _get_legacy_live_desktop_releases(platform: str) -> List[Dict]:
     Each entry includes release, version_info, metadata (KEY_VALUE_START fields),
     and channel (beta or stable).
     """
-    cache_key = "github_releases_desktop"
+    repository = INTENTIVE_RELEASE_REPOSITORY if platform == "macos" else "BasedHardware/omi"
+    cache_key = "github_releases_desktop_intentive" if platform == "macos" else "github_releases_desktop_windows"
     # Paginate the legacy fallback so a stable release cannot silently vanish
     # when it rolls off GitHub's first 100 releases (root cause of #9079).
-    releases = await get_omi_github_releases(cache_key, tag_filter=DESKTOP_RELEASE_TAG_PATTERN)
+    releases = await get_github_releases(cache_key, repository, tag_filter=DESKTOP_RELEASE_TAG_PATTERN)
 
     if not releases:
         return []
@@ -449,9 +455,9 @@ async def _get_legacy_live_desktop_releases(platform: str) -> List[Dict]:
 
 def _pointer_release_to_entry(release: Dict[str, Any], channel: str, source: str) -> Dict[str, Any]:
     manifest = release["manifest"]
-    assets = [{"name": "Omi.zip", "browser_download_url": manifest["zip_url"]}]
+    assets = [{"name": "Intentive.zip", "browser_download_url": manifest["zip_url"]}]
     if manifest.get("dmg_url"):
-        assets.append({"name": "omi.dmg", "browser_download_url": manifest["dmg_url"]})
+        assets.append({"name": "intentive.dmg", "browser_download_url": manifest["dmg_url"]})
 
     return {
         "channel": channel,
@@ -613,25 +619,42 @@ def _download_landing_html(
     channel_label = "Beta " if channel == "beta" else ""
     version_display = f"v{version}" if version else ""
     notice_html = f'<p class="notice">{notice}</p>' if notice else ""
-    os_name = "Windows" if platform == "windows" else "macOS"
-    if platform == "windows":
+    is_windows = platform == "windows"
+    os_name = "Windows" if is_windows else "macOS"
+    product_name = "Omi" if is_windows else "Intentive"
+    if is_windows:
         install_steps = (
             "1. Open the downloaded installer (omi-setup.exe)<br>"
             "2. If Windows SmartScreen appears, click <b>More info</b> &rarr; <b>Run anyway</b><br>"
             "3. Follow the setup wizard and launch Omi"
         )
+        video_html = """
+        <div class="video-container" id="demo-video">
+            <video autoplay muted loop playsinline>
+                <source src="https://storage.googleapis.com/omi_macos_updates/omi-demo.mp4" type="video/mp4">
+            </video>
+            <p class="video-label">See how Omi works</p>
+        </div>"""
+        support_html = (
+            '<p class="discord">Need help? Join our '
+            '<a href="https://discord.com/invite/8MP3b9ymvx">Discord community</a></p>'
+        )
+        demo_reveal_script = 'document.getElementById("demo-video").style.display = "block";'
     else:
         install_steps = (
             "1. Open the downloaded .dmg file<br>"
-            "2. Drag Omi to your Applications folder<br>"
-            "3. Launch Omi from Applications"
+            "2. Drag Intentive to your Applications folder<br>"
+            "3. Launch Intentive from Applications"
         )
+        video_html = ""
+        support_html = ""
+        demo_reveal_script = ""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Download Omi {channel_label}for {os_name}</title>
+    <title>Download {product_name} {channel_label}for {os_name}</title>
     <meta http-equiv="refresh" content="2;url={dmg_url}">
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -667,7 +690,7 @@ def _download_landing_html(
 </head>
 <body>
     <div class="container">
-        <h1>Downloading Omi {channel_label}for {os_name}</h1>
+        <h1>Downloading {product_name} {channel_label}for {os_name}</h1>
         <p class="version">{version_display}</p>
         {notice_html}
         <p class="subtitle" id="status-text">Your download should start automatically&hellip;</p>
@@ -676,24 +699,19 @@ def _download_landing_html(
             <div class="checkmark">&#10003;</div>
         </div>
         <p><a class="download-link" href="{dmg_url}">Click here if the download doesn&rsquo;t start</a></p>
-        <div class="video-container" id="demo-video">
-            <video autoplay muted loop playsinline>
-                <source src="https://storage.googleapis.com/omi_macos_updates/omi-demo.mp4" type="video/mp4">
-            </video>
-            <p class="video-label">See how Omi works</p>
-        </div>
+        {video_html}
         <div class="steps">
             <b>Installation steps:</b><br>
             {install_steps}
         </div>
-        <p class="discord">Need help? Join our <a href="https://discord.com/invite/8MP3b9ymvx">Discord community</a></p>
+        {support_html}
     </div>
     <script>
         setTimeout(function() {{
             window.location.href = "{dmg_url}";
             document.getElementById("status-icon").classList.add("done");
             document.getElementById("status-text").textContent = "Download started!";
-            document.getElementById("demo-video").style.display = "block";
+            {demo_reveal_script}
         }}, 2000);
     </script>
 </body>

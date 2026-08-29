@@ -4,7 +4,8 @@ import OmiSupport
 extension Notification.Name {
   /// Posted on MainActor after the runtime handshake makes direct control
   /// tools admissible. Carries no owner id or request content.
-  static let agentRuntimeDidBecomeReady = Notification.Name("com.omi.desktop.agentRuntimeDidBecomeReady")
+  static let agentRuntimeDidBecomeReady = Notification.Name(
+    "com.heyintentive.intentive.agentRuntimeDidBecomeReady")
 }
 
 /// Shares one asynchronous runtime launch across every client admitted while
@@ -2579,8 +2580,8 @@ actor AgentRuntimeProcess {
     env.removeValue(forKey: AgentRuntimeCredentialPolicy.hermeticFaultModelTokenEnvironmentKey)
     env["NODE_NO_WARNINGS"] = "1"
     env["HARNESS_MODE"] = AgentHarnessMode.piMono.rawValue
-    env["OMI_AGENT_STATE_DIR"] = Self.defaultStateDirectory()
-    env["OMI_AGENT_ARTIFACTS_DIR"] = Self.defaultArtifactsDirectory()
+    env[DesktopProductIdentity.agentStateEnvironmentVariable] = try Self.defaultStateDirectory()
+    env[DesktopProductIdentity.agentArtifactsEnvironmentVariable] = try Self.defaultArtifactsDirectory()
     #if DEBUG
       if AppBuild.isNonProduction {
         env["OMI_AGENT_ALLOW_CONTROL_ONLY"] = "1"
@@ -3750,34 +3751,24 @@ actor AgentRuntimeProcess {
   static func defaultStateDirectory(
     bundleIdentifier: String? = Bundle.main.bundleIdentifier,
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-  ) -> String {
-    let bundleComponent =
-      (bundleIdentifier?.isEmpty == false ? bundleIdentifier : "com.omi.desktop-dev")
-      ?? "com.omi.desktop-dev"
-    return
-      homeDirectory
-      .appendingPathComponent("Library")
-      .appendingPathComponent("Application Support")
-      .appendingPathComponent("Omi")
+  ) throws -> String {
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier) else {
+      throw BridgeError.agentError("invalid_desktop_product_identity")
+    }
+    return identity.applicationSupportURL(homeDirectory: homeDirectory)
       .appendingPathComponent("AgentRuntime")
-      .appendingPathComponent(bundleComponent)
       .path
   }
 
   static func defaultArtifactsDirectory(
     bundleIdentifier: String? = Bundle.main.bundleIdentifier,
     homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-  ) -> String {
-    let bundleComponent =
-      (bundleIdentifier?.isEmpty == false ? bundleIdentifier : "com.omi.desktop-dev")
-      ?? "com.omi.desktop-dev"
-    return
-      homeDirectory
-      .appendingPathComponent("Library")
-      .appendingPathComponent("Application Support")
-      .appendingPathComponent("Omi")
+  ) throws -> String {
+    guard let identity = DesktopProductIdentity(bundleIdentifier: bundleIdentifier) else {
+      throw BridgeError.agentError("invalid_desktop_product_identity")
+    }
+    return identity.applicationSupportURL(homeDirectory: homeDirectory)
       .appendingPathComponent("Artifacts")
-      .appendingPathComponent(bundleComponent)
       .path
   }
 

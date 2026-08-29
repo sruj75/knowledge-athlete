@@ -9,12 +9,12 @@ import Sentry
 
 extension Notification.Name {
   /// Posted by AuthService.signOut() so views can reset @AppStorage-backed properties directly.
-  static let userDidSignOut = Notification.Name("com.omi.desktop.userDidSignOut")
+  static let userDidSignOut = Notification.Name("com.heyintentive.intentive.userDidSignOut")
   /// Posted whenever the signed-in user's name becomes known (Apple first-auth
   /// capture, or a later Firebase fetch). `givenName`/`familyName` are
   /// plain UserDefaults, so onboarding can't observe them directly — it listens
   /// for this and re-reads `AuthService.shared.givenName`.
-  static let authNameDidUpdate = Notification.Name("com.omi.desktop.authNameDidUpdate")
+  static let authNameDidUpdate = Notification.Name("com.heyintentive.intentive.authNameDidUpdate")
 }
 
 @MainActor
@@ -75,7 +75,7 @@ class AuthService {
     {
       return scheme
     }
-    return "omi-computer"
+    preconditionFailure("Intentive app bundle is missing its signed URL scheme")
   }
 
   private struct OAuthFlowContext {
@@ -95,7 +95,7 @@ class AuthService {
   // dialog). See DesktopKeychainStore.scopedService.
   private let authTokenKeychainAccount = "firebase-rest-tokens"
   private var authTokenKeychainService: String {
-    DesktopKeychainStore.scopedService(DesktopKeychainStore.legacyAuthTokenService)
+    DesktopKeychainStore.scopedService(DesktopKeychainStore.authTokenServiceBase)
   }
 
   private struct StoredAuthTokens: Codable, Equatable {
@@ -130,10 +130,9 @@ class AuthService {
       usesKeychainTokenStorage: { true },
       allowsUserDefaultsFallback: { false },
       readKeychainString: { service, account in
-        // Only the team+bundle scoped service. Never query the unscoped
-        // legacy `com.omi.desktop.firebase-rest-session` item — a foreign
-        // ACL on that name is what triggers the login-keychain password
-        // dialog. Pre-scoping installs recover via UserDefaults migration.
+        // Only the team+bundle scoped service. Never query an inherited
+        // unscoped item: a foreign ACL is what triggers the login-keychain
+        // password dialog. Same-product installs recover via UserDefaults migration.
         DesktopKeychainStore.string(service: service, account: account)
       },
       writeKeychainString: { value, service, account in
@@ -743,7 +742,7 @@ class AuthService {
 
     // Step 4: Sign in with Firebase using Apple credential
     // Use Firebase SDK first (handles native bundle ID audience correctly),
-    // fall back to REST API (for web OAuth audience 'me.omi.web')
+    // fall back to the Firebase REST exchange when the native SDK is unavailable
     NSLog("OMI AUTH: Signing in with Firebase using Apple identity token...")
 
     let nativeSignIn = try await FirebaseAuthAvailability.signInWithNativeApple(

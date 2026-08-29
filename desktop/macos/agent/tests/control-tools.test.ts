@@ -2701,7 +2701,7 @@ function invocationIdentityForTest(invocation: AuthorizedRunToolInvocation) {
 function newDatabasePath(): string {
   const dir = mkdtempSync(join(tmpdir(), "omi-agent-control-tools-"));
   createdDirs.push(dir);
-  return join(dir, "omi-agentd.sqlite3");
+  return join(dir, "heyintentive-agent.sqlite3");
 }
 
 function ownerContext(kernel: AgentControlToolContext["kernel"]): AgentControlToolContext {

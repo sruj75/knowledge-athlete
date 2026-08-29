@@ -27,12 +27,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate Omi Bot token
+      - name: Generate Intentive release app token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.OMI_BOT_APP_ID }}
-          private-key: ${{ secrets.OMI_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Plan desktop release
         id: plan
@@ -54,19 +54,19 @@ jobs:
   tag-release:
     needs: [plan-release]
     if: needs.plan-release.outputs.should_release == 'true'
-    runs-on: [self-hosted, macos, omi-desktop-qualification, omi-qual-m1-studio]
+    runs-on: [self-hosted, macos, intentive-desktop-qualification, intentive-qual-m1-studio]
     concurrency:
       group: desktop-auto-release-tag-main
       cancel-in-progress: false
     steps:
-      - name: Generate Omi Bot token
+      - name: Generate Intentive release app token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.OMI_BOT_APP_ID }}
-          private-key: ${{ secrets.OMI_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
 
-      # The native tag must be pushed by the Omi Bot installation, rather than
+      # The native tag must be pushed by the Intentive release app installation, rather than
       # the workflow's GITHUB_TOKEN. GitHub suppresses recursively generated
       # events for GITHUB_TOKEN, which leaves Codemagic no tag webhook to build.
       - name: Checkout
@@ -81,7 +81,7 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Omi Bot token not available; cannot inspect previous release build status."
+            echo "Intentive release app token not available; cannot inspect previous release build status."
             exit 1
           fi
 
@@ -246,7 +246,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Omi Bot token not available; cannot merge changelog PR."
+            echo "Intentive release app token not available; cannot merge changelog PR."
             exit 1
           fi
 
@@ -330,7 +330,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Omi Bot token not available; cannot replan after changelog sync."
+            echo "Intentive release app token not available; cannot replan after changelog sync."
             exit 1
           fi
 
@@ -457,7 +457,7 @@ jobs:
           EVIDENCE_PATH="${{ steps.identity.outputs.evidence_path }}"
 
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "Omi Bot token not available; cannot publish a candidate tag." >&2
+            echo "Intentive release app token not available; cannot publish a candidate tag." >&2
             exit 1
           fi
           # The publisher refetches GitHub's authoritative main immediately
@@ -481,8 +481,8 @@ jobs:
           # most one tag-bound fallback only after a final all-state same-tag
           # absence fence; any existing same-tag build remains canonical.
           python3 .github/scripts/check-codemagic-tag-intake.py \
-            --app-id "66c95e6ec76853c447b8bcbb" \
-            --workflow-id "omi-desktop-swift-release" \
+            --app-id "6a8ff0296fc70d39540cb56a" \
+            --workflow-id "intentive-macos-release" \
             --release-tag "${{ steps.version.outputs.release_tag }}" \
             --source-sha "${{ steps.identity.outputs.candidate_sha }}" \
             --timeout-seconds 600 \

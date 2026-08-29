@@ -71,17 +71,18 @@ final class SettingsDestinationContractTests: XCTestCase {
     XCTAssertFalse(rawValues.contains("planusage.purchase"))
   }
 
-  /// Source-inspection tripwire for exact retired About labels assigned by S-21.
-  func testAboutRemovesHelpCenterAndUsesLocalPrivacyAndDataLabel() throws {
+  /// Source-inspection tripwire: S-21 keeps local privacy controls while S-29 adds
+  /// separately hosted Privacy and Support destinations.
+  func testAboutKeepsLocalPrivacyAndAddsHostedPrivacyAndSupport() throws {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent().deletingLastPathComponent()
       .appendingPathComponent(
         "Sources/MainWindow/Pages/Settings/Components/SettingsContentView+Controls.swift")
-    // omi-test-quality: source-inspection -- static contract: the retired remote Help Center and Privacy Policy labels must not return; typed Settings routing is exercised by the other contract tests.
+    // omi-test-quality: source-inspection -- static contract: the retired Help Center must stay absent while the view consumes the behaviorally tested external-destination projection.
     let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
     XCTAssertFalse(source.contains("Help Center"))
-    XCTAssertFalse(source.contains("Privacy Policy"))
     XCTAssertTrue(source.contains("Privacy & Data"))
+    XCTAssertTrue(source.contains("currentSettingsExternalDestinations"))
   }
 }

@@ -17,7 +17,7 @@
 # Run this BEFORE launching the bundle (UserDefaults is read at startup).
 #
 # Usage: omi-auth-seed.sh <target-bundle-id> [in-file] [app-path]
-#   target-bundle-id  e.g. com.omi.omi-fix-rewind  (a named test bundle)
+#   target-bundle-id  e.g. com.heyintentive.intentive.dev.omi-fix-rewind
 #   in-file           default: desktop/tmp/desktop-auth.json
 #   app-path          optional; also via OMI_AUTH_SEED_APP_PATH (used for Team ID)
 set -euo pipefail
@@ -26,14 +26,14 @@ TARGET="${1:?usage: omi-auth-seed.sh <target-bundle-id> [in-file] [app-path]}"
 IN="${2:-$(cd "$(dirname "$0")/.." && pwd)/tmp/desktop-auth.json}"
 APP_PATH_ARG="${3:-${OMI_AUTH_SEED_APP_PATH:-}}"
 
-[ "$TARGET" != "com.omi.computer-macos" ] || {
-  echo "Refusing to seed production auth; shipped bundles store Firebase tokens in Keychain." >&2
+if ! [[ "$TARGET" =~ ^com\.heyintentive\.intentive\.dev\.omi-[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Refusing to seed auth into non-disposable Intentive named bundle '$TARGET'." >&2
   exit 1
-}
+fi
 
 [ -f "$IN" ] || { echo "No auth file at $IN — run omi-auth-dump.sh first." >&2; exit 1; }
 
-KC_SERVICE_BASE="com.omi.desktop.firebase-rest-session"
+KC_SERVICE_BASE="com.heyintentive.intentive.firebase-rest-session"
 KC_ACCOUNT="firebase-rest-tokens"
 
 resolve_app_path() {
@@ -45,9 +45,7 @@ resolve_app_path() {
     return 0
   fi
   for candidate in \
-    "/Applications/Omi Dev.app" \
-    "/Applications/${bid#com.omi.}.app" \
-    "/Applications/omi.app"
+    "/Applications/${bid#com.heyintentive.intentive.dev.}.app"
   do
     if [ -d "$candidate" ]; then
       local found

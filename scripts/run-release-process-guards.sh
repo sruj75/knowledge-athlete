@@ -15,4 +15,7 @@ if ! BACKEND_PYTHON="$(dev_harness_canonical_python)" \
   fi
 fi
 
+"$BACKEND_PYTHON" -m pytest -q \
+  "$ROOT_DIR/.github/scripts/test_check_release_process_guards.py" \
+  "$ROOT_DIR/.github/scripts/test_validate_intentive_production_origin.py"
 exec "$BACKEND_PYTHON" "$ROOT_DIR/.github/scripts/check-release-process-guards.py" "$@"

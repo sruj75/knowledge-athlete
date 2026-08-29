@@ -46,9 +46,9 @@ checks:
     reason: "make setup must provision the minimal, rerunnable backend environment required by selected pre-push checks"
   - id: desktop-release-process-guards
     command: ["bash", "scripts/run-release-process-guards.sh"]
-    triggers: [".github/workflows/desktop_qualify_beta.yml", ".github/scripts/check-release-process-guards.py", ".github/scripts/git_bash.py", "scripts/dev-harness/_resolve_python.sh", "scripts/run-release-process-guards.sh", "backend/tests/unit/test_desktop_release_scripts.py", ".github/checks-manifest.yaml"]
+    triggers: ["codemagic.yaml", ".github/workflows/desktop_auto_release.yml", ".github/workflows/desktop_beta_admission_control.yml", ".github/workflows/desktop_breakglass_credential_preflight.yml", ".github/workflows/desktop_breakglass_rollout_beta.yml", ".github/workflows/desktop_promote_beta.yml", ".github/workflows/desktop_promote_prod.yml", ".github/workflows/desktop_publish_preview.yml", ".github/workflows/desktop_qualify_beta.yml", ".github/workflows/desktop_rollback_beta.yml", ".github/scripts/check-release-process-guards.py", ".github/scripts/test_check_release_process_guards.py", ".github/scripts/test_validate_intentive_production_origin.py", ".github/scripts/validate-intentive-production-origin.py", ".github/scripts/git_bash.py", "desktop/macos/scripts/codemagic-release.sh", "desktop/macos/scripts/create-intentive-beta-variant.sh", "desktop/macos/tests/test-codemagic-release.sh", "scripts/dev-harness/_resolve_python.sh", "scripts/run-release-process-guards.sh", "backend/tests/unit/test_desktop_release_scripts.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "SCA-174: qualification must check out the exact release tag inside its isolated source directory; the guard and its focused behavioral test run on every relevant diff"
+    reason: "S-29 requires one owned release graph with exact-source, ordered signing/notarization/Sparkle/smoke boundaries, no inherited identity, and exact approved credential destinations; the guard runs on every provider or sensitive downstream change"
   - id: failure-class-retirement-author
     command: ["python3", ".github/scripts/test_failure_class_retirement.py"]
     triggers: [".github/scripts/failure_class_retirement.py", ".github/scripts/test_failure_class_retirement.py", ".github/workflows/repo-hygiene.yml", "scripts/failure-class", ".github/checks-manifest.yaml"]
@@ -463,9 +463,9 @@ checks:
     reason: "mutation-tests prod/all admission, serving smoke order, token handling, and rollback coverage"
   - id: production-data-plane-routing
     command: ["python3", ".github/scripts/test_check_desktop_production_routing.py"]
-    triggers: ["desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift", "desktop/macos/Desktop/Sources/GoogleService-Info*.plist", "backend/charts/**", ".github/workflows/**", ".github/scripts/check-desktop-production-routing.py", ".github/scripts/test_check_desktop_production_routing.py", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift", "desktop/macos/Desktop/Sources/OmiSupport/DesktopProductIdentity.swift", "backend/charts/**", ".github/workflows/**", ".github/scripts/check-desktop-production-routing.py", ".github/scripts/test_check_desktop_production_routing.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "INV-DATA-1 mutation-tests retain the single macOS production backend URL and reject retired GKE backend ownership"
+    reason: "INV-DATA-1 mutation-tests retain owned macOS identity, signed-metadata production routing, and reject retired GKE backend ownership"
   - id: backend-candidate-probe-fixtures
     command: ["python3", ".github/scripts/test_backend_candidate_probe.py"]
     triggers: [".github/scripts/backend_candidate_probe.py", ".github/scripts/test_backend_candidate_probe.py", "backend/**/*.py", "backend/pylock.runtime.toml", ".github/checks-manifest.yaml"]

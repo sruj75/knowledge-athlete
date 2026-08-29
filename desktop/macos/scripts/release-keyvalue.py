@@ -82,8 +82,8 @@ def preflight_release(release_json_path: Path, tag: str) -> None:
 
     # These are the immutable artifact/evidence inputs consumed by the automatic
     # candidate contract: signed Sparkle ZIP, DMG, and its signed-smoke evidence.
-    required_asset({"Omi.zip"})
-    required_asset({"omi.dmg"})
+    required_asset({"Intentive.zip"})
+    required_asset({"intentive.dmg"})
     required_asset({"desktop-smoke-result.json"})
 
     metadata = parse_keyvalue_block(release.get("body") or "")
@@ -306,8 +306,8 @@ qualifiedBeta: false
         "isPrerelease": False,
         "publishedAt": "2026-07-20T12:00:00Z",
         "assets": [
-            {"name": "Omi.zip", "digest": valid_digest},
-            {"name": "omi.dmg", "digest": valid_digest},
+            {"name": "Intentive.zip", "digest": valid_digest},
+            {"name": "intentive.dmg", "digest": valid_digest},
             {"name": "desktop-smoke-result.json", "digest": valid_digest},
         ],
         "body": sample_body,
@@ -319,7 +319,7 @@ qualifiedBeta: false
     except SystemExit as exc:
         fail("preflight-release valid candidate release", f"unexpected exit {exc.code}")
 
-    for name in ("Omi.dmg", "omi-beta.dmg", "Omi Beta.dmg", "some-other.dmg"):
+    for name in ("Omi.dmg", "intentive-beta.dmg", "Intentive Beta.dmg", "some-other.dmg"):
         candidate = json.loads(json.dumps(valid_release))
         candidate["assets"][1]["name"] = name
         release_json.write_text(json.dumps(candidate), encoding="utf-8")
@@ -327,7 +327,7 @@ qualifiedBeta: false
             preflight_release(release_json, "v11.0.0+11000-macos")
             fail(f"preflight-release rejects non-canonical DMG {name}", "expected SystemExit")
         except SystemExit as exc:
-            if "omi.dmg" in str(exc):
+            if "intentive.dmg" in str(exc):
                 ok(f"preflight-release rejects non-canonical DMG {name}")
             else:
                 fail(f"preflight-release rejects non-canonical DMG {name}", f"unexpected exit: {exc}")

@@ -285,9 +285,16 @@ struct RewindSettingsView: View {
             .scaledFont(size: OmiType.body)
             .foregroundColor(.white.opacity(0.7))
 
-          Text("~/Library/Application Support/Omi/users/\(UserDefaults.standard.string(forKey: "auth_userId") ?? "")/")
-            .scaledFont(size: OmiType.caption, design: .monospaced)
-            .foregroundColor(.white.opacity(0.4))
+          Text(
+            DesktopLocalProfile.applicationSupportURL()
+              .appendingPathComponent("users", isDirectory: true)
+              .appendingPathComponent(
+                UserDefaults.standard.string(forKey: .authUserId) ?? "anonymous",
+                isDirectory: true
+              ).path
+          )
+          .scaledFont(size: OmiType.caption, design: .monospaced)
+          .foregroundColor(.white.opacity(0.4))
         }
 
         Spacer()

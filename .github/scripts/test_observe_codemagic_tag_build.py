@@ -16,7 +16,7 @@ assert SPEC and SPEC.loader
 observer = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(observer)
 
-APP_ID = "66c95e6ec76853c447b8bcbb"
+APP_ID = "6a8ff0296fc70d39540cb56a"
 TAG = "v1.2.3+10203-macos"
 SHA = "a" * 40
 
@@ -77,7 +77,7 @@ class CodemagicTagBuildObserverTests(unittest.TestCase):
         self.assertEqual(len(evidence["matching_builds"]), 2)
 
     def test_wrong_workflow_never_satisfies_the_observation(self) -> None:
-        result, evidence = self.observe([build(workflowId="omi-desktop-swift-preview")])
+        result, evidence = self.observe([build(workflowId="intentive-macos-preview")])
 
         self.assertEqual(result, 1)
         self.assertEqual(evidence["status"], "missing")

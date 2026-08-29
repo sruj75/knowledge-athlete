@@ -509,7 +509,10 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
         self.assertNotIn("pre-tag-readiness:\n", workflow)
         self.assertNotIn("needs: pre-tag-readiness", workflow)
         tag_release = workflow.split("\n  tag-release:\n", 1)[1]
-        self.assertIn("runs-on: [self-hosted, macos, omi-desktop-qualification, omi-qual-m1-studio]", tag_release)
+        self.assertIn(
+            "runs-on: [self-hosted, macos, intentive-desktop-qualification, intentive-qual-m1-studio]",
+            tag_release,
+        )
         self.assertIn("group: desktop-auto-release-tag-main", tag_release)
         self.assertIn("cancel-in-progress: false", tag_release)
         self.assertIn("desktop/macos/scripts/pre-tag-readiness.sh", tag_release)

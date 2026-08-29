@@ -1,6 +1,6 @@
 # Shared macOS automation-token path resolution for shell harnesses.
 # Source from scripts that need the same path the Swift bridge writes:
-#   NSTemporaryDirectory()/omi-automation-{port}.token
+#   NSTemporaryDirectory()/heyintentive-automation-{port}.token
 # which equals $(getconf DARWIN_USER_TEMP_DIR) for non-sandboxed local bundles.
 #
 # Usage:
@@ -16,8 +16,8 @@ omi_automation_token_file() {
   fi
   local darwin_tmp=""
   if darwin_tmp="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null)" && [[ -n "$darwin_tmp" ]]; then
-    printf '%s\n' "${darwin_tmp%/}/omi-automation-${port}.token"
+    printf '%s\n' "${darwin_tmp%/}/heyintentive-automation-${port}.token"
     return 0
   fi
-  printf '%s\n' "${TMPDIR:-/tmp}/omi-automation-${port}.token"
+  printf '%s\n' "${TMPDIR:-/tmp}/heyintentive-automation-${port}.token"
 }

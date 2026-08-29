@@ -276,7 +276,7 @@ struct TrialMetadataResponse: Codable {
 
 struct DesktopUpdatePolicyResponse: Decodable, Equatable, Sendable {
   static let stableManualDownloadURL = URL(
-    string: "https://api.omi.me/v2/desktop/download/latest?channel=stable")!
+    string: "https://github.com/sruj75/knowledge-athlete/releases/latest")!
 
   enum Severity: String, Codable, Sendable {
     case none

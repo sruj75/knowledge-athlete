@@ -7,7 +7,7 @@
 # a row that regresses upstream is caught the next run, not the next audit wave.
 #
 # Usage:
-#   omi-hardening-smoke.sh run [--bundle-id com.omi.omi-smoke] [--port 47797]
+#   omi-hardening-smoke.sh run [--bundle-id com.heyintentive.intentive.dev.omi-smoke] [--port 47797]
 #                              [--only p1,p2] [--skip p1,p2] [--report-dir DIR]
 #                              [--launch|--attach] [--timeout-mult X] [--dry-run]
 #   omi-hardening-smoke.sh list            # probe ids in canonical run order
@@ -27,9 +27,9 @@
 # Exit codes: 0 all selected probes PASS · 1 any FAIL · 2 usage error / production
 # bundle refused · 3 no FAILs but at least one BLOCKED (harness could not run).
 #
-# Safety: refuses to manage anything but com.omi.omi-* named test bundles. The ONLY
+# Safety: refuses to manage anything but exact Intentive named test bundles. The ONLY
 # production interaction is the read-only `defaults read` in auth-06. NEVER point
-# this script at com.omi.computer-macos, Omi Dev, or any user-facing install.
+# this script at Intentive stable/Beta/canonical dev or any foreign install.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,15 +38,18 @@ source "$SCRIPT_DIR/automation-token-path.sh"
 MACOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 OMI_CTL="$SCRIPT_DIR/omi-ctl"
 
-PROD_BUNDLE_ID="com.omi.computer-macos"
-DEFAULT_BUNDLE_ID="com.omi.omi-smoke"
+PROD_BUNDLE_ID="com.heyintentive.intentive"
+BETA_BUNDLE_ID="com.heyintentive.intentive.beta"
+CANONICAL_DEV_BUNDLE_ID="com.heyintentive.intentive.dev"
+NAMED_BUNDLE_PREFIX="com.heyintentive.intentive.dev."
+DEFAULT_BUNDLE_ID="${NAMED_BUNDLE_PREFIX}omi-smoke"
 DEFAULT_PORT=47797
 PROBES="auth-06 set-04 set-01 mic-06 chat-03 auth-03 lnch-07 self-hygiene"
 
 # Credential patterns shared by set-04 and `scan` (keep in sync with the
 # evidence-hygiene rules: JWT, Google API key, bearer, omi tokens, Firebase
 # refresh token, inline refreshToken values).
-CRED_PATTERNS='eyJ[A-Za-z0-9_-]{40,}|AIza[0-9A-Za-z_-]{30,}|Bearer [A-Za-z0-9._-]{20,}|omi_mcp_[a-z0-9]{10,}|omi_auto_[a-z0-9]{16,}|AMf-[A-Za-z0-9_-]{20,}|refresh[Tt]oken["'"'"': =]+[A-Za-z0-9_/+-]{20,}'
+CRED_PATTERNS='eyJ[A-Za-z0-9_-]{40,}|AIza[0-9A-Za-z_-]{30,}|Bearer [A-Za-z0-9._-]{20,}|omi_mcp_[a-z0-9]{10,}|heyintentive_auto_[a-z0-9]{16,}|AMf-[A-Za-z0-9_-]{20,}|refresh[Tt]oken["'"'"': =]+[A-Za-z0-9_/+-]{20,}'
 
 log() { printf '%s\n' "$*" >&2; }
 die() { log "omi-hardening-smoke: $*"; exit 2; }
@@ -123,7 +126,7 @@ parse_run_args() {
   validate_probe_csv "$ONLY"
   validate_probe_csv "$SKIP"
   refuse_non_test_bundle
-  [ -n "$REPORT_DIR" ] || REPORT_DIR="${TMPDIR:-/tmp}/omi-hardening-smoke/$(date -u +%Y%m%dT%H%M%SZ)"
+  [ -n "$REPORT_DIR" ] || REPORT_DIR="${TMPDIR:-/tmp}/heyintentive-hardening-smoke/$(date -u +%Y%m%dT%H%M%SZ)"
 }
 
 validate_probe_csv() {
@@ -137,13 +140,14 @@ validate_probe_csv() {
 }
 
 refuse_non_test_bundle() {
-  if [ "$BUNDLE_ID" = "$PROD_BUNDLE_ID" ]; then
-    die "refusing to run against the production bundle ($PROD_BUNDLE_ID)"
-  fi
   case "$BUNDLE_ID" in
-    com.omi.omi-*) : ;;
-    *) die "refusing bundle '$BUNDLE_ID' — only com.omi.omi-* named test bundles are supported" ;;
+    "$PROD_BUNDLE_ID"|"$BETA_BUNDLE_ID"|"$CANONICAL_DEV_BUNDLE_ID")
+      die "refusing protected Intentive bundle ($BUNDLE_ID)"
+      ;;
   esac
+  if [[ ! "$BUNDLE_ID" =~ ^com\.heyintentive\.intentive\.dev\.omi-[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    die "refusing bundle '$BUNDLE_ID' — only exact disposable Intentive named bundles are supported"
+  fi
 }
 
 probe_selected() {
@@ -167,7 +171,7 @@ record() {
 
 now_s() { date +%s; }
 
-app_name() { printf '%s' "${BUNDLE_ID#com.omi.}"; }
+app_name() { printf '%s' "${BUNDLE_ID#$NAMED_BUNDLE_PREFIX}"; }
 app_dir() { printf '/Applications/%s.app' "$(app_name)"; }
 app_binary() { printf '%s/Contents/MacOS/Omi Computer' "$(app_dir)"; }
 app_log() { printf '%s/app.log' "$REPORT_DIR"; }
@@ -178,7 +182,7 @@ bridge() { OMI_AUTOMATION_PORT="$PORT" "$OMI_CTL" "$@"; }
 bridge_active_log_path() {
   # The bridge owns the running named bundle's identity. Never infer its log
   # from a shared filename: another QA bundle may be running concurrently.
-  local advertised_bundle path
+  local advertised_bundle path expected_prefix filename
   advertised_bundle="$(bridge health 2>/dev/null | python3 -c '
 import json, sys
 try:
@@ -188,10 +192,11 @@ except Exception:
 ' 2>/dev/null || true)"
   path="$(bridge log-path 2>/dev/null || true)"
   [ "$advertised_bundle" = "$BUNDLE_ID" ] || return 1
-  case "$path" in
-    /private/tmp/omi/*/*.log) printf '%s\n' "$path" ;;
-    *) return 1 ;;
-  esac
+  expected_prefix="/private/tmp/heyintentive-dev-${BUNDLE_ID}-"
+  [[ "$path" == "$expected_prefix"* ]] || return 1
+  filename="${path#$expected_prefix}"
+  [[ "$filename" =~ ^[0-9]+\.log$ ]] || return 1
+  printf '%s\n' "$path"
 }
 
 action_json() {
@@ -336,7 +341,7 @@ probe_set_04() {
     return
   fi
   {
-    for f in "$active_log" /private/tmp/omi.log; do
+    for f in "$active_log"; do
       if [ ! -r "$f" ]; then echo "$f: not present/readable"; continue; fi
       set +e
       hits="$(grep -cE "$CRED_PATTERNS" "$f" 2>/dev/null)"
@@ -474,7 +479,7 @@ probe_auth_03() {
   signed_before="$(json_field "$pre_status" signed_in)"
   storage="$(json_field "$pre_status" storage)"
   if [ "$signed_before" != "true" ]; then
-    record auth-03 BLOCKED $(( $(now_s) - t0 )) "auth-stale: bundle not signed in — reseed via omi-auth-dump.sh + omi-auth-seed.sh $BUNDLE_ID \"/Applications/${BUNDLE_ID#com.omi.}.app\""
+    record auth-03 BLOCKED $(( $(now_s) - t0 )) "auth-stale: bundle not signed in — reseed via omi-auth-dump.sh + omi-auth-seed.sh $BUNDLE_ID \"$(app_dir)\""
     return
   fi
 
@@ -527,7 +532,7 @@ probe_lnch_07() {
   local t0 uid db pre_a pre_b post_a post_b integ latency rc=0
   t0=$(now_s)
   uid="$(defaults_read_raw "$BUNDLE_ID" auth_tokenUserId)"
-  db="$HOME/Library/Application Support/Omi/users/$uid/omi.db"
+  db="$HOME/Library/Application Support/Intentive Dev Bundles/$BUNDLE_ID/users/$uid/heyintentive.db"
   if [ -z "$uid" ] || [ ! -f "$db" ]; then
     record lnch-07 BLOCKED $(( $(now_s) - t0 )) "no user DB for this bundle's signed-in user"
     return

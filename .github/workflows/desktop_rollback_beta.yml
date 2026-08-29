@@ -6,7 +6,7 @@ on:
       current_release_id: {description: 'Exact broken macOS Beta tag currently served', required: true, type: string}
       target_release_id: {description: 'Exact retained T2-qualified known-good macOS tag', required: true, type: string}
       expected_generation: {description: 'Exact current macos-beta pointer generation', required: true, type: string}
-      incident_url: {description: 'Omi GitHub issue or discussion documenting the incident', required: true, type: string}
+      incident_url: {description: 'Intentive GitHub issue or discussion documenting the incident', required: true, type: string}
       reason: {description: 'Observed failure and containment reason', required: true, type: string}
 
 permissions: {}
@@ -19,6 +19,18 @@ jobs:
     environment: prod
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
       - name: Use the existing production Google identity
         uses: google-github-actions/auth@v3
         with:
@@ -33,6 +45,7 @@ jobs:
           INCIDENT: ${{ inputs.incident_url }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
           REQUEST_ID: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
           set -euo pipefail
@@ -43,4 +56,4 @@ jobs:
             --arg reason "$REASON" --arg actor "$ACTOR" --arg request_id "$REQUEST_ID" '$ARGS.named' \
             | curl --fail-with-body --silent --show-error --request POST \
                 --header 'Content-Type: application/json' --header "secret-key: $ADMIN_KEY" \
-                --data-binary @- https://api.omi.me/v2/desktop/beta/breakglass
+                --data-binary @- "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/breakglass"

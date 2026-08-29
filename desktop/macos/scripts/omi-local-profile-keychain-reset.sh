@@ -12,13 +12,10 @@ set -euo pipefail
 TARGET="${1:?usage: omi-local-profile-keychain-reset.sh <target-bundle-id> <app-path>}"
 APP_PATH="${2:?usage: omi-local-profile-keychain-reset.sh <target-bundle-id> <app-path>}"
 
-case "$TARGET" in
-  com.omi.omi-*) ;;
-  *)
-    echo "Refusing to reset Keychain state for non-local named bundle '$TARGET'." >&2
-    exit 1
-    ;;
-esac
+if [[ ! "$TARGET" =~ ^com\.heyintentive\.intentive\.dev\.omi-[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+  echo "Refusing to reset Keychain state for non-local named bundle '$TARGET'." >&2
+  exit 1
+fi
 
 [ -d "$APP_PATH" ] || {
   echo "Cannot reset local-profile Keychain state: app is missing at $APP_PATH." >&2
@@ -37,8 +34,8 @@ if [ -z "$TEAM_ID" ] || [ "$TEAM_ID" = "not set" ]; then
 fi
 
 BASE_SERVICES=(
-  "com.omi.desktop.firebase-rest-session"
-  "com.omi.client-device-id"
+  "com.heyintentive.intentive.firebase-rest-session"
+  "com.heyintentive.intentive.client-device-id"
 )
 ACCOUNTS=(
   "firebase-rest-tokens"

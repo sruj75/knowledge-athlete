@@ -3,7 +3,7 @@ import XCTest
 @testable import Omi_Computer
 
 final class ExternalPreviewBuildTests: XCTestCase {
-  private let previewBundleIdentifier = "com.omi.preview.p8b1f42a9"
+  private let previewBundleIdentifier = "com.heyintentive.intentive.preview.p8b1f42a9"
 
   func testConfiguredPreviewDisablesLocalAutomationAndSparkle() {
     let configuration = AppBuild.configuration(
@@ -63,7 +63,7 @@ final class ExternalPreviewBuildTests: XCTestCase {
 
   func testNamedDevelopmentBundlesKeepAutomationButDisableSharedSparkle() {
     let configuration = AppBuild.configuration(
-      bundleIdentifier: "com.omi.omi-local-preview",
+      bundleIdentifier: "com.heyintentive.intentive.dev.local-preview",
       infoDictionary: [
         AppBuild.externalPreviewMarkerInfoKey: true,
         AppBuild.externalPreviewBackendInfoKey: "production",

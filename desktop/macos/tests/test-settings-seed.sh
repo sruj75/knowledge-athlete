@@ -38,10 +38,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-source_domain="com.omi.codex-settings-source-$$"
-quiet_target="com.omi.codex-settings-quiet-$$"
-eager_target="com.omi.codex-settings-eager-$$"
-missing_target="com.omi.codex-settings-missing-$$"
+source_domain="com.heyintentive.intentive.dev"
+quiet_target="com.heyintentive.intentive.dev.omi-settings-quiet-$$"
+eager_target="com.heyintentive.intentive.dev.omi-settings-eager-$$"
+missing_target="com.heyintentive.intentive.dev.omi-settings-missing-$$"
 cleanup_domains+=("$source_domain" "$quiet_target" "$eager_target" "$missing_target")
 
 defaults write "$source_domain" screenAnalysisEnabled -bool true
@@ -70,21 +70,20 @@ assert_defaults "$eager_target" systemAudioCaptureMode always
 assert_unset "$eager_target" screenAnalysisAutoStartFixed_v2
 assert_unset "$eager_target" screenAnalysisAutoStartFixed_v3
 
-"$MACOS_DIR/scripts/omi-settings-seed.sh" "$missing_target" "com.omi.missing-source-$$" >"$prefs_home/omi-settings-seed-missing.out"
-assert_defaults "$missing_target" screenAnalysisEnabled 1
-assert_defaults "$missing_target" transcriptionEnabled 0
-assert_defaults "$missing_target" devLazyPermissionsEnabled 1
+if "$MACOS_DIR/scripts/omi-settings-seed.sh" "$missing_target" "com.omi.desktop-dev" >"$prefs_home/omi-settings-seed-missing.out" 2>&1; then
+  fail "settings seed accepted a foreign Omi source"
+fi
+assert_unset "$missing_target" screenAnalysisEnabled
 
 # Verify eager mode fully undoes quiet defaults when re-seeding the same target.
 # Seed quiet first, then eager on the same target without source capture flags.
-quiet_then_eager_target="com.omi.codex-settings-qe-$$"
+quiet_then_eager_target="com.heyintentive.intentive.dev.omi-settings-qe-$$"
 cleanup_domains+=("$quiet_then_eager_target")
 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$quiet_then_eager_target" "$source_domain" >/dev/null
 # Source without capture flags to verify eager defaults kick in.
-bare_source="com.omi.codex-settings-bare-$$"
-cleanup_domains+=("$bare_source")
-defaults write "$bare_source" shortcut_askOmiEnabled -bool true
-OMI_DEV_EAGER_PERMISSIONS=1 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$quiet_then_eager_target" "$bare_source" >/dev/null
+defaults delete "$source_domain" >/dev/null 2>&1 || true
+defaults write "$source_domain" shortcut_askOmiEnabled -bool true
+OMI_DEV_EAGER_PERMISSIONS=1 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$quiet_then_eager_target" "$source_domain" >/dev/null
 assert_defaults "$quiet_then_eager_target" screenAnalysisEnabled 1
 assert_defaults "$quiet_then_eager_target" transcriptionEnabled 1
 assert_defaults "$quiet_then_eager_target" devLazyPermissionsEnabled 0

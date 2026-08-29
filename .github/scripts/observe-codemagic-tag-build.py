@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 CODEMAGIC_BUILDS_URL = "https://api.codemagic.io/builds"
-CANONICAL_WORKFLOW = "omi-desktop-swift-release"
+CANONICAL_WORKFLOW = "intentive-macos-release"
 SCHEMA = "codemagic-tag-build-observation/v1"
 TAG_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+-macos$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -80,7 +80,9 @@ def public_build(build: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def validate_inputs(*, app_id: str, release_tag: str, candidate_sha: str, timeout_seconds: int, poll_seconds: int) -> None:
+def validate_inputs(
+    *, app_id: str, release_tag: str, candidate_sha: str, timeout_seconds: int, poll_seconds: int
+) -> None:
     if not app_id:
         raise ValueError("app_id must not be empty")
     if not TAG_RE.fullmatch(release_tag):

@@ -148,9 +148,18 @@ describe("OmiArtifactStorage", () => {
 
   it("derives artifact root beside the per-bundle runtime state directory", () => {
     const root = defaultArtifactRoot({
-      OMI_AGENT_STATE_DIR: "/Users/me/Library/Application Support/Omi/AgentRuntime/com.omi.omi-test",
+      HEYINTENTIVE_AGENT_STATE_DIR:
+        "/Users/me/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-test/AgentRuntime",
     } as NodeJS.ProcessEnv);
 
-    expect(root).toBe("/Users/me/Library/Application Support/Omi/Artifacts/com.omi.omi-test");
+    expect(root).toBe(
+      "/Users/me/Library/Application Support/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-test/Artifacts"
+    );
+  });
+
+  it("fails closed without an injected owned artifact or state root", () => {
+    expect(() => defaultArtifactRoot({} as NodeJS.ProcessEnv)).toThrow(
+      "requires HEYINTENTIVE_AGENT_ARTIFACTS_DIR or HEYINTENTIVE_AGENT_STATE_DIR"
+    );
   });
 });

@@ -87,7 +87,7 @@ cd app && bash setup.sh ios    # or: bash setup.sh android
 </details>
 
 <p align="center">
-  <a href="https://macos.omi.me"><img src="docs/assets/readme/download-macos-badge.png" alt="Download for macOS" height="50"></a>
+  <strong>Intentive for macOS is not published yet.</strong><br>
   <a href="https://apps.apple.com/us/app/friend-ai-wearable/id6502156163"><img src="docs/assets/readme/download-appstore-badge.png" alt="Download on the App Store" height="50"></a>
   <a href="https://play.google.com/store/apps/details?id=com.friend.ios"><img src="docs/assets/readme/download-gplay-badge.png" alt="Get it on Google Play" height="50"></a>
 </p>

@@ -275,4 +275,20 @@ local_source="$(
 [[ "$(git -C "$local_source" rev-parse HEAD)" == "$SHA_A" ]] \
   || fail "local clone mode failed on full object store"
 
+# The no-override production default is an Intentive-owned cache under the
+# caller's home. Exercise it with a temporary HOME so this test never touches
+# the developer's real cache.
+DEFAULT_HOME="$TMP_ROOT/default-home"
+mkdir -p "$DEFAULT_HOME"
+default_source="$(
+  env -u OMI_QUALIFICATION_SWIFT_CACHE_ROOT \
+    HOME="$DEFAULT_HOME" \
+    "$CACHE_HELPER" prepare "$SHA_A" "$REPO_A" cache-default-root "$$" \
+    2>"$TMP_ROOT/default-root.err" | source_from_json
+)"
+case "$default_source" in
+  "$DEFAULT_HOME/Library/Caches/heyintentive-desktop/qualification-swiftpm-v2/"*) ;;
+  *) fail "default cache escaped Intentive root: $default_source" ;;
+esac
+
 echo "qualification Swift cache tests passed"

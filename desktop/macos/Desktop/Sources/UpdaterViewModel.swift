@@ -21,14 +21,14 @@ enum UpdateChannel: String, CaseIterable {
     }
   }
 
-  /// App display name based on update channel: "omi" for stable, "Omi Beta" for beta.
+  /// App display name based on update channel: "Intentive" for stable or Beta.
   /// Local hot-swap builds (self-beta.sh) stamp `OMISelfBuild=true` into Info.plist, so
   /// they show "Omi Beta (dev)" — a clear signal you're on a locally-rebuilt bundle, not a
   /// Codemagic-distributed one. A real Codemagic build never sets the key, and when it later
   /// replaces the hot-swap bundle via Sparkle the suffix disappears.
   static var appDisplayName: String {
     let channel = UserDefaults.standard.string(forKey: "update_channel") ?? "stable"
-    let base = (channel == "beta" || channel == "staging") ? "Omi Beta" : "omi"
+    let base = (channel == "beta" || channel == "staging") ? "Intentive Beta" : "Intentive"
     let isSelfBuild = (Bundle.main.object(forInfoDictionaryKey: "OMISelfBuild") as? Bool) ?? false
     return isSelfBuild ? "\(base) (dev)" : base
   }
@@ -80,32 +80,32 @@ struct UpdateFailureDiagnostics: Equatable {
   var userMessage: String {
     if isRecoverableLaunchLocation {
       return
-        "Omi cannot update from its current location. Move it to Applications, reopen it, then check again."
+        "Intentive cannot update from its current location. Move it to Applications, reopen it, then check again."
     }
 
     switch reason {
     case .appcastRetrieval:
       return
-        "Omi could not retrieve update information. You can try again or download the latest version manually."
+        "Intentive could not retrieve update information. You can try again or download the latest version manually."
     case .download:
       return
-        "Omi found an update but could not download it. You can try again or download the latest version manually."
+        "Intentive found an update but could not download it. You can try again or download the latest version manually."
     case .signature:
-      return "Omi could not verify the downloaded update. Download the latest version manually."
+      return "Intentive could not verify the downloaded update. Download the latest version manually."
     case .network:
       return
-        "Omi could not reach the update server. Check your connection or download the latest version manually."
+        "Intentive could not reach the update server. Check your connection or download the latest version manually."
     case .installerLaunch:
       return
-        "Omi downloaded an update but could not start the installer. Try again or download the latest version manually."
+        "Intentive downloaded an update but could not start the installer. Try again or download the latest version manually."
     case .noUpdate:
-      return "Omi is up to date."
+      return "Intentive is up to date."
     case .unknown:
       return
-        "Omi could not complete the update check. You can try again or download the latest version manually."
+        "Intentive could not complete the update check. You can try again or download the latest version manually."
     case .readOnlyLocation, .downloadsLocation, .temporaryLocation:
       return
-        "Omi cannot update from its current location. Move it to Applications, reopen it, then check again."
+        "Intentive cannot update from its current location. Move it to Applications, reopen it, then check again."
     }
   }
 
@@ -352,6 +352,18 @@ struct UpdateItemAnalytics {
 }
 
 /// Delegate to track Sparkle update events for analytics
+private final class ImmediateInstallationBlock: @unchecked Sendable {
+  private let block: () -> Void
+
+  init(_ block: @escaping () -> Void) {
+    self.block = block
+  }
+
+  func invoke() {
+    block()
+  }
+}
+
 final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 
   /// Back-reference to the view model (set after init)
@@ -551,107 +563,42 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     let version = item.displayVersionString
     logSync("Sparkle: Update v\(version) scheduled for install on quit")
 
-    guard !AnalyticsManager.isDevBuild else {
+    let immediateInstallation = ImmediateInstallationBlock(installationBlock)
+    return MainActor.assumeIsolated {
+      handleScheduledInstallation(
+        version: version,
+        activitySnapshotProvider: UpdateInstallationActivitySnapshot.current,
+        install: { immediateInstallation.invoke() }
+      )
+    }
+  }
+
+  /// Production seam used by Sparkle's install-on-quit callback. Dependencies
+  /// are injectable so tests execute this exact ownership decision without
+  /// constructing Sparkle framework objects or waiting on wall-clock timers.
+  @MainActor
+  func handleScheduledInstallation(
+    version: String,
+    isDevelopmentBuild: Bool = AnalyticsManager.isDevBuild,
+    scheduler: DelayedActionScheduling? = nil,
+    activitySnapshotProvider: @escaping @MainActor () -> UpdateInstallationActivitySnapshot,
+    install: @escaping @MainActor () -> Void
+  ) -> Bool {
+    guard !isDevelopmentBuild else {
       logSync("Sparkle: Leaving update scheduled for quit because this is a development build")
       return false
     }
 
-    if let lastSpeech = VADGateService.lastSpeechAt {
-      let secondsSinceSpeech = Date().timeIntervalSince(lastSpeech)
-      if secondsSinceSpeech < UpdaterDelegate.activeCallSilenceWindow {
-        logSync(
-          "Sparkle: Deferring update v\(version) — speech detected \(Int(secondsSinceSpeech))s ago (active recording)"
-        )
-        deferredInstall = DeferredUpdateInstall(
-          version: version,
-          silenceWindow: UpdaterDelegate.activeCallSilenceWindow,
-          lastSpeechProvider: { VADGateService.lastSpeechAt },
-          install: installationBlock
-        )
-        deferredInstall?.start()
-        return true
-      }
-    }
-
-    logSync("Sparkle: Triggering immediate installation for v\(version)")
-    installationBlock()
+    deferredInstall?.cancel()
+    let deferred = DeferredUpdateInstall(
+      version: version,
+      scheduler: scheduler,
+      activitySnapshotProvider: activitySnapshotProvider,
+      install: install
+    )
+    deferredInstall = deferred
+    deferred.start()
     return true
-  }
-
-  /// Minimum seconds of VAD silence required before an auto-install is allowed.
-  /// Matches the typical pause threshold at which a real conversation has wound down.
-  fileprivate static let activeCallSilenceWindow: TimeInterval = 120
-}
-
-final class DeferredUpdateInstall {
-  private static let minimumRetryDelay: TimeInterval = 5
-
-  private let version: String
-  private let silenceWindow: TimeInterval
-  private let lastSpeechProvider: () -> Date?
-  private let install: () -> Void
-  private var pendingWorkItem: DispatchWorkItem?
-  private var didInstall = false
-
-  init(
-    version: String,
-    silenceWindow: TimeInterval,
-    lastSpeechProvider: @escaping () -> Date?,
-    install: @escaping () -> Void
-  ) {
-    self.version = version
-    self.silenceWindow = silenceWindow
-    self.lastSpeechProvider = lastSpeechProvider
-    self.install = install
-  }
-
-  deinit {
-    pendingWorkItem?.cancel()
-  }
-
-  func start(now: Date = Date()) {
-    pendingWorkItem?.cancel()
-    scheduleNextCheck(now: now)
-  }
-
-  private func scheduleNextCheck(now: Date) {
-    guard !didInstall else { return }
-
-    if let delay = Self.nextDelay(
-      now: now,
-      lastSpeechAt: lastSpeechProvider(),
-      silenceWindow: silenceWindow,
-      minimumRetryDelay: Self.minimumRetryDelay
-    ) {
-      logSync(
-        "Sparkle: Deferred install for v\(version) will retry after \(Int(ceil(delay)))s of remaining silence"
-      )
-      let workItem = DispatchWorkItem { [weak self] in
-        self?.scheduleNextCheck(now: Date())
-      }
-      pendingWorkItem = workItem
-      DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
-      return
-    }
-
-    didInstall = true
-    pendingWorkItem = nil
-    logSync("Sparkle: Silence window satisfied, installing deferred update v\(version)")
-    install()
-  }
-
-  static func nextDelay(
-    now: Date,
-    lastSpeechAt: Date?,
-    silenceWindow: TimeInterval,
-    minimumRetryDelay: TimeInterval = minimumRetryDelay
-  ) -> TimeInterval? {
-    guard let lastSpeechAt else { return nil }
-
-    let secondsSinceSpeech = now.timeIntervalSince(lastSpeechAt)
-    guard secondsSinceSpeech < silenceWindow else { return nil }
-
-    return max(minimumRetryDelay, silenceWindow - secondsSinceSpeech)
   }
 }
 

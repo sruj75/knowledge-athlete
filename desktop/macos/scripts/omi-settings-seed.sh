@@ -6,15 +6,24 @@
 # per-bundle state that make named bundles harder to reason about.
 #
 # Usage: omi-settings-seed.sh <target-bundle-id> [source-bundle-id]
-#   target-bundle-id  e.g. com.omi.omi-fix-rewind  (a named test bundle)
-#   source-bundle-id  default: com.omi.desktop-dev   (the "Omi Dev" build)
+#   target-bundle-id  e.g. com.heyintentive.intentive.dev.omi-fix-rewind
+#   source-bundle-id  default: com.heyintentive.intentive.dev
 #
 # Set OMI_DEV_EAGER_PERMISSIONS=1 to preserve eager post-onboarding behavior
 # for permission-flow parity testing.
 set -euo pipefail
 
 TARGET="${1:?usage: omi-settings-seed.sh <target-bundle-id> [source-bundle-id]}"
-SRC="${2:-com.omi.desktop-dev}"
+SRC="${2:-com.heyintentive.intentive.dev}"
+
+if ! [[ "$TARGET" =~ ^com\.heyintentive\.intentive\.dev\.omi-[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Refusing settings seed into non-disposable Intentive named bundle '$TARGET'." >&2
+  exit 1
+fi
+if [ "$SRC" != "com.heyintentive.intentive.dev" ]; then
+  echo "Refusing settings seed from non-canonical Intentive development source '$SRC'." >&2
+  exit 1
+fi
 
 python3 - "$SRC" "$TARGET" <<'PY'
 import plistlib
@@ -86,13 +95,13 @@ def defaults_export(domain):
 
 source = defaults_export(src)
 if not source:
-    print(f"No defaults found for {src}; applying target-only dev defaults")
+    raise SystemExit(f"No defaults found for owned source {src}; refusing parity seed")
 
 target_data = defaults_export(target)
 selected = {key: source[key] for key in KEYS if key in source}
 
 if not env_truthy("OMI_DEV_EAGER_PERMISSIONS"):
-    # Named dev bundles reuse auth/onboarding from Omi Dev, but macOS treats
+    # Named dev bundles reuse auth/onboarding from canonical Intentive Dev, but macOS treats
     # each bundle ID as a fresh TCC identity. Keep non-screen services quiet,
     # while leaving screen capture enabled: the runtime checks TCC without
     # requesting it, then starts capture automatically after permission exists.

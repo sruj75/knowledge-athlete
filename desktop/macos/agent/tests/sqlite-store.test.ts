@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
-import { probeNodeSqliteRuntime, SqliteAgentStore } from "../src/runtime/sqlite-store.js";
+import {
+  databasePathForStateDir,
+  probeNodeSqliteRuntime,
+  SqliteAgentStore,
+} from "../src/runtime/sqlite-store.js";
 
 const createdDirs: string[] = [];
 
@@ -14,6 +18,12 @@ afterEach(() => {
 });
 
 describe("SqliteAgentStore", () => {
+  it("uses the owned agent database filename beneath the injected state root", () => {
+    expect(databasePathForStateDir("/tmp/intentive-agent-state")).toBe(
+      "/tmp/intentive-agent-state/heyintentive-agent.sqlite3"
+    );
+  });
+
   it("runs runtime and desktop coordinator migrations idempotently", () => {
     const store = newStore({ reconcileOnOpen: false });
 
@@ -1443,9 +1453,9 @@ function newStore(options: { reconcileOnOpen: boolean }): SqliteAgentStore {
 }
 
 function newDatabasePath(): string {
-  const dir = mkdtempSync(join(tmpdir(), "omi-agent-store-"));
+  const dir = mkdtempSync(join(tmpdir(), "heyintentive-agent-store-"));
   createdDirs.push(dir);
-  return join(dir, "omi-agentd.sqlite3");
+  return join(dir, "heyintentive-agent.sqlite3");
 }
 
 function insertRowsAsDowngradedWriter(

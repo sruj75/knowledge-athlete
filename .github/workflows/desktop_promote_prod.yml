@@ -25,28 +25,45 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GCS_DESKTOP_UPDATES_BUCKET: ${{ vars.GCS_DESKTOP_UPDATES_BUCKET || 'gs://omi_macos_updates' }}
+  GCS_DESKTOP_UPDATES_BUCKET: ${{ vars.GCS_DESKTOP_UPDATES_BUCKET }}
+  INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
 
 jobs:
   promote:
     environment: prod
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout promotion controls
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
+      - name: Checkout promotion candidate
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_tag }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify live canonical backend chat compatibility
         run: |
           set -euo pipefail
+          [[ "$GCS_DESKTOP_UPDATES_BUCKET" == gs://* ]] || {
+            echo "GCS_DESKTOP_UPDATES_BUCKET must be one owned gs:// bucket." >&2
+            exit 1
+          }
           curl -fsS --max-time 15 \
-            https://api.omi.me/v1/health \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/v1/health" \
             > /tmp/backend-process-health.json
           jq -e '.status == "ok"' /tmp/backend-process-health.json >/dev/null
           curl -fsS --max-time 15 \
-            https://api.omi.me/ \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/" \
             > /tmp/backend-compatibility.json
           jq -e '
             .status == "healthy"
@@ -55,12 +72,12 @@ jobs:
           ' /tmp/backend-compatibility.json >/dev/null
           rm -f /tmp/backend-process-health.json /tmp/backend-compatibility.json
 
-      - name: Generate Omi Bot token
+      - name: Generate Intentive release app token
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.OMI_BOT_APP_ID }}
-          private-key: ${{ secrets.OMI_BOT_PRIVATE_KEY }}
+          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Select and validate the exact trusted qualification
         id: candidate
@@ -103,7 +120,9 @@ jobs:
         run: |
           set -euo pipefail
           ADMIN_KEY=$(gcloud secrets versions access latest --secret=ADMIN_KEY --project "$PROJECT_ID")
-          curl -fsS -H "secret-key: $ADMIN_KEY" "https://api.omi.me/v2/desktop/releases/$RELEASE_TAG" > /tmp/desktop-manifest-response.json
+          curl -fsS -H "secret-key: $ADMIN_KEY" \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/releases/$RELEASE_TAG" \
+            > /tmp/desktop-manifest-response.json
           jq '.manifest' /tmp/desktop-manifest-response.json > /tmp/desktop-release-manifest.json
           python3 - <<'PY'
           import hashlib, json
@@ -178,28 +197,10 @@ jobs:
           print(json.dumps(payload))
           PY
           curl -fsS -X POST -H 'Content-Type: application/json' -H "secret-key: $ADMIN_KEY" \
-            --data-binary @/tmp/desktop-stable-pointer.json https://api.omi.me/v2/desktop/channels/promote \
+            --data-binary @/tmp/desktop-stable-pointer.json \
+            "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/channels/promote" \
             > /tmp/desktop-stable-pointer-response.json
           python3 -m json.tool /tmp/desktop-stable-pointer-response.json
-
-      - name: Bridge stable for legacy desktop clients
-        env:
-          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-        run: |
-          set -euo pipefail
-          SERVICE_URL=https://api.omi.me
-          RELEASE_SECRET=$(gcloud secrets versions access latest --secret=RELEASE_SECRET --project "$PROJECT_ID")
-          python3 - <<'PY' > /tmp/legacy-desktop-release.json
-          import json
-          manifest = json.load(open('/tmp/desktop-release-manifest.json'))
-          print(json.dumps({"version": manifest["version"], "build_number": manifest["build_number"],
-              "download_url": manifest["zip_url"], "ed_signature": manifest["ed_signature"], "changelog": manifest["changelog"],
-              "is_live": True, "is_critical": manifest["mandatory"], "channel": "stable"}))
-          PY
-          RESPONSE=$(curl -sS -w '\n%{http_code}' -X POST -H 'Content-Type: application/json' \
-            -H "X-Release-Secret: $RELEASE_SECRET" --data-binary @/tmp/legacy-desktop-release.json "${SERVICE_URL%/}/updates/releases")
-          CODE=$(printf '%s\n' "$RESPONSE" | tail -n1)
-          test "$CODE" = 201 -o "$CODE" = 409 || { printf '%s\n' "$RESPONSE" >&2; exit 1; }
 
       - name: Publish latest stable repair route
         env:
@@ -219,7 +220,7 @@ jobs:
           set -euo pipefail
           gh release view "$RELEASE_TAG" --repo "$REPO" --json body -q .body > /tmp/release-body.md
           python3 .github/scripts/mark-desktop-release-stable.py --input /tmp/release-body.md --output /tmp/release-body-stable.md
-          gh release edit "$RELEASE_TAG" --repo "$REPO" --title "Omi Desktop ${RELEASE_TAG#v}" --notes-file /tmp/release-body-stable.md
+          gh release edit "$RELEASE_TAG" --repo "$REPO" --title "Intentive ${RELEASE_TAG#v}" --notes-file /tmp/release-body-stable.md
 
       - name: Verify exact pointer, hashes, and stable feed
         env:
@@ -241,6 +242,7 @@ jobs:
           for key in ('zip_sha256', 'dmg_sha256'):
               if manifest.get(key, {}).get('stringValue') != expected[key]: sys.exit(f'manifest {key} mismatch')
           PY
-          curl -fsS 'https://api.omi.me/v2/desktop/appcast.xml?identity=stable' > /tmp/stable-appcast.xml
+          curl -fsS "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/appcast.xml?identity=stable" \
+            > /tmp/stable-appcast.xml
           python3 .github/scripts/verify_stable_appcast.py --manifest /tmp/desktop-release-manifest.json --feed /tmp/stable-appcast.xml
           echo "Stable pointer, exact manifest hashes, and appcast verified for $RELEASE_TAG." >> "$GITHUB_STEP_SUMMARY"

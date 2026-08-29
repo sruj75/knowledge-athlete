@@ -1,0 +1,104 @@
+definitions:
+  intentive_macos_steps: &intentive_macos_steps
+    - name: Validate owned inputs and exact source
+      script: scripts/codemagic-release.sh validate
+    - name: Import owned Developer ID identity
+      script: scripts/codemagic-release.sh import-signing
+    - name: Build universal app and dSYM
+      script: scripts/codemagic-release.sh build
+    - name: Prepare pinned libwebp and sign nested code
+      script: scripts/codemagic-release.sh sign-nested
+    - name: Sign outer release bundle
+      script: scripts/codemagic-release.sh sign-outer
+    - name: Notarize and staple release artifacts
+      script: scripts/codemagic-release.sh notarize
+    - name: Sign Sparkle archives
+      script: scripts/codemagic-release.sh sparkle
+    - name: Upload exact dSYM to Sentry
+      script: scripts/codemagic-release.sh symbols
+    - name: Smoke signed artifacts
+      script: scripts/codemagic-release.sh smoke
+    - name: Publish immutable artifact and evidence
+      script: scripts/codemagic-release.sh publish
+
+workflows:
+  intentive-macos-release:
+    name: Build Intentive macOS candidate
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    working_directory: desktop/macos
+    environment:
+      groups:
+        - intentive_macos_signing
+        - intentive_macos_release
+      vars:
+        PREVIEW_MODE: "false"
+        PREVIEW_PUBLICATION_MODE: "preview-only"
+        APP_NAME: "Intentive"
+        BINARY_NAME: "Omi Computer"
+        BUNDLE_ID: "com.heyintentive.intentive"
+        URL_SCHEME: "heyintentive"
+        BETA_APP_NAME: "Intentive Beta"
+        BETA_BUNDLE_ID: "com.heyintentive.intentive.beta"
+        BETA_URL_SCHEME: "heyintentive-beta"
+        APPLE_TEAM_ID: "24D6NXS6H7"
+        CODEMAGIC_APP_ID: "6a8ff0296fc70d39540cb56a"
+        GITHUB_REPOSITORY: "sruj75/knowledge-athlete"
+        GITHUB_RELEASES_URL: "https://github.com/sruj75/knowledge-athlete/releases"
+        BUILD_DIR: "build"
+        DMGBUILD_VERSION: "1.6.7"
+      xcode: 16.4
+    cache:
+      cache_paths:
+        - ~/Library/Caches/org.swift.swiftpm
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: "v*-macos"
+          include: true
+      cancel_previous_builds: false
+    scripts: *intentive_macos_steps
+    artifacts:
+      - desktop/macos/build/Intentive.app
+      - desktop/macos/build/Intentive.zip
+      - desktop/macos/build/intentive.dmg
+      - desktop/macos/build/Intentive.Beta.zip
+      - desktop/macos/build/intentive-beta.dmg
+      - desktop/macos/build/Intentive.app.dSYM.zip
+      - desktop/macos/build/desktop-smoke-result.json
+      - desktop/macos/build/desktop-smoke-result-beta.json
+
+  # Manual/API-only. GitHub's protected preview dispatcher binds the approved
+  # full SHA before this workflow receives any preview-only provider secrets.
+  intentive-macos-preview:
+    name: Build Intentive macOS preview
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    working_directory: desktop/macos
+    environment:
+      groups:
+        - intentive_macos_signing
+        - intentive_macos_preview
+      vars:
+        PREVIEW_MODE: "true"
+        PREVIEW_PUBLICATION_MODE: "preview-only"
+        APP_NAME: "Intentive Preview"
+        BINARY_NAME: "Omi Computer"
+        BUNDLE_ID: "com.heyintentive.intentive.preview.pending"
+        URL_SCHEME: "heyintentive-preview-pending"
+        APPLE_TEAM_ID: "24D6NXS6H7"
+        CODEMAGIC_APP_ID: "6a8ff0296fc70d39540cb56a"
+        GITHUB_REPOSITORY: "sruj75/knowledge-athlete"
+        GITHUB_RELEASES_URL: "https://github.com/sruj75/knowledge-athlete/releases"
+        BUILD_DIR: "build"
+        DMGBUILD_VERSION: "1.6.7"
+      xcode: 16.4
+    cache:
+      cache_paths:
+        - ~/Library/Caches/org.swift.swiftpm
+    scripts: *intentive_macos_steps
+    artifacts:
+      - desktop/macos/build/*.app
+      - desktop/macos/build/Intentive-Preview.dmg
+      - desktop/macos/build/desktop-smoke-result.json

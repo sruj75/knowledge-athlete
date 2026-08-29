@@ -39,6 +39,7 @@ covers:
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+QuerySurface.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+HarnessReset.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ChatCompute.swift
+  - desktop/macos/Desktop/Sources/Services/QueryTracer.swift
   - desktop/macos/Desktop/Sources/Chat/LocalChatAttachmentStore.swift
   - desktop/macos/Desktop/Sources/Chat/LocalChatCatalog.swift
   - desktop/macos/Desktop/Sources/Chat/AgentBridge.swift

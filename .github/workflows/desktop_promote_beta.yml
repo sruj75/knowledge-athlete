@@ -61,14 +61,27 @@ jobs:
     environment: beta
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
       - name: Ask the backend to admit and promote the exact qualified candidate
         env:
           BETA_PROMOTION_TOKEN: ${{ secrets.BETA_PROMOTION_TOKEN }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
           RELEASE_TAG: ${{ needs.resolve-candidate.outputs.release_tag }}
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
-            --request POST https://api.omi.me/v2/desktop/beta/promote-qualified \
+            --request POST "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/promote-qualified" \
             --header "Authorization: Bearer ${BETA_PROMOTION_TOKEN}" \
             --header 'Content-Type: application/json' \
             --data "{\"tag\":\"${RELEASE_TAG}\"}"

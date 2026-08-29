@@ -39,7 +39,7 @@ enum AuthStorageCanary {
   static var isRequested: Bool { requestedResultPath != nil }
 
   static func execute(hooks: Hooks = .live) -> Result {
-    let service = DesktopKeychainStore.scopedService(DesktopKeychainStore.legacyAuthTokenService)
+    let service = DesktopKeychainStore.scopedService(DesktopKeychainStore.authTokenServiceBase)
     let sentinel = "omi-auth-canary-\(UUID().uuidString)"
 
     hooks.delete(service, account)

@@ -84,7 +84,7 @@ This ensures newly captured screenshots always have embeddings, independent of b
 
 1. **Simulate old user with embeddings**:
    ```bash
-   sqlite3 ~/Library/Application\ Support/Omi/omi.db "
+   sqlite3 ~/Library/Application\ Support/Intentive/heyintentive.db "
    UPDATE migration_status
    SET completed = 1
    WHERE name = 'screenshot_embedding_backfill'
@@ -93,7 +93,7 @@ This ensures newly captured screenshots always have embeddings, independent of b
 
 2. **Check pre-migration state**:
    ```bash
-   sqlite3 ~/Library/Application\ Support/Omi/omi.db "
+   sqlite3 ~/Library/Application\ Support/Intentive/heyintentive.db "
    SELECT COUNT(*) FROM screenshots WHERE embedding IS NOT NULL
    "
    ```
@@ -102,7 +102,7 @@ This ensures newly captured screenshots always have embeddings, independent of b
 
 4. **Verify migration ran**:
    ```bash
-   sqlite3 ~/Library/Application\ Support/Omi/omi.db "
+   sqlite3 ~/Library/Application\ Support/Intentive/heyintentive.db "
    SELECT completed, processedCount FROM migration_status
    WHERE name = 'screenshot_embedding_backfill'
    "
@@ -111,7 +111,7 @@ This ensures newly captured screenshots always have embeddings, independent of b
 
 5. **Watch backfill logs**:
    ```bash
-   tail -f /private/tmp/omi.log | grep OCREmbedding
+   tail -f "$(./scripts/omi-ctl log-path)" | grep OCREmbedding
    ```
 
 ### Test Semantic Search
@@ -129,7 +129,7 @@ Expected: Top results should be semantically relevant to each query.
 ### Check Current Status
 
 ```bash
-sqlite3 ~/Library/Application\ Support/Omi/omi.db "
+sqlite3 ~/Library/Application\ Support/Intentive/heyintentive.db "
 SELECT
     completed,
     processedCount,
@@ -143,7 +143,7 @@ WHERE name = 'screenshot_embedding_backfill'
 ### Check Embedding Coverage
 
 ```bash
-sqlite3 ~/Library/Application\ Support/Omi/omi.db "
+sqlite3 ~/Library/Application\ Support/Intentive/heyintentive.db "
 SELECT
     COUNT(*) as total_screenshots,
     SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) as with_embeddings,

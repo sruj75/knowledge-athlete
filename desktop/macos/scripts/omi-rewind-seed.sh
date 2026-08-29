@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # omi-rewind-seed.sh — take a one-time, consistent Rewind snapshot for a named bundle.
 #
-# Auth and settings make a named bundle feel like Omi Dev, but Rewind history is
+# Auth and settings can make a named bundle match canonical Intentive Dev, but Rewind history is
 # local. Copy a safe SQLite snapshot plus the frame assets on first launch so a
 # QA bundle starts with the same user history while keeping a separate writable
 # profile. Existing named profiles are left alone unless OMI_FORCE_REWIND_SEED=1.
@@ -10,8 +10,12 @@
 set -euo pipefail
 
 TARGET_BUNDLE_ID="${1:?usage: omi-rewind-seed.sh <target-bundle-id>}"
-SOURCE_ROOT="${OMI_REWIND_SEED_SOURCE_ROOT:-$HOME/Library/Application Support/Omi}"
-TARGET_ROOT="${OMI_REWIND_SEED_TARGET_ROOT:-$HOME/Library/Application Support/Omi Dev Bundles/$TARGET_BUNDLE_ID}"
+if ! [[ "$TARGET_BUNDLE_ID" =~ ^com\.heyintentive\.intentive\.dev\.omi-[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Refusing Rewind seed into non-disposable Intentive named bundle '$TARGET_BUNDLE_ID'." >&2
+  exit 1
+fi
+SOURCE_ROOT="${OMI_REWIND_SEED_SOURCE_ROOT:-$HOME/Library/Application Support/Intentive Dev}"
+TARGET_ROOT="${OMI_REWIND_SEED_TARGET_ROOT:-$HOME/Library/Application Support/Intentive Dev Bundles/$TARGET_BUNDLE_ID}"
 FORCE_SEED="${OMI_FORCE_REWIND_SEED:-0}"
 
 if [ -n "${OMI_REWIND_SEED_USER_ID:-}" ]; then
@@ -35,10 +39,10 @@ esac
 SOURCE_USER_DIR="$SOURCE_ROOT/users/$USER_ID"
 TARGET_USERS_DIR="$TARGET_ROOT/users"
 TARGET_USER_DIR="$TARGET_USERS_DIR/$USER_ID"
-SOURCE_DB="$SOURCE_USER_DIR/omi.db"
+SOURCE_DB="$SOURCE_USER_DIR/heyintentive.db"
 
 if [ ! -f "$SOURCE_DB" ]; then
-  echo "Rewind seed skipped: no Omi Dev Rewind profile for this user"
+  echo "Rewind seed skipped: no canonical Intentive Dev Rewind profile for this user"
   exit 0
 fi
 
@@ -47,7 +51,7 @@ if [ "$SOURCE_USER_DIR" = "$TARGET_USER_DIR" ]; then
   exit 0
 fi
 
-if [ -f "$TARGET_USER_DIR/omi.db" ] && [ "$FORCE_SEED" != "1" ]; then
+if [ -f "$TARGET_USER_DIR/heyintentive.db" ] && [ "$FORCE_SEED" != "1" ]; then
   echo "Rewind seed skipped: named bundle already has a Rewind profile"
   exit 0
 fi
@@ -69,11 +73,11 @@ from pathlib import Path
 
 source = Path(sys.argv[1])
 target = Path(sys.argv[2])
-source_db = source / "omi.db"
-target_db = target / "omi.db"
+source_db = source / "heyintentive.db"
+target_db = target / "heyintentive.db"
 
 # SQLite's backup API reads a coherent snapshot even while Omi Dev is writing
-# through WAL. Copying omi.db plus its WAL/SHM files would not have that safety.
+# through WAL. Copying the database plus its WAL/SHM files would not have that safety.
 source_connection = sqlite3.connect(f"{source_db.as_uri()}?mode=ro", uri=True)
 target_connection = sqlite3.connect(target_db)
 try:
@@ -84,7 +88,7 @@ finally:
     source_connection.close()
 
 # These are the Rewind assets referenced by relative database paths. Backups are
-# useful for parity with Omi Dev and remain independent after the import.
+# useful for parity with canonical Intentive Dev and remain independent after the import.
 for name in ("Screenshots", "Videos", "backups"):
     source_item = source / name
     if source_item.is_dir():

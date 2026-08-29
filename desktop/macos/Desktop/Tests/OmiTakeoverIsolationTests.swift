@@ -92,8 +92,14 @@ final class OmiTakeoverIsolationTests: XCTestCase {
       "Initialization accessed synthetic foreign storage: \(foreignAccesses)")
 
     let targetOwnerRoot = productRoot.appendingPathComponent("users/target-owner", isDirectory: true)
-    let targetDatabase = targetOwnerRoot.appendingPathComponent("omi.db")
+    let targetDatabase = targetOwnerRoot.appendingPathComponent("heyintentive.db")
     XCTAssertTrue(FileManager.default.fileExists(atPath: targetDatabase.path))
+    let targetRunningFlag = targetOwnerRoot.appendingPathComponent(".heyintentive_running")
+    XCTAssertTrue(
+      recorder.snapshot().contains { operation, path in
+        operation == .createFile && path == targetRunningFlag.path
+      },
+      "Initialization must create only the owned target crash-recovery flag")
     let targetQueue = try DatabaseQueue(path: targetDatabase.path)
     let importedForeignTable = try await targetQueue.read { database in
       try database.tableExists("foreign_sentinel")

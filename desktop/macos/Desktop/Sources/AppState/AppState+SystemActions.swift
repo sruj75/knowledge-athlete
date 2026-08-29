@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Combine
+import OmiSupport
 import SwiftUI
 @preconcurrency import UserNotifications
 
@@ -201,31 +202,17 @@ extension AppState {
       arguments: ["-kill", "-r", "-domain", "local", "-domain", "user"])
   }
 
-  /// Clean user TCC database entries for Omi apps
-  nonisolated func cleanUserTCCDatabase() {
-    let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-    let tccDbPath = "\(homeDir)/Library/Application Support/com.apple.TCC/TCC.db"
-
-    SystemCommand.runLogging(
-      "Clean user TCC database (production bundle)",
-      executable: "/usr/bin/sqlite3",
-      arguments: [tccDbPath, "DELETE FROM access WHERE client LIKE '%com.omi.computer-macos%';"])
-
-    // Also clean entries for non-production Omi bundles (for example com.omi.desktop-dev, com.omi.1233).
-    SystemCommand.runLogging(
-      "Clean user TCC database (non-production bundles)",
-      executable: "/usr/bin/sqlite3",
-      arguments: [
-        tccDbPath,
-        "DELETE FROM access WHERE client LIKE 'com.omi.%' AND client != 'com.omi.computer-macos';",
-      ])
-  }
-
   /// Reset microphone permission using tccutil (Option 1: Direct)
   /// Returns true if the reset command was executed successfully
   /// If shouldRestart is true, the app will restart after reset
   nonisolated func resetMicrophonePermissionDirect(shouldRestart: Bool = false) -> Bool {
-    let bundleId = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleId = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else {
+      log("Refusing microphone permission reset for an unknown bundle identity")
+      return false
+    }
     log("Resetting microphone permission for \(bundleId) via tccutil...")
 
     let success = SystemCommand.runLogging(
@@ -243,7 +230,13 @@ extension AppState {
   /// Reset microphone permission via Terminal (Option 2: Visible to user)
   /// If shouldRestart is true, the app will restart after the terminal command
   func resetMicrophonePermissionViaTerminal(shouldRestart: Bool = false) {
-    let bundleId = Bundle.main.bundleIdentifier ?? "com.omi.computer-macos"
+    guard
+      let bundleId = DesktopProductIdentity(bundleIdentifier: Bundle.main.bundleIdentifier)?
+        .bundleIdentifier
+    else {
+      log("Refusing microphone permission reset for an unknown bundle identity")
+      return
+    }
     let appPath = Bundle.main.bundleURL.path
     log("Opening Terminal to reset microphone permission for \(bundleId)...")
 

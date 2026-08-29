@@ -43,15 +43,22 @@ exit 0
 EOF
   chmod +x "$TMP/stubs/$tool"
 done
-if PATH="$TMP/stubs:$PATH" "$SMOKE" run --bundle-id com.omi.computer-macos >"$TMP/prod.out" 2>&1; then
+if PATH="$TMP/stubs:$PATH" "$SMOKE" run --bundle-id com.heyintentive.intentive >"$TMP/prod.out" 2>&1; then
   fail "production bundle was not refused"
 fi
 grep -q "refusing" "$TMP/prod.out" || fail "prod refusal did not print a refusal message"
 ls "$TMP"/side-effect-* >/dev/null 2>&1 && fail "prod refusal touched a side-effectful tool before exiting"
-# Non-omi-* test bundles (incl. the shared dev profile) are refused too.
-if "$SMOKE" run --bundle-id com.omi.desktop-dev >/dev/null 2>&1; then
-  fail "non omi-* bundle was not refused"
-fi
+# Beta, canonical dev, foreign, and malformed named identities are refused too.
+for refused in \
+  com.heyintentive.intentive.beta \
+  com.heyintentive.intentive.dev \
+  com.omi.computer-macos \
+  com.heyintentive.intentive.dev.omi- \
+  com.heyintentive.intentive.dev.omi-trailing-; do
+  if "$SMOKE" run --bundle-id "$refused" >/dev/null 2>&1; then
+    fail "protected, foreign, or malformed bundle was not refused: $refused"
+  fi
+done
 
 # 4. Unknown probe id → usage error (exit 2).
 set +e
@@ -97,7 +104,7 @@ eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1Njc4OTAxMjM0NTY3ODkwIn0
 AIzaSyA1234567890abcdefghijklmnopqrstu
 Bearer abcdefghijklmnopqrstuvwx
 omi_mcp_abcdef12345678
-omi_auto_abcdef1234567890abcd
+heyintentive_auto_abcdef1234567890abcd
 AMf-abcdefghijklmnopqrstuv
 refreshToken: abcdefghijklmnopqrstu/+123
 PATTERNS

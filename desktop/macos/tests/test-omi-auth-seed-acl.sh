@@ -57,8 +57,13 @@ cat >"$TMP/auth.json" <<'JSON'
 JSON
 
 # Use a throwaway defaults domain + fake team via missing app (adhoc.<bundle>).
-BID="com.omi.omi-acl-seed-ud-$$"
+BID="com.heyintentive.intentive.dev.omi-acl-seed-ud-$$"
 defaults delete "$BID" >/dev/null 2>&1 || true
+
+if "$SEED" "com.omi.omi-acl-seed-ud-$$" "$TMP/auth.json" >/dev/null 2>&1; then
+  echo "FAIL: auth seed accepted a foreign Omi bundle" >&2
+  FAIL=1
+fi
 "$SEED" "$BID" "$TMP/auth.json" >/dev/null
 ID="$(defaults read "$BID" auth_idToken 2>/dev/null || true)"
 REFRESH="$(defaults read "$BID" auth_refreshToken 2>/dev/null || true)"

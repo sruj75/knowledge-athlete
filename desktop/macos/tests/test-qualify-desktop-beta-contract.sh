@@ -49,7 +49,7 @@ require_text 'defaults write "$BUNDLE_ID" devLazyPermissionsEnabled -bool true' 
 require_text 'defaults write "$BUNDLE_ID" screenAnalysisEnabled -bool false' "$PROFILE_PREP"
 require_text 'defaults write "$BUNDLE_ID" transcriptionEnabled -bool false' "$PROFILE_PREP"
 require_text '"$SCRIPT_DIR/prepare-qualification-profile.sh" "$BUNDLE"' "$QUALIFIER"
-require_text 'OMI_SKIP_SETTINGS_SEED=1'
+require_text 'OMI_SEED_FROM_CANONICAL_DEV=0'
 require_text 'make desktop-run-local DESKTOP_APP_NAME="$BUNDLE" DESKTOP_USER=alice'
 # omi-test-quality: source-inspection -- static contract: detached qualification
 # launches must persist token-bound provenance and can never fall back to broad
@@ -234,7 +234,7 @@ fi
 # compare against the same slugged identity run.sh installs.
 source "$APP_CONFIG"
 derive_omi_app_config 'omi-qualification-0.12.69+12069'
-if [[ "$BUNDLE_ID" != 'com.omi.omi-qualification-0-12-69-12069' ]]; then
+if [[ "$BUNDLE_ID" != 'com.heyintentive.intentive.dev.omi-qualification-0-12-69-12069' ]]; then
   echo "FAIL: qualification bundle ID was not canonically slugged: $BUNDLE_ID" >&2
   exit 1
 fi

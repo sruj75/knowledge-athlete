@@ -66,7 +66,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
             output = Path(directory) / "github-output"
             base_env = {
                 **clean_git_environment(dict(os.environ)),
-                "BACKEND_ENVIRONMENT": "preview",
+                "BACKEND_ENVIRONMENT": "development",
                 "GITHUB_OUTPUT": str(output),
             }
             script = self._preview_workflow_script("Validate the declared backend environment")
@@ -100,7 +100,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
 
     def _create_candidate_remote(self, root: Path) -> tuple[Path, str]:
         server = root / "git-server"
-        remote = server / "BasedHardware" / "omi.git"
+        remote = server / "sruj75" / "knowledge-athlete.git"
         source = root / "candidate-source"
         remote.parent.mkdir(parents=True)
         source.mkdir()
@@ -145,7 +145,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
 
     def test_only_m1_studio_can_qualify(self) -> None:
         self.assertIn("qualify-m1-studio:", self.workflow)
-        self.assertIn("omi-qual-m1-studio", self.workflow)
+        self.assertIn("intentive-qual-m1-studio", self.workflow)
         self.assertIn("needs: qualify-m1-studio", self.workflow)
         self.assertNotIn("codemagic-lane", self.workflow)
         self.assertNotIn("omi-qual-m4-mini", self.workflow)
@@ -171,8 +171,10 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
             "Verify live canonical backend chat compatibility",
             '.status == "ok"',
             '.chat_contract_version == "1"',
-            "https://api.omi.me/v1/health",
-            "https://api.omi.me/ \\",
+            "INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}",
+            '"${INTENTIVE_PRODUCTION_API_URL%/}/v1/health"',
+            '"${INTENTIVE_PRODUCTION_API_URL%/}/"',
+            "Inherited backend hosts are forbidden",
             "backend-compatibility.json",
         ):
             self.assertIn(fragment, self.workflow)
@@ -242,7 +244,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
                 "GITHUB_RUN_ATTEMPT": run_attempt,
                 "QUALIFICATION_STAGE": str(stage),
                 "GITHUB_SERVER_URL": server.as_uri(),
-                "GITHUB_REPOSITORY": "BasedHardware/omi",
+                "GITHUB_REPOSITORY": "sruj75/knowledge-athlete",
                 "RELEASE_TAG": RELEASE_TAG,
                 "ref": RELEASE_TAG,
                 "OMI_QUALIFICATION_MINIMUM_FREE_KIB": "1",
@@ -355,7 +357,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
                 "GITHUB_RUN_ATTEMPT": run_attempt,
                 "QUALIFICATION_STAGE": str(stage),
                 "GITHUB_SERVER_URL": server.as_uri(),
-                "GITHUB_REPOSITORY": "BasedHardware/omi",
+                "GITHUB_REPOSITORY": "sruj75/knowledge-athlete",
                 "RELEASE_TAG": RELEASE_TAG,
                 "ref": RELEASE_TAG,
                 "OMI_QUALIFICATION_MINIMUM_FREE_KIB": str(2**63 - 1),

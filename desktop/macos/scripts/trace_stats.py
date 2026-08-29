@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Aggregate omi QueryTracer traces for benchmarking.
 
-Reads ~/Library/Logs/Omi/traces.jsonl (one JSON trace per line) and prints
+Reads ~/Library/Logs/Intentive/traces.jsonl (one JSON trace per line) and prints
 median/p90 stats per metric, per span, and per flagged gap. Can save a labeled
 snapshot and diff two snapshots (baseline vs optimized).
 
@@ -23,7 +23,7 @@ import statistics
 import sys
 from datetime import datetime
 
-DEFAULT_LOG = os.path.expanduser("~/Library/Logs/Omi/traces.jsonl")
+DEFAULT_LOG = os.path.expanduser("~/Library/Logs/Intentive/traces.jsonl")
 
 # Derived first so it leads the report — total minus speaking time (ptt_recording),
 # the latency that actually matters for optimization (excludes how long you talked).

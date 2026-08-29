@@ -40,7 +40,7 @@ import type {
 } from "./types.js";
 import { providerBoundaryForAdapter } from "./execution-policy.js";
 
-const DATABASE_FILENAME = "omi-agentd.sqlite3";
+const DATABASE_FILENAME = "heyintentive-agent.sqlite3";
 const PHASE_1_MIGRATION_VERSION = 1;
 const ARTIFACT_LIFECYCLE_MIGRATION_VERSION = 2;
 const DESKTOP_CONTEXT_PACKETS_MIGRATION_VERSION = 3;

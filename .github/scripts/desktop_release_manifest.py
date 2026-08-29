@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and digest the immutable Omi desktop release manifest v1.
+"""Validate and digest the immutable Intentive desktop release manifest v1.
 
 This module is intentionally stdlib-only so candidate, beta, and stable
 workflows can use the exact same contract on clean runners. The detached
@@ -23,7 +23,8 @@ from urllib.parse import unquote, urlparse
 SCHEMA_VERSION = 1
 PLATFORM = "macos"
 SIGNATURE_PREFIX = "hmac-sha256:"
-SIGNING_CONTEXT = b"omi-desktop-release-manifest-v1\0"
+SIGNING_CONTEXT = b"heyintentive-desktop-release-manifest-v1\0"
+RELEASE_REPOSITORY = "sruj75/knowledge-athlete"
 TOP_LEVEL_FIELDS = frozenset(
     {
         "schema_version",
@@ -120,9 +121,9 @@ def _require_release_asset_url(data: dict[str, Any], key: str, *, release_id: st
         or parsed.fragment
     ):
         _fail(f"{key} must be a clean github.com release asset URL")
-    expected_prefix = "/BasedHardware/omi/releases/download/"
+    expected_prefix = f"/{RELEASE_REPOSITORY}/releases/download/"
     if not parsed.path.startswith(expected_prefix):
-        _fail(f"{key} must reference the BasedHardware/omi release")
+        _fail(f"{key} must reference the {RELEASE_REPOSITORY} release")
     suffix = parsed.path.removeprefix(expected_prefix)
     try:
         encoded_tag, actual_asset = suffix.rsplit("/", 1)
@@ -177,9 +178,9 @@ def validate_manifest(value: object) -> dict[str, Any]:
         _fail("build_number must match release_id")
 
     _require_source_sha(manifest, "app_source_sha")
-    _require_release_asset_url(manifest, "zip_url", release_id=release_id, asset_name="Omi.zip")
+    _require_release_asset_url(manifest, "zip_url", release_id=release_id, asset_name="Intentive.zip")
     _require_sha256(manifest, "zip_sha256")
-    _require_release_asset_url(manifest, "dmg_url", release_id=release_id, asset_name="omi.dmg")
+    _require_release_asset_url(manifest, "dmg_url", release_id=release_id, asset_name="intentive.dmg")
     _require_sha256(manifest, "dmg_sha256")
     _require_string(manifest, "ed_signature")
 

@@ -19,9 +19,9 @@ on:
         type: choice
         options:
           - production
-          - preview
+          - development
       backend_url:
-        description: 'Required only for preview; one non-production HTTPS backend URL'
+        description: 'Required only for development; one non-production HTTPS backend URL'
         required: false
         default: ''
         type: string
@@ -55,8 +55,8 @@ jobs:
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           set -euo pipefail
-          test "$REPOSITORY" = "BasedHardware/omi" || {
-            echo "Desktop previews may only publish from BasedHardware/omi." >&2
+          test "$REPOSITORY" = "sruj75/knowledge-athlete" || {
+            echo "Desktop previews may only publish from sruj75/knowledge-athlete." >&2
             exit 1
           }
           if ! [[ "$SOURCE_REF" =~ ^preview/([a-z][a-z0-9-]{0,47})$ ]]; then
@@ -82,6 +82,7 @@ jobs:
         env:
           BACKEND_ENVIRONMENT: ${{ inputs.backend_environment }}
           BACKEND_URL: ${{ inputs.backend_url }}
+          CANONICAL_PRODUCTION_BACKEND_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
           case "$BACKEND_ENVIRONMENT" in
@@ -90,9 +91,13 @@ jobs:
                 echo "production previews must use the canonical production backend URL." >&2
                 exit 1
               }
-              backend_url="https://api.omi.me"
+              test -n "$CANONICAL_PRODUCTION_BACKEND_URL" || {
+                echo "INTENTIVE_PRODUCTION_API_URL is not configured; production previews remain disabled." >&2
+                exit 1
+              }
+              backend_url="$CANONICAL_PRODUCTION_BACKEND_URL"
               ;;
-            preview)
+            development)
               python3 - "$BACKEND_URL" <<'PY'
           import sys
           from urllib.parse import urlsplit
@@ -113,9 +118,9 @@ jobs:
               or parsed.query
               or parsed.fragment
           ):
-              raise SystemExit("preview requires one absolute HTTPS backend URL without credentials, query, or fragment.")
-          if hostname in {"api.omi.me", "api.omiapi.com"}:
-              raise SystemExit("preview backend overrides must not target a production-family URL.")
+              raise SystemExit("development preview requires one absolute HTTPS backend URL without credentials, query, or fragment.")
+          if hostname == "omi.me" or hostname.endswith(".omi.me") or hostname == "omiapi.com" or hostname.endswith(".omiapi.com"):
+              raise SystemExit("preview backend overrides must not target a production-family URL or inherited Omi URL.")
           PY
               backend_url="$BACKEND_URL"
               ;;
@@ -124,6 +129,17 @@ jobs:
               exit 1
               ;;
           esac
+          python3 - "$backend_url" <<'PY'
+          import sys
+          from urllib.parse import urlsplit
+
+          parsed = urlsplit(sys.argv[1])
+          hostname = (parsed.hostname or "").lower().rstrip(".")
+          if parsed.scheme.lower() != "https" or not hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+              raise SystemExit("selected preview backend must be one clean absolute HTTPS URL.")
+          if hostname == "omi.me" or hostname.endswith(".omi.me") or hostname == "omiapi.com" or hostname.endswith(".omiapi.com"):
+              raise SystemExit("inherited Omi backend URLs are forbidden.")
+          PY
           echo "backend_url=$backend_url" >> "$GITHUB_OUTPUT"
 
       - name: Summarize exact preview awaiting approval
@@ -165,10 +181,18 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate an approved production preview backend
+        if: inputs.backend_environment == 'production'
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ needs.resolve.outputs.backend_url }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
 
       - name: Start the trusted Codemagic preview workflow
         env:
-          CODEMAGIC_APP_ID: ${{ vars.CODEMAGIC_APP_ID || '66c95e6ec76853c447b8bcbb' }}
+          CODEMAGIC_APP_ID: 6a8ff0296fc70d39540cb56a
           CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
           PREVIEW_SLUG: ${{ needs.resolve.outputs.slug }}
           PREVIEW_ID: ${{ needs.resolve.outputs.preview_id }}
@@ -193,7 +217,7 @@ jobs:
             --arg notes "$notes_base64" \
             --arg backend_environment "$PREVIEW_BACKEND_ENVIRONMENT" \
             --arg backend_url "$OMI_PYTHON_API_URL" \
-            '{appId: $app_id, workflowId: "omi-desktop-swift-preview", branch: "main", environment: {variables: {PREVIEW_MODE: "true", PREVIEW_SLUG: $slug, PREVIEW_ID: $preview_id, PREVIEW_SOURCE_REF: $source_ref, PREVIEW_SOURCE_SHA: $source_sha, PREVIEW_NOTES_BASE64: $notes, PREVIEW_BACKEND_ENVIRONMENT: $backend_environment, OMI_PYTHON_API_URL: $backend_url}}}')"
+            '{appId: $app_id, workflowId: "intentive-macos-preview", branch: "main", environment: {variables: {PREVIEW_MODE: "true", PREVIEW_SLUG: $slug, PREVIEW_ID: $preview_id, PREVIEW_SOURCE_REF: $source_ref, PREVIEW_SOURCE_SHA: $source_sha, PREVIEW_NOTES_BASE64: $notes, PREVIEW_BACKEND_ENVIRONMENT: $backend_environment, OMI_PYTHON_API_URL: $backend_url}}}')"
           response="$(curl --fail --show-error --silent \
             -H 'Content-Type: application/json' \
             -H "x-auth-token: $CODEMAGIC_API_TOKEN" \
@@ -207,6 +231,6 @@ jobs:
             echo "- Ref: \`${PREVIEW_SOURCE_REF}\`"
             echo "- SHA: \`${PREVIEW_SOURCE_SHA}\`"
             echo "- Preview: \`${PREVIEW_SLUG}\` (\`${PREVIEW_ID}\`)"
-            echo "- Landing page: \`https://macos.omi.me/preview/${PREVIEW_SLUG}\`"
+            echo "- Landing page: supplied by the owned preview registry after publication"
             echo "- Codemagic build: \`${build_id}\`"
           } >> "$GITHUB_STEP_SUMMARY"

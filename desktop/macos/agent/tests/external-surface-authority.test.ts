@@ -754,8 +754,8 @@ describe("external realtime surface authority", () => {
     expect((prepared.toolInput.metadata as any).producerJournal.forged).toBeUndefined();
 
     kernel.markRunToolInvocationDispatched(authorized);
-    const previousArtifactRoot = process.env.OMI_AGENT_ARTIFACTS_DIR;
-    process.env.OMI_AGENT_ARTIFACTS_DIR = newRoot();
+    const previousArtifactRoot = process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+    process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = newRoot();
     let raw: string;
     try {
       raw = await handleAgentControlToolCall({
@@ -769,8 +769,8 @@ describe("external realtime surface authority", () => {
         getOwnerId: () => "owner",
       }, authorized.canonicalToolName, prepared.toolInput);
     } finally {
-      if (previousArtifactRoot === undefined) delete process.env.OMI_AGENT_ARTIFACTS_DIR;
-      else process.env.OMI_AGENT_ARTIFACTS_DIR = previousArtifactRoot;
+      if (previousArtifactRoot === undefined) delete process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+      else process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = previousArtifactRoot;
     }
     kernel.completeRunToolInvocation({
       ...invocationIdentity(authorized),
@@ -1028,8 +1028,8 @@ describe("external realtime surface authority", () => {
       toolInput: { objective: "Research safely", originSurfaceKind: "main_chat" },
     }).toolInput).toMatchObject({ originSurfaceKind: "realtime" });
 
-    const previousArtifactRoot = process.env.OMI_AGENT_ARTIFACTS_DIR;
-    process.env.OMI_AGENT_ARTIFACTS_DIR = newRoot();
+    const previousArtifactRoot = process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+    process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = newRoot();
     let resultText: string;
     try {
       resultText = await handleAgentControlToolCall({
@@ -1045,8 +1045,8 @@ describe("external realtime surface authority", () => {
         getOwnerId: () => "owner",
       }, "spawn_agent", routed.toolInput);
     } finally {
-      if (previousArtifactRoot === undefined) delete process.env.OMI_AGENT_ARTIFACTS_DIR;
-      else process.env.OMI_AGENT_ARTIFACTS_DIR = previousArtifactRoot;
+      if (previousArtifactRoot === undefined) delete process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+      else process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = previousArtifactRoot;
     }
     const result = JSON.parse(resultText) as Record<string, unknown>;
     expect(result).toMatchObject({

@@ -386,8 +386,12 @@ extension SettingsContentView {
             .background(OmiColors.backgroundQuaternary)
 
           // Links
-          linkRow(title: "What's New", url: AppBuild.changelogURLString)
-          linkRow(title: "Visit Website", url: "https://omi.me")
+          if let changelogURL = AppBuild.changelogURL {
+            linkRow(title: "What's New", url: changelogURL.absoluteString)
+          }
+          ForEach(AppBuild.currentSettingsExternalDestinations, id: \.title) { destination in
+            linkRow(title: destination.title, url: destination.url.absoluteString)
+          }
           Button(action: {
             selectedSection = .privacy
           }) {
@@ -404,7 +408,6 @@ extension SettingsContentView {
             }
           }
           .buttonStyle(.plain)
-          linkRow(title: "Terms of Service", url: "https://omi.me/terms")
         }
       }
 
@@ -467,10 +470,12 @@ extension SettingsContentView {
                   .buttonStyle(OmiButtonStyle(.primary, size: .compact))
                 }
 
-                Button("Download Latest") {
-                  openURLInDefaultBrowser(AppBuild.manualDownloadURL)
+                if let manualDownloadURL = AppBuild.manualDownloadURL {
+                  Button("Download Latest") {
+                    openURLInDefaultBrowser(manualDownloadURL)
+                  }
+                  .buttonStyle(OmiButtonStyle(.primary, size: .compact))
                 }
-                .buttonStyle(OmiButtonStyle(.primary, size: .compact))
 
                 Button("Dismiss") {
                   updaterViewModel.lastUpdateFailure = nil
@@ -569,7 +574,7 @@ extension SettingsContentView {
         Button("Stay on Beta", role: .cancel) {}
         Button("Switch to Stable") {
           updaterViewModel.updateChannel = .stable
-          if let url = URL(string: "https://macos.omi.me") {
+          if let url = AppBuild.manualDownloadURL {
             NSWorkspace.shared.open(url)
           }
         }

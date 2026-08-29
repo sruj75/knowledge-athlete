@@ -32,7 +32,12 @@ def _smoke_evidence(payload: bytes, *, tag: str, source_sha: str) -> None:
         candidate_fail("emergency target signed-artifact smoke is invalid")
     if not isinstance(smoke, dict):
         candidate_fail("emergency target signed-artifact smoke is invalid")
-    required = {"ok": True, "release_tag": tag, "expected_channel": "beta", "bundle_id": "com.omi.computer-macos"}
+    required = {
+        "ok": True,
+        "release_tag": tag,
+        "expected_channel": "beta",
+        "bundle_id": "com.heyintentive.intentive",
+    }
     if any(smoke.get(key) != value for key, value in required.items()):
         candidate_fail("emergency target signed-artifact smoke does not bind the target")
     checks = smoke.get("checks")
@@ -70,18 +75,22 @@ async def build_emergency_beta_manifest(
         candidate_fail("emergency target source identity is not merged main")
     assets = candidate_release_assets(release.get("assets"))
     zip_asset, dmg_asset, smoke_asset = (
-        candidate_asset(assets, "Omi.zip"),
-        candidate_asset(assets, "omi.dmg"),
+        candidate_asset(assets, "Intentive.zip"),
+        candidate_asset(assets, "intentive.dmg"),
         candidate_asset(assets, "desktop-smoke-result.json"),
     )
     urls = {
-        "Omi.zip": candidate_asset_url(zip_asset, tag, "Omi.zip"),
-        "omi.dmg": candidate_asset_url(dmg_asset, tag, "omi.dmg"),
+        "Intentive.zip": candidate_asset_url(zip_asset, tag, "Intentive.zip"),
+        "intentive.dmg": candidate_asset_url(dmg_asset, tag, "intentive.dmg"),
         "desktop-smoke-result.json": candidate_asset_url(smoke_asset, tag, "desktop-smoke-result.json"),
     }
     expected = {
         name: candidate_asset_digest(asset)
-        for name, asset in (("Omi.zip", zip_asset), ("omi.dmg", dmg_asset), ("desktop-smoke-result.json", smoke_asset))
+        for name, asset in (
+            ("Intentive.zip", zip_asset),
+            ("intentive.dmg", dmg_asset),
+            ("desktop-smoke-result.json", smoke_asset),
+        )
     }
     downloaded = {name: await candidate_read_github(source, "download", url) for name, url in urls.items()}
     actual = {name: "sha256:" + hashlib.sha256(content).hexdigest() for name, content in downloaded.items()}
@@ -101,10 +110,10 @@ async def build_emergency_beta_manifest(
                 "version": match.group("version"),
                 "build_number": build_number,
                 "app_source_sha": actual_source,
-                "zip_url": urls["Omi.zip"],
-                "zip_sha256": actual["Omi.zip"],
-                "dmg_url": urls["omi.dmg"],
-                "dmg_sha256": actual["omi.dmg"],
+                "zip_url": urls["Intentive.zip"],
+                "zip_sha256": actual["Intentive.zip"],
+                "dmg_url": urls["intentive.dmg"],
+                "dmg_sha256": actual["intentive.dmg"],
                 "ed_signature": signature,
                 "qualification_evidence_asset": "desktop-smoke-result.json",
                 "qualification_evidence_sha256": actual["desktop-smoke-result.json"],

@@ -1,7 +1,7 @@
 """Shared automation-bridge bearer token resolution.
 
 The desktop app writes the per-launch token to
-``NSTemporaryDirectory()/omi-automation-{port}.token``. On macOS that directory
+``NSTemporaryDirectory()/heyintentive-automation-{port}.token``. On macOS that directory
 is ``getconf DARWIN_USER_TEMP_DIR``, which is often *not* the shell's ``$TMPDIR``
 (launchd jobs, Actions runners, Multica scratch overrides). Readers must try
 Darwin user temp before falling back to ``$TMPDIR`` / ``/tmp``.
@@ -54,9 +54,9 @@ def automation_token_file_candidates(port: int) -> list[Path]:
 
     darwin = darwin_user_temp_dir()
     if darwin is not None:
-        add(darwin / f"omi-automation-{port}.token")
+        add(darwin / f"heyintentive-automation-{port}.token")
 
-    add(Path(os.environ.get("TMPDIR", "/tmp")) / f"omi-automation-{port}.token")
+    add(Path(os.environ.get("TMPDIR", "/tmp")) / f"heyintentive-automation-{port}.token")
     return candidates
 
 

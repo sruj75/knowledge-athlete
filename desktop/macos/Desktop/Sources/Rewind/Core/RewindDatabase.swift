@@ -104,10 +104,8 @@ actor RewindDatabase {
   static let shared = RewindDatabase()
   private static let terminationStateLock = OSAllocatedUnfairLock<Bool>(initialState: false)
 
-  /// The system Application Support directory and product-relative components
-  /// are injectable together, so tests can place both the selected product root
-  /// and a synthetic foreign sibling behind the same observable boundary.
-  private let storageLocation: RewindDatabaseStorageLocation?
+  /// Injectable product storage boundary for clean-install and foreign-sibling tests.
+  private var storageLocation: RewindDatabaseStorageLocation?
   private let fileSystem: RewindDatabaseFileSystem
 
   nonisolated static var isTerminationInProgress: Bool {
@@ -167,6 +165,12 @@ actor RewindDatabase {
     self.fileSystem = fileSystem
   }
 
+  #if DEBUG
+    func configureStorageLocationForTesting(_ storageLocation: RewindDatabaseStorageLocation?) {
+      precondition(dbQueue == nil, "close the database before rebinding test storage")
+      self.storageLocation = storageLocation
+    }
+  #endif
   /// Whether the database has been successfully initialized
   var isInitialized: Bool { dbQueue != nil }
 
@@ -262,7 +266,7 @@ actor RewindDatabase {
     guard isRecoverableDatabaseError(error) else { return }
 
     let omiDir = userBaseDirectory()
-    let dbPath = omiDir.appendingPathComponent("omi.db").path
+    let dbPath = omiDir.appendingPathComponent(DesktopProductIdentity.databaseFilename).path
     logError("RewindDatabase: recoverable SQLite error during \(operation); backing up and recreating local database")
 
     // Close before file-level recovery so SQLite releases handles/WAL state.
@@ -452,9 +456,8 @@ actor RewindDatabase {
     try await initialize()
   }
 
-  /// Returns the per-user base directory: ~/Library/Application Support/Omi/users/{userId}/
-  /// Falls back to the static currentUserId (set synchronously at app start) when
-  /// configure() hasn't been called yet (for example, an early service triggers initialization).
+  /// Returns the per-user base directory beneath the resolved product root, using
+  /// static currentUserId when configure() has not run yet.
   private func targetUserId() -> String {
     if RewindDatabase.currentUserId == nil,
       UserDefaults.standard.string(forKey: .authUserId) == nil
@@ -487,14 +490,14 @@ actor RewindDatabase {
   nonisolated static func markCleanShutdown() {
     terminationStateLock.withLock { $0 = true }
     let userDir = staticUserBaseDirectory()
-    let flagPath = userDir.appendingPathComponent(".omi_running").path
+    let flagPath = userDir.appendingPathComponent(DesktopProductIdentity.runningFlagFilename).path
     try? FileManager.default.removeItem(atPath: flagPath)
     log("RewindDatabase: Clean shutdown flagged")
   }
 
   /// Check if the previous session ended with an unclean shutdown (crash, force quit, etc.)
   func hadUncleanShutdown() -> Bool {
-    let flagPath = userBaseDirectory().appendingPathComponent(".omi_running").path
+    let flagPath = userBaseDirectory().appendingPathComponent(DesktopProductIdentity.runningFlagFilename).path
     return fileSystem.fileExists(atPath: flagPath)
   }
 
@@ -565,11 +568,10 @@ actor RewindDatabase {
     // never drift to the next owner's path or publish its old pool later.
     let omiDir = userBaseDirectory(for: expectedUserId)
 
-    // Create directory if needed (withIntermediateDirectories creates parents too)
     try fileSystem.createDirectory(at: omiDir, withIntermediateDirectories: true)
 
-    let dbPath = omiDir.appendingPathComponent("omi.db").path
-    let flagPath = omiDir.appendingPathComponent(".omi_running").path
+    let dbPath = omiDir.appendingPathComponent(DesktopProductIdentity.databaseFilename).path
+    let flagPath = omiDir.appendingPathComponent(DesktopProductIdentity.runningFlagFilename).path
     runningFlagPath = flagPath
     log("RewindDatabase: Opening database at \(dbPath)")
     fileSystem.record(.read, path: dbPath)
@@ -677,9 +679,7 @@ actor RewindDatabase {
     }
 
     dbQueue = activeQueue
-    // Bump the pool epoch on every (re)open so storage actors that cached the
-    // previous pool revalidate and drop it — recovery may have replaced the
-    // underlying omi.db file, leaving the old pool pointing at a stale inode.
+    // A reopen may replace the database inode, so invalidate cached pools.
     // This is `poolEpoch`, NOT `initGeneration`: initialize() relies on
     // initGeneration staying unchanged across a normal open to clear its
     // initializationTask.

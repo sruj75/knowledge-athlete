@@ -20,7 +20,7 @@ final class LoggerPermissionsTests: XCTestCase {
   }
 
   func testEnsureLogFileOwnerOnlyCreatesFileWith0600() throws {
-    let path = tempDir.appendingPathComponent("omi-new.log").path
+    let path = tempDir.appendingPathComponent("heyintentive-new.log").path
     XCTAssertFalse(FileManager.default.fileExists(atPath: path))
 
     XCTAssertTrue(ensureLogFileOwnerOnly(atPath: path))
@@ -30,7 +30,7 @@ final class LoggerPermissionsTests: XCTestCase {
   }
 
   func testEnsureLogFileOwnerOnlyTightensExistingWorldReadableFile() throws {
-    let path = tempDir.appendingPathComponent("omi-existing.log").path
+    let path = tempDir.appendingPathComponent("heyintentive-existing.log").path
     // Simulate a log created by an older build with default (world-readable) perms.
     XCTAssertTrue(
       FileManager.default.createFile(
@@ -54,7 +54,7 @@ final class LoggerPermissionsTests: XCTestCase {
         atPath: victim, contents: Data("victim content\n".utf8),
         attributes: [.posixPermissions: 0o644]))
 
-    let path = tempDir.appendingPathComponent("omi-symlinked.log").path
+    let path = tempDir.appendingPathComponent("heyintentive-symlinked.log").path
     try FileManager.default.createSymbolicLink(atPath: path, withDestinationPath: victim)
 
     XCTAssertTrue(ensureLogFileOwnerOnly(atPath: path))
@@ -71,23 +71,34 @@ final class LoggerPermissionsTests: XCTestCase {
 
   func testNamedNonProductionLaunchesResolveToSeparateOwnerOnlyLogPaths() {
     let first = OmiLogPathResolver.logPath(
-      isNonProduction: true,
-      bundleIdentifier: "com.omi.qa-one",
+      bundleIdentifier: "com.heyintentive.intentive.dev.qa-one",
       processID: 101)
     let second = OmiLogPathResolver.logPath(
-      isNonProduction: true,
-      bundleIdentifier: "com.omi.qa-two",
+      bundleIdentifier: "com.heyintentive.intentive.dev.qa-two",
       processID: 202)
 
     XCTAssertNotEqual(first, second)
-    XCTAssertEqual(first, "/private/tmp/omi-dev-com.omi.qa-one-101.log")
-    XCTAssertEqual(second, "/private/tmp/omi-dev-com.omi.qa-two-202.log")
+    XCTAssertEqual(first, "/private/tmp/heyintentive-dev-com.heyintentive.intentive.dev.qa-one-101.log")
+    XCTAssertEqual(second, "/private/tmp/heyintentive-dev-com.heyintentive.intentive.dev.qa-two-202.log")
     XCTAssertEqual(
       OmiLogPathResolver.logPath(
-        isNonProduction: false,
-        bundleIdentifier: "com.omi.computer-macos",
+        bundleIdentifier: "com.heyintentive.intentive",
         processID: 303),
-      "/tmp/omi.log")
+      "/tmp/heyintentive.log")
+    XCTAssertEqual(
+      OmiLogPathResolver.logPath(
+        bundleIdentifier: "com.heyintentive.intentive.beta",
+        processID: 404),
+      "/tmp/heyintentive-beta.log")
+  }
+
+  func testForeignAndUnknownBundleIdentifiersHaveNoLogPath() {
+    for bundleIdentifier in ["com.omi.computer-macos", "com.omi.omi-wave5-s28", "org.example.app", ""] {
+      XCTAssertNil(
+        OmiLogPathResolver.logPath(bundleIdentifier: bundleIdentifier, processID: 505),
+        "unexpected writable log identity for \(bundleIdentifier)")
+    }
+    XCTAssertNil(OmiLogPathResolver.logPath(bundleIdentifier: nil, processID: 505))
   }
 
   func testEnsureLogDirectoryOwnerOnlyCreatesDirectoryWith0700() throws {

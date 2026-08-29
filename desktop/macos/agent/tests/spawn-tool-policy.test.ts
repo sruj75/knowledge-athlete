@@ -85,5 +85,5 @@ describe("spawn-time tool policy persistence", () => {
 function newDatabasePath(): string {
   const dir = mkdtempSync(join(tmpdir(), "omi-agent-kernel-"));
   createdDirs.push(dir);
-  return join(dir, "omi-agentd.sqlite3");
+  return join(dir, "heyintentive-agent.sqlite3");
 }

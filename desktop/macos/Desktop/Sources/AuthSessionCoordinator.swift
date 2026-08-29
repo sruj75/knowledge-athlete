@@ -4,7 +4,8 @@ extension Notification.Name {
   /// Posted when the Firebase session is invalidated (expired/revoked credentials)
   /// without a user-initiated sign-out. Observers should stop auth-dependent work
   /// (e.g. agent bridge) but must NOT wipe onboarding or stop capture.
-  static let sessionDidInvalidate = Notification.Name("com.omi.desktop.sessionDidInvalidate")
+  static let sessionDidInvalidate = Notification.Name(
+    "com.heyintentive.intentive.sessionDidInvalidate")
 }
 
 // MARK: - Session phase

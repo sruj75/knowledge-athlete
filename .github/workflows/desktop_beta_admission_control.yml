@@ -60,6 +60,18 @@ jobs:
             exit 1
           }
 
+      - name: Checkout trusted release controls
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate exact approved Intentive production API origin
+        env:
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
+          INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN: ${{ secrets.INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN }}
+        run: python3 .github/scripts/validate-intentive-production-origin.py
+
       - name: Use the existing production Google identity
         uses: google-github-actions/auth@v3
         with:
@@ -71,6 +83,7 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           REASON: ${{ inputs.reason }}
           ACTOR: ${{ github.actor }}
+          INTENTIVE_PRODUCTION_API_URL: ${{ vars.INTENTIVE_PRODUCTION_API_URL }}
         run: |
           set -euo pipefail
           case "$OPERATION" in
@@ -92,7 +105,7 @@ jobs:
                 --header 'Content-Type: application/json' \
                 --header "secret-key: $ADMIN_KEY" \
                 --data-binary @- \
-                https://api.omi.me/v2/desktop/beta/admission \
+                "${INTENTIVE_PRODUCTION_API_URL%/}/v2/desktop/beta/admission" \
                 --output "$response"
           jq -e --argjson expected "$promotion_enabled" \
             'keys == ["generation", "promotion_enabled"] and

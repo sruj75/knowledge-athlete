@@ -6,10 +6,16 @@ RUN="$ROOT/run.sh"
 BACKEND_MAIN="$ROOT/../../backend/main.py"
 
 YOLO_FUNCTION="$(sed -n '/^apply_yolo_env()/,/^}/p' "$RUN")"
+FIREBASE_FUNCTION="$(sed -n '/^load_owned_dev_firebase_api_key()/,/^}/p' "$RUN")"
 NAMED_DEFAULT_FUNCTION="$(sed -n '/^should_default_named_bundle_to_dev_backend()/,/^}/p' "$RUN")"
 
 if [[ -z "$YOLO_FUNCTION" ]]; then
   echo "FAIL: apply_yolo_env is missing from $RUN" >&2
+  exit 1
+fi
+
+if [[ -z "$FIREBASE_FUNCTION" ]]; then
+  echo "FAIL: load_owned_dev_firebase_api_key is missing from $RUN" >&2
   exit 1
 fi
 
@@ -20,17 +26,35 @@ fi
 
 (
   unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL FIREBASE_API_KEY
+  SCRIPT_DIR="$ROOT"
+  eval "$FIREBASE_FUNCTION"
+  eval "$YOLO_FUNCTION"
+  apply_yolo_env
+
+  expected_key="$(/usr/libexec/PlistBuddy -c 'Print :API_KEY' "$ROOT/Desktop/Sources/GoogleService-Info-Dev.plist")"
+  test -n "$expected_key"
+  test "$FIREBASE_API_KEY" = "$expected_key"
+)
+
+(
+  unset OMI_SKIP_BACKEND OMI_SKIP_TUNNEL OMI_PYTHON_API_URL
+  export FIREBASE_API_KEY="fixture-owned-firebase-key"
+  SCRIPT_DIR="$ROOT"
+  eval "$FIREBASE_FUNCTION"
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 
   test "$OMI_SKIP_BACKEND" = "1"
   test "$OMI_SKIP_TUNNEL" = "1"
-  test "$OMI_PYTHON_API_URL" = "https://api.omiapi.com"
-  test -n "$FIREBASE_API_KEY"
+  test "$OMI_PYTHON_API_URL" = "https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app"
+  test "$FIREBASE_API_KEY" = "fixture-owned-firebase-key"
 )
 
 (
   export OMI_PYTHON_API_URL="https://canonical-override.test"
+  export FIREBASE_API_KEY="fixture-owned-firebase-key"
+  SCRIPT_DIR="$ROOT"
+  eval "$FIREBASE_FUNCTION"
   eval "$YOLO_FUNCTION"
   apply_yolo_env
 

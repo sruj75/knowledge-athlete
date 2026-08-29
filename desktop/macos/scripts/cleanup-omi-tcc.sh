@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cleanup-omi-tcc.sh — inventory/reset Omi macOS privacy/TCC entries.
+# cleanup-omi-tcc.sh — inventory/reset disposable Intentive macOS privacy/TCC entries.
 #
 # Default mode is list-only and never mutates TCC, app bundles, or preferences.
 # Apply mode only uses Apple's supported tccutil reset path for candidate
@@ -8,16 +8,15 @@
 # Usage:
 #   scripts/cleanup-omi-tcc.sh [--list] [--apply-tccutil] [--json] [--verbose]
 #
-# Keeps by default:
-#   com.omi.computer-macos  (Omi)
-#   com.omi.desktop-dev     (Omi Dev)
+# Stable, Beta, and canonical development are protected by default. Only exact
+# owned named-development identities are eligible for reset.
 set -euo pipefail
 
 MODE="list"
 OUTPUT="text"
 VERBOSE="false"
-KEEP_BUNDLE_IDS="com.omi.computer-macos,com.omi.desktop-dev"
-CANDIDATE_PREFIXES="com.omi.omi-"
+KEEP_BUNDLE_IDS="com.heyintentive.intentive,com.heyintentive.intentive.beta,com.heyintentive.intentive.dev"
+CANDIDATE_PREFIXES="com.heyintentive.intentive.dev.omi-"
 
 usage() {
     cat <<'USAGE'
@@ -25,7 +24,7 @@ Usage: cleanup-omi-tcc.sh [--list] [--apply-tccutil] [--json] [--verbose]
                           [--keep-bundle-id BUNDLE_ID]
                           [--candidate-prefix BUNDLE_ID_PREFIX] [--help]
 
-List or reset Omi-related macOS app bundle privacy permissions.
+List or reset disposable Intentive macOS app bundle privacy permissions.
 
 Default mode is read-only. Apply mode calls `tccutil reset All <bundle-id>` only
 for candidate bundle IDs and still does not edit the TCC SQLite database,
@@ -37,11 +36,11 @@ Options:
   --json           Emit deterministic JSON instead of human-readable text
   --verbose        Include every matching app, preference, and TCC row
   --keep-bundle-id BUNDLE_ID
-                   Preserve this Omi bundle ID. May be passed more than once.
+                   Preserve this owned Intentive bundle ID. May be passed more than once.
   --candidate-prefix BUNDLE_ID_PREFIX
-                   Mark matching Omi bundle IDs as reset candidates. May be
+                   Narrow matching owned named-development bundle IDs. May be
                    passed more than once and is additive with the default
-                   com.omi.omi- prefix.
+                   com.heyintentive.intentive.dev.omi- prefix.
   --help           Show this help
 USAGE
 }
@@ -99,6 +98,7 @@ import datetime as dt
 import json
 import os
 import plistlib
+import re
 import sqlite3
 import subprocess
 import sys
@@ -123,25 +123,47 @@ APP_ROOTS = [
     if item
 ]
 PREFS_DIR = Path(os.environ.get("OMI_TCC_PREFS_DIR") or HOME / "Library/Preferences")
+OWNED_ROOT = "com.heyintentive.intentive"
+NAMED_PREFIX = "com.heyintentive.intentive.dev.omi-"
+
+
+def is_owned_bundle_id(bundle_id):
+    return isinstance(bundle_id, str) and (
+        bundle_id == OWNED_ROOT or bundle_id.startswith(OWNED_ROOT + ".")
+    )
 
 
 def validate_bundle_id(label, bundle_id):
     if not bundle_id or bundle_id.strip() != bundle_id or "/" in bundle_id:
         raise SystemExit(f"Invalid {label}: {bundle_id!r}")
-    if not bundle_id.startswith("com.omi."):
+    if not is_owned_bundle_id(bundle_id):
         raise SystemExit(
-            f"Invalid {label}: {bundle_id!r}; expected an Omi bundle ID starting with 'com.omi.'"
+            f"Invalid {label}: {bundle_id!r}; expected an owned Intentive bundle ID"
         )
 
 
 for keep_bundle_id in KEEP_BUNDLE_IDS:
     validate_bundle_id("keep bundle ID", keep_bundle_id)
 for candidate_prefix in CANDIDATE_PREFIXES:
-    validate_bundle_id("candidate prefix", candidate_prefix)
+    if (
+        not candidate_prefix
+        or candidate_prefix.strip() != candidate_prefix
+        or "/" in candidate_prefix
+        or not candidate_prefix.startswith(NAMED_PREFIX)
+    ):
+        raise SystemExit(
+            f"Invalid candidate prefix: {candidate_prefix!r}; "
+            f"expected an Intentive named-development prefix beginning with {NAMED_PREFIX!r}"
+        )
 
 
 def is_candidate_bundle_id(bundle_id):
-    return isinstance(bundle_id, str) and any(bundle_id.startswith(prefix) for prefix in CANDIDATE_PREFIXES)
+    return (
+        isinstance(bundle_id, str)
+        and re.fullmatch(r"com\.heyintentive\.intentive\.dev\.omi-[a-z0-9][a-z0-9-]*", bundle_id)
+        is not None
+        and any(bundle_id.startswith(prefix) for prefix in CANDIDATE_PREFIXES)
+    )
 
 
 def classify_bundle_id(bundle_id):
@@ -151,22 +173,13 @@ def classify_bundle_id(bundle_id):
         return "keep"
     if is_candidate_bundle_id(bundle_id):
         return "candidate"
-    if bundle_id.startswith("com.omi."):
+    if is_owned_bundle_id(bundle_id):
         return "review"
     return "other"
 
 
 def classify_tcc_client(client):
-    classification = classify_bundle_id(client)
-    if classification != "other" or not isinstance(client, str):
-        return classification
-
-    path = client.lower()
-    if "/omi.app/" in path or "/omi beta.app/" in path or "/omi dev.app/" in path:
-        return "keep"
-    if "/omi-" in path and ".app/" in path:
-        return "candidate"
-    return classification
+    return classify_bundle_id(client)
 
 
 def read_plist(path):
@@ -192,15 +205,7 @@ def app_info(app_path):
         or info.get("CFBundleName")
         or app_path.stem
     )
-    if not (
-        bundle_id in KEEP_BUNDLE_IDS
-        or (isinstance(bundle_id, str) and bundle_id.startswith("com.omi."))
-        or name == "Omi"
-        or name == "Omi Dev"
-        or name.startswith("omi-")
-        or app_path.name in {"Omi.app", "Omi Dev.app", "Omi Beta.app"}
-        or app_path.name.startswith("omi-")
-    ):
+    if not is_owned_bundle_id(bundle_id):
         return None
 
     return {
@@ -214,7 +219,7 @@ def app_info(app_path):
 def iter_apps(root):
     if not root.exists():
         return
-    # Keep the scan bounded and deterministic. Omi dev bundles are installed as
+    # Keep the scan bounded and deterministic. Intentive dev bundles are installed as
     # direct children of /Applications by run.sh, but include one nested level for
     # user-created folders without walking the entire filesystem.
     try:
@@ -253,8 +258,10 @@ def collect_preferences():
     prefs = []
     if not PREFS_DIR.exists():
         return prefs
-    for path in sorted(PREFS_DIR.glob("com.omi*.plist"), key=lambda p: p.name.lower()):
+    for path in sorted(PREFS_DIR.glob("com.heyintentive.intentive*.plist"), key=lambda p: p.name.lower()):
         domain = path.name[:-6]
+        if not is_owned_bundle_id(domain):
+            continue
         prefs.append({
             "domain": domain,
             "classification": classify_bundle_id(domain),
@@ -308,9 +315,8 @@ def collect_tcc_rows():
         sql = f"""
             SELECT {', '.join(selected)}
             FROM access
-            WHERE client LIKE 'com.omi.%'
-               OR client LIKE '%/Omi%.app/%'
-               OR client LIKE '%/omi-%.app/%'
+            WHERE client = 'com.heyintentive.intentive'
+               OR client LIKE 'com.heyintentive.intentive.%'
             ORDER BY client, service
         """
         rows = []
@@ -411,7 +417,7 @@ def candidate_bundle_ids(inventory):
         if classify_tcc_client(client) == "candidate":
             bundle_ids.add(client)
 
-    # Defensive guard: never allow keep IDs or non-candidate com.omi IDs into apply.
+    # Defensive guard: never allow protected, foreign, preview, or malformed IDs into apply.
     return sorted(
         bundle_id
         for bundle_id in bundle_ids
@@ -487,16 +493,16 @@ if OUTPUT == "json":
     sys.exit(0)
 
 if not VERBOSE:
-    print("Omi macOS permissions cleanup summary")
+    print("Intentive macOS permissions cleanup summary")
     print("====================================")
     print(json.dumps(output_inventory(inventory), indent=2, sort_keys=True))
     sys.exit(0)
 
 if MODE == "apply-tccutil":
-    print("Omi macOS permissions cleanup apply (tccutil only)")
+    print("Intentive macOS permissions cleanup apply (tccutil only)")
     print("==================================================")
 else:
-    print("Omi macOS permissions cleanup inventory (read-only)")
+    print("Intentive macOS permissions cleanup inventory (read-only)")
     print("====================================================")
 print("Keeps:")
 for bundle_id in inventory["keep_bundle_ids"]:

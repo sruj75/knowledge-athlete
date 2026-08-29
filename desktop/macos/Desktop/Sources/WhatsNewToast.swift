@@ -65,7 +65,7 @@ struct WhatsNewToastOverlay: View {
         WhatsNewToastCard(
           version: version,
           onOpen: {
-            if let url = URL(string: AppBuild.changelogURLString) {
+            if let url = AppBuild.changelogURL {
               NSWorkspace.shared.open(url)
             }
             model.dismiss()

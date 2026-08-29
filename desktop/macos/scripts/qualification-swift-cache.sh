@@ -5,6 +5,10 @@
 set -euo pipefail
 umask 077
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=app-config.sh
+source "$SCRIPT_DIR/app-config.sh"
+
 usage() {
   cat <<'USAGE'
 Usage:
@@ -14,7 +18,7 @@ Usage:
 Prepare prints a JSON source/lease capability on stdout. Diagnostics go to stderr.
 
 Environment (test overrides are intentionally explicit):
-  OMI_QUALIFICATION_SWIFT_CACHE_ROOT   Root (default: ~/Library/Caches/OmiDesktop/qualification-swiftpm-v2)
+  OMI_QUALIFICATION_SWIFT_CACHE_ROOT   Root (default: ~/Library/Caches/heyintentive-desktop/qualification-swiftpm-v2)
   OMI_QUALIFICATION_SWIFT_CACHE_XCODE  xcodebuild -version override
   OMI_QUALIFICATION_SWIFT_CACHE_SWIFT  xcrun swift --version override
   OMI_QUALIFICATION_SWIFT_CACHE_MACOS  sw_vers identity override
@@ -47,8 +51,8 @@ fi
   exit 2
 }
 
-CACHE_ROOT="${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$HOME/Library/Caches/OmiDesktop/qualification-swiftpm-v2}"
-CACHE_CONTROL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/qualification-cache-reclaim.py"
+CACHE_ROOT="${OMI_QUALIFICATION_SWIFT_CACHE_ROOT:-$(intentive_qualification_cache_dir)}"
+CACHE_CONTROL="$SCRIPT_DIR/qualification-cache-reclaim.py"
 
 if [[ "$ACTION" == "release" ]]; then
   [[ -x "$CACHE_CONTROL" ]] || {

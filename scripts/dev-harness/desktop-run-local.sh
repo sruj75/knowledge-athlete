@@ -25,7 +25,7 @@ from dev_harness import config, desktop_profile, safety, synthetic_profiles
 user = sys.argv[1]
 repo = Path.cwd()
 cfg = config.load_config(repo, create_layout=False)
-print("Omi Dev local harness desktop launcher")
+print("Intentive Dev local harness desktop launcher")
 print(f"instance: {cfg.instance}")
 print(f"provider_mode: {cfg.provider_mode}")
 print(f"state_root: {cfg.layout.state_root}")
@@ -78,7 +78,7 @@ print(f"firebase_project: {profile.firebase_project_id}")
 print(f"auth_emulator: {profile.firebase_auth_emulator_host}")
 print(f"resolved_profile: {resolved_path}")
 print("Firebase Auth emulator bootstrap: scenario seed creates local_default_user, alice, and bob; this launch selects the requested USER and Swift signs in to the Auth emulator with the seeded synthetic email/password.")
-print("Static safety scan: PASS (localhost endpoints, demo-omi-local, no provider credential env in resolved profile).")
+print("Static safety scan: PASS (localhost endpoints, demo-heyintentive-local, no provider credential env in resolved profile).")
 
 command = ["./run.sh"]
 env_prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in sorted(profile.env.items()))

@@ -2,9 +2,10 @@ import Foundation
 
 actor APIClient {
   static let shared = APIClient()
+  private let testBaseURLOverride: String?
   // One canonical backend URL owns every retained API call family.
   var baseURL: String {
-    DesktopBackendEnvironment.backendBaseURL()
+    testBaseURLOverride ?? DesktopBackendEnvironment.backendBaseURL()
   }
 
   let session: URLSession
@@ -18,13 +19,20 @@ actor APIClient {
 
   init() {
     let transport = OmiHTTPTransport()
+    self.testBaseURLOverride = nil
     self.transport = transport
     self.session = transport.session
   }
 
   /// Test-only initializer that accepts a custom URLSession for request interception.
-  init(session: URLSession) {
+  init(session: URLSession, testBaseURL: String? = nil) {
     let transport = OmiHTTPTransport(session: session)
+    self.testBaseURLOverride =
+      testBaseURL
+      ?? DesktopBackendEnvironment.resolvedBackendBaseURL(
+        useDevelopmentBackends: true,
+        environmentValue: ProcessInfo.processInfo.environment["OMI_PYTHON_API_URL"],
+        productionMetadataValue: nil)
     self.transport = transport
     self.session = session
   }

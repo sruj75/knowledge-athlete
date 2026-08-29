@@ -15,7 +15,7 @@ Environment (all optional):
                           (default: ~/.cache/hermes/omi)
   OMI_QUAL_STATE_DIR      State JSON directory (default: ~/.hermes/state)
   OMI_QUAL_LOG_DIR        Log directory (default: ~/.hermes/logs)
-  OMI_QUAL_REPO           GitHub repo slug (default: BasedHardware/omi)
+  OMI_QUAL_REPO           GitHub repo slug (must be sruj75/knowledge-athlete)
   PYTHON                  Python used inside qualify-desktop-beta.sh
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-REQUIRED_ASSETS = {"Omi.zip", "desktop-smoke-result.json"}
+REQUIRED_ASSETS = {"Intentive.zip", "desktop-smoke-result.json"}
 DEFAULT_INTERVAL = 300
 MAX_INTERVAL = 1800
 BACKOFF_FACTOR = 1.5
@@ -370,7 +370,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--repo",
-        default=os.environ.get("OMI_QUAL_REPO", "BasedHardware/omi"),
+        default=os.environ.get("OMI_QUAL_REPO", "sruj75/knowledge-athlete"),
         help="GitHub repo slug",
     )
     parser.add_argument(
@@ -383,6 +383,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+    if args.repo != "sruj75/knowledge-athlete":
+        print("qualification repository must be sruj75/knowledge-athlete", file=sys.stderr)
+        return 2
     tag = args.tag.strip()
     if not tag:
         print("tag is required", file=sys.stderr)
