@@ -389,8 +389,8 @@ extension SettingsContentView {
           if let changelogURL = AppBuild.changelogURL {
             linkRow(title: "What's New", url: changelogURL.absoluteString)
           }
-          if let productWebsiteURL = AppBuild.productWebsiteURL {
-            linkRow(title: "Visit Website", url: productWebsiteURL.absoluteString)
+          ForEach(AppBuild.currentSettingsExternalDestinations, id: \.title) { destination in
+            linkRow(title: destination.title, url: destination.url.absoluteString)
           }
           Button(action: {
             selectedSection = .privacy
@@ -408,9 +408,6 @@ extension SettingsContentView {
             }
           }
           .buttonStyle(.plain)
-          if let termsURL = AppBuild.termsURL {
-            linkRow(title: "Terms of Service", url: termsURL.absoluteString)
-          }
         }
       }
 

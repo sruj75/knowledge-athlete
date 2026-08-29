@@ -144,6 +144,29 @@ final class AppBuildBetaIdentityTests: XCTestCase {
         infoKey: AppBuild.termsInfoKey))
   }
 
+  func testSettingsExternalDestinationsExposeEveryStampedOwnedPublicLink() {
+    let info: [String: Any] = [
+      AppBuild.productWebsiteInfoKey: "https://heyintentive.com",
+      AppBuild.termsInfoKey: "https://heyintentive.com/terms",
+      AppBuild.privacyInfoKey: "https://heyintentive.com/privacy",
+      AppBuild.supportInfoKey: "https://heyintentive.com/support",
+    ]
+
+    let destinations = AppBuild.settingsExternalDestinations(infoDictionary: info)
+
+    XCTAssertEqual(
+      destinations.map(\.title),
+      ["Visit Website", "Privacy Policy", "Terms of Service", "Support"])
+    XCTAssertEqual(
+      destinations.map(\.url.absoluteString),
+      [
+        "https://heyintentive.com",
+        "https://heyintentive.com/privacy",
+        "https://heyintentive.com/terms",
+        "https://heyintentive.com/support",
+      ])
+  }
+
   func testProductionLogPathsAreSeparatePerIdentity() {
     XCTAssertEqual(
       OmiLogPathResolver.logPath(

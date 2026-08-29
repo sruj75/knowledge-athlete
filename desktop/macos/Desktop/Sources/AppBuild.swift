@@ -334,6 +334,38 @@ enum AppBuild {
     publicDestinationURL(infoKey: supportInfoKey)
   }
 
+  struct SettingsExternalDestination: Equatable {
+    let title: String
+    let url: URL
+  }
+
+  static var currentSettingsExternalDestinations: [SettingsExternalDestination] {
+    [
+      ("Visit Website", productWebsiteURL),
+      ("Privacy Policy", privacyURL),
+      ("Terms of Service", termsURL),
+      ("Support", supportURL),
+    ].compactMap { title, url in
+      guard let url else { return nil }
+      return SettingsExternalDestination(title: title, url: url)
+    }
+  }
+
+  static func settingsExternalDestinations(
+    infoDictionary: [String: Any]
+  ) -> [SettingsExternalDestination] {
+    [
+      ("Visit Website", productWebsiteInfoKey),
+      ("Privacy Policy", privacyInfoKey),
+      ("Terms of Service", termsInfoKey),
+      ("Support", supportInfoKey),
+    ].compactMap { title, infoKey in
+      guard let url = publicDestinationURL(infoDictionary: infoDictionary, infoKey: infoKey)
+      else { return nil }
+      return SettingsExternalDestination(title: title, url: url)
+    }
+  }
+
   static func publicDestinationURL(
     infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
     infoKey: String
