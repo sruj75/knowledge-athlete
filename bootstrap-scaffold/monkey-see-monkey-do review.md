@@ -4,59 +4,74 @@
 
 Intentive started from the imported Omi snapshot at repository commit `81b5b889` (upstream Omi `99e0e60`). Omi was the bootstrap: when its code already solved a problem and the product decision did not require a different solution, the fastest move was to keep that code and change only the owner, name, endpoint, or storage location.
 
-`requirements-challenge.md` already decided what the product should keep, delete, and simplify. This document does **not** debate those decisions again. It asks a narrower question:
+`requirements-challenge.md` and `deletion-map.md` already decided what the product should keep, delete, and simplify. This document does **not** use the later slice TDD plans as authority: those plans may themselves have selected a more elaborate implementation than the two governing documents required. It asks a narrower question:
 
 > While implementing each settled slice, where did we add a new framework, policy object, migration, state machine, test-only production seam, release guard, or replacement subsystem when we could have kept Omi's working shape and made the minimum required edit?
 
 This is an additions review. Deletions are not criticized merely for being large. Generated OpenAPI files are not treated as hand-designed complexity. A file move or rename is not called reinvention when Git shows that it mostly preserved Omi code.
+
+## Correction after independent code review
+
+The first version of this document overcounted. It sometimes treated a large implementation or a large test suite as proof of overengineering, and in several places it recommended deleting behavior that `requirements-challenge.md` or `deletion-map.md` explicitly required. Those are false positives.
+
+This revision applies a stricter rule:
+
+- the governing requirement and deletion-map decision come first;
+- the imported Omi implementation is the baseline pattern;
+- the slice commit and wave closeout show what we actually added;
+- a TDD plan can explain why code was written, but it cannot turn an optional design choice into a product requirement;
+- line count alone is never a finding; and
+- tests and guards are counted separately only when they create a genuinely separate production seam or a second maintained description of the same contract.
+
+The result is deliberately smaller and more trustworthy. In particular, the earlier criticism of S-13 reminders/goals, S-20 fair-use recovery, S-23 structured export, S-27 artifact cleanup, and S-29 update/libwebp/identity work has been removed or narrowed because those behaviors are explicitly required.
 
 One important premise changes several judgments: Intentive has never shipped and has no existing Intentive users. We need a new bundle identity and new storage namespace so we do not operate on Omi's installation. We do **not** need migrations that preserve an imaginary population of old Intentive data.
 
 ## How to read the recommendations
 
 - `KEEP` — the addition is a necessary or sensible version of the Omi pattern.
-- `SIMPLIFY` — keep the required behavior, but remove the extra layers around it.
-- `REMOVE` — the added mechanism solves a problem this product does not currently have.
-- `LIKELY SIMPLIFY` — the evidence points to overengineering, but the exact replacement should be confirmed while editing the owning code.
+- `SIMPLIFY` — keep the required behavior, but remove the named extra layer around it.
+- `REMOVE` — remove only the named added mechanism; this never authorizes deleting required behavior around it.
+- `LIKELY SIMPLIFY` — the commit shows a concrete simplification candidate, but the exact replacement should be confirmed against the current callers while editing.
 - `NO MATERIAL REINVENTION FOUND` — I checked the additions and would be manufacturing a complaint if I called them a redesign.
 
 "Monkey-see-monkey-do" below never means blindly preserving an Omi product feature that the requirements rejected. It means preserving Omi's proven implementation pattern for the part we decided to keep.
 
 ## Audit coverage
 
-| Slice | Implementation scope reviewed | Added lines | Result |
+| Slice | Implementation scope reviewed | Added lines | Result after correction |
 |---|---|---:|---|
-| S-01 | `eb73915f` | 259 | 3 material simplifications |
-| S-02 | `3af14608` | 937 | 2 material simplifications |
-| S-03 | `6f1967f7` | 1,994 | 3 material simplifications |
-| S-04 | `f3265450` | 758 | 3 material simplifications |
-| S-05 | `c026719a` | 2,030 | 3 material simplifications |
-| S-06 | `ff528f8a` | 40,690, including 35,160 generated OpenAPI lines | 3 material simplifications |
-| S-07 | `d67d6e6e` | 862 | 2 material simplifications |
-| S-08 | `7e6e0b5d` | 388 | 3 material simplifications |
-| S-09 | `3aab1026` | 847 | 4 material simplifications |
-| S-10 | `77a77e39` | 18,337, including 8,038 generated OpenAPI lines | 5 material simplifications |
-| S-11 | `131018d8` | 8,346, including 912 generated OpenAPI lines | 4 material simplifications |
-| S-12 | `73dd3a8a` | 10,754, including 3,168 generated OpenAPI lines | 5 material simplifications |
-| S-13 | `46d67ccb` | 10,402, including 4,290 generated OpenAPI lines | 4 material simplifications |
-| S-14 | `26c67df6` | 5,368, including 1,656 generated OpenAPI lines | 4 material simplifications |
+| S-01 | `eb73915f` | 259 | 2 simplification candidates |
+| S-02 | `3af14608` | 937 | No material reinvention found |
+| S-03 | `6f1967f7` | 1,994 | 1 simplification candidate |
+| S-04 | `f3265450` | 758 | No material reinvention found |
+| S-05 | `c026719a` | 2,030 | 3 simplification candidates |
+| S-06 | `ff528f8a` | 40,690, including 35,160 generated OpenAPI lines | 2 simplification candidates |
+| S-07 | `d67d6e6e` | 862 | 1 simplification candidate |
+| S-08 | `7e6e0b5d` | 388 | 3 simplification candidates |
+| S-09 | `3aab1026` | 847 | No material reinvention found |
+| S-10 | `77a77e39` | 18,337, including 8,038 generated OpenAPI lines | 4 simplification candidates |
+| S-11 | `131018d8` | 8,346, including 912 generated OpenAPI lines | 4 simplification candidates |
+| S-12 | `73dd3a8a` | 10,754, including 3,168 generated OpenAPI lines | 4 simplification candidates |
+| S-13 | `46d67ccb` | 10,402, including 4,290 generated OpenAPI lines | No material reinvention found |
+| S-14 | `26c67df6` | 5,368, including 1,656 generated OpenAPI lines | 3 simplification candidates |
 | S-15 | `e7c25932` | 103 | No material reinvention found |
-| S-16 | `cf64b673` | 2,033 | 3 material simplifications |
-| S-17 | `5c649679` | 2,683 | 4 material simplifications |
-| S-18 | `a0468e58` | 3,614 | 4 material simplifications |
-| S-19 | `684d97a4` | 2,480 | 4 material simplifications |
-| S-20 | `16e86b97` | 5,766 | 5 material simplifications |
-| S-21 | `ee35939d` | 2,314 | 3 material simplifications |
-| S-22 | `5d6573ff` | 2,244 | 5 material simplifications |
-| S-23 | `06a917e7` | 5,031 | 4 material simplifications |
+| S-16 | `cf64b673` | 2,033 | 3 simplification candidates |
+| S-17 | `5c649679` | 2,683 | 3 simplification candidates |
+| S-18 | `a0468e58` | 3,614 | 3 simplification candidates |
+| S-19 | `684d97a4` | 2,480 | 4 simplification candidates |
+| S-20 | `16e86b97` | 5,766 | No material reinvention found |
+| S-21 | `ee35939d` | 2,314 | 3 simplification candidates |
+| S-22 | `5d6573ff` | 2,244 | 4 simplification candidates |
+| S-23 | `06a917e7` | 5,031 | 2 simplification candidates |
 | S-24 | `ac3ba541` | 431 | No material reinvention found |
-| S-25 | `fbdb339f` | 1,461 | 2 material simplifications |
-| S-26 | `3a9dbdd0` | 1,623 | 3 material simplifications |
-| S-27 | `5a7cfa5a` | 4,885 | 7 material simplifications |
-| S-28 | `47efd453` | 350 | 3 material simplifications |
-| S-29 | Everything after `5a7cfa5a` through current `HEAD` `f504c0a3` | 4,917 | 7 material simplifications |
+| S-25 | `fbdb339f` | 1,461 | 2 simplification candidates |
+| S-26 | `3a9dbdd0` | 1,623 | 3 simplification candidates |
+| S-27 | `5a7cfa5a` | 4,885 | 6 simplification candidates |
+| S-28 | `47efd453` | 350 | No material reinvention found |
+| S-29 | Everything after `5a7cfa5a` through current `HEAD` `3605c00d` | 4,947 product/release/doc additions after excluding `.ua`, installed agent-skill files, and this review | No material reinvention found |
 
-The slice commits did not land in numeric order in every wave. The table uses the logical slice number, not Git's display order. S-29 deliberately includes all current branch commits after S-28/S-27 integration, including the update, libwebp, identity, Sentry, documentation, release-guard, and acceptance-test follow-ups. The only uncommitted product-independent items at review time were this document and an unrelated `.ua/` directory; there was no additional uncommitted product code to assign to S-29.
+The slice commits did not land in numeric order in every wave. The table uses the logical slice number, not Git's display order. S-29 includes all current branch commits after S-27, including the update, libwebp, identity, Sentry, documentation, release-guard, acceptance-test, Firebase-development-app, and sign-in-provider follow-ups. The enormous committed `.ua` graph and installed Firebase skill package are tooling/reference material rather than Intentive product implementation, so their generated/reference line counts are excluded from the S-29 product number. Uncommitted changes outside this document were left untouched and were not assigned to a slice.
 
 ---
 
@@ -76,33 +91,17 @@ Omi already used the standard `docker/build-push-action` to build and publish th
 
 **Monkey-see-monkey-do:** remove the Agent VM callback from Omi's existing remediation path and keep the path itself unchanged. Test the remaining behavior through the existing resource-monitor entry point. **Recommendation: `SIMPLIFY`.** Do not keep a product API whose only customer is a test for removed code.
 
-### S01-03 — The release-policy guard grew instead of shrinking mechanically
-
-The static checker and its tests were expanded to prescribe the new build/smoke/push choreography. The requirement was structural absence of the VM, not a new release policy language.
-
-**Monkey-see-monkey-do:** remove Agent VM workflow names, images, routes, and expectations from the existing checks. Do not make the checker dictate a replacement pipeline. **Recommendation: `SIMPLIFY`.**
-
 **What was not overengineering:** the small route-retirement test covering the seven removed Agent VM routes and neighboring retained routes is a useful behavioral fence. It proves we deleted the right server surface without inventing a new runtime.
 
 ---
 
 ## S-02 — Remove wearables, the Omi write-ahead log, and device-audio ingestion
 
-**Beginner context:** this slice made the Mac microphone the only capture source. Most work was deletion. The main mistake was protecting old data shapes that Intentive will never inherit.
+**Beginner context:** this slice made the Mac microphone the only capture source. Most work was deletion. The important distinction is between removing live wearable/photo behavior and destructively deleting historical cloud data, which the governing documents keep separately gated.
 
-### S02-01 — We built legacy-photo preservation for nonexistent users
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** The first review got this wrong. `deletion-map.md` separates application behavior from destructive handling of inherited cloud data: the wearable/photo protocol becomes inaccessible, but existing remote photo data is not destroyed without separately authorized cleanup. `requirements-challenge.md` also keeps historical `ConversationSource` decoding so retained records remain readable. The legacy-photo guard and historical decoder therefore protect explicit boundaries; they are not compatibility work for imaginary Intentive installations.
 
-The additions introduced `conversation_has_legacy_photos`, reads from old photo subcollections, merge rejection, recording-session protection, and a `LEGACY_PHOTO_MERGE_ERROR`. The commit even described preserving legacy photo data during cleanup. That makes sense for a shipped Omi upgrade; it does not make sense for a new Intentive namespace with zero users.
-
-**Monkey-see-monkey-do:** delete wearable-photo writes, reads, merge rules, and cleanup code together. New Intentive databases start without the legacy photo shape. **Recommendation: `REMOVE`.**
-
-### S02-02 — We preserved transitional decoding compatibility
-
-`ServerConversationDecodingTests.swift` and related conversion code gained compatibility coverage for historical conversation payload details while the product was removing the server/wearable ownership that produced them. It prolongs an old wire format inside a fork that is meant to start clean.
-
-**Monkey-see-monkey-do:** keep only the fields still emitted by the retained Mac/backend path. Do not add compatibility for Omi records we will not import. **Recommendation: `SIMPLIFY`.**
-
-**What was not overengineering:** `backend/database/job_run_locks.py` was mostly a narrow extraction of a shared helper from a deleted owner. Moving a still-used Omi primitive is exactly the kind of preservation we want.
+`backend/database/job_run_locks.py` is also a narrow extraction of a still-used Omi helper from a deleted owner. That is exactly the monkey-see-monkey-do pattern we want.
 
 ---
 
@@ -116,43 +115,15 @@ The slice added `backend/testing/listen_pusher_stack/modulate_stub.py`, new offl
 
 **Monkey-see-monkey-do:** retain Omi's Modulate path and use a small injected fake response at its current client seam. **Recommendation: `SIMPLIFY`.** A protocol-faithful fake service is not needed until an actual integration failure demands it.
 
-### S03-02 — Provider retirement turned into broad observability work
-
-`backend/charts/monitoring/alert-rules.json` gained 306 lines, while VAD, fair-use, runtime validation, and provider tests also grew. Some edits renamed retained concepts, but the amount of new monitoring and validation exceeds the requirement to remove two providers.
-
-**Monkey-see-monkey-do:** delete alerts and environment keys exclusive to the retired providers; keep Omi's Modulate alerts and behavior. **Recommendation: `LIKELY SIMPLIFY`.** Review individual retained alerts before removal, but do not use this slice to redesign the monitoring catalog.
-
-### S03-03 — We expanded transitional provider matrices
-
-The dev harness and runtime tests learned extra combinations to prove which provider is selected in every environment. Once only one managed STT provider remains, much of that matrix is testing choices that no longer exist.
-
-**Monkey-see-monkey-do:** make Modulate the fixed managed implementation and keep one success test plus one failure test. **Recommendation: `SIMPLIFY`.**
-
-**What was not overengineering:** changing Parakeet-specific VAD names to provider-neutral names was a mechanical cleanup where the underlying Omi logic remained useful.
+**Correction:** the earlier observability and “provider matrix” findings were too broad. Removing provider-specific deploy settings, alerts, fixtures, and selection cases is part of deleting Deepgram/hosted Parakeet, while proving the one retained Modulate path still succeeds and fails correctly is ordinary coverage. Changing Parakeet-specific VAD names to provider-neutral names is also a mechanical cleanup. Only the separate fake-service stack remains a credible simplification candidate.
 
 ---
 
 ## S-04 — Remove impossible controls and repository zombies
 
-**Beginner context:** a "repository zombie" is code or a control that looks alive but cannot work anymore. This should have been one of the most deletion-only slices.
+**Beginner context:** a "repository zombie" is code or a control that looks alive but cannot work anymore. This was mostly a deletion-and-narrowing slice, so Git rename detection matters before calling a surviving checker new.
 
-### S04-01 — We added a new production-routing static checker
-
-`.github/scripts/check-desktop-production-routing.py` and its test added roughly 181 lines to scan source and workflow policy. This was a new guard system created while removing dead controls.
-
-**Monkey-see-monkey-do:** delete the dead routes, settings, workflows, and their old checks. Let existing compile tests and route tests prove the retained path. **Recommendation: `REMOVE`.**
-
-### S04-02 — We substantially rewrote the release-process guard
-
-`check-release-process-guards.py` gained 118 lines, its tests grew, and the manifest gained more policy entries. Instead of making the old checker smaller after deleting zombies, the slice made release policy more prescriptive.
-
-**Monkey-see-monkey-do:** remove references to deleted workflows and leave the remaining Omi release checks unchanged. **Recommendation: `SIMPLIFY`.**
-
-### S04-03 — We created a failure class for a generated-contract problem during cleanup
-
-`FC-generated-contract-missing-source.json` and associated generator/check changes formalized a new repository governance mechanism. The generated Swift source did need to remain reproducible, but this was not required to delete impossible controls.
-
-**Monkey-see-monkey-do:** preserve Omi's generator command and ensure the generated file is produced by the existing build/check. Track a real failure separately if it recurs. **Recommendation: `REMOVE` from this slice's solution.**
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** Git shows that `check-desktop-production-routing.py` is a 33%-similar rename and narrowing of Omi's mobile production-routing checker, not a new checker invented from scratch. The release-process guard shrank by roughly 886 net lines in this commit, so the earlier claim that it “grew” was factually wrong. The generated-contract failure class cites the real missing-schema failure from the imported subset rather than a hypothetical incident. This slice mostly deleted dead machinery and re-owned the small surviving checks.
 
 ---
 
@@ -198,12 +169,6 @@ Helpers such as `LoopbackHTTPParsing.swift`, extra execution-profile state, and 
 
 **Monkey-see-monkey-do:** keep Omi's existing chat behavior test, remove marketplace/persona selection, and add one assertion that the retained assistant opens and sends. **Recommendation: `SIMPLIFY`.**
 
-### S06-03 — We multiplied acceptance flows for a deletion
-
-The slice added several E2E flows and browser/automation contracts around the surviving surface. This gives confidence, but it also makes every future UI change maintain several descriptions of the same path.
-
-**Monkey-see-monkey-do:** keep one end-to-end "open retained assistant and send a message" flow and focused route-absence tests for deleted backend surfaces. **Recommendation: `SIMPLIFY`.**
-
 **What was not overengineering:** `PermissionGuidanceOverlay`, `FlowLayout`, `DismissableSheet`, `OverlayModalEscapeCatcher`, and `OnboardingChatPersistence` mostly preserve Omi code that had lived inside files being deleted. `daily_summary.py` is also largely a rename from `external_integrations.py`. These are good examples of moving the useful bricks instead of rebuilding them.
 
 ---
@@ -217,12 +182,6 @@ The slice added several E2E flows and browser/automation contracts around the su
 `DesktopAutomationManagedAccessActions.swift` exposes managed-access snapshots, and new automation tests use it to verify that BYOK controls and BYOK-shaped errors are gone. The production app gained an observation API because the test wanted to see an absence.
 
 **Monkey-see-monkey-do:** delete key-entry controls and customer-key headers, then update Omi's existing authentication and settings tests. **Recommendation: `REMOVE` the dedicated automation action.**
-
-### S07-02 — We retained a large decision matrix after removing the decision
-
-`ManagedAccessDecisionTests.swift`, `RealtimeManagedAuthenticationTests.swift`, API routing tests, Pi adapter tests, and additional harness seams cover many combinations of managed/customer access. Once customer access is deleted, the important rule is simple: all supported calls use managed authentication.
-
-**Monkey-see-monkey-do:** one core managed-auth test per real transport plus one rejection test for customer headers. **Recommendation: `SIMPLIFY`.**
 
 **What was not overengineering:** rejecting customer keys at backend boundaries is a useful fail-closed test. It prevents accidental reintroduction without designing a new runtime.
 
@@ -254,31 +213,9 @@ The slice added several E2E flows and browser/automation contracts around the su
 
 ## S-09 — Remove legacy observability and feedback surfaces
 
-**Beginner context:** this slice was meant to remove Crisp, Sentry-to-task feedback, and rejected telemetry while retaining narrowly owned analytics, diagnostics, and model tracing.
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** The first review misunderstood the temporary `desktop_screen_activity.py` split. S-09 inherited one mixed Crisp/screen-history router. The commit removed Crisp and isolated the untouched non-Crisp remainder so S-15 could delete it; it did not invent a new product route. S-15 then removed that exact handed-off file.
 
-### S09-01 — We accidentally rebuilt a cloud screen-activity product
-
-`backend/routers/desktop_screen_activity.py` added a new `/v1/screen-activity/sync` route, with tests and parity capture. It accepts desktop screen activity and writes searchable cloud data. That contradicts the already-settled local-only Rewind direction and was deleted again in S-15.
-
-**Monkey-see-monkey-do:** do not resurrect the missing route. Keep Omi's local Rewind and remove the old Crisp/feedback code. **Recommendation: `REMOVE`.** This is the clearest case in Wave 1 where extra implementation actively moved opposite to the product plan.
-
-### S09-02 — We introduced a presentation model just to remove feedback actions
-
-`ChatMessageActionPresentation.swift` and its tests decide which message action buttons should appear after rating/feedback is removed. The old view already owned those buttons.
-
-**Monkey-see-monkey-do:** delete the rejected rating/feedback buttons directly from `ChatBubble` and `AIResponseView`. **Recommendation: `REMOVE` the extra presentation layer.**
-
-### S09-03 — We built compatibility projection for legacy Sentry metadata
-
-`TaskDetailMetadataProjection` and its tests hide historical Sentry-feedback keys from task detail. In a clean Intentive data namespace, no task contains those legacy keys.
-
-**Monkey-see-monkey-do:** delete Sentry-feedback task creation and the corresponding UI fields. Do not add a sanitizer for records we will not import. **Recommendation: `REMOVE`.**
-
-### S09-04 — Tracing repair and operational docs expanded an observability deletion
-
-The slice added LangSmith binding behavior, async-offload tests, metrics tests, and operational documents while removing old feedback products. These may improve Omi, but they are not necessary to re-own the retained observability paths.
-
-**Monkey-see-monkey-do:** change the retained service credentials/identifiers and delete rejected integrations. Handle a demonstrated tracing bug separately. **Recommendation: `LIKELY SIMPLIFY`.**
+The 32-line `ChatMessageActionPresentation` helper and `TaskDetailMetadataProjection` are small extractions that let the commit remove rejected feedback behavior without tangling the retained Chat and Task presentation. The LangSmith work repaired trace correlation that the retained observability boundary depended on. None is strong enough to call a wheel reinvention.
 
 ---
 
@@ -309,12 +246,6 @@ The slice added `LocalConversationModels.swift`, `ConversationPresentationModels
 `RewindDatabase+ConversationLocalAuthority.swift` and 254 lines of migration tests move old conversation data into the new authority model. This solves an upgrade population Intentive does not have.
 
 **Monkey-see-monkey-do:** define the clean schema once and seed only test fixtures. **Recommendation: `REMOVE` compatibility migration branches that exist solely for old Omi/Intentive rows.**
-
-### S10-05 — The test suite mirrors every internal state transition
-
-Separate suites cover ingestion, finalization, migration, discard admission, action enrichment, speaker labels, merges, repository mapping, and structure enrichment. Many tests lock in the newly invented workflow rather than only the user contract.
-
-**Monkey-see-monkey-do:** keep tests for capture-to-local-save, list/read, one mutation, and the main compute failure. Delete tests whose only purpose is protecting removable leases or adapter layers. **Recommendation: `SIMPLIFY`.**
 
 ---
 
@@ -378,41 +309,18 @@ The schema and migration tests preserve/reclassify old local-memory data and can
 
 **Monkey-see-monkey-do:** create the final clean table on first launch. **Recommendation: `REMOVE` the compatibility migration.**
 
-### S12-05 — We built synthetic-profile and exhaustive lifecycle test infrastructure
-
-`synthetic_profiles.py`, 442 lines of lifecycle-runner tests, 471 backend memory-compute test lines, and additional authority tests mostly validate internal machinery rather than the basic user outcome.
-
-**Monkey-see-monkey-do:** test create/read/delete, one successful extraction, and one compute failure that leaves existing memory safe. **Recommendation: `SIMPLIFY`.**
-
 ---
 
 ## S-13 — Make Tasks and one simple Goal local-authoritative
 
-**Beginner context:** the product decision was deliberately modest: local tasks and one simple goal. The slice needed local persistence and removal of backend authority, but it also redesigned significant UI and assistant behavior.
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** The earlier section was not supported by the governing requirements.
 
-### S13-01 — A storage change became a Tasks and Dashboard redesign
+- Local schedule/reschedule/cancel reminders are explicitly retained in `requirements-challenge.md`; `TaskReminderService.swift` is implementing that decision, not adding a surprise feature.
+- Stable owner-scoped task identity, deterministic local ordering, and account-switch safety are part of making Tasks local-authoritative. They cannot be reduced to an unowned global list.
+- The “Goals became richer” claim was backwards. In commit `46d67ccb`, `GoalsWidget.swift` lost 912 lines while adding 112, and `GoalStorage.swift` lost 223 while adding 111. The slice removed AI/progress/history complexity to reach the one-simple-goal requirement.
+- Large additions to `TasksPage.swift` and `DashboardPage.swift` are not, by themselves, evidence of a redesign. The requirements retain a detailed Tasks surface and Home behavior. This review did not isolate a new user behavior or duplicate production authority beyond those decisions.
 
-`TasksPage.swift` gained 1,052 lines, `DashboardPage.swift` 453, `TasksStore.swift` 511, and new supporting views. This is not just replacing network reads with local reads; it is a substantial new product surface.
-
-**Monkey-see-monkey-do:** keep Omi's Tasks and Dashboard presentation, replace its repository calls with `ActionItemStorage`/`GoalStorage`, and change only labels or controls rejected by the requirements. **Recommendation: `SIMPLIFY`.** Product redesign should be a later, visible slice.
-
-### S13-02 — We added new reminder and home-status behavior
-
-`TaskReminderService.swift`, 157 lines of reminder tests, and `HomeStatusControls.swift` introduce scheduling and status-control behavior while the assigned job was authority migration.
-
-**Monkey-see-monkey-do:** keep Omi's existing task reminder behavior if it already worked; otherwise omit it until reminders are an explicit product requirement. **Recommendation: `REMOVE` new behavior not inherited from Omi.**
-
-### S13-03 — The local task model gained identity/revision machinery for an empty population
-
-`ActionItemStorage`, `TaskActionItem`, schema tests, and identity-mutation tests add local identity, update bands, and migration handling across many cases. Some stable IDs are required, but compatibility and conflict machinery assumes old records or multiple writers.
-
-**Monkey-see-monkey-do:** one UUID per new task, direct local mutations, and a simple ordered query. **Recommendation: `SIMPLIFY`; remove legacy conversion and multi-writer defenses.**
-
-### S13-04 — Goals acquired more domain behavior than "one simple goal"
-
-`GoalStorage`, `GoalsWidget`, progress tests, chat-tool changes, and dashboard wiring create a richer goal model and several projections.
-
-**Monkey-see-monkey-do:** one local goal record with title, optional target/progress, and direct display in the retained Omi slot. **Recommendation: `LIKELY SIMPLIFY`.** Keep only behavior directly demanded by `requirements-challenge.md`.
+The right monkey-see-monkey-do conclusion is to keep this slice unless a future code-level review can point to a specific duplicated mechanism. File size alone is not enough.
 
 ---
 
@@ -437,12 +345,6 @@ The schema and migration tests preserve/reclassify old local-memory data and can
 `InsightsHubNavigation.swift`, `InsightPage.swift`, floating-control-bar changes, and navigation tests change how users move between assistant surfaces. S-21 was already assigned to shell/navigation simplification.
 
 **Monkey-see-monkey-do:** keep Omi's existing presentation while swapping its data source, then let S-21 delete or rename destinations once. **Recommendation: `REMOVE` the interim navigation layer.**
-
-### S14-04 — The test matrix freezes new internals
-
-Separate suites cover focus authority, focus lifecycle, insight mutation, insight ownership, profile authority, settings authority, notification continuity, embeddings, and migrations. Many tests protect the newly introduced fences rather than the user-visible product.
-
-**Monkey-see-monkey-do:** one retained flow per assistant and one sign-out/owner-switch test at the shared database boundary. **Recommendation: `SIMPLIFY`.**
 
 ---
 
@@ -502,12 +404,6 @@ This is what a good deletion slice looks like. It added only 103 lines, mostly a
 
 **Monkey-see-monkey-do:** keep these checks as small conditions at Omi's existing owners (`OmiApp`, onboarding completion, and launch manager). **Recommendation: `REMOVE` one-use middle layers.**
 
-### S17-04 — We over-tested retained onboarding behavior
-
-The additions include 316 lines of persistence-clearing tests, 194 skip tests, 169 permission tests, 121 completion tests, 109 answer-authority tests, policy tests, unit flow tests, and two E2E flows.
-
-**Monkey-see-monkey-do:** one happy path, one skip/permission-denial path, and one sign-out reset test. **Recommendation: `SIMPLIFY`.**
-
 ---
 
 ## S-18 — Replace Stripe with disabled-first Dodo billing
@@ -531,12 +427,6 @@ The implementation maps webhook state through provider objects, service objects,
 `DesktopAutomationBillingActions.swift` added 123 lines and dedicated tests so acceptance flows can observe simulated billing/reconciliation state.
 
 **Monkey-see-monkey-do:** test the disabled state in the retained Settings UI and test webhook-to-subscription behavior at the backend boundary. **Recommendation: `REMOVE` the billing-specific automation API until a real end-to-end checkout exists.**
-
-### S18-04 — The test suite is larger than the first billing implementation needs
-
-More than 600 lines cover Dodo billing/webhook behavior, plus projections, wire contracts, reconciler tests, and UI helpers. Much of it locks in the new package boundaries.
-
-**Monkey-see-monkey-do:** one checkout test, one signed webhook test, one invalid-webhook test, and one disabled-mode UI test. **Recommendation: `SIMPLIFY`.**
 
 ---
 
@@ -572,37 +462,19 @@ More than 600 lines cover Dodo billing/webhook behavior, plus projections, wire 
 
 ## S-20 — Move fair-use evidence local and keep bounded enforcement facts in cloud
 
-**Beginner context:** detailed user evidence should stay on the Mac; the server may retain a small decision such as allowed, warned, or blocked. That boundary is reasonable. The implementation built a full distributed review workflow around it.
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** The first review reopened product decisions that `requirements-challenge.md` and `deletion-map.md` had already settled.
 
-### S20-01 — We created a cloud review-request state machine
+The required behavior is not merely “send a counter and get allowed/blocked.” The governing documents retain the existing managed GPT-5.1 semantic classifier, bounded seven-day/up-to-thirty-conversation evidence, graduated warning/final-warning/restrict stages, automatic seven-day and thirty-day recovery, support reset/override/resolve behavior, content-free history, and backend-derived enforcement. They also require local evidence to cross only in one authenticated transient request and never become hosted product content.
 
-`backend/database/fair_use.py` gained 482 lines, `fair_use_reviews.py` added a route and utility layer, and the backend now models request states, transactions, retries, recovery, and review outcomes. This is a durable case-management system rather than a bounded enforcement-fact endpoint.
+Against that contract:
 
-**Monkey-see-monkey-do:** send a small signed summary/counter to Omi's existing fair-use endpoint and receive the current enforcement decision. **Recommendation: `SIMPLIFY` aggressively.**
+- the backend pending request and idempotent retry are needed so a transient disconnect does not create a phantom strike or lose an admitted review;
+- the Mac coordinator is in-memory coordination around the one local evidence read and authenticated submission, not a second durable review store;
+- the transactional backend acceptance is needed to keep the event and enforcement state from disagreeing;
+- recovery and support history are explicitly retained product behavior; and
+- the automation/tests exercise privacy, owner switching, idempotency, and the required state transitions rather than inventing a second fair-use product.
 
-### S20-02 — We duplicated the workflow on the Mac
-
-`FairUseReviewCoordinator.swift`, evidence models, and AppState/transcription changes maintain a local coordinator that mirrors the server review lifecycle. Now both sides understand pending, retrying, recovering, and completed review work.
-
-**Monkey-see-monkey-do:** the Mac gathers local evidence, derives the bounded request once, sends it, and stores only the returned decision. **Recommendation: `SIMPLIFY`.**
-
-### S20-03 — Automatic recovery was engineered before real usage
-
-Dedicated tests cover automatic recovery, strict Firestore transaction behavior, emulator behavior, runtime states, and race cases. This anticipates operational failure modes before there is a user population or measured review volume.
-
-**Monkey-see-monkey-do:** use one idempotent request ID and a bounded retry. Add a recovery worker only after an observed stuck-request failure. **Recommendation: `REMOVE` speculative recovery machinery.**
-
-### S20-04 — We added a fair-use automation control plane
-
-`FairUseAutomationBridgeTests.swift` alone has 508 added lines, with production automation commands and snapshots to exercise the distributed workflow.
-
-**Monkey-see-monkey-do:** unit-test the bounded request and use one development fixture that returns allowed/warned/blocked. **Recommendation: `REMOVE` the domain-specific automation API.**
-
-### S20-05 — The tests protect the invented architecture more than the privacy boundary
-
-The slice added roughly 1,800 lines across review-request, state, runtime, recovery, coordinator, and automation tests. The most important contract is much smaller: raw evidence never leaves the Mac, and enforcement still works when the request succeeds or fails.
-
-**Monkey-see-monkey-do:** keep tests for exactly those privacy and enforcement outcomes. **Recommendation: `SIMPLIFY`.**
+There may still be ordinary cleanup opportunities inside the code, but this audit did not isolate a concrete extra authority or duplicate durable store. Recommending a summary/counter endpoint would change the requirement rather than simplify its implementation.
 
 ---
 
@@ -660,31 +532,17 @@ Settings destination contracts, shell visibility tests, navigation policy tests,
 
 **Monkey-see-monkey-do:** change the project/location credentials in Omi's retained Gemini/Vertex client. **Recommendation: `SIMPLIFY`.**
 
-### S22-05 — Inventory, handoff, and continuity machinery grew around a deletion
-
-The model endpoint inventory, S25 gateway handoff document, model config expansion, and agent continuity gauntlet updates describe and enforce a new portfolio architecture. Documentation is useful, but much of the machinery exists because the slice redesigned retained calls.
-
-**Monkey-see-monkey-do:** one small retained-workload table and direct deletion of every other branch. **Recommendation: `SIMPLIFY`.**
-
 **What was not overengineering:** `provider_usage.py` is largely a renamed and reduced version of Omi's old gateway accounting module. Removing its pricing ledger while preserving provider response usage is a simplification, not a new accounting system.
 
 ---
 
 ## S-23 — Delete rejected hosted products and product-data schemas
 
-**Beginner context:** this was another deletion-heavy slice. Two retained needs—local export and local warnings—did require replacements, but both replacements became standalone frameworks.
+**Beginner context:** this was another deletion-heavy slice. Two retained needs—complete offline local export and local delivery of retained warnings—required real replacement work. Those behaviors are not findings.
 
-### S23-01 — Local export became a 590-line archival system
+**Required, not overengineering:** IR-830 explicitly requires an independently specified, versioned export of local-authoritative product data. Copying `omi.db` and attachment folders would expose raw implementation storage, omit domains that live outside that database, and violate the export contract. Complete paged readers, deterministic ordering, one owner fence, offline operation, atomic replacement, and failed-partial cleanup are the point of `LocalUserDataExport.swift`.
 
-`LocalUserDataExport.swift` walks many stores, builds manifests, copies files, handles exclusions, and packages an archive; tests add another 429 lines. Export is valuable, but the implementation is a general-purpose exporter before the local data format has stabilized.
-
-**Monkey-see-monkey-do:** copy the owned local database plus the small set of user-created attachment folders into a zip, with a short README describing the snapshot. **Recommendation: `SIMPLIFY`.**
-
-### S23-02 — Warning delivery became a notification subsystem
-
-`FairUseWarningNotification.swift` added 327 lines, `FloatingBarNotificationPolicy` 65, and warning tests 464. This creates policy, formatting, continuity, and delivery behavior for a message that can travel through Omi's retained notification service.
-
-**Monkey-see-monkey-do:** map the server's bounded warning code to one local notification at the existing `NotificationService`. **Recommendation: `SIMPLIFY`.**
+The warning path is also required because S-23 deletes FCM only after surviving fair-use and managed-usage warnings have an authenticated structured state seam and deterministic Mac in-app/local notification delivery. The earlier recommendation to collapse it to an unexamined notification call was too vague to count as a finding.
 
 ### S23-03 — We created a slice-specific automation API
 
@@ -696,7 +554,7 @@ The model endpoint inventory, S25 gateway handoff document, model config expansi
 
 Integrated route-closure tests, per-product retirement tests, export tests, notification tests, automation tests, and E2E flows repeatedly prove that deleted hosted products are absent.
 
-**Monkey-see-monkey-do:** one route-manifest assertion for removed backend families, one export behavior test, one warning test, and one Settings E2E flow. **Recommendation: `SIMPLIFY`.**
+**Monkey-see-monkey-do:** keep the behavior tests for complete export, warning delivery, and the main failure path. Consolidate only overlapping route-absence assertions that exercise the same public app registry. **Recommendation: `LIKELY SIMPLIFY`.** The number of test files alone is not evidence; the candidate is the duplicated route-absence coverage.
 
 ---
 
@@ -784,103 +642,61 @@ The 431 added lines are mostly focused edits to existing tests, voice-message be
 
 **Monkey-see-monkey-do:** copy Omi's WIF workflow pattern, substitute our repository/environment/provider IDs, and rely on the provider's configured attribute condition plus one authentication smoke. **Recommendation: `LIKELY SIMPLIFY`.**
 
-### S27-05 — Artifact cleanup became a policy engine
-
-`artifact_cleanup_policy.py`, tests, and workflow wiring define cleanup decisions for images/artifacts. That is lifecycle optimization, not required to re-own the foundation.
-
-**Monkey-see-monkey-do:** keep Omi's retention command/policy with our registry name, or defer cleanup until artifacts actually accumulate. **Recommendation: `REMOVE` from bootstrap scope.**
-
-### S27-06 — We added a workflow-contract checker beside all the other checkers
+### S27-05 — We added a workflow-contract checker beside all the other checkers
 
 `backend_workflow_contract.py`, a larger runtime validator, workflow tests, and manifest entries statically enforce the workflow's shape. This is another description of a workflow that could simply be the authoritative executable description.
 
 **Monkey-see-monkey-do:** keep Omi's working workflow shape and test its rendered/deployed result, not its source choreography. **Recommendation: `SIMPLIFY`.**
 
-### S27-07 — Redis access was refactored while changing ownership
+### S27-06 — Redis access was refactored while changing ownership
 
 `redis_connection.py` and 220 lines of tests introduced a lazy/TLS connection owner and moved callers to it. Centralizing credentials can be sound, but it is a runtime refactor mixed into cloud-name replacement.
 
 **Monkey-see-monkey-do:** change Omi's Redis URL/secret and retain its client behavior. Refactor connection lifetime only for a demonstrated leak or TLS problem. **Recommendation: `LIKELY SIMPLIFY`.**
 
-**Overall judgment:** S-27 contains the largest concentration of release/infrastructure reinvention. The owned cloud boundary is necessary; the local DSL plus drift parser plus live parser plus WIF parser plus cleanup parser is not the fastest credible route.
+**Required, not overengineering:** the earlier artifact-cleanup finding was wrong. IR-885 and `deletion-map.md` explicitly require a dry run that selects only untagged artifacts older than 30 days while protecting every exact release/candidate/rollback digest. `artifact_cleanup_policy.py` implements that decision. We can simplify its code if duplicate logic is found, but we cannot defer or delete the behavior without reopening the requirement.
+
+**Overall judgment:** S-27 still contains the largest concentration of credible release/infrastructure simplification candidates. The owned cloud boundary, dry-run cleanup, rollback protection, and live verification are necessary. The question is narrower: do the foundation contract, static drift parser, live parser, WIF parser, workflow parser, and Redis refactor duplicate facts that one executable environment declaration and the actual provider APIs could own?
 
 ---
 
 ## S-28 — Establish clean Mac storage and installation identity
 
-**Beginner context:** this requirement is important even with zero users. Intentive must have its own bundle ID and storage root so it does not read, move, or delete Omi's installation. The direct solution is a new identity plus removal of Omi takeover behavior.
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** `deletion-map.md` makes the acceptance boundary explicit: clean install, upgrade from Intentive's own first build, reset, sign-out, account switch, and uninstall/reinstall must never read or mutate an Omi installation.
 
-### S28-01 — Deleting takeover code required new injectable filesystem seams
+The injected filesystem/process seams are how the tests can drive the real production startup and database code against synthetic roots without touching a real Omi installation. `StartupSystemMaintenancePolicy` is the narrow observation point for proving that retained startup work still runs while Omi process termination and deletion do not. The two suites cover different owners: database/filesystem takeover and startup process/app takeover.
 
-`RewindDatabase.swift` gained 127 lines to parameterize storage locations and filesystem behavior, largely so `OmiTakeoverIsolationTests.swift` could prove that foreign state is not touched.
-
-**Monkey-see-monkey-do:** give Intentive a new Application Support path and database filename, then delete all Omi import/takeover branches. **Recommendation: `SIMPLIFY`.** One small path test is enough.
-
-### S28-02 — Startup maintenance became a command-sink policy
-
-`StartupSystemMaintenancePolicy.swift` adds an injected command sink that decides which cleanup commands launch may run. It exists mainly to prove that legacy Omi maintenance is absent.
-
-**Monkey-see-monkey-do:** remove calls to Omi cleanup/import commands from `OmiApp` and keep the ordinary retained startup calls inline. **Recommendation: `REMOVE` the one-use policy object.**
-
-### S28-03 — Isolation was tested through two large suites
-
-`OmiTakeoverIsolationTests.swift` added 118 lines and `LegacyAppTakeoverIsolationTests.swift` 53, on top of identity/storage tests. The important contract is one negative fact: an Intentive launch never touches Omi paths.
-
-**Monkey-see-monkey-do:** one test with a fake Omi directory and a fresh Intentive directory, asserting the former remains byte-for-byte unchanged. **Recommendation: `SIMPLIFY`.**
-
-**What must remain:** the new bundle identifier and new writable namespaces are not overengineering. They are precisely how a separate product avoids touching Omi. What is unnecessary is migration machinery after that separation is established.
+This is not migration support for nonexistent Intentive users. It is a negative safety proof around the new product boundary. The new bundle ID, typed identity, separate writable namespaces, and no-touch tests should remain.
 
 ---
 
 ## S-29 — Re-own Mac build, signing, updates, previews, and release destinations
 
-**Scope used for this review:** every commit after `5a7cfa5a` through current `HEAD` `f504c0a3`, not only the first three changes. This includes `a3daff0e` through `f504c0a3`: safe update admission, universal libwebp preparation, release documentation, desktop identity, Sentry, owner/provider decisions, release boundaries, guard alignment, and acceptance-test follow-ups.
+**Scope used for this review:** every commit after `5a7cfa5a` through current `HEAD` `3605c00d`, not only the first three changes. This includes safe update admission, universal libwebp preparation, release documentation, desktop identity, Sentry, owner/provider decisions, release boundaries, guard alignment, acceptance follow-ups, Firebase development-app registration, and sign-in-provider enablement. The committed `.ua` graph, the review document, and installed Firebase skill references are excluded from product-complexity judgments.
 
-**Beginner context:** Intentive needs its own bundle identity, signing, Sentry project, update feed, release destinations, and backend URL. Omi already had a sophisticated Sparkle/release setup. Most of this should have been literal re-ownership of that setup.
+**Corrected verdict: `NO MATERIAL REINVENTION FOUND`.** The three examples that originally motivated this review—safe update installation, universal libwebp preparation, and central desktop identity—are all direct requirements, not optional polishing.
 
-### S29-01 — Safe updates became a cross-application activity state machine
+### Safe update installation is a required repair
 
-Omi already had `DeferredUpdateInstall`: development builds stayed install-on-quit, while release builds checked recent speech, waited for a 120-second silence window, polled every five seconds, and installed once. S-29 replaced this with `UpdateInstallationActivitySnapshot`, which inspects nine signals across AppState, realtime capture, provider activity, playback, pending tools, token minting, active voice turns, typed-chat sends, and streaming messages. It also added scheduling/cancellation generations and refactored transcription finalization to expose more activity state.
+IR-245 says the old VAD-only gate is ineffective and must be replaced with authoritative retained activity state for ambient meeting/transcription work, PTT/realtime voice, and active Chat/model/tool work. Omi's `DeferredUpdateInstall` cannot simply remain because its production activity signal has no reliable writer. `UpdateInstallationActivitySnapshot` collects the named authorities and preserves busy-to-idle waiting before Sparkle relaunches. The transcription changes expose real state to that one admission seam; they are not an updater-specific replacement transcription engine.
 
-**Monkey-see-monkey-do:** keep Omi's existing deferred installer. If the speech heuristic is genuinely too narrow, replace its `lastSpeechProvider` with one simple `isAppBusy` closure owned by AppState; do not make the updater know nine subsystems. **Recommendation: `SIMPLIFY` aggressively.**
+### Universal libwebp preparation is a required release input
 
-### S29-02 — Update safety pulled unrelated transcription refactoring into the slice
+IR-939 and `deletion-map.md` explicitly require the retained libwebp 1.5.0 cache to have executable provenance checks: expected checksums, both `arm64` and `x86_64`, `@rpath` install names, a compatible minimum macOS, nested signing, and a from-source rebuild fallback. Recommending only `lipo -archs` would leave most of the requirement unproved. The preparation/rebuild/test scripts are the executable owner of that boundary.
 
-To feed the admission snapshot, `AppState+Transcription.swift` was substantially reorganized, new activity counters were exposed, operations became injectable, and max-duration/finalization paths changed. That increases regression risk in live capture just to decide when Sparkle may quit the app.
+### `DesktopProductIdentity` is the one central authority
 
-**Monkey-see-monkey-do:** ask one existing top-level session owner whether user work is active. Leave transcription internals untouched. **Recommendation: `REMOVE` updater-driven transcription seams.**
+The earlier “second authority” claim was factually wrong. `AppBuild` consumes/delegates to `DesktopProductIdentity`; the new type centralizes the stable/Beta/dev/named-dev/preview family and the exact bundle, URL-scheme, Keychain, app-group, filename, and path capabilities required by the S-28/S-29 boundary. The continued existence of `AppBuild` does not make it a competing constant source.
 
-### S29-03 — Universal libwebp preparation became a build system inside the build system
+### The acceptance and routing checks protect distinct release boundaries
 
-Omi already vendored universal `libwebp`/`libsharpyuv` dylibs, documented their creation, copied them into release bundles, rewrote load paths, signed nested code, and had `test-bundled-dylib-rewrite.sh`. S-29 added `prepare-release-libwebp.sh` (464 lines), `rebuild-release-libwebp.sh` (106), `test-release-libwebp.sh` (161), and expanded the signed-artifact smoke. The new path checks fixed checksums, exact architectures, install IDs, minimum OS versions, dependency counts, ABI compatibility, executable linkage, rpaths, signing identity, and can rebuild from source.
+The identity tests prove family derivation and no Omi namespace collision; install tests prove the retained atomic installer uses the new identity; routing checks prove a signed production bundle cannot silently ship an inherited Omi/BasedHardware endpoint; signed-artifact checks prove the actual bundle; promotion and preview checks protect their existing Omi release stages. A large combined line count does not prove those checks are duplicates.
 
-**Monkey-see-monkey-do:** use Omi's vendored universal dylibs and existing copy/rewrite/sign steps. Add one `lipo -archs` assertion if we need proof that both `arm64` and `x86_64` are present. **Recommendation: `SIMPLIFY` aggressively.** This is the clearest S-29 wheel reinvention.
+### Current Firebase follow-ups are mechanical re-ownership
 
-### S29-04 — We created a second central identity authority
+The commits after the first review replace development Firebase app metadata, record the owned project/provider state, enable the retained Apple/Google sign-in providers, and extend the existing app-config shell assertions. They do not add another authentication architecture. The large installed Firebase skill package is repository tooling/reference material and is not part of Intentive's runtime.
 
-Omi already centralized bundle-family behavior in `AppBuild.swift` and storage paths in `DesktopStorageIdentity`. S-29 added `OmiSupport/DesktopProductIdentity.swift` with a `Family` enum and constants for bundle IDs, filenames, URL schemes, environment variables, keychain services, path components, and feature permissions. `AppBuild.swift` still exists and grew by 210 lines, so identity now flows through two broad authorities rather than one.
-
-**Monkey-see-monkey-do:** replace the Omi literals inside `AppBuild` and `DesktopStorageIdentity` with Intentive values. Keep one owner for bundle behavior and one narrow storage helper if necessary. **Recommendation: `SIMPLIFY`; do not keep two central identity models.**
-
-### S29-05 — Clean-install identity acquired a large acceptance matrix
-
-`CleanInstallationLifecycleTests.swift` added 169 lines, `DesktopProductIdentityTests.swift` 129, `AppBuildBetaIdentityTests.swift` grew by 103, and storage, keychain, login-item, installer, single-instance, client-device, and API-routing tests all expanded. Much of this verifies every derived name and permission for stable, beta, development, named development, and preview families.
-
-**Monkey-see-monkey-do:** test the stable and dev bundle IDs, their separate Application Support paths, and the single crucial negative rule that Omi paths are untouched. Let the existing beta/preview tests keep their original shape with renamed constants. **Recommendation: `SIMPLIFY`.**
-
-### S29-06 — Backend re-ownership became signed metadata plus fail-closed startup validation
-
-Omi's `DesktopBackendEnvironment` used constant production and development URLs. S-29 changed production to optional `IntentiveProductionAPIURL` metadata, validates scheme/host and rejects Omi/BasedHardware hosts, ignores overrides for production identities, and calls `preconditionFailure` if signed metadata is missing or malformed. Static production-routing guards and API routing tests then enforce the new scheme.
-
-**Monkey-see-monkey-do:** replace Omi's production URL constant with Intentive's owned URL and preserve Omi's existing dev override behavior. **Recommendation: `SIMPLIFY`.** A missing provider value can disable release creation; the shipped app should not need a new metadata parser and startup crash path for a constant endpoint.
-
-### S29-07 — Name substitution expanded into release-guard proliferation
-
-Auto-beta candidate checks, release doctor, release manifest/schema tests, production-routing checks, qualification evidence, stable promotion verifiers, signed smoke tests, app-config tests, beta-variant tests, and many E2E feature vectors were all changed or expanded. Some edits are necessary because identifiers changed; others make the repository prove the same identity/release fact in several places.
-
-**Monkey-see-monkey-do:** copy Omi's release workflow, replace the bundle IDs, app name, repository, feed, signing/notarization values, and public URLs, and run its existing signed-artifact smoke. Add one end-to-end candidate build rather than several source-policy mirrors. **Recommendation: `SIMPLIFY`.**
-
-**What was not overengineering:** `DesktopSentryConfiguration.swift` is only a small set of owned Sentry constants and is a reasonable direct substitution. `OWNER-PROVIDER-DECISIONS.md` is useful evidence about which external values are still missing. Renaming beta scripts and release copy is also mechanical. The new Intentive bundle/storage identity itself is required; the criticism is the second abstraction and the surrounding guard matrix, not the rebrand.
+`DesktopSentryConfiguration.swift`, `OWNER-PROVIDER-DECISIONS.md`, beta-script renames, and release copy remain straightforward substitutions. This audit found no concrete S-29 mechanism that can be removed while still satisfying the governing update, identity, packaging, signing, routing, preview, and release requirements.
 
 ---
 
@@ -894,38 +710,38 @@ This closeout was mostly cleanup: it deleted obsolete checks, failure classes, g
 
 ### Wave 2 closeout — `bdb126dd`
 
-This closeout materially deepened the owner-authorization design. It added `RewindDatabase+OwnerAuthorization.swift`, `OwnerAuthorizedStorageReads.swift`, `RewindDatabase+ProactiveAuthorityRetirement.swift`, `LocalMutationAuthorization.swift`, new owner-fence helpers across assistants, and hundreds of tests. Those additions are included in the S-12, S-13, and especially S-14 judgments above.
+This closeout materially deepened owner authorization with `RewindDatabase+OwnerAuthorization.swift`, `OwnerAuthorizedStorageReads.swift`, `RewindDatabase+ProactiveAuthorityRetirement.swift`, `LocalMutationAuthorization.swift`, and late-result fences across assistants.
 
-In coffee-shop English: each local feature had already put a lock on its own door. The closeout then built a second security desk in the hallway and taught every room how to ask that desk for permission. For a single-user Mac app with a newly opened per-account database, the cleaner boundary is to open the right database once and keep stale async results from writing after an account switch.
+The important correction is that owner fencing itself is required. The app supports sign-out, account changes, and same-UID reauthentication while asynchronous model/storage work may still be in flight. “Open the right database once” does not stop an old callback from owner A writing after owner B takes over. The remaining S-12/S-14 simplification question is only whether several feature-specific wrappers repeat a shared fence that could have one owner. S-13 is no longer cited as an overengineering example.
 
 ### Waves 3–4 closeout — `402d9fea` and `22ad2f16`
 
 The closeout repaired real integration gaps, but it also shows the cost of prior architecture:
 
 - parity capture needed another local-only repair and more tests (`a57b3f8d`), reinforcing the S-16 recommendation to avoid a parity-export subsystem;
-- fair-use review needed Redis fallback telemetry and log-redaction repairs (`95d5da6`, `2d0f44fc`), reinforcing the S-20 recommendation to keep the server contract small;
-- PTT acceptance was split into a 305-line `RealtimeHubController+LocalProfile.swift` file (`e8b07c18`) with more acceptance coverage, reinforcing the S-19 concern about a voice-specific local-data architecture;
-- the broad acceptance restoration commit (`b15d07e3`) touched API routing, conversation compute, realtime policies, local memories, tasks, signing, and many tests at once. That is the integration tax of numerous new seams.
+- fair-use review needed Redis fallback telemetry and log-redaction repairs (`95d5da6`, `2d0f44fc`), but those repairs protect the explicitly required transient-evidence/content-free-state boundary and are not evidence that S-20 should be redesigned;
+- `RealtimeHubController+LocalProfile.swift` mostly moved 299 existing lines into a named file, so the move itself is not reinvention; and
+- the broad acceptance restoration commit (`b15d07e3`) touched many boundaries at once. That is useful integration evidence, but breadth alone does not prove every boundary was invented.
 
-Moving the 299 existing realtime lines into a named file is not itself bad. The concern is that the closeout had to coordinate so many invented contracts to prove the retained Omi experience still worked.
+The closeout therefore strengthens the parity-pack simplification question, but it does not revive the removed S-20 finding or turn code movement/test breadth into findings.
 
 ---
 
 ## Highest-value simplifications
 
-If we simplify later, do not attack all 102 scenarios at once. These are the highest-return places because one change removes a whole family of complexity:
+If we simplify later, do not attack every candidate at once. These are the highest-return places because one change could remove a whole family of complexity:
 
-1. **S-29 release path:** keep Omi's updater and libwebp packaging shape; collapse identity into the existing owner; substitute release values instead of maintaining parallel guard systems.
-2. **S-27 cloud foundation:** keep one executable deploy configuration; remove the custom contract/drift/live/WIF/cleanup checker stack where it merely restates that configuration.
-3. **S-10 and S-12 local authority:** keep the local data, but remove general-purpose leases, claims, workflow histories, and duplicated model/projection layers that have no present concurrency requirement.
-4. **S-20 fair use:** reduce the distributed review workflow to local evidence plus one bounded server decision.
-5. **Wave 2 owner fencing:** enforce account ownership once when opening/switching the local database instead of wrapping every read, write, assistant, and late callback.
-6. **Production automation seams:** remove slice/domain-specific actions created only so tests can inspect an absence; drive the real retained user entry point or test the owning module directly.
-7. **Legacy migrations:** remove compatibility for Omi or earlier Intentive populations that the new bundle/storage namespace will never load.
+1. **S-27 cloud foundation:** keep the required environment, WIF, live verification, rollback protection, and dry-run artifact cleanup, but see whether one executable configuration can replace overlapping contract/drift/workflow interpreters.
+2. **S-10 and S-12 local authority:** keep the required local data, restart safety, lifecycle transitions, and retry behavior, but look for generic leases, claims, workflow histories, and model/projection layers that duplicate an existing Omi owner.
+3. **S-22 managed models:** keep every retained workload/provider decision while checking whether the custom transport, structured-payload layer, Vertex wrapper, and detailed workload registry restate provider SDK or route behavior.
+4. **Wave 2 owner fencing:** keep the required A-to-B-to-A and late-callback protection, but consolidate feature-specific wrappers only where one shared database-generation fence can express the same behavior.
+5. **Production automation seams:** remove slice/domain-specific actions created only so tests can inspect an absence; drive the real retained user entry point or test the owning module directly.
+6. **Legacy migrations:** remove compatibility for Omi or earlier Intentive populations only where `requirements-challenge.md`/`deletion-map.md` do not expressly preserve historical data or an upgrade boundary.
 
 ## Things we should deliberately leave alone
 
 - S-15 and S-24 are good deletion-slice examples; do not invent cleanup work for them.
+- S-02, S-04, S-09, S-13, S-20, S-23's export/warning behavior, S-27's cleanup behavior, S-28, and S-29 contain corrections in this revision; do not reintroduce the removed claims without new commit evidence.
 - Keep the new Intentive bundle ID and isolated writable paths. Separate identity is what protects Omi, not a concession to nonexistent Intentive users.
 - Keep generated API clients generated; their line counts are not evidence of design excess by themselves.
 - Keep code that Git identifies as a move/rename when its old owner was deleted and the behavior is still needed.
@@ -934,7 +750,9 @@ If we simplify later, do not attack all 102 scenarios at once. These are the hig
 
 ## Bottom line
 
-The audit found **102 material simplify/remove scenarios across S-01 through S-29**. The recurring failure was not that we chose the wrong product requirements. It was that we treated each requirement as an opportunity to make Omi more architecturally perfect.
+After correction, the audit contains **60 concrete simplification candidates across S-01 through S-29**, not 102 “material findings.” A candidate means the commit added a named mechanism that appears broader than the Omi pattern needed for the governing decision; it is not a license to remove the required behavior, and it still needs caller-level confirmation before code changes.
+
+The independent review and consistency pass removed 42 false, duplicate, or line-count-only claims. The biggest corrections were important: the required fair-use workflow, structured export, reminders/goals, artifact cleanup, no-touch identity proof, safe update gate, universal libwebp preparation, and central desktop identity are not overengineering. The credible recurring concern is narrower: some slices surrounded required behavior with additional policy objects, local workflow machinery, custom parsers, duplicate projections, automation-only production seams, or overlapping release/configuration descriptions.
 
 For this bootstrap, the professional default should be much plainer:
 
