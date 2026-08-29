@@ -92,10 +92,27 @@ USAGE
     exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ─── YOLO mode: use dev backend, zero local setup ────────────────────
 # Keep this endpoint aligned with DesktopBackendEnvironment's owned dev default.
 # Cloud Run admits internet traffic; protected application routes still require
 # the owned Firebase user's bearer token.
+load_owned_dev_firebase_api_key() {
+    if [ -n "${FIREBASE_API_KEY:-}" ]; then
+        return
+    fi
+
+    local development_plist="$SCRIPT_DIR/Desktop/Sources/GoogleService-Info-Dev.plist"
+    local owned_key=""
+    if [ -f "$development_plist" ]; then
+        owned_key=$(/usr/libexec/PlistBuddy -c 'Print :API_KEY' "$development_plist" 2>/dev/null || true)
+    fi
+    if [ -n "$owned_key" ]; then
+        export FIREBASE_API_KEY="$owned_key"
+    fi
+}
+
 apply_yolo_env() {
     export OMI_SKIP_BACKEND=1
     export OMI_SKIP_TUNNEL=1
@@ -104,6 +121,7 @@ apply_yolo_env() {
     # these overrides to exercise a chosen service revision without requiring
     # a local backend or .env file.
     export OMI_PYTHON_API_URL="${OMI_PYTHON_API_URL:-https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app}"
+    load_owned_dev_firebase_api_key
     : "${FIREBASE_API_KEY:?--yolo requires the owned Firebase desktop app API key}"
 }
 
@@ -130,8 +148,6 @@ unset OPENAI_API_KEY
 
 # Use Xcode's default toolchain to match the SDK version
 unset TOOLCHAINS
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # shellcheck source=fast-dev-bundle.sh
 source "$SCRIPT_DIR/scripts/fast-dev-bundle.sh"
