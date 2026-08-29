@@ -4,7 +4,7 @@ Repository-tracked operator handoff. This file records account ownership and
 provider boundaries, but must never contain passwords, tokens, private keys,
 certificate contents, API keys, recovery codes, or secret values.
 
-Last confirmed: 2026-08-27
+Last confirmed: 2026-08-29
 
 ## Product identity
 
@@ -21,9 +21,10 @@ Last confirmed: 2026-08-27
   - This is the account currently verified by `gcloud auth list` and it has access to project `agentic-accountability`.
   - The owner's latest message typed `srujan@intuitive.life`, but the live authenticated account and the owner's earlier instruction both say `srujan@intentive.life`. Treat the live verified address as authoritative unless the owner explicitly changes accounts.
   - This login address is only a Google Cloud operator identity. It is not a product domain or support address.
-- Firebase Console: `srujantriples@gmail.com`
+- Firebase Console primary owner: `srujan@heyintentive.com`
   - Existing Firebase project: `knowledge-athlete`.
   - Use for owned Firebase Authentication and Firestore configuration.
+  - `srujantriples@gmail.com` remains a temporary backup owner; do not use it as the product support identity.
 - Apple Developer: `22btrsn071@gmail.com`
   - Use only for Apple Developer membership, certificates, identifiers, notarization, and App Store Connect/Apple integration where applicable.
   - Owned Apple Team ID: `24D6NXS6H7`.
@@ -65,6 +66,10 @@ Last confirmed: 2026-08-27
   `com.heyintentive.intentive.dev` (Firebase App ID
   `1:674306938907:ios:befed665f1aa0cd09b40be`). Its downloaded configuration is tracked
   as `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`.
+- Enabled 2026-08-29: Google and Apple Firebase Authentication providers. Google uses public-facing
+  name `Intentive` and support email `srujan@heyintentive.com`. The refreshed development plist
+  contains the generated Google OAuth client. Apple Developer identifier/capability registration is
+  still required before native Apple sign-in can work in a signed app.
 
 ## Release-readiness checklist
 
@@ -86,8 +91,8 @@ already done. An unchecked item is still required before the corresponding live 
 
 - [x] Register the owned development macOS app in Firebase project `knowledge-athlete` and track its downloaded Google service plist without rewriting an inherited Omi plist.
 - [ ] Before Beta/Stable registration, approve the production Firebase project boundary. Register `com.heyintentive.intentive.beta` and `com.heyintentive.intentive` there and download their real Google service plists; do not silently point production-family builds at the development project.
-- [ ] Enable and configure Google sign-in in Firebase Authentication.
-- [ ] Enable and configure Apple sign-in in Firebase Authentication using Apple account `22btrsn071@gmail.com`.
+- [x] Enable and configure Google sign-in in Firebase Authentication with public-facing name `Intentive` and support email `srujan@heyintentive.com`; track the refreshed development plist containing its OAuth client.
+- [x] Enable Apple sign-in in Firebase Authentication. Native use still requires the Apple Developer identifier/capability under account `22btrsn071@gmail.com`.
 - [ ] Grant the runtime service account only the Firestore permissions the development backend needs, then verify one development read/write path. The database currently denies direct client access on purpose.
 
 ### Needed before a private development backend is fully usable
