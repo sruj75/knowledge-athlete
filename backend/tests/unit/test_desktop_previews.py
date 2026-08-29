@@ -12,7 +12,9 @@ from database.desktop_previews import (
     get_preview_manifest,
     normalize_preview_manifest,
     preview_identity,
+    publish_preview,
 )
+from tests.unit.fixtures.strict_firestore_transaction import StrictFirestore
 
 SLUG = "new-onboarding"
 SOURCE_SHA = "a" * 40
@@ -95,6 +97,18 @@ class TestPreviewManifestNormalization:
 
 
 class TestPreviewPointers:
+    def test_first_publication_reads_before_writing_through_the_production_transaction(self):
+        client = StrictFirestore()
+
+        result = publish_preview(_manifest(), expected_generation=0, firestore_client=client)
+
+        assert result["pointer"]["generation"] == 1
+        assert client.rows[(PREVIEW_MANIFESTS_COLLECTION, f"{SLUG}:{SOURCE_SHA}")]["source_sha"] == SOURCE_SHA
+        assert client.rows[(PREVIEW_POINTERS_COLLECTION, SLUG)]["source_sha"] == SOURCE_SHA
+        transaction = client.transactions[0]
+        assert [path for path, _data in transaction.creates] == [(PREVIEW_MANIFESTS_COLLECTION, f"{SLUG}:{SOURCE_SHA}")]
+        assert [path for path, _data in transaction.sets] == [(PREVIEW_POINTERS_COLLECTION, SLUG)]
+
     def test_new_manifest_advances_only_its_slug_pointer(self):
         pointer = _build_preview_pointer({}, normalize_preview_manifest(_manifest()), expected_generation=0)
 
