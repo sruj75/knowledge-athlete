@@ -821,8 +821,7 @@ class TestDownloadEndpoint:
         macos_html = _download_landing_html("https://downloads.heyintentive.com/intentive.dmg", platform="macos")
         assert "Download Intentive" in macos_html
         assert "Drag Intentive to your Applications folder" in macos_html
-        assert "https://heyintentive.com/support" in macos_html
-        for inherited in ("Download Omi", "Drag Omi", "omi-demo.mp4", "discord.com"):
+        for inherited in ("Download Omi", "Drag Omi", "omi-demo.mp4", "discord.com", "Intentive support"):
             assert inherited not in macos_html
 
         windows_html = _download_landing_html("https://example.com/omi-setup.exe", platform="windows")

@@ -647,10 +647,7 @@ def _download_landing_html(
             "3. Launch Intentive from Applications"
         )
         video_html = ""
-        support_html = (
-            '<p class="discord">Need help? Visit '
-            '<a href="https://heyintentive.com/support">Intentive support</a></p>'
-        )
+        support_html = ""
         demo_reveal_script = ""
     return f"""<!DOCTYPE html>
 <html lang="en">
