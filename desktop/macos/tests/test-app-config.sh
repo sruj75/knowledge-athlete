@@ -102,6 +102,11 @@ if ! grep -q "must use URL scheme 'heyintentive-omi-subagent-test'" /tmp/omi-app
   fail "mismatched OMI_URL_SCHEME did not report expected URL scheme"
 fi
 
+DEV_FIREBASE_PLIST="$MACOS_DIR/Desktop/Sources/GoogleService-Info-Dev.plist"
+assert_plist_value "$DEV_FIREBASE_PLIST" "BUNDLE_ID" "com.heyintentive.intentive.dev"
+assert_plist_value "$DEV_FIREBASE_PLIST" "PROJECT_ID" "knowledge-athlete"
+assert_plist_value "$DEV_FIREBASE_PLIST" "GOOGLE_APP_ID" "1:674306938907:ios:befed665f1aa0cd09b40be"
+
 LOCAL_FIREBASE_PLIST="$MACOS_DIR/Desktop/Sources/GoogleService-Info-Local.plist"
 assert_plist_value "$LOCAL_FIREBASE_PLIST" "BUNDLE_ID" "com.heyintentive.intentive.dev"
 assert_plist_value "$LOCAL_FIREBASE_PLIST" "PROJECT_ID" "demo-heyintentive-local"

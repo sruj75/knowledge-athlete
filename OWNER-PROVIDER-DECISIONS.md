@@ -61,6 +61,10 @@ Last confirmed: 2026-08-27
   - It was initialized in production mode.
   - Verified active rules deny all third-party client reads and writes: `allow read, write: if false;`.
   - Do not recreate the database or attempt to change its location; the Firestore location is permanent.
+- Registered 2026-08-29: Apple app `Intentive Development macOS` for bundle ID
+  `com.heyintentive.intentive.dev` (Firebase App ID
+  `1:674306938907:ios:befed665f1aa0cd09b40be`). Its downloaded configuration is tracked
+  as `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`.
 
 ## Release-readiness checklist
 
@@ -80,7 +84,8 @@ already done. An unchecked item is still required before the corresponding live 
 
 ### Needed before hosted Firebase sign-in or backend Firestore access
 
-- [ ] Register owned Firebase macOS apps for the stable, Beta, and development bundle IDs. Download the real Google service plists from project `knowledge-athlete`; never edit the inherited Omi plists to look owned.
+- [x] Register the owned development macOS app in Firebase project `knowledge-athlete` and track its downloaded Google service plist without rewriting an inherited Omi plist.
+- [ ] Before Beta/Stable registration, approve the production Firebase project boundary. Register `com.heyintentive.intentive.beta` and `com.heyintentive.intentive` there and download their real Google service plists; do not silently point production-family builds at the development project.
 - [ ] Enable and configure Google sign-in in Firebase Authentication.
 - [ ] Enable and configure Apple sign-in in Firebase Authentication using Apple account `22btrsn071@gmail.com`.
 - [ ] Grant the runtime service account only the Firestore permissions the development backend needs, then verify one development read/write path. The database currently denies direct client access on purpose.

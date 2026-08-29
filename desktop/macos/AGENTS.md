@@ -95,8 +95,9 @@ application. Create and record the owned provider definition before candidate bu
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
 The `(default)` Firestore database exists in `us-west1` with deny-all rules. Desktop app
-registrations and downloaded Firebase plists remain an explicit provider step; never copy or
-edit the inherited `based-hardware` credentials into an Intentive identity.
+registration `com.heyintentive.intentive.dev` and its downloaded development plist are owned;
+Google/Apple provider enablement and the Beta/Stable production-project boundary remain explicit
+provider steps. Never copy or edit inherited `based-hardware` credentials into an Intentive identity.
 
 ## Module Layout (SwiftPM)
 
