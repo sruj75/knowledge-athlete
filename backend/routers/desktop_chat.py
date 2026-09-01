@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import time
 from collections.abc import AsyncIterator, Mapping
+from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import uuid4
 
@@ -13,7 +15,7 @@ from fastapi.routing import APIRoute
 
 from database import llm_usage as llm_usage_db
 from database import redis_db
-from utils.executors import critical_executor, db_executor, run_blocking
+from utils.executors import critical_executor, db_executor, llm_executor, run_blocking
 from utils.llm.anthropic_transport import (
     ANTHROPIC_STREAM_HEARTBEAT,
     create_managed_anthropic_message,
@@ -27,6 +29,13 @@ from utils.llm.desktop_llm_stub import (
 )
 from utils.llm.model_config import get_model
 from utils.llm.provider_errors import handle_llm_error
+from utils.observability.langfuse import ChatGeneration, normalize_session_id, start_chat_generation
+from utils.observability.langfuse_prompts import (
+    ResolvedRuntimePrompt,
+    compose_system_prompt,
+    fallback_runtime_prompt,
+    get_runtime_prompt,
+)
 from utils.other import endpoints as auth
 from utils.subscription import enforce_chat_quota
 
@@ -206,20 +215,15 @@ def _request(body: object) -> tuple[str, dict[str, object]]:
 
 
 def _usage(usage: object) -> dict[str, object]:
-    input_tokens = (
-        int(getattr(usage, 'input_tokens', 0))
-        + int(getattr(usage, 'cache_creation_input_tokens', 0))
-        + int(getattr(usage, 'cache_read_input_tokens', 0))
-    )
-    output_tokens = int(getattr(usage, 'output_tokens', 0))
+    provider_input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
+    input_tokens = provider_input_tokens + cache_read_tokens + cache_write_tokens
     result: dict[str, object] = {
         'prompt_tokens': input_tokens,
         'completion_tokens': output_tokens,
         'total_tokens': input_tokens + output_tokens,
     }
-    cached_tokens = int(getattr(usage, 'cache_read_input_tokens', 0))
-    if cached_tokens:
-        result['prompt_tokens_details'] = {'cached_tokens': cached_tokens}
+    if cache_read_tokens:
+        result['prompt_tokens_details'] = {'cached_tokens': cache_read_tokens}
     return result
 
 
@@ -264,6 +268,66 @@ def _usage_values(usage: object) -> tuple[int, int, int, int]:
     )
 
 
+def _langfuse_usage_details(usage: object) -> dict[str, int]:
+    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
+    return {
+        'input': input_tokens,
+        'output': output_tokens,
+        'cache_read_input_tokens': cache_read_tokens,
+        'cache_creation_input_tokens': cache_write_tokens,
+    }
+
+
+def _event_has_completion_content(event: object) -> bool:
+    event_type = getattr(event, 'type', '')
+    if event_type == 'content_block_start':
+        block = cast(Any, getattr(event, 'content_block', None))
+        return getattr(block, 'type', '') == 'tool_use' or bool(getattr(block, 'text', ''))
+    if event_type != 'content_block_delta':
+        return False
+    delta = cast(Any, getattr(event, 'delta', None))
+    if getattr(delta, 'type', '') == 'text_delta':
+        return bool(getattr(delta, 'text', ''))
+    if getattr(delta, 'type', '') == 'input_json_delta':
+        return bool(getattr(delta, 'partial_json', ''))
+    return False
+
+
+def _generation_output(message: object) -> dict[str, object]:
+    content: list[Any] = list(getattr(message, 'content', []))
+    tool_calls = [
+        {
+            'id': block.id,
+            'name': block.name,
+            'input': block.input,
+        }
+        for block in content
+        if getattr(block, 'type', None) == 'tool_use'
+    ]
+    result: dict[str, object] = {
+        'text': ''.join(block.text for block in content if getattr(block, 'type', None) == 'text'),
+        'stop_reason': getattr(message, 'stop_reason', None),
+    }
+    if tool_calls:
+        result['tool_calls'] = tool_calls
+    return result
+
+
+async def _resolve_runtime_system_prompt(payload: dict[str, object]) -> ResolvedRuntimePrompt:
+    try:
+        prompt = await run_blocking(llm_executor, get_runtime_prompt)
+    except Exception:
+        prompt = fallback_runtime_prompt(reason='other')
+    system_value = payload.get('system')
+    kernel_system_prompt: str | None = system_value if isinstance(system_value, str) else None
+    combined = compose_system_prompt(prompt, kernel_system_prompt)
+    if combined:
+        payload['system'] = combined
+    else:
+        payload.pop('system', None)
+    return prompt
+
+
 async def _record_usage(uid: str, usage: object) -> None:
     input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
     await run_blocking(
@@ -279,15 +343,47 @@ async def _record_usage(uid: str, usage: object) -> None:
     )
 
 
-async def _stream(payload: dict[str, object], public_model: str, uid: str) -> AsyncIterator[str]:
+async def _stream(
+    payload: dict[str, object],
+    public_model: str,
+    uid: str,
+    *,
+    request_id: str,
+    session_id: str | None,
+    platform: str | None,
+    prompt: ResolvedRuntimePrompt,
+) -> AsyncIterator[str]:
     stream_id = f'chatcmpl-{uuid4()}'
     created = int(time.time())
     announced = False
+    completion_started = False
+    output_text: list[str] = []
+    output_tool_calls: dict[int, dict[str, object]] = {}
+    stop_reason: str | None = None
+    usage: object | None = None
+    generation = start_chat_generation(
+        uid=uid,
+        request_id=request_id,
+        session_id=session_id,
+        platform=platform,
+        model=str(payload['model']),
+        provider_input=payload,
+        prompt_version=prompt.version,
+        prompt_source=prompt.source,
+        prompt_client=prompt.prompt_client,
+        streaming=True,
+    )
+    level: str | None = None
+    status_message: str | None = None
     try:
         async for event in stream_managed_anthropic_events(anthropic_client.messages, payload):
             if event is ANTHROPIC_STREAM_HEARTBEAT:
                 yield ': keep-alive\n\n'
                 continue
+            event_type = getattr(event, 'type', '')
+            if not completion_started and _event_has_completion_content(event):
+                completion_started = True
+                generation.mark_completion_started(datetime.now(timezone.utc))
             if not announced:
                 announced = True
                 yield _sse(
@@ -299,10 +395,10 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                         'choices': [{'index': 0, 'delta': {'role': 'assistant'}, 'finish_reason': None}],
                     }
                 )
-            event_type = getattr(event, 'type', '')
             if event_type == 'content_block_delta':
                 delta = cast(Any, getattr(event, 'delta', None))
                 if getattr(delta, 'type', '') == 'text_delta':
+                    output_text.append(delta.text)
                     yield _sse(
                         {
                             'id': stream_id,
@@ -313,6 +409,11 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                         }
                     )
                 elif getattr(delta, 'type', '') == 'input_json_delta':
+                    tool_call = output_tool_calls.setdefault(
+                        getattr(event, 'index', 0),
+                        {'id': '', 'name': '', 'arguments': ''},
+                    )
+                    tool_call['arguments'] = f'{tool_call["arguments"]}{delta.partial_json}'
                     yield _sse(
                         {
                             'id': stream_id,
@@ -339,6 +440,11 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                 block = cast(Any, getattr(event, 'content_block', None))
                 if getattr(block, 'type', '') != 'tool_use':
                     continue
+                output_tool_calls[getattr(event, 'index', 0)] = {
+                    'id': block.id,
+                    'name': block.name,
+                    'arguments': '',
+                }
                 yield _sse(
                     {
                         'id': stream_id,
@@ -364,7 +470,8 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                     }
                 )
             elif event_type == 'message_delta':
-                reason = _stop_reason(getattr(getattr(event, 'delta', None), 'stop_reason', None))
+                stop_reason = getattr(getattr(event, 'delta', None), 'stop_reason', None)
+                reason = _stop_reason(stop_reason)
                 yield _sse(
                     {
                         'id': stream_id,
@@ -387,9 +494,28 @@ async def _stream(payload: dict[str, object], public_model: str, uid: str) -> As
                             'usage': _usage(usage),
                         }
                     )
+    except (asyncio.CancelledError, GeneratorExit):
+        level = 'WARNING'
+        status_message = 'cancelled'
+        raise
     except Exception as exc:
+        level = 'ERROR'
+        status_message = type(exc).__name__
         handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         yield _sse({'error': {'message': 'Upstream provider error', 'type': 'server_error', 'code': 502}})
+    finally:
+        output: dict[str, object] = {
+            'text': ''.join(output_text),
+            'stop_reason': stop_reason,
+        }
+        if output_tool_calls:
+            output['tool_calls'] = [output_tool_calls[index] for index in sorted(output_tool_calls)]
+        generation.finish(
+            output=output,
+            usage_details=_langfuse_usage_details(usage) if usage is not None else None,
+            level=level,
+            status_message=status_message,
+        )
     yield 'data: [DONE]\n\n'
 
 
@@ -419,6 +545,7 @@ async def chat_completions(
     x_app_platform: str | None = Header(None, alias='X-App-Platform'),
     x_omi_chat_contract_version: str | None = Header(None, alias='X-Omi-Chat-Contract-Version'),
     x_omi_request_id: str | None = Header(None, alias='X-Omi-Request-Id'),
+    x_omi_session_id: str | None = Header(None, alias='X-Omi-Session-Id'),
 ) -> JSONResponse | StreamingResponse:
     if x_omi_chat_contract_version not in {None, '1'}:
         raise HTTPException(status_code=426, detail='Unsupported chat contract version')
@@ -446,6 +573,8 @@ async def chat_completions(
         raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    prompt = await _resolve_runtime_system_prompt(payload)
+    session_id = normalize_session_id(x_omi_session_id)
     await run_blocking(
         db_executor,
         llm_usage_db.record_chat_quota_question,
@@ -456,7 +585,15 @@ async def chat_completions(
     )
     if body.get('stream') is True:
         return StreamingResponse(
-            _stream(payload, public_model, uid),
+            _stream(
+                payload,
+                public_model,
+                uid,
+                request_id=request_id,
+                session_id=session_id,
+                platform=x_app_platform,
+                prompt=prompt,
+            ),
             media_type='text/event-stream',
             headers={
                 'Cache-Control': 'no-cache',
@@ -464,12 +601,40 @@ async def chat_completions(
                 'X-Request-Id': request_id,
             },
         )
+    generation: ChatGeneration = start_chat_generation(
+        uid=uid,
+        request_id=request_id,
+        session_id=session_id,
+        platform=x_app_platform,
+        model=str(payload['model']),
+        provider_input=payload,
+        prompt_version=prompt.version,
+        prompt_source=prompt.source,
+        prompt_client=prompt.prompt_client,
+        streaming=False,
+    )
     try:
         message = await create_managed_anthropic_message(anthropic_client.messages, payload)
+    except asyncio.CancelledError:
+        generation.finish(
+            output={'cancelled': True},
+            level='WARNING',
+            status_message='cancelled',
+        )
+        raise
     except Exception as exc:
+        generation.finish(
+            output={'error_type': type(exc).__name__},
+            level='ERROR',
+            status_message=type(exc).__name__,
+        )
         handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
         raise HTTPException(status_code=502, detail='Upstream provider error') from exc
     await _record_usage(uid, getattr(message, 'usage', None))
+    generation.finish(
+        output=_generation_output(message),
+        usage_details=_langfuse_usage_details(getattr(message, 'usage', None)),
+    )
     return JSONResponse(
         _message_response(message, public_model),
         headers={

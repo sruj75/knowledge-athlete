@@ -118,7 +118,8 @@ def configure_hermetic_environment() -> None:
     for secret_var in (
         'SERVICE_ACCOUNT_JSON',
         'GOOGLE_APPLICATION_CREDENTIALS',
-        'LANGCHAIN_API_KEY',
+        'LANGFUSE_PUBLIC_KEY',
+        'LANGFUSE_SECRET_KEY',
     ):
         os.environ.pop(secret_var, None)
 
