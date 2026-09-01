@@ -898,7 +898,7 @@ class TranscriptionService: @unchecked Sendable {
             Set(wire.thresholdsMs.keys) == expectedWindowKeys,
             wire.windowSpeechMs.values.allSatisfy({ $0 >= 0 }),
             wire.thresholdsMs.values.allSatisfy({ $0 > 0 }),
-            wire.classifierContract == "openai/gpt-5.1:prompt-v2",
+            wire.classifierContract == "gemini/gemini-3.7-flash:prompt-v2",
             let requestedAt = formatter.date(from: wire.requestedAt),
             let expiresAt = formatter.date(from: wire.expiresAt),
             expiresAt > requestedAt

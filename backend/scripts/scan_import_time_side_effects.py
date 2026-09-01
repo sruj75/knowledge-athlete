@@ -10,7 +10,7 @@ source so the disease is not regenerated. See ``backend/docs/test_isolation.md``
 
 WHAT IT DETECTS (at module scope only — inside functions/classes is allowed):
   - Calls to a curated list of side-effecting constructors, e.g.:
-      OpenAI / AsyncOpenAI / Anthropic / AsyncAnthropic
+      credentialled provider SDK constructors
       firebase_admin.initialize_app
       tiktoken.encoding_for_model / tiktoken.get_encoding
       requests.Session / httpx.Client / httpx.AsyncClient
@@ -57,12 +57,7 @@ DEFAULT_ALLOWLIST = BACKEND_DIR / "tests" / ".import_time_side_effects_legacy"
 # (module_prefix, attr_name) tuples; a call matches if its dotted chain starts with
 # module_prefix and ends with attr_name. Curated = low false-positive.
 SIDE_EFFECT_CTORS: list[tuple[str, str]] = [
-    ("openai", "OpenAI"),
-    ("openai", "AsyncOpenAI"),
-    ("langchain_openai", "ChatOpenAI"),
-    ("langchain_openai", "OpenAIEmbeddings"),
-    ("anthropic", "Anthropic"),
-    ("anthropic", "AsyncAnthropic"),
+    ("langchain_google_genai", "ChatGoogleGenerativeAI"),
     ("firebase_admin", "initialize_app"),
     ("tiktoken", "encoding_for_model"),
     ("tiktoken", "get_encoding"),

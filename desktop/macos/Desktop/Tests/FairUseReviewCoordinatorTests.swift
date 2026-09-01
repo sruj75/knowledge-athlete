@@ -250,7 +250,7 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
       reviewId: "11111111-1111-4111-8111-111111111111", trigger: "daily",
       windowSpeechMs: ["daily_ms": 7_200_001, "three_day_ms": 7_200_001, "weekly_ms": 7_200_001],
       thresholdsMs: ["daily_ms": 7_200_000, "three_day_ms": 28_800_000, "weekly_ms": 36_000_000],
-      classifierContract: "openai/gpt-5.1:prompt-v2",
+      classifierContract: "gemini/gemini-3.7-flash:prompt-v2",
       requestedAt: Date(timeIntervalSince1970: 1_800_000_000 - 60),
       expiresAt: Date(timeIntervalSince1970: 1_800_000_000 + 3_600))
   }

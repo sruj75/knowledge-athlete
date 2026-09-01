@@ -44,8 +44,9 @@ The backend remains a transient managed-compute boundary for live speech, the
 three candidate-only conversation operations (discard, structure, and
 action-item extraction), and fair-use classification. Conversation operations
 return candidates that the Mac validates and commits locally. Fair-use compute
-accepts only a bounded owner-local metadata projection, runs the pinned GPT-5.1
-contract transiently, and persists only content-free enforcement facts. Cloud
+accepts only a bounded owner-local metadata projection, runs the pinned fair-use
+prompt-v2 contract transiently through Gemini 3.7 Flash, and persists only
+content-free enforcement facts. Cloud
 conversation playback, reusable People/voice identity, public conversation
 sharing, and Store Recordings/Private Cloud Sync settings are not macOS product
 surfaces.
@@ -77,6 +78,17 @@ identified and committed locally. Home reads tasks, Focus, Insights, and daily
 suggestions from their local authorities and must not restore a hosted dashboard
 fallback.
 
+Normal Chat uses the bundled native Gemini adapter and the authenticated Gemini
+3.7 Flash streaming route. The desktop supplies only its Firebase bearer token;
+the backend owns the provider key and preserves native Gemini content, tools,
+images, thinking, and thought signatures end to end.
+
+Realtime voice is Gemini Live only. Same-provider reconnect remains the first
+recovery step. If Live cannot complete a turn, the Mac retains the bounded PCM
+buffer and turn identity until release, then uses the existing silence gate and
+batch STT before Gemini Chat and OpenAI TTS. OpenAI remains a spoken-output
+provider only, with the existing macOS system-voice fallback.
+
 ## macOS Memory authority
 
 The Mac owns its Memory archive in the same owner-scoped local `omi.db` boundary
@@ -94,7 +106,7 @@ Embedding compute is transient; vectors and similarity search remain local.
 
 The backend exposes only three authenticated, bounded proposal operations for
 Memory extraction, normalization, and consolidation. They use the pinned
-OpenAI GPT-4.1-mini model, return opaque local tokens rather than durable IDs,
+Gemini 3.7 Flash model, return opaque local tokens rather than durable IDs,
 and own no Memory persistence, search index, maintenance schedule, or product
 mutation authority.
 

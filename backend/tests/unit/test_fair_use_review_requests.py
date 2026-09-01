@@ -100,7 +100,7 @@ def test_pending_review_is_content_free_uid_bound_and_exactly_twelve_hours(monke
     )
 
     assert review is not None
-    assert review['classifier_contract'] == 'openai/gpt-5.1:prompt-v2'
+    assert review['classifier_contract'] == 'gemini/gemini-3.7-flash:prompt-v2'
     assert review['thresholds_ms'] == {
         'daily_ms': 7_200_000,
         'three_day_ms': 28_800_000,
@@ -220,7 +220,7 @@ def test_authenticated_classify_uses_pending_uid_and_returns_content_free_receip
         'trigger': 'daily',
         'window_speech_ms': {'daily_ms': 7_200_001, 'three_day_ms': 7_200_001, 'weekly_ms': 7_200_001},
         'thresholds_ms': {'daily_ms': 7_200_000, 'three_day_ms': 28_800_000, 'weekly_ms': 36_000_000},
-        'classifier_contract': 'openai/gpt-5.1:prompt-v2',
+        'classifier_contract': 'gemini/gemini-3.7-flash:prompt-v2',
         'requested_at': requested_at.isoformat(),
         'expires_at': (requested_at + timedelta(hours=12)).isoformat(),
         'session_id': 'listen-1',
@@ -233,7 +233,7 @@ def test_authenticated_classify_uses_pending_uid_and_returns_content_free_receip
             'confidence': 0.88,
             'evidence': [{'title': 'must be discarded'}],
             'reasoning': 'must be discarded',
-            'model': 'openai/gpt-5.1',
+            'model': 'gemini/gemini-3.7-flash',
             'prompt_version': 'v2',
         }
     )

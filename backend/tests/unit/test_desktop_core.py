@@ -24,7 +24,7 @@ def test_root_reports_only_canonical_backend_identity(monkeypatch):
         "status": "healthy",
         "service": "omi-backend",
         "version": "0.1.0",
-        "chat_contract_version": "1",
+        "chat_contract_version": "2",
     }
 
     assert client.get("/").json() == expected
@@ -40,7 +40,6 @@ def test_retired_service_health_and_readiness_aliases_are_absent():
 def test_api_keys_require_firebase_auth_and_omit_unset_values(monkeypatch):
     monkeypatch.setenv("FIREBASE_API_KEY", "firebase-key")
     monkeypatch.delenv("GOOGLE_CALENDAR_API_KEY", raising=False)
-    monkeypatch.delenv("DESKTOP_LEGACY_ANTHROPIC_KEY", raising=False)
 
     app = FastAPI()
     app.include_router(desktop_core.router)

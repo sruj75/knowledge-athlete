@@ -62,8 +62,8 @@ def _workload(
 _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     'conv_action_items': _workload(
         'conv_action_items',
-        'openai',
-        'gpt-5.4-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/conversation-compute/action-items',
         'bounded local transcript plus local time and related-task facts',
         'validated action-item candidates',
@@ -73,8 +73,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'conv_structure': _workload(
         'conv_structure',
-        'openai',
-        'gpt-5.4-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/conversation-compute/structure',
         'bounded local transcript plus language and local-time facts',
         'validated conversation structure candidate',
@@ -84,8 +84,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'conv_discard': _workload(
         'conv_discard',
-        'openai',
-        'gpt-4.1-nano',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/conversation-compute/discard',
         'bounded local transcript, duration, and word count',
         'validated discard candidate',
@@ -95,8 +95,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'chat_greeting': _workload(
         'chat_greeting',
-        'openai',
-        'gpt-5.4-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v2/chat/initial-message',
         'bounded local profile and memory context',
         'validated greeting candidate',
@@ -128,19 +128,19 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'chat_agent': _workload(
         'chat_agent',
-        'anthropic',
-        'claude-sonnet-4-6',
-        'POST /v2/chat/completions from local Node/Pi',
+        'gemini',
+        'gemini-3.7-flash',
+        'POST /v2/models/gemini-3.7-flash:streamGenerateContent from local Node/Pi',
         'bounded owner-scoped local Chat context and tool schema',
-        'Anthropic text and tool-call stream',
+        'native Gemini content and tool-call stream',
         'chat_agent',
         'owner-scoped Mac Node journal',
         'typed provider failure without cloud journal fallback',
     ),
     'fair_use': _workload(
         'fair_use',
-        'openai',
-        'gpt-5.1',
+        'gemini',
+        'gemini-3.7-flash',
         'S-20 bounded fair-use classify route',
         'bounded local fair-use evidence packet',
         'validated classification candidate',
@@ -151,8 +151,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'memory_l1': _workload(
         'memory_l1',
-        'openai',
-        'gpt-4.1-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/memory/compute/extract',
         'bounded readable local transcript and evidence references',
         'validated grounded Memory candidates',
@@ -162,8 +162,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'memory_l2': _workload(
         'memory_l2',
-        'openai',
-        'gpt-4.1-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/memory/compute/normalize',
         'bounded explicit assertion, provenance, and revision',
         'validated normalized Memory proposal',
@@ -173,8 +173,8 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
     'memory_conflict': _workload(
         'memory_conflict',
-        'openai',
-        'gpt-4.1-mini',
+        'gemini',
+        'gemini-3.7-flash',
         'POST /v1/memory/compute/consolidate',
         'bounded due candidates and relevant local Memory references',
         'conserved lifecycle and relationship proposals',
@@ -184,8 +184,6 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
     ),
 }
 
-_CACHE_KEY_MODEL_PREFIXES = ('gpt-5', 'gpt-4.1', 'gpt-4o', 'o1', 'o3', 'o4')
-_CACHE_RETENTION_MODEL_PREFIXES = ('gpt-5', 'o1', 'o3', 'o4')
 _STRUCTURED_OUTPUT_FEATURES = {'translation'}
 
 
@@ -220,27 +218,13 @@ def get_provider(feature: str) -> str:
 def get_route_options(feature: str) -> Dict[str, object]:
     workload = get_workload(feature)
     options: Dict[str, object] = {}
-    if supports_cache_retention(workload.model):
-        options['extra_body'] = {'prompt_cache_retention': '24h'}
-    if workload.provider == 'gemini' and not is_structured_output_feature(feature):
+    if workload.model.startswith('gemini-2.5') and not is_structured_output_feature(feature):
         options['thinking_budget'] = 0
     return options
 
 
-def supports_prompt_cache(model: str) -> bool:
-    return bool(model) and model.startswith(_CACHE_KEY_MODEL_PREFIXES)
-
-
-def supports_cache_retention(model: str) -> bool:
-    return bool(model) and model.startswith(_CACHE_RETENTION_MODEL_PREFIXES)
-
-
 def is_structured_output_feature(feature: str) -> bool:
     return feature in _STRUCTURED_OUTPUT_FEATURES
-
-
-def is_anthropic_only_feature(feature: str) -> bool:
-    return feature == 'chat_agent'
 
 
 def get_all_configured_features() -> set[str]:

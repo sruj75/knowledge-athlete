@@ -10,13 +10,12 @@ import logging
 from typing import Any, Dict, List, cast
 
 from models.fair_use import normalize_usage_type
-from utils.llm.model_config import get_route_options
-from utils.llm.providers import get_default_client
+from utils.llm.clients import get_workload_client
 from utils.llm.usage_tracker import Features, track_usage
 
 logger = logging.getLogger(__name__)
 
-CLASSIFIER_ROUTE = 'openai/gpt-5.1'
+CLASSIFIER_ROUTE = 'gemini/gemini-3.7-flash'
 CLASSIFIER_MAX_CONVERSATIONS = 30
 _classifier_llm = None
 
@@ -179,9 +178,7 @@ CONVERSATIONS:
 Respond with ONLY the JSON output, no other text."""
 
         with track_usage(uid, Features.OTHER):
-            classifier_llm = _classifier_llm or get_default_client(
-                'gpt-5.1', 'openai', False, get_route_options('fair_use')
-            )
+            classifier_llm = _classifier_llm or get_workload_client('fair_use')
             response = await classifier_llm.ainvoke(
                 [
                     {"role": "system", "content": SYSTEM_PROMPT},

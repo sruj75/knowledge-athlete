@@ -3,9 +3,8 @@ import XCTest
 @testable import Omi_Computer
 
 final class ModelQoSTests: XCTestCase {
-  func testChatModelsUseSonnet() {
-    XCTAssertEqual(ModelQoS.Claude.chat, "claude-sonnet-4-6")
-    XCTAssertEqual(ModelQoS.Claude.floatingBar, "claude-sonnet-4-6")
+  func testChatUsesGemini37Flash() {
+    XCTAssertEqual(ModelQoS.Gemini.chat, "gemini-3.7-flash")
   }
 
   func testGeminiModelsUseFixedRetainedRoutes() {

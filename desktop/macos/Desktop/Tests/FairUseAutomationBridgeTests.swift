@@ -135,7 +135,7 @@ final class FairUseAutomationBridgeTests: XCTestCase {
       trigger: "automation_probe",
       windowSpeechMs: [:],
       thresholdsMs: [:],
-      classifierContract: "openai/gpt-5.1:prompt-v2",
+      classifierContract: "gemini/gemini-3.7-flash:prompt-v2",
       requestedAt: now,
       expiresAt: now.addingTimeInterval(300))
 

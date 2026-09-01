@@ -71,7 +71,7 @@ enum AgentErrorClassifier {
       return ClassifiedAgentError(
         code: .providerBillingExhausted,
         userMessage:
-          "Your Anthropic credit balance is too low. Add credits in your Anthropic account (Plans & Billing), then send your message again.",
+          "The managed AI service is unavailable because its provider balance is exhausted. Please contact support.",
         retryable: false)
     }
     if lower.contains("oauth callback timed out") {

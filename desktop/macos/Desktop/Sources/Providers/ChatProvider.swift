@@ -753,7 +753,7 @@ struct ChatMessage: Identifiable {
   var contentBlocks: [ChatContentBlock]
   /// Metadata about context used to generate this response (AI messages only)
   var metadata: MessageMetadata?
-  /// Context text for proactive notification messages (not shown to user, sent to Claude)
+  /// Context text for proactive notification messages (not shown to user, sent to Gemini)
   var notificationContext: String?
   /// Screenshot JPEG data captured when a proactive notification was generated
   var notificationScreenshot: Data?
@@ -3751,7 +3751,7 @@ class ChatProvider: ObservableObject {
     onJournalFinalized: (@MainActor (_ accepted: Bool) -> Void)? = nil
   ) async -> String? {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    let managedModel = ModelQoS.Claude.chat
+    let managedModel = ModelQoS.Gemini.chat
     guard !trimmedText.isEmpty else { return nil }
     guard !isClearing, !isLoading else {
       errorMessage =
@@ -4779,7 +4779,7 @@ class ChatProvider: ObservableObject {
         )
       }
 
-      // Skip client-side cost telemetry because /v2/chat/completions
+      // Skip client-side cost telemetry because the native managed Gemini route
       // already logs Omi-account token/cost usage server-side. Question
       // quota is recorded by the transient inference endpoint, so model calls
       // and helper calls cannot double-count.

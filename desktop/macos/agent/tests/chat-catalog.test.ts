@@ -31,7 +31,7 @@ describe("local Chat catalog", () => {
       ownerId: "owner-a",
       chatId: "chat-a",
       defaultAdapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/artifacts",
     });
     const conversationId = String(store.getRow(
@@ -86,7 +86,7 @@ describe("local Chat catalog", () => {
       ownerId: "owner-a",
       chatId: "chat-a",
       defaultAdapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/artifacts",
     };
     kernel.createChatCatalog(input);
@@ -160,7 +160,7 @@ describe("local Chat catalog", () => {
       ownerId: "owner-a",
       chatId,
       defaultAdapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/artifacts",
     });
     create("chat-with-newest-turn");

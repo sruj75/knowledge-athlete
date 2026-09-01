@@ -8,14 +8,14 @@ final class AgentErrorClassifierTests: XCTestCase {
 
   func testBillingExhaustionIsNotRetryableAndNamesTheFix() {
     let classified = AgentErrorClassifier.classify(
-      "400 Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."
+      "400 Your credit balance is too low to access the managed AI API."
     )
     XCTAssertEqual(classified.code, .providerBillingExhausted)
     XCTAssertFalse(classified.retryable, "retrying an exhausted balance produced measured retry storms")
     XCTAssertFalse(
       classified.userMessage.lowercased().contains("try again"),
       "copy must not prescribe retries for an unretryable billing error")
-    XCTAssertTrue(classified.userMessage.contains("credit balance"))
+    XCTAssertTrue(classified.userMessage.contains("provider balance"))
   }
 
   func testAuthExpiryRoutesToReconnectNotGenericError() {
@@ -161,7 +161,7 @@ final class AgentErrorClassifierTests: XCTestCase {
         "400 tool_choice.name 'unsupported_tool' cannot be used because this tool only allows calls from ['code_execution_20260120'].",
         true, false
       ),
-      ("400 Your credit balance is too low to access the Anthropic API.", true, false),
+      ("400 Your credit balance is too low to access the managed AI API.", true, false),
       ("400 tools: Tool names must be unique.", true, false),
       ("pi-mono process exited (code 1)", true, true),
       ("table adapter_bindings has no column named last_delivered_turn_created_at_ms", true, false),

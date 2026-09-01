@@ -76,6 +76,10 @@ def get_stt_semaphore() -> asyncio.Semaphore:
     return _get_semaphore('stt', 8)
 
 
+def get_gemini_semaphore() -> asyncio.Semaphore:
+    return _get_semaphore('gemini', 32)
+
+
 # ---------------------------------------------------------------------------
 # Shared httpx.AsyncClient instances
 # ---------------------------------------------------------------------------
@@ -137,6 +141,17 @@ def get_external_client() -> httpx.AsyncClient:
         lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, connect=2.0),
             limits=httpx.Limits(max_connections=64, max_keepalive_connections=16),
+        ),
+    )
+
+
+def get_gemini_client() -> httpx.AsyncClient:
+    """Return the managed Gemini Developer API streaming client."""
+    return _get_client(
+        'gemini',
+        lambda: httpx.AsyncClient(
+            timeout=httpx.Timeout(None, connect=10.0),
+            limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
         ),
     )
 

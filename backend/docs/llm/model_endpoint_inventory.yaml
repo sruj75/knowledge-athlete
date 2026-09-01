@@ -11,12 +11,12 @@ routing_contract:
 workloads:
   - key: chat_agent
     lifecycle: retained
-    provider_model: anthropic/claude-sonnet-4-6
-    caller: POST /v2/chat/completions from local Node/Pi
+    provider_model: gemini/gemini-3.7-flash
+    caller: POST /v2/models/gemini-3.7-flash:streamGenerateContent from local Node/Pi
     result_owner: owner-scoped Mac Node journal
   - key: chat_greeting
     lifecycle: retained
-    provider_model: openai/gpt-5.4-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v2/chat/initial-message
     result_owner: owner-scoped Mac Node journal
   - key: session_titles
@@ -26,32 +26,32 @@ workloads:
     result_owner: owner-scoped Mac Chat catalog
   - key: conv_discard
     lifecycle: retained
-    provider_model: openai/gpt-4.1-nano
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/conversation-compute/discard
     result_owner: Mac conversation transaction
   - key: conv_structure
     lifecycle: retained
-    provider_model: openai/gpt-5.4-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/conversation-compute/structure
     result_owner: Mac conversation transaction
   - key: conv_action_items
     lifecycle: retained
-    provider_model: openai/gpt-5.4-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/conversation-compute/action-items
     result_owner: Mac ActionItemStorage transaction
   - key: memory_l1
     lifecycle: retained
-    provider_model: openai/gpt-4.1-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/memory/compute/extract
     result_owner: Mac MemoryStorage lifecycle transaction
   - key: memory_l2
     lifecycle: retained
-    provider_model: openai/gpt-4.1-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/memory/compute/normalize
     result_owner: Mac MemoryStorage lifecycle transaction
   - key: memory_conflict
     lifecycle: retained
-    provider_model: openai/gpt-4.1-mini
+    provider_model: gemini/gemini-3.7-flash
     caller: POST /v1/memory/compute/consolidate
     result_owner: Mac MemoryStorage lifecycle transaction
   - key: translation
@@ -61,7 +61,7 @@ workloads:
     result_owner: matching Mac transcript segments
   - key: fair_use
     lifecycle: dependency_s20
-    provider_model: openai/gpt-5.1
+    provider_model: gemini/gemini-3.7-flash
     caller: S-20 bounded fair-use classify route
     result_owner: S-20 Mac GRDB evidence and content-free enforcement facts
 adjacent_direct_surfaces:
@@ -74,17 +74,11 @@ adjacent_direct_surfaces:
   - surface: desktop_gemini_embeddings
     provider_model: gemini/gemini-embedding-001
     owner: authenticated desktop proxy
-  - surface: openai_embeddings
-    provider_model: openai/text-embedding-3-large
-    owner: explicit embedding callers
   - surface: omni_realtime_relay
     provider_models:
       - openai/realtime
       - gemini/live
     owner: native realtime voice policy; outside managed workload registry
-  - surface: file_chat
-    provider_model: openai/gpt-4.1
-    owner: explicit-file lifecycle; outside managed workload registry
 
 retired_surfaces:
   - global premium/max/BYOK profiles
@@ -94,6 +88,8 @@ retired_surfaces:
   - ElevenLabs /v2 TTS route
   - Gemini Pro and streaming desktop proxy routes
   - callerless onboarding and trends model helpers
+  - OpenAI text and embedding helpers
+  - stale file-chat model inventory
 
 closure:
   status: complete

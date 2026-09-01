@@ -103,7 +103,6 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'MODULATE_API_KEY',
         'GEMINI_API_KEY',
         'OPENAI_API_KEY',
-        'ANTHROPIC_API_KEY',
         'FIREBASE_API_KEY',
         'REDIS_DB_PASSWORD',
         'POSTHOG_PROJECT_API_KEY',

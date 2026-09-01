@@ -102,7 +102,53 @@ function connectOmiPipe(pipePath: string): Promise<void> {
 
 export const OMI_TOOL_TIMEOUT_MS = 30_000;
 export const OMI_LONG_CONTROL_TOOL_TIMEOUT_MS = 10 * 60_000;
-export const OMI_CHAT_CONTRACT_VERSION = "1";
+export const OMI_CHAT_CONTRACT_VERSION = "2";
+export const OMI_MANAGED_PROVIDER_SENTINEL = "intentive-managed-proxy";
+
+const omiManagedProviderBaseUrls = new Set<string>();
+let omiManagedProviderFetchInstalled = false;
+
+function normalizedManagedProviderBaseUrl(value: string): string {
+  const url = new URL(value);
+  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+}
+
+function requestTargetsManagedProvider(input: RequestInfo | URL, managedBaseUrls: ReadonlySet<string>): boolean {
+  const rawUrl = input instanceof Request ? input.url : String(input);
+  const url = new URL(rawUrl);
+  const target = `${url.origin}${url.pathname}`;
+  return [...managedBaseUrls].some((baseUrl) => target === baseUrl || target.startsWith(`${baseUrl}/`));
+}
+
+/**
+ * Removes the Google adapter's placeholder key at the final fetch boundary.
+ * The provider hook runs before @google/genai's NodeAuth layer, which appends
+ * x-goog-api-key afterwards; this wrapper is therefore the last credential
+ * boundary before the request leaves the desktop process.
+ */
+export function createManagedProviderFetch(
+  fetchImpl: typeof globalThis.fetch,
+  managedBaseUrls: ReadonlySet<string>,
+): typeof globalThis.fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (!requestTargetsManagedProvider(input, managedBaseUrls)) return fetchImpl(input, init);
+    const inputHeaders = input instanceof Request ? input.headers : undefined;
+    const headers = new Headers(init?.headers ?? inputHeaders);
+    headers.delete("x-goog-api-key");
+    if (input instanceof Request) {
+      return fetchImpl(new Request(input, { ...init, headers }));
+    }
+    return fetchImpl(input, { ...init, headers });
+  }) as typeof globalThis.fetch;
+}
+
+function installManagedProviderFetchBoundary(baseUrl: string): void {
+  omiManagedProviderBaseUrls.add(normalizedManagedProviderBaseUrl(baseUrl));
+  if (omiManagedProviderFetchInstalled) return;
+  const originalFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = createManagedProviderFetch(originalFetch, omiManagedProviderBaseUrls);
+  omiManagedProviderFetchInstalled = true;
+}
 
 async function omiRelayCapabilityRef(): Promise<string | undefined> {
   const contextFile = process.env.OMI_CONTEXT_FILE;
@@ -166,7 +212,14 @@ async function callSwiftTool(
 export function applyOmiProviderHeaders(
   headers: Record<string, string>,
   relayContextRaw: string | undefined,
+  firebaseToken = process.env.OMI_API_KEY,
 ): void {
+  // The bundled Google adapter requires an auth value while assembling its
+  // request and adds it as x-goog-api-key. Intentive authenticates the desktop
+  // with Firebase instead, so remove that SDK header before any bytes leave the
+  // process; the backend owns the real Gemini key.
+  delete headers["x-goog-api-key"];
+  if (firebaseToken) headers.authorization = `Bearer ${firebaseToken}`;
   headers["x-omi-chat-contract-version"] = OMI_CHAT_CONTRACT_VERSION;
   if (relayContextRaw === undefined) return;
   const requestId = omiRequestIdFromRelayContext(relayContextRaw);
@@ -313,14 +366,24 @@ async function registerOmiTools(pi: ExtensionAPI): Promise<void> {
 }
 
 export default function managedPiExtension(pi: ExtensionAPI): void {
+  const baseUrl = process.env.OMI_API_BASE_URL || "https://api.omi.me/v2";
+  installManagedProviderFetchBoundary(baseUrl);
   pi.registerProvider("omi", {
-    api: "openai-completions",
-    baseUrl: process.env.OMI_API_BASE_URL || "https://api.omi.me/v2",
-    apiKey: process.env.OMI_API_KEY || "",
+    api: "google-generative-ai",
+    baseUrl,
+    apiKey: OMI_MANAGED_PROVIDER_SENTINEL,
+    authHeader: true,
     models: [{
-      id: "omi-sonnet",
-      name: "Omi Sonnet",
+      id: "gemini-3.7-flash",
+      name: "Intentive Gemini Flash",
       reasoning: true,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: "low",
+        medium: "medium",
+        high: "high",
+      },
       input: ["text", "image"],
       contextWindow: 200_000,
       maxTokens: 16_384,

@@ -1,31 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
-import time
+import os
+import re
 from collections.abc import AsyncIterator, Mapping
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute
 
 from database import llm_usage as llm_usage_db
 from database import redis_db
 from utils.executors import critical_executor, db_executor, llm_executor, run_blocking
-from utils.llm.anthropic_transport import (
-    ANTHROPIC_STREAM_HEARTBEAT,
-    create_managed_anthropic_message,
-    stream_managed_anthropic_events,
-)
-from utils.llm.clients import anthropic_client
-from utils.llm.desktop_llm_stub import (
-    llm_stub_enabled,
-    stub_chat_completions_json,
-    stub_chat_completions_stream,
+from utils.http_client import get_gemini_client, get_gemini_semaphore
+from utils.llm.desktop_llm_stub import llm_stub_enabled, stub_gemini_stream
+from utils.llm.managed_stream_transport import (
+    MANAGED_STREAM_HEARTBEAT,
+    stream_managed_response_bytes,
 )
 from utils.llm.model_config import get_model
 from utils.llm.provider_errors import handle_llm_error
@@ -41,6 +37,15 @@ from utils.subscription import enforce_chat_quota
 
 _MAX_BODY_BYTES = 16 * 1024 * 1024
 _RATE_LIMIT_PER_MINUTE = 120
+_MODEL = get_model('chat_agent')
+_MAX_OUTPUT_TOKENS = 16_384
+_CHAT_CONTRACT_VERSION = '2'
+_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
+_BACKEND_ROUTE = f'/v2/models/{_MODEL}:streamGenerateContent'
+_SSE_BOUNDARY = re.compile(br'\r?\n\r?\n')
+_ALLOWED_REQUEST_FIELDS = frozenset({'contents', 'generationConfig', 'systemInstruction', 'toolConfig', 'tools'})
+_ALLOWED_GENERATION_CONFIG_FIELDS = frozenset({'maxOutputTokens', 'temperature', 'thinkingConfig'})
+_ALLOWED_THINKING_CONFIG_FIELDS = frozenset({'includeThoughts', 'thinkingLevel'})
 
 
 class _BoundedChatRoute(APIRoute):
@@ -76,241 +81,58 @@ class _BoundedChatRoute(APIRoute):
 
 router = APIRouter(route_class=_BoundedChatRoute)
 
-_MODEL_ROUTES = {
-    'omi-sonnet': get_model('chat_agent'),
-}
-_MAX_TOKENS = 16_384
 
-
-def _text(content: object) -> str:
-    if isinstance(content, str):
-        return content
-    if not isinstance(content, list):
-        return ''
-    return ''.join(
-        block.get('text', '')
-        for block in content
-        if isinstance(block, Mapping) and block.get('type') == 'text' and isinstance(block.get('text'), str)
-    )
-
-
-def _user_content(content: object) -> object:
-    if not isinstance(content, list):
-        return content if isinstance(content, str) else ''
-    blocks: list[dict[str, object]] = []
-    for block in content:
-        if not isinstance(block, Mapping):
-            continue
-        if block.get('type') == 'text' and isinstance(block.get('text'), str):
-            blocks.append({'type': 'text', 'text': block['text']})
-        elif block.get('type') == 'image_url' and isinstance(block.get('image_url'), Mapping):
-            url = block['image_url'].get('url')
-            if isinstance(url, str) and url.startswith('data:') and ';base64,' in url:
-                media_type, data = url[5:].split(';base64,', 1)
-                try:
-                    base64.b64decode(data, validate=True)
-                except ValueError as exc:
-                    raise ValueError('image_url must contain valid base64 data') from exc
-                blocks.append({'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': data}})
-    return blocks or ''
-
-
-def _tool_choice(choice: object) -> dict[str, str] | None:
-    if choice in (None, 'none'):
-        return None
-    if choice == 'auto':
-        return {'type': 'auto'}
-    if choice == 'required':
-        return {'type': 'any'}
-    if isinstance(choice, Mapping) and choice.get('type') == 'function' and isinstance(choice.get('function'), Mapping):
-        name = choice['function'].get('name')
-        if isinstance(name, str):
-            return {'type': 'tool', 'name': name}
-    raise ValueError('unsupported tool_choice')
-
-
-def _request(body: object) -> tuple[str, dict[str, object]]:
-    if not isinstance(body, Mapping):
-        raise ValueError('request body must be an object')
-    model = body.get('model')
-    messages = body.get('messages')
-    if not isinstance(model, str) or model not in _MODEL_ROUTES:
+def _validate_native_request(model: str, body: object, alt: str | None) -> dict[str, object]:
+    if model != _MODEL:
         raise ValueError('unsupported model')
-    if not isinstance(messages, list):
-        raise ValueError('messages must be an array')
-    system: str | None = None
-    translated: list[dict[str, object]] = []
-    for message in messages:
-        if not isinstance(message, Mapping) or not isinstance(message.get('role'), str):
-            raise ValueError('messages must contain role objects')
-        role = message['role']
-        if role in {'system', 'developer'}:
-            system = _text(message.get('content'))
-        elif role == 'user':
-            translated.append({'role': 'user', 'content': _user_content(message.get('content', ''))})
-        elif role == 'assistant':
-            content: list[dict[str, object]] = []
-            text = _text(message.get('content'))
-            if text:
-                content.append({'type': 'text', 'text': text})
-            tool_calls = message.get('tool_calls')
-            if isinstance(tool_calls, list):
-                for call in tool_calls:
-                    if not isinstance(call, Mapping) or not isinstance(call.get('function'), Mapping):
-                        raise ValueError('invalid assistant tool call')
-                    function = call['function']
-                    name, arguments, call_id = function.get('name'), function.get('arguments'), call.get('id')
-                    if not all(isinstance(value, str) for value in (name, arguments, call_id)):
-                        raise ValueError('invalid assistant tool call')
-                    try:
-                        input_value = json.loads(arguments)
-                    except ValueError:
-                        input_value = {}
-                    content.append({'type': 'tool_use', 'id': call_id, 'name': name, 'input': input_value})
-            translated.append({'role': 'assistant', 'content': content or [{'type': 'text', 'text': ''}]})
-        elif role == 'tool':
-            tool_call_id = message.get('tool_call_id')
-            if not isinstance(tool_call_id, str):
-                raise ValueError('tool message missing tool_call_id')
-            translated.append(
-                {
-                    'role': 'user',
-                    'content': [
-                        {'type': 'tool_result', 'tool_use_id': tool_call_id, 'content': _text(message.get('content'))}
-                    ],
-                }
-            )
-        else:
-            raise ValueError(f'unsupported message role: {role}')
-    maximum = body.get('max_completion_tokens', body.get('max_tokens', 8192))
-    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 1:
-        raise ValueError('max_tokens must be a positive integer')
-    result: dict[str, object] = {
-        'model': _MODEL_ROUTES[model],
-        'max_tokens': min(maximum, _MAX_TOKENS),
-        'messages': translated,
-    }
-    if system and system.strip():
-        result['system'] = system
-    if isinstance(body.get('temperature'), (int, float)) and not isinstance(body.get('temperature'), bool):
-        result['temperature'] = body['temperature']
-    tools = body.get('tools')
-    choice = _tool_choice(body.get('tool_choice'))
-    if isinstance(tools, list) and body.get('tool_choice') != 'none':
-        result['tools'] = [
-            {
-                'name': tool['function']['name'],
-                'description': tool['function'].get('description'),
-                'input_schema': tool['function'].get('parameters', {'type': 'object', 'properties': {}}),
-            }
-            for tool in tools
-            if isinstance(tool, Mapping)
-            and tool.get('type') == 'function'
-            and isinstance(tool.get('function'), Mapping)
-            and isinstance(tool['function'].get('name'), str)
-        ]
-    if choice is not None and result.get('tools'):
-        result['tool_choice'] = choice
-    return model, result
+    if alt not in {None, 'sse'}:
+        raise ValueError('alt must be sse')
+    if not isinstance(body, dict):
+        raise ValueError('request body must be an object')
+    unknown_fields = set(body) - _ALLOWED_REQUEST_FIELDS
+    if unknown_fields:
+        raise ValueError(f'unsupported request field: {sorted(unknown_fields)[0]}')
+    contents = body.get('contents')
+    if not isinstance(contents, list):
+        raise ValueError('contents must be an array')
+    generation_config = body.get('generationConfig')
+    if generation_config is None:
+        generation_config = {}
+        body['generationConfig'] = generation_config
+    if not isinstance(generation_config, dict):
+        raise ValueError('generationConfig must be an object')
+    unknown_generation_fields = set(generation_config) - _ALLOWED_GENERATION_CONFIG_FIELDS
+    if unknown_generation_fields:
+        raise ValueError(f'unsupported generationConfig field: {sorted(unknown_generation_fields)[0]}')
+    requested_maximum = generation_config.get('maxOutputTokens', _MAX_OUTPUT_TOKENS)
+    if not isinstance(requested_maximum, int) or isinstance(requested_maximum, bool) or requested_maximum < 1:
+        raise ValueError('maxOutputTokens must be a positive integer')
+    generation_config['maxOutputTokens'] = min(requested_maximum, _MAX_OUTPUT_TOKENS)
+    thinking_config = generation_config.get('thinkingConfig')
+    if thinking_config is not None:
+        if not isinstance(thinking_config, Mapping):
+            raise ValueError('thinkingConfig must be an object')
+        unknown_thinking_fields = set(thinking_config) - _ALLOWED_THINKING_CONFIG_FIELDS
+        if unknown_thinking_fields:
+            raise ValueError(f'unsupported thinkingConfig field: {sorted(unknown_thinking_fields)[0]}')
+        level = thinking_config.get('thinkingLevel')
+        if level is not None and level not in {'LOW', 'MEDIUM', 'HIGH'}:
+            raise ValueError('unsupported thinkingLevel')
+    return body
 
 
-def _usage(usage: object) -> dict[str, object]:
-    provider_input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
-    input_tokens = provider_input_tokens + cache_read_tokens + cache_write_tokens
-    result: dict[str, object] = {
-        'prompt_tokens': input_tokens,
-        'completion_tokens': output_tokens,
-        'total_tokens': input_tokens + output_tokens,
-    }
-    if cache_read_tokens:
-        result['prompt_tokens_details'] = {'cached_tokens': cache_read_tokens}
-    return result
-
-
-def _stop_reason(value: object) -> str:
-    return {'end_turn': 'stop', 'max_tokens': 'length', 'tool_use': 'tool_calls', 'stop_sequence': 'stop'}.get(
-        value if isinstance(value, str) else '', 'stop'
+def _system_instruction_text(value: object) -> str | None:
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, Mapping):
+        return None
+    parts = value.get('parts')
+    if not isinstance(parts, list):
+        return None
+    text = ''.join(
+        str(part['text']) for part in parts if isinstance(part, Mapping) and isinstance(part.get('text'), str)
     )
-
-
-def _message_response(message: object, public_model: str) -> dict[str, object]:
-    content: list[Any] = list(getattr(message, 'content', []))
-    tool_calls = [
-        {
-            'id': block.id,
-            'type': 'function',
-            'function': {'name': block.name, 'arguments': json.dumps(block.input, separators=(',', ':'))},
-        }
-        for block in content
-        if getattr(block, 'type', None) == 'tool_use'
-    ]
-    text = ''.join(block.text for block in content if getattr(block, 'type', None) == 'text')
-    stop_reason = _stop_reason(getattr(message, 'stop_reason', None))
-    response_message: dict[str, object] = {'role': 'assistant', 'content': text or None}
-    if tool_calls:
-        response_message['tool_calls'] = tool_calls
-    return {
-        'id': f'chatcmpl-{getattr(message, "id", uuid4())}',
-        'object': 'chat.completion',
-        'created': int(time.time()),
-        'model': public_model,
-        'choices': [{'index': 0, 'message': response_message, 'finish_reason': stop_reason}],
-        'usage': _usage(getattr(message, 'usage', None)),
-    }
-
-
-def _usage_values(usage: object) -> tuple[int, int, int, int]:
-    return (
-        int(getattr(usage, 'input_tokens', 0)),
-        int(getattr(usage, 'output_tokens', 0)),
-        int(getattr(usage, 'cache_read_input_tokens', 0)),
-        int(getattr(usage, 'cache_creation_input_tokens', 0)),
-    )
-
-
-def _langfuse_usage_details(usage: object) -> dict[str, int]:
-    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
-    return {
-        'input': input_tokens,
-        'output': output_tokens,
-        'cache_read_input_tokens': cache_read_tokens,
-        'cache_creation_input_tokens': cache_write_tokens,
-    }
-
-
-def _event_has_completion_content(event: object) -> bool:
-    event_type = getattr(event, 'type', '')
-    if event_type == 'content_block_start':
-        block = cast(Any, getattr(event, 'content_block', None))
-        return getattr(block, 'type', '') == 'tool_use' or bool(getattr(block, 'text', ''))
-    if event_type != 'content_block_delta':
-        return False
-    delta = cast(Any, getattr(event, 'delta', None))
-    if getattr(delta, 'type', '') == 'text_delta':
-        return bool(getattr(delta, 'text', ''))
-    if getattr(delta, 'type', '') == 'input_json_delta':
-        return bool(getattr(delta, 'partial_json', ''))
-    return False
-
-
-def _generation_output(message: object) -> dict[str, object]:
-    content: list[Any] = list(getattr(message, 'content', []))
-    tool_calls = [
-        {
-            'id': block.id,
-            'name': block.name,
-            'input': block.input,
-        }
-        for block in content
-        if getattr(block, 'type', None) == 'tool_use'
-    ]
-    result: dict[str, object] = {
-        'text': ''.join(block.text for block in content if getattr(block, 'type', None) == 'text'),
-        'stop_reason': getattr(message, 'stop_reason', None),
-    }
-    if tool_calls:
-        result['tool_calls'] = tool_calls
-    return result
+    return text or None
 
 
 async def _resolve_runtime_system_prompt(payload: dict[str, object]) -> ResolvedRuntimePrompt:
@@ -318,17 +140,25 @@ async def _resolve_runtime_system_prompt(payload: dict[str, object]) -> Resolved
         prompt = await run_blocking(llm_executor, get_runtime_prompt)
     except Exception:
         prompt = fallback_runtime_prompt(reason='other')
-    system_value = payload.get('system')
-    kernel_system_prompt: str | None = system_value if isinstance(system_value, str) else None
-    combined = compose_system_prompt(prompt, kernel_system_prompt)
+    combined = compose_system_prompt(prompt, _system_instruction_text(payload.get('systemInstruction')))
     if combined:
-        payload['system'] = combined
+        payload['systemInstruction'] = {'parts': [{'text': combined}]}
     else:
-        payload.pop('system', None)
+        payload.pop('systemInstruction', None)
     return prompt
 
 
-async def _record_usage(uid: str, usage: object) -> None:
+def _usage_values(usage: Mapping[str, object] | None) -> tuple[int, int, int, int]:
+    if usage is None:
+        return 0, 0, 0, 0
+    prompt_tokens = int(usage.get('promptTokenCount') or 0)
+    cached_tokens = int(usage.get('cachedContentTokenCount') or 0)
+    candidate_tokens = int(usage.get('candidatesTokenCount') or 0)
+    thought_tokens = int(usage.get('thoughtsTokenCount') or 0)
+    return max(0, prompt_tokens - cached_tokens), candidate_tokens + thought_tokens, cached_tokens, 0
+
+
+async def _record_usage(uid: str, usage: Mapping[str, object]) -> None:
     input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
     await run_blocking(
         db_executor,
@@ -343,30 +173,102 @@ async def _record_usage(uid: str, usage: object) -> None:
     )
 
 
-async def _stream(
+def _langfuse_usage_details(usage: Mapping[str, object] | None) -> dict[str, int] | None:
+    if usage is None:
+        return None
+    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = _usage_values(usage)
+    return {
+        'input': input_tokens,
+        'output': output_tokens,
+        'cache_read_input_tokens': cache_read_tokens,
+        'cache_creation_input_tokens': cache_write_tokens,
+    }
+
+
+class _GeminiStreamObservation:
+    def __init__(self) -> None:
+        self._buffer = b''
+        self.text: list[str] = []
+        self.tool_calls: list[dict[str, object]] = []
+        self.finish_reason: str | None = None
+        self.usage: Mapping[str, object] | None = None
+        self.completion_started = False
+
+    def feed(self, chunk: bytes) -> None:
+        self._buffer += chunk
+        while True:
+            boundary = _SSE_BOUNDARY.search(self._buffer)
+            if boundary is None:
+                return
+            event = self._buffer[: boundary.start()]
+            self._buffer = self._buffer[boundary.end() :]
+            data = b'\n'.join(
+                line.split(b':', 1)[1].lstrip() for line in event.splitlines() if line.startswith(b'data:')
+            )
+            if not data:
+                continue
+            try:
+                value = json.loads(data)
+            except (UnicodeDecodeError, ValueError):
+                continue
+            self._observe_value(value)
+
+    def _observe_value(self, value: object) -> None:
+        if not isinstance(value, Mapping):
+            return
+        usage = value.get('usageMetadata')
+        if isinstance(usage, Mapping):
+            self.usage = usage
+        candidates = value.get('candidates')
+        if not isinstance(candidates, list):
+            return
+        for candidate in candidates:
+            if not isinstance(candidate, Mapping):
+                continue
+            finish_reason = candidate.get('finishReason')
+            if isinstance(finish_reason, str):
+                self.finish_reason = finish_reason
+            content = candidate.get('content')
+            parts = content.get('parts') if isinstance(content, Mapping) else None
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if not isinstance(part, Mapping):
+                    continue
+                text = part.get('text')
+                if isinstance(text, str) and text:
+                    self.completion_started = True
+                    if part.get('thought') is not True:
+                        self.text.append(text)
+                function_call = part.get('functionCall')
+                if isinstance(function_call, Mapping):
+                    self.completion_started = True
+                    self.tool_calls.append(dict(function_call))
+
+    def output(self) -> dict[str, object]:
+        result: dict[str, object] = {'text': ''.join(self.text), 'stop_reason': self.finish_reason}
+        if self.tool_calls:
+            result['tool_calls'] = self.tool_calls
+        return result
+
+
+async def _stream_native_gemini(
     payload: dict[str, object],
-    public_model: str,
     uid: str,
     *,
+    api_key: str,
     request_id: str,
     session_id: str | None,
     platform: str | None,
     prompt: ResolvedRuntimePrompt,
-) -> AsyncIterator[str]:
-    stream_id = f'chatcmpl-{uuid4()}'
-    created = int(time.time())
-    announced = False
-    completion_started = False
-    output_text: list[str] = []
-    output_tool_calls: dict[int, dict[str, object]] = {}
-    stop_reason: str | None = None
-    usage: object | None = None
-    generation = start_chat_generation(
+) -> AsyncIterator[bytes]:
+    observation = _GeminiStreamObservation()
+    generation: ChatGeneration = start_chat_generation(
         uid=uid,
         request_id=request_id,
         session_id=session_id,
         platform=platform,
-        model=str(payload['model']),
+        model=_MODEL,
         provider_input=payload,
         prompt_version=prompt.version,
         prompt_source=prompt.source,
@@ -375,125 +277,32 @@ async def _stream(
     )
     level: str | None = None
     status_message: str | None = None
+    marked_completion = False
+    client = get_gemini_client()
+    url = f'{_GEMINI_BASE_URL}/models/{_MODEL}:streamGenerateContent?alt=sse'
+
     try:
-        async for event in stream_managed_anthropic_events(anthropic_client.messages, payload):
-            if event is ANTHROPIC_STREAM_HEARTBEAT:
-                yield ': keep-alive\n\n'
-                continue
-            event_type = getattr(event, 'type', '')
-            if not completion_started and _event_has_completion_content(event):
-                completion_started = True
-                generation.mark_completion_started(datetime.now(timezone.utc))
-            if not announced:
-                announced = True
-                yield _sse(
-                    {
-                        'id': stream_id,
-                        'object': 'chat.completion.chunk',
-                        'created': created,
-                        'model': public_model,
-                        'choices': [{'index': 0, 'delta': {'role': 'assistant'}, 'finish_reason': None}],
-                    }
+        async with get_gemini_semaphore():
+            async for chunk in stream_managed_response_bytes(
+                lambda: client.stream(
+                    'POST',
+                    url,
+                    headers={'content-type': 'application/json', 'x-goog-api-key': api_key},
+                    json=payload,
                 )
-            if event_type == 'content_block_delta':
-                delta = cast(Any, getattr(event, 'delta', None))
-                if getattr(delta, 'type', '') == 'text_delta':
-                    output_text.append(delta.text)
-                    yield _sse(
-                        {
-                            'id': stream_id,
-                            'object': 'chat.completion.chunk',
-                            'created': created,
-                            'model': public_model,
-                            'choices': [{'index': 0, 'delta': {'content': delta.text}, 'finish_reason': None}],
-                        }
-                    )
-                elif getattr(delta, 'type', '') == 'input_json_delta':
-                    tool_call = output_tool_calls.setdefault(
-                        getattr(event, 'index', 0),
-                        {'id': '', 'name': '', 'arguments': ''},
-                    )
-                    tool_call['arguments'] = f'{tool_call["arguments"]}{delta.partial_json}'
-                    yield _sse(
-                        {
-                            'id': stream_id,
-                            'object': 'chat.completion.chunk',
-                            'created': created,
-                            'model': public_model,
-                            'choices': [
-                                {
-                                    'index': 0,
-                                    'delta': {
-                                        'tool_calls': [
-                                            {
-                                                'index': getattr(event, 'index', 0),
-                                                'function': {'arguments': delta.partial_json},
-                                            }
-                                        ]
-                                    },
-                                    'finish_reason': None,
-                                }
-                            ],
-                        }
-                    )
-            elif event_type == 'content_block_start':
-                block = cast(Any, getattr(event, 'content_block', None))
-                if getattr(block, 'type', '') != 'tool_use':
+            ):
+                if chunk is MANAGED_STREAM_HEARTBEAT:
+                    yield b': keep-alive\n\n'
                     continue
-                output_tool_calls[getattr(event, 'index', 0)] = {
-                    'id': block.id,
-                    'name': block.name,
-                    'arguments': '',
-                }
-                yield _sse(
-                    {
-                        'id': stream_id,
-                        'object': 'chat.completion.chunk',
-                        'created': created,
-                        'model': public_model,
-                        'choices': [
-                            {
-                                'index': 0,
-                                'delta': {
-                                    'tool_calls': [
-                                        {
-                                            'index': getattr(event, 'index', 0),
-                                            'id': block.id,
-                                            'type': 'function',
-                                            'function': {'name': block.name, 'arguments': ''},
-                                        }
-                                    ]
-                                },
-                                'finish_reason': None,
-                            }
-                        ],
-                    }
-                )
-            elif event_type == 'message_delta':
-                stop_reason = getattr(getattr(event, 'delta', None), 'stop_reason', None)
-                reason = _stop_reason(stop_reason)
-                yield _sse(
-                    {
-                        'id': stream_id,
-                        'object': 'chat.completion.chunk',
-                        'created': created,
-                        'model': public_model,
-                        'choices': [{'index': 0, 'delta': {}, 'finish_reason': reason}],
-                    }
-                )
-                usage = getattr(event, 'usage', None)
-                if usage is not None:
-                    await _record_usage(uid, usage)
-                    yield _sse(
-                        {
-                            'id': stream_id,
-                            'object': 'chat.completion.chunk',
-                            'created': created,
-                            'model': public_model,
-                            'choices': [],
-                            'usage': _usage(usage),
-                        }
-                    )
+                if not isinstance(chunk, bytes):
+                    continue
+                observation.feed(chunk)
+                if observation.completion_started and not marked_completion:
+                    marked_completion = True
+                    generation.mark_completion_started(datetime.now(timezone.utc))
+                yield chunk
+        if observation.usage is not None:
+            await _record_usage(uid, observation.usage)
     except (asyncio.CancelledError, GeneratorExit):
         level = 'WARNING'
         status_message = 'cancelled'
@@ -501,26 +310,39 @@ async def _stream(
     except Exception as exc:
         level = 'ERROR'
         status_message = type(exc).__name__
-        handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
-        yield _sse({'error': {'message': 'Upstream provider error', 'type': 'server_error', 'code': 502}})
+        handle_llm_error(exc, 'gemini', feature='chat_agent', model=_MODEL)
+        yield b'data: ' + json.dumps(_sanitized_stream_error(exc), separators=(',', ':')).encode() + b'\n\n'
     finally:
-        output: dict[str, object] = {
-            'text': ''.join(output_text),
-            'stop_reason': stop_reason,
-        }
-        if output_tool_calls:
-            output['tool_calls'] = [output_tool_calls[index] for index in sorted(output_tool_calls)]
         generation.finish(
-            output=output,
-            usage_details=_langfuse_usage_details(usage) if usage is not None else None,
+            output=observation.output(),
+            usage_details=_langfuse_usage_details(observation.usage),
             level=level,
             status_message=status_message,
         )
-    yield 'data: [DONE]\n\n'
 
 
-def _sse(value: dict[str, object]) -> str:
-    return f'data: {json.dumps(value, separators=(",", ":"))}\n\n'
+def _sanitized_stream_error(exc: Exception) -> dict[str, object]:
+    upstream_status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+    if upstream_status in (401, 403):
+        reason, status, retryable = 'provider_auth_failed', 'UNAUTHENTICATED', False
+    elif upstream_status == 429:
+        reason, status, retryable = 'provider_quota_exceeded', 'RESOURCE_EXHAUSTED', True
+    else:
+        reason = 'provider_unavailable'
+        status = 'UNAVAILABLE'
+        retryable = upstream_status is None or upstream_status in (408, 409, 425) or upstream_status >= 500
+    return {
+        'error': {
+            'code': upstream_status or 502,
+            'message': 'Upstream provider error',
+            'status': status,
+        },
+        'reason': reason,
+        'provider': 'gemini',
+        'backend_route': _BACKEND_ROUTE,
+        'upstream_status_code': upstream_status,
+        'retryable': retryable,
+    }
 
 
 async def _meter_server_request(uid: str) -> None:
@@ -538,107 +360,65 @@ async def _meter_server_request(uid: str) -> None:
         )
 
 
-@router.post('/v2/chat/completions', response_model=None)
-async def chat_completions(
+@router.post('/v2/models/{model}:streamGenerateContent', response_model=None)
+async def stream_generate_content(
+    model: str,
     body: dict[str, object],
+    alt: str | None = Query(None),
     uid: str = Depends(auth.get_current_user_uid),
     x_app_platform: str | None = Header(None, alias='X-App-Platform'),
     x_omi_chat_contract_version: str | None = Header(None, alias='X-Omi-Chat-Contract-Version'),
     x_omi_request_id: str | None = Header(None, alias='X-Omi-Request-Id'),
     x_omi_session_id: str | None = Header(None, alias='X-Omi-Session-Id'),
-) -> JSONResponse | StreamingResponse:
-    if x_omi_chat_contract_version not in {None, '1'}:
+    x_goog_api_key: str | None = Header(None, alias='X-Goog-Api-Key'),
+) -> StreamingResponse:
+    if isinstance(x_goog_api_key, str):
+        raise HTTPException(status_code=400, detail='Client provider keys are not accepted')
+    if x_omi_chat_contract_version not in {None, _CHAT_CONTRACT_VERSION}:
         raise HTTPException(status_code=426, detail='Unsupported chat contract version')
-    request_id = x_omi_request_id or str(uuid4())
-    stub_headers = {
-        'Cache-Control': 'no-cache',
-        'X-Omi-Chat-Contract-Version': '1',
-        'X-Request-Id': request_id,
-    }
-    # Hermetic offline profile: short-circuit before quota / Anthropic, matching
-    # the retired Rust llm_stub intercept so T2 chat flows stay deterministic.
-    if llm_stub_enabled():
-        if body.get('stream') is True:
-            return StreamingResponse(
-                stub_chat_completions_stream(body),
-                media_type='text/event-stream',
-                headers=stub_headers,
-            )
-        return JSONResponse(stub_chat_completions_json(body), headers=stub_headers)
     try:
-        enforce_chat_quota(uid, platform=x_app_platform)
-        await _meter_server_request(uid)
-        public_model, payload = _request(body)
-    except HTTPException:
-        raise
+        payload = _validate_native_request(model, body, alt)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    request_id = x_omi_request_id or str(uuid4())
+    response_headers = {
+        'Cache-Control': 'no-cache',
+        'X-Omi-Chat-Contract-Version': _CHAT_CONTRACT_VERSION,
+        'X-Request-Id': request_id,
+    }
+    if llm_stub_enabled():
+        return StreamingResponse(
+            stub_gemini_stream(payload),
+            media_type='text/event-stream',
+            headers=response_headers,
+        )
+
+    api_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail='Managed Gemini is not configured')
+    enforce_chat_quota(uid, platform=x_app_platform)
+    await _meter_server_request(uid)
     prompt = await _resolve_runtime_system_prompt(payload)
     session_id = normalize_session_id(x_omi_session_id)
     await run_blocking(
         db_executor,
         llm_usage_db.record_chat_quota_question,
         uid,
-        f'desktop_chat_completions:{request_id}',
-        'desktop_chat_completions',
+        f'desktop_chat:{request_id}',
+        'desktop_chat',
         platform=x_app_platform,
     )
-    if body.get('stream') is True:
-        return StreamingResponse(
-            _stream(
-                payload,
-                public_model,
-                uid,
-                request_id=request_id,
-                session_id=session_id,
-                platform=x_app_platform,
-                prompt=prompt,
-            ),
-            media_type='text/event-stream',
-            headers={
-                'Cache-Control': 'no-cache',
-                'X-Omi-Chat-Contract-Version': '1',
-                'X-Request-Id': request_id,
-            },
-        )
-    generation: ChatGeneration = start_chat_generation(
-        uid=uid,
-        request_id=request_id,
-        session_id=session_id,
-        platform=x_app_platform,
-        model=str(payload['model']),
-        provider_input=payload,
-        prompt_version=prompt.version,
-        prompt_source=prompt.source,
-        prompt_client=prompt.prompt_client,
-        streaming=False,
-    )
-    try:
-        message = await create_managed_anthropic_message(anthropic_client.messages, payload)
-    except asyncio.CancelledError:
-        generation.finish(
-            output={'cancelled': True},
-            level='WARNING',
-            status_message='cancelled',
-        )
-        raise
-    except Exception as exc:
-        generation.finish(
-            output={'error_type': type(exc).__name__},
-            level='ERROR',
-            status_message=type(exc).__name__,
-        )
-        handle_llm_error(exc, 'anthropic', feature='chat_agent', model=_MODEL_ROUTES[public_model])
-        raise HTTPException(status_code=502, detail='Upstream provider error') from exc
-    await _record_usage(uid, getattr(message, 'usage', None))
-    generation.finish(
-        output=_generation_output(message),
-        usage_details=_langfuse_usage_details(getattr(message, 'usage', None)),
-    )
-    return JSONResponse(
-        _message_response(message, public_model),
-        headers={
-            'X-Omi-Chat-Contract-Version': '1',
-            'X-Request-Id': request_id,
-        },
+    return StreamingResponse(
+        _stream_native_gemini(
+            payload,
+            uid,
+            api_key=api_key,
+            request_id=request_id,
+            session_id=session_id,
+            platform=x_app_platform,
+            prompt=prompt,
+        ),
+        media_type='text/event-stream',
+        headers=response_headers,
     )

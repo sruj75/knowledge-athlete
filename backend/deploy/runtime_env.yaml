@@ -175,8 +175,6 @@ environments:
               env_var: FIREBASE_AUTH_PROJECT_ID
             GCP_LOCATION:
               value: us-west1
-            USE_VERTEX_AI:
-              value: 'true'
             OMI_ENV_STAGE:
               value: dev
               category: runtime_identity
@@ -244,12 +242,6 @@ environments:
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
               version_env_var: OPENAI_API_KEY_VERSION
-            ANTHROPIC_API_KEY:
-              secret: DESKTOP_ANTHROPIC_API_KEY
-              version_env_var: ANTHROPIC_API_KEY_VERSION
-            DESKTOP_LEGACY_ANTHROPIC_KEY:
-              secret: DESKTOP_LEGACY_ANTHROPIC_KEY
-              version_env_var: DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION
             FIREBASE_API_KEY:
               secret: FIREBASE_API_KEY
               version_env_var: FIREBASE_API_KEY_VERSION
@@ -428,8 +420,6 @@ environments:
               env_var: FIREBASE_AUTH_PROJECT_ID
             GCP_LOCATION:
               value: us-west1
-            USE_VERTEX_AI:
-              value: 'true'
             OMI_ENV_STAGE:
               value: prod
               category: runtime_identity
@@ -488,12 +478,6 @@ environments:
             OPENAI_API_KEY:
               secret: OPENAI_API_KEY
               version_env_var: OPENAI_API_KEY_VERSION
-            ANTHROPIC_API_KEY:
-              secret: DESKTOP_ANTHROPIC_API_KEY
-              version_env_var: ANTHROPIC_API_KEY_VERSION
-            DESKTOP_LEGACY_ANTHROPIC_KEY:
-              secret: DESKTOP_LEGACY_ANTHROPIC_KEY
-              version_env_var: DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION
             FIREBASE_API_KEY:
               secret: DESKTOP_FIREBASE_API_KEY
               version_env_var: FIREBASE_API_KEY_VERSION

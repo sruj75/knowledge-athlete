@@ -12,15 +12,15 @@ from utils.llm.model_config import WorkloadLifecycle
 
 
 EXPECTED_ROUTES = {
-    'chat_agent': ('anthropic', 'claude-sonnet-4-6'),
-    'chat_greeting': ('openai', 'gpt-5.4-mini'),
-    'conv_action_items': ('openai', 'gpt-5.4-mini'),
-    'conv_discard': ('openai', 'gpt-4.1-nano'),
-    'conv_structure': ('openai', 'gpt-5.4-mini'),
-    'fair_use': ('openai', 'gpt-5.1'),
-    'memory_conflict': ('openai', 'gpt-4.1-mini'),
-    'memory_l1': ('openai', 'gpt-4.1-mini'),
-    'memory_l2': ('openai', 'gpt-4.1-mini'),
+    'chat_agent': ('gemini', 'gemini-3.7-flash'),
+    'chat_greeting': ('gemini', 'gemini-3.7-flash'),
+    'conv_action_items': ('gemini', 'gemini-3.7-flash'),
+    'conv_discard': ('gemini', 'gemini-3.7-flash'),
+    'conv_structure': ('gemini', 'gemini-3.7-flash'),
+    'fair_use': ('gemini', 'gemini-3.7-flash'),
+    'memory_conflict': ('gemini', 'gemini-3.7-flash'),
+    'memory_l1': ('gemini', 'gemini-3.7-flash'),
+    'memory_l2': ('gemini', 'gemini-3.7-flash'),
     'session_titles': ('gemini', 'gemini-2.5-flash-lite'),
     'translation': ('gemini', 'gemini-2.5-flash-lite'),
 }
@@ -37,16 +37,12 @@ _PROVIDER_CONSTRUCTORS = {
 }
 _EXPECTED_PROVIDER_CONSTRUCTION = Counter(
     {
-        ('utils/llm/clients.py', 'AsyncAnthropic'): 1,
-        ('utils/llm/clients.py', 'OpenAIEmbeddings'): 1,
-        ('utils/llm/providers.py', 'ChatGoogleGenerativeAI'): 2,
-        ('utils/llm/providers.py', 'ChatOpenAI'): 2,
+        ('utils/llm/providers.py', 'ChatGoogleGenerativeAI'): 1,
     }
 )
 _EXPECTED_DIRECT_DEFAULT_CLIENT_CALLS = Counter(
     {
         'utils/llm/clients.py': 1,
-        'utils/llm/fair_use_classifier.py': 1,
     }
 )
 _APPLICATION_MODEL_CALL_TOKENS = tuple(sorted({'get_default_client', 'get_workload_client', *_PROVIDER_CONSTRUCTORS}))
@@ -176,14 +172,12 @@ def test_retained_workload_client_uses_the_explicit_direct_route(monkeypatch):
 
     monkeypatch.setattr(clients, 'get_default_client', construct)
     assert clients.get_workload_client('chat_greeting') is direct_client
-    assert calls == [
-        ('gpt-5.4-mini', 'openai', False, {'extra_body': {'prompt_cache_retention': '24h'}}, 'chat_greeting')
-    ]
+    assert calls == [('gemini-3.7-flash', 'gemini', False, {}, 'chat_greeting')]
 
 
 def test_route_options_are_workload_owned():
     assert model_config.get_route_options('translation') == {}
-    assert model_config.get_route_options('chat_greeting') == {'extra_body': {'prompt_cache_retention': '24h'}}
+    assert model_config.get_route_options('chat_greeting') == {}
 
 
 def test_callerless_onboarding_and_trends_model_helpers_are_absent():

@@ -25,9 +25,9 @@ When intentionally changing backend Python dependencies, edit the relevant `requ
 
 By default, the lock refresh preserves already-locked package versions so unrelated transitive upgrades do not sneak into infrastructure changes. Set `PYLOCK_UPGRADE=1` only when intentionally refreshing dependency versions.
 
-Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (canonical Chat/realtime), `LANGFUSE_PUBLIC_KEY` plus `LANGFUSE_SECRET_KEY` (fail-open Chat prompt/tracing; both are required to enable it), and `REDIS_DB_HOST` / `REDIS_DB_PASSWORD` / `REDIS_DB_CA_CERT_PEM` (the hosted verified-TLS Redis boundary). Langfuse uses `LANGFUSE_BASE_URL`, `LANGFUSE_TRACING_ENVIRONMENT`, `LANGFUSE_PROMPT_NAME`, and `LANGFUSE_PROMPT_CACHE_TTL_SECONDS` as non-secret runtime configuration. Hosted `dev`/`prod` uses the Cloud Run runtime service account through ADC and rejects `SERVICE_ACCOUNT_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`; explicit credential files remain local-tool/test-only. Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
+Key env vars: `OPENAI_API_KEY` (text-to-speech only — not `OPENAI_ADMIN_KEY`, which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` (managed text, embeddings, and realtime), `LANGFUSE_PUBLIC_KEY` plus `LANGFUSE_SECRET_KEY` (fail-open Chat prompt/tracing; both are required to enable it), and `REDIS_DB_HOST` / `REDIS_DB_PASSWORD` / `REDIS_DB_CA_CERT_PEM` (the hosted verified-TLS Redis boundary). Langfuse uses `LANGFUSE_BASE_URL`, `LANGFUSE_TRACING_ENVIRONMENT`, `LANGFUSE_PROMPT_NAME`, and `LANGFUSE_PROMPT_CACHE_TTL_SECONDS` as non-secret runtime configuration. Hosted `dev`/`prod` uses the Cloud Run runtime service account through ADC and rejects `SERVICE_ACCOUNT_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`; explicit credential files remain local-tool/test-only. Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
 
-Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's direct managed-Anthropic call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. Do not route normal Chat through an auto lane or introduce a per-request provider switch.
+Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The direct managed-Gemini stream is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. Do not route normal Chat through an auto lane or introduce a per-request provider switch.
 
 ## Directory Structure
 
@@ -85,7 +85,7 @@ backend (main.py, canonical Cloud Run service)
 Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds `MODULATE_API_KEY` on the canonical backend.
 
 - **backend** (`main.py`) — The one REST/WebSocket Cloud Run service. `/v4/listen` applies in-process `VADStreamingGate`, streams fixed PCM directly to Modulate, and returns transient canonical segments without a side channel, People, or conversation storage. Retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
-- **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes direct OpenAI GPT-5.1 transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
+- **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes Gemini 3.7 Flash transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
 - **account deletion** — `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and the complete dedicated `ACCOUNT_DELETION_*` bindings enqueue opaque job IDs to the canonical backend's OIDC handler. Startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks, and API success follows persisted deletion intent plus durable enqueue. A bounded legacy audience/payload branch remains only because no live queue-drain proof was authorized for S-25.
 
@@ -108,8 +108,9 @@ message, rating, attachment, projection, reconcile, import, or count authority
 for macOS Chat. `POST /v2/chat/initial-message` and
 `POST /v2/chat/generate-title` are authenticated, bounded, stateless compute:
 they return only a greeting or title and never read or write Chat product data.
-Managed answers continue through the desktop Pi `/v2/chat/completions` boundary;
-the Python hosted persona/RAG route is retired. Real Anthropic calls create one
+Managed answers continue through the desktop Pi native Gemini
+`/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` boundary; the
+Python hosted persona/RAG route is retired. Real managed calls create one
 fail-open Langfuse generation, while the offline stub performs no prompt or
 observability network work. The optional `X-Omi-Session-Id` header is bounded
 correlation metadata only and never restores backend session ownership.
@@ -118,7 +119,7 @@ correlation metadata only and never restores backend session ownership.
 
 The effective owner's `omi.db` is the sole durable Memory authority. The backend exposes only
 `POST /v1/memory/compute/{extract,normalize,consolidate}`: authenticated, bounded, stateless
-proposal computation pinned to OpenAI GPT-4.1-mini. These modules must not import Firestore,
+proposal computation pinned to Gemini 3.7 Flash. These modules must not import Firestore,
 Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini
 embedding proxy is transient compute; vector storage and similarity remain local on macOS.
 

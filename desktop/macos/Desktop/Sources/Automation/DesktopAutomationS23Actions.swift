@@ -101,7 +101,7 @@ extension DesktopAutomationActionRegistry {
       trigger: "automation_probe",
       windowSpeechMs: ["daily_ms": 7_200_001],
       thresholdsMs: ["daily_ms": 7_200_000],
-      classifierContract: "openai/gpt-5.1:prompt-v2",
+      classifierContract: "gemini/gemini-3.7-flash:prompt-v2",
       requestedAt: now,
       expiresAt: now.addingTimeInterval(300))
     let presentation = FairUseWarningPresentation.from(receipt)

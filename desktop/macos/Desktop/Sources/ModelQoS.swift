@@ -1,13 +1,8 @@
 struct ModelQoS {
-  struct Claude {
-    /// Main chat session model (user-facing conversations)
-    static let chat = "claude-sonnet-4-6"
-
-    /// Floating bar responses
-    static let floatingBar = "claude-sonnet-4-6"
-  }
-
   struct Gemini {
+    /// Normal Chat and floating-bar responses
+    static let chat = "gemini-3.7-flash"
+
     /// Proactive assistants (screenshot analysis, context detection)
     static let proactive = "gemini-2.5-flash"
 

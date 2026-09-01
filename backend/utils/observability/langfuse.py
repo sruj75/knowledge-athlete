@@ -160,7 +160,7 @@ def start_chat_generation(
     prompt_client: Any | None,
     streaming: bool,
 ) -> ChatGeneration:
-    """Start the one generation corresponding to an actual Anthropic request."""
+    """Start the one generation corresponding to an actual managed-model request."""
     try:
         client = get_langfuse_client()
     except Exception as error:

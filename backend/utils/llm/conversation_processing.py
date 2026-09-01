@@ -391,7 +391,7 @@ def extract_action_items(
             ('system', context_message),
         ]
     )
-    action_items_llm = get_workload_client('conv_action_items', cache_key='omi-extract-actions')
+    action_items_llm = get_workload_client('conv_action_items')
     chain = prompt | action_items_llm | action_items_parser
 
     current_time = datetime.now(timezone.utc)
@@ -543,7 +543,7 @@ def get_transcript_structure(
     legacy_prompt_values['format_instructions'] = parser.get_format_instructions()
 
     with track_usage(uid, Features.CONVERSATION_STRUCTURE):
-        structure_llm = get_workload_client('conv_structure', cache_key='omi-transcript-structure')
+        structure_llm = get_workload_client('conv_structure')
         chain = prompt | structure_llm | parser
         response = _coerce_structured(chain.invoke(legacy_prompt_values))
 
@@ -611,7 +611,7 @@ def get_reprocess_transcript_structure(
     ).strip()
 
     prompt = cast(Any, ChatPromptTemplate).from_messages([('system', prompt_text)])
-    structure_llm = get_workload_client('conv_structure', cache_key='omi-transcript-structure')
+    structure_llm = get_workload_client('conv_structure')
     chain = prompt | structure_llm | parser
 
     response = _coerce_structured(

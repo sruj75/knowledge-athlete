@@ -98,7 +98,7 @@ def test_retained_neighbors_are_still_real_production_routes() -> None:
 
     for method, path in (
         ('GET', '/v1/users/me/subscription'),
-        ('POST', '/v2/chat/completions'),
+        ('POST', '/v2/models/{model}:streamGenerateContent'),
         ('POST', '/v1/memory/compute/extract'),
         ('POST', '/v1/conversation-compute/structure'),
         ('POST', '/v1/tts/synthesize'),

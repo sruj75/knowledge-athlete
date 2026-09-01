@@ -58,7 +58,7 @@ class TestSelectRecipes:
 
 
 class TestClassifyFairUseEvidenceContract:
-    """Lock the existing GPT-5.1 contract while evidence ownership moves to the Mac."""
+    """Lock the fair-use prompt contract while evidence ownership moves to the Mac."""
 
     @pytest.mark.asyncio
     async def test_supplied_evidence_preserves_prompt_message_model_parser_and_avoids_hosted_reads(
@@ -92,7 +92,7 @@ class TestClassifyFairUseEvidenceContract:
         assert hashlib.sha256(classifier_mod.SYSTEM_PROMPT.encode()).hexdigest() == (
             'b2ca34ef4cb6f3461f42d617385178e79bd2f50b8ab8efcdfca0eee552278d05'
         )
-        assert classifier_mod.CLASSIFIER_ROUTE == 'openai/gpt-5.1'
+        assert classifier_mod.CLASSIFIER_ROUTE == 'gemini/gemini-3.7-flash'
         assert classifier_llm.ainvoke.await_args.args[0] == [
             {'role': 'system', 'content': classifier_mod.SYSTEM_PROMPT},
             {
@@ -110,7 +110,7 @@ class TestClassifyFairUseEvidenceContract:
             'confidence': 0.0,
             'evidence': [],
             'reasoning': 'Legitimate meeting use',
-            'model': 'openai/gpt-5.1',
+            'model': 'gemini/gemini-3.7-flash',
             'prompt_version': 'v2',
         }
         assert not hasattr(classifier_mod, 'conversations_db')
@@ -129,7 +129,7 @@ class TestClassifyFairUseEvidenceContract:
             'usage_type': 'none',
             'confidence': 0.0,
             'evidence': [],
-            'model': 'openai/gpt-5.1',
+            'model': 'gemini/gemini-3.7-flash',
             'prompt_version': 'v2',
         }
 
@@ -155,18 +155,17 @@ class TestClassifyFairUseEvidenceContract:
         assert result['usage_type'] == 'unknown'
 
     @pytest.mark.asyncio
-    async def test_live_client_construction_bypasses_gateway_and_pins_direct_openai_gpt_5_1(self, monkeypatch):
+    async def test_live_client_construction_uses_the_managed_gemini_workload(self, monkeypatch):
         llm = MagicMock()
         llm.ainvoke = AsyncMock(return_value=MagicMock(content='{"misuse_score": 0.1}'))
         construct = MagicMock(return_value=llm)
         monkeypatch.setattr(classifier_mod, '_classifier_llm', None)
-        monkeypatch.setattr(classifier_mod, 'get_default_client', construct)
-        monkeypatch.setattr(classifier_mod, 'get_route_options', lambda *_: {'request_timeout': 45})
+        monkeypatch.setattr(classifier_mod, 'get_workload_client', construct)
 
         result = await classifier_mod.classify_fair_use_evidence(
             'user1',
             [{'conversation_id': 'e1', 'title': 'Meeting', 'duration_minutes': 10}],
         )
 
-        construct.assert_called_once_with('gpt-5.1', 'openai', False, {'request_timeout': 45})
-        assert result['model'] == 'openai/gpt-5.1'
+        construct.assert_called_once_with('fair_use')
+        assert result['model'] == 'gemini/gemini-3.7-flash'

@@ -35,8 +35,11 @@ enum BundleEnvironment {
         guard parts.count == 2 else { continue }
         let key = String(parts[0]).trimmingCharacters(in: .whitespaces)
         guard !key.hasPrefix("#") else { continue }
-        let backendServedKeys = ["GEMINI_API_KEY", "GOOGLE_CALENDAR_API_KEY"]
-        if backendServedKeys.contains(key) {
+        if key == "GEMINI_API_KEY" {
+          log("  Skipped GEMINI_API_KEY (provider credentials stay on the backend)")
+          continue
+        }
+        if key == "GOOGLE_CALENDAR_API_KEY" {
           log("  Skipped \(key) (fetched from backend via APIKeyService)")
           continue
         }

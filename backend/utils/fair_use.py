@@ -364,7 +364,7 @@ def escalate_enforcement(
 ) -> Dict[str, Any]:
     """Apply the retained synthetic Free-exhaustion result.
 
-    Semantic GPT-5.1 results use the transactional review acceptance path. Free-exhausted
+    Semantic Gemini results use the transactional review acceptance path. Free-exhausted
     users still use this pre-Mac synthetic score and the same three-positive progression.
 
     Returns dict describing the action taken.
@@ -678,7 +678,7 @@ async def trigger_free_exhaustion_if_needed(
     Uses a Redis lock to prevent concurrent runs for the same user.
     Runs asynchronously — does not block the WebSocket path.
 
-    Semantic GPT-5.1 classification now enters only through the authenticated,
+    Semantic Gemini classification now enters only through the authenticated,
     owner-bound local-evidence review endpoint.
     """
     # Already at terminal stage — no escalation possible, skip LLM + lock (#6316)

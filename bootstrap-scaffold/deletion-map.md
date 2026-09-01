@@ -359,9 +359,9 @@ Later waves use the same one-plan-per-slice structure inside `wave-2/` through
 through `S-31`.
 
 The exact blocking edges and each slice's keep/delete boundary are recorded in
-the complete slice register below. The current v1 provider choice is resolved:
-retain Gemini Live and OpenAI Realtime with Auto, explicit switching, and
-failover unless a later requirement deliberately reopens that decision.
+the complete slice register below. The provider decision was deliberately
+reopened for the Gemini-first simplification: retain Gemini Live as the sole
+realtime provider and degrade through the existing buffered batch path.
 
 ## Shared closure contract
 
@@ -1341,11 +1341,10 @@ leftover navigation/search residue
 **Primary decisions:** IR-053, IR-113, IR-600 through IR-609, IR-710 through
 IR-732, IR-827, IR-828
 
-- **Keep explicit routes only:** managed Claude normal Chat; both current realtime
-  providers and the decided v1 Auto/switch/failover policy; Gemini Flash/Lite
-  generation, translation, and embeddings; Vertex plus platform-key AI Studio;
-  OpenAI memory normalization/extraction/conflict, conversation summary/action
-  items, greeting, and discard; Langfuse tracing and Prompt Management.
+- **Keep explicit routes only:** native managed Gemini 3.7 Flash normal Chat and
+  former managed text workloads; Gemini Live as the sole realtime provider;
+  Gemini Flash-Lite titles/translation and existing Gemini generation/embedding
+  routes through the Developer API; OpenAI TTS; Langfuse tracing and Prompt Management.
 - **Adapt:** every retained model call receives bounded local inputs, returns a
   transient result, and lets the Mac validate/commit it to the owning local
   store; provider calls live directly in the canonical backend where cloud
@@ -1646,17 +1645,17 @@ infrastructure boundaries; the detailed decision still lives in the ledger.
 | IR-940 | S-04; S-29 protects the separately retained release/qualification system |
 | IR-941 | S-04; live Notifications and Rewind remain protected behaviors |
 
-## Realtime provider choice for v1 — keep both
+## Realtime provider choice for v1 — Gemini only
 
-The reviewed v1 requirement is decided: keep Auto, Gemini Live, OpenAI Realtime,
-explicit switching, and failover. Choosing only one provider would be an optional
-future simplification, not an open requirement or Wave blocker. Therefore:
+The earlier dual-provider choice is deliberately reopened. Retain Gemini Live,
+delete Auto and OpenAI Realtime, and use the existing bounded batch recovery
+path after same-provider reconnect is exhausted. Therefore:
 
-- this choice does not block deletion/localization work;
-- S-19 and S-22 must preserve both current providers and their tests;
-- no new abstraction or migration should be added in anticipation; and
-- if a future decision reopens consolidation, create one narrow successor slice that removes
-  the losing provider end to end without changing the rest of PTT.
+- provider/model choice is server-owned and not user-selectable;
+- Artificial Analysis and cross-provider failover have no surviving purpose;
+- the omni relay is deleted rather than retained as a compatibility endpoint; and
+- Gemini Live failure preserves the turn buffer and identity before Modulate
+  batch STT, Gemini Chat, and retained OpenAI TTS.
 
 ## Out of scope
 
@@ -1665,7 +1664,7 @@ future simplification, not an open requirement or Wave blocker. Therefore:
   automation
 - New product features not already selected in the requirements ledger
 - Re-deciding retained behavior merely because it is complex
-- Any future consolidation of the decided v1 Gemini Live plus OpenAI Realtime portfolio
+- Replacing the retained Gemini Live or buffered recovery orchestration
 - Replacing battle-tested retained behavior with a speculative rewrite
 - Opening issues, pushing branches, or creating a PR without a separate request
 

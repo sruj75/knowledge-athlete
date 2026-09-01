@@ -63,7 +63,7 @@ enum FairUseAutomationProbe {
       trigger: "automation_probe",
       windowSpeechMs: [:],
       thresholdsMs: [:],
-      classifierContract: "openai/gpt-5.1:prompt-v2",
+      classifierContract: "gemini/gemini-3.7-flash:prompt-v2",
       requestedAt: Date.distantPast,
       expiresAt: Date.distantPast.addingTimeInterval(1))
     await coordinator.handle(expired)

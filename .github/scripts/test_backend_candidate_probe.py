@@ -32,21 +32,21 @@ class BackendCandidateProbeTests(unittest.TestCase):
             PROBE.validate_process_health({"status": "healthy"})
 
         summary = PROBE.validate_compatibility(
-            {"status": "healthy", "service": "omi-backend", "chat_contract_version": "1"},
-            expected_contract_version="1",
+            {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"},
+            expected_contract_version="2",
         )
-        self.assertEqual(summary, {"status": "healthy", "service": "omi-backend", "chat_contract_version": "1"})
+        self.assertEqual(summary, {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"})
 
-        for mutation in ({"service": "omi-desktop-backend"}, {"chat_contract_version": "2"}):
+        for mutation in ({"service": "omi-desktop-backend"}, {"chat_contract_version": "1"}):
             with self.assertRaises(PROBE.ProbeError):
                 PROBE.validate_compatibility(
                     {
                         "status": "healthy",
                         "service": "omi-backend",
-                        "chat_contract_version": "1",
+                        "chat_contract_version": "2",
                         **mutation,
                     },
-                    expected_contract_version="1",
+                    expected_contract_version="2",
                 )
 
     def test_candidate_uses_v1_health_and_never_calls_retired_readiness_routes(self) -> None:
@@ -56,7 +56,7 @@ class BackendCandidateProbeTests(unittest.TestCase):
             requests.append(url)
             if url.endswith("/v1/health"):
                 return {"status": "ok"}
-            return {"status": "healthy", "service": "omi-backend", "chat_contract_version": "1"}
+            return {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"}
 
         chat_results = [
             PROBE.ChatResult("first", 0.1, 0.01, True),
@@ -68,7 +68,7 @@ class BackendCandidateProbeTests(unittest.TestCase):
             evidence = PROBE.probe_candidate(
                 base_url="https://candidate.example",
                 token="firebase-token",
-                expected_contract_version="1",
+                expected_contract_version="2",
                 source_sha=SHA,
                 expected_revision="backend-abc",
                 expected_image_digest="sha256:" + "a" * 64,
@@ -81,18 +81,87 @@ class BackendCandidateProbeTests(unittest.TestCase):
         self.assertEqual(evidence["target"]["source_sha"], SHA)
         self.assertNotIn("readiness", evidence)
 
-    def test_sse_parser_requires_text_usage_and_terminal_marker(self) -> None:
-        answer, done, _, saw_usage = PROBE.parse_sse(
+    def test_sse_parser_requires_native_gemini_text_usage_and_terminal_candidate(self) -> None:
+        answer, terminal, _, saw_usage = PROBE.parse_sse(
             [
-                sse_event({"choices": [{"delta": {"content": "hello"}}]}),
-                sse_event({"choices": [], "usage": {"input_tokens": 2}}),
-                b"data: [DONE]\n",
+                sse_event(
+                    {
+                        "candidates": [
+                            {
+                                "content": {
+                                    "role": "model",
+                                    "parts": [{"text": "hello"}, {"thought": True, "text": "hidden"}],
+                                },
+                                "finishReason": "STOP",
+                            }
+                        ]
+                    }
+                ),
+                sse_event({"usageMetadata": {"promptTokenCount": 2}}),
             ],
             stage="chat",
         )
         self.assertEqual(answer, "hello")
-        self.assertTrue(done)
+        self.assertTrue(terminal)
         self.assertTrue(saw_usage)
+
+    def test_chat_request_uses_native_gemini_contract_and_firebase_bearer(self) -> None:
+        requests = []
+
+        class Response:
+            headers = {"x-omi-chat-contract-version": "2"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def __iter__(self):
+                return iter(
+                    [
+                        sse_event(
+                            {
+                                "candidates": [
+                                    {
+                                        "content": {"parts": [{"text": "hello"}]},
+                                        "finishReason": "STOP",
+                                    }
+                                ],
+                                "usageMetadata": {"promptTokenCount": 2},
+                            }
+                        )
+                    ]
+                )
+
+        def urlopen(request, *, timeout):
+            requests.append((request, timeout))
+            return Response()
+
+        with mock.patch.object(PROBE.urllib.request, "urlopen", side_effect=urlopen):
+            result = PROBE._chat_request(
+                "https://candidate.example",
+                token="firebase-token",
+                contract_version="2",
+                messages=[
+                    {"role": "user", "content": "first"},
+                    {"role": "assistant", "content": "second"},
+                ],
+                stage="chat",
+            )
+
+        request, _ = requests[0]
+        payload = json.loads(request.data)
+        self.assertEqual(
+            request.full_url,
+            "https://candidate.example/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+        )
+        self.assertEqual(request.get_header("Authorization"), "Bearer firebase-token")
+        self.assertIsNone(request.get_header("x-goog-api-key"))
+        self.assertEqual([content["role"] for content in payload["contents"]], ["user", "model"])
+        self.assertEqual(payload["generationConfig"]["thinkingConfig"], {"thinkingLevel": "LOW"})
+        self.assertNotIn("messages", payload)
+        self.assertEqual(result.answer, "hello")
 
     def test_token_file_must_be_regular_mode_0600(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

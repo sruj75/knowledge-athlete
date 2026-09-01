@@ -126,7 +126,7 @@ actor FairUseReviewCoordinator {
 
   func handle(_ request: FairUseReviewRequest) async {
     let admittedAt = now()
-    guard request.classifierContract == "openai/gpt-5.1:prompt-v2", admittedAt < request.expiresAt,
+    guard request.classifierContract == "gemini/gemini-3.7-flash:prompt-v2", admittedAt < request.expiresAt,
       let authorization = captureAuthorization(),
       !completed.contains(request.reviewId),
       retryTasks[request.reviewId] == nil

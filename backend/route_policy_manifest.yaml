@@ -58,7 +58,7 @@ routes:
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
-    path: /v2/chat/completions
+    path: /v2/models/{model}:streamGenerateContent
     policy: *desktop_migration_policy
   - route_type: http
     method: POST

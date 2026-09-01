@@ -27,8 +27,11 @@ extension AppState {
             }
             // API keys are fetched from the backend at runtime (APIKeyService).
             // Do NOT load them from .env — defer entirely to APIKeyService.fetchKeys().
-            let backendServedKeys = ["GEMINI_API_KEY", "GOOGLE_CALENDAR_API_KEY"]
-            if backendServedKeys.contains(key) {
+            if key == "GEMINI_API_KEY" {
+              log("  Skipped GEMINI_API_KEY (provider credentials stay on the backend)")
+              continue
+            }
+            if key == "GOOGLE_CALENDAR_API_KEY" {
               log("  Skipped \(key) (fetched from backend via APIKeyService)")
               continue
             }

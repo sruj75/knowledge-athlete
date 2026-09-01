@@ -110,7 +110,7 @@ class FairUseEvent(BaseModel):
     classifier_score: float = 0.0
     classifier_type: UsageType = UsageType.NONE
     classifier_confidence: float = 0.0
-    classifier_model: str = 'openai/gpt-5.1'
+    classifier_model: str = 'gemini/gemini-3.7-flash'
     classifier_prompt_version: str = 'v2'
     enforcement_action: str = ""  # warning, throttle, restrict, none
     previous_stage: FairUseStage = FairUseStage.NONE

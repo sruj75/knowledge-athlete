@@ -107,7 +107,7 @@ def configure_hermetic_environment() -> None:
     os.environ['REDIS_DB_PASSWORD'] = ''
     os.environ['MODULATE_API_KEY'] = 'fake-modulate-key'
     os.environ['OPENAI_API_KEY'] = 'fake-openai-key'
-    os.environ['ANTHROPIC_API_KEY'] = 'fake-anthropic-key'
+    os.environ['GEMINI_API_KEY'] = 'fake-gemini-key'
     os.environ['GOOGLE_API_KEY'] = 'fake-google-key'
     os.environ['BILLING_MODE'] = 'disabled'
     os.environ['ADMIN_KEY'] = ''

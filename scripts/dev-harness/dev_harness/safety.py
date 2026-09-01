@@ -114,7 +114,6 @@ _LOCAL_BACKEND_SECRET_KEYS = {"ADMIN_KEY", "FIREBASE_API_KEY"}
 _OFFLINE_PROVIDER_PLACEHOLDERS = {
     "OPENAI_API_KEY": "sk-heyintentive-local-harness-offline-not-real",
     "GEMINI_API_KEY": "heyintentive-local-harness-offline-gemini-not-real",
-    "ANTHROPIC_API_KEY": "heyintentive-local-harness-offline-anthropic-not-real",
 }
 _PROVIDER_SECRET_RE = re.compile(
     r"(API_KEY|ACCESS_TOKEN|AUTH_TOKEN|SECRET|DEEPGRAM|OPENAI|ANTHROPIC|GROQ)", re.IGNORECASE

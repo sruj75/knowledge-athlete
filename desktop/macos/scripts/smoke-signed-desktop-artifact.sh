@@ -867,13 +867,13 @@ PY
 
 run_chat_probe() {
   local auth_header="${OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER:-}"
-  local chat_url="${OMI_SIGNED_ARTIFACT_SMOKE_CHAT_URL:-${EXPECTED_PYTHON_API_URL%/}/v2/chat/completions}"
+  local chat_url="${OMI_SIGNED_ARTIFACT_SMOKE_CHAT_URL:-${EXPECTED_PYTHON_API_URL%/}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse}"
   [[ -n "$auth_header" ]] || fail "--chat requires OMI_SIGNED_ARTIFACT_SMOKE_AUTH_HEADER"
 
   local payload status
-  payload='{"model":"omi-sonnet","messages":[{"role":"user","content":"Reply with ok."}],"stream":false}'
+  payload='{"contents":[{"role":"user","parts":[{"text":"Reply with ok."}]}],"generationConfig":{"maxOutputTokens":16384,"thinkingConfig":{"thinkingLevel":"LOW"}}}'
   status="$(curl -sS -o /tmp/heyintentive-smoke-chat.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" \
-    -H "Authorization: $auth_header" -H "Content-Type: application/json" \
+    -H "Authorization: $auth_header" -H "Content-Type: application/json" -H "X-Omi-Chat-Contract-Version: 2" \
     -d "$payload" "$chat_url")" || fail "chat probe request failed"
   [[ "$status" == 2* ]] || fail "chat probe returned HTTP $status"
 
