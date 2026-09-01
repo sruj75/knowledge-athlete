@@ -13,15 +13,22 @@ import {
 
 const OMI_REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
-export function omiRequestIdFromRelayContext(raw: string): string | undefined {
+function omiBoundedIdFromRelayContext(raw: string, key: "requestId" | "sessionId"): string | undefined {
   try {
-    const parsed = JSON.parse(raw) as { requestId?: unknown };
-    return typeof parsed.requestId === "string" && OMI_REQUEST_ID_PATTERN.test(parsed.requestId)
-      ? parsed.requestId
-      : undefined;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed[key];
+    return typeof value === "string" && OMI_REQUEST_ID_PATTERN.test(value) ? value : undefined;
   } catch {
     return undefined;
   }
+}
+
+export function omiRequestIdFromRelayContext(raw: string): string | undefined {
+  return omiBoundedIdFromRelayContext(raw, "requestId");
+}
+
+export function omiSessionIdFromRelayContext(raw: string): string | undefined {
+  return omiBoundedIdFromRelayContext(raw, "sessionId");
 }
 
 export function omiReasoningEffortFromRelayContext(raw: string): string | undefined {
@@ -164,6 +171,8 @@ export function applyOmiProviderHeaders(
   if (relayContextRaw === undefined) return;
   const requestId = omiRequestIdFromRelayContext(relayContextRaw);
   if (requestId) headers["x-omi-request-id"] = requestId;
+  const sessionId = omiSessionIdFromRelayContext(relayContextRaw);
+  if (sessionId) headers["x-omi-session-id"] = sessionId;
   const reasoningEffort = omiReasoningEffortFromRelayContext(relayContextRaw);
   if (reasoningEffort) headers["x-omi-reasoning-effort"] = reasoningEffort;
 }

@@ -19,6 +19,7 @@ import {
   default as managedPiExtension,
   omiReasoningEffortFromRelayContext,
   omiRequestIdFromRelayContext,
+  omiSessionIdFromRelayContext,
   omiToolResultContent,
   omiToolsForExecutionRole,
 } from "./index.ts";
@@ -33,15 +34,22 @@ test("managed provider headers retain correlation and the bounded reasoning cont
   assert.equal(omiRequestIdFromRelayContext('{"requestId":"req_01AB-cd"}'), "req_01AB-cd");
   assert.equal(omiRequestIdFromRelayContext('{"requestId":"has space"}'), undefined);
   assert.equal(omiRequestIdFromRelayContext(JSON.stringify({ requestId: "x".repeat(129) })), undefined);
+  assert.equal(omiSessionIdFromRelayContext('{"sessionId":"session_01AB-cd"}'), "session_01AB-cd");
+  assert.equal(omiSessionIdFromRelayContext('{"sessionId":"has space"}'), undefined);
+  assert.equal(omiSessionIdFromRelayContext(JSON.stringify({ sessionId: "x".repeat(129) })), undefined);
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"adaptive"}'), "adaptive");
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"fast"}'), "fast");
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"max"}'), undefined);
 
   const headers: Record<string, string> = {};
-  applyOmiProviderHeaders(headers, JSON.stringify({ requestId: "req_1", reasoningEffort: "adaptive" }));
+  applyOmiProviderHeaders(
+    headers,
+    JSON.stringify({ requestId: "req_1", sessionId: "session_1", reasoningEffort: "adaptive" }),
+  );
   assert.deepEqual(headers, {
     "x-omi-chat-contract-version": OMI_CHAT_CONTRACT_VERSION,
     "x-omi-request-id": "req_1",
+    "x-omi-session-id": "session_1",
     "x-omi-reasoning-effort": "adaptive",
   });
 });

@@ -201,7 +201,11 @@ describe("PiMonoAdapter prompt correlation", () => {
 
     const execution = runtime.executeAttempt(attemptContext, () => {}, new AbortController().signal);
     const relayContext = JSON.parse(readFileSync((adapter as any).contextFilePath, "utf8"));
-    expect(relayContext).toEqual({ capabilityRef: "cap_runtime", requestId: "request-runtime" });
+    expect(relayContext).toEqual({
+      capabilityRef: "cap_runtime",
+      requestId: "request-runtime",
+      sessionId: "ses_runtime",
+    });
 
     (adapter as any).handleTurnEnd(makeTurnEndEvent("done"));
     await expect(execution).resolves.toMatchObject({ terminalStatus: "succeeded" });

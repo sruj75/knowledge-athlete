@@ -55,6 +55,8 @@ interface PiMonoRelayContext {
   capabilityRef: string;
   /** Omi-owned opaque correlation id. Never contains prompt or account data. */
   requestId: string;
+  /** Owner-local conversation identity used only for provider trace grouping. */
+  sessionId: string;
   /** Per-turn effort lane ("adaptive" | "fast") relayed to the gateway. */
   reasoningEffort?: string;
 }
@@ -698,6 +700,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       JSON.stringify({
         capabilityRef: context.capabilityRef,
         requestId: context.requestId,
+        sessionId: context.sessionId,
         ...(context.reasoningEffort ? { reasoningEffort: context.reasoningEffort } : {}),
       })
     );
@@ -1088,6 +1091,7 @@ export class PiMonoRuntimeAdapter implements RuntimeAdapter {
         {
           capabilityRef: context.toolCapabilityRef,
           requestId: context.requestId,
+          sessionId: context.sessionId,
           reasoningEffort: relayReasoningEffort(context.metadata),
         }
       );
