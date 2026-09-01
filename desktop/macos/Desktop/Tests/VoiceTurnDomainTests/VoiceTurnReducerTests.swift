@@ -85,32 +85,6 @@ final class VoiceTurnReducerTests: XCTestCase {
     XCTAssertFalse(duplicate.effects.contains(where: \.isTerminal))
   }
 
-  func testOpenAISessionRotationTerminatesActiveHubTurnOnce() {
-    let turnID = VoiceTurnID()
-    let sessionID = VoiceSessionID()
-    let category = RealtimeHubCloseClassifier.category(
-      message: "Your session hit the maximum duration of 60 minutes.",
-      aliveFor: 60 * 60,
-      hasActiveTurn: true,
-      provider: .openai)
-    XCTAssertEqual(
-      RealtimeHubCloseClassifier.sessionRotationPlan(
-        for: category,
-        hasActiveTurn: true),
-      .terminateActiveTurnAndRewarm)
-
-    var model = reduce(.idle, .start(turnID: turnID, ownerID: nil, intent: .hold)).model
-    model = reduce(model, .selectRoute(turnID: turnID, route: .hub(sessionID: sessionID))).model
-
-    let terminal = reduce(model, .finish(turnID: turnID, reason: .providerFailed))
-    XCTAssertEqual(terminal.model.turn?.phase, .terminal(.providerFailed))
-    XCTAssertEqual(terminal.effects.filter(\.isTerminal).count, 1)
-
-    let duplicate = reduce(terminal.model, .finish(turnID: turnID, reason: .providerFailed))
-    XCTAssertEqual(duplicate.model.duplicateTerminalCount, 1)
-    XCTAssertFalse(duplicate.effects.contains(where: \.isTerminal))
-  }
-
   func testQuickTapLockWindowCanBecomeLockedRecording() {
     let turnID = VoiceTurnID()
     var model = reduce(.idle, .start(turnID: turnID, ownerID: nil, intent: .hold)).model
@@ -2140,6 +2114,51 @@ final class VoiceTurnReducerTests: XCTestCase {
     XCTAssertTrue(
       failed.effects.contains(
         .fallbackToTranscription(turnID: turnID, reason: .providerFailed)))
+  }
+
+  func testReconnectFailureAfterAcceptedCommitFallsBackToPreservedBatchAudio() {
+    let turnID = VoiceTurnID()
+    let sessionID = VoiceSessionID()
+    let responseID = VoiceResponseID("accepted-before-reconnect-failure")
+    var model = reduce(.idle, .start(turnID: turnID, ownerID: nil, intent: .hold)).model
+    model = reduce(model, .selectRoute(turnID: turnID, route: .hub(sessionID: sessionID))).model
+    model = reduce(model, .finalize(turnID: turnID)).model
+    model =
+      reduce(
+        model,
+        .hubCommitAccepted(turnID: turnID, sessionID: sessionID, responseID: responseID)
+      ).model
+    let reservation = reserveIdentity(model, turnID: turnID)
+    model =
+      reduce(
+        reservation.model,
+        .providerReconnectStarted(
+          turnID: turnID,
+          identity: reservation.identity,
+          previousSessionID: sessionID)
+      ).model
+
+    let failed = reduce(
+      model,
+      .providerReconnectFailed(
+        turnID: turnID,
+        identity: reservation.identity,
+        message: "Gemini Live disconnected after commit"))
+
+    XCTAssertEqual(failed.model.turn?.phase, .finalizing)
+    XCTAssertEqual(failed.model.turn?.route, .managedBatch)
+    XCTAssertFalse(failed.model.turn?.hubCommitPending == true)
+    XCTAssertEqual(
+      failed.effects.filter { effect in
+        if case .fallbackToTranscription = effect { return true }
+        return false
+      }.count,
+      1)
+    XCTAssertFalse(
+      failed.effects.contains { effect in
+        if case .terminal = effect { return true }
+        return false
+      })
   }
 
   func testExplicitInterruptRevokesToolAndRejectsItsLateCallback() throws {

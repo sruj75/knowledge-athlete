@@ -83,6 +83,76 @@ resource, candidate, release, deployment, or production app was operated while
 writing this plan. Commands below are future execution requirements, not claims
 of passing evidence.
 
+### 2.1 Execution-context refresh — 2026-08-29
+
+This dated refresh supersedes the current-state bullets above when S-31 is
+executed; it does not certify a final SHA or mark any S-31 cycle green.
+
+- S-26 through S-29 are integrated on `origin/main` through
+  `2a966c29f27e7604a129df3a9f595ff055d391a5`. The current provider-setup branch
+  is `98ff1714b125b09b17d3ca741d090232be95901c`. S-30 is still unimplemented, so
+  G0 remains closed.
+- Development, Beta, and Stable Firebase app registrations now exist in
+  `knowledge-athlete`; Google Auth is configured. Apple Auth remains enabled but
+  unqualified pending the Apple Developer membership and owned identifiers.
+- Development Cloud Run now serves owned revision
+  `knowledge-athlete-dev-00002-pjn` from immutable `knowledge-athlete` Artifact
+  Registry digest
+  `sha256:3129ea2d5d2a67bb23d4c2db42894b5de33f005660cd733dfc1b443e797379c8`.
+  The public health route and Google authorize/Redis-session redirect boundary
+  passed. This setup proof is intentionally not the final-SHA deploy, streaming,
+  recovery, rollback, alert, or provider evidence required by Cycles 13–16.
+- The permanent-cost development shape is zero minimum/one maximum instance,
+  request-based CPU, one vCPU, 2 GiB, Upstash TLS Redis, and disabled billing.
+  The single inherited backend image currently consumes 789.033 MB of registry
+  storage, about 277 MB beyond the provider's 0.5 GiB-month free allowance
+  (roughly USD 0.03/month at the observed price). S-31 must measure current cost
+  truth rather than describe this as literally zero-cost.
+- The owner has approved one free Upstash database for development and early
+  MVP production until traction. This conflicts with S-31's planned
+  separate-dev/prod Redis acceptance row. Before that row can be green, either
+  the authoritative requirement must explicitly accept the temporary shared
+  topology or production must receive an isolated Redis resource; S-31 must not
+  silently reinterpret the existing row.
+- Codemagic, repository-owned workflow IDs, the new Sparkle keypair, Firebase
+  build inputs, and Sentry symbol upload are configured. Apple
+  signing/notarization, preview storage/registry, production origins/URLs,
+  GitHub release application, trusted Apple Silicon runner, and real signed
+  candidate/channel evidence remain open.
+- Retained-caller analysis narrows the managed-provider gate: OpenAI owns
+  conversation/Memory/realtime/TTS work; Anthropic owns managed Chat; Gemini
+  owns titles/translation/selected desktop, embedding, and realtime work;
+  Modulate owns managed STT; PostHog owns product telemetry; Artificial
+  Analysis owns the exact daily Auto choice; and LangSmith remains planned
+  operator tracing/Prompt Hub tooling. Google Calendar and the legacy desktop
+  Anthropic credential are inherited residue and must not be created. No owned
+  OpenAI, Anthropic, or Modulate credential is configured yet; Modulate is
+  explicitly postponed. An interrupted setup created a restricted Gemini key
+  and secret version, but the active Cloud Run revision does not bind it, so it
+  is dormant rather than qualified. The current development runtime keeps
+  Vertex AI disabled; S-31 must prove one consistent Developer API/Vertex route
+  and must not inherit `USE_VERTEX_AI=true` blindly. Artificial Analysis is
+  missing from the runtime declaration, while LangSmith's current production
+  caller/runtime binding is incomplete; both remain open evidence, not implied
+  configuration requirements to satisfy by inventing keys.
+
+These facts reduce setup ambiguity but do not weaken G2, G5, or the one-final-SHA
+rule. Missing real-provider, Apple, preview, production, runner, and S-30 inputs
+remain explicit blocked evidence rows, never inferred green prerequisites.
+
+### 2.2 Gemini-first provider refresh — 2026-09-01
+
+The provider gate is now intentionally smaller than §2.1's audited Omi state.
+One development `GEMINI_API_KEY` owns Gemini 3.7 Flash, the existing Flash-Lite
+workloads, embeddings, and Gemini Live. One `OPENAI_API_KEY` remains TTS-only.
+Anthropic, Artificial Analysis, `USE_VERTEX_AI`, OpenAI text/embeddings/realtime,
+provider selection, and the omni relay are deleted from the runtime contract.
+Modulate remains postponed, so live batch recovery cannot be claimed until its
+separate credential is configured. The dormant Gemini secret may be inspected,
+but an exact version must not be bound to Cloud Run without separate deployment
+authorization. Langfuse is a separate follow-up and is not S-31 evidence from
+this change.
+
 ## 3. Outcome
 
 S-31 closes only when one immutable committed SHA after S-01 through S-30 has a
@@ -172,9 +242,11 @@ at final closure and must record any changed detailed decision as a stop.
   managed-Pi, and backend/release registers are acceptance fences, not cleanup
   suggestions.
 - **BL-001:** one final SHA must pass component, hermetic E2E, agent-logic,
-  Tier-2, natural authenticated physical PTT, OpenAI, Gemini, Auto, failover,
-  language, reconnect, tools, typed-to-PTT blind recall, deploy-inline mint, and
-  direct-provider lanes. A fake/echo response cannot prove continuity.
+  Tier-2, natural authenticated physical PTT, Gemini Live, same-provider
+  reconnect, tools, typed-to-PTT blind recall, deploy-inline mint, and the
+  buffered batch-recovery lane. A fake/echo response cannot prove live-provider
+  continuity; the hermetic STT seam may prove only the postponed Modulate path's
+  client behavior.
 - **BL-002:** repository absence cannot classify a live resource. Verified
   operator/environment/project identity is mandatory before read-only inventory,
   and mutation needs separate authorization.
@@ -237,7 +309,8 @@ artifact.
 
 The provider and physical lanes require:
 
-- approved non-production OpenAI, Gemini, Anthropic, and Modulate credentials;
+- an approved non-production Gemini credential, the retained TTS-only OpenAI
+  credential, and—when live batch recovery is exercised—Modulate credentials;
 - a verified deployed development backend identity and safe Firebase test
   principal for mint/direct-provider proof;
 - a named non-production bundle with authenticated owner, working microphone,
@@ -409,7 +482,7 @@ has it.
 | Focus/Insights/profile | `FocusStorage`, `InsightStorage`, local profile/proactive assistants | Owner-local state and notifications, no hosted product authority | Capture truth, history, profile, advice, local notifications, owner isolation |
 | Rewind | local SQLite/video/OCR/vector/capture/recovery/retention | Exact retained behavior and quirks, no cloud copy | Artifact recovery, search, permissions, retention, local PTT grounding |
 | Chat/Home/managed Pi | Node catalog/journal, `ChatProvider`, Pi runtime, bridge/tools | One Home Chat authority, one managed Pi, scoped tools/attachments | Create/switch/restart, typed turns, tools, agents/pills, continuity, faults |
-| PTT/realtime | `PushToTalkManager`, `RealtimeHubController`, provider clients, relay/batch recovery | Both managed providers, Auto/failover, exact local grounding and lifecycle | Natural physical capture plus OpenAI/Gemini/Auto/failover/language/reconnect/tools/blind recall |
+| PTT/realtime | `PushToTalkManager`, `RealtimeHubController`, Gemini Live session, batch recovery | Gemini-only realtime, same-provider reconnect, exact local grounding and lifecycle | Natural physical capture plus Gemini Live/reconnect/tools/blind recall and buffered batch recovery |
 | Fair use/quota | Redis meters, Firestore enforcement facts, local evidence request/UI | Content-free backend authority + transient bounded local evidence | Threshold/recovery/restriction/fail-open/support reset/no-content durability |
 | Billing | `payment.py`, Dodo utilities/subscription, Mac plan/usage/web flow | Disabled free MVP plus test/live-ready Dodo contract, no Stripe/Omi IDs | Disabled proof and complete post-Wave-6 S-18 handoff; no Dodo test/live operation in S-31 |
 | Canonical backend | `main.py`, `desktop_backend.py`, two images today | One app/image/URL, one local/offline harness | Health, metrics auth, routes, STT, models, account deletion, startup/shutdown/faults |
@@ -434,7 +507,7 @@ has it.
 | **SIMPLIFY AFTER** | After full correctness and residue classification, remove duplicate evidence entry points, redundant manual evidence transformations, or obsolete final-owner lists only where one surviving shared primitive can replace them. No product or infrastructure redesign. |
 | **ACCELERATE AFTER** | Measure clean setup, focused test, local stack, incremental/full named bundle, backend deploy, candidate intake, qualification, promotion/recovery, and rollback. Improve only the highest avoidable repeated delay proven by the measurements; otherwise `none`. |
 | **AUTOMATE LAST** | Extend an existing check/manifest/workflow only for a stable repeated step observed during S-31. Prefer current evidence manifests and lanes. If no repeated bottleneck or correctness gap remains, `none`. |
-| **OUT OF SCOPE / DEFERRED** | New product features, provider/model consolidation, UI redesign, speculative refactors, production capacity redesign, Windows, Omi data takeover, bulk cloud teardown, unsupported compatibility, another roadmap slice, and any external mutation lacking its named authorization. |
+| **OUT OF SCOPE / DEFERRED** | New product features, UI redesign, speculative refactors, production capacity redesign, Windows, Omi data takeover, bulk cloud teardown, unsupported compatibility, another roadmap slice, and any external mutation lacking its named authorization. Langfuse migration remains a separate follow-up. |
 
 ## 9. Retained behavioral invariants
 
@@ -456,9 +529,10 @@ has it.
    provider secret, or entitlement bypass reaches Chat, PTT, STT, TTS, embedding,
    or model routes.
 6. **PTT is physical and continuous.** Final voice proof uses actual captured
-   audio on the named bundle, both providers and Auto/failover, and typed -> PTT
-   -> blind recall. Controller, manager, reducer, forced-text, and echo runs are
-   supporting evidence only.
+   audio on the named bundle, Gemini Live with same-provider reconnect, and
+   typed -> PTT -> blind recall. The buffered batch-recovery UI is proved
+   hermetically until Modulate is configured. Controller, manager, reducer,
+   forced-text, and echo runs are supporting evidence only.
 7. **Durable account deletion.** Persisted intent, opaque task, exact OIDC
    signer/audience, lock, retry, reconciliation, billing cancellation, auth
    deletion, retained Firestore cleanup, and terminal state remain. No inline
@@ -872,21 +946,21 @@ adding an S-31 workaround.
 ### Cycle 13 — close BL-001 with physical PTT and real-provider continuity on the final SHA
 
 - **Intended behavioral RED:** the final matrix requires natural authenticated
-  physical PTT with actual captured audio; OpenAI, Gemini, Auto, cross-provider
-  failover, language, reconnect, and retained tools; typed -> physical PTT ->
-  blind recall; and deployed mint/direct-provider proof. Fake, echo, forced-text,
-  manager/controller-only, or `NOT_RUN` rows fail.
+  physical PTT with actual captured audio; Gemini Live, same-provider reconnect,
+  language, and retained tools; typed -> physical PTT -> blind recall; buffered
+  batch recovery; and deployed mint/direct-provider proof. Fake, echo,
+  forced-text, manager/controller-only, or `NOT_RUN` rows fail.
 - **Why it is RED now:** BL-001 records continuity recall failure against the
   offline echo provider and all real-provider/deployed-probe rows as `NOT_RUN`.
 - **Minimum GREEN:** with approved non-production credentials and verified dev
   deployment, use `omi-wave6-s31`; capture real audio bytes/duration and typed
   terminal diagnostics; run continuity/agents/owner/prompts/resilience; execute
-  the workflow-equivalent `voice-provider-probe.sh` for OpenAI and Gemini using
-  a protected token file; prove Auto/failover/language/reconnect/tools. Redact
-  secrets and content.
-- **Retained behavior protected:** both providers, failover order, session/auth
-  boundaries, PTT capture/admission/barge-in/journal/tools, provider failure
-  typing, usage, and privacy.
+  the workflow-equivalent `voice-provider-probe.sh` for Gemini using a protected
+  token file; prove same-provider reconnect/language/tools and the buffered
+  batch-recovery UI. Redact secrets and content.
+- **Retained behavior protected:** Gemini session/auth boundaries, PTT
+  capture/admission/barge-in/journal/tools, provider failure typing, usage, and
+  privacy.
 - **Expected change surfaces:** none. Any behavioral fix returns to its owner and
   restarts Cycle 10.
 - **Exact focused verification:** physical shortcut observation; gauntlet
@@ -1102,7 +1176,7 @@ post-S-29 release manifests. A generic word match is never a deletion order.
 
 ```bash
 rg -n 'TranscriptionStorage|MemoryStorage|ActionItemStorage|GoalStorage|FocusStorage|InsightStorage|KernelTurnProjection|ChatProvider' desktop/macos/Desktop/Sources
-rg -n 'PushToTalkManager|RealtimeHubController|OpenAI|Gemini|Auto|failover|recordFallback' desktop/macos/Desktop/Sources
+rg -n 'PushToTalkManager|RealtimeHubController|Gemini|batch|recordFallback' desktop/macos/Desktop/Sources
 rg -n '/v4/listen|VADStreamingGate|Modulate|/v1/health|/metrics|ACCOUNT_DELETION_|BILLING_MODE|record_fallback|log_sanitizer' backend
 rg -n 'qualif|candidate|preview|promote|recover|rollback|Sparkle|notari|codesign' desktop/macos .github backend
 ```
@@ -1291,12 +1365,12 @@ cd desktop/macos
 ```
 
 Then perform a natural physical shortcut hold/release with actual microphone
-capture and run the deployed OpenAI/Gemini provider probes through the protected
+capture and run the deployed Gemini provider probe through the protected
 token-file interface used by the owned development workflow. Required evidence
-includes captured bytes/duration, owner/auth state, selected and actual provider,
-Auto/failover/reconnect/language/tool outcomes, terminal reason, zero stale/
-invalid transitions, blind recall, deployment URL identity, and exact SHA. Do
-not record user speech or assistant content.
+includes captured bytes/duration, owner/auth state, Gemini Live identity,
+same-provider reconnect/language/tool and buffered-recovery outcomes, terminal
+reason, zero stale/invalid transitions, blind recall, deployment URL identity,
+and exact SHA. Do not record user speech or assistant content.
 
 ### 15.5 Backend development operational acceptance
 
@@ -1522,9 +1596,10 @@ Global stop conditions:
   export, uninstall/reinstall, and no-Omi-touch behavior pass.
 - [ ] Natural authenticated physical PTT captures real audio and reaches terminal
   success with no stale/invalid transitions.
-- [ ] OpenAI, Gemini, Auto, failover, language, reconnect, tools, typed-to-PTT
-  blind recall, deploy-inline mint, and direct-provider rows all pass on the same
-  SHA; BL-001 is closed without fake substitution.
+- [ ] Gemini Live, same-provider reconnect, language, tools, typed-to-PTT blind
+  recall, deploy-inline mint, direct-provider, and buffered batch-recovery rows
+  all pass on the same SHA; BL-001 is closed without fake substitution. Until
+  Modulate is configured, its live recovery row remains explicitly unverified.
 
 ### Infrastructure and account lifecycle
 

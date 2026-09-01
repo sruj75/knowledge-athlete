@@ -14,9 +14,7 @@ extension RealtimeHubController {
       }
       return false
     }
-    let physicalProviderMatchesSelection =
-      sessionProvider == RealtimeHubSettings.shared.provider
-      || sessionProvider == fallbackProvider
+    let physicalProviderMatchesSelection = sessionProvider == .gemini
     #if DEBUG
       return RealtimeTransportReadinessPolicy.isReady(
         hubConnected: hubConnected,

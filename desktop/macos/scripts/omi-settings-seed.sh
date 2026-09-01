@@ -54,7 +54,6 @@ KEYS = [
     "fontScale",
     "multiChatEnabled",
     "conversationsCompactView",
-    "realtimeOmniProvider",
     "askModeEnabled",
     "screenAnalysisEnabled",
     "transcriptionEnabled",

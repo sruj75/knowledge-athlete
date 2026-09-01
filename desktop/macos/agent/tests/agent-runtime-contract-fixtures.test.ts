@@ -40,7 +40,6 @@ describe("agent runtime v1 shared contract fixtures", () => {
     expect(contract.adapterConformance).toEqual(expect.arrayContaining([
       expect.objectContaining({ adapterId: "pi-mono", transport: "node_runtime" }),
       expect.objectContaining({ adapterId: "gemini-realtime", transport: "swift_realtime" }),
-      expect.objectContaining({ adapterId: "openai-realtime", transport: "swift_realtime" }),
     ]));
     assertConversationContextPlan(contract.contextSnapshot.contextPlan);
     assertToolResultEnvelope(contract.toolResultEnvelope);

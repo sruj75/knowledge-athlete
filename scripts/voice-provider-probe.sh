@@ -28,9 +28,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 MINT_PATH = "/v2/realtime/session"
-OPENAI_URL = "wss://api.openai.com/v1/realtime?model=gpt-realtime-2"
 GEMINI_URL_PREFIX = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained"
-OPENAI_TOKEN_PREFIX = "ek_"
 GEMINI_TOKEN_PREFIX = "auth_tokens/"
 PROBE_INPUT = "Reply with exactly OMI_PROVIDER_PROBE_OK."
 MAX_TOKEN_CHARS = 8192
@@ -42,7 +40,6 @@ DEFAULT_TIMEOUT_SECONDS = 25.0
 
 @dataclass(frozen=True)
 class ProbeConfig:
-    provider: str
     base_url: str
     bearer_token: str | None
     timeout_seconds: float
@@ -87,15 +84,14 @@ def _normalize_base_url(value: str) -> str | None:
 
 def config_from_args(args: argparse.Namespace) -> ProbeConfig:
     return ProbeConfig(
-        provider=args.provider,
         base_url=_normalize_base_url(args.backend_base_url) or "",
         bearer_token=_read_bearer_token(args.bearer_token_file),
         timeout_seconds=args.timeout_seconds,
     )
 
 
-def _emit(provider: str, step: str, status: str, failure_class: str) -> None:
-    print(f"provider={provider} step={step} status={status} class={failure_class}", flush=True)
+def _emit(step: str, status: str, failure_class: str) -> None:
+    print(f"provider=gemini step={step} status={status} class={failure_class}", flush=True)
 
 
 def _classify_http_error(status_code: int) -> ProbeFailure:
@@ -112,7 +108,7 @@ def _classify_http_error(status_code: int) -> ProbeFailure:
 def _mint_provider_token(config: ProbeConfig) -> str:
     if not config.base_url or not config.bearer_token:
         raise ProbeFailure("configuration")
-    body = json.dumps({"provider": config.provider}, separators=(",", ":")).encode("utf-8")
+    body = b"{}"
     request = urllib.request.Request(
         f"{config.base_url}{MINT_PATH}",
         data=body,
@@ -147,8 +143,7 @@ def _mint_provider_token(config: ProbeConfig) -> str:
     if not isinstance(payload, dict):
         raise ProbeFailure("mint_schema")
     token = payload.get("token")
-    expected_prefix = OPENAI_TOKEN_PREFIX if config.provider == "openai" else GEMINI_TOKEN_PREFIX
-    valid = payload.get("provider") == config.provider and isinstance(token, str) and token.startswith(expected_prefix)
+    valid = payload.get("provider") == "gemini" and isinstance(token, str) and token.startswith(GEMINI_TOKEN_PREFIX)
     if not valid or len(token) > MAX_TOKEN_CHARS:
         raise ProbeFailure("mint_schema")
     return token
@@ -361,31 +356,6 @@ def _receive_until(websocket: ProviderWebSocket, timeout_seconds: float, matcher
             return
 
 
-def _openai_websocket(token: str, timeout_seconds: float) -> ProviderWebSocket:
-    websocket = ProviderWebSocket(
-        OPENAI_URL,
-        {"Authorization": f"Bearer {token}"},
-        timeout_seconds,
-    )
-    try:
-        websocket.connect()
-        websocket.send_json(
-            {
-                "type": "session.update",
-                "session": {
-                    "type": "realtime",
-                    "instructions": "Return the requested deterministic response.",
-                    "output_modalities": ["text"],
-                },
-            }
-        )
-        _receive_until(websocket, timeout_seconds, lambda event: event.get("type") == "session.updated")
-        return websocket
-    except Exception:
-        websocket.close()
-        raise
-
-
 def _gemini_websocket(token: str, timeout_seconds: float) -> ProviderWebSocket:
     query = urllib.parse.urlencode({"access_token": token})
     websocket = ProviderWebSocket(f"{GEMINI_URL_PREFIX}?{query}", {}, timeout_seconds)
@@ -408,85 +378,51 @@ def _gemini_websocket(token: str, timeout_seconds: float) -> ProviderWebSocket:
 
 
 def run_probe(config: ProbeConfig) -> int:
-    if config.provider not in {"openai", "gemini"} or not config.base_url or not config.bearer_token:
-        _emit(config.provider, "authenticate", "FAIL", "configuration")
+    if not config.base_url or not config.bearer_token:
+        _emit("authenticate", "FAIL", "configuration")
         return 1
-    _emit(config.provider, "authenticate", "PASS", "none")
+    _emit("authenticate", "PASS", "none")
     provider_token = ""
     current_step = "mint"
     try:
         provider_token = _mint_provider_token(config)
-        _emit(config.provider, "mint", "PASS", "none")
-        if config.provider == "openai":
-            current_step = "connect"
-            websocket = _openai_websocket(provider_token, config.timeout_seconds)
-            _emit(config.provider, "connect", "PASS", "none")
-            try:
-                current_step = "commit"
-                websocket.send_json(
-                    {
-                        "type": "conversation.item.create",
-                        "item": {
-                            "type": "message",
-                            "role": "user",
-                            "content": [{"type": "input_text", "text": PROBE_INPUT}],
-                        },
-                    }
-                )
-                websocket.send_json(
-                    {"type": "response.create", "response": {"output_modalities": ["text"]}}
-                )
-                _emit(config.provider, "commit", "PASS", "none")
-                current_step = "response"
-
-                def response_completed(event: dict[str, Any]) -> bool:
-                    if event.get("type") != "response.done":
-                        return False
-                    response = event.get("response")
-                    return isinstance(response, dict) and response.get("status") == "completed"
-
-                _receive_until(websocket, config.timeout_seconds, response_completed)
-                _emit(config.provider, "response", "PASS", "none")
-            finally:
-                websocket.close()
-        else:
-            current_step = "connect"
-            websocket = _gemini_websocket(provider_token, config.timeout_seconds)
-            _emit(config.provider, "connect", "PASS", "none")
-            try:
-                current_step = "commit"
-                websocket.send_json({"realtimeInput": {"activityStart": {}}})
-                websocket.send_json({"realtimeInput": {"text": PROBE_INPUT}})
-                websocket.send_json({"realtimeInput": {"activityEnd": {}}})
-                _emit(config.provider, "commit", "PASS", "none")
-                current_step = "response"
-                _receive_until(
-                    websocket,
-                    config.timeout_seconds,
-                    lambda event: isinstance(event.get("serverContent"), dict)
-                    and event["serverContent"].get("turnComplete") is True,
-                )
-                _emit(config.provider, "response", "PASS", "none")
-            finally:
-                websocket.close()
+        _emit("mint", "PASS", "none")
+        current_step = "connect"
+        websocket = _gemini_websocket(provider_token, config.timeout_seconds)
+        _emit("connect", "PASS", "none")
+        try:
+            current_step = "commit"
+            websocket.send_json({"realtimeInput": {"activityStart": {}}})
+            websocket.send_json({"realtimeInput": {"text": PROBE_INPUT}})
+            websocket.send_json({"realtimeInput": {"activityEnd": {}}})
+            _emit("commit", "PASS", "none")
+            current_step = "response"
+            _receive_until(
+                websocket,
+                config.timeout_seconds,
+                lambda event: isinstance(event.get("serverContent"), dict)
+                and event["serverContent"].get("turnComplete") is True,
+            )
+            _emit("response", "PASS", "none")
+        finally:
+            websocket.close()
     except ProbeFailure as error:
-        _emit(config.provider, current_step, "FAIL", error.failure_class)
+        _emit(current_step, "FAIL", error.failure_class)
         return 75 if error.retryable else 1
     except (socket.timeout, TimeoutError):
-        _emit(config.provider, current_step, "FAIL", "timeout")
+        _emit(current_step, "FAIL", "timeout")
         return 75
     except (OSError, ssl.SSLError):
-        _emit(config.provider, current_step, "FAIL", "provider_transport")
+        _emit(current_step, "FAIL", "provider_transport")
         return 1
     finally:
         provider_token = ""
-    _emit(config.provider, "close", "PASS", "expected_idle_teardown")
+    _emit("close", "PASS", "expected_idle_teardown")
     return 0
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("provider", choices=("openai", "gemini"))
     parser.add_argument("backend_base_url")
     parser.add_argument("--bearer-token-file", required=True, type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS)

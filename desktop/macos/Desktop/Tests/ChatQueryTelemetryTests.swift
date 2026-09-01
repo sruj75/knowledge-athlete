@@ -52,7 +52,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
 
   func testFailedPayloadCarriesBoundedErrorDetail() {
     let detail = ChatQueryErrorDetail.from(
-      BridgeError.agentError("400 Your credit balance is too low to access the Anthropic API."))
+      BridgeError.agentError("400 Your credit balance is too low to access the managed AI API."))
     let event = ChatQueryTelemetryEvent.failed(
       ChatQueryTelemetryContext(attemptId: "attempt-detail", surface: "main_chat", harness: "piMono"),
       durationMs: 1200,
@@ -76,7 +76,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
       userMessage: "Authentication required",
       source: "adapter_execution",
       adapterId: "pi-mono",
-      provider: "anthropic",
+      provider: "gemini",
       retryable: false
     )
     let detail = ChatQueryErrorDetail.from(BridgeError.agentRuntimeFailure(failure))

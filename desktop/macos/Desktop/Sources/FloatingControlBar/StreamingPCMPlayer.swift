@@ -49,13 +49,12 @@ final class StreamingPCMPlaybackQueue<Buffer: AnyObject> {
   }
 }
 
-/// Plays streamed mono PCM16 audio incrementally (OpenAI Realtime / Gemini Live
+/// Plays streamed mono PCM16 audio incrementally (Gemini Live
 /// output is 24 kHz). Feed chunks with `enqueue(_:)`; they play back-to-back in
 /// arrival order. Used by `RealtimeHubController` to play the realtime model's
 /// spoken response as it streams in.
 ///
-/// Ported from the `feature/gpt-realtime` worktree's `LiveVoiceSession` audio
-/// path (path adapted to the `desktop/macos/…` layout).
+/// Retained from Omi's proven streaming voice playback path.
 final class StreamingPCMPlayer: @unchecked Sendable {
   private let engine = AVAudioEngine()
   private let player = AVAudioPlayerNode()

@@ -35,7 +35,6 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
   case resetOnboarding = "advanced.resetonboarding"
   case aiUserProfile = "advanced.aiuserprofile"
   case stats = "advanced.stats"
-  case voiceModel = "advanced.ai.voice"
   case askMode = "advanced.ai.askmode"
   case multipleChats = "advanced.preferences.multichat"
   case launchAtLogin = "advanced.preferences.launchatlogin"
@@ -66,7 +65,7 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
     case .softwareUpdates, .automaticUpdates, .autoInstallUpdates, .updateChannel, .version,
       .aboutReportIssue:
       return .about
-    case .resetOnboarding, .aiUserProfile, .stats, .voiceModel, .askMode, .multipleChats,
+    case .resetOnboarding, .aiUserProfile, .stats, .askMode, .multipleChats,
       .launchAtLogin, .advancedReportIssue:
       return .advanced
     case .floatingBar, .floatingBarBackground, .floatingBarDraggable, .typedVoiceAnswers,
@@ -310,10 +309,6 @@ struct SettingsSearchItem: Identifiable {
       name: "Your Stats", subtitle: "View your usage statistics and activity",
       keywords: ["statistics", "conversations", "usage"], section: .advanced, icon: "chart.bar",
       destination: .stats),
-    SettingsSearchItem(
-      name: "Voice Model", subtitle: "Choose the realtime voice service",
-      keywords: ["voice", "realtime", "openai", "gemini"], section: .advanced,
-      icon: "cpu", destination: .voiceModel),
     SettingsSearchItem(
       name: "Ask Mode", subtitle: "Show the per-turn Ask and Act choice in chat",
       keywords: ["ask", "act", "read only", "chat"], section: .advanced,

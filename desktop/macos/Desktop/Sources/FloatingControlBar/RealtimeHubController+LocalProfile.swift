@@ -36,7 +36,7 @@ import VoiceTurnDomain
       revokeManagedMintForLocalProfileTransportPreparation()
       teardownSession()
       let localSession = RealtimeHubSession(
-        provider: .openai,
+        provider: .gemini,
         auth: .hermeticStub,
         instructions: "Hermetic local-profile realtime transport.",
         delegate: self)
@@ -44,7 +44,7 @@ import VoiceTurnDomain
       hubConnected = false
       session = localSession
       voiceSessionID = VoiceSessionID()
-      sessionProvider = .openai
+      sessionProvider = .gemini
       sessionAuth = .hermeticStub
       sessionOwnerBinding = PhysicalSessionOwnerBinding(
         sourceID: ObjectIdentifier(localSession),
@@ -273,14 +273,23 @@ import VoiceTurnDomain
           isAuthorizedLocalProfileTransport(source),
           source === session
         else { return false }
-        if hubConnected, await source.activityWindowOpen() { return true }
+        let lifecycle = await source.inputLifecycleSnapshot()
+        if RealtimeLocalProfileBootstrapReadinessPolicy.isReady(
+          hubConnected: hubConnected,
+          sessionOpen: lifecycle.isOpen)
+        {
+          return true
+        }
         try? await Task.sleep(nanoseconds: 50_000_000)
         if Task.isCancelled { return false }
       } while Date() < deadline
-      guard isAuthorizedLocalProfileTransport(source), source === session, hubConnected else {
+      guard isAuthorizedLocalProfileTransport(source), source === session else {
         return false
       }
-      return await source.activityWindowOpen()
+      let lifecycle = await source.inputLifecycleSnapshot()
+      return RealtimeLocalProfileBootstrapReadinessPolicy.isReady(
+        hubConnected: hubConnected,
+        sessionOpen: lifecycle.isOpen)
     }
 
     nonisolated static func localProfileSpawnArgumentsJSON(

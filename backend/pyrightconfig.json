@@ -49,7 +49,6 @@
         "pretrained_models",
         "routers/action_items.py",
         "routers/agents.py",
-        "routers/auto_model.py",
         "routers/chat.py",
         "routers/chat_sessions.py",
         "routers/fair_use_admin.py",

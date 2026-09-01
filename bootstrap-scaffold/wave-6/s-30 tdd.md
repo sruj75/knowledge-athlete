@@ -48,6 +48,65 @@ The worktree was clean on branch `plan-waves-5-6-slices` when planning began. No
 
 Planning authorities inspected were root [`../../AGENTS.md`](../../AGENTS.md), [`../../backend/AGENTS.md`](../../backend/AGENTS.md), [`../../desktop/macos/AGENTS.md`](../../desktop/macos/AGENTS.md), [`../../desktop/macos/e2e/SKILL.md`](../../desktop/macos/e2e/SKILL.md), `PRODUCT.md`, `FORK.md`, `BACKLOG.md`, the requirements/deletion/research/Dodo authorities in `bootstrap-scaffold/`, the Waves 3–4 closeout, and the relevant S-09, S-17, S-20, S-21, S-22, and S-25 plans and handoffs. Current source, tests, workflows, release scripts, resources, and operator documentation were then inspected to distinguish implemented behavior from future-owner plans.
 
+### 2.1 Execution-context refresh — 2026-08-29
+
+This refresh changes S-30's entry facts, not its scope or completion status. The
+historical planning baseline above remains provenance; implementation must use a
+fresh execution head.
+
+- S-26 through S-29 are now integrated on `origin/main` through merge
+  `2a966c29f27e7604a129df3a9f595ff055d391a5`. The current setup branch is
+  `98ff1714b125b09b17d3ca741d090232be95901c`; neither SHA is S-30 acceptance
+  evidence.
+- The approved identity packet now fixes product/app name `Intentive`, shared
+  slug `heyintentive`, domain `heyintentive.com`, bundle family
+  `com.heyintentive.intentive{,.beta,.dev}`, repository
+  `sruj75/knowledge-athlete`, and Apple team `24D6NXS6H7`. Legal text, effective
+  dates, working support/privacy contacts, and final public pages remain
+  unapproved/unpublished and still block their owning cycles.
+- Firebase Development, Beta, and Stable apps exist in the owner-approved MVP
+  project `knowledge-athlete`; Google Firebase Auth is configured. Apple remains
+  enabled in Firebase but cannot be accepted until the Apple membership and
+  identifiers/capabilities are restored.
+- The owned `knowledge-athlete-dev` Cloud Run revision now serves an immutable
+  image from the `knowledge-athlete/us-west1/intentive` registry with Upstash
+  Redis, Firestore runtime identity, Firebase API key, and Google OAuth wired.
+  Health and the Google authorize-to-provider boundary passed. This is
+  development infrastructure, not production or final S-31 deployment proof.
+- Codemagic is connected to the owned repository; the repository workflows,
+  new Sparkle keypair, Stable/Beta Firebase inputs, and Sentry symbol-upload
+  credential are configured. Apple signing/notarization values, preview
+  resources, production URLs/origin, release GitHub App, trusted runner, and a
+  real candidate remain open.
+- Provider inventory must be derived from retained callers rather than copied
+  from Omi's deployment YAML. OpenAI, Anthropic, Gemini, Modulate, PostHog,
+  Artificial Analysis, and LangSmith have retained jobs, although the latter
+  two have incomplete runtime/caller wiring. Calendar credentials and the
+  legacy desktop Anthropic key are residue and must not be provisioned.
+  Modulate is intentionally postponed; PostHog's owned project identity and
+  LangSmith's caller/privacy boundary remain S-30 inputs. The cost-safe
+  development revision currently keeps Vertex AI disabled. An interrupted
+  setup created a restricted Gemini key and Secret Manager version, but the
+  active Cloud Run revision does not bind it; the resource is dormant until a
+  reviewed Developer API/Vertex route is adopted.
+
+Accordingly, the production-edit gate is no longer blocked by missing S-27,
+S-28, or S-29 repository integration. It remains blocked by the unfinished
+identity/legal/public-contact packet and by unowned PostHog/managed-provider
+inputs where a final visible or public claim depends on them. Do not recreate
+deleted provider accounts merely to make the inherited manifest look complete.
+
+### 2.2 Gemini-first provider refresh — 2026-09-01
+
+The governing provider decisions now supersede the retained-provider inventory
+in §2.1. Normal Chat and every retained managed text workload use Gemini 3.7
+Flash; Gemini Live is the only realtime voice provider; and OpenAI remains only
+for the unchanged `gpt-4o-mini-tts` route. Auto, Artificial Analysis, Anthropic,
+OpenAI text/embeddings/realtime, and the omni relay are deleted. Modulate remains
+the postponed batch-STT credential, and LangSmith-to-Langfuse remains a separate
+follow-up. S-30 disclosure and PostHog acceptance must describe this final map,
+not the superseded Omi inventory.
+
 ## 3. Outcome
 
 S-30 closes the gap between the final architecture and what the product says about itself. On one integrated execution head:

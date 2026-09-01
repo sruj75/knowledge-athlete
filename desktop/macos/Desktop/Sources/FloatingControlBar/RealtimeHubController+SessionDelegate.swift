@@ -572,19 +572,6 @@ extension RealtimeHubController {
       VoiceTurnCoordinator.shared.publish(.hubReady(turnID: turnID, sessionID: voiceSessionID))
     }
     log("RealtimeHub: connected (\(sessionProvider?.displayName ?? "?"))")
-    if let fallback = fallbackProvider, let reason = pendingFailoverReason,
-      sessionProvider == fallback
-    {
-      let primary = RealtimeHubSettings.shared.provider
-      DesktopDiagnosticsManager.shared.recordFallback(
-        area: "realtime_hub",
-        from: primary.rawValue,
-        to: fallback.rawValue,
-        reason: reason,
-        outcome: .recovered,
-        extra: ["user_visible": false])
-      pendingFailoverReason = nil
-    }
     // Transport readiness has no authority to open provider input. Reconnect
     // and replacement replay paths above require an exact context admission;
     // an ordinary warm connection waits for prepareHubInput -> beginTurn.
@@ -1211,20 +1198,20 @@ extension RealtimeHubController {
       failure: failure,
       aliveFor: aliveFor,
       hasActiveTurn: hasActiveTurn,
-      provider: sessionProvider ?? .openai)
+      provider: .gemini)
     let provider = sessionProvider
     let authMode: CredentialAuthMode = .managed
     var credentialFailureClass: CredentialFailureClass?
-    if let provider, !RealtimeHubCloseClassifier.isExpectedLifecycleClose(closeCategory) {
+    if provider != nil, !RealtimeHubCloseClassifier.isExpectedLifecycleClose(closeCategory) {
       var failureClass = CredentialHealthManager.classifyProviderClose(
-        message: message, provider: provider)
+        message: message, provider: .gemini)
       if authMode == .managed, case .providerAuthFailed = failureClass {
-        failureClass = .providerAuthFailed(provider: provider, mode: .managed)
+        failureClass = .providerAuthFailed(provider: .gemini, mode: .managed)
       }
       credentialFailureClass = failureClass
       CredentialHealthManager.shared.recordProviderFailure(
         failureClass,
-        provider: provider,
+        provider: .gemini,
         authMode: authMode,
         context: "realtime_socket")
     }
@@ -1269,31 +1256,7 @@ extension RealtimeHubController {
       "RealtimeHub: provider close terminal state tool=\(terminalToolName) "
         + "tool_error=\(terminalToolErrorCode) accepted_spawn=\(terminalHadAcceptedSpawn)"
     )
-    if let sessionRotationPlan = RealtimeHubCloseClassifier.sessionRotationPlan(
-      for: closeCategory,
-      hasActiveTurn: hasActiveTurn)
-    {
-      recoverFromExpectedSessionRotation(sessionRotationPlan, activeTurn: activeTurn)
-      recordCloseResolution(
-        turnOutcome: sessionRotationPlan == .terminateActiveTurnAndRewarm ? .failed : .notInterrupted,
-        recoveryAction: .sessionRewarm,
-        recoveryResult: .started)
-      return
-    }
     if replacementAudioBuffer != nil, let failedProvider = provider {
-      let replacementFailoverReason = failoverReason(for: credentialFailureClass)
-      let mayFailOver = credentialFailureClass.map { shouldFailoverToAlternate(for: $0) } ?? true
-      if mayFailOver,
-        failoverBargeInReplacement(
-          from: failedProvider,
-          reason: replacementFailoverReason)
-      {
-        recordCloseResolution(
-          turnOutcome: .pendingReplacement,
-          recoveryAction: .providerFailover,
-          recoveryResult: .started)
-        return
-      }
       failBargeInReplacement(provider: failedProvider, reason: message)
       teardownSession()
       recordCloseResolution(
@@ -1308,17 +1271,7 @@ extension RealtimeHubController {
     if ownsActiveHubTurn, !resolvedScreenProtocol, activeTurn?.providerFinished != true {
       terminateActiveHubTurn(activeTurn)
     }
-    // Provider switching changes the user's voice identity and can fragment model-local
-    // context. Only switch for stable credential/quota classes; transient fast closes
-    // re-warm the same provider and rely on the shared continuity packet.
     if case .providerAuthFailed = credentialFailureClass {
-      if aliveFor < 10, failoverToAlternateProvider(reason: "auth") {
-        recordCloseResolution(
-          turnOutcome: turnOutcome,
-          recoveryAction: .providerFailover,
-          recoveryResult: .started)
-        return
-      }
       teardownSession()
       recordCloseResolution(
         turnOutcome: turnOutcome,
@@ -1327,13 +1280,6 @@ extension RealtimeHubController {
       return
     }
     if case .providerQuotaExceeded = credentialFailureClass {
-      if failoverToAlternateProvider(reason: "quota") {
-        recordCloseResolution(
-          turnOutcome: turnOutcome,
-          recoveryAction: .providerFailover,
-          recoveryResult: .started)
-        return
-      }
       teardownSession()
       recordCloseResolution(
         turnOutcome: turnOutcome,
@@ -1343,14 +1289,11 @@ extension RealtimeHubController {
     }
     // Re-warm so the NEXT PTT uses the hub, not the STT cascade. Gemini idle-closes
     // the socket (~2.5 min, close 1008) even before the first turn. Once `session`
-    // is nil, `isActive` is false and PTT silently falls back to omni STT, so always
-    // try to re-warm (the hub is the default voice path).
+    // is nil, PTT falls back to buffered batch STT, so always try to re-warm.
     // A socket that survived past the idle window was a normal idle-close → reset the
-    // strike budget (and the failover, returning to the Auto pick) and keep re-warming.
+    // strike budget and keep re-warming the same provider.
     if aliveFor > 60 {
       hubReconnectStrikes = 0
-      fallbackProvider = nil
-      pendingFailoverReason = nil
     }
     guard !reconnectPending, hubReconnectStrikes < Self.maxReconnectStrikes else {
       teardownSession()
@@ -1367,21 +1310,6 @@ extension RealtimeHubController {
       turnOutcome: turnOutcome,
       recoveryAction: .sessionRewarm,
       recoveryResult: .started)
-  }
-
-  /// OpenAI limits realtime sessions to sixty minutes. Rotation is a normal
-  /// transport lifecycle event: keep the provider choice, replace the retired
-  /// socket immediately, and let the reducer terminalize an interrupted turn.
-  func recoverFromExpectedSessionRotation(
-    _ plan: RealtimeHubSessionRotationPlan,
-    activeTurn: VoiceTurn?
-  ) {
-    if plan == .terminateActiveTurnAndRewarm {
-      terminateActiveHubTurn(activeTurn)
-    }
-    hubReconnectStrikes = 0
-    reconnectPending = true
-    replaceSessionAfterDrain()
   }
 
   /// A warm background socket must never terminate a managed-STT/Omni fallback

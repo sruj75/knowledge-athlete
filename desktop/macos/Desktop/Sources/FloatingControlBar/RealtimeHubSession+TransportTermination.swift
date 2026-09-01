@@ -2,28 +2,22 @@ import Foundation
 
 extension RealtimeHubSession {
   func stopAndWait() async {
-    let handles: (URLSessionWebSocketTask?, RealtimeRawWebSocketTransport?) = await withCheckedContinuation {
-      continuation in
+    let transport: RealtimeRawWebSocketTransport? = await withCheckedContinuation { continuation in
       q.async { [weak self] in
         guard let self else {
-          continuation.resume(returning: (nil, nil))
+          continuation.resume(returning: nil)
           return
         }
-        let handles = (self.task, self.rawWS)
+        let transport = self.rawWS
         self.beginStopOnQueue()
-        continuation.resume(returning: handles)
+        continuation.resume(returning: transport)
       }
     }
-    await waitForRawTransportTerminal(handles.1)
-    await waitForURLTaskTerminal(handles.0)
-    let handlesBox = SessionCallbackBox(handles)
+    await waitForRawTransportTerminal(transport)
+    let transportBox = SessionCallbackBox(transport)
     await withCheckedContinuation { continuation in
       q.async { [weak self] in
-        let handles = handlesBox.value
-        if let urlTask = handles.0, self?.task === urlTask {
-          self?.task = nil
-        }
-        if let rawTransport = handles.1, self?.rawWS === rawTransport {
+        if let rawTransport = transportBox.value, self?.rawWS === rawTransport {
           self?.rawWS = nil
         }
         continuation.resume()
@@ -34,24 +28,5 @@ extension RealtimeHubSession {
   private func waitForRawTransportTerminal(_ transport: RealtimeRawWebSocketTransport?) async {
     guard let transport else { return }
     await transport.closeAndWait()
-  }
-
-  private func waitForURLTaskTerminal(_ urlTask: URLSessionWebSocketTask?) async {
-    guard let urlTask else { return }
-    await withCheckedContinuation { continuation in
-      q.async { [weak self] in
-        guard let self else {
-          continuation.resume()
-          return
-        }
-        let taskID = urlTask.taskIdentifier
-        if self.completedURLTaskIDs.contains(taskID) || urlTask.state == .completed {
-          continuation.resume()
-          return
-        }
-        self.urlTaskTerminalWaiters[taskID, default: []].append(continuation)
-        urlTask.cancel(with: .goingAway, reason: nil)
-      }
-    }
   }
 }

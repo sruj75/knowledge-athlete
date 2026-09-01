@@ -33,61 +33,6 @@ class _Response:
         return False
 
 
-def test_openai_probe_mints_then_connects_commits_and_waits_for_a_terminal_response(monkeypatch, capsys):
-    module = _load_module()
-    sent = []
-
-    class FakeWebSocket:
-        def __init__(self):
-            self.events = iter(
-                [
-                    {"type": "session.updated"},
-                    {"type": "response.done", "response": {"status": "completed"}},
-                ]
-            )
-            self._socket = None
-            self.closed = False
-
-        def send_json(self, payload):
-            sent.append(payload)
-
-        def receive_json(self):
-            return next(self.events)
-
-        def close(self):
-            self.closed = True
-
-    websocket = FakeWebSocket()
-    monkeypatch.setattr(module, "_mint_provider_token", lambda _config: "ek_probe-token-must-not-leak")
-    monkeypatch.setattr(module, "_openai_websocket", lambda _token, _timeout: websocket)
-
-    result = module.run_probe(
-        module.ProbeConfig(
-            provider="openai",
-            base_url="https://candidate.invalid",
-            bearer_token="firebase-token-must-not-leak",
-            timeout_seconds=5,
-        )
-    )
-
-    output = capsys.readouterr().out
-    assert result == 0
-    assert websocket.closed is True
-    assert [event["type"] for event in sent] == [
-        "conversation.item.create",
-        "response.create",
-    ]
-    assert sent[0]["item"]["content"][0]["text"] == module.PROBE_INPUT
-    assert "step=mint status=PASS class=none" in output
-    assert "step=connect status=PASS class=none" in output
-    assert "step=commit status=PASS class=none" in output
-    assert "step=response status=PASS class=none" in output
-    assert "step=close status=PASS class=expected_idle_teardown" in output
-    assert "firebase-token-must-not-leak" not in output
-    assert "ek_probe-token-must-not-leak" not in output
-    assert module.PROBE_INPUT not in output
-
-
 def test_gemini_probe_completes_a_direct_setup_input_and_turn_complete_path(monkeypatch, capsys):
     module = _load_module()
     created = []
@@ -120,7 +65,6 @@ def test_gemini_probe_completes_a_direct_setup_input_and_turn_complete_path(monk
 
     result = module.run_probe(
         module.ProbeConfig(
-            provider="gemini",
             base_url="https://candidate.invalid",
             bearer_token="firebase-token-must-not-leak",
             timeout_seconds=5,
@@ -145,17 +89,16 @@ def test_gemini_probe_completes_a_direct_setup_input_and_turn_complete_path(monk
     assert module.PROBE_INPUT not in output
 
 
-def test_mint_rejects_a_2xx_response_with_the_wrong_typed_provider_token(monkeypatch):
+def test_mint_rejects_a_2xx_response_with_the_wrong_gemini_token(monkeypatch):
     module = _load_module()
     calls = []
 
     def fake_urlopen(request, *, timeout):
         calls.append((request, timeout))
-        return _Response(json.dumps({"provider": "gemini", "token": "auth_tokens/not-openai"}).encode())
+        return _Response(json.dumps({"provider": "gemini", "token": "wrong-prefix"}).encode())
 
     monkeypatch.setattr(module.urllib.request, "urlopen", fake_urlopen)
     config = module.ProbeConfig(
-        provider="openai",
         base_url="https://candidate.invalid",
         bearer_token="firebase-token-must-not-leak",
         timeout_seconds=5,
@@ -170,7 +113,7 @@ def test_mint_rejects_a_2xx_response_with_the_wrong_typed_provider_token(monkeyp
 
     request, _ = calls[0]
     assert request.full_url == "https://candidate.invalid/v2/realtime/session"
-    assert json.loads(request.data) == {"provider": "openai"}
+    assert json.loads(request.data) == {}
 
 
 def test_timeout_returns_retryable_exit_code_without_exposing_the_token(monkeypatch, capsys):
@@ -183,7 +126,6 @@ def test_timeout_returns_retryable_exit_code_without_exposing_the_token(monkeypa
 
     result = module.run_probe(
         module.ProbeConfig(
-            provider="gemini",
             base_url="https://candidate.invalid",
             bearer_token="firebase-token-must-not-leak",
             timeout_seconds=5,
@@ -208,12 +150,11 @@ def test_provider_send_timeout_is_reported_once_as_a_retryable_bounded_failure(m
         def close(self):
             return None
 
-    monkeypatch.setattr(module, "_mint_provider_token", lambda _config: "ek_probe-token-must-not-leak")
-    monkeypatch.setattr(module, "_openai_websocket", lambda _token, _timeout: FakeWebSocket())
+    monkeypatch.setattr(module, "_mint_provider_token", lambda _config: "auth_tokens/probe-token-must-not-leak")
+    monkeypatch.setattr(module, "_gemini_websocket", lambda _token, _timeout: FakeWebSocket())
 
     result = module.run_probe(
         module.ProbeConfig(
-            provider="openai",
             base_url="https://candidate.invalid",
             bearer_token="firebase-token-must-not-leak",
             timeout_seconds=5,
@@ -223,7 +164,7 @@ def test_provider_send_timeout_is_reported_once_as_a_retryable_bounded_failure(m
     output = capsys.readouterr().out
     assert result == 75
     assert output.count("status=FAIL") == 1
-    assert "provider=openai step=commit status=FAIL class=timeout" in output
+    assert "provider=gemini step=commit status=FAIL class=timeout" in output
     assert "provider token must not leak" not in output
 
 
@@ -244,7 +185,6 @@ def test_mint_http_429_returns_retryable_exit_code(monkeypatch, capsys):
 
     result = module.run_probe(
         module.ProbeConfig(
-            provider="openai",
             base_url="https://candidate.invalid",
             bearer_token="firebase-token-must-not-leak",
             timeout_seconds=5,
@@ -253,4 +193,4 @@ def test_mint_http_429_returns_retryable_exit_code(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert result == 75
-    assert "provider=openai step=mint status=FAIL class=mint_http_4xx" in output
+    assert "provider=gemini step=mint status=FAIL class=mint_http_4xx" in output

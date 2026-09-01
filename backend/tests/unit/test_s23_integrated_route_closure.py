@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 import main
 
-
 REJECTED_HTTP_OPERATIONS = (
     # S-23 recording, voice identity, Calendar, and hosted conversation products.
     ('POST', '/v3/upload-audio'),
@@ -107,4 +106,5 @@ def test_retained_neighbors_are_still_real_production_routes() -> None:
         assert response.status_code == 401, f'{method} {path} no longer enforces its retained auth boundary'
 
     websocket_paths = {route.path for route in main.app.routes if not getattr(route, 'methods', None)}
-    assert {'/v1/omni/relay', '/v2/voice-message/transcribe-stream', '/v4/listen'} <= websocket_paths
+    assert {'/v2/voice-message/transcribe-stream', '/v4/listen'} <= websocket_paths
+    assert '/v1/omni/relay' not in websocket_paths

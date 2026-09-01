@@ -308,9 +308,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       )
     }
 
-    // Refresh the "Auto" realtime-voice model pick from Artificial Analysis (daily, cached).
-    AutoModelSelector.shared.refreshIfStale()
-
     // After a Sparkle update, show a small "what's new" card in the corner of the
     // main window once. Delayed so the window/overlay exist to render it.
     if restoreMainWindowAfterUpdateRelaunch != false {

@@ -1152,18 +1152,16 @@ import XCTest
     XCTAssertTrue(source.contains("server turn done; waiting for local playback to drain"))
   }
 
-  func testRealtimeBargeInUsesProviderInterruptionStrategy() throws {
+  func testRealtimeBargeInUsesGeminiFreshSessionReplacement() throws {
     let hubSource = try realtimeHubControllerSource()
     let sessionSource = try realtimeHubSessionSource()
 
-    // OpenAI can cancel a response in-session. Gemini cannot reliably cancel a
-    // streaming reply, so barge-in must replace the session. Managed Gemini
-    // tokens are single-use, so the replacement session remints before it
+    // Gemini barge-in replaces the streaming session. Managed Gemini tokens are
+    // single-use, so the replacement session remints before it
     // connects and holds early PTT audio during that remint gap. If the user
     // releases before the replacement is ready, the commit is deferred onto the
     // replacement session instead of dropping captured speech.
-    XCTAssertTrue(sessionSource.contains("enum RealtimeHubBargeInStrategy"))
-    XCTAssertTrue(sessionSource.contains("provider == .gemini ? .freshSession : .inSessionCancel"))
+    XCTAssertFalse(sessionSource.contains("enum RealtimeHubBargeInStrategy"))
     XCTAssertTrue(hubSource.contains("var sessionAuth: HubAuth?"))
     let inputAdmissionSource = try realtimeHubInputAdmissionSource()
     XCTAssertTrue(inputAdmissionSource.contains("struct RealtimeReplacementAudioBuffer"))
@@ -1193,8 +1191,6 @@ import XCTest
     XCTAssertTrue(hubSource.contains("effect: { [currentEvidence] in [currentEvidence] }"))
     XCTAssertTrue(hubSource.contains("authorizedRealtimeScreenshotImages[command.invocationID] = attachment"))
     XCTAssertTrue(hubSource.contains("screenshotToolResultTextForCurrentProvider(attachment: attachment)"))
-    XCTAssertTrue(sessionSource.contains("case .openai:"))
-    XCTAssertTrue(sessionSource.contains("case .gemini:"))
     XCTAssertTrue(sessionSource.contains("static func geminiToolResponse("))
     XCTAssertTrue(sessionSource.contains("\"parts\""))
     XCTAssertFalse(hubSource.contains("responding = false"))
@@ -1220,9 +1216,8 @@ import XCTest
     XCTAssertTrue(hubSource.contains("beginContextFreshInputPreparation("))
     XCTAssertTrue(hubSource.contains("finishContextFreshInputOnCurrentSession()"))
     XCTAssertTrue(hubSource.contains("case .replaceSession:"))
-    XCTAssertTrue(
-      hubSource.contains("replace the connection and let the fresh session buffer this new turn while it opens"))
-    XCTAssertTrue(hubSource.contains("case .cancelInSession:"))
+    XCTAssertTrue(hubSource.contains("replace it for a clean turn"))
+    XCTAssertFalse(hubSource.contains("case .cancelInSession:"))
     XCTAssertTrue(hubSource.contains("barge-in — stopping local playback tail"))
     XCTAssertTrue(hubSource.contains("if !deferredFreshSessionContextPrefetch"))
     XCTAssertTrue(hubSource.contains("interrupting: providerResponseInFlight"))
@@ -1233,17 +1228,6 @@ import XCTest
     XCTAssertTrue(hubSource.contains("func sendToolResultIfCurrent("))
     XCTAssertFalse(hubSource.contains("self.session?.sendToolResult(callId: callId"))
     XCTAssertTrue(sessionSource.contains("delegate.hubDidReceiveAudio(pcm, identity: identity, source: self)"))
-    XCTAssertTrue(sessionSource.contains("guard isCurrentOpenAIResponseEvent(e) else"))
-    XCTAssertTrue(sessionSource.contains("private var openAIResponseCreatePending = false"))
-    XCTAssertTrue(
-      sessionSource.contains(
-        "guard !openAIResponseCreatePending, let expected = openAIActiveResponseID else { return false }"))
-    XCTAssertTrue(sessionSource.contains("return eventResponseID == expected"))
-    XCTAssertFalse(sessionSource.contains("guard let expected = openAIActiveResponseID else { return true }"))
-    XCTAssertTrue(sessionSource.contains("ignoring stale response.done"))
-    XCTAssertTrue(sessionSource.contains("private var pendingOpenAIToolCallIds = Set<String>()"))
-    XCTAssertTrue(sessionSource.contains("pendingOpenAIToolCallIds.insert(callId)"))
-    XCTAssertTrue(sessionSource.contains("waiting for \\(self.pendingOpenAIToolCallIds.count) OpenAI tool result(s)"))
     XCTAssertTrue(sessionSource.contains("private var pendingGeminiToolCallIds = Set<String>()"))
     XCTAssertTrue(sessionSource.contains("pendingGeminiToolCallIds.insert(callId)"))
     XCTAssertTrue(sessionSource.contains("deferring Gemini turnComplete with"))
@@ -1251,7 +1235,7 @@ import XCTest
     XCTAssertFalse(sessionSource.contains("let callId = call[\"id\"] as? String ?? name"))
   }
 
-  func testCredentialHealthRetryAndFailoverInvariants() throws {
+  func testCredentialHealthRetryAndGeminiReconnectInvariants() throws {
     let apiSource = try apiClientSource()
     let hubSource = try realtimeHubControllerSource()
 
@@ -1275,17 +1259,7 @@ import XCTest
       hubSource.contains("self.releaseMint(generation: mintGeneration, ownerScope: ownerScope)")
         && hubSource.contains(
           "CredentialHealthManager.shared.record(error, context: \"realtime_mint\")"),
-      "Mint failure must clear minting before failover starts the alternate provider")
-    XCTAssertTrue(
-      hubSource.contains(
-        "if case .providerAuthFailed = credentialFailureClass {\n      if aliveFor < 10, failoverToAlternateProvider(reason: \"auth\") {\n        recordCloseResolution("
-      ),
-      "Provider auth failures should record the alternate-provider recovery before stopping reconnect")
-    XCTAssertTrue(
-      hubSource.contains(
-        "if case .providerQuotaExceeded = credentialFailureClass {\n      if failoverToAlternateProvider(reason: \"quota\") {\n        recordCloseResolution("
-      ),
-      "Provider quota failures should record the alternate-provider recovery regardless of socket age")
+      "Mint failure must release mint ownership before Gemini recovery continues")
     XCTAssertTrue(
       hubSource.contains("let reportingPlan = RealtimeHubFailureReportingPlan.make(")
         && hubSource.contains(
@@ -1294,12 +1268,9 @@ import XCTest
         && hubSource.contains(
           "if shouldCaptureProviderCloseToSentry {\n        logError(reportingPlan.sentryMessage)"),
       "Credential close reporting must record the bounded recovery decision before Sentry captures its attachment")
-    XCTAssertTrue(
-      hubSource.contains("func shouldFailoverToAlternate(for failureClass: CredentialFailureClass?) -> Bool"),
-      "Provider switching must be centralized and limited to stable credential/quota failures")
     XCTAssertFalse(
-      hubSource.contains("if aliveFor < 10, failoverToAlternateProvider() { return }\n    // Re-warm"),
-      "Transient fast closes should not switch voice providers")
+      hubSource.contains("failoverToAlternateProvider") || hubSource.contains("alternateProvider"),
+      "Gemini failures must reconnect or cascade without crossing providers")
   }
 
   func testSpeechSynthesizerDidCancelClearsGlow() throws {

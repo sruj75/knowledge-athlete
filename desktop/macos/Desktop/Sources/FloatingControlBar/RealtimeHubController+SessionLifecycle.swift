@@ -256,15 +256,12 @@ extension RealtimeHubController {
       isOwnerScopeCurrent(ownerScope),
       let mintGeneration = beginMint(ownerScope: ownerScope)
     else { return }
-    let providerParam = provider == .openai ? "openai" : "gemini"
     log("RealtimeHub: minting ephemeral \(provider.displayName) token (managed)")
     Task { [weak self] in
       guard let self else { return }
       let token: String
       do {
-        token = try await APIClient.shared.mintRealtimeToken(
-          provider: providerParam,
-          expectedOwnerID: ownerID)
+        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
       } catch let error as RealtimeTokenMintError {
         guard
           self.acceptMintCompletionOrRewarm(
@@ -272,19 +269,14 @@ extension RealtimeHubController {
             ownerScope: ownerScope)
         else { return }
         _ = self.releaseMint(generation: mintGeneration, ownerScope: ownerScope)
-        let fallbackStarted =
-          !error.healthError.failureClass.isAccountWide
-          && self.failoverToAlternateProvider(
-            reason: self.failoverReason(for: error.healthError.failureClass),
-            mintAttemptId: String(mintGeneration))
         self.recordRealtimeMintFailure(
-          error, provider: providerParam, phase: "warm", context: "realtime_mint",
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          error, provider: "gemini", phase: "warm", context: "realtime_mint",
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
         if error.healthError.failureClass.isAccountWide {
           log("RealtimeHub: account credential failure during mint — staying on cascade")
-        } else if !fallbackStarted {
-          log("⚠️ RealtimeHub: ephemeral mint failed on both providers — staying on cascade")
+        } else {
+          log("⚠️ RealtimeHub: Gemini ephemeral mint failed — staying on batch fallback")
         }
         return
       } catch let error as CredentialHealthError {
@@ -295,22 +287,17 @@ extension RealtimeHubController {
         else { return }
         _ = self.releaseMint(generation: mintGeneration, ownerScope: ownerScope)
         CredentialHealthManager.shared.record(error, context: "realtime_mint")
-        let fallbackStarted =
-          !error.failureClass.isAccountWide
-          && self.failoverToAlternateProvider(
-            reason: self.failoverReason(for: error.failureClass),
-            mintAttemptId: String(mintGeneration))
         DesktopDiagnosticsManager.shared.recordRealtimeTokenMintFailed(
-          provider: providerParam,
+          provider: "gemini",
           reason: error.failureClass.logValue,
           phase: "warm",
           httpStatusCode: error.failureClass.httpStatusCode,
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
         if error.failureClass.isAccountWide {
           log("RealtimeHub: account credential failure during mint — staying on cascade")
-        } else if !fallbackStarted {
-          log("⚠️ RealtimeHub: ephemeral mint failed on both providers — staying on cascade")
+        } else {
+          log("⚠️ RealtimeHub: Gemini ephemeral mint failed — staying on batch fallback")
         }
         return
       } catch {
@@ -323,16 +310,13 @@ extension RealtimeHubController {
         let typed = CredentialHealthError.backendTransient(
           statusCode: nil, message: error.localizedDescription)
         CredentialHealthManager.shared.record(typed, context: "realtime_mint")
-        let fallbackStarted = self.failoverToAlternateProvider(mintAttemptId: String(mintGeneration))
         DesktopDiagnosticsManager.shared.recordRealtimeTokenMintFailed(
-          provider: providerParam,
+          provider: "gemini",
           reason: "backend_transient",
           phase: "warm",
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
-        if !fallbackStarted {
-          log("⚠️ RealtimeHub: ephemeral mint failed on both providers — staying on cascade")
-        }
+        log("⚠️ RealtimeHub: Gemini ephemeral mint failed — staying on batch fallback")
         return
       }
       guard
@@ -341,7 +325,7 @@ extension RealtimeHubController {
           ownerScope: ownerScope)
       else { return }
       _ = self.releaseMint(generation: mintGeneration, ownerScope: ownerScope)
-      // Provider may have changed (picker/failover) while minting; only connect if still wanted.
+      // A lifecycle reset may have superseded this mint; only connect if it is still wanted.
       guard self.effectiveProvider == provider, self.session == nil else {
         self.ensureWarm()
         return
@@ -624,7 +608,7 @@ extension RealtimeHubController {
   func beginTransportRebindForActiveInputIfNeeded() -> Bool {
     guard reconnectAudioBuffer == nil,
       let active = VoiceTurnCoordinator.shared.activeTurn,
-      active.phase.isRecording || active.hubCommitPending,
+      active.phase.isRecording || active.phase == .awaitingResponse || active.hubCommitPending,
       let responseID = voiceResponseID,
       let identity = VoiceTurnCoordinator.shared.reserveEffectIdentity()
     else { return false }
@@ -919,17 +903,8 @@ extension RealtimeHubController {
       if accepted {
         VoiceTurnCoordinator.shared.publish(
           .journalAccepted(turnID: turnID, identity: identity))
-        // The provider only receives kernel context when its socket starts.
-        // Re-warm after the durable journal acknowledgement so the usual next
-        // PTT press is already fresh. A press that races this handoff owns a
-        // bounded buffer instead of being failed or sent to generic warm wait.
-        // Gemini already owns the same refresh through its completed-turn boundary;
-        // doing both here caused back-to-back session rotations on the next PTT.
-        if RealtimePersistedVoiceContextRefreshPolicy.shouldHandoffImmediately(
-          provider: self.sessionProvider)
-        {
-          self.requestSessionHandoff(reason: .persistedVoiceContext)
-        }
+        // Gemini owns the persistence-fenced refresh through its completed-turn
+        // boundary; starting another handoff here would rotate the next warm socket.
       } else {
         VoiceTurnCoordinator.shared.publish(
           .journalFailed(
@@ -1156,7 +1131,6 @@ extension RealtimeHubController {
       return
     }
     let replacementGeneration = bargeInReplacementGeneration
-    let providerParam = provider == .openai ? "openai" : "gemini"
     log("RealtimeHub[\(provider.displayName)]: minting fresh token for barge-in replacement")
     Task { [weak self] in
       guard let self else { return }
@@ -1179,9 +1153,7 @@ extension RealtimeHubController {
       }
       let token: String
       do {
-        token = try await APIClient.shared.mintRealtimeToken(
-          provider: providerParam,
-          expectedOwnerID: ownerID)
+        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
       } catch let error as RealtimeTokenMintError {
         if self.redriveReplacementMintIfStale(
           replacementGeneration: replacementGeneration,
@@ -1191,22 +1163,13 @@ extension RealtimeHubController {
           return
         }
         guard self.releaseMint(generation: mintGeneration, ownerScope: ownerScope) else { return }
-        let fallbackStarted =
-          self.shouldFailoverToAlternate(for: error.healthError.failureClass)
-          && self.failoverBargeInReplacement(
-            from: provider,
-            reason: self.failoverReason(for: error.healthError.failureClass),
-            mintAttemptId: String(mintGeneration))
         self.recordRealtimeMintFailure(
           error,
-          provider: providerParam,
+          provider: "gemini",
           phase: "barge_in_replacement",
           context: "realtime_barge_in_mint",
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
-        if fallbackStarted {
-          return
-        }
         self.failBargeInReplacement(provider: provider, reason: error.localizedDescription)
         if !error.healthError.failureClass.isAccountWide {
           log("⚠️ RealtimeHub[\(provider.displayName)]: barge-in replacement token mint failed")
@@ -1222,22 +1185,13 @@ extension RealtimeHubController {
         }
         guard self.releaseMint(generation: mintGeneration, ownerScope: ownerScope) else { return }
         CredentialHealthManager.shared.record(error, context: "realtime_barge_in_mint")
-        let fallbackStarted =
-          self.shouldFailoverToAlternate(for: error.failureClass)
-          && self.failoverBargeInReplacement(
-            from: provider,
-            reason: self.failoverReason(for: error.failureClass),
-            mintAttemptId: String(mintGeneration))
         DesktopDiagnosticsManager.shared.recordRealtimeTokenMintFailed(
-          provider: providerParam,
+          provider: "gemini",
           reason: error.failureClass.logValue,
           phase: "barge_in_replacement",
           httpStatusCode: error.failureClass.httpStatusCode,
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
-        if fallbackStarted {
-          return
-        }
         self.failBargeInReplacement(provider: provider, reason: error.localizedDescription)
         if !error.failureClass.isAccountWide {
           log("⚠️ RealtimeHub[\(provider.displayName)]: barge-in replacement token mint failed")
@@ -1252,19 +1206,12 @@ extension RealtimeHubController {
           return
         }
         guard self.releaseMint(generation: mintGeneration, ownerScope: ownerScope) else { return }
-        let fallbackStarted = self.failoverBargeInReplacement(
-          from: provider,
-          reason: "other",
-          mintAttemptId: String(mintGeneration))
         DesktopDiagnosticsManager.shared.recordRealtimeTokenMintFailed(
-          provider: providerParam,
+          provider: "gemini",
           reason: "backend_transient",
           phase: "barge_in_replacement",
-          outcome: fallbackStarted ? .degraded : .exhausted,
+          outcome: .exhausted,
           mintAttemptId: String(mintGeneration))
-        if fallbackStarted {
-          return
-        }
         self.failBargeInReplacement(provider: provider, reason: error.localizedDescription)
         log("⚠️ RealtimeHub[\(provider.displayName)]: barge-in replacement token mint failed")
         return
@@ -1374,7 +1321,7 @@ extension RealtimeHubController {
 
   /// Replays a turn captured while a regular warm session was being replaced.
   /// The provider input window opens before replay so Gemini's activity boundaries
-  /// and OpenAI's event ownership remain tied to the original PTT turn.
+  /// and event ownership remain tied to the original PTT turn.
   func finishSessionReconnectAfterReady() {
     guard let pending = reconnectAudioBuffer, let live = session else { return }
     guard let voiceSessionID else { return }

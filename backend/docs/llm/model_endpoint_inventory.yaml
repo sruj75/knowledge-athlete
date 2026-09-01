@@ -74,11 +74,12 @@ adjacent_direct_surfaces:
   - surface: desktop_gemini_embeddings
     provider_model: gemini/gemini-embedding-001
     owner: authenticated desktop proxy
-  - surface: omni_realtime_relay
-    provider_models:
-      - openai/realtime
-      - gemini/live
-    owner: native realtime voice policy; outside managed workload registry
+  - surface: gemini_live_realtime
+    provider_model: gemini/gemini-3.1-flash-live-preview
+    owner: server-pinned native realtime voice policy; outside managed workload registry
+  - surface: spoken_text_tts
+    provider_model: openai/gpt-4o-mini-tts
+    owner: authenticated TTS route; OpenAI is not used for managed text or realtime voice
 
 retired_surfaces:
   - global premium/max/BYOK profiles

@@ -56,9 +56,9 @@ function assertFlatProviderInputSchema(surface: string, toolName: string, schema
 
 function generatedRealtimeToolDefinitions(): Array<{ name: string; parameters: Record<string, unknown> }> {
   const source = readFileSync(realtimeToolsPath, "utf8");
-  const match = /baseOpenAIToolsTemplateJSON = """\n([\s\S]*?)\n"""/.exec(source);
+  const match = /baseRealtimeToolsTemplateJSON = """\n([\s\S]*?)\n"""/.exec(source);
   if (!match) {
-    throw new Error("GeneratedRealtimeTools.swift is missing baseOpenAIToolsTemplateJSON");
+    throw new Error("GeneratedRealtimeTools.swift is missing baseRealtimeToolsTemplateJSON");
   }
   return JSON.parse(match[1]) as Array<{ name: string; parameters: Record<string, unknown> }>;
 }

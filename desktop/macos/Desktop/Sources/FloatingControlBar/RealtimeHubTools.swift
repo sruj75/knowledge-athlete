@@ -159,21 +159,20 @@ enum RealtimeHubTools {
     return result
   }
 
-  /// OpenAI Realtime GA `session.tools` entries.
-  static var openAITools: [[String: Any]] {
-    GeneratedRealtimeTools.baseOpenAIToolsTemplate
+  /// Canonical generated realtime tool entries.
+  static var realtimeTools: [[String: Any]] {
+    GeneratedRealtimeTools.baseRealtimeToolsTemplate
   }
 
-  /// Gemini Live `setup.tools[0].functionDeclarations` entries (same surface). Derived once
-  /// from `openAITools`.
+  /// Gemini Live `setup.tools[0].functionDeclarations` entries.
   static var geminiFunctionDeclarations: [[String: Any]] {
-    openAITools.map { tool in
-      // Gemini wants {name, description, parameters} without the OpenAI "type" wrapper.
+    realtimeTools.map { tool in
+      // Gemini wants {name, description, parameters} without the canonical "type" field.
       var decl: [String: Any] = [
         "name": tool["name"] as? String ?? "",
         "description": tool["description"] as? String ?? "",
       ]
-      // Gemini's Schema `type` must be UPPERCASE (OBJECT/STRING/NUMBER/…). The OpenAI
+      // Gemini's Schema `type` must be UPPERCASE (OBJECT/STRING/NUMBER/…). The canonical
       // tools use lowercase JSON-schema types, which Gemini silently accepts but degrades
       // (the model gets less confident about when/how to call) — so convert them.
       if let params = tool["parameters"] as? [String: Any] {

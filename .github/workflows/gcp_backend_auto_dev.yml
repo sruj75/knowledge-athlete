@@ -612,24 +612,22 @@ jobs:
             --workflow-run-id="$GITHUB_RUN_ID" \
             --evidence-path=artifacts/dev-backend-chat-candidate.json
 
-      - name: Prove canonical candidate managed realtime provider paths
+      - name: Prove canonical candidate managed Gemini realtime path
         run: |
           set -euo pipefail
-          for provider in openai gemini; do
-            for attempt in 1 2 3; do
-              probe_exit=0
-              scripts/voice-provider-probe.sh "$provider" "${{ steps.candidate-urls.outputs.backend_url }}" \
-                --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" || probe_exit=$?
-              if [[ "$probe_exit" -eq 0 ]]; then
-                break
-              fi
-              if [[ "$probe_exit" -ne 75 || "$attempt" -eq 3 ]]; then
-                echo "Managed realtime provider proof failed for $provider." >&2
-                exit "$probe_exit"
-              fi
-              echo "Retrying $provider provider proof after a retryable upstream failure ($attempt/3)."
-              sleep 5
-            done
+          for attempt in 1 2 3; do
+            probe_exit=0
+            scripts/voice-provider-probe.sh "${{ steps.candidate-urls.outputs.backend_url }}" \
+              --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" || probe_exit=$?
+            if [[ "$probe_exit" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$probe_exit" -ne 75 || "$attempt" -eq 3 ]]; then
+              echo "Managed Gemini realtime proof failed." >&2
+              exit "$probe_exit"
+            fi
+            echo "Retrying Gemini realtime proof after a retryable upstream failure ($attempt/3)."
+            sleep 5
           done
 
       - name: Delete backend candidate probe identity

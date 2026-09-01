@@ -79,7 +79,7 @@ final class HubSystemInstructionTests: XCTestCase {
   }
 
   func testScreenObservationSchemaCarriesGroundingInsteadOfAUserFacingAnswer() {
-    let tool = RealtimeHubTools.openAITools.first {
+    let tool = RealtimeHubTools.realtimeTools.first {
       ($0["name"] as? String) == HubTool.reportScreenObservation.rawValue
     }
     let parameters = tool?["parameters"] as? [String: Any]
@@ -138,12 +138,12 @@ final class HubSystemInstructionTests: XCTestCase {
   }
 
   func testRealtimeToolSurfaceMatchesCapabilityRegistry() {
-    let toolNames = Set(RealtimeHubTools.openAITools.compactMap { $0["name"] as? String })
+    let toolNames = Set(RealtimeHubTools.realtimeTools.compactMap { $0["name"] as? String })
     XCTAssertEqual(toolNames, Set(DesktopCapabilityRegistry.realtimeToolNames))
   }
 
   func testRealtimeSpawnAgentCannotRepresentAProviderOverride() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let spawnAgent = tools.first { ($0["name"] as? String) == HubTool.spawnAgent.rawValue }
     let parameters = spawnAgent?["parameters"] as? [String: Any]
     let properties = parameters?["properties"] as? [String: Any]
@@ -153,7 +153,7 @@ final class HubSystemInstructionTests: XCTestCase {
   }
 
   func testRealtimeListAgentSessionsToolIsExposed() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let listTool = tools.first { ($0["name"] as? String) == HubTool.listAgentSessions.rawValue }
     XCTAssertNotNil(listTool)
     XCTAssertTrue((listTool?["description"] as? String ?? "").contains("subagents"))
@@ -161,21 +161,21 @@ final class HubSystemInstructionTests: XCTestCase {
   }
 
   func testRealtimeAttentionOverrideToolIsExposed() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let overrideTool = tools.first { ($0["name"] as? String) == HubTool.setDesktopAttentionOverride.rawValue }
     XCTAssertNotNil(overrideTool)
     XCTAssertTrue((overrideTool?["description"] as? String ?? "").contains("dismiss"))
   }
 
   func testRealtimeCalendarCreationToolIsRetiredWhileTaskCreationRemains() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let names = Set(tools.compactMap { $0["name"] as? String })
     XCTAssertFalse(names.contains("create_calendar_event"))
     XCTAssertTrue(names.contains(HubTool.createActionItem.rawValue))
   }
 
   func testRealtimePermissionToolsAreExposedForDirectHandling() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let names = Set(tools.compactMap { $0["name"] as? String })
     XCTAssertTrue(names.contains(HubTool.checkPermissionStatus.rawValue))
     XCTAssertTrue(names.contains(HubTool.requestPermission.rawValue))
@@ -226,7 +226,7 @@ final class HubSystemInstructionTests: XCTestCase {
   }
 
   func testRealtimeCanonicalAgentControlToolsAreExposed() {
-    let tools = RealtimeHubTools.openAITools
+    let tools = RealtimeHubTools.realtimeTools
     let toolNames = Set(tools.compactMap { $0["name"] as? String })
     XCTAssertTrue(toolNames.contains(HubTool.listAgentSessions.rawValue))
     XCTAssertTrue(toolNames.contains(HubTool.getAgentRun.rawValue))

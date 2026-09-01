@@ -71,46 +71,6 @@ extension SettingsContentView {
 
   var advancedAISetupSubsection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      settingsCard(destination: .voiceModel) {
-        VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          HStack {
-            Image(systemName: "waveform")
-              .scaledFont(size: OmiType.subheading)
-              .foregroundColor(OmiColors.textTertiary)
-
-            Text("Voice Model")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-
-            Spacer()
-
-            SettingsMenuPicker(selection: $realtimeOmniProvider) {
-              ForEach(RealtimeOmniProvider.allCases, id: \.rawValue) { provider in
-                Text(provider.displayName).tag(provider.rawValue)
-              }
-            }
-            .onChange(of: realtimeOmniProvider) { _, newValue in
-              if newValue == RealtimeOmniProvider.auto.rawValue {
-                AutoModelSelector.shared.refreshIfStale()
-              }
-              NotificationCenter.default.post(name: .realtimeOmniSettingsDidChange, object: nil)
-            }
-          }
-
-          if let provider = RealtimeOmniProvider(rawValue: realtimeOmniProvider), provider == .auto {
-            Text(
-              "\(provider.subtitle) · currently \(RealtimeOmniSettings.shared.effectiveProvider.displayName)"
-            )
-            .scaledFont(size: OmiType.caption)
-            .foregroundColor(OmiColors.textTertiary)
-          } else if let provider = RealtimeOmniProvider(rawValue: realtimeOmniProvider) {
-            Text(provider.subtitle)
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-          }
-        }
-      }
-
       settingsCard(destination: .askMode) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           HStack {

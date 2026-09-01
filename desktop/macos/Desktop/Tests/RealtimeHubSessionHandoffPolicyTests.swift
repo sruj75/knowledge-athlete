@@ -120,120 +120,6 @@ import XCTest
     }
 
     @MainActor
-    func testProviderFailoverPreservesChoiceButWaitsForOldTransportAcknowledgement() async throws {
-      let controller = RealtimeHubController()
-      let fixture = try await installDelayedTransport(on: controller, ownerScope: .signedOut)
-      let rewarmed = expectation(description: "alternate provider rewarmed")
-      controller.testingWarmAfterDrain = { rewarmed.fulfill() }
-
-      XCTAssertTrue(controller.failoverToAlternateProvider(reason: "other"))
-      XCTAssertEqual(controller.fallbackProvider, RealtimeHubSettings.shared.provider.alternate)
-      await Task.yield()
-      XCTAssertEqual(fixture.tracker.liveCount, 1)
-      XCTAssertTrue(controller.sessionReplacementGate.isPending)
-
-      fixture.transport.acknowledgeClose()
-      await fulfillment(of: [rewarmed], timeout: 1)
-      XCTAssertEqual(fixture.tracker.liveCount, 0)
-      XCTAssertNil(controller.session)
-    }
-
-    @MainActor
-    func testEnsureWarmProviderMismatchWaitsForTransportAcknowledgementBeforeRewarm() async throws {
-      let controller = RealtimeHubController()
-      let fixture = try await installDelayedTransport(on: controller, ownerScope: .signedOut)
-      let rewarmed = expectation(description: "mismatched provider rewarmed")
-      controller.testingWarmAfterDrain = { rewarmed.fulfill() }
-      controller.fallbackProvider = .openai
-
-      controller.ensureWarm()
-      await Task.yield()
-
-      XCTAssertTrue(controller.sessionReplacementGate.isPending)
-      XCTAssertEqual(fixture.tracker.liveCount, 1)
-      XCTAssertNil(controller.session)
-
-      fixture.transport.acknowledgeClose()
-      await fulfillment(of: [rewarmed], timeout: 1)
-      XCTAssertEqual(fixture.tracker.liveCount, 0)
-      XCTAssertFalse(controller.sessionReplacementGate.isPending)
-    }
-
-    @MainActor
-    func testBargeInFailoverWaitsForTransportAcknowledgementBeforeSpecializedStart() async throws {
-      let controller = RealtimeHubController()
-      let ownerScope = controller.currentOwnerScope
-      let fixture = try await installDelayedTransport(on: controller, ownerScope: ownerScope)
-      controller.prefetchedVoiceContextOwnerScope = ownerScope
-      controller.prefetchedVoiceContextSurface = .realtimeVoice()
-      controller.prefetchedVoiceContextSessionID = "fixture-session"
-      controller.prefetchedVoiceContextFreshnessIdentity = "fixture-freshness"
-      let turnID = VoiceTurnID()
-      let responseID = VoiceResponseID("barge-in-response")
-      controller.replacementAudioBuffer = RealtimeReplacementAudioBuffer(
-        turnID: turnID,
-        responseID: responseID,
-        identity: VoiceEffectIdentity(turnID: turnID, effectID: 1))
-      controller.voiceResponseID = responseID
-      controller.pendingBargeInOwnerScope = ownerScope
-      let specializedStart = expectation(description: "specialized replacement started")
-      var specializedStartCount = 0
-      controller.testingSessionStartAfterDrain = { provider, auth, ownerScope in
-        specializedStartCount += 1
-        XCTAssertEqual(provider, .openai)
-        XCTAssertEqual(ownerScope, controller.currentOwnerScope)
-        XCTAssertFalse(auth.reportsUsage)
-        specializedStart.fulfill()
-        return true
-      }
-
-      XCTAssertTrue(controller.failoverBargeInReplacement(from: .gemini, reason: "fixture"))
-      await Task.yield()
-
-      XCTAssertTrue(controller.sessionReplacementGate.isPending)
-      XCTAssertEqual(fixture.tracker.liveCount, 1)
-      XCTAssertEqual(specializedStartCount, 0)
-      XCTAssertNotNil(controller.replacementAudioBuffer)
-
-      fixture.transport.acknowledgeClose()
-      await fulfillment(of: [specializedStart], timeout: 1)
-      XCTAssertEqual(fixture.tracker.liveCount, 0)
-      XCTAssertEqual(specializedStartCount, 1)
-      XCTAssertNotNil(controller.replacementAudioBuffer)
-    }
-
-    @MainActor
-    func testBargeInFailoverExhaustedWhenAlternateProviderAlreadyActive() {
-      DesktopDiagnosticsManager.shared.resetForTests()
-      defer { DesktopDiagnosticsManager.shared.resetForTests() }
-
-      let controller = RealtimeHubController()
-      let turnID = VoiceTurnID()
-      let responseID = VoiceResponseID("barge-in-response")
-      controller.replacementAudioBuffer = RealtimeReplacementAudioBuffer(
-        turnID: turnID,
-        responseID: responseID,
-        identity: VoiceEffectIdentity(turnID: turnID, effectID: 1))
-      controller.voiceResponseID = responseID
-      controller.pendingBargeInOwnerScope = .signedOut
-      controller.fallbackProvider = .openai
-
-      XCTAssertFalse(
-        controller.failoverBargeInReplacement(
-          from: .openai,
-          reason: "quota",
-          mintAttemptId: "mint-42"))
-
-      let snapshot = DesktopDiagnosticsManager.shared.currentSnapshotsForSentry().last
-      XCTAssertEqual(snapshot?["event"] as? String, "fallback_triggered")
-      XCTAssertEqual(snapshot?["area"] as? String, "realtime_hub")
-      XCTAssertEqual(snapshot?["from"] as? String, "openai")
-      XCTAssertEqual(snapshot?["to"] as? String, "cascade")
-      XCTAssertEqual(snapshot?["outcome"] as? String, "exhausted")
-      XCTAssertEqual(snapshot?["mint_attempt_id"] as? String, "mint-42")
-    }
-
-    @MainActor
     func testDuplicateTransportTerminalCallbacksAndLateStaleCallbackFinishReducerOnce() async throws {
       let controller = RealtimeHubController()
       let fixture = try await installDelayedTransport(
@@ -274,10 +160,9 @@ import XCTest
       await controller.sessionReplacementGate.waitUntilIdle()
     }
 
-    func testProviderLogTagDoesNotGuessOpenAIWhileSessionIsUnbound() {
+    func testProviderLogTagStaysUnboundUntilGeminiSessionExists() {
       XCTAssertEqual(RealtimeHubProviderLogTag.current(nil), "unbound")
       XCTAssertEqual(RealtimeHubProviderLogTag.current(.gemini), "gemini")
-      XCTAssertEqual(RealtimeHubProviderLogTag.current(.openai), "openai")
     }
 
     func testAuthenticatedSocketWithStaleContextCapturesAndBuffersInsteadOfEnteringDirectly() {
@@ -305,15 +190,6 @@ import XCTest
           canReplaceIdleSession: true,
           hasBufferedTurn: false),
         .keepActive)
-    }
-
-    func testGeminiPostTurnRefreshUsesOnlyItsPersistenceFencedBoundary() {
-      XCTAssertFalse(
-        RealtimePersistedVoiceContextRefreshPolicy.shouldHandoffImmediately(provider: .gemini))
-      XCTAssertTrue(
-        RealtimePersistedVoiceContextRefreshPolicy.shouldHandoffImmediately(provider: .openai))
-      XCTAssertTrue(
-        RealtimePersistedVoiceContextRefreshPolicy.shouldHandoffImmediately(provider: nil))
     }
 
     func testStreamingContextUpdateDebouncesIdleSessionHandoff() {

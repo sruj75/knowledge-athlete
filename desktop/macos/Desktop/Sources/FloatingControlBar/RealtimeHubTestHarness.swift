@@ -5,7 +5,7 @@ import Foundation
 // Drives the REAL managed RealtimeHubSession against the provider, feeding a
 // synthetic PCM16/16kHz-mono buffer instead of the
 // mic — so the whole hub voice loop can be exercised with no microphone, no TCC
-// prompt, and no human talking. Mirrors RealtimeOmniTestHarness; driven via the
+// prompt, and no human talking. Driven via the
 // `hub_test_turn` automation action (registered in RealtimeHubController.setup()).
 //
 // Returns the normalized stream it observed: transcript_in, text_out / audio_out,
@@ -50,7 +50,7 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
       delegate: self)
     session = s
     let rate = s.requiredInputSampleRate
-    let audio = rate == 16000 ? pcm16k : PushToTalkManager.resamplePCM16(pcm16k, from: 16000, to: rate)
+    let audio = pcm16k
     s.start()
     s.beginInputTurn()  // open the per-turn speech window (Gemini) before audio
     // Stream audio immediately (buffers until the session opens), in ~100ms frames.
@@ -172,31 +172,26 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
   // MARK: - Automation action registration
 
   /// Registers the `hub_test_turn` action so omi-ctl can drive a real hub turn
-  /// headlessly: `omi-ctl action hub_test_turn pcm=/tmp/q.pcm provider=openai`.
+  /// headlessly: `omi-ctl action hub_test_turn pcm=/tmp/q.pcm`.
   static func registerAutomationAction() {
     DesktopAutomationActionRegistry.shared.register(
       name: "hub_test_turn",
       summary: "Drive the managed realtime hub with a PCM16/16k file; returns the normalized turn.",
-      params: ["pcm", "provider", "timeout"]
+      params: ["pcm", "timeout"]
     ) { params in
       guard let path = params["pcm"],
         let data = try? Data(contentsOf: URL(fileURLWithPath: path)), !data.isEmpty
       else { return ["error": "missing or unreadable 'pcm' file (expected raw s16le 16k mono)"] }
-      let provider =
-        params["provider"].flatMap(RealtimeHubProvider.init(rawValue:))
-        ?? RealtimeHubSettings.shared.provider
-      let p = provider == .openai ? "openai" : "gemini"
+      let provider = RealtimeHubProvider.gemini
       guard let ownerID = RuntimeOwnerIdentity.currentOwnerId() else {
         return ["error": "managed mint requires a stable authenticated owner"]
       }
       let token: String
       do {
-        token = try await APIClient.shared.mintRealtimeToken(
-          provider: p,
-          expectedOwnerID: ownerID)
+        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
       } catch {
         return [
-          "error": "managed mint failed for \(p)",
+          "error": "managed Gemini mint failed",
           "detail": error.localizedDescription,
         ]
       }

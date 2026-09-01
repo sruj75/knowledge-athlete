@@ -1,6 +1,6 @@
 # Model Inventory
 
-Last audited against the current checkout: 2026-08-29.
+Last audited against the current checkout: 2026-09-01.
 
 This is the repository-wide inventory of runtime AI/ML models used by the
 Python backend and the macOS and Windows desktop applications. It includes
@@ -25,12 +25,16 @@ Status meanings:
 
 ## Architecture at a glance
 
+The diagram below is the active macOS scope. Windows remains outside the macOS
+roadmap and was neither inspected nor modified by this provider simplification.
+
 ```text
-macOS / Windows desktop
-    |-- text, structured compute ----------> Omi backend ---> OpenAI / Anthropic / Gemini
-    |-- Gemini generation + embeddings ----> Omi proxy -----> Vertex AI or Gemini Studio
+macOS desktop
+    |-- Chat + structured compute ---------> Omi backend ---> Gemini Developer API
+    |-- Gemini generation + embeddings ----> Omi proxy -----> Gemini Developer API
     |-- realtime token mint ---------------> Omi backend
-    |                                         `-------------> direct OpenAI/Gemini Live WebSocket
+    |                                         `-------------> direct Gemini Live WebSocket
+    |-- Live failure after release --------> Modulate STT --> Gemini Chat --> OpenAI TTS
     |-- ambient/PTT cloud audio -----------> Omi STT -------> Modulate Velma-2
     `-- OCR, Parakeet, VAD, classifiers ----> local inference (no Omi model endpoint)
 ```
@@ -43,39 +47,37 @@ even where they share a model.
 
 | Status | Purpose | Provider | Model | Omi endpoint | Upstream endpoint / transport |
 |---|---|---|---|---|---|
-| Active | Main Chat, floating-bar typed answers, transcript-to-text answers, and the Pi agent/tool loop | Anthropic | Claude Sonnet 4.6 (`claude-sonnet-4-6`); public request alias `omi-sonnet` | `POST /v2/chat/completions` | Anthropic Messages, `POST https://api.anthropic.com/v1/messages` |
-| Active | Initial Chat greeting | OpenAI | GPT-5.4 mini (`gpt-5.4-mini`) | `POST /v2/chat/initial-message` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Chat session title | Google | Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | `POST /v2/chat/generate-title` | Vertex AI or Gemini AI Studio `:generateContent` |
-| Active | Conversation discard/keep decision | OpenAI | GPT-4.1 nano (`gpt-4.1-nano`) | `POST /v1/conversation-compute/discard` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Conversation structure | OpenAI | GPT-5.4 mini (`gpt-5.4-mini`) | `POST /v1/conversation-compute/structure` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Conversation action-item candidates | OpenAI | GPT-5.4 mini (`gpt-5.4-mini`) | `POST /v1/conversation-compute/action-items` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Memory extraction | OpenAI | GPT-4.1 mini (`gpt-4.1-mini`) | `POST /v1/memory/compute/extract` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Memory assertion normalization | OpenAI | GPT-4.1 mini (`gpt-4.1-mini`) | `POST /v1/memory/compute/normalize` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Memory conflict/consolidation proposals | OpenAI | GPT-4.1 mini (`gpt-4.1-mini`) | `POST /v1/memory/compute/consolidate` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
-| Active | Translation of managed-STT transcript segments | Google | Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | Runs inside `WebSocket /v4/listen` | Vertex AI or Gemini AI Studio `:generateContent` |
-| Conditional | Fair-use review classification | OpenAI | GPT-5.1 (`gpt-5.1`) | `POST /v1/fair-use/reviews/{review_id}/classify` | OpenAI `POST https://api.openai.com/v1/chat/completions` via SDK |
+| Active | Main Chat, floating-bar typed answers, transcript-to-text answers, and the Pi agent/tool loop | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` | Native Gemini Developer API SSE; the backend injects its key and preserves Gemini content/tool/thought-signature bytes |
+| Active | Initial Chat greeting | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v2/chat/initial-message` | Gemini Developer API `:generateContent` |
+| Active | Chat session title | Google | Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | `POST /v2/chat/generate-title` | Gemini Developer API `:generateContent` |
+| Active | Conversation discard/keep decision | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/conversation-compute/discard` | Gemini Developer API `:generateContent` |
+| Active | Conversation structure | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/conversation-compute/structure` | Gemini Developer API `:generateContent` |
+| Active | Conversation action-item candidates | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/conversation-compute/action-items` | Gemini Developer API `:generateContent` |
+| Active | Memory extraction | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/memory/compute/extract` | Gemini Developer API `:generateContent` |
+| Active | Memory assertion normalization | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/memory/compute/normalize` | Gemini Developer API `:generateContent` |
+| Active | Memory conflict/consolidation proposals | Google | Gemini 3.7 Flash (`gemini-3.7-flash`) | `POST /v1/memory/compute/consolidate` | Gemini Developer API `:generateContent` |
+| Active | Translation of managed-STT transcript segments | Google | Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | Runs inside `WebSocket /v4/listen` | Gemini Developer API `:generateContent` |
+| Conditional | Fair-use review classification | Google | Gemini 3.7 Flash (`gemini-3.7-flash`), contract `gemini/gemini-3.7-flash:prompt-v2` | `POST /v1/fair-use/reviews/{review_id}/classify` | Gemini Developer API `:generateContent` |
 
 ## Desktop generative and vision workloads
 
 | Status | Purpose | Desktop | Provider / model | Omi endpoint | Upstream endpoint / transport |
 |---|---|---|---|---|---|
-| Active | Focus, task extraction, memory extraction, insight generation, AI Profile, Live Notes, Home questions, goals, and screen synthesis; image-capable calls carry screenshots to the model | macOS and Windows, with feature-specific differences | Google Gemini 2.5 Flash (`gemini-2.5-flash`) | `POST /v1/proxy/gemini/models/gemini-2.5-flash:generateContent` | Vertex AI `.../publishers/google/models/gemini-2.5-flash:generateContent`, or Gemini Studio `POST /v1beta/models/gemini-2.5-flash:generateContent` |
-| Active | Frequent proactive/live Suggestions | macOS | Google Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | `POST /v1/proxy/gemini/models/gemini-2.5-flash-lite:generateContent` | Equivalent Vertex AI or Gemini Studio `:generateContent` route |
+| Active | Focus, task extraction, memory extraction, insight generation, Live Notes, Home questions, goals, and screen synthesis; image-capable calls carry screenshots to the model | macOS and Windows, with feature-specific differences | Google Gemini 2.5 Flash (`gemini-2.5-flash`) | `POST /v1/proxy/gemini/models/gemini-2.5-flash:generateContent` | Gemini Developer API `POST /v1beta/models/gemini-2.5-flash:generateContent` |
+| Active | Frequent proactive/live Suggestions | macOS | Google Gemini 2.5 Flash-Lite (`gemini-2.5-flash-lite`) | `POST /v1/proxy/gemini/models/gemini-2.5-flash-lite:generateContent` | Gemini Developer API `:generateContent` route |
 | Declared, unused | PTT transcript cleanup helper | macOS | Google Gemini 2.5 Flash (`gemini-2.5-flash`) | Would use the normal Flash proxy route | The active PTT handoff explicitly skips this additional LLM call |
-| Mismatch | AI Profile, calendar/Gmail/sticky-note/memory/KG synthesis, conversation topics, and local planner code request this model | Windows | Anthropic Claude Haiku 4.5 (`claude-haiku-4-5-20251001`) | Callers send it to `POST /v2/chat/completions` | No provider call occurs: the Python route currently accepts only `omi-sonnet`; the caller's `/v2/messages` fallback is also absent from the current backend |
-| Declared, unused | Explicit-file chat | None found | OpenAI GPT-4.1 (`gpt-4.1`) | No active backend route | Present only in the adjacent machine-readable inventory |
+| Not re-audited | Windows AI Profile, calendar/Gmail/sticky-note/memory/KG synthesis, conversation topics, and local planner | Windows | Pre-existing Claude/Pi contracts | Outside this macOS-only change | Windows remains excluded from this audit; no compatibility claim is made |
 
 The authenticated Gemini proxy only permits `generateContent`, `embedContent`,
 and `batchEmbedContents` for Flash, Flash-Lite, and `gemini-embedding-001`.
-With `GOOGLE_CLOUD_PROJECT` configured it prefers Vertex AI; otherwise it uses
-Gemini Studio.
+All model inference uses the Gemini Developer API and the server-held
+`GEMINI_API_KEY`; Cloud Run ADC remains for non-model GCP infrastructure.
 
 ## Embedding models
 
 | Status | Purpose | Desktop | Provider / model | Omi endpoint | Upstream endpoint / transport |
 |---|---|---|---|---|---|
-| Active | Rewind OCR screenshot indexing/search; task and action-item similarity; conversation semantic recall; Memory semantic recall and lifecycle work | macOS and Windows | Google Gemini Embedding (`gemini-embedding-001`, 3072 dimensions by default) | `POST /v1/proxy/gemini/models/gemini-embedding-001:embedContent`<br>`POST /v1/proxy/gemini/models/gemini-embedding-001:batchEmbedContents` | Vertex AI translates a single embedding call to `:predict` and retains `:batchEmbedContents` for a batch; Gemini Studio uses `:embedContent` / `:batchEmbedContents` |
-| Declared, unused | Generic backend embedding helper | Backend | OpenAI `text-embedding-3-large` | No Omi endpoint and no production caller | If called, the lazy LangChain client would use OpenAI `POST /v1/embeddings` |
+| Active | Rewind OCR screenshot indexing/search; task and action-item similarity; conversation semantic recall; Memory semantic recall and lifecycle work | macOS and Windows | Google Gemini Embedding (`gemini-embedding-001`, 3072 dimensions by default) | `POST /v1/proxy/gemini/models/gemini-embedding-001:embedContent`<br>`POST /v1/proxy/gemini/models/gemini-embedding-001:batchEmbedContents` | Gemini Developer API `:embedContent` / `:batchEmbedContents` |
 
 The Rewind chain the user noticed is therefore:
 
@@ -89,13 +91,12 @@ screenshot -> local OCR text -> add app/window context
 
 | Status | Purpose | Provider / model | Omi endpoint(s) | Direct/upstream endpoint |
 |---|---|---|---|---|
-| Active | Bidirectional speech, reasoning, tool choice, screen evidence, input/output transcription, and native audio reply | Google `gemini-3.1-flash-live-preview` | `POST /v2/realtime/session` mints one ephemeral token; `POST /v2/realtime/usage` records usage | Desktop connects directly to `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained` |
-| Active | Bidirectional speech, reasoning, tool choice, and native audio reply | OpenAI `gpt-realtime-2` | `POST /v2/realtime/session`; `POST /v2/realtime/usage` | Desktop connects directly to `wss://api.openai.com/v1/realtime?model=gpt-realtime-2` |
-| Active, nested | Input transcription inside the OpenAI realtime session | OpenAI `whisper-1` | No standalone Omi route; configured after realtime session mint | Nested as `audio.input.transcription.model` on the OpenAI Realtime WebSocket |
-| Registered fallback | Legacy opaque realtime relay, currently used by the macOS STT-only shell fallback | Gemini Live or OpenAI Realtime; OpenAI defaults to `gpt-realtime-2` | `WebSocket /v1/omni/relay?provider={gemini|openai}&model={model}` | Backend relays to Gemini's v1beta `BidiGenerateContent` or OpenAI Realtime; unlike token mint, the relay does not centrally pin Gemini's setup model |
+| Active macOS | Bidirectional speech, reasoning, tool choice, screen evidence, input/output transcription, and native audio reply | Google `gemini-3.1-flash-live-preview` | `POST /v2/realtime/session` mints one ephemeral token; `POST /v2/realtime/usage` records usage | macOS connects directly to `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained` |
 
-`GET /v1/auto/model-pick` is a selector, not an inference endpoint. It reads
-Artificial Analysis metadata and returns `geminiFlashLive` or `gptRealtime2`.
+Provider selection, OpenAI Realtime, the opaque omni relay, and the Artificial
+Analysis Auto selector are deleted. A failed Gemini Live turn keeps its bounded
+PCM and turn identity; after release it uses the managed Modulate batch-STT
+route, Gemini Chat, and the unchanged OpenAI TTS route.
 
 ## Cloud speech-to-text and text-to-speech
 
@@ -129,27 +130,23 @@ a second TTS endpoint.
 
 | Entry | Status | Meaning / endpoint |
 |---|---|---|
-| `omi-sonnet` | Active alias | The Pi runtime sends this to `POST /v2/chat/completions`; the backend resolves it to `claude-sonnet-4-6`. It is not a separate model. |
 | `gemini-3-flash-preview` | Compatibility alias | The Gemini proxy rewrites this incoming path segment to `gemini-2.5-flash` before allowlist validation. No current production caller was found. |
-| `gemini-3-5-flash`, `gpt-5` | Metadata only | Artificial Analysis slug substrings used by `GET /v1/auto/model-pick` as quality/speed proxies for the two realtime models. Omi does not invoke them. |
-| `claude-sonnet-4-6`, `claude-sonnet-4`, `claude-sonnet-4-20250514` | Windows Pi compatibility inputs | Mapped to `omi-sonnet`; only the alias reaches the backend model route. |
-| `claude-opus-4-6`, `claude-opus-4`, `claude-opus-4-20250514`, `omi-opus` | Unsupported compatibility inputs | Windows Pi maps the Claude Opus names to `omi-opus`, but the current Python `/v2/chat/completions` route has no `omi-opus` mapping. |
 | `VITE_GEMINI_MODEL` | Bounded configuration input | Windows may override its default generation model, but the backend proxy still rejects anything outside Flash, Flash-Lite, and `gemini-embedding-001`. |
 
 Deterministic dHash deduplication, cosine similarity, energy thresholds, and the
-Artificial Analysis quality/speed formula are algorithms, not models.
+local silence/speech thresholds are algorithms, not models.
 
 ## Agent runtimes without one pinned provider model
 
 The bundled Claude Code/ACP runtime can use a model selected by Claude Code or
 the user; the Omi repository does not pin one provider model for that surface.
-The Pi runtime is different: it uses the `omi-sonnet` alias already inventoried
-above. Hermes/OpenClaw-style external adapters likewise do not establish a new
+The macOS Pi runtime is different: it is pinned to the actual
+`gemini-3.7-flash` model ID through the managed native Gemini route.
+Hermes/OpenClaw-style external adapters likewise do not establish a new
 fixed model in this repository merely by existing as adapters.
 
 ## Intentionally non-production entries
 
-- `text-embedding-3-small` is returned only by a backend E2E fake.
 - Evaluation and integration scripts may name judge models; they are not product
   endpoints and are not counted as runtime traffic here.
 - Old changelogs, generated clients, Windows parity notes, and bootstrap plans
@@ -173,7 +170,6 @@ When a model or route changes, update this file and the owning source:
 - Desktop Gemini proxy: [`desktop_proxy.py`](backend/routers/desktop_proxy.py)
 - Desktop Chat allowlist: [`desktop_chat.py`](backend/routers/desktop_chat.py)
 - Realtime token mint and usage: [`desktop_realtime.py`](backend/routers/desktop_realtime.py)
-- Legacy realtime relay: [`omni_relay.py`](backend/routers/omni_relay.py)
 - Managed STT policy: [`stt_provider_policy.py`](backend/config/stt_provider_policy.py)
 - Managed TTS: [`desktop_tts_updates.py`](backend/routers/desktop_tts_updates.py)
 - macOS model constants: [`ModelQoS.swift`](desktop/macos/Desktop/Sources/ModelQoS.swift)

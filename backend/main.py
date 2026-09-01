@@ -20,8 +20,6 @@ prepare_google_credentials()
 from routers import (
     chat,
     transcribe,
-    omni_relay,
-    auto_model,
     users,
     payment,
     auth,
@@ -93,8 +91,6 @@ app.add_middleware(
 )
 
 app.include_router(transcribe.router)
-app.include_router(omni_relay.router)
-app.include_router(auto_model.router)
 app.include_router(chat.router)
 # app.include_router(screenpipe.router)
 app.include_router(users.router)

@@ -148,15 +148,30 @@ import XCTest
           localProfileTransportAuthorized: true))
     }
 
+    func testLocalProfileBootstrapAcceptsAnOpenSessionBeforeTheTurnActivityStarts() {
+      XCTAssertTrue(
+        RealtimeLocalProfileBootstrapReadinessPolicy.isReady(
+          hubConnected: true,
+          sessionOpen: true))
+      XCTAssertFalse(
+        RealtimeLocalProfileBootstrapReadinessPolicy.isReady(
+          hubConnected: false,
+          sessionOpen: true))
+      XCTAssertFalse(
+        RealtimeLocalProfileBootstrapReadinessPolicy.isReady(
+          hubConnected: true,
+          sessionOpen: false))
+    }
+
     func testAuthorizedLocalProfileTransportAbsorbsVoiceContextRefreshWithoutReplacement() {
       let controller = RealtimeHubController()
       let session = RealtimeHubSession(
-        provider: .openai,
+        provider: .gemini,
         auth: .hermeticStub,
         instructions: "local-profile-context-refresh",
         delegate: controller)
       controller.session = session
-      controller.sessionProvider = .openai
+      controller.sessionProvider = .gemini
       controller.sessionAuth = .hermeticStub
       controller.testingLocalProfileTransportAuthorized = true
       controller.prefetchedVoiceContextSessionID = "refreshed-session"
@@ -229,24 +244,6 @@ import XCTest
       XCTAssertFalse(abandoned.activityOpen)
     }
 
-    func testAbandonClearsColdOpenAICommitBeforeNextTurnBecomesReady() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      session.sendAudio(Data([11, 12]))
-      session.commitInputTurn()
-      session.abandonInputTurn()
-
-      let abandoned = await session.inputLifecycleSnapshot()
-      XCTAssertEqual(abandoned.pendingAudioChunkCount, 0)
-      XCTAssertFalse(abandoned.pendingCommit)
-
-      session.sendAudio(Data([13, 14]))
-      session.markReadyForTesting()
-      let nextTurn = await session.inputLifecycleSnapshot()
-      XCTAssertEqual(nextTurn.pendingAudioChunkCount, 0)
-      XCTAssertFalse(nextTurn.pendingCommit, "the canceled turn must not commit next-turn audio")
-    }
-
     func testAbandonClearsColdGeminiVideoFrame() async {
       let delegate = RealtimeHubSessionDelegateSpy()
       let session = makeSession(provider: .gemini, delegate: delegate)
@@ -309,32 +306,9 @@ import XCTest
         "the continuation must work for every synchronous Gemini tool, not only visual evidence")
     }
 
-    func testOpenAIPostToolContinuationCreatesExactlyOneToolDisabledAudioResponse() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("voice-response"))
-      session.markReadyForTesting()
-      _ = await session.inputLifecycleSnapshot()
-      session.beginInputTurn(turnID: identity.turnID, responseID: identity.responseID)
-      _ = await session.inputLifecycleSnapshot()
-
-      let first = await resumePostToolCycle(session, identity: identity)
-      let second = await resumePostToolCycle(session, identity: identity)
-      let snapshot = await session.inputLifecycleSnapshot()
-
-      XCTAssertEqual(first, .started)
-      XCTAssertEqual(second, .alreadyInFlight, "a tool-only cycle gets one bounded continuation, never a retry loop")
-      XCTAssertEqual(snapshot.testingResponseCreateCount, 1)
-      XCTAssertEqual(snapshot.testingLastResponseToolChoice, "none")
-      XCTAssertEqual(snapshot.testingLastResponseInstruction, RealtimeHubSession.openAIPostToolContinuationInstruction)
-      XCTAssertFalse(
-        RealtimeHubSession.openAIPostToolContinuationInstruction.localizedCaseInsensitiveContains("screenshot"),
-        "the continuation must work for every OpenAI tool, not only visual evidence")
-    }
-
     func testPostToolContinuationClassifiesUnavailableAndStaleSessionsWithoutGuessing() async {
       let delegate = RealtimeHubSessionDelegateSpy()
-      let unavailable = makeSession(provider: .openai, delegate: delegate)
+      let unavailable = makeSession(provider: .gemini, delegate: delegate)
       let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("voice-response"))
       unavailable.beginInputTurn(turnID: identity.turnID, responseID: identity.responseID)
       _ = await unavailable.inputLifecycleSnapshot()
@@ -343,7 +317,7 @@ import XCTest
         unavailableResult,
         .transportUnavailable)
 
-      let active = makeSession(provider: .openai, delegate: delegate)
+      let active = makeSession(provider: .gemini, delegate: delegate)
       active.markReadyForTesting()
       _ = await active.inputLifecycleSnapshot()
       active.beginInputTurn(turnID: identity.turnID, responseID: identity.responseID)
@@ -358,7 +332,7 @@ import XCTest
 
     func testScreenToolWireFailureTerminatesInsteadOfLeavingAReceiptPending() async {
       let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
+      let session = makeSession(provider: .gemini, delegate: delegate)
       let attachment = RealtimeScreenEvidenceAttachment(
         descriptor: RealtimeScreenEvidenceDescriptor(
           evidenceID: "evidence-no-transport",
@@ -391,40 +365,6 @@ import XCTest
       XCTAssertEqual(delegate.errors, ["Realtime transport is not connected."])
     }
 
-    func testOpenAIOnlyNeedsTransportReadiness() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      session.markReadyForTesting()
-      _ = await session.inputLifecycleSnapshot()
-      session.sendAudio(Data([9, 10]))
-      session.commitInputTurn()
-
-      let committed = await session.inputLifecycleSnapshot()
-      XCTAssertTrue(committed.isOpen)
-      XCTAssertEqual(committed.pendingAudioChunkCount, 0)
-      XCTAssertFalse(committed.pendingCommit)
-    }
-
-    func testBackgroundAgentContextDoesNotBufferBeforeTransportIsReady() async {
-      // Exactly-once contract: a completion must never be marked delivered while
-      // it is only sitting in an in-memory buffer that stop()/close() would drop.
-      // sendBackgroundAgentContext must therefore refuse (return false) instead of
-      // buffering when the session cannot deliver right now.
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-
-      let acceptedBeforeReady = await session.sendBackgroundAgentContext("agent finished")
-      let coldSnapshot = await session.inputLifecycleSnapshot()
-      XCTAssertFalse(acceptedBeforeReady, "a closed socket must not accept background context")
-      XCTAssertEqual(coldSnapshot.pendingTextInputCount, 0, "background context must not be buffered")
-
-      session.markReadyForTesting()
-      let acceptedWhenReady = await session.sendBackgroundAgentContext("agent finished")
-      let readySnapshot = await session.inputLifecycleSnapshot()
-      XCTAssertTrue(acceptedWhenReady, "an open OpenAI session accepts background context immediately")
-      XCTAssertEqual(readySnapshot.pendingTextInputCount, 0, "an accepted send leaves nothing buffered")
-    }
-
     func testGeminiBackgroundAgentContextRefusesWithoutAnActivityWindow() async {
       // Gemini can only accept text inside an open activity window; without one,
       // sendTextInput would buffer. Background context must instead refuse so the
@@ -439,82 +379,6 @@ import XCTest
       XCTAssertFalse(snapshot.activityOpen)
       XCTAssertFalse(accepted, "Gemini must refuse background context with no open activity window")
       XCTAssertEqual(snapshot.pendingTextInputCount, 0, "refused background context must not be buffered")
-    }
-
-    func testOpenAITransportCloseImmediatelyMakesSessionNonSendableBeforeControllerTeardown() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      session.markReadyForTesting()
-      _ = await session.inputLifecycleSnapshot()
-      let transport = URLSession.shared.webSocketTask(with: URL(string: "wss://example.com")!)
-
-      session.urlSession(URLSession.shared, webSocketTask: transport, didCloseWith: .normalClosure, reason: nil)
-
-      let closed = await session.inputLifecycleSnapshot()
-      XCTAssertFalse(
-        closed.isOpen, "a closed transport must become non-sendable before its controller handles the error")
-    }
-
-    func testTerminalOpenAISessionDoesNotResurrectFromLateReadiness() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      let transport = URLSession.shared.webSocketTask(with: URL(string: "wss://example.com")!)
-
-      session.sendAudio(Data([1, 2, 3, 4]))
-      session.commitInputTurn()
-      let buffered = await session.inputLifecycleSnapshot()
-      XCTAssertEqual(buffered.pendingAudioChunkCount, 1)
-      XCTAssertTrue(buffered.pendingCommit)
-
-      session.urlSession(URLSession.shared, webSocketTask: transport, didCloseWith: .normalClosure, reason: nil)
-      _ = await session.inputLifecycleSnapshot()
-      await session.receiveOpenAIEventForTesting(["type": "session.updated"])
-      await Task.yield()
-
-      let afterLateReadiness = await session.inputLifecycleSnapshot()
-      XCTAssertFalse(afterLateReadiness.isOpen)
-      XCTAssertEqual(afterLateReadiness.pendingAudioChunkCount, 1, "a terminal session must not flush buffered audio")
-      XCTAssertTrue(afterLateReadiness.pendingCommit, "a terminal session must not commit buffered input")
-      XCTAssertEqual(delegate.connectCount, 0, "a terminal session must not report a late connection")
-    }
-
-    func testOpenAICancelReclaimsActiveResponseIdentity() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      session.markReadyForTesting()
-      _ = await session.inputLifecycleSnapshot()
-      let identity = RealtimeHubEventIdentity(
-        turnID: VoiceTurnID(), responseID: VoiceResponseID("voice-response"))
-      await session.seedOpenAIIdentityMapsForTesting(
-        identity: identity,
-        responseID: "provider-response",
-        inputItemID: "input-item")
-
-      session.cancelActiveResponse()
-      let canceled = await session.inputLifecycleSnapshot()
-
-      XCTAssertEqual(canceled.responseIdentityCount, 0)
-      XCTAssertEqual(canceled.inputIdentityCount, 1)
-    }
-
-    func testOpenAICompletedTranscriptReclaimsInputIdentity() async {
-      let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
-      let identity = RealtimeHubEventIdentity(
-        turnID: VoiceTurnID(), responseID: VoiceResponseID("voice-response"))
-      await session.seedOpenAIIdentityMapsForTesting(
-        identity: identity,
-        responseID: "provider-response",
-        inputItemID: "input-item")
-
-      await session.receiveOpenAIEventForTesting([
-        "type": "conversation.item.input_audio_transcription.completed",
-        "item_id": "input-item",
-        "transcript": "fixture",
-      ])
-      let completed = await session.inputLifecycleSnapshot()
-
-      XCTAssertEqual(completed.inputIdentityCount, 0)
     }
 
     func testBackgroundAgentContextRefusesGeminiWhileWarmIdleThenSendsWhenWindowOpens() async {
@@ -537,8 +401,9 @@ import XCTest
 
     func testBackgroundAgentContextReturnsFalseWhenTheConfirmedSendFails() async {
       let delegate = RealtimeHubSessionDelegateSpy()
-      let session = makeSession(provider: .openai, delegate: delegate)
+      let session = makeSession(provider: .gemini, delegate: delegate)
       session.markReadyForTesting()
+      session.beginInputTurn()
 
       // The checkpoint advances on this `true`, so `true` must mean confirmed
       // delivery: a failed provider send must report false, not fire-and-forget.
@@ -549,6 +414,17 @@ import XCTest
       session.setTestingForcedSendError(nil)
       let confirmedSend = await session.sendBackgroundAgentContext("agent finished")
       XCTAssertTrue(confirmedSend)
+    }
+
+    func testHubAutomationContractDoesNotAdvertiseProviderChoice() throws {
+      let registry = DesktopAutomationActionRegistry.shared
+      registry.unregister("hub_test_turn")
+      defer { registry.unregister("hub_test_turn") }
+
+      RealtimeHubTestHarness.registerAutomationAction()
+
+      let descriptor = try XCTUnwrap(registry.descriptors().first { $0.name == "hub_test_turn" })
+      XCTAssertEqual(descriptor.params, ["pcm", "timeout"])
     }
 
     private func makeSession(

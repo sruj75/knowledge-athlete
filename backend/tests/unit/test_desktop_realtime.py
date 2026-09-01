@@ -22,32 +22,6 @@ class _Client:
 
 
 @pytest.mark.asyncio
-async def test_openai_mint_returns_ephemeral_token_without_session_audit_write(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "platform-key")
-    monkeypatch.setattr(
-        desktop_realtime.httpx,
-        "AsyncClient",
-        lambda **_: _Client(httpx.Response(200, json={"value": "ek_secret", "expires_at": 123})),
-    )
-    monkeypatch.setattr(
-        desktop_realtime,
-        "get_firestore_client",
-        lambda: pytest.fail("mint must not write a realtime_sessions audit document"),
-    )
-
-    async def run(_executor, function, *_args):
-        assert function is desktop_realtime.is_trial_paywalled
-        return False
-
-    monkeypatch.setattr(desktop_realtime, "run_blocking", run)
-
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(provider="openai"), "user-1")
-
-    assert response.status_code == 200
-    assert json.loads(response.body) == {"provider": "openai", "token": "ek_secret", "expires_at": "123"}
-
-
-@pytest.mark.asyncio
 async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "platform-key")
     monkeypatch.setattr(
@@ -67,7 +41,7 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(provider="gemini"), "user-1")
+    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
 
     assert response.status_code == 200
     body = json.loads(response.body)
@@ -93,7 +67,7 @@ async def test_mint_classifies_provider_quota_error(monkeypatch):
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(provider="gemini"), "user-1")
+    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
 
     assert response.status_code == 429
     assert json.loads(response.body) == {
@@ -118,7 +92,6 @@ async def test_usage_clamps_negative_tokens_and_records_realtime_breakdown(monke
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
     report = desktop_realtime.UsageReport(
-        provider="openai",
         input_text_tokens=-1,
         input_audio_tokens=10,
         input_cached_tokens=-2,
@@ -131,7 +104,7 @@ async def test_usage_clamps_negative_tokens_and_records_realtime_breakdown(monke
     assert response.status_code == 204
     _, args = calls[0]
     assert args[0] == "user-1"
-    assert args[2:] == (10, 5, 0, 15, 0.00044)
+    assert args[1:] == (10, 5, 0, 15, 0.0000525)
 
 
 @pytest.mark.asyncio
@@ -143,9 +116,7 @@ async def test_usage_with_no_positive_tokens_skips_firestore(monkeypatch):
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", fail)
 
-    response = await desktop_realtime.report_usage(
-        desktop_realtime.UsageReport(provider="gemini", input_text_tokens=-1), "user-1"
-    )
+    response = await desktop_realtime.report_usage(desktop_realtime.UsageReport(input_text_tokens=-1), "user-1")
 
     assert response.status_code == 204
 
@@ -161,7 +132,18 @@ async def test_usage_with_no_positive_tokens_skips_firestore(monkeypatch):
 )
 def test_usage_report_rejects_retired_context_fields(retired_field, value):
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        desktop_realtime.UsageReport(provider="openai", **{retired_field: value})
+        desktop_realtime.UsageReport(**{retired_field: value})
+
+
+@pytest.mark.parametrize("retired_field", ["provider", "model"])
+def test_usage_report_rejects_client_provider_attribution(retired_field):
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        desktop_realtime.UsageReport(**{retired_field: "client-controlled"})
+
+
+def test_mint_request_rejects_provider_choice():
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        desktop_realtime.MintRequest(provider="openai")
 
 
 @pytest.mark.asyncio
@@ -172,7 +154,7 @@ async def test_trial_expiry_copy_offers_managed_recovery_not_customer_keys(monke
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(provider="openai"), "user-1")
+    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
 
     assert response.status_code == 402
     body = json.loads(response.body)

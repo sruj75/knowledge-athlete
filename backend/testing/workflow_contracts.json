@@ -167,7 +167,7 @@
       ],
       "checks": [],
       "invariants": [
-        "every deployed development canonical backend proves the managed OpenAI and Gemini mint-to-response paths",
+        "every deployed development canonical backend proves the managed Gemini mint-to-response path",
         "the Firebase ID token audience and issuer match the deployed backend's explicit Firebase auth project",
         "the bypass is explicit in the workflow log and is limited to an operator-declared upstream outage",
         "probe credentials and provider responses never appear in workflow output"

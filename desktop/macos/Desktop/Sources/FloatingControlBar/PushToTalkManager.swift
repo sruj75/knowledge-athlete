@@ -148,35 +148,10 @@ extension Notification.Name {
     let hasCaptureDriver: Bool
     let captureStartInFlight: Bool
     let hasTranscriptionDriver: Bool
-    let hasOmniDriver: Bool
+    let bufferedAudioBytes: Int
     let captureGeneration: UInt64
   }
 #endif
-
-/// One delegate instance belongs to one reducer-issued transcription effect.
-/// Retiring the proxy when its physical service stops prevents a late callback
-/// from service A from reading service B's current turn identity.
-@MainActor
-private final class VoiceTurnOmniDelegateProxy: RealtimeOmniServiceDelegate {
-  weak var owner: PushToTalkManager?
-  let identity: VoiceEffectIdentity
-
-  init(owner: PushToTalkManager, identity: VoiceEffectIdentity) {
-    self.owner = owner
-    self.identity = identity
-  }
-
-  func omniDidConnect() { owner?.omniDidConnect(identity: identity) }
-  func omniDidReceiveInputTranscript(_ text: String, isFinal: Bool, itemID: String?) {
-    owner?.omniDidReceiveInputTranscript(
-      text, isFinal: isFinal, itemID: itemID, identity: identity)
-  }
-  func omniDidReceiveAudio(_ pcm24k: Data) {
-    owner?.omniDidReceiveAudio(pcm24k, identity: identity)
-  }
-  func omniDidFinishTurn() { owner?.omniDidFinishTurn(identity: identity) }
-  func omniDidError(_ message: String) { owner?.omniDidError(message, identity: identity) }
-}
 
 /// Push-to-talk manager for voice input via the Option (⌥) key.
 ///
@@ -250,17 +225,9 @@ class PushToTalkManager: ObservableObject {
 
   // Transcription
   private var transcriptionService: TranscriptionService?
-  // Realtime omni STT. Connects through the Omi backend relay.
-  private var realtimeOmniService: RealtimeOmniService?
-  private var omniDelegateProxy: VoiceTurnOmniDelegateProxy?
   // Realtime-as-hub (Phase 1): when active, the realtime model is THE hub — it does
   // in-session STT + reasoning + routing (tool choice) + speaks the reply. Mic PCM is
   // streamed to RealtimeHubController; there is no transcript→router→ChatProvider hop.
-  // Mic chunks captured before the relay finishes connecting (raw 16k PCM),
-  // flushed once the service exists so the user's first words aren't clipped.
-  private var omniPreconnectBuffer: [Data] = []
-  // True once the omni model returned any transcript this turn — gates the
-  // Batch-STT fallback so a benign trailing socket error doesn't trigger it.
   private var audioCaptureService: AudioCaptureService?
   private var micCaptureStartInFlight = false
   private var silentMicRecoveryPolicy = PTTSilentMicRecoveryPolicy()
@@ -301,10 +268,6 @@ class PushToTalkManager: ObservableObject {
 
   private var activeVoiceRoute: VoiceTurnRoute? {
     voiceTurnCoordinator.activeTurn?.route
-  }
-
-  private var isOmniSTT: Bool {
-    activeVoiceRoute == .omniSTT
   }
 
   private var isWaitingForHub: Bool {
@@ -427,8 +390,8 @@ class PushToTalkManager: ObservableObject {
       else { return }
       switch mode {
       case .omni:
-        log("PushToTalkManager: omni finalization timeout — falling back to backend batch STT")
-        fallBackToBatchTranscription(reason: "timeout")
+        log("PushToTalkManager: retired omni finalization reached batch fallback")
+        transcribeBufferedWarmWaitAudio()
       case .live:
         log("PushToTalkManager: live finalization timeout — sending transcript")
         sendTranscript(turnID: turnID)
@@ -788,12 +751,15 @@ class PushToTalkManager: ObservableObject {
 
   #if DEBUG
     var ownerBoundarySnapshot: PTTOwnerBoundarySnapshot {
-      PTTOwnerBoundarySnapshot(
+      batchAudioLock.lock()
+      let bufferedAudioBytes = batchAudioBuffer.count
+      batchAudioLock.unlock()
+      return PTTOwnerBoundarySnapshot(
         activeTurnID: currentVoiceTurnID,
         hasCaptureDriver: audioCaptureService != nil,
         captureStartInFlight: micCaptureStartInFlight,
         hasTranscriptionDriver: transcriptionService != nil,
-        hasOmniDriver: realtimeOmniService != nil,
+        bufferedAudioBytes: bufferedAudioBytes,
         captureGeneration: micCaptureGeneration)
     }
 
@@ -875,7 +841,7 @@ class PushToTalkManager: ObservableObject {
       appendBatchAudioBounded(pcm16k, turn: micCaptureGeneration)
       return true
     }
-    if isWaitingForHub {
+    if isWaitingForHub || activeVoiceRoute == .managedBatch {
       appendBatchAudioBounded(pcm16k, turn: micCaptureGeneration)
       return true
     }
@@ -914,9 +880,8 @@ class PushToTalkManager: ObservableObject {
   private var activeTracer: QueryTracer?
 
   private func startActiveTracer() {
-    // The floating bar's STT is always the realtime omni model (startOmniTranscription
-    // is unconditional; managed batch/live STT is only an on-failure fallback), so label
-    // the turn accordingly rather than by the legacy pttTranscriptionMode preference.
+    // Gemini Live is the primary voice path. The existing managed batch path owns
+    // recovery when the Live session is unavailable.
     let tracer = QueryTracer(query: "(ptt recording)", inputMode: .voicePTTOmni)
     activeTracer = tracer
     tracer.begin("ptt_recording")
@@ -1169,7 +1134,6 @@ class PushToTalkManager: ObservableObject {
       activeTracer = nil
       batchAudioLock.lock()
       let turnAudio = batchAudioBuffer
-      batchAudioBuffer = Data()
       batchAudioLock.unlock()
       let totalSec = Double(turnAudio.count / 2) / 16000.0
       if !Self.hubTurnHasSpeech(pcm16k: turnAudio) {
@@ -1259,13 +1223,17 @@ class PushToTalkManager: ObservableObject {
       return
     }
 
+    if activeVoiceRoute == .managedBatch {
+      transcribeBufferedWarmWaitAudio()
+      return
+    }
+
     // Silence gate — an accidental tap (or a hold with nothing said) records
     // near-silence. Drop the turn here instead of letting STT hallucinate a
-    // phrase from it. Applies to the omni and batch paths, which retain the
-    // raw turn audio; managed live STT streams without buffering and already
+    // phrase from it. Managed live STT streams without buffering and already
     // returns empty on silence.
     let isBatch = ShortcutSettings.shared.effectivePTTTranscriptionMode == .batch
-    if isOmniSTT || isBatch {
+    if isBatch {
       batchAudioLock.lock()
       let turnAudio = batchAudioBuffer
       batchAudioLock.unlock()
@@ -1278,7 +1246,7 @@ class PushToTalkManager: ObservableObject {
         let recoveryDecision = silentMicRecoveryPolicy.recordDiscardedTurn(totalSec: totalSec, peak: peak)
         recordSilentMicRecoveryOutcome(recoveryDecision.recoveryOutcome)
         DesktopDiagnosticsManager.shared.recordPTTSilentTurn(
-          source: isOmniSTT ? "omni_stt" : "batch_stt",
+          source: "batch_stt",
           mode: finalizedMode,
           audioSeconds: totalSec,
           voicedSeconds: voicedSec,
@@ -1291,7 +1259,7 @@ class PushToTalkManager: ObservableObject {
           recoveryResult: recoveryDecision.shouldRebuildCapture ? "attempted" : "not_attempted")
         pttLifecycle.terminate(
           disposition: totalSec < Self.minTurnAudioSeconds ? .tooShort : .silentRejected,
-          source: isOmniSTT ? "omni_stt" : "batch_stt",
+          source: "batch_stt",
           peak: peak,
           rms: rms,
           turnAudioSeconds: totalSec,
@@ -1308,7 +1276,7 @@ class PushToTalkManager: ObservableObject {
         // instead of holding). Give visible feedback instead of a silent clear;
         // longer holds that were merely quiet keep the quiet reset.
         if totalSec < Self.minTurnAudioSeconds {
-          finishTooShortPTTTurnWithHint(reason: "\(isOmniSTT ? "omni" : "batch"), \(String(format: "%.2f", totalSec))s")
+          finishTooShortPTTTurnWithHint(reason: "batch, \(String(format: "%.2f", totalSec))s")
         } else {
           stopListening()
         }
@@ -1322,26 +1290,6 @@ class PushToTalkManager: ObservableObject {
     captureAudioTransition.end(.completed)
     recordSilentMicRecoveryOutcome(silentMicRecoveryPolicy.recordSuccessfulTurn())
     voiceTurnCoordinator.publish(.transcriptionStarted(turnID: turnID))
-
-    // Realtime omni: commit the turn and wait for the final transcript.
-    if isOmniSTT {
-      // The relay already died this turn (omniDidError nilled it) — don't wait on a dead
-      // socket; transcribe the buffered turn audio through routed batch STT now so PTT still answers.
-      if realtimeOmniService == nil {
-        log("PushToTalkManager: omni relay unavailable — transcribing turn through backend batch STT")
-        fallBackToBatchTranscription(reason: "other")
-        return
-      }
-      // QueryTracer: the omni provider's post-commit finalization (VAD close +
-      // final STT inference + round-trip) — closed at the top of sendTranscript().
-      activeTracer?.begin(
-        "omni_transcribe", metadata: ["provider": RealtimeOmniSettings.shared.effectiveProvider.displayName])
-      realtimeOmniService?.commitInputTurn()
-      log("PushToTalkManager: finalizing (omni STT) — waiting for final transcript")
-      voiceTurnCoordinator.publish(
-        .transcriptionFinalizationStarted(turnID: turnID, mode: .omni))
-      return
-    }
 
     let isBatchMode = ShortcutSettings.shared.effectivePTTTranscriptionMode == .batch
 
@@ -1529,7 +1477,7 @@ class PushToTalkManager: ObservableObject {
       DesktopDiagnosticsManager.shared.recordPTTCommitted(mode: finalizedMode, hubActive: false)
       pttLifecycle.terminate(
         disposition: .committed,
-        source: isOmniSTT ? "omni_stt" : "batch_stt",
+        source: "batch_stt",
         peak: 0,
         rms: 0,
         turnAudioSeconds: 0,
@@ -1543,7 +1491,7 @@ class PushToTalkManager: ObservableObject {
       // recovery exactly once instead of skipping the lifecycle emit.
       pttLifecycle.terminate(
         disposition: .committed,
-        source: isOmniSTT ? "omni_stt" : "batch_stt",
+        source: "batch_stt",
         peak: 0,
         rms: 0,
         turnAudioSeconds: 0,
@@ -1569,7 +1517,7 @@ class PushToTalkManager: ObservableObject {
 
     // Dropped the Gemini ASR-cleanup round-trip (~0.5s on the critical path): the
     // transcript is already locally corrected against screen-OCR keywords above
-    // (PTTTranscriptContextualCorrector), and Claude tolerates minor ASR typos.
+    // (PTTTranscriptContextualCorrector), and Gemini tolerates minor ASR typos.
     // Send straight through (sendTranscript already runs on the main actor).
     activeTracer?.mark("transcript_cleanup")
     sendQuery(query, wasFollowUp: wasFollowUp, turnID: turnID)
@@ -1739,7 +1687,10 @@ class PushToTalkManager: ObservableObject {
           voiceTurnCoordinator.publish(.hubAdmissionRejected(turnID: turnID))
         }
       } else {
-        _ = startOmniTranscription(captureAlreadyRunning: false)
+        if let turnID = currentVoiceTurnID {
+          voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
+          startMicCapture(batchMode: true, overrideDeviceID: preferredPTTInputOverrideDeviceID())
+        }
       }
       return false
     }
@@ -1809,18 +1760,16 @@ class PushToTalkManager: ObservableObject {
       log("PushToTalkManager: realtime hub warm wait timed out after release — transcribing buffered audio")
       transcribeBufferedWarmWaitAudio()
     } else {
-      log("PushToTalkManager: realtime hub warm wait timed out — using omni STT")
-      _ = startOmniTranscription(captureAlreadyRunning: true)
+      log("PushToTalkManager: realtime hub unavailable — continuing capture for batch transcription after release")
     }
   }
 
   /// Preserve fallback observability without adding progress copy to PTT chrome.
   private func recordBackupTranscriptionFallback(reason: VoiceTurnTerminalReason) {
-    let toLane = phase == .finalizing ? "batch_stt" : "omni"
     DesktopDiagnosticsManager.shared.recordFallback(
       area: "ptt_cascade",
-      from: "hub",
-      to: toLane,
+      from: "gemini_live",
+      to: "batch_stt",
       reason: "timeout",
       outcome: .degraded,
       extra: [
@@ -1834,7 +1783,6 @@ class PushToTalkManager: ObservableObject {
     activeTracer = nil
     batchAudioLock.lock()
     let turnAudio = batchAudioBuffer
-    batchAudioBuffer = Data()
     batchAudioLock.unlock()
     let totalSec = Double(turnAudio.count / 2) / 16000.0
     if !Self.hubTurnHasSpeech(pcm16k: turnAudio) {
@@ -1979,7 +1927,7 @@ class PushToTalkManager: ObservableObject {
         let model = batchResult.model ?? "unknown"
         DesktopDiagnosticsManager.shared.recordFallback(
           area: "ptt_cascade",
-          from: "hub",
+          from: "gemini_live",
           to: provider,
           reason: "timeout",
           outcome: .recovered,
@@ -1995,7 +1943,7 @@ class PushToTalkManager: ObservableObject {
         logError("PushToTalkManager: warm-wait fallback transcription failed", error: error)
         DesktopDiagnosticsManager.shared.recordFallback(
           area: "ptt_cascade",
-          from: "hub",
+          from: "gemini_live",
           to: "batch_stt",
           reason: "timeout",
           outcome: .exhausted,
@@ -2079,14 +2027,7 @@ class PushToTalkManager: ObservableObject {
                 self.appendBatchAudioBounded(audioData, turn: generation)
                 return
               }
-              if self.isOmniSTT {
-                if let svc = self.realtimeOmniService {
-                  svc.sendAudio(self.resampleForOmni(audioData))
-                } else {
-                  self.omniPreconnectBuffer.append(audioData)
-                }
-                self.appendBatchAudioBounded(audioData, turn: generation)
-              } else if batchMode {
+              if batchMode || self.activeVoiceRoute == .managedBatch {
                 self.appendBatchAudioBounded(audioData, turn: generation)
               } else {
                 self.transcriptionService?.sendAudio(audioData)
@@ -2273,10 +2214,6 @@ class PushToTalkManager: ObservableObject {
     stopMicCapture()
     transcriptionService?.stop(discardBufferedAudio: discardBufferedAudio)
     transcriptionService = nil
-    realtimeOmniService?.stop()
-    realtimeOmniService = nil
-    omniDelegateProxy = nil
-    omniPreconnectBuffer.removeAll()
   }
 
   private func handleTranscriptSegments(_ segments: [TranscriptionService.BackendSegment]) {
@@ -2303,263 +2240,5 @@ class PushToTalkManager: ObservableObject {
   private func updateBarState(skipResize: Bool = false) {
     _ = skipResize
     voiceTurnCoordinator.refreshPresentation()
-  }
-}
-
-// MARK: - Realtime Omni STT integration
-//
-// When "Realtime Voice" is enabled, one omni model (Gemini 3.1 Flash Live or
-// GPT Realtime 2) transcribes the PTT turn instead of the managed fallback. The final
-// transcript flows through the unchanged sendTranscript() → ChatProvider path,
-// so agents, tools, memory, vision, and the text input all keep working.
-extension PushToTalkManager {
-
-  /// Starts realtime omni STT via the omi backend relay. Always returns true
-  /// (omni is the floating bar's STT); on auth failure it stops the turn.
-  @discardableResult
-  fileprivate func startOmniTranscription(captureAlreadyRunning: Bool = false) -> Bool {
-    guard let startingTurnID = currentVoiceTurnID else { return false }
-    guard let identity = voiceTurnCoordinator.reserveEffectIdentity() else { return false }
-    voiceTurnCoordinator.publish(
-      .transcriptionProviderStartedScoped(turnID: startingTurnID, identity: identity))
-    guard voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity else {
-      return false
-    }
-    let delegateProxy = VoiceTurnOmniDelegateProxy(owner: self, identity: identity)
-    omniDelegateProxy = delegateProxy
-    let provider = RealtimeOmniSettings.shared.effectiveProvider
-    if let turnID = currentVoiceTurnID {
-      voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .omniSTT))
-    }
-    if captureAlreadyRunning {
-      batchAudioLock.lock()
-      let bufferedAudio = batchAudioBuffer
-      batchAudioLock.unlock()
-      omniPreconnectBuffer = bufferedAudio.isEmpty ? [] : [bufferedAudio]
-      log(
-        "PushToTalkManager: omni STT reusing "
-          + "\(String(format: "%.2f", Double(bufferedAudio.count / 2) / 16000.0))s buffered audio")
-    } else {
-      omniPreconnectBuffer.removeAll()
-      // Keep a copy of the whole turn so we can fall back to managed STT if the relay
-      // is unreachable (e.g. backend not yet on prod) — PTT must never break.
-      batchAudioLock.lock()
-      batchAudioBuffer = Data()
-      batchAudioLock.unlock()
-      startMicCapture(overrideDeviceID: preferredPTTInputOverrideDeviceID())  // route PTT input override (user mic / Bluetooth built-in fallback)
-    }
-    Task { @MainActor [weak self] in
-      guard let self, self.isOmniSTT,
-        self.voiceTurnCoordinator.activeTurnID == startingTurnID,
-        self.voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity,
-        self.omniDelegateProxy === delegateProxy
-      else { return }
-      do {
-        let authHeader = try await AuthService.shared.getAuthHeader()
-        guard self.voiceTurnCoordinator.activeTurnID == startingTurnID,
-          self.voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity,
-          self.omniDelegateProxy === delegateProxy
-        else { return }
-        let base = DesktopBackendEnvironment.backendBaseURL()
-        let service = RealtimeOmniService(
-          provider: provider, relayBaseURL: base, authHeader: authHeader, sttOnly: true,
-          delegate: delegateProxy)
-        self.realtimeOmniService = service
-        // Flush anything captured while we were fetching auth.
-        for raw in self.omniPreconnectBuffer { service.sendAudio(self.resampleForOmni(raw)) }
-        self.omniPreconnectBuffer.removeAll()
-        service.start()
-        log("PushToTalkManager: started omni STT (\(provider.displayName)) via backend relay")
-      } catch {
-        logError("PushToTalkManager: omni auth failed", error: error)
-        guard self.voiceTurnCoordinator.activeTurnID == startingTurnID,
-          self.voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity,
-          self.omniDelegateProxy === delegateProxy
-        else { return }
-        self.voiceTurnCoordinator.publish(
-          .transcriptionFailed(turnID: startingTurnID, message: error.localizedDescription))
-      }
-    }
-    return true
-  }
-
-  // Mic is 16kHz PCM16; OpenAI realtime requires ≥24kHz, Gemini wants 16kHz.
-  fileprivate func resampleForOmni(_ pcm16k: Data) -> Data {
-    guard let target = realtimeOmniService?.requiredInputSampleRate, target != 16000 else { return pcm16k }
-    return Self.resamplePCM16(pcm16k, from: 16000, to: target)
-  }
-
-  static func resamplePCM16(_ data: Data, from src: Int, to dst: Int) -> Data {
-    let count = data.count / 2
-    guard count > 1, src != dst else { return data }
-    var input = [Int16](repeating: 0, count: count)
-    _ = input.withUnsafeMutableBytes { data.copyBytes(to: $0, count: count * 2) }
-    let ratio = Double(src) / Double(dst)
-    let outCount = max(1, Int(Double(count) / ratio))
-    var out = [Int16](repeating: 0, count: outCount)
-    for i in 0..<outCount {
-      let pos = Double(i) * ratio
-      let i0 = Int(pos)
-      let i1 = Swift.min(i0 + 1, count - 1)
-      let frac = pos - Double(i0)
-      let s = Double(input[i0]) * (1 - frac) + Double(input[i1]) * frac
-      out[i] = Int16(Swift.max(-32768, Swift.min(32767, s)))
-    }
-    return out.withUnsafeBytes { Data($0) }
-  }
-
-  // MARK: RealtimeOmniServiceDelegate
-
-  fileprivate func omniDidConnect(identity: VoiceEffectIdentity) {
-    guard ownsOmniEffect(identity) else { return }
-    log("PushToTalkManager: omni STT connected")
-  }
-
-  fileprivate func omniDidReceiveInputTranscript(
-    _ text: String,
-    isFinal: Bool,
-    itemID: String?,
-    identity: VoiceEffectIdentity
-  ) {
-    guard ownsOmniEffect(identity), let turnID = currentVoiceTurnID else { return }
-    guard phase?.isRecording == true || phase == .finalizing else { return }
-    if isFinal {
-      let finalText = text.isEmpty ? lastInterimText : text
-      let trimmed = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
-      // Dedup by the provider's stable item id (a relay re-delivering the SAME
-      // final), NOT by text — keying on text silently dropped legitimately
-      // repeated phrases within a turn ("yes. yes." → "yes"). With no id a final
-      // can't be a relay re-delivery, so always keep it (a genuine repeat is
-      // never lost) rather than minting a throwaway key.
-      if !trimmed.isEmpty {
-        if let itemID {
-          if seenFinalSegmentIDs.insert(itemID).inserted {
-            transcriptSegments.append(trimmed)
-          }
-        } else {
-          transcriptSegments.append(trimmed)
-        }
-      }
-      lastInterimText = ""
-      if phase == .finalizing {
-        guard claimOmniCompletion(identity) else { return }
-        sendTranscript(turnID: turnID)
-      }
-    } else {
-      lastInterimText += text
-      voiceTurnCoordinator.publish(.transcriptChanged(turnID: turnID, text: lastInterimText))
-    }
-  }
-
-  fileprivate func omniDidReceiveAudio(_ pcm24k: Data, identity: VoiceEffectIdentity) {
-    guard ownsOmniEffect(identity) else { return }
-    // STT-only: the omni model's own voice is unused; Claude's reply is spoken
-    // by the existing FloatingBarVoicePlaybackService.
-  }
-
-  fileprivate func omniDidFinishTurn(identity: VoiceEffectIdentity) {
-    if phase == .finalizing, let turnID = currentVoiceTurnID,
-      ownsOmniEffect(identity)
-    {
-      guard claimOmniCompletion(identity) else { return }
-      sendTranscript(turnID: turnID)
-    }
-  }
-
-  fileprivate func omniDidError(_ message: String, identity: VoiceEffectIdentity) {
-    guard ownsOmniEffect(identity),
-      voiceTurnCoordinator.activeTurn?.transcriptionCompletionClaimed == false
-    else { return }
-    logError("PushToTalkManager: omni STT error: \(message)")
-    // Benign ONLY if the turn already completed (final transcript sent). A mid-turn relay
-    // death — even after a spurious interim like "Olha olha" that set omniReceivedTranscript
-    // — must NOT be ignored, or the turn is lost (garbage/no reply). The full turn audio is
-    // always buffered in batchAudioBuffer, so we re-transcribe it through routed batch STT.
-    guard phase?.isRecording == true || phase == .finalizing
-    else { return }
-    // Kill the dead relay so finalize() doesn't wait on it; the mic keeps buffering.
-    realtimeOmniService?.stop()
-    realtimeOmniService = nil
-    // If the user already released, transcribe the buffered turn now. If they're still
-    // holding, keep capturing — finalize()'s dead-relay branch falls back to batch STT with
-    // the full turn audio (avoids cutting them off mid-sentence).
-    if phase == .finalizing {
-      fallBackToBatchTranscription(reason: "other")
-    }
-  }
-
-  /// Transcribe the buffered turn audio through the backend's selected batch-STT provider.
-  fileprivate func fallBackToBatchTranscription(reason: String = "other") {
-    guard let identity = voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity,
-      claimOmniCompletion(identity)
-    else { return }
-    log("PushToTalkManager: omni unavailable — falling back to backend batch STT for this turn")
-    realtimeOmniService?.stop()
-    realtimeOmniService = nil
-    batchAudioLock.lock()
-    let audio = batchAudioBuffer
-    batchAudioLock.unlock()
-    guard let turnID = currentVoiceTurnID,
-      voiceTurnCoordinator.activeTurnID == turnID
-    else { return }
-    if voiceTurnCoordinator.activeTurn?.transcriptionFinalizationMode != nil {
-      voiceTurnCoordinator.publish(.transcriptionFinalizationCompleted(turnID: turnID))
-    }
-    guard !audio.isEmpty else {
-      sendTranscript(turnID: turnID)
-      return
-    }
-    voiceTurnCoordinator.publish(.transcriptChanged(turnID: turnID, text: VoiceTurnUICopy.transcribingProgress))
-    voiceTurnCoordinator.publish(.selectRoute(turnID: turnID, route: .managedBatch))
-    let capturedReason = reason
-    Task { @MainActor [weak self] in
-      guard let self, self.voiceTurnCoordinator.activeTurnID == turnID else { return }
-      do {
-        let batchResult = try await self.transcribeCompletedTurnBatch(audioData: audio, turnID: turnID)
-        guard self.voiceTurnCoordinator.activeTurnID == turnID else { return }
-        let provider = batchResult.provider ?? "unknown"
-        let model = batchResult.model ?? "unknown"
-        log("PushToTalkManager: omni batch fallback selected provider=\(provider) model=\(model)")
-        DesktopDiagnosticsManager.shared.recordFallback(
-          area: "ptt_cascade",
-          from: "omni",
-          to: provider,
-          reason: capturedReason,
-          outcome: .recovered,
-          extra: ["stt_provider": provider, "stt_model": model, "user_visible": false])
-        if let transcript = batchResult.transcript, !transcript.isEmpty { self.transcriptSegments = [transcript] }
-      } catch {
-        logError("PushToTalkManager: batch-STT fallback failed", error: error)
-        DesktopDiagnosticsManager.shared.recordFallback(
-          area: "ptt_cascade",
-          from: "omni",
-          to: "batch_stt",
-          reason: capturedReason,
-          outcome: .exhausted,
-          extra: ["stt_provider": "unknown", "stt_model": "unknown", "user_visible": false])
-        self.voiceTurnCoordinator.publish(
-          .transcriptionFailed(turnID: turnID, message: error.localizedDescription))
-        return
-      }
-      self.sendTranscript(turnID: turnID)
-    }
-  }
-
-  private func ownsOmniEffect(_ identity: VoiceEffectIdentity) -> Bool {
-    guard let turn = voiceTurnCoordinator.activeTurn else { return false }
-    return turn.id.rawValue == identity.generation
-      && turn.transcriptionEffectIdentity == identity
-      && omniDelegateProxy?.identity == identity
-  }
-
-  private func claimOmniCompletion(_ identity: VoiceEffectIdentity) -> Bool {
-    guard ownsOmniEffect(identity),
-      voiceTurnCoordinator.activeTurn?.transcriptionCompletionClaimed == false,
-      let turnID = currentVoiceTurnID
-    else { return false }
-    voiceTurnCoordinator.publish(
-      .transcriptionCompletionClaimedScoped(turnID: turnID, identity: identity))
-    return voiceTurnCoordinator.activeTurn?.transcriptionEffectIdentity == identity
-      && voiceTurnCoordinator.activeTurn?.transcriptionCompletionClaimed == true
   }
 }

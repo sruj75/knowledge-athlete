@@ -7,7 +7,7 @@ from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/gcp_backend.yml")
 CANDIDATE_PROBE = "Prove canonical candidate chat compatibility"
-PROVIDER_PROBE = "Prove canonical candidate managed realtime provider paths"
+PROVIDER_PROBE = "Prove canonical candidate managed Gemini realtime path"
 TRAFFIC_SHIFT = "Shift Cloud Run traffic to validated revisions"
 PROD_SMOKE = "Smoke promoted production serving API"
 SERVING_VERIFY = "Verify serving backend release vector"

@@ -76,7 +76,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 32 | Settings — section navigation | — | 5 | 2 | 3 | ✅ flow: `settings-basic.yaml` (General, Transcription, Privacy, Rewind, Notifications, About, Shortcuts, Advanced) |
 | 33 | Rewind settings | capture (5) | 5 | 2 | 2 | ✅ flow: `rewind-settings.yaml` |
 | 34 | Account info | — | 5 | 2 | 2 | ✅ flow: `plan-usage.yaml` (Account section + subscription snapshot) |
-| 35 | Advanced AI Setup (Voice Model + Ask Mode) | intelligence (3) | 3 | 2 | 2 | ✅ manual flow: `settings-basic.yaml` |
+| 35 | Advanced AI Setup (Ask Mode) | intelligence (3) | 3 | 2 | 2 | ✅ manual flow: `settings-basic.yaml` |
 | 36 | Advanced / Developer options | — | 3 | 2 | 2 | ✅ flow: `settings-basic.yaml` (`advanced_settings_snapshot`) |
 | 37 | System tray menu | — | 5 | 0 | 3 | ⚠️ partial: covered indirectly by manual logout/onboarding |
 | 38 | Keyboard shortcuts (Cmd+1..4, Cmd+,) | — | 5 | 2 | 3 | ✅ flow: `keyboard-shortcuts.yaml` |

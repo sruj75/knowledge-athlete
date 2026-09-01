@@ -26,7 +26,7 @@ enum HubTool: String {
 }
 
 enum GeneratedRealtimeTools {
-  private static let baseOpenAIToolsTemplateJSON = """
+  private static let baseRealtimeToolsTemplateJSON = """
 [
   {
     "type": "function",
@@ -574,8 +574,8 @@ enum GeneratedRealtimeTools {
 ]
 """
 
-  static var baseOpenAIToolsTemplate: [[String: Any]] {
-    guard let data = baseOpenAIToolsTemplateJSON.data(using: .utf8),
+  static var baseRealtimeToolsTemplate: [[String: Any]] {
+    guard let data = baseRealtimeToolsTemplateJSON.data(using: .utf8),
       let tools = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
     else {
       fatalError("Invalid generated realtime tools JSON")

@@ -148,9 +148,8 @@ enum RealtimeAutomationTurnHarness {
   }
 }
 
-/// Voice providers do not have a uniform "input transcript final" event. OpenAI
-/// eventually emits a final, while Gemini Live may only send non-final updates
-/// before it proposes a native permission tool. A permission proposal therefore
+/// Gemini Live may send only non-final transcript updates before it proposes a
+/// native permission tool. A permission proposal therefore
 /// collects the bounded live-transcription window, then requires the stream to
 /// be quiet rather than deriving authority from the provider's type-only tool
 /// arguments. Waiting through the complete window matters: an early quiet gap

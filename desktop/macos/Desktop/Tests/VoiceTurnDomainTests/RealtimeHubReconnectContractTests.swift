@@ -94,7 +94,7 @@ final class RealtimeHubReconnectContractTests: XCTestCase {
     XCTAssertNotEqual(lateOld.model.turn?.phase, .terminal(.providerFailed))
   }
 
-  func testFailedReconnectDeadlineTerminatesOnceWithoutSleep() {
+  func testFailedReconnectDeadlineFallsBackOnceWithoutSleep() {
     let turnID = VoiceTurnID()
     let sessionID = VoiceSessionID()
     let responseID = VoiceResponseID("reconnect-deadline")
@@ -119,13 +119,19 @@ final class RealtimeHubReconnectContractTests: XCTestCase {
     let timedOut = reduce(
       model,
       .deadlineFired(turnID: turnID, deadline: .providerReconnect))
-    XCTAssertEqual(timedOut.model.turn?.phase, .terminal(.providerFailed))
+    XCTAssertEqual(timedOut.model.turn?.phase, .finalizing)
+    XCTAssertEqual(timedOut.model.turn?.route, .managedBatch)
     XCTAssertEqual(
       timedOut.effects.filter { effect in
-        if case .terminal = effect { return true }
+        if case .fallbackToTranscription = effect { return true }
         return false
       }.count,
       1)
+    XCTAssertFalse(
+      timedOut.effects.contains { effect in
+        if case .terminal = effect { return true }
+        return false
+      })
 
     let lateSuccess = reduce(
       timedOut.model,
@@ -133,14 +139,15 @@ final class RealtimeHubReconnectContractTests: XCTestCase {
         turnID: turnID,
         identity: reservation.identity,
         sessionID: VoiceSessionID()))
-    XCTAssertEqual(lateSuccess.model.turn?.phase, .terminal(.providerFailed))
+    XCTAssertEqual(lateSuccess.model.turn?.phase, .finalizing)
+    XCTAssertEqual(lateSuccess.model.turn?.route, .managedBatch)
     XCTAssertEqual(
       lateSuccess.effects.filter { effect in
         if case .terminal = effect { return true }
         return false
       }.count,
       0,
-      "late reconnect success after deadline must not emit a second terminal")
+      "late reconnect success after fallback must not emit a terminal")
   }
 
   private func reduce(_ model: VoiceTurnModel, _ event: VoiceTurnEvent) -> VoiceTurnReduction {

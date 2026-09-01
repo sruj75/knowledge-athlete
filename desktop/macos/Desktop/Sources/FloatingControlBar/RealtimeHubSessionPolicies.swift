@@ -2,6 +2,12 @@ import Foundation
 import VoiceTurnDomain
 
 #if DEBUG
+  enum RealtimeLocalProfileBootstrapReadinessPolicy {
+    static func isReady(hubConnected: Bool, sessionOpen: Bool) -> Bool {
+      hubConnected && sessionOpen
+    }
+  }
+
   /// Deterministic provider decisions for the hermetic desktop profile. This type
   /// is absent from release builds and is reachable only through `ptt_test_turn`.
   struct RealtimeLocalProfileTurnPlan: Equatable {
@@ -97,17 +103,12 @@ enum RealtimeProviderOutputPresentationPolicy {
   }
 }
 
-/// Logging must distinguish an unbound handoff from an actual OpenAI session.
-/// During a controller-owned reconnect, `sessionProvider` is briefly nil while
-/// the next physical provider is being selected. Treating that as OpenAI made
-/// a Gemini-only turn look like a voice/provider switch in diagnostics.
+/// Logging must distinguish an unbound handoff from the Gemini Live session.
 enum RealtimeHubProviderLogTag {
   static func current(_ provider: RealtimeHubProvider?) -> String {
     switch provider {
     case .gemini:
       return "gemini"
-    case .openai:
-      return "openai"
     case nil:
       return "unbound"
     }
@@ -117,16 +118,12 @@ enum RealtimeHubProviderLogTag {
 /// Safe, non-sensitive classification for realtime WebSocket teardown messages.
 ///
 /// Gemini can idle-close warm sessions with WebSocket 1008 after the socket has
-/// lived for a while, and OpenAI has a known maximum-session-duration close.
-/// OpenAI's transport can also surface an already-retired socket as an ENOTCONN
-/// ("Socket is not connected") write race, typically right after the 60-minute
-/// rotation. All of these expected lifecycle paths should re-warm quietly rather
+/// lived for a while. Expected lifecycle paths should re-warm quietly rather
 /// than page Sentry as production errors. Fast 1008 closes are different: they
 /// usually mean provider policy/auth/config rejection and should still be
 /// reported, but with a stable category instead of raw provider text.
 enum RealtimeHubCloseCategory: String {
   case expectedIdleTeardown = "expected_idle_teardown"
-  case expectedSessionRotation = "expected_session_rotation"
   case localAddressUnavailable = "local_address_unavailable"
   case transportConfiguration = "transport_configuration"
   case transportConnect = "transport_connect"
@@ -139,14 +136,6 @@ enum RealtimeHubCloseCategory: String {
   case providerQuotaExceeded = "provider_quota_exceeded"
   case providerPolicyCloseFast = "provider_policy_close_fast"
   case providerTransient = "provider_transient"
-}
-
-/// The controller owns transport replacement, while the voice-turn reducer owns
-/// any active logical turn. Keeping this plan typed prevents provider-close text
-/// from leaking into lifecycle decisions outside the classifier boundary.
-enum RealtimeHubSessionRotationPlan: Equatable {
-  case rewarmIdleTransport
-  case terminateActiveTurnAndRewarm
 }
 
 struct RealtimeHubFailureReportingPlan: Equatable {
@@ -250,7 +239,7 @@ enum RealtimeHubCloseClassifier {
     failure: RealtimeHubTransportFailure,
     aliveFor: TimeInterval,
     hasActiveTurn: Bool = false,
-    provider: RealtimeHubProvider = .openai
+    provider: ManagedInferenceProvider = .gemini
   ) -> RealtimeHubCloseCategory? {
     switch failure.kind {
     case .localAddressUnavailable:
@@ -283,15 +272,9 @@ enum RealtimeHubCloseClassifier {
     message: String,
     aliveFor: TimeInterval,
     hasActiveTurn: Bool = false,
-    provider: RealtimeHubProvider = .openai
+    provider: ManagedInferenceProvider = .gemini
   ) -> RealtimeHubCloseCategory? {
     let lower = message.lowercased()
-    if provider == .openai,
-      lower.contains("your session hit the maximum duration")
-        && lower.contains("60 minutes")
-    {
-      return .expectedSessionRotation
-    }
     // A retired socket surfaces later writes as ENOTCONN. On an aged socket with
     // no active turn (e.g. the window right after a 60-minute rotation) this is
     // an expected transport teardown, not a provider error: re-warm quietly. A
@@ -320,16 +303,8 @@ enum RealtimeHubCloseClassifier {
     return .providerPolicyCloseFast
   }
 
-  static func sessionRotationPlan(
-    for category: RealtimeHubCloseCategory?,
-    hasActiveTurn: Bool
-  ) -> RealtimeHubSessionRotationPlan? {
-    guard category == .expectedSessionRotation else { return nil }
-    return hasActiveTurn ? .terminateActiveTurnAndRewarm : .rewarmIdleTransport
-  }
-
   static func isExpectedLifecycleClose(_ category: RealtimeHubCloseCategory?) -> Bool {
-    category == .expectedIdleTeardown || category == .expectedSessionRotation
+    category == .expectedIdleTeardown
   }
 
   static func shouldReportToSentry(_ category: RealtimeHubCloseCategory?) -> Bool {
@@ -364,11 +339,11 @@ struct RealtimeProviderToolResult: Equatable {
 enum RealtimeProviderToolResultPolicy {
   static let maximumByteCount = 48 * 1024
 
-  /// The sole model-visible result boundary for both realtime providers.
-  /// Provider-specific transport only happens after this method returns a
+  /// The sole model-visible result boundary for Gemini Live.
+  /// Provider transport only happens after this method returns a
   /// canonical envelope, including rejected/authorization error paths.
   static func prepare(
-    provider: RealtimeHubProvider = .openai,
+    provider: RealtimeHubProvider = .gemini,
     name: String,
     output: String
   ) -> RealtimeProviderToolResult {
@@ -933,16 +908,14 @@ enum RealtimeHubErrorOwnership {
 enum RealtimeHubBargeInAction: Equatable {
   case none
   case stopPlaybackTail
-  case cancelInSession
   case replaceSession
 
   static func decide(
     providerResponseInFlight: Bool,
-    playbackActive: Bool,
-    strategy: RealtimeHubBargeInStrategy
+    playbackActive: Bool
   ) -> RealtimeHubBargeInAction {
     if providerResponseInFlight {
-      return strategy == .freshSession ? .replaceSession : .cancelInSession
+      return .replaceSession
     }
     return playbackActive ? .stopPlaybackTail : .none
   }

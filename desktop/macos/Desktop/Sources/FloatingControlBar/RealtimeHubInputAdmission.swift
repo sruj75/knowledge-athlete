@@ -220,12 +220,3 @@ enum RealtimeWarmSessionStartPolicy {
     requirementIsResolved
   }
 }
-
-/// Gemini's completed-turn boundary already schedules a persistence-fenced context refresh.
-/// Starting a second refresh from journal finalization tears down the newly warming session and
-/// makes the next PTT press buffer behind redundant reconnects.
-enum RealtimePersistedVoiceContextRefreshPolicy {
-  static func shouldHandoffImmediately(provider: RealtimeHubProvider?) -> Bool {
-    provider != .gemini
-  }
-}

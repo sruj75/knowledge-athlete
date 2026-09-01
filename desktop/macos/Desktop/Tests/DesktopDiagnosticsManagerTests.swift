@@ -359,32 +359,14 @@ import XCTest
       XCTAssertEqual(snapshot["active_turn"] as? Bool, false)
     }
 
-    func testExpectedSessionRotationUsesNonErrorHealthEvent() throws {
-      DesktopDiagnosticsManager.shared.recordRealtimeProviderClose(
-        provider: "openai",
-        category: RealtimeHubCloseCategory.expectedSessionRotation.rawValue,
-        aliveFor: 3_600,
-        activeTurn: true,
-        authMode: .managed,
-        failureClass: nil)
-
-      let snapshot = try latestSnapshot()
-
-      XCTAssertEqual(snapshot["event"] as? String, "realtime_provider_expected_session_rotation")
-      XCTAssertEqual(snapshot["provider"] as? String, "openai")
-      XCTAssertEqual(snapshot["category"] as? String, "expected_session_rotation")
-      XCTAssertEqual(snapshot["recovery_action"] as? String, "rotate_realtime_session")
-      XCTAssertEqual(snapshot["recovery_result"] as? String, "turn_terminated_and_rewarm_started")
-    }
-
     func testProviderCloseFallsBackToFailureClassInsteadOfUnclassified() throws {
       DesktopDiagnosticsManager.shared.recordRealtimeProviderClose(
-        provider: "openai",
+        provider: "gemini",
         category: nil,
         aliveFor: 7,
         activeTurn: true,
         authMode: .managed,
-        failureClass: .providerTransient(provider: .openai))
+        failureClass: .providerTransient(provider: .gemini))
 
       let snapshot = try latestSnapshot()
 
@@ -740,7 +722,8 @@ import XCTest
 
     func testHealthEventsStripContentBearingKeysButKeepBoundedCousins() throws {
       DesktopDiagnosticsManager.shared.recordFallback(
-        area: "realtime_hub", from: "openai", to: "gemini", reason: "other", outcome: .recovered,
+        area: "realtime_hub", from: "gemini_live", to: "modulate", reason: "other",
+        outcome: .recovered,
         extra: [
           "transcript": "the user said a secret",
           "prompt": "secret prompt",
