@@ -198,6 +198,18 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
+            LANGFUSE_BASE_URL:
+              value: https://us.cloud.langfuse.com
+              category: model_observability
+            LANGFUSE_TRACING_ENVIRONMENT:
+              value: development
+              category: model_observability
+            LANGFUSE_PROMPT_NAME:
+              value: intentive-chat-system
+              category: model_observability
+            LANGFUSE_PROMPT_CACHE_TTL_SECONDS:
+              value: '300'
+              category: model_observability
             REDIS_DB_HOST:
               env_var: REDIS_DB_HOST
               category: private_dependency
@@ -217,6 +229,12 @@ environments:
             POSTHOG_PROJECT_API_KEY:
               secret: POSTHOG_PROJECT_API_KEY
               version_env_var: POSTHOG_PROJECT_API_KEY_VERSION
+            LANGFUSE_PUBLIC_KEY:
+              secret: LANGFUSE_PUBLIC_KEY
+              version_env_var: LANGFUSE_PUBLIC_KEY_VERSION
+            LANGFUSE_SECRET_KEY:
+              secret: LANGFUSE_SECRET_KEY
+              version_env_var: LANGFUSE_SECRET_KEY_VERSION
             MODULATE_API_KEY:
               secret: MODULATE_API_KEY
               version_env_var: MODULATE_API_KEY_VERSION
@@ -427,6 +445,18 @@ environments:
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
+            LANGFUSE_BASE_URL:
+              value: https://us.cloud.langfuse.com
+              category: model_observability
+            LANGFUSE_TRACING_ENVIRONMENT:
+              value: production
+              category: model_observability
+            LANGFUSE_PROMPT_NAME:
+              value: intentive-chat-system
+              category: model_observability
+            LANGFUSE_PROMPT_CACHE_TTL_SECONDS:
+              value: '300'
+              category: model_observability
             REDIS_DB_HOST:
               env_var: REDIS_DB_HOST
               category: private_dependency
@@ -476,3 +506,9 @@ environments:
             POSTHOG_PROJECT_API_KEY:
               secret: POSTHOG_PROJECT_API_KEY
               version_env_var: POSTHOG_PROJECT_API_KEY_VERSION
+            LANGFUSE_PUBLIC_KEY:
+              secret: LANGFUSE_PUBLIC_KEY
+              version_env_var: LANGFUSE_PUBLIC_KEY_VERSION
+            LANGFUSE_SECRET_KEY:
+              secret: LANGFUSE_SECRET_KEY
+              version_env_var: LANGFUSE_SECRET_KEY_VERSION

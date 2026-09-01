@@ -46,6 +46,9 @@ Last confirmed: 2026-08-29
   - Codemagic detected the root `codemagic.yaml` on `main` on 2026-08-29. The selected application's
     GitHub webhook is active for repository create, pull-request, and push events; the workflow's
     tag filter remains the release admission boundary.
+- Langfuse project: the existing Intentive US project owns operator tracing and Prompt Management.
+  - `intentive-chat-system` version 1 is deliberately blank because Omi's private LangSmith prompt is unavailable.
+  - Preserve `intentive-runtime-bundle` versions 1–5 as history; never copy Omi credentials or prompt content.
 
 ## Sparkle update identity
 

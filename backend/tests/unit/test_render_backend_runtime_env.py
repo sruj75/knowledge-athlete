@@ -147,6 +147,12 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT=1500' in service_env
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE=' in service_env
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA=' in service_env
+    assert 'LANGFUSE_BASE_URL=https://us.cloud.langfuse.com' in service_env
+    assert 'LANGFUSE_TRACING_ENVIRONMENT=production' in service_env
+    assert 'LANGFUSE_PROMPT_NAME=intentive-chat-system' in service_env
+    assert 'LANGFUSE_PROMPT_CACHE_TTL_SECONDS=300' in service_env
+    assert 'LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:7' in _job_secret_lines(output, 'backend')
+    assert 'LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:7' in _job_secret_lines(output, 'backend')
     assert 'backend_sync_env_vars' not in output
     assert 'OMI_LLM_GATEWAY' not in output
 

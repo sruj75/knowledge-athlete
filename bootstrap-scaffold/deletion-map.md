@@ -41,7 +41,7 @@ Ship a macOS-first product with these boundaries:
 - the one retained Python backend is narrowed to approved account, billing,
   quota, managed-model, transient STT, update, release, and operational work;
 - retained cloud services use our Firebase, Google Cloud, Dodo Payments,
-  Modulate, PostHog, Sentry, LangSmith, and other approved accounts;
+  Modulate, PostHog, Sentry, Langfuse, and other approved accounts;
 - Omi wearable, per-user Agent VM, duplicate cloud data, rejected providers,
   connector products, and their control planes are gone; and
 - Windows is ignored completely. It is not inspected, changed, repaired, or
@@ -1011,17 +1011,21 @@ IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886
 
 - **Keep:** Sentry, PostHog, privacy-bounded PTT lifecycle diagnostics, local
   query tracing/rotating JSONL, Enhanced Diagnostics, Report an Issue, offline
-  diagnostic export, LangSmith traces/runs/feedback, Prompt Hub with TTL cache
-  and repository fallback, lightweight authenticated metrics, sanitized Cloud
+  diagnostic export, Langfuse traces/generations, Prompt Management with the
+  SDK's 300-second cache and identical repository fallback, lightweight authenticated metrics, sanitized Cloud
   Logging, and 30-day log retention.
 - **Adapt:** point every retained SDK, DSN, key, host, project, environment,
   identity attach/detach, disclosure, and sampling rule to our accounts; add a
   local PostHog analytics toggle while keeping Sentry diagnostics separate.
+  Use the same owned US Langfuse project, append the deliberately blank
+  `intentive-chat-system` prompt without changing the five historical
+  `intentive-runtime-bundle` versions, and never invent Omi's inaccessible
+  LangSmith prompt text.
 - **Delete:** deprecated PTT events, Crisp, Sentry-to-cloud-Task bridge, in-app
   ratings, duplicate privacy cards/fake Active states, and the self-hosted
   Prometheus/Grafana/Loki/Alloy/Alertmanager product.
 - **Close when:** consent/opt-out, sign-in/sign-out identity, issue submission,
-  incident breadcrumbs, LangSmith prompt/trace correlation, and redaction are
+  incident breadcrumbs, Langfuse prompt/trace correlation, and redaction are
   verified in owned development projects before production keys are installed.
 
 ### S-10 — Make conversations and transcripts local-authoritative
@@ -1341,7 +1345,7 @@ IR-732, IR-827, IR-828
   providers and the decided v1 Auto/switch/failover policy; Gemini Flash/Lite
   generation, translation, and embeddings; Vertex plus platform-key AI Studio;
   OpenAI memory normalization/extraction/conflict, conversation summary/action
-  items, greeting, and discard; LangSmith and Prompt Hub.
+  items, greeting, and discard; Langfuse tracing and Prompt Management.
 - **Adapt:** every retained model call receives bounded local inputs, returns a
   transient result, and lets the Mac validate/commit it to the owning local
   store; provider calls live directly in the canonical backend where cloud

@@ -25,7 +25,7 @@ When intentionally changing backend Python dependencies, edit the relevant `requ
 
 By default, the lock refresh preserves already-locked package versions so unrelated transitive upgrades do not sneak into infrastructure changes. Set `PYLOCK_UPGRADE=1` only when intentionally refreshing dependency versions.
 
-Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (canonical Chat/realtime), and `REDIS_DB_HOST` / `REDIS_DB_PASSWORD` / `REDIS_DB_CA_CERT_PEM` (the hosted verified-TLS Redis boundary). Hosted `dev`/`prod` uses the Cloud Run runtime service account through ADC and rejects `SERVICE_ACCOUNT_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`; explicit credential files remain local-tool/test-only. Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
+Key env vars: `OPENAI_API_KEY` (LLM calls — not `OPENAI_ADMIN_KEY` which is billing-only), `MODULATE_API_KEY` (managed live and prerecorded STT), `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` (canonical Chat/realtime), `LANGFUSE_PUBLIC_KEY` plus `LANGFUSE_SECRET_KEY` (fail-open Chat prompt/tracing; both are required to enable it), and `REDIS_DB_HOST` / `REDIS_DB_PASSWORD` / `REDIS_DB_CA_CERT_PEM` (the hosted verified-TLS Redis boundary). Langfuse uses `LANGFUSE_BASE_URL`, `LANGFUSE_TRACING_ENVIRONMENT`, `LANGFUSE_PROMPT_NAME`, and `LANGFUSE_PROMPT_CACHE_TTL_SECONDS` as non-secret runtime configuration. Hosted `dev`/`prod` uses the Cloud Run runtime service account through ADC and rejects `SERVICE_ACCOUNT_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`; explicit credential files remain local-tool/test-only. Dodo billing is enabled only by the explicit billing mode above; checkout accepts an opaque server-owned offer ID, and the provider webhook is the only authority that projects paid entitlement state.
 
 Chat SSE deadlines: `AGENT_STREAM_FIRST_EVENT_TIMEOUT_SECONDS` (default `25`), `AGENT_STREAM_PROGRESS_HEARTBEAT_SECONDS` (default `20`), `AGENT_STREAM_MAX_DURATION_SECONDS` (default `150`), and `AGENT_STREAM_CANCEL_GRACE_SECONDS` (default `2`) bound silent setup/producer work and keep valid long tool calls observable. Values must be positive. The agent's direct managed-Anthropic call is re-issued on transport-class failures up to `AGENT_STREAM_PROVIDER_MAX_ATTEMPTS` (default `3`), spaced by `AGENT_STREAM_PROVIDER_RETRY_BACKOFF_SECONDS` (default `1`), and only while at least `AGENT_STREAM_PROVIDER_MIN_RETRY_HEADROOM_SECONDS` (default `45`) of the turn budget remains. Do not route normal Chat through an auto lane or introduce a per-request provider switch.
 
@@ -77,6 +77,7 @@ Shared: Firestore, Redis
 backend (main.py, canonical Cloud Run service)
   ├── ──────► modulate (managed STT API; in-process Silero VAD gate)
   ├── ──────► managed model providers through explicit in-process workload clients
+  ├── ──────► langfuse (fail-open Chat prompt management and generation evidence)
   └── ──────► Cloud Tasks queue `account-deletion` ──► POST /v1/users/account-deletion-wipes/run (OIDC, same service)
 
 ```
@@ -108,7 +109,10 @@ for macOS Chat. `POST /v2/chat/initial-message` and
 `POST /v2/chat/generate-title` are authenticated, bounded, stateless compute:
 they return only a greeting or title and never read or write Chat product data.
 Managed answers continue through the desktop Pi `/v2/chat/completions` boundary;
-the Python hosted persona/RAG route is retired.
+the Python hosted persona/RAG route is retired. Real Anthropic calls create one
+fail-open Langfuse generation, while the offline stub performs no prompt or
+observability network work. The optional `X-Omi-Session-Id` header is bounded
+correlation metadata only and never restores backend session ownership.
 
 ### macOS Memory boundary
 

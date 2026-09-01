@@ -642,12 +642,12 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-824 | The first release requires a hosted Limitless ZIP-import job that creates cloud Omi conversations | Reviewed | Delete the complete Limitless cloud-import product; do not preclude a separately justified local importer |
 | IR-825 | Locally authoritative Tasks require cloud daily, weekly, and overall productivity-score APIs after their UI was rejected | Reviewed | Delete the orphaned score APIs and widgets; preserve local Task completion data |
 | IR-826 | A Mac-only product requires Omi's mobile Firebase Cloud Messaging token and push-delivery platform | Reviewed | Delete FCM and adapt surviving server-side warnings into authenticated Mac state plus local macOS presentation |
-| IR-827 | Sentry and PostHog make dedicated LLM tracing and website-based model observability unnecessary | Reviewed | Keep the current LangSmith tracing, run, and feedback lifecycle for v1 in our own LangSmith project |
-| IR-828 | The production agent prompt must live only in the repository rather than using LangSmith Prompt Hub | Reviewed | Keep Prompt Hub fetching, version metadata, TTL cache, and repository fallback for v1 |
+| IR-827 | Sentry and PostHog make dedicated LLM tracing and website-based model observability unnecessary | Reviewed after provider migration | Preserve Omi's request lifecycle while replacing LangSmith with Langfuse in the owned Intentive project |
+| IR-828 | The production agent prompt must live only in the repository rather than using managed prompt storage | Reviewed after provider migration | Keep Langfuse prompt fetching/linking, a 300-second SDK cache, and an identical blank repository fallback until Intentive authors its prompt |
 | IR-829 | Retained local proactive assistants require a separate Firestore Mentor notification-frequency setting | Reviewed | Delete the orphaned server Mentor setting; preserve local proactive-assistant controls |
 | IR-830 | Moving product data to local GRDB eliminates the user's ability to export their own product data | Reviewed | Keep one simple local Export My Data flow and narrow the server export to genuine retained account metadata |
 | IR-831 | Authoritative managed-AI metering requires unused detailed usage-reader APIs and personal-adapter cost self-reporting | Reviewed | Delete the unused detailed readers and personal self-report; keep server metering, quota, and total managed cost |
-| IR-832 | Keeping LangSmith tracing requires restoring Omi's in-app thumbs-up/down rating product and cloud Chat-message copies | Reviewed | Keep LangSmith website-side annotation and evaluation for v1; keep the rejected in-app rating product deleted |
+| IR-832 | Keeping model tracing requires restoring Omi's in-app thumbs-up/down rating product and cloud Chat-message copies | Reviewed after provider migration | Keep Langfuse website-side annotation and evaluation; keep the rejected in-app rating product deleted |
 | IR-833 | The retained Mac product requires Omi's cloud conversation-summary rating API and Firestore analytics record | Reviewed | Delete the complete conversation-summary rating product; it has no live Mac caller and rates rejected cloud data |
 | IR-834 | The retained Chat experience requires the old Joan endpoint that generates a follow-up question from a cloud conversation | Reviewed | Delete the Joan follow-up-question endpoint; preserve independent local Chat suggestions, onboarding, and proactive behavior |
 | IR-835 | Retained billing and fair-use metering require a separate unused API that returns today, monthly, yearly, and all-time usage history | Reviewed | Delete the unused detailed usage-history API; preserve authoritative billing, quota, and fair-use metering |
@@ -1020,7 +1020,7 @@ macOS product
 │   ├── release manifests + Beta/Stable channel control          ADAPT + KEEP SERVER AUTHORITY (IR-894)
 │   ├── signed branch-preview publication                         ADAPT + KEEP UNDER OUR OWNERSHIP (IR-895)
 │   ├── PostHog/Sentry/diagnostics/issue reporting                COVERED (IR-115/204–211/805)
-│   ├── LangSmith model observability                             COVERED (IR-827/828/832)
+│   ├── Langfuse model observability                              COVERED (IR-827/828/832)
 │   ├── public website, legal policy, Terms, release notes        ADAPT TO SMALL EXTERNAL STATIC SITE + GITHUB NOTES (IR-896)
 │   ├── absent-source workflows/manifests/preflight triggers      DELETE; WINDOWS UNTOUCHED (IR-897)
 │   └── standalone Remotion marketing-video project               DELETE; NOT A RUNTIME/RELEASE INPUT (IR-935)
@@ -1046,12 +1046,12 @@ macOS product
     ├── hosted Limitless ZIP-import job                           DELETE; CLOUD CONVERSATION PIPELINE (IR-824)
     ├── Firestore task productivity-score API                     DELETE; UI AND CLOUD TASK AUTHORITY REJECTED (IR-825)
     ├── mobile FCM token/push platform                             DELETE; ADAPT SURVIVING WARNINGS TO MAC (IR-826)
-    ├── LangSmith LLM tracing and feedback                         KEEP FOR V1; USE OUR PROJECT (IR-827)
-    ├── LangSmith Prompt Hub                                       KEEP REMOTE PROMPT + LOCAL FALLBACK (IR-828)
+    ├── Langfuse LLM generations and traces                        KEEP FOR V1; USE OUR PROJECT (IR-827)
+    ├── Langfuse Prompt Management                                 KEEP BLANK REMOTE PROMPT + IDENTICAL LOCAL FALLBACK (IR-828)
     ├── server Mentor notification-frequency setting               DELETE; KEEP LOCAL PROACTIVE CONTROLS (IR-829)
     ├── user product-data export                                   ADAPT TO LOCAL; SERVER EXPORT ONLY RETAINED METADATA (IR-830)
     ├── detailed/self-reported LLM usage APIs                       DELETE EXTRAS; KEEP AUTHORITATIVE METERING (IR-831)
-    ├── LangSmith feedback boundary                                 KEEP WEBSITE ANNOTATION/EVAL; NO IN-APP RATING RESTORATION (IR-832)
+    ├── Langfuse feedback boundary                                  KEEP WEBSITE ANNOTATION/EVAL; NO IN-APP RATING RESTORATION (IR-832)
     ├── cloud conversation-summary rating product                   DELETE; NO MAC CALLER, REJECTED CLOUD AUTHORITY (IR-833)
     ├── Joan cloud-conversation follow-up-question endpoint         DELETE; KEEP INDEPENDENT LOCAL CHAT BEHAVIOR (IR-834)
     ├── detailed general usage-history API                          DELETE; KEEP BILLING/QUOTA/FAIR-USE METERING (IR-835)
@@ -18168,37 +18168,37 @@ For surviving fair-use or managed-usage transitions, expose the authoritative st
 
 No product code has been changed.
 
-## IR-827 - LangSmith LLM tracing, observability, and feedback
+## IR-827 - Langfuse LLM tracing and observability
 
 ### Exact current behavior
 
-When configured with a LangSmith API key, the Python backend can attach LangSmith tracer callbacks to agentic Chat runs, assign a run ID, inspect the resulting execution in a LangSmith project, store the run relationship for feedback, and forward user rating feedback to that run. Environment settings choose global or scoped tracing, endpoint, and project. This is model-specific observability: it explains prompts, model/tool execution, and response behavior that Sentry crash diagnostics and PostHog product events do not replace.
+The authenticated Python Chat boundary now creates one fail-open Langfuse generation for every real Anthropic request. A deterministic trace ID derived from the Firebase UID and request ID joins provider calls from one local tool loop; the optional bounded Mac session ID groups traces without creating backend Chat authority. Each generation records only explicit provider input/output, stop reason, token/cache counts, first-token timing, and bounded correlation metadata. It never records credentials, arbitrary request objects, or raw exception text. This model-specific evidence is distinct from Sentry crash diagnostics and PostHog product events.
 
 ### Decision
 
-`keep the current LangSmith lifecycle for v1`
+`preserve Omi's observability lifecycle while replacing only the vendor with Langfuse`
 
-Confirmed: retain LangSmith tracing configuration, scoped/global enablement, tracer callbacks, run IDs and metadata, Chat-run association, user-feedback submission, startup status, project/endpoint/API-key configuration, dependency, and focused tests. Configure it against this product's own LangSmith account/project and make the product's privacy/telemetry disclosures truthful about the model content and metadata sent to that service.
+Confirmed: use the existing owned US Langfuse project and the current v4 SDK for lazy client initialization, deterministic trace correlation, prompt-linked generations, sanitized status/error reporting, and bounded shutdown flushing. Require both public and secret keys before enabling delivery, and keep every failure outside the Chat behavior boundary. The implementation deliberately does not restore backend Chat persistence, server-side tool spans, in-app ratings, or Omi's deleted agent architecture.
 
-Keep Sentry and PostHog as separate retained systems with their own responsibilities. Do not replace LangSmith with Langfuse or add dual delivery for v1; a possible later migration is outside the present first-release requirement.
+Keep Sentry and PostHog as separate retained systems with their own responsibilities. Remove all Intentive runtime LangSmith imports and configuration; a transitive package required by LangChain is not an active provider path. Do not add dual delivery or a generic observability-provider abstraction.
 
 No product code has been changed.
 
-## IR-828 - LangSmith Prompt Hub
+## IR-828 - Langfuse Prompt Management
 
 ### Exact current behavior
 
-The backend can pull the agentic system prompt by name from LangSmith Prompt Hub, extract its template and commit/version metadata, cache it in-process for a configurable TTL that defaults to five minutes, and render it with the normal runtime variables. When the key, network, prompt, or template extraction is unavailable, it uses the complete repository-owned fallback prompt. Trace metadata records whether the selected prompt came from LangSmith or the fallback.
+The surviving authenticated Chat boundary fetches the text prompt named `intentive-chat-system` from the existing Intentive Langfuse project using the `production` label and a 300-second SDK cache. The managed text is composed before the existing Mac kernel system policy, and a successfully fetched Langfuse prompt object is linked to the generation. When credentials, network, or prompt lookup are unavailable, the repository fallback is used and the generation records `prompt_source=fallback` and `prompt_version=fallback` without a false prompt-version link.
 
-This deliberately permits prompt iteration through the LangSmith website without a backend code deployment while retaining an operational fallback.
+Omi's LangSmith prompt is not public source and is unavailable to this fork, so it must not be invented or described as copied. The new Langfuse prompt and repository fallback are deliberately the same blank text until Intentive authors its own system prompt. The pre-existing `intentive-runtime-bundle` prompt and all five of its versions remain untouched in the same project as history; this Chat integration does not rename, overwrite, relabel, or delete them.
 
 ### Decision
 
-`keep Prompt Hub plus the repository fallback for v1`
+`keep Langfuse Prompt Management plus an identical repository fallback`
 
-Confirmed: retain remote prompt fetching, the configured prompt name, commit/version metadata, TTL cache and invalidation behavior, safe rendering, source metadata, local fallback, environment configuration, startup visibility, and focused tests. Repoint the default Omi prompt/project identity to this product's own LangSmith resources during rebranding.
+Confirmed: retain remote prompt fetching/linking, the configured prompt name, version metadata, Langfuse SDK cache and stale-while-revalidate behavior, source metadata, identical blank local fallback, environment configuration, and focused tests. Resolve it through the bounded LLM executor only after request validation and skip all prompt and tracing work for the offline stub.
 
-Accept the current two-level authority: the LangSmith prompt is authoritative when successfully fetched, and the versioned repository prompt is the availability fallback. Do not migrate this lifecycle to Langfuse for v1.
+Accept the current two-level authority: the Langfuse prompt is authoritative when successfully fetched, and the identical repository text is the availability fallback. Prompt history is append-only operator state in Langfuse and is not deleted by repository automation.
 
 No product code has been changed.
 
@@ -18258,23 +18258,23 @@ These extras are distinct from the retained server-side writers, `/v1/users/me/u
 
 Confirmed: remove the two unused detailed-reader routes and models, the personal-adapter POST route/model, Mac `recordLlmUsage` client and rejected-harness caller, generated bindings, route-policy entries, and exclusive tests/docs. Remove aggregation helpers only if no retained operator or billing caller remains.
 
-Preserve authoritative server-recorded managed Chat usage, managed PTT count/cost reporting, quota-question idempotency, `/usage-quota`, the total managed-cost value used by the existing limiter, Dodo entitlement mapping, fair-use accounting, billing controls, and LangSmith traces. Do not let arbitrary customer-supplied cost values influence retained billing or quota state.
+Preserve authoritative server-recorded managed Chat usage, managed PTT count/cost reporting, quota-question idempotency, `/usage-quota`, the total managed-cost value used by the existing limiter, Dodo entitlement mapping, fair-use accounting, billing controls, and Langfuse traces. Do not let arbitrary customer-supplied cost values influence retained billing or quota state.
 
 No product code has been changed.
 
-## IR-832 - LangSmith feedback without restoring the in-app rating product
+## IR-832 - Langfuse operator evaluation without restoring the in-app rating product
 
 ### Exact current boundary
 
-IR-827 keeps LangSmith for tracing and model observability in our own project. LangSmith's website lets operators inspect traces, attach annotations, create datasets, and evaluate model behavior without requiring an end-user rating button inside the Mac app.
+IR-827 keeps Langfuse for tracing and model observability in our own project. The Langfuse website lets operators inspect traces, attach annotations, create datasets, and evaluate model behavior without requiring an end-user rating button inside the Mac app.
 
 Omi's separate in-app thumbs-up/down flow copies Chat-message/rating data into cloud analytics and emits a rating event. IR-043 already rejected that product because the retained local Chat has no justified need for the cloud copy or user-facing rating control.
 
 ### Decision
 
-`keep LangSmith website-side annotation and evaluation; do not restore in-app ratings`
+`keep Langfuse website-side annotation and evaluation; do not restore in-app ratings`
 
-Confirmed: retain trace collection and the LangSmith website's operator-side annotation, dataset, and evaluation lifecycle for v1. Keep the in-app thumbs-up/down controls, Firestore message/rating analytics, and coupled rating event deleted under IR-043. If explicit end-user feedback is justified later, it requires its own local-authoritative requirement rather than silently reviving Omi's cloud rating pipeline.
+Confirmed: retain trace collection and Langfuse's operator-side annotation, dataset, and evaluation lifecycle for v1. Keep the in-app thumbs-up/down controls, Firestore message/rating analytics, and coupled rating event deleted under IR-043. If explicit end-user feedback is justified later, it requires its own local-authoritative requirement rather than silently reviving Omi's cloud rating pipeline.
 
 No product code has been changed.
 
@@ -18284,13 +18284,13 @@ No product code has been changed.
 
 `POST /v1/users/analytics/memory_summary` stores a rating against a hosted Omi conversation summary in Firestore, and the matching `GET` route tells a client whether that conversation has already been rated. The current Mac has no live caller; only generated client bindings remain.
 
-This is not LangSmith trace evaluation. It is a separate product-analytics feature tied to the rejected cloud conversation/summary authority.
+This is not Langfuse trace evaluation. It is a separate product-analytics feature tied to the rejected cloud conversation/summary authority.
 
 ### Decision
 
 `delete the cloud conversation-summary rating product`
 
-Confirmed: remove both routes, request/response models, Firestore rating helpers and fields, generated bindings, route-policy entries, and exclusive tests/docs. Preserve LangSmith operator-side evaluation under IR-827/832 and the retained local conversation/transcript experience.
+Confirmed: remove both routes, request/response models, Firestore rating helpers and fields, generated bindings, route-policy entries, and exclusive tests/docs. Preserve Langfuse operator-side evaluation under IR-827/832 and the retained local conversation/transcript experience.
 
 No product code has been changed.
 
@@ -18334,7 +18334,7 @@ No product code has been changed.
 
 `backend/charts/monitoring/` contains Omi's Kubernetes observability platform: Prometheus scrapes application and infrastructure measurements; Grafana hosts dashboards; Loki stores logs in GCS; Alloy collects pod logs; Alertmanager routes alerts; exporters and adapters expose GCP, node, and GPU measurements and drive some Kubernetes autoscaling. Its configuration is centered on Omi's GKE services, domains, namespaces, buckets, GPU fleets, Pusher, LLM gateway, and other deployments already rejected by this audit.
 
-Running it is not a library choice. It means deploying and maintaining another stateful cloud stack, storage retention, secrets, dashboards, alerts, and upgrades. The retained v1 already keeps Sentry for failures, PostHog for product analytics, LangSmith for model traces, and can use its hosting provider's built-in service logs and infrastructure measurements.
+Running it is not a library choice. It means deploying and maintaining another stateful cloud stack, storage retention, secrets, dashboards, alerts, and upgrades. The retained v1 already keeps Sentry for failures, PostHog for product analytics, Langfuse for model traces, and can use its hosting provider's built-in service logs and infrastructure measurements.
 
 ### Decision
 
@@ -18342,7 +18342,7 @@ Running it is not a library choice. It means deploying and maintaining another s
 
 Confirmed: remove the monitoring Helm charts, Omi-specific Prometheus scrape deployment, Grafana/Loki/Alloy/Alertmanager infrastructure, exporters/adapters used only by that stack, Omi dashboards and alert rules, monitoring-domain/bucket/secrets configuration, deploy workflows, and exclusive tests/docs. Remove monitoring references from deleted service charts as their owning services disappear.
 
-Preserve Sentry, PostHog, LangSmith, ordinary sanitized backend logs, provider-native infrastructure monitoring, and the separately retained lightweight metrics surface under IR-837. A future managed metrics integration may consume that surface without recreating Omi's GKE monitoring platform.
+Preserve Sentry, PostHog, Langfuse, ordinary sanitized backend logs, provider-native infrastructure monitoring, and the separately retained lightweight metrics surface under IR-837. A future managed metrics integration may consume that surface without recreating Omi's GKE monitoring platform.
 
 No product code has been changed.
 
@@ -18522,7 +18522,7 @@ No product code has been changed.
 
 ### Exact current pattern
 
-The runtime manifest separates ordinary configuration from secret bindings. Cloud Run receives references to Google Secret Manager entries instead of storing provider keys and signing credentials in the repository or inline workflow YAML. Our retained backend still needs genuine credentials for selected managed AI/STT providers, Dodo, Firebase/server identity where applicable, Sentry/PostHog/LangSmith, signing, and other separately retained boundaries.
+The runtime manifest separates ordinary configuration from secret bindings. Cloud Run receives references to Google Secret Manager entries instead of storing provider keys and signing credentials in the repository or inline workflow YAML. Our retained backend still needs genuine credentials for selected managed AI/STT providers, Dodo, Firebase/server identity where applicable, Sentry/PostHog/Langfuse, signing, and other separately retained boundaries.
 
 Many current secret names instead belong to deleted sync, gateway, Apps, connectors, Twilio, Typesense, wearable, cloud-memory, or duplicate-service behavior.
 
@@ -18994,7 +18994,7 @@ No product code has been changed.
 
 The FastAPI process uses ordinary Python logging, including standard stream handlers and the repository's privacy/sanitization boundaries. On Cloud Run, request logs, container standard output/error, and platform system logs are collected by Cloud Logging without a separately hosted collector. IR-836 already deletes Omi's GKE Prometheus/Grafana/Loki/Alloy/Alertmanager platform; deleting that platform does not require making the retained backend operationally opaque.
 
-Sentry remains the error-diagnostic authority selected elsewhere, PostHog remains the product-analytics authority, and LangSmith remains the model-tracing authority. Cloud Logging supplies the surrounding backend request/runtime evidence rather than replacing any of those systems.
+Sentry remains the error-diagnostic authority selected elsewhere, PostHog remains the product-analytics authority, and Langfuse remains the model-tracing authority. Cloud Logging supplies the surrounding backend request/runtime evidence rather than replacing any of those systems.
 
 ### Decision
 
@@ -19002,7 +19002,7 @@ Sentry remains the error-diagnostic authority selected elsewhere, PostHog remain
 
 Confirmed: preserve retained application logs to standard output/error, Cloud Run request and system logs, severity and useful correlation metadata already shared by surviving code, and the existing rules against raw sensitive payloads. Remove logs, labels, filters, sinks, dashboards, and configuration owned exclusively by rejected services. Do not deploy a logging agent, Loki replacement, custom collector, cross-cloud export pipeline, or another hosted logging product for v1.
 
-This decision does not merge Cloud Logging with Sentry, PostHog, or LangSmith and does not authorize transcript, audio, prompt, secret, token, or other raw sensitive content in logs. Log-retention duration and exclusions are separate operational configuration details rather than silently expanded here.
+This decision does not merge Cloud Logging with Sentry, PostHog, or Langfuse and does not authorize transcript, audio, prompt, secret, token, or other raw sensitive content in logs. Log-retention duration and exclusions are separate operational configuration details rather than silently expanded here.
 
 No product code has been changed.
 
@@ -19126,7 +19126,7 @@ IR-879 keeps Cloud Run's automatically collected request, container, and system 
 
 Confirmed: retain the development and production projects' ordinary 30-day `_Default` log retention and query recent backend evidence in Cloud Logging. Do not add a custom long-retention bucket, GCS/BigQuery export, cross-cloud sink, or third-party log archive for v1. Remove sinks or buckets exclusive to Omi's deleted Loki/GKE stack.
 
-The privacy boundary remains stronger than the retention period: raw audio, transcripts, screenshots, prompts, files, authorization tokens, secrets, payment payloads, and other sensitive customer content must not be logged merely because entries expire after 30 days. Sentry, PostHog, and LangSmith keep their separately accepted scopes and are not log archives.
+The privacy boundary remains stronger than the retention period: raw audio, transcripts, screenshots, prompts, files, authorization tokens, secrets, payment payloads, and other sensitive customer content must not be logged merely because entries expire after 30 days. Sentry, PostHog, and Langfuse keep their separately accepted scopes and are not log archives.
 
 No product code has been changed.
 
@@ -19307,7 +19307,7 @@ The first release therefore needs a truthful destination map without silently re
 
 `ADAPT - use one small externally hosted product and legal site, with exact release notes on GitHub`
 
-Confirmed: keep the Mac's visible **Visit Website**, Terms and real Privacy Policy destinations, but point them to pages we own on one small externally hosted static site. The Privacy Policy must truthfully describe the final retained architecture and processors, including local product-data authority plus Firebase account state, Dodo billing, PostHog, Sentry, LangSmith, managed AI and Modulate where applicable. Keep exact version release notes on our GitHub Releases pages and point the retained release-note behavior there.
+Confirmed: keep the Mac's visible **Visit Website**, Terms and real Privacy Policy destinations, but point them to pages we own on one small externally hosted static site. The Privacy Policy must truthfully describe the final retained architecture and processors, including local product-data authority plus Firebase account state, Dodo billing, PostHog, Sentry, Langfuse, managed AI and Modulate where applicable. Keep exact version release notes on our GitHub Releases pages and point the retained release-note behavior there.
 
 Do not restore the absent Omi `web/` monorepo, admin/personas applications, public-build deployment system or another application backend merely to host these pages. Do not leave Omi URLs or absolute privacy claims in the Mac, remove the retained public links, or treat the in-app local data/settings page as the legal Privacy Policy.
 

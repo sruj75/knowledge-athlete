@@ -17,6 +17,8 @@ _SECRET_VERSION_INPUTS = (
     'BETA_PROMOTION_TOKEN_VERSION',
     'GOOGLE_CLIENT_SECRET_VERSION',
     'POSTHOG_PROJECT_API_KEY_VERSION',
+    'LANGFUSE_PUBLIC_KEY_VERSION',
+    'LANGFUSE_SECRET_KEY_VERSION',
     'MODULATE_API_KEY_VERSION',
     'GEMINI_API_KEY_VERSION',
     'OPENAI_API_KEY_VERSION',
@@ -56,6 +58,8 @@ def test_check_rendered_secrets_reports_missing(monkeypatch: pytest.MonkeyPatch)
 
     secret_names = {item.secret_name for item in missing}
     assert 'BETA_PROMOTION_TOKEN' in secret_names
+    assert 'LANGFUSE_PUBLIC_KEY' in secret_names
+    assert 'LANGFUSE_SECRET_KEY' in secret_names
     assert 'GOOGLE_CLIENT_ID' not in secret_names
 
 

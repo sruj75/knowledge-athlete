@@ -91,6 +91,10 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'ACCOUNT_DELETION_DISPATCH_MODE',
         'DESKTOP_UPDATE_POINTERS_MODE',
         'POSTHOG_HOST',
+        'LANGFUSE_BASE_URL',
+        'LANGFUSE_TRACING_ENVIRONMENT',
+        'LANGFUSE_PROMPT_NAME',
+        'LANGFUSE_PROMPT_CACHE_TTL_SECONDS',
         'REDIS_DB_HOST',
         'REDIS_DB_PORT',
         'REDIS_DB_CA_CERT_PEM',
@@ -103,8 +107,13 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'FIREBASE_API_KEY',
         'REDIS_DB_PASSWORD',
         'POSTHOG_PROJECT_API_KEY',
+        'LANGFUSE_PUBLIC_KEY',
+        'LANGFUSE_SECRET_KEY',
     } <= set(backend['secrets'])
     assert backend['env']['BILLING_MODE']['value'] == 'disabled'
+    assert backend['env']['LANGFUSE_BASE_URL']['value'] == 'https://us.cloud.langfuse.com'
+    assert backend['env']['LANGFUSE_PROMPT_NAME']['value'] == 'intentive-chat-system'
+    assert backend['env']['LANGFUSE_PROMPT_CACHE_TTL_SECONDS']['value'] == '300'
     for binding in backend['secrets'].values():
         assert set(binding) <= {'secret', 'version_env_var'}
 
