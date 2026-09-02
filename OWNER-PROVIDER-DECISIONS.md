@@ -7,7 +7,7 @@ Repository-tracked operator handoff. This file records account ownership and
 provider boundaries, but must never contain passwords, tokens, private keys,
 certificate contents, API keys, recovery codes, or secret values.
 
-Last confirmed: 2026-08-29
+Last confirmed: 2026-09-02
 
 ## Product identity
 
@@ -67,7 +67,7 @@ Last confirmed: 2026-08-29
 - Existing Firebase project `knowledge-athlete` is also the Google Cloud project for Intentive Cloud Run, Secret Manager, Cloud Build, and Artifact Registry resources.
 - Billing is active on `knowledge-athlete` as of 2026-08-29. The account has a 90-day, $300 trial, but the operating constraint is to stay within the ongoing Google Cloud Free Tier both during and after the trial. Trial credit is not a spending target.
 - Budget alerts are warnings, not a hard spending cap. Do not deploy a configuration merely because trial credit is available.
-- Created 2026-08-29: dedicated development runtime identity `knowledge-athlete-dev-runtime@knowledge-athlete.iam.gserviceaccount.com` with only project role `roles/datastore.user` and secret-level `roles/secretmanager.secretAccessor` on `REDIS_DB_PASSWORD`, `FIREBASE_API_KEY`, and `GOOGLE_CLIENT_SECRET`. It has no Owner, Editor, deploy, project-wide Secret Manager, Vertex AI, Storage, Tasks, or index-administration role.
+- Created 2026-08-29: dedicated development runtime identity `knowledge-athlete-dev-runtime@knowledge-athlete.iam.gserviceaccount.com` with only project role `roles/datastore.user` and secret-level `roles/secretmanager.secretAccessor` on `REDIS_DB_PASSWORD`, `FIREBASE_API_KEY`, `GOOGLE_CLIENT_SECRET`, and `GEMINI_API_KEY`. It has no Owner, Editor, deploy, project-wide Secret Manager, Vertex AI, Storage, Tasks, or index-administration role.
 - Google Memorystore for Redis is not approved for development because its provisioned capacity is continuously billable and has no ongoing free tier. Do not provision it while the permanent-free constraint applies.
 - Deleted 2026-08-29: the abandoned private `knowledge-athlete-dev` Cloud Run service in `agentic-accountability`.
   - Verified afterward that `once-upon-a-time` is the only remaining Cloud Run service in `agentic-accountability/us-west1`.
@@ -125,7 +125,7 @@ An inherited variable in Omi's deployment declaration is not proof that Intentiv
 - `OPENAI_API_KEY` is retained only for `/v1/tts/synthesize` using `gpt-4o-mini-tts`. It no longer owns text inference, embeddings, realtime voice, or relay traffic.
 - `ANTHROPIC_API_KEY` and `DESKTOP_LEGACY_ANTHROPIC_KEY` are deleted requirements. Normal Chat uses Gemini; neither credential should be created or bound.
 - One development `GEMINI_API_KEY` is enough for the MVP. Gemini 3.7 Flash owns normal Chat, greeting, conversation processing, Memory compute, and fair-use classification; existing Flash-Lite title/translation, desktop generation/embeddings, and Gemini Live routes remain. Model inference uses the Gemini Developer API only; `USE_VERTEX_AI` is deleted while Cloud Run ADC remains for Firebase, Firestore, and other GCP infrastructure.
-- The interrupted setup created `GEMINI_API_KEY` secret version 1 and secret-level runtime access, but the active Cloud Run revision does not bind it. Inspect the key metadata before binding: reuse it only if it is an authorization key; otherwise replace that secret value with one authorization key and disable the standard key only after the development candidate passes. Do not create parallel per-model keys.
+- Verified 2026-09-02: the earlier `GEMINI_API_KEY` version 1 is a standard API key. A replacement authorization key is bound to the limited development runtime service account, restricted only to `generativelanguage.googleapis.com`, and stored without committing its value as enabled Secret Manager version 2. A direct authenticated model-list probe returned HTTP 200. GitHub environment `development` selects exact version `2`. Version 1 remains enabled only as a rollback copy until a development candidate passes. The active Cloud Run revision still has no Gemini binding; that binding belongs to the next complete development deployment, not an isolated live revision mutation. Do not create parallel per-model keys.
 - `MODULATE_API_KEY` is genuinely retained for fixed managed live and prerecorded-overflow STT, but the owner explicitly postponed Modulate setup. This leaves managed STT and S-31 real-provider continuity open; it is not evidence that Modulate is unused.
 - `POSTHOG_PROJECT_API_KEY` is retained telemetry, but the owned PostHog project identity and truthful disclosure remain S-30 inputs. Do not reuse an inherited Omi token.
 - `ARTIFICIALANALYSIS_API_KEY` is deleted with Auto and the provider picker; there is no remaining provider comparison to score.
@@ -166,9 +166,9 @@ already done. An unchecked item is still required before the corresponding live 
 - [ ] Review the currently enabled APIs and retain/enable only those required by the development backend. API availability is not authorization to provision a paid service.
 - [x] Create and verify the public-ingress `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1` using the documented permanent-free bootstrap shape.
 - [x] Use the one free Upstash database `intentive-development` for development and owner-approved early MVP production. Do not provision Google Memorystore under the current cost constraint; revisit environment isolation before meaningful production traffic.
-- [x] Store the development Redis password, Firebase API key, and Google OAuth client ID/secret as exact Secret Manager version 1 values. The runtime identity has secret-level access only to the Redis password, Firebase API key, and Google OAuth secret.
+- [x] Store the development Redis password, Firebase API key, and Google OAuth client ID/secret as exact Secret Manager version 1 values, plus the Gemini authorization key as exact version 2. The runtime identity has secret-level access only to these four named secrets.
 - [x] Retire the active service's cross-project recovery-image dependency by building and serving an immutable backend image from `knowledge-athlete/us-west1/intentive`.
-- [ ] Retain one owned OpenAI key for TTS only. Inspect the dormant Gemini secret metadata and bind one exact authorization-key version to development. Do not create Anthropic or Artificial Analysis credentials. Modulate remains deliberately postponed. Bind exact owned Langfuse secret versions only when the development revision is deployed, then prove one real fail-open trace. No provider secret may be invented, committed, or copied from Omi.
+- [ ] Retain one owned OpenAI key for TTS only. Gemini authorization key version 2 is prepared and selected by the development GitHub environment; bind it only as part of the next complete development deployment and then prove a real Gemini turn. Do not create Anthropic or Artificial Analysis credentials. Modulate remains deliberately postponed. Bind exact owned Langfuse secret versions in that same deployment, then prove one real fail-open trace. No provider secret may be invented, committed, or copied from Omi.
 - [x] Admit public Cloud Run invocation while retaining Firebase authentication on protected routes, and point development desktop defaults at the discovered owned URL.
 - [ ] Enable the Cloud Billing Budget API and configure owner-approved alerts if cost notifications are wanted. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
 
