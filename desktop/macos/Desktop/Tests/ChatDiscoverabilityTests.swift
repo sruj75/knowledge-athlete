@@ -56,6 +56,8 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertNotNil(cols["completed"])
     XCTAssertNotNil(cols["priority"])
     XCTAssertNotNil(cols["screenshotId"])
+    XCTAssertEqual(cols["source"], "Origin: screenshot | manual | recurring")
+    XCTAssertFalse(cols["source"]?.lowercased().contains("omi") ?? true)
   }
 
   func testMemoriesHasKeyColumnAnnotations() {

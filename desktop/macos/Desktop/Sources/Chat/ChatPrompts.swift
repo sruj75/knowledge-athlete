@@ -200,7 +200,7 @@ struct ChatPrompts {
       "description": "The task text shown to the user",
       "completed": "Whether the task is marked done",
       "deleted": "Soft-delete flag",
-      "source": "Origin: screenshot | conversation | omi | manual",
+      "source": "Origin: screenshot | manual | recurring",
       "conversationId": "Stable local source-session ID if extracted from a voice session",
       "priority": "high | medium | low",
       "deletedBy": "Local user-deletion tombstone marker",

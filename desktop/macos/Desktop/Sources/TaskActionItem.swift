@@ -202,7 +202,6 @@ struct TaskActionItem: Codable, Identifiable, Equatable, Sendable {
   var sourceLabel: String {
     switch source {
     case "screenshot": return "Screen"
-    case "transcription:omi": return "omi"
     case "transcription:desktop": return "Desktop"
     case "transcription:phone": return "Phone"
     case "manual": return "Manual"
@@ -219,7 +218,6 @@ struct TaskActionItem: Codable, Identifiable, Equatable, Sendable {
   var sourceIcon: String {
     switch source {
     case "screenshot": return "camera.fill"
-    case "transcription:omi": return "waveform"
     case "transcription:desktop": return "desktopcomputer"
     case "transcription:phone": return "iphone"
     case "manual": return "square.and.pencil"
