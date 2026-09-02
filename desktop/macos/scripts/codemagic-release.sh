@@ -429,9 +429,8 @@ build() {
   local packaged_resource_bundle
   packaged_resource_bundle="$APP_BUNDLE/Contents/Resources/$(basename "$resource_bundle")"
   ditto "$resource_bundle" "$packaged_resource_bundle"
-  # SwiftPM still compiles the inherited development-era production plist into
-  # its resource bundle. The app reads the owned main-bundle plist above; remove
-  # every nested copy so an Omi Firebase credential can never ship as dead data.
+  # The app reads the owned main-bundle plist above. Keep this defense so a
+  # future resource change cannot package a second Firebase configuration.
   find "$packaged_resource_bundle" -type f -name 'GoogleService-Info.plist' -delete
   [[ -z "$(find "$packaged_resource_bundle" -type f -name 'GoogleService-Info.plist' -print -quit)" ]] ||
     fail "nested inherited Firebase plist remained in the packaged resource bundle"

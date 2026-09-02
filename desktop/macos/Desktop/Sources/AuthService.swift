@@ -1585,11 +1585,7 @@ class AuthService {
           extractedFamilyName = parts.count > 1 ? String(parts[1]) : nil
         }
 
-        NSLog(
-          "INTENTIVE AUTH: Extracted from id_token - name: %@ %@, email: %@",
-          extractedGivenName ?? "(none)",
-          extractedFamilyName ?? "",
-          extractedEmail ?? "(none)")
+        NSLog("%@", AuthLogPrivacy.idTokenProfileClaimsExtracted(userInfo))
       }
     }
 

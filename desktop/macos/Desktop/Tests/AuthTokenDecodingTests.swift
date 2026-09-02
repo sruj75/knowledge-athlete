@@ -101,6 +101,23 @@ final class AuthTokenDecodingTests: XCTestCase {
     XCTAssertFalse(diagnostic.contains("person@example.com"))
   }
 
+  func testSuccessfulIDTokenDiagnosticExcludesDecodedProfilePII() throws {
+    let idToken = makeJWT(payload: [
+      "email": "person@example.com",
+      "given_name": "Ada",
+      "family_name": "Lovelace",
+    ])
+    let payload = try XCTUnwrap(AuthService.decodeJWTPayload(idToken))
+    XCTAssertEqual(payload["email"] as? String, "person@example.com")
+
+    let diagnostic = AuthLogPrivacy.idTokenProfileClaimsExtracted(payload)
+
+    XCTAssertEqual(diagnostic, "INTENTIVE AUTH: Extracted profile claims from id_token")
+    XCTAssertFalse(diagnostic.contains("person@example.com"))
+    XCTAssertFalse(diagnostic.contains("Ada"))
+    XCTAssertFalse(diagnostic.contains("Lovelace"))
+  }
+
   private func firebaseTokenResponse(idToken: String, expiresIn: Any, localId: String?) throws -> Data {
     var json: [String: Any] = [
       "idToken": idToken,

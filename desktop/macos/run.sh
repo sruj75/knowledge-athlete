@@ -1024,7 +1024,8 @@ if [ "$LOCAL_PROFILE" = true ] && [ -f "Desktop/Sources/GoogleService-Info-Local
 elif [ -f "Desktop/Sources/GoogleService-Info-Dev.plist" ]; then
     cp -f Desktop/Sources/GoogleService-Info-Dev.plist "$APP_BUNDLE/Contents/Resources/GoogleService-Info.plist"
 else
-    cp -f Desktop/Sources/GoogleService-Info.plist "$APP_BUNDLE/Contents/Resources/"
+    echo "ERROR: No owned Firebase configuration is available for this development bundle."
+    exit 1
 fi
 /usr/libexec/PlistBuddy -c "Set :BUNDLE_ID $BUNDLE_ID" "$APP_BUNDLE/Contents/Resources/GoogleService-Info.plist" 2>/dev/null || true
 
@@ -1032,7 +1033,15 @@ fi
 RESOURCE_BUNDLE="Desktop/.build/arm64-apple-macosx/debug/Omi Computer_Omi Computer.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
     substep "Copying resource bundle ($(du -sh "$RESOURCE_BUNDLE" 2>/dev/null | cut -f1))"
-    macos_copy_tree "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/$(basename "$RESOURCE_BUNDLE")"
+    PACKAGED_RESOURCE_BUNDLE="$APP_BUNDLE/Contents/Resources/$(basename "$RESOURCE_BUNDLE")"
+    macos_copy_tree "$RESOURCE_BUNDLE" "$PACKAGED_RESOURCE_BUNDLE"
+    # SwiftPM can retain removed resources in an incremental build product.
+    # The main-bundle plist above is the only Firebase authority allowed to ship.
+    find "$PACKAGED_RESOURCE_BUNDLE" -type f -name 'GoogleService-Info.plist' -delete
+    if [ -n "$(find "$PACKAGED_RESOURCE_BUNDLE" -type f -name 'GoogleService-Info.plist' -print -quit)" ]; then
+        echo "ERROR: nested Firebase configuration remained in the packaged resource bundle"
+        exit 1
+    fi
 fi
 
 substep "Copying agent"

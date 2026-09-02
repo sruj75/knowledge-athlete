@@ -215,6 +215,20 @@ struct TaskActionItem: Codable, Identifiable, Equatable, Sendable {
     return sourceLabel
   }
 
+  /// A brand-neutral source value for every boundary outside local persistence.
+  /// Historical rows may retain the old value for migration evidence, but it
+  /// must not escape through UI, model context, or telemetry.
+  var externalSource: String? {
+    switch source {
+    case "transcription:omi": return "task"
+    default: return source
+    }
+  }
+
+  var sourceDetail: String? {
+    externalSource.map { "\(sourceLabel) (\($0))" }
+  }
+
   var sourceIcon: String {
     switch source {
     case "screenshot": return "camera.fill"
@@ -236,7 +250,7 @@ struct TaskActionItem: Codable, Identifiable, Equatable, Sendable {
     lines.append("Created: \(formatter.string(from: createdAt))")
     if let dueAt { lines.append("Due: \(formatter.string(from: dueAt))") }
     if let completedAt { lines.append("Completed: \(formatter.string(from: completedAt))") }
-    if let source { lines.append("Source: \(sourceLabel) (\(source))") }
+    if let sourceDetail { lines.append("Source: \(sourceDetail)") }
     if let sourceApp { lines.append("Source app: \(sourceApp)") }
     if let windowTitle { lines.append("Window title: \(windowTitle)") }
     if let confidence { lines.append("Extraction confidence: \(Int(confidence * 100))%") }

@@ -12,4 +12,8 @@ enum AuthLogPrivacy {
   static func responseParsingFailure(_ operation: String, _: Data) -> String {
     "INTENTIVE AUTH: \(operation) returned an invalid response"
   }
+
+  static func idTokenProfileClaimsExtracted(_: [String: Any]) -> String {
+    "INTENTIVE AUTH: Extracted profile claims from id_token"
+  }
 }

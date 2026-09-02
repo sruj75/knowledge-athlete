@@ -314,7 +314,7 @@ class ShortcutSettings: ObservableObject {
 
   @Published var askOmiEnabled: Bool {
     didSet {
-      UserDefaults.standard.set(askOmiEnabled, forKey: "shortcut_askIntentiveEnabled")
+      UserDefaults.standard.set(askOmiEnabled, forKey: .shortcutAskIntentiveEnabled)
       postAskOmiShortcutChangedIfNeeded()
     }
   }
@@ -579,7 +579,7 @@ class ShortcutSettings: ObservableObject {
         legacyMapper: Self.legacyAskOmiShortcut
       ) ?? Self.defaultAskOmiShortcut
 
-    self.askOmiEnabled = UserDefaults.standard.object(forKey: "shortcut_askIntentiveEnabled") as? Bool ?? true
+    self.askOmiEnabled = UserDefaults.standard.object(forKey: .shortcutAskIntentiveEnabled) as? Bool ?? true
     self.pttEnabled = UserDefaults.standard.object(forKey: "shortcut_pttEnabled") as? Bool ?? true
     self.doubleTapForLock = UserDefaults.standard.object(forKey: "shortcut_doubleTapForLock") as? Bool ?? true
     self.solidBackground = UserDefaults.standard.object(forKey: "shortcut_solidBackground") as? Bool ?? false

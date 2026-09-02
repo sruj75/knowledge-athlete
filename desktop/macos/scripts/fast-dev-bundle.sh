@@ -85,7 +85,6 @@ for path in [
     "Desktop/Omi.entitlements",
     "Desktop/Node.entitlements",
     "Desktop/Omi-Release.entitlements",
-    "Desktop/Sources/GoogleService-Info.plist",
     "Desktop/Sources/GoogleService-Info-Dev.plist",
     "Desktop/Sources/GoogleService-Info-Local.plist",
     "scripts/app-config.sh",

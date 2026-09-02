@@ -50,5 +50,9 @@ final class TaskDetailMetadataProjectionTests: XCTestCase {
 
     XCTAssertEqual(task.sourceLabel, "Task")
     XCTAssertEqual(task.sourceIcon, "list.bullet")
+    XCTAssertEqual(task.externalSource, "task")
+    XCTAssertEqual(task.sourceDetail, "Task (task)")
+    XCTAssertTrue(task.chatContext.contains("Source: Task (task)"))
+    XCTAssertFalse(task.chatContext.lowercased().contains("omi"))
   }
 }

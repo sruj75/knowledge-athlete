@@ -1158,9 +1158,9 @@ public class ProactiveAssistantsPlugin: NSObject {
       let message = payload["message"]?.trimmingCharacters(in: .whitespacesAndNewlines)
       let assistantId = payload["assistantId"]?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-      let resolvedTitle = title?.isEmpty == false ? title! : "Insight"
-      let resolvedMessage = message?.isEmpty == false ? message! : "Test notification from Intentive"
-      let resolvedAssistantId = assistantId?.isEmpty == false ? assistantId! : "insight"
+      let resolvedTitle = title.flatMap { $0.isEmpty ? nil : $0 } ?? "Insight"
+      let resolvedMessage = message.flatMap { $0.isEmpty ? nil : $0 } ?? "Test notification from Intentive"
+      let resolvedAssistantId = assistantId.flatMap { $0.isEmpty ? nil : $0 } ?? "insight"
 
       let context = FloatingBarNotificationContext(
         sourceTitle: resolvedTitle,

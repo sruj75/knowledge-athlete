@@ -84,13 +84,12 @@ let package = Package(
         "FloatingControlBar/ARCHITECTURE.md",
       ],
       resources: [
-        .process("GoogleService-Info.plist"),
         // Bundles everything under Resources/ (incl. *_logo.png brand marks,
         // signin_bg.png, and Resources/Fonts/*.ttf — Geist / Geist Mono fonts).
         // NOTE: SwiftPM caches the resource manifest, so new files added to
         // Resources/ are only picked up when the manifest regenerates — editing
         // this file forces incremental builds to re-scan and include them.
-        .process("Resources"),
+        .process("Resources")
       ],
       swiftSettings: [
         .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
