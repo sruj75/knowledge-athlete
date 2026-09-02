@@ -142,8 +142,28 @@ def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inp
     assert all(binding.get('version') != 'latest' for binding in backend['secrets'].values())
 
 
-@pytest.mark.parametrize(('env_name', 'minimum', 'maximum'), [('dev', '0', '3'), ('prod', '1', '10')])
-def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, maximum):
+@pytest.mark.parametrize(
+    ('env_name', 'network_flags', 'cpu', 'memory', 'minimum', 'maximum', 'cpu_mode'),
+    [
+        ('dev', {}, '1', '2Gi', '0', '1', '--cpu-throttling'),
+        (
+            'prod',
+            {
+                '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+                '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+                '--vpc-egress': 'private-ranges-only',
+            },
+            '2',
+            '4Gi',
+            '1',
+            '10',
+            '--no-cpu-throttling',
+        ),
+    ],
+)
+def test_canonical_cloud_run_contract_is_explicit_and_owned(
+    env_name, network_flags, cpu, memory, minimum, maximum, cpu_mode
+):
     validator = load_validator()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
     env_config = manifest['environments'][env_name]
@@ -153,14 +173,10 @@ def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, m
     assert env_config['gcp_project'] == {'env_var': 'GCP_PROJECT_ID'}
     assert env_config['runtime_gcp_project'] == {'env_var': 'RUNTIME_GCP_PROJECT_ID'}
     assert env_config['region'] == 'us-west1'
-    assert cloud_run['network']['flags'] == {
-        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-        '--vpc-egress': 'private-ranges-only',
-    }
-    assert backend['flags'] == {
-        '--cpu': '2',
-        '--memory': '4Gi',
+    assert cloud_run['network']['flags'] == network_flags
+    expected_flags = {
+        '--cpu': cpu,
+        '--memory': memory,
         '--concurrency': '20',
         '--timeout': '3600s',
         '--min-instances': minimum,
@@ -168,11 +184,12 @@ def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, m
         '--execution-environment': 'gen2',
         '--allow-unauthenticated': True,
         '--no-session-affinity': True,
-        '--no-cpu-throttling': True,
+        cpu_mode: True,
         '--no-cpu-boost': True,
         '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
         '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
     }
+    assert backend['flags'] == expected_flags
 
 
 def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift(tmp_path):
@@ -190,31 +207,41 @@ def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift
     assert any('OPENAI_API_KEY must select an exact version input' in error.message for error in errors)
 
 
-@pytest.mark.parametrize(
-    ('env_name', 'redis_tier', 'alerts'),
-    [
-        ('dev', 'BASIC', []),
-        ('prod', 'STANDARD_HA', ['health_unreachable', 'cloud_run_5xx']),
-    ],
-)
-def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, redis_tier, alerts):
+@pytest.mark.parametrize(('env_name', 'alerts'), [('dev', []), ('prod', ['health_unreachable', 'cloud_run_5xx'])])
+def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, alerts):
     validator = load_validator()
     foundation = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments'][env_name]['foundation']
 
-    assert foundation['network']['region'] == 'us-west1'
-    assert foundation['network']['private_service_access'] == {
-        'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
-        'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
-    }
-    assert foundation['redis'] == {
-        'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
-        'region': 'us-west1',
-        'tier': redis_tier,
-        'memory_gib': 1,
-        'private_service_access': True,
-        'auth': True,
-        'transit_encryption': 'SERVER_AUTHENTICATION',
-    }
+    if env_name == 'dev':
+        assert foundation['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
+        assert foundation['redis'] == {
+            'provider': 'upstash',
+            'database': 'intentive-development',
+            'region': 'us-west-2',
+            'plan': 'free',
+            'endpoint': {
+                'host': {'env_var': 'REDIS_DB_HOST'},
+                'port': {'env_var': 'REDIS_DB_PORT'},
+            },
+            'auth': True,
+            'transit_encryption': 'TLS',
+            'verification': 'runtime-tls-probe',
+        }
+    else:
+        assert foundation['network']['region'] == 'us-west1'
+        assert foundation['network']['private_service_access'] == {
+            'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
+            'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
+        }
+        assert foundation['redis'] == {
+            'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
+            'region': 'us-west1',
+            'tier': 'STANDARD_HA',
+            'memory_gib': 1,
+            'private_service_access': True,
+            'auth': True,
+            'transit_encryption': 'SERVER_AUTHENTICATION',
+        }
     assert foundation['tasks']['queue'] == {
         'name': 'account-deletion',
         'location': 'us-west1',
@@ -1003,3 +1030,18 @@ def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract
     assert flags['--service-account'] == 'runtime@owned-prod.iam.gserviceaccount.com'
     assert flags['--no-cpu-throttling'] == 'true'
     assert flags['--startup-probe'].startswith('httpGet.path=/v1/health,periodSeconds=10')
+
+
+def test_live_cloud_run_describe_normalizes_request_based_cpu() -> None:
+    validator = load_validator()
+
+    flags = validator._cloud_run_service_flags_from_state(
+        annotations={'run.googleapis.com/cpu-throttling': 'true'},
+        template_spec={},
+        container={},
+        service_config={'forbidden_env': []},
+        env_entries=[],
+    )
+
+    assert flags['--cpu-throttling'] == 'true'
+    assert '--no-cpu-throttling' not in flags

@@ -302,29 +302,31 @@ def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> 
 
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     network = _as_config_dict(cloud_run.get('network')) or {}
-    expected_network = {
-        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-        '--vpc-egress': 'private-ranges-only',
-    }
+    expected_network = (
+        {}
+        if env == 'dev'
+        else {
+            '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+            '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+            '--vpc-egress': 'private-ranges-only',
+        }
+    )
     if network.get('flags') != expected_network:
-        errors.append(
-            ValidationError(scope, 'private network flags must use owned inputs and private-ranges-only egress')
-        )
+        errors.append(ValidationError(scope, 'network flags must match the environment-owned connectivity profile'))
 
     services = _as_config_dict(cloud_run.get('services')) or {}
     backend = _as_config_dict(services.get('backend')) or {}
     expected_flags: ConfigDict = {
-        '--cpu': '2',
-        '--memory': '4Gi',
+        '--cpu': '1' if env == 'dev' else '2',
+        '--memory': '2Gi' if env == 'dev' else '4Gi',
         '--concurrency': '20',
         '--timeout': '3600s',
         '--min-instances': '0' if env == 'dev' else '1',
-        '--max-instances': '3' if env == 'dev' else '10',
+        '--max-instances': '1' if env == 'dev' else '10',
         '--execution-environment': 'gen2',
         '--allow-unauthenticated': True,
         '--no-session-affinity': True,
-        '--no-cpu-throttling': True,
+        '--cpu-throttling' if env == 'dev' else '--no-cpu-throttling': True,
         '--no-cpu-boost': True,
         '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
         '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
@@ -1579,8 +1581,11 @@ def _cloud_run_service_flags_from_state(
             flags[flag] = str(value)
     if annotations.get('run.googleapis.com/sessionAffinity') == 'false':
         flags['--no-session-affinity'] = 'true'
-    if annotations.get('run.googleapis.com/cpu-throttling') == 'false':
+    cpu_throttling = annotations.get('run.googleapis.com/cpu-throttling')
+    if cpu_throttling == 'false':
         flags['--no-cpu-throttling'] = 'true'
+    elif cpu_throttling == 'true':
+        flags['--cpu-throttling'] = 'true'
     if annotations.get('run.googleapis.com/startup-cpu-boost') == 'false':
         flags['--no-cpu-boost'] = 'true'
     for flag, key in (('--startup-probe', 'startupProbe'), ('--liveness-probe', 'livenessProbe')):

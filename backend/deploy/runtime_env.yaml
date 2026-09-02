@@ -29,19 +29,18 @@ environments:
               - .github/workflows/gcp_firestore_indexes.yml
       network:
         region: us-west1
-        vpc: {env_var: CLOUD_RUN_VPC_NETWORK}
-        subnet: {env_var: CLOUD_RUN_VPC_SUBNET}
-        private_service_access:
-          range_name: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_NAME}
-          range_cidr: {env_var: PRIVATE_SERVICE_ACCESS_RANGE_CIDR}
+        connectivity: public-egress
       redis:
-        instance_name: {env_var: REDIS_INSTANCE_NAME}
-        region: us-west1
-        tier: BASIC
-        memory_gib: 1
-        private_service_access: true
+        provider: upstash
+        database: intentive-development
+        region: us-west-2
+        plan: free
+        endpoint:
+          host: {env_var: REDIS_DB_HOST}
+          port: {env_var: REDIS_DB_PORT}
         auth: true
-        transit_encryption: SERVER_AUTHENTICATION
+        transit_encryption: TLS
+        verification: runtime-tls-probe
       firestore:
         project: {env_var: RUNTIME_GCP_PROJECT_ID}
         database: (default)
@@ -99,12 +98,7 @@ environments:
         - .github/workflows/gcp_backend_auto_dev.yml
         - .github/workflows/gcp_backend.yml
       network:
-        flags:
-          --network:
-            env_var: CLOUD_RUN_VPC_NETWORK
-          --subnet:
-            env_var: CLOUD_RUN_VPC_SUBNET
-          --vpc-egress: private-ranges-only
+        flags: {}
       services:
         backend:
           service_account:
@@ -113,16 +107,16 @@ environments:
             - SERVICE_ACCOUNT_JSON
             - GOOGLE_APPLICATION_CREDENTIALS
           flags:
-            --cpu: '2'
-            --memory: 4Gi
+            --cpu: '1'
+            --memory: 2Gi
             --concurrency: '20'
             --timeout: 3600s
             --min-instances: '0'
-            --max-instances: '3'
+            --max-instances: '1'
             --execution-environment: gen2
             --allow-unauthenticated: true
             --no-session-affinity: true
-            --no-cpu-throttling: true
+            --cpu-throttling: true
             --no-cpu-boost: true
             --startup-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24
             --liveness-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5
