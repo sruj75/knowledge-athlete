@@ -6,6 +6,7 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ExternalSurfaceRetirement.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+ProactiveAuthorityRetirement.swift
+  - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase+TaskSourceIdentity.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
 preconditions:
   - named_test_bundle_only
@@ -14,7 +15,7 @@ preconditions:
 steps:
   - id: S1
     name: Seed legacy and retained rows
-    do: "For a disposable named bundle, seed indexed_files, local_kg_nodes, local_kg_edges, a memory visibility value, and a transcription appsResultsJson value together with retained Memory, Task, and Conversation rows."
+    do: "For a disposable named bundle, seed indexed_files, local_kg_nodes, local_kg_edges, a memory visibility value, a transcription appsResultsJson value, and a Task with source transcription:omi together with retained Memory, Task, and Conversation rows."
     expect:
       interactive_count: { min: 1 }
 
@@ -26,7 +27,7 @@ steps:
 
   - id: S3
     name: Inspect the upgraded schema
-    do: "Inspect the disposable database. Verify indexed_files, local_kg_nodes, and local_kg_edges are absent; memories.visibility and transcription_sessions.appsResultsJson are absent; retained Memory, Task, and Conversation rows are unchanged."
+    do: "Inspect the disposable database. Verify indexed_files, local_kg_nodes, and local_kg_edges are absent; memories.visibility and transcription_sessions.appsResultsJson are absent; the legacy Task source is now task; and other retained Memory, Task, and Conversation rows are unchanged."
     expect:
       interactive_count: { min: 1 }
 

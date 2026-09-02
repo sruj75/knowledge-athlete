@@ -205,6 +205,34 @@ final class ChatToolExecutorSQLTests: XCTestCase {
     XCTAssertEqual(remainingRows, 0)
   }
 
+  func testRetiredTaskSourceMigrationNeutralizesExecuteSQLProjection() async throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("task-source-identity-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let pool = try DatabasePool(path: directory.appendingPathComponent("test.sqlite").path)
+    try await pool.write { db in
+      try db.execute(sql: "CREATE TABLE action_items (id INTEGER PRIMARY KEY, source TEXT)")
+      try db.execute(
+        sql: "INSERT INTO action_items (id, source) VALUES (1, 'transcription:omi'), (2, 'assistant')"
+      )
+    }
+    var migrator = DatabaseMigrator()
+    RewindDatabase.registerTaskSourceIdentityMigration(on: &migrator)
+    try migrator.migrate(pool)
+
+    let result = await ChatToolExecutor.executeSQL(
+      ["query": "SELECT source FROM action_items ORDER BY id"],
+      dbQueue: pool,
+      expectedOwnerID: nil
+    )
+
+    XCTAssertTrue(result.contains("task"))
+    XCTAssertTrue(result.contains("assistant"))
+    XCTAssertFalse(result.lowercased().contains("omi"))
+  }
+
   func testPostDMLOwnerRevocationRollsBackPrimarySQLWrite() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("owner-bound-sql-\(UUID().uuidString)", isDirectory: true)

@@ -56,7 +56,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertNotNil(cols["completed"])
     XCTAssertNotNil(cols["priority"])
     XCTAssertNotNil(cols["screenshotId"])
-    XCTAssertEqual(cols["source"], "Origin: screenshot | conversation | manual | recurring")
+    XCTAssertEqual(cols["source"], "Origin: assistant | conversation | manual | recurring | screenshot | task")
     XCTAssertFalse(cols["source"]?.lowercased().contains("omi") ?? true)
   }
 

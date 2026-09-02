@@ -2538,7 +2538,6 @@ actor RewindDatabase {
         t.add(column: "clientDeviceId", .text)
       }
     }
-
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
     Self.registerMemoryLocalAuthorityMigration(on: &migrator)
@@ -2550,6 +2549,7 @@ actor RewindDatabase {
     }
     Self.registerProactiveAuthorityRetirementMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
+    Self.registerTaskSourceIdentityMigration(on: &migrator)
     try migrator.migrate(queue)
   }
 
