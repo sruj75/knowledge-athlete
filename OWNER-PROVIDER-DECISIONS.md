@@ -97,7 +97,7 @@ Last confirmed: 2026-09-02
   - Queue `account-deletion` is running in `us-west1`, with one maximum concurrent dispatch, one dispatch per second, and five attempts. Cloud Tasks remains usage-billed after its free allowance; the queue has no idle compute charge.
   - GitHub `development` has the owned non-secret coordinates, exact Secret Manager version numbers, public Google OAuth client ID, and public Upstash TLS CA chain required by the manifest. Secret values remain only in Secret Manager. No corresponding production variables were configured.
   - The manifest claim policies and IAM metadata were verified read-only. A real GitHub OIDC exchange and exact-main deployment remain deferred until the workflow commit lands on `main`; the trust provider correctly rejects feature-branch execution.
-- The Cloud Billing Budget API is not enabled in `knowledge-athlete`, so no live budget-alert inventory has been verified. Enabling that API and configuring alerts is a separate cost-observability step; alerts warn but do not cap spend.
+- Configured 2026-09-02: the Cloud Billing Budget API is enabled and monthly alert-only budget `Intentive development monthly alert` is scoped only to project `knowledge-athlete`. It warns `srujan@heyintentive.com` at 50%, 80%, and 100% of INR 100 through notification channel `projects/knowledge-athlete/notificationChannels/6865909329028813232`; default billing-IAM recipients and automated spend actions are disabled. This is warning coverage, not a hard cap.
 - Do not deploy a production service or publish a release until the owner separately authorizes the release stage after all slices and product cleanup are complete.
 
 ## Redis topology
@@ -182,7 +182,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Retire the active service's cross-project recovery-image dependency by building and serving an immutable backend image from `knowledge-athlete/us-west1/intentive`.
 - [ ] OpenAI TTS-only key version 1, Gemini authorization key version 2, Modulate key version 1, and both Langfuse version 1 credentials are prepared and selected by the development GitHub environment. Bind them only as part of the next complete development deployment, then prove the authenticated backend TTS route, a real Gemini turn, one real fail-open Langfuse trace, and real Modulate batch/streaming continuity. Do not create Anthropic or Artificial Analysis credentials. No provider secret may be invented, committed, or copied from Omi.
 - [x] Admit public Cloud Run invocation while retaining Firebase authentication on protected routes, and point development desktop defaults at the discovered owned URL.
-- [ ] Enable the Cloud Billing Budget API and configure owner-approved alerts if cost notifications are wanted. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
+- [x] Enable the Cloud Billing Budget API and configure the owner-approved INR 100 monthly alerts at 50%, 80%, and 100%. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
 
 ### Needed before Codemagic can build a signed candidate
 
