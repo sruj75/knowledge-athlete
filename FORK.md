@@ -126,9 +126,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   through 2030-11-18. Codemagic still needs the supplied `.p12` password, active Apple
   membership, and notarization credentials.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
-  `intentive-macos-release` / `intentive-macos-preview`. Protected provider groups, the GitHub
-  release app/token boundary, trusted Intentive M1 runner, production backend/feed, public site,
-  and approved legal/support destinations are not configured.
+  `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, Sparkle
+  keypair, and Sentry token are protected; the remaining provider-group fields, GitHub release
+  app/token boundary, trusted Intentive M1 runner, production backend/feed, public site, and
+  approved legal/support destinations are not configured.
 - An approved Intentive app icon, mark, wordmark, and any replacement sign-in backdrop
   are still required before a candidate can be called visually rebranded.
 - The complete beginner-facing checklist and account map are tracked in
