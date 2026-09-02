@@ -16,6 +16,7 @@ final class ProductAnalyticsConsentControllerTests: XCTestCase {
   }
 
   private final class Adapter: ProductAnalyticsConsentAdapter {
+    var isEnvironmentEligible = true
     var startSucceeds = true
     var events: [String] = []
 
@@ -92,5 +93,21 @@ final class ProductAnalyticsConsentControllerTests: XCTestCase {
     XCTAssertEqual(adapter.events, ["start", "resume"])
     XCTAssertTrue(store.value ?? false)
     XCTAssertEqual(controller.status, .enabled)
+  }
+
+  func testNonProductionEnvironmentNeverStartsWhenRuntimeConsentIsReenabled() {
+    let store = Store(true)
+    let adapter = Adapter()
+    adapter.isEnvironmentEligible = false
+    let controller = ProductAnalyticsConsentController(store: store, adapter: adapter)
+
+    controller.start()
+    controller.setSharingEnabled(false)
+    controller.setSharingEnabled(true)
+    controller.identify()
+
+    XCTAssertEqual(adapter.events, [])
+    XCTAssertTrue(store.value ?? false)
+    XCTAssertEqual(controller.status, .disabledForEnvironment)
   }
 }

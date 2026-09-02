@@ -49,7 +49,7 @@ steps:
   - id: S7
     name: Capture Ask Intentive Visual
     visual.export:
-      name: ask-omi-open
+      name: ask-intentive-open
       target: floating
 
   - id: S8

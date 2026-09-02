@@ -110,7 +110,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `privacy-settings` | v2 | typed bridge | 2 | Privacy toggle snapshot |
 | `conversation-folders` | v2 | typed bridge | 2 | Folder create + starred + extended list snapshot |
 | `speaker-naming` | v2 | typed bridge | 2 | Multi-speaker inject + assign fixture |
-| `ask-omi-*-benchmark` | v1 | typed bridge | 3 | Perf benchmarks |
+| `ask-intentive-*-benchmark` | v1 | typed bridge | 3 | Perf benchmarks |
 | `desktop-responsiveness-benchmark` | v1 | typed bridge | 3 | Perf |
 | `subagent-row-benchmark` | v1 | typed bridge | 3 | Perf |
 | `audio-recording` | v2 | manual `do:` | manual | Needs mic permission |

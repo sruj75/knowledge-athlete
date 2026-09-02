@@ -9,6 +9,7 @@ protocol ProductAnalyticsPreferenceStore: AnyObject {
 
 @MainActor
 protocol ProductAnalyticsConsentAdapter: AnyObject {
+  var isEnvironmentEligible: Bool { get }
   func start() -> Bool
   func resume()
   func identify()
@@ -41,6 +42,7 @@ final class ProductAnalyticsConsentController: ObservableObject {
     case notStarted = "not_started"
     case enabled
     case disabledByUser = "disabled_by_user"
+    case disabledForEnvironment = "disabled_for_environment"
     case configurationUnavailable = "configuration_unavailable"
 
     var detail: String {
@@ -51,6 +53,8 @@ final class ProductAnalyticsConsentController: ObservableObject {
         return "Product analytics sharing is on."
       case .disabledByUser:
         return "Product analytics sharing is off."
+      case .disabledForEnvironment:
+        return "Product analytics are disabled in non-production builds."
       case .configurationUnavailable:
         return "No owned PostHog configuration is available, so no product analytics are being sent."
       }
@@ -80,6 +84,10 @@ final class ProductAnalyticsConsentController: ObservableObject {
       status = .disabledByUser
       return
     }
+    guard adapter.isEnvironmentEligible else {
+      status = .disabledForEnvironment
+      return
+    }
     isActive = adapter.start()
     status = isActive ? .enabled : .configurationUnavailable
   }
@@ -95,6 +103,12 @@ final class ProductAnalyticsConsentController: ObservableObject {
       }
       isActive = false
       status = .disabledByUser
+      return
+    }
+
+    guard adapter.isEnvironmentEligible else {
+      isActive = false
+      status = .disabledForEnvironment
       return
     }
 

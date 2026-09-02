@@ -240,6 +240,10 @@ class PostHogManager {
 }
 
 extension PostHogManager: ProductAnalyticsConsentAdapter {
+  var isEnvironmentEligible: Bool {
+    !AnalyticsManager.isDevBuild
+  }
+
   func start() -> Bool {
     initialize()
   }

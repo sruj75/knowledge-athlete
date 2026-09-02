@@ -68,6 +68,7 @@ const MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION = 29;
 const LOCAL_CHAT_CATALOG_MIGRATION_VERSION = 31;
 const DROP_CHAT_PROJECTION_MIGRATION_VERSION = 32;
 const GEMINI_MODEL_PROFILE_MIGRATION_VERSION = 33;
+const INTENTIVE_ARTIFACT_DELIVERY_TARGET_MIGRATION_VERSION = 34;
 const RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS = [22, 23, 24, 26, 28] as const;
 
 const ACTIVE_ATTEMPT_STATUSES = ["queued", "starting", "running", "waiting_input", "waiting_approval", "cancelling"] as const;
@@ -539,6 +540,9 @@ export class SqliteAgentStore implements AgentStore {
     }
     if (!this.hasMigration(GEMINI_MODEL_PROFILE_MIGRATION_VERSION)) {
       runGeminiModelProfileMigration(this.db, this.nowMs(), this.canonicalExecutionProfile);
+    }
+    if (!this.hasMigration(INTENTIVE_ARTIFACT_DELIVERY_TARGET_MIGRATION_VERSION)) {
+      runIntentiveArtifactDeliveryTargetMigration(this.db, this.nowMs());
     }
   }
 
@@ -2054,6 +2058,63 @@ function runDesktopArtifactDeliveriesMigration(db: Pick<DatabaseSync, "exec" | "
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       DESKTOP_ARTIFACT_DELIVERIES_MIGRATION_VERSION,
+      appliedAtMs,
+    );
+  });
+}
+
+function runIntentiveArtifactDeliveryTargetMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+): void {
+  runTransaction(db, () => {
+    db.exec(`
+      CREATE TABLE desktop_artifact_deliveries_intentive(
+        delivery_id TEXT PRIMARY KEY,
+        artifact_id TEXT NOT NULL REFERENCES artifacts(artifact_id) ON DELETE CASCADE,
+        owner_id TEXT NOT NULL,
+        source_session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+        source_run_id TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
+        source_attempt_id TEXT REFERENCES run_attempts(attempt_id) ON DELETE SET NULL,
+        intended_surface TEXT NOT NULL,
+        target_kind TEXT NOT NULL CHECK (target_kind IN ('ask_intentive','local_file','external_draft')),
+        target_ref TEXT,
+        content_hash TEXT,
+        review_status TEXT NOT NULL CHECK (review_status IN ('not_required','pending','approved','rejected')),
+        delivery_status TEXT NOT NULL CHECK (delivery_status IN ('pending','delivered','failed','retrying','cancelled')),
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        receipt_json TEXT CHECK (receipt_json IS NULL OR json_valid(receipt_json)),
+        error_json TEXT CHECK (error_json IS NULL OR json_valid(error_json)),
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        delivered_at_ms INTEGER
+      ) STRICT;
+
+      INSERT INTO desktop_artifact_deliveries_intentive(
+        delivery_id, artifact_id, owner_id, source_session_id, source_run_id,
+        source_attempt_id, intended_surface, target_kind, target_ref, content_hash,
+        review_status, delivery_status, attempt_count, receipt_json, error_json,
+        created_at_ms, updated_at_ms, delivered_at_ms
+      )
+      SELECT delivery_id, artifact_id, owner_id, source_session_id, source_run_id,
+             source_attempt_id, intended_surface,
+             CASE target_kind WHEN 'ask_omi' THEN 'ask_intentive' ELSE target_kind END,
+             target_ref, content_hash, review_status, delivery_status, attempt_count,
+             receipt_json, error_json, created_at_ms, updated_at_ms, delivered_at_ms
+      FROM desktop_artifact_deliveries;
+
+      DROP TABLE desktop_artifact_deliveries;
+      ALTER TABLE desktop_artifact_deliveries_intentive RENAME TO desktop_artifact_deliveries;
+
+      CREATE INDEX desktop_artifact_deliveries_owner_status_idx
+        ON desktop_artifact_deliveries(owner_id, delivery_status, updated_at_ms DESC);
+      CREATE INDEX desktop_artifact_deliveries_artifact_idx
+        ON desktop_artifact_deliveries(artifact_id, created_at_ms DESC);
+      CREATE INDEX desktop_artifact_deliveries_source_idx
+        ON desktop_artifact_deliveries(source_session_id, source_run_id, updated_at_ms DESC);
+    `);
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
+      INTENTIVE_ARTIFACT_DELIVERY_TARGET_MIGRATION_VERSION,
       appliedAtMs,
     );
   });

@@ -108,6 +108,10 @@ struct OMIApp: App {
     return version.isEmpty ? title : "\(title) v\(version)"
   }
 
+  static func isMainAppWindowTitle(_ title: String) -> Bool {
+    DesktopShellIdentityCopy.isProductWindowTitle(title)
+  }
+
   /// Window size based on launch mode
   private var defaultWindowSize: CGSize {
     Self.launchMode == .rewind ? CGSize(width: 1000, height: 700) : CGSize(width: 1200, height: 800)
@@ -679,7 +683,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   private static func isMainOmiWindow(_ window: NSWindow) -> Bool {
-    MainActor.assumeIsolated { window.title.lowercased().hasPrefix("intentive") }
+    MainActor.assumeIsolated { OMIApp.isMainAppWindowTitle(window.title) }
   }
 
   /// Run the narrow, bundle-local maintenance required for update integrity.
@@ -720,7 +724,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
           NSApp.activate()
           // Find and show main window
           for window in NSApp.windows {
-            if window.title.hasPrefix("Intentive") {
+            if Self.isMainOmiWindow(window) {
               window.makeKeyAndOrderFront(nil)
               break
             }
@@ -1179,7 +1183,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     // Always try to show the main Intentive window when dock icon is clicked
-    for window in sender.windows where window.title.hasPrefix("Intentive") {
+    for window in sender.windows where Self.isMainOmiWindow(window) {
       if window.isMiniaturized {
         window.deminiaturize(nil)
       }

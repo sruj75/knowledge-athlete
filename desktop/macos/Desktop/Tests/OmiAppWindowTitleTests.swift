@@ -53,4 +53,8 @@ final class OmiAppWindowTitleTests: XCTestCase {
         isNonProduction: false),
       "Intentive Rewind v0.12.70")
   }
+
+  func testNamedBundleTitleIsRecognizedByMainWindowBehaviors() {
+    XCTAssertTrue(OMIApp.isMainAppWindowTitle("omi-wave6-s30 v0.12.73"))
+  }
 }
