@@ -188,7 +188,7 @@ do not hand-edit those paths to match a specific machine.
 
 ### Authentication
 - Firebase Auth is native Apple/Google on iOS; desktop uses `/v1/auth/authorize` plus a custom token.
-- Apple Services ID: `me.omi.web` (shared across all apps).
+- Apple Services ID: not yet approved or provisioned. Never reuse inherited `me.omi.web`; signed native Apple sign-in remains fail-closed until the owner supplies the Intentive identifier and capability.
 - `AuthSessionCoordinator` owns session death (`INV-AUTH-1`); expired/revoked credentials use `invalidateSession`, never `signOut()`.
 
 #### Session vs provider 401
@@ -530,15 +530,4 @@ Guidelines:
 
 ## User Task Completion Reporting
 
-When completing a task that was triggered by an app user request (bug report, feature request, support inquiry, etc.) and you have the user's email address, **send them an email about the results** using the `omi-email` skill:
-
-```bash
-node ../omi-analytics/scripts/send-email.js \
-  --to "<user-email>" \
-  --subject "<brief result summary>" \
-  --body "<what was done, what they should expect, any next steps>"
-```
-
-- Write as Matt (first person "I", not "we") — the user already has an ongoing email thread with us, so treat this as a casual continuation of that conversation, not a fresh introduction
-- Be concise and direct — they know the context, just share what was done and any next steps (e.g. "update the app")
-- Only send when there are meaningful results to share (don't email for internal-only changes)
+No owned product-support sender is approved. Do not use `omi-analytics`, inherited sender identities, or user email addresses for completion notices; report results only through the channel that originated the task.

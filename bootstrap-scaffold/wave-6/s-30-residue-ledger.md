@@ -35,6 +35,7 @@ line numbers.
 | `DesktopProductIdentity`, `Info.plist`, `AppBuild` | Finder, bundle routing, OAuth, updater | Omi bundle/display family | `Intentive`; `com.heyintentive.intentive{,.beta,.dev}`; owned named/preview prefixes | Owner decisions; S-28/S-29 | Migrated, C1 | `AppBuildIdentityTests`, `AppBuildBetaIdentityTests`, named-bundle health/state |
 | `Info.plist` permission descriptions | macOS system prompts | Omi | Intentive | Owner decisions | Migrated, C1 | `AppBuildIdentityTests`; compiled named bundle |
 | `AuthOwnerTransition`, `AuthStorageCanary`, OAuth callback surfaces | Keychain/defaults/callback | Omi user-visible identity and old callback scheme | Intentive copy and `heyintentive://auth/callback` family | S-08/S-28 | Migrated, C2 | `SignInIdentityPresentationTests`, `OAuthLoopbackCallbackServerTests`, backend redirect tests |
+| `AuthLogPrivacy`, `AuthService` diagnostics | Local logs and submitted redacted diagnostics | OAuth callback URLs and raw Firebase response bodies could expose credentials/PII | Event, operation, and HTTP status only; response bytes are deliberately ignored | Logging security rule; S-09 | Sanitized, C2/C10 | `AuthTokenDecodingTests` privacy cases |
 | `SignInView`, `OAuthLoopbackCallbackServer` | Sign-in screen and browser return HTML | Omi | Intentive | Owner decisions | Migrated, C2 | rendered named-bundle onboarding; callback tests |
 | `SBOnboarding*`, opener and permission guidance | Onboarding UI | Omi identity/repository text | Intentive and `sruj75/knowledge-athlete` | S-17; owner decisions | Migrated without state-machine change, C3 | onboarding copy/repository/flow tests |
 | `DesktopShellIdentityCopy` and current shell call sites | Home, Chat, floating bar, menu, accessibility | Omi user-visible nouns | Intentive | Owner decisions | Migrated, C4 | shell identity and affected view-model tests; named-bundle flows |
@@ -57,6 +58,9 @@ line numbers.
 | Dodo `BillingConfig` | API/UI billing behavior | inherited API fallback | disabled means no provider/base URL/calls; enabled mode requires explicit base URL | Post-Wave-6 gate | Fail closed, C5/C9 | billing-mode and config tests |
 | Modulate reproduction script | Developer-only diagnostic | inherited `omi-pr-assets` download | caller supplies an approved local fixture | Owner asset/provenance rule | Inherited network asset deleted, C10 | script/README inspection |
 | `utils/retrieval/tools/omi_tools.py` | No reachable runtime caller | obsolete Omi product-info helper | deleted with package export and orphaned unit test | IR-897; caller proof | Deleted, C10 | repository caller search |
+| task source display and Chat schema annotation | Current task UI and Gemini schema context | caller-free `transcription:omi` label/icon and `omi` origin instruction | legacy value falls through to neutral Task presentation; model sees only retained source values | S-30 current rendered/model identity | Removed/neutralized, C10 | task metadata and Chat discoverability tests |
+| `backend/.github/workflows/{push_replicate,google-cloudrun-docker}.yml` | Inert nested workflow controls | absent Replicate VAD tree and inherited Cloud Run service | deleted | IR-897 | Deleted, C10 | source/caller search |
+| onboarding Figma sync install/run/uninstall scripts | Local LaunchAgent and external Figma mutation | broken source path plus inherited, unapproved Figma destination | deleted; no external sync occurs until an owned destination is supplied | Owner asset gate; S-30 no-live-mutation rule | Fail closed, C10 | source/caller search |
 
 ## Data-flow truth matrix
 
@@ -113,6 +117,8 @@ provider trademark terms.
 | `Desktop/Sources/Resources/permissions.gif` | Active permission guidance | contains visible `OMI-COMPUTER` system-prompt recording | Supply Intentive recording/source; preserve dimensions and interaction semantics |
 | `Desktop/Sources/Resources/microphone-settings.png` | Active microphone guidance | contains visible Omi identity | Supply Intentive replacement; preserve dimensions and guidance semantics |
 | `accessibility_permission.gif`, `enabling_token.gif`, `omi_text_logo.png`, `onboarding_mac_lineup.png`, `omi-with-rope-no-padding.webp`, `omi-demo.mp4`, `omi_notch_logo.svg`, `tray_icon.png` | Packaged but no current non-test caller found | inherited Omi/hardware/demo media, some purple or uncertain provenance | Owner chooses approved replacements or deletion after final caller/provenance review |
+| `Desktop/Sources/Resources/folder_access.png` | Packaged but no current caller found | contains visible `Omi Dev` identity | Owner chooses an Intentive replacement or approves deletion after provenance review |
+| `desktop/macos/docs/oauth-callback-success-preview.png` | Documentation preview only | contains visible `return to Omi` identity | Supply an Intentive documentation preview or approve deletion |
 | `backend/scripts/stt/modulate_repro/test_audio.wav` | Required local fixture is absent | old inherited remote download removed | Supply an owned/licensed 38 s mono PCM16 16 kHz fixture, or approve retirement of the repro |
 
 For each supplied asset, record owner, license/provenance, intended call sites,
@@ -124,6 +130,7 @@ accessibility label. No purple variant is permitted.
 | Missing input / resource | Current safe repository behavior | Closure owner |
 |---|---|---|
 | Final Intentive visual/media pack and provenance | Existing bytes remain untouched as explicit placeholders | Product/design owner |
+| Owned Figma file/page destination for any future onboarding sync | All inherited Figma sync automation is absent; no external design file is mutated | Product/design owner |
 | Owned PostHog project ID/token | Analytics fails closed with no network setup; inherited token is not used | Product/provider owner |
 | Published `heyintentive.com` product/download/preview/Terms/Privacy/support destinations | Website/Terms entries are absent unless an owned HTTPS URL is injected; Privacy & Data remains local; Help Center is absent | Product/legal/release owner |
 | Approved support/privacy contacts | No guessed `support@heyintentive.com` or `privacy@heyintentive.com` ships | Product/legal owner |

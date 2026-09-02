@@ -685,7 +685,7 @@ fi
 cd "$BACKEND_DIR"
 
 if [ "$LOCAL_PROFILE" = true ]; then
-    substep "Omi Dev local harness: skipping backend/.env copy/source and google-credentials bootstrap"
+    substep "Intentive local harness: skipping backend/.env copy/source and google-credentials bootstrap"
 else
 if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" != true ] \
     && { [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ -z "${OMI_PYTHON_API_URL:-}" ]; }; then
@@ -701,7 +701,7 @@ if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BA
     echo ""
     echo "Minimal .env for local dev:"
     echo "  PORT=8080"
-    echo "  FIREBASE_PROJECT_ID=based-hardware-dev"
+    echo "  FIREBASE_PROJECT_ID=knowledge-athlete"
     echo "  FIREBASE_API_KEY=<from GCP console>"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json"
     echo ""
@@ -750,8 +750,7 @@ if [ -z "$FIREBASE_PROJECT_ID" ] && [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
     echo "ERROR: FIREBASE_PROJECT_ID is not set."
     echo ""
     echo "  Add to $BACKEND_DIR/.env:"
-    echo "    FIREBASE_PROJECT_ID=based-hardware       # prod Firestore"
-    echo "    FIREBASE_PROJECT_ID=based-hardware-dev   # dev Firestore"
+    echo "    FIREBASE_PROJECT_ID=knowledge-athlete   # owned MVP Firebase/Firestore project"
     exit 1
 fi
 if [ -n "$FIREBASE_AUTH_PROJECT_ID" ]; then
@@ -1077,7 +1076,7 @@ substep "Copying .env.app"
 if [ "$LOCAL_PROFILE" = true ]; then
     EFFECTIVE_API_URL="$OMI_PYTHON_API_URL"
     omi_write_local_profile_env "$APP_BUNDLE/Contents/Resources/.env"
-    substep "Omi Dev local harness .env contains localhost endpoints/Auth emulator bootstrap only"
+    substep "Intentive local harness .env contains localhost endpoints/Auth emulator bootstrap only"
 else
 if [ -f ".env.app.dev" ]; then
     cp -f .env.app.dev "$APP_BUNDLE/Contents/Resources/.env"
