@@ -1705,7 +1705,15 @@ function providerBudgetFailure(
 function projectProviderPayload(fullPayload: Record<string, unknown>, toolName: string): Record<string, unknown> {
   const originalBytes = Buffer.byteLength(JSON.stringify(fullPayload), "utf8");
   const maximumProjectedBytes = 5 * 1024;
-  for (const limits of [[512, 24, 32], [256, 16, 24], [128, 10, 16], [64, 6, 10]] as const) {
+  const projectionLimits = [
+    [512, 24, 32],
+    [256, 16, 24],
+    [128, 10, 16],
+    [64, 6, 10],
+    [48, 4, 8],
+    [32, 3, 6],
+  ] as const;
+  for (const limits of projectionLimits) {
     const compact = compactProviderPayload(fullPayload, ...limits);
     if (Buffer.byteLength(JSON.stringify(compact), "utf8") <= maximumProjectedBytes) return compact;
   }
