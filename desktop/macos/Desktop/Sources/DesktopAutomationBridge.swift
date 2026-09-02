@@ -3191,9 +3191,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
     guard activateApp else { return }
     await MainActor.run {
       NSApp.activate(ignoringOtherApps: true)
-      if let window = NSApp.windows.first(where: {
-        DesktopShellIdentityCopy.isProductWindowTitle($0.title)
-      }) {
+      if let window = NSApp.windows.first(where: { DesktopShellIdentityCopy.isProductWindowTitle($0.title) }) {
         window.makeKeyAndOrderFront(nil)
       }
     }
@@ -3242,10 +3240,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
       } else if payload.target == "task_thread" {
         window = NSApp.windows.first(where: { $0.title == "Intentive — Task thread scenario" && $0.isVisible })
       } else {
-        window = NSApp.windows.first(where: { window in
-          DesktopShellIdentityCopy.isProductWindowTitle(window.title) || window.isMainWindow
-            || window.isKeyWindow
-        })
+        window = NSApp.windows.first(where: DesktopShellIdentityCopy.isProductOrActiveWindow)
       }
 
       guard

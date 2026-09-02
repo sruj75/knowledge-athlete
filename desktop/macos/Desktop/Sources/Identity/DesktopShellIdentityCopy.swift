@@ -1,3 +1,5 @@
+import AppKit
+
 enum DesktopShellIdentityCopy {
   static let productName = "Intentive"
   static let chatWelcomeTitle = productName
@@ -16,6 +18,10 @@ enum DesktopShellIdentityCopy {
   static func isProductWindowTitle(_ title: String) -> Bool {
     title.localizedCaseInsensitiveContains(productName)
       || title.lowercased().hasPrefix("omi-")
+  }
+
+  @MainActor static func isProductOrActiveWindow(_ window: NSWindow) -> Bool {
+    isProductWindowTitle(window.title) || window.isMainWindow || window.isKeyWindow
   }
 
   static let allText = [

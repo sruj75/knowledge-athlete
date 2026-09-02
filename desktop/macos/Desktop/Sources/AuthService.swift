@@ -1051,9 +1051,7 @@ class AuthService {
           throw AuthError.cancelled
         } catch let firebaseError as NSError {
           // Keychain errors are expected on dev builds - we have REST API tokens as fallback
-          NSLog(
-            "INTENTIVE AUTH: Firebase SDK sign-in failed (using REST API tokens): %@",
-            firebaseError.localizedDescription)
+          NSLog("INTENTIVE AUTH: Firebase SDK failed; using REST tokens: %@", firebaseError.localizedDescription)
         }
       }
 
@@ -2669,9 +2667,7 @@ class AuthService {
     do {
       tokens = try Self.decodeFirebaseTokenResult(from: data)
     } catch {
-      NSLog(
-        "INTENTIVE AUTH: Failed to parse Firebase signInWithIdp response: %@",
-        String(data: data, encoding: .utf8) ?? "nil")
+      NSLog("INTENTIVE AUTH: Invalid signInWithIdp response: %@", String(data: data, encoding: .utf8) ?? "nil")
       throw error
     }
 
