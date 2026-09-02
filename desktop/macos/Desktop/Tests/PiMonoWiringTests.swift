@@ -10,25 +10,27 @@ final class PiMonoWiringTests: XCTestCase {
     XCTAssertNil(AgentRuntimeRouting.harnessMode(from: "unknown"))
   }
 
-  func testApiKeysResponseDecodesWithoutAnthropicKey() throws {
+  func testApiKeysResponseIgnoresRetiredProviderFields() throws {
     let json = """
       {
         "firebase_api_key": "AIza-test",
+        "anthropic_api_key": "sk-ant-retired",
         "google_calendar_api_key": "cal-key"
       }
       """.data(using: .utf8)!
     let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)
+    let propertyNames = Mirror(reflecting: response).children.map { $0.label ?? "" }
 
     XCTAssertEqual(response.firebaseApiKey, "AIza-test")
-    XCTAssertEqual(response.googleCalendarApiKey, "cal-key")
+    XCTAssertFalse(propertyNames.contains("anthropicApiKey"))
+    XCTAssertFalse(propertyNames.contains("googleCalendarApiKey"))
   }
 
   func testApiKeysResponseIgnoresUnknownAnthropicField() throws {
     let json = """
       {
         "firebase_api_key": "AIza-test",
-        "anthropic_api_key": "sk-ant-LEAKED",
-        "google_calendar_api_key": "cal-key"
+        "anthropic_api_key": "sk-ant-LEAKED"
       }
       """.data(using: .utf8)!
     let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)

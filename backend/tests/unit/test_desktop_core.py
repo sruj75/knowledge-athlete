@@ -39,7 +39,7 @@ def test_retired_service_health_and_readiness_aliases_are_absent():
 
 def test_api_keys_require_firebase_auth_and_omit_unset_values(monkeypatch):
     monkeypatch.setenv("FIREBASE_API_KEY", "firebase-key")
-    monkeypatch.delenv("GOOGLE_CALENDAR_API_KEY", raising=False)
+    monkeypatch.setenv("GOOGLE_CALENDAR_API_KEY", "retired-calendar-key")
 
     app = FastAPI()
     app.include_router(desktop_core.router)

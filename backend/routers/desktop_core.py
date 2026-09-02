@@ -30,10 +30,7 @@ def health_check() -> dict[str, str]:
 def get_api_keys(_: str = Depends(get_current_user_uid)) -> dict[str, str]:
     return {
         response_field: value
-        for response_field, environment_name in (
-            ("firebase_api_key", "FIREBASE_API_KEY"),
-            ("google_calendar_api_key", "GOOGLE_CALENDAR_API_KEY"),
-        )
+        for response_field, environment_name in (("firebase_api_key", "FIREBASE_API_KEY"),)
         if (value := os.getenv(environment_name)) is not None
     }
 

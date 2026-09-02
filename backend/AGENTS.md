@@ -82,7 +82,7 @@ backend (main.py, canonical Cloud Run service)
 
 ```
 
-Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy, and the runtime manifest binds `MODULATE_API_KEY` on the canonical backend.
+Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy. The production runtime manifest requires `MODULATE_API_KEY`; development deliberately omits it while owner provisioning is postponed, so a development revision without that binding cannot count as managed-STT or continuity evidence.
 
 - **backend** (`main.py`) — The one REST/WebSocket Cloud Run service. `/v4/listen` applies in-process `VADStreamingGate`, streams fixed PCM directly to Modulate, and returns transient canonical segments without a side channel, People, or conversation storage. Retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes Gemini 3.7 Flash transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.

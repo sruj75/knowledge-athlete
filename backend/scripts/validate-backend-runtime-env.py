@@ -381,9 +381,17 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
             )
         )
 
-    required_scopes = {
-        *(f'{env}/cloud_run/{service}' for service in _MANAGED_STT_CLOUD_RUN_SERVICES if service in cloud_run_services),
-    }
+    required_scopes = (
+        {
+            *(
+                f'{env}/cloud_run/{service}'
+                for service in _MANAGED_STT_CLOUD_RUN_SERVICES
+                if service in cloud_run_services
+            ),
+        }
+        if env == 'prod'
+        else set()
+    )
     for scope, env_map, secrets_map in surfaces:
         retired = sorted(
             _RETIRED_STT_RUNTIME_ENV.intersection(env_map) | _RETIRED_STT_RUNTIME_ENV.intersection(secrets_map)

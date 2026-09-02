@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Provider inference keys are never returned by this endpoint; managed model
 /// requests are authenticated to the backend and proxied server-side.
-/// Firebase and Calendar keys are still served via /v1/config/api-keys.
+/// Firebase bootstrap configuration is served via /v1/config/api-keys.
 
 @MainActor
 final class APIKeyService: ObservableObject {
@@ -12,7 +12,6 @@ final class APIKeyService: ObservableObject {
 
   // Backend-provided keys (in-memory only, never persisted to disk)
   @Published private(set) var firebaseApiKey: String?
-  @Published private(set) var googleCalendarApiKey: String?
   @Published private(set) var isLoaded: Bool = false
   @Published private(set) var loadError: String?
 
@@ -28,7 +27,7 @@ final class APIKeyService: ObservableObject {
 
   /// Wait for keys to be loaded. Returns immediately if already loaded.
   /// If no fetch is in-flight, starts one (handles app-restart-while-signed-in case).
-  /// A previously failed fetch clears fetchTask, so Calendar/Chat callers can retry without restarting.
+  /// A previously failed fetch clears fetchTask, so callers can retry without restarting.
   func waitForKeys() async {
     if isLoaded { return }
     if fetchTask == nil {
@@ -48,10 +47,6 @@ final class APIKeyService: ObservableObject {
     firebaseApiKey
   }
 
-  var effectiveGoogleCalendarApiKey: String? {
-    googleCalendarApiKey
-  }
-
   /// Fetch keys from the backend. Call after Firebase auth is ready.
   func fetchKeys() async {
     loadError = nil
@@ -61,7 +56,6 @@ final class APIKeyService: ObservableObject {
       do {
         let keys = try await APIClient.shared.fetchApiKeys()
         self.firebaseApiKey = keys.firebaseApiKey
-        self.googleCalendarApiKey = keys.googleCalendarApiKey
         self.isLoaded = true
 
         // Set env vars so existing getenv() consumers keep working during transition
@@ -74,9 +68,7 @@ final class APIKeyService: ObservableObject {
         // re-login can never refetch keys until the app is relaunched.
         fetchTask = nil
 
-        log(
-          "APIKeyService: Fetched client configuration from backend (firebase=\(keys.firebaseApiKey != nil), calendar=\(keys.googleCalendarApiKey != nil))"
-        )
+        log("APIKeyService: Fetched client configuration from backend (firebase=\(keys.firebaseApiKey != nil))")
         return
       } catch {
         let delay = pow(2.0, Double(attempt - 1))
@@ -98,7 +90,6 @@ final class APIKeyService: ObservableObject {
   /// Clear all keys (e.g. on sign-out)
   func clear() {
     firebaseApiKey = nil
-    googleCalendarApiKey = nil
     isLoaded = false
     loadError = nil
     // Drop any completed/in-flight fetch task so the next sign-in can start a
@@ -108,16 +99,12 @@ final class APIKeyService: ObservableObject {
 
     // NOTE: Do NOT unset FIREBASE_API_KEY — it's needed for the next sign-in
     // (auth bootstrap requires Firebase key before backend is reachable)
-    unsetenv("GOOGLE_CALENDAR_API_KEY")
   }
 
   /// Push effective keys into the process environment for backward compatibility.
   private func applyToEnvironment() {
     if let key = effectiveFirebaseApiKey {
       setenv("FIREBASE_API_KEY", key, 1)
-    }
-    if let key = effectiveGoogleCalendarApiKey {
-      setenv("GOOGLE_CALENDAR_API_KEY", key, 1)
     }
   }
 

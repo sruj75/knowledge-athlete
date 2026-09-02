@@ -39,10 +39,6 @@ enum BundleEnvironment {
           log("  Skipped GEMINI_API_KEY (provider credentials stay on the backend)")
           continue
         }
-        if key == "GOOGLE_CALENDAR_API_KEY" {
-          log("  Skipped \(key) (fetched from backend via APIKeyService)")
-          continue
-        }
         guard shouldApplyBundledValue(for: key) else {
           log("  Skipped \(key) (explicit launch environment override)")
           continue

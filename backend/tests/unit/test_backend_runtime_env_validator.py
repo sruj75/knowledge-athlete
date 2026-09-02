@@ -100,15 +100,18 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'REDIS_DB_CA_CERT_PEM',
     } <= set(backend['env'])
     assert {
-        'MODULATE_API_KEY',
         'GEMINI_API_KEY',
         'OPENAI_API_KEY',
         'FIREBASE_API_KEY',
         'REDIS_DB_PASSWORD',
-        'POSTHOG_PROJECT_API_KEY',
         'LANGFUSE_PUBLIC_KEY',
         'LANGFUSE_SECRET_KEY',
     } <= set(backend['secrets'])
+    if env_name == 'dev':
+        assert {'MODULATE_API_KEY', 'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(backend['secrets'])
+    else:
+        assert {'MODULATE_API_KEY', 'POSTHOG_PROJECT_API_KEY'} <= set(backend['secrets'])
+        assert 'GOOGLE_CALENDAR_API_KEY' not in backend['secrets']
     assert backend['env']['BILLING_MODE']['value'] == 'disabled'
     assert backend['env']['LANGFUSE_BASE_URL']['value'] == 'https://us.cloud.langfuse.com'
     assert backend['env']['LANGFUSE_PROMPT_NAME']['value'] == 'intentive-chat-system'
@@ -742,7 +745,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     assert not any('HOSTED_PUSHER_API_URL must be listed' in error.message for error in errors)
 
 
-def test_managed_stt_surfaces_require_modulate_binding():
+def test_production_managed_stt_surface_requires_modulate_binding():
     validator = load_validator()
     env_config = {
         'cloud_run': {
@@ -752,15 +755,27 @@ def test_managed_stt_surfaces_require_modulate_binding():
         },
     }
 
-    errors = validator._validate_managed_stt_contract('dev', env_config)
+    errors = validator._validate_managed_stt_contract('prod', env_config)
 
     assert errors == [
         validator.ValidationError(
-            scope,
+            'prod/cloud_run/backend',
             'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
-        for scope in ('dev/cloud_run/backend',)
     ]
+
+
+def test_development_managed_stt_surface_permits_owner_postponed_modulate_binding():
+    validator = load_validator()
+    env_config = {
+        'cloud_run': {
+            'services': {
+                'backend': {'env': {}, 'secrets': {}},
+            }
+        },
+    }
+
+    assert validator._validate_managed_stt_contract('dev', env_config) == []
 
 
 def test_managed_stt_contract_accepts_fixed_modulate_bindings():
@@ -849,10 +864,10 @@ def test_repo_rendered_cloud_run_matches_manifest():
     assert validator.validate_runtime_env(env='prod', check_rendered_cloud_run=True) == []
 
 
-def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
+def test_missing_modulate_binding_is_rejected_for_rendered_production_cloud_run(tmp_path):
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
-    services = manifest['environments']['dev']['cloud_run']['services']
+    services = manifest['environments']['prod']['cloud_run']['services']
     required_services = {'backend'}
     for service_name in required_services:
         services[service_name]['secrets'].pop('MODULATE_API_KEY')
@@ -860,7 +875,7 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     manifest_path = tmp_path / 'runtime_env.yaml'
     write_yaml(manifest_path, manifest)
 
-    errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path, check_rendered_cloud_run=True)
+    errors = validator.validate_runtime_env(env='prod', manifest_path=manifest_path, check_rendered_cloud_run=True)
 
     assert {
         (error.scope, error.message)
@@ -868,7 +883,7 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
         if error.message == 'managed transcription surface is missing non-empty MODULATE_API_KEY'
     } == {
         (
-            f'dev/cloud_run/{service_name}',
+            f'prod/cloud_run/{service_name}',
             'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
         for service_name in required_services

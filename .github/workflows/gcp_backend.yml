@@ -564,7 +564,6 @@ jobs:
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           PREFLIGHT_ARGS=(
@@ -642,7 +641,6 @@ jobs:
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/render_backend_runtime_env.py" --env ${{ vars.ENV }} >> "$GITHUB_OUTPUT"
@@ -756,7 +754,6 @@ jobs:
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/validate-backend-runtime-env.py" --env ${{ vars.ENV }} --check-workflows --workflow-root "$DEPLOY_WORKFLOW_ROOT" --check-live-cloud-run
