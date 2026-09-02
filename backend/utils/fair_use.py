@@ -670,6 +670,16 @@ def is_managed_stt_budget_exhausted(uid: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _acquire_classifier_lock(key: str, token: str) -> Any:
+    """Create the Redis client and acquire the lock inside the DB executor."""
+    return get_redis_client().set(
+        key,
+        token,
+        nx=True,
+        ex=FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS,
+    )
+
+
 async def trigger_free_exhaustion_if_needed(
     uid: str, triggered_caps: List[Dict[str, Any]], session_id: str = ''
 ) -> None:
@@ -694,14 +704,7 @@ async def trigger_free_exhaustion_if_needed(
     lock_token = str(uuid.uuid4())
 
     try:
-        acquired = await run_blocking(
-            db_executor,
-            get_redis_client().set,
-            lock_key,
-            lock_token,
-            nx=True,
-            ex=FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS,
-        )
+        acquired = await run_blocking(db_executor, _acquire_classifier_lock, lock_key, lock_token)
         if not acquired:
             logger.info(f'fair_use: classifier already running/recent for {uid}')
             return
