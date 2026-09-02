@@ -89,7 +89,7 @@ packet do not prove it.
 
 | Path / symbol group | Audience / reachability | Classification | Authority and protected reason | Action / evidence |
 |---|---|---|---|---|
-| `FORK.md`, `LICENSE*` | Provenance readers | Historical/legal | Accurate upstream origin must remain | Retain; historical table is explicitly labelled |
+| `FORK.md`, `LICENSE*` | Provenance readers | Historical/legal | Accurate upstream origin must remain | Retain; the historical table is baseline-only and current ownership stays in separately labelled sections |
 | `desktop/macos/CHANGELOG.json`, `.github/failure-classes/**`, upstream issue links | Historical release/incident evidence | Historical | Rewriting prior facts would corrupt evidence | Retain; excluded/protected search lane |
 | `desktop/windows/**` and Windows-only update/workflow branches | Windows product | Deferred product boundary | S-30 is macOS/non-Windows only | Retain untouched; explicit Windows exclusion |
 | Swift module/type names including `OmiApp`, `OmiSupport`, `OmiMarkdown`, `OmiFont` | Compiler-only identifiers | Internal | No renderer/payload/bundle/service/log/analytics effect after caller review | Retain; behavioral tests and final caller searches cover reachable surfaces |
