@@ -172,7 +172,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires local Omi activity data."
+      "Requires local Intentive activity data."
     ],
     "adapters": {
       "pi-mono": {
@@ -247,10 +247,10 @@
   {
     "name": "list_agent_sessions",
     "label": "List Agent Sessions",
-    "description": "List Omi-managed agent sessions from the local runtime kernel.\n\nUse when the user asks what Omi agents/subagents are active, recent, failed, or attached to a surface.\nReturns canonical session/run summaries plus floating_agent_pills projections.",
-    "promptSnippet": "list_agent_sessions - List Omi-managed agent sessions and active runs",
+    "description": "List Intentive-managed agent sessions from the local runtime kernel.\n\nUse when the user asks what Intentive agents/subagents are active, recent, failed, or attached to a surface.\nReturns canonical session/run summaries plus floating_agent_pills projections.",
+    "promptSnippet": "list_agent_sessions - List Intentive-managed agent sessions and active runs",
     "promptGuidelines": [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Use for current or recent kernel-backed Intentive agents/subagents across chat, PTT/realtime, and floating-bar pills.",
       "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id."
     ],
@@ -309,14 +309,14 @@
     ],
     "capabilityDoc": {
       "title": "List Agent Sessions",
-      "summary": "List Omi-managed agent sessions from the local runtime kernel.",
+      "summary": "List Intentive-managed agent sessions from the local runtime kernel.",
       "bullets": [
-        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+        "Use for current or recent kernel-backed Intentive agents/subagents across chat, PTT/realtime, and floating-bar pills.",
         "Returns floating_agent_pills alongside canonical session summaries."
       ]
     },
     "voice": {
-      "realtimeDescription": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+      "realtimeDescription": "List canonical Intentive-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -354,10 +354,10 @@
   {
     "name": "get_agent_run",
     "label": "Get Agent Run",
-    "description": "Inspect one canonical Omi agent run.\n\nUse a runId returned by list_agent_sessions or a correlated Omi response. Returns the run, session, attempts, adapter bindings, artifact metadata, and optionally events.",
-    "promptSnippet": "get_agent_run - Inspect one Omi agent run",
+    "description": "Inspect one canonical Intentive agent run.\n\nUse a runId returned by list_agent_sessions or a correlated Intentive response. Returns the run, session, attempts, adapter bindings, artifact metadata, and optionally events.",
+    "promptSnippet": "get_agent_run - Inspect one Intentive agent run",
     "promptGuidelines": [
-      "Use a runId from list_agent_sessions or a correlated Omi result.",
+      "Use a runId from list_agent_sessions or a correlated Intentive result.",
       "Returns the run, attempts, adapter bindings, events, and artifact metadata.",
       "For a completed child, use run.finalText to answer the user and keep the internal runId out of the user-visible response."
     ],
@@ -367,7 +367,7 @@
       "properties": {
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run_id."
+          "description": "Canonical Intentive run_id."
         },
         "ownerId": {
           "type": "string",
@@ -402,14 +402,14 @@
     ],
     "capabilityDoc": {
       "title": "Get Agent Run",
-      "summary": "Inspect one canonical Omi agent run.",
+      "summary": "Inspect one canonical Intentive agent run.",
       "bullets": [
-        "Use a runId from list_agent_sessions or a correlated Omi result.",
+        "Use a runId from list_agent_sessions or a correlated Intentive result.",
         "Returns the run, attempts, adapter bindings, events, and artifact metadata."
       ]
     },
     "voice": {
-      "realtimeDescription": "Inspect one canonical Omi-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
+      "realtimeDescription": "Inspect one canonical Intentive-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -419,7 +419,7 @@
           },
           "runId": {
             "type": "string",
-            "description": "Canonical Omi run id."
+            "description": "Canonical Intentive run id."
           },
           "includeEvents": {
             "type": "boolean",
@@ -436,7 +436,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires a canonical Omi run_id.",
+      "Requires a canonical Intentive run_id.",
       "Defaults ownerId to the active signed-in owner when omitted and rejects runs outside that owner."
     ],
     "adapters": {
@@ -866,19 +866,19 @@
         },
         "sourceSessionId": {
           "type": "string",
-          "description": "Optional source Omi session_id scope guard."
+          "description": "Optional source Intentive session_id scope guard."
         },
         "sourceRunId": {
           "type": "string",
-          "description": "Optional source Omi run_id scope guard."
+          "description": "Optional source Intentive run_id scope guard."
         },
         "sourceAttemptId": {
           "type": "string",
-          "description": "Optional source Omi attempt_id scope guard."
+          "description": "Optional source Intentive attempt_id scope guard."
         },
         "sourceArtifactId": {
           "type": "string",
-          "description": "Optional source Omi artifact_id scope guard."
+          "description": "Optional source Intentive artifact_id scope guard."
         },
         "capability": {
           "type": "string",
@@ -1018,10 +1018,10 @@
   {
     "name": "cancel_agent_run",
     "label": "Cancel Agent Run",
-    "description": "Request cancellation for one canonical Omi agent run through the runtime kernel.\n\nUse when the user asks to stop a running Omi agent/subagent. Returns whether cancellation was accepted, dispatched to the adapter, and acknowledged by the adapter.",
-    "promptSnippet": "cancel_agent_run - Stop a running Omi agent",
+    "description": "Request cancellation for one canonical Intentive agent run through the runtime kernel.\n\nUse when the user asks to stop a running Intentive agent/subagent. Returns whether cancellation was accepted, dispatched to the adapter, and acknowledged by the adapter.",
+    "promptSnippet": "cancel_agent_run - Stop a running Intentive agent",
     "promptGuidelines": [
-      "Use when the user asks to stop a running Omi agent/subagent.",
+      "Use when the user asks to stop a running Intentive agent/subagent.",
       "Returns whether cancellation was accepted, dispatched, and acknowledged."
     ],
     "latency": "fast local",
@@ -1030,7 +1030,7 @@
       "properties": {
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run_id to cancel."
+          "description": "Canonical Intentive run_id to cancel."
         },
         "ownerId": {
           "type": "string",
@@ -1057,14 +1057,14 @@
     ],
     "capabilityDoc": {
       "title": "Cancel Agent Run",
-      "summary": "Request cancellation for one canonical Omi agent run through the runtime kernel.",
+      "summary": "Request cancellation for one canonical Intentive agent run through the runtime kernel.",
       "bullets": [
-        "Use when the user asks to stop a running Omi agent/subagent.",
+        "Use when the user asks to stop a running Intentive agent/subagent.",
         "Returns whether cancellation was accepted, dispatched, and acknowledged."
       ]
     },
     "voice": {
-      "realtimeDescription": "Request cancellation for one canonical Omi-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
+      "realtimeDescription": "Request cancellation for one canonical Intentive-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1074,7 +1074,7 @@
           },
           "runId": {
             "type": "string",
-            "description": "Canonical Omi run id to cancel."
+            "description": "Canonical Intentive run id to cancel."
           }
         },
         "required": [],
@@ -1083,7 +1083,7 @@
     },
     "intendedForAgents": true,
     "runtimePreconditions": [
-      "Requires a canonical Omi run_id.",
+      "Requires a canonical Intentive run_id.",
       "Defaults ownerId to the active signed-in owner when omitted and rejects runs outside that owner."
     ],
     "adapters": {
@@ -1095,8 +1095,8 @@
   {
     "name": "inspect_agent_artifacts",
     "label": "Inspect Agent Artifacts",
-    "description": "Inspect canonical artifact metadata for an Omi agent artifact, session, run, or attempt.\n\nReturns metadata and references only. It does not read arbitrary artifact contents.",
-    "promptSnippet": "inspect_agent_artifacts - Inspect Omi agent artifact metadata",
+    "description": "Inspect canonical artifact metadata for an Intentive agent artifact, session, run, or attempt.\n\nReturns metadata and references only. It does not read arbitrary artifact contents.",
+    "promptSnippet": "inspect_agent_artifacts - Inspect Intentive agent artifact metadata",
     "promptGuidelines": [
       "Returns artifact references and metadata only.",
       "Use after get_agent_run when the user asks what files or outputs an agent produced."
@@ -1107,19 +1107,19 @@
       "properties": {
         "artifactId": {
           "type": "string",
-          "description": "Canonical Omi artifact_id."
+          "description": "Canonical Intentive artifact_id."
         },
         "sessionId": {
           "type": "string",
-          "description": "Canonical Omi session_id."
+          "description": "Canonical Intentive session_id."
         },
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run_id."
+          "description": "Canonical Intentive run_id."
         },
         "attemptId": {
           "type": "string",
-          "description": "Canonical Omi attempt_id."
+          "description": "Canonical Intentive attempt_id."
         },
         "ownerId": {
           "type": "string",
@@ -1159,14 +1159,14 @@
     ],
     "capabilityDoc": {
       "title": "Inspect Agent Artifacts",
-      "summary": "Inspect canonical artifact metadata for an Omi agent artifact, session, run, or attempt.",
+      "summary": "Inspect canonical artifact metadata for an Intentive agent artifact, session, run, or attempt.",
       "bullets": [
         "Returns artifact references and metadata only.",
         "Use after get_agent_run when the user asks what files or outputs an agent produced."
       ]
     },
     "voice": {
-      "realtimeDescription": "Inspect metadata and references for canonical Omi-managed agent artifacts. Does not read arbitrary artifact contents.",
+      "realtimeDescription": "Inspect metadata and references for canonical Intentive-managed agent artifacts. Does not read arbitrary artifact contents.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1180,19 +1180,19 @@
           },
           "artifactId": {
             "type": "string",
-            "description": "Canonical Omi artifact id."
+            "description": "Canonical Intentive artifact id."
           },
           "sessionId": {
             "type": "string",
-            "description": "Canonical Omi session id."
+            "description": "Canonical Intentive session id."
           },
           "runId": {
             "type": "string",
-            "description": "Canonical Omi run id."
+            "description": "Canonical Intentive run id."
           },
           "attemptId": {
             "type": "string",
-            "description": "Canonical Omi attempt id."
+            "description": "Canonical Intentive attempt id."
           },
           "role": {
             "type": "string",
@@ -1229,8 +1229,8 @@
   {
     "name": "read_tool_output",
     "label": "Read Tool Output",
-    "description": "Read a bounded excerpt from a canonical Omi tool-output artifact.",
-    "promptSnippet": "read_tool_output - Read a bounded excerpt from a saved Omi tool result",
+    "description": "Read a bounded excerpt from a canonical Intentive tool-output artifact.",
+    "promptSnippet": "read_tool_output - Read a bounded excerpt from a saved Intentive tool result",
     "promptGuidelines": [
       "Use an artifactId returned by a toolResultEnvelope fullOutputRef or inspect_agent_artifacts.",
       "The response is bounded; use search_tool_output for targeted retrieval."
@@ -1272,13 +1272,13 @@
     ],
     "capabilityDoc": {
       "title": "Read Tool Output",
-      "summary": "Read a bounded excerpt from a canonical Omi tool-output artifact.",
+      "summary": "Read a bounded excerpt from a canonical Intentive tool-output artifact.",
       "bullets": [
         "Requires a canonical artifact id and keeps provider payloads bounded."
       ]
     },
     "voice": {
-      "realtimeDescription": "Read a bounded excerpt from an Omi tool-output artifact referenced by a prior toolResultEnvelope. Never request an arbitrary file path.",
+      "realtimeDescription": "Read a bounded excerpt from an Intentive tool-output artifact referenced by a prior toolResultEnvelope. Never request an arbitrary file path.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1310,8 +1310,8 @@
   {
     "name": "search_tool_output",
     "label": "Search Tool Output",
-    "description": "Search a canonical Omi tool-output artifact without sending the complete artifact to a provider.",
-    "promptSnippet": "search_tool_output - Search a saved Omi tool result",
+    "description": "Search a canonical Intentive tool-output artifact without sending the complete artifact to a provider.",
+    "promptSnippet": "search_tool_output - Search a saved Intentive tool result",
     "promptGuidelines": [
       "Use after a truncated toolResultEnvelope to find the relevant local output."
     ],
@@ -1357,13 +1357,13 @@
     ],
     "capabilityDoc": {
       "title": "Search Tool Output",
-      "summary": "Search a canonical Omi tool-output artifact without returning the complete artifact.",
+      "summary": "Search a canonical Intentive tool-output artifact without returning the complete artifact.",
       "bullets": [
         "Requires a canonical artifact id and returns bounded matching lines."
       ]
     },
     "voice": {
-      "realtimeDescription": "Search a saved Omi tool-output artifact for matching lines without returning the complete artifact.",
+      "realtimeDescription": "Search a saved Intentive tool-output artifact for matching lines without returning the complete artifact.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1400,8 +1400,8 @@
   {
     "name": "update_agent_artifact_lifecycle",
     "label": "Update Agent Artifact Lifecycle",
-    "description": "Update metadata-only lifecycle state for one canonical Omi agent artifact.\n\nThis only records artifact metadata state and ordered kernel events. It does not open files, delete files, retain blobs, or read artifact contents.",
-    "promptSnippet": "update_agent_artifact_lifecycle - Mark an Omi agent artifact retained, dismissed, or opened",
+    "description": "Update metadata-only lifecycle state for one canonical Intentive agent artifact.\n\nThis only records artifact metadata state and ordered kernel events. It does not open files, delete files, retain blobs, or read artifact contents.",
+    "promptSnippet": "update_agent_artifact_lifecycle - Mark an Intentive agent artifact retained, dismissed, or opened",
     "promptGuidelines": [
       "Use to mark artifact metadata as retained, dismissed, or opened after a user-visible artifact decision.",
       "Pass sessionId, runId, or attemptId when available as a scope guard.",
@@ -1413,7 +1413,7 @@
       "properties": {
         "artifactId": {
           "type": "string",
-          "description": "Canonical Omi artifact_id."
+          "description": "Canonical Intentive artifact_id."
         },
         "state": {
           "type": "string",
@@ -1426,15 +1426,15 @@
         },
         "sessionId": {
           "type": "string",
-          "description": "Optional canonical Omi session_id scope guard."
+          "description": "Optional canonical Intentive session_id scope guard."
         },
         "runId": {
           "type": "string",
-          "description": "Optional canonical Omi run_id scope guard."
+          "description": "Optional canonical Intentive run_id scope guard."
         },
         "attemptId": {
           "type": "string",
-          "description": "Optional canonical Omi attempt_id scope guard."
+          "description": "Optional canonical Intentive attempt_id scope guard."
         },
         "ownerId": {
           "type": "string",
@@ -1471,7 +1471,7 @@
     ],
     "capabilityDoc": {
       "title": "Update Agent Artifact Lifecycle",
-      "summary": "Update metadata-only lifecycle state for one canonical Omi agent artifact.",
+      "summary": "Update metadata-only lifecycle state for one canonical Intentive agent artifact.",
       "bullets": [
         "Use to mark artifact metadata as retained, dismissed, or opened after a user-visible artifact decision.",
         "Pass sessionId, runId, or attemptId when available as a scope guard.",
@@ -1479,7 +1479,7 @@
       ]
     },
     "voice": {
-      "realtimeDescription": "Update metadata-only lifecycle state for one canonical Omi-managed agent artifact. Does not open, delete, retain, or read files.",
+      "realtimeDescription": "Update metadata-only lifecycle state for one canonical Intentive-managed agent artifact. Does not open, delete, retain, or read files.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1489,7 +1489,7 @@
           },
           "artifactId": {
             "type": "string",
-            "description": "Canonical Omi artifact id."
+            "description": "Canonical Intentive artifact id."
           },
           "state": {
             "type": "string",
@@ -1502,15 +1502,15 @@
           },
           "sessionId": {
             "type": "string",
-            "description": "Optional canonical Omi session id scope guard."
+            "description": "Optional canonical Intentive session id scope guard."
           },
           "runId": {
             "type": "string",
-            "description": "Optional canonical Omi run id scope guard."
+            "description": "Optional canonical Intentive run id scope guard."
           },
           "attemptId": {
             "type": "string",
-            "description": "Optional canonical Omi attempt id scope guard."
+            "description": "Optional canonical Intentive attempt id scope guard."
           },
           "reason": {
             "type": "string",
@@ -1538,10 +1538,10 @@
   {
     "name": "send_agent_message",
     "label": "Send Agent Message",
-    "description": "Send a follow-up message to an existing canonical Omi agent session.\n\nCreates a new run in that session through the runtime kernel.",
-    "promptSnippet": "send_agent_message - Continue an Omi-managed agent session",
+    "description": "Send a follow-up message to an existing canonical Intentive agent session.\n\nCreates a new run in that session through the runtime kernel.",
+    "promptSnippet": "send_agent_message - Continue an Intentive-managed agent session",
     "promptGuidelines": [
-      "Use when continuing a multi-turn conversation with an Omi-managed agent by sessionId.",
+      "Use when continuing a multi-turn conversation with an Intentive-managed agent by sessionId.",
       "Creates a new run in the existing session."
     ],
     "latency": "async background",
@@ -1550,7 +1550,7 @@
       "properties": {
         "sessionId": {
           "type": "string",
-          "description": "Canonical Omi session_id to continue."
+          "description": "Canonical Intentive session_id to continue."
         },
         "originSurfaceKind": {
           "type": "string",
@@ -1584,7 +1584,7 @@
         },
         "clientId": {
           "type": "string",
-          "description": "Logical caller id. Defaults to omi-control-tools."
+          "description": "Logical caller id. Defaults to intentive-control-tools."
         },
         "metadata": {
           "type": "object",
@@ -1613,9 +1613,9 @@
     ],
     "capabilityDoc": {
       "title": "Send Agent Message",
-      "summary": "Send a follow-up message to an existing canonical Omi agent session.",
+      "summary": "Send a follow-up message to an existing canonical Intentive agent session.",
       "bullets": [
-        "Use when continuing a multi-turn conversation with an Omi-managed agent by sessionId.",
+        "Use when continuing a multi-turn conversation with an Intentive-managed agent by sessionId.",
         "Creates a new run in the existing session."
       ]
     },
@@ -1692,7 +1692,7 @@
         },
         "clientId": {
           "type": "string",
-          "description": "Logical caller id. Defaults to omi-control-tools."
+          "description": "Logical caller id. Defaults to intentive-control-tools."
         },
         "metadata": {
           "type": "object",
@@ -1701,7 +1701,7 @@
         },
         "toolPolicy": {
           "type": "object",
-          "description": "Optional child tool restriction: { allowedToolNames: string[] } of canonical Omi tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.",
+          "description": "Optional child tool restriction: { allowedToolNames: string[] } of canonical Intentive tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.",
           "additionalProperties": true
         }
       },
@@ -1738,13 +1738,13 @@
   {
     "name": "spawn_agent",
     "label": "Spawn Agent",
-    "description": "Start canonical Omi background work. Visible runs project into floating-bar pills; invisible runs stay kernel-only child work.\n\nPass parentRunId to link the new run to a parent.",
-    "promptSnippet": "spawn_agent - Start canonical Omi background work",
+    "description": "Start canonical Intentive background work. Visible runs project into floating-bar pills; invisible runs stay kernel-only child work.\n\nPass parentRunId to link the new run to a parent.",
+    "promptSnippet": "spawn_agent - Start canonical Intentive background work",
     "promptGuidelines": [
       "Calling spawn_agent is the only way to start a visible floating-bar background agent; saying you will start one does not start it.",
       "Use visible=false for parent-linked background work that should not appear as a pill.",
       "The primary coordinator decides in its model loop whether to call spawn_agent.",
-      "Pass toolPolicy.allowedToolNames to restrict which Omi tools the child agent may call; it can only narrow, never widen, the child's tool set.",
+      "Pass toolPolicy.allowedToolNames to restrict which Intentive tools the child agent may call; it can only narrow, never widen, the child's tool set.",
       "Inspect progress with list_agent_sessions or get_agent_run."
     ],
     "latency": "async background",
@@ -1785,7 +1785,7 @@
         },
         "clientId": {
           "type": "string",
-          "description": "Logical caller id. Defaults to omi-control-tools."
+          "description": "Logical caller id. Defaults to intentive-control-tools."
         },
         "metadata": {
           "type": "object",
@@ -1794,7 +1794,7 @@
         },
         "toolPolicy": {
           "type": "object",
-          "description": "Optional child tool restriction: { allowedToolNames: string[] } of canonical Omi tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.",
+          "description": "Optional child tool restriction: { allowedToolNames: string[] } of canonical Intentive tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.",
           "additionalProperties": true
         }
       },
@@ -1818,13 +1818,13 @@
     ],
     "capabilityDoc": {
       "title": "Spawn Agent",
-      "summary": "Start canonical Omi background work and optionally project it into floating-bar pills.",
+      "summary": "Start canonical Intentive background work and optionally project it into floating-bar pills.",
       "bullets": [
         "Creates a canonical kernel session/run; visible runs project into floating-bar pills."
       ]
     },
     "voice": {
-      "realtimeDescription": "Start canonical Omi background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
+      "realtimeDescription": "Start canonical Intentive background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
       "schemaOverride": {
         "type": "object",
         "properties": {
@@ -1886,7 +1886,7 @@
         },
         "parentRunId": {
           "type": "string",
-          "description": "Canonical parent Omi run_id."
+          "description": "Canonical parent Intentive run_id."
         },
         "originSurfaceKind": {
           "type": "string",
@@ -1920,7 +1920,7 @@
         },
         "clientId": {
           "type": "string",
-          "description": "Logical caller id. Defaults to omi-control-tools."
+          "description": "Logical caller id. Defaults to intentive-control-tools."
         },
         "maxDepth": {
           "type": "number",
@@ -2281,7 +2281,7 @@
       ]
     },
     "voice": {
-      "realtimeDescription": "Read what Omi knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns."
+      "realtimeDescription": "Read what Intentive knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns."
     }
   },
   {
@@ -2665,7 +2665,7 @@
       ]
     },
     "voice": {
-      "realtimeDescription": "Check whether Omi has the requested macOS permission through the kernel-authorized native executor."
+      "realtimeDescription": "Check whether Intentive has the requested macOS permission through the kernel-authorized native executor."
     }
   },
   {
@@ -2735,7 +2735,7 @@
       ]
     },
     "voice": {
-      "realtimeDescription": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility."
+      "realtimeDescription": "Request Intentive's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility."
     }
   },
   {

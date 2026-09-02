@@ -3,26 +3,58 @@ import FirebaseCore
 import Foundation
 import PostHog
 
-/// Singleton manager for PostHog analytics with Session Replay
+struct ProductAnalyticsConfiguration: Equatable {
+  let projectToken: String
+  let host: URL
+
+  static func resolve(
+    infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+    environment: [String: String] = ProcessInfo.processInfo.environment
+  ) -> ProductAnalyticsConfiguration? {
+    let token =
+      nonempty(environment["POSTHOG_PROJECT_API_KEY"])
+      ?? nonempty(infoDictionary["IntentivePostHogProjectToken"] as? String)
+    let hostValue =
+      nonempty(environment["POSTHOG_HOST"])
+      ?? nonempty(infoDictionary["IntentivePostHogHost"] as? String)
+
+    guard let token, let hostValue, let host = URL(string: hostValue),
+      host.scheme?.lowercased() == "https", host.host?.isEmpty == false,
+      host.user == nil, host.password == nil, host.query == nil, host.fragment == nil
+    else { return nil }
+
+    return ProductAnalyticsConfiguration(projectToken: token, host: host)
+  }
+
+  private static func nonempty(_ value: String?) -> String? {
+    let value = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    return value.isEmpty ? nil : value
+  }
+}
+
+/// Singleton manager for optional PostHog product analytics.
 @MainActor
 class PostHogManager {
   static let shared = PostHogManager()
 
   private var isInitialized = false
 
-  // PostHog configuration
-  private let apiKey = "phc_z3qUFhGUgYIOMYnfxVSrLmYISQvbgph8iREQv3sez3Y"
-  private let host = "https://us.i.posthog.com"
-
   private init() {}
 
   // MARK: - Initialization
 
   /// Initialize PostHog with analytics
-  func initialize() {
-    guard !isInitialized else { return }
+  @discardableResult
+  func initialize() -> Bool {
+    guard !isInitialized else { return true }
+    guard let analyticsConfiguration = ProductAnalyticsConfiguration.resolve() else {
+      log("PostHog: Disabled because owned project configuration is unavailable")
+      return false
+    }
 
-    let config = PostHogConfig(projectToken: apiKey, host: host)
+    let config = PostHogConfig(
+      projectToken: analyticsConfiguration.projectToken,
+      host: analyticsConfiguration.host.absoluteString)
 
     // Disable automatic lifecycle events — PostHog's observer calls setResourceValues(isExcludedFromBackupKey:)
     // synchronously on the main thread (via NSApplicationDidFinishLaunchingNotification), which XPCs to the
@@ -46,6 +78,7 @@ class PostHogManager {
 
     isInitialized = true
     log("PostHog: Initialized successfully")
+    return true
   }
 
   // MARK: - User Identification
@@ -176,12 +209,6 @@ class PostHogManager {
     PostHogSDK.shared.optOut()
   }
 
-  /// Check if tracking is opted out
-  var hasOptedOut: Bool {
-    guard isInitialized else { return true }
-    return !PostHogSDK.shared.isOptOut()
-  }
-
   // MARK: - Reset
 
   /// Reset the user (call on sign out)
@@ -209,6 +236,24 @@ class PostHogManager {
   func reloadFeatureFlags() {
     guard isInitialized else { return }
     PostHogSDK.shared.reloadFeatureFlags()
+  }
+}
+
+extension PostHogManager: ProductAnalyticsConsentAdapter {
+  func start() -> Bool {
+    initialize()
+  }
+
+  func resume() {
+    optIn()
+  }
+
+  func resetIdentity() {
+    reset()
+  }
+
+  func stopSharing() {
+    optOut()
   }
 }
 

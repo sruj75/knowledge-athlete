@@ -1867,7 +1867,7 @@ export class KernelCore {
       return input;
     }
     const requestedCwd = input.cwd ?? session.defaultCwd;
-    // Leaf agents are assigned an isolated Omi artifact directory for every
+    // Leaf agents are assigned an isolated Intentive artifact directory for every
     // attempt. A delegated objective or a caller-supplied cwd must not turn
     // that into a user-visible default such as Desktop.
     if (session.executionRole !== "leaf" && requestedCwd && !this.artifactStorage.isRootDirectory(requestedCwd)) {

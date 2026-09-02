@@ -364,7 +364,7 @@ export interface SpawnBackgroundAgentInput {
   recoverAfterError?: (error: unknown) => Promise<boolean>;
   metadata?: Record<string, unknown>;
   /**
-   * Restricts the child to the intersection of these canonical Omi tool
+   * Restricts the child to the intersection of these canonical Intentive tool
    * names with its role/adapter-computed tool set. Empty intersection =
    * no tools (fail closed).
    */
@@ -404,7 +404,7 @@ export interface DelegateAgentInput {
   recoverAfterError?: (error: unknown) => Promise<boolean>;
   metadata?: Record<string, unknown>;
   /**
-   * Restricts the child to the intersection of these canonical Omi tool
+   * Restricts the child to the intersection of these canonical Intentive tool
    * names with its role/adapter-computed tool set. Empty intersection =
    * no tools (fail closed).
    */

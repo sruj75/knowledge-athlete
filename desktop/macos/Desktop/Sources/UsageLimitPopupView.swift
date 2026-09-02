@@ -26,7 +26,7 @@ struct UsageLimitPopupView: View {
     case "transcription":
       return "You've hit your monthly limit. Upgrade to make sure your new recordings aren't lost."
     case "chat", "floating_bar":
-      return "You've hit your monthly limit. Upgrade to keep chatting with Omi without restrictions."
+      return DesktopLifecycleIdentityCopy.chatLimitDetail
     default:
       // Covers "trial_expired" (menu-bar toggles in OmiApp.swift) and any
       // future caller. The previous default copy talked about recordings,
@@ -34,7 +34,7 @@ struct UsageLimitPopupView: View {
       // was never actually at risk — they were tripping a stale
       // isPaywalled flag (now self-healed by #7517) while at their chat
       // cap, and the recording-loss wording read as a data-loss threat.
-      return "You've hit your monthly limit. Upgrade to keep using Omi without restrictions."
+      return DesktopLifecycleIdentityCopy.generalLimitDetail
     }
   }
 

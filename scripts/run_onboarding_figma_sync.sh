@@ -84,9 +84,9 @@ rm -f "$RESULT_FILE"
 cat <<EOF | "$CODEX_BIN" exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C "$SITE_DIR" -o "$RESULT_FILE" -
 Do not inspect local skill files.
 Capture http://127.0.0.1:${PORT}/index.html into the existing Figma file https://www.figma.com/file/pK7sTlaBnVRwnBroajw0Qi/omi?node-id=2711-1688&type=design on the \`500k users\` page.
-Delete any existing top-level \`OMI Onboarding Sync\` frame on that page first.
+Delete any existing top-level \`Intentive Onboarding Sync\` frame on that page first.
 Important: if the code-to-canvas tool returns a pending capture, you must open the returned localhost capture URL so the page submits the capture, then continue polling until it completes.
-After it lands, rename the resulting top-level frame to \`OMI Onboarding Sync\` and verify there is exactly one such top-level frame on \`500k users\`.
+After it lands, rename the resulting top-level frame to \`Intentive Onboarding Sync\` and verify there is exactly one such top-level frame on \`500k users\`.
 Respond with exactly one line: \`OK <node-id>\` or \`FAIL <reason>\`.
 EOF
 

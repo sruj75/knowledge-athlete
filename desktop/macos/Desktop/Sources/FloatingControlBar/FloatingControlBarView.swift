@@ -212,7 +212,7 @@ struct FloatingControlBarView: View {
 
   /// The notch "thinking" state: a PTT query is committed and being processed,
   /// with no live listening or open conversation surface. Shows the spinning
-  /// Omi mark in the left notch lobe (chat already has its own loading UI).
+  /// Intentive mark in the left notch lobe (chat already has its own loading UI).
   private var showingNotchThinking: Bool {
     (state.isThinking || state.isVoiceResponseWaiting)
       && !state.showingAIConversation
@@ -564,7 +564,7 @@ struct FloatingControlBarView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
   }
 
-  /// Picks the actionable "Couldn't reach Omi" card for reach errors, else the
+  /// Picks the actionable "Couldn't reach Intentive" card for reach errors, else the
   /// normal notification card.
   @ViewBuilder
   private func barNotification(_ notification: FloatingBarNotification) -> some View {
@@ -744,8 +744,8 @@ struct FloatingControlBarView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     .padding(.leading, OmiSpacing.xs)
     .padding(.trailing, OmiSpacing.md)
-    .accessibilityLabel("Open Omi chat")
-    .accessibilityHint("Open the main Omi chat window")
+    .accessibilityLabel(DesktopShellIdentityCopy.openChat)
+    .accessibilityHint(DesktopShellIdentityCopy.openChatHint)
   }
 
   private var notchChromeHeight: CGFloat {
@@ -848,9 +848,9 @@ struct FloatingControlBarView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(agentPills.pills.isEmpty ? "Close Omi Chat" : "Back to subagents")
+        .help(agentPills.pills.isEmpty ? DesktopShellIdentityCopy.closeChat : "Back to subagents")
 
-        Text("Omi Chat")
+        Text(DesktopShellIdentityCopy.chatTitle)
           .scaledFont(size: OmiType.body, weight: .bold)
           .foregroundColor(.white)
           .lineLimit(1)
@@ -1194,7 +1194,7 @@ struct FloatingControlBarView: View {
           .transition(.opacity)
       } else if allowsHoverExpansion {
         VStack(spacing: 1) {
-          compactButton(title: "Open Omi", keys: shortcutSettings.askOmiShortcut.displayTokens) {
+          compactButton(title: DesktopShellIdentityCopy.openApp, keys: shortcutSettings.askOmiShortcut.displayTokens) {
             onAskAI()
           }
 
@@ -2050,7 +2050,7 @@ private struct AgentMainChatView: View {
         AppDelegate.summonWindowTarget()?.openMainAppChat()
       } label: {
         HStack(spacing: OmiSpacing.xs) {
-          Text("Continue in Omi")
+          Text(DesktopShellIdentityCopy.continueInApp)
             .scaledFont(size: OmiType.body, weight: .medium)
             .foregroundColor(.white.opacity(0.85))
           Spacer(minLength: 0)
@@ -2065,7 +2065,7 @@ private struct AgentMainChatView: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .help("Open the Omi app to steer this agent")
+      .help(DesktopShellIdentityCopy.steerAgentHelp)
     }
   }
 }
@@ -2163,7 +2163,7 @@ private struct NotchAgentPillsRowView: View {
       isSpeaking: isSpeaking
     )
     // Keep every PTT dot inside the same 21pt identity slot as the resting
-    // Omi mark. The slot is frontmost and trails the visible left lobe, so the
+    // Intentive mark. The slot is frontmost and trails the visible left lobe, so the
     // physical notch/header surface cannot cover or crop the waveform.
     .frame(
       width: NotchVoiceMorphGeometry.markSize.width,
@@ -2254,12 +2254,12 @@ private enum NotchAgentStackMetrics {
   }
 
   /// The expanded-row identity mark uses the full orb size. The fixed header
-  /// owns the compact Omi ring independently.
+  /// owns the compact Intentive ring independently.
   static let logoDotScale: CGFloat = (logoFrameSize * logoDotDiameterRatio) / listOrbSize
 }
 
 /// The expanded agent rows live below the fixed notch header. Their status marks
-/// fade into their row slots, while the Omi logo remains anchored in the compact
+/// fade into their row slots, while the Intentive logo remains anchored in the compact
 /// header above.
 private struct NotchAgentMorphField: View {
   @ObservedObject var manager: AgentPillsManager
@@ -2412,7 +2412,7 @@ private struct NotchAgentListRow: View {
 
   var body: some View {
     HStack(spacing: OmiSpacing.sm) {
-      // The identity mark (Omi dot or provider logo) is rendered by the
+      // The identity mark (Intentive dot or provider logo) is rendered by the
       // traveling `notchAgentIdentityMark` that morphs from the collapsed
       // logo ring and lands on this slot. The row only reserves the space —
       // drawing a logo here too would double it up under the morph mark.

@@ -38,6 +38,6 @@ final class LocalUserDataExportActionTests: XCTestCase {
   func testDefaultFilenameIsStableAndJson() {
     let date = Date(timeIntervalSince1970: 1_700_000_000)
     XCTAssertTrue(LocalUserDataExportAction.defaultFilename(now: date).hasSuffix(".json"))
-    XCTAssertTrue(LocalUserDataExportAction.defaultFilename(now: date).hasPrefix("omi-data-export-"))
+    XCTAssertTrue(LocalUserDataExportAction.defaultFilename(now: date).hasPrefix("intentive-data-export-"))
   }
 }

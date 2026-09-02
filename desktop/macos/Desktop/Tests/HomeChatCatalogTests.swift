@@ -360,6 +360,9 @@ final class HomeChatCatalogTests: XCTestCase {
 
     XCTAssertEqual(store.selectedChatID(ownerID: "owner-a"), "chat-a")
     XCTAssertEqual(store.selectedChatID(ownerID: "owner-b"), "default")
+    let persistedKeys = defaults.dictionaryRepresentation().keys
+    XCTAssertTrue(persistedKeys.contains { $0.hasPrefix("intentive.chat.selected.v1.") })
+    XCTAssertFalse(persistedKeys.contains { $0.hasPrefix("omi.chat.selected.v1.") })
   }
 
   @MainActor

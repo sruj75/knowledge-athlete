@@ -91,6 +91,9 @@ class TaskAssistantSettings {
   /// Apps that never contain useful content for proactive assistants — utility/media/system apps + our own app.
   /// Shared across Advice, Focus, and Memory assistants (Task extraction uses whitelist instead).
   nonisolated static let builtInExcludedApps: Set<String> = [
+    "Intentive",
+    "Intentive Beta",
+    "Intentive Dev",
     "Omi",
     "Omi Beta",
     "omi",
@@ -233,7 +236,7 @@ class TaskAssistantSettings {
       ✓ "Reply to Krishna LG regarding Feb 17th meeting" — person + specific date + topic
       ✓ "Submit quarterly metrics to LG Technology Ventures" — entity + concrete deliverable
       ✓ "Reply to Paul Colligan about voice training and speaker ID" — person + specific topic
-      ✓ "Fix Omi release tag structure and versioning per Mohsin's report" — project + action + who reported
+      ✓ "Fix Intentive release tag structure and versioning per Mohsin's report" — project + action + who reported
       ✓ "Send Nik list of 10 recommended advisors" — person + exact deliverable with quantity
       ✓ "Review Sasza's cofounder alignment example document" — person + specific artifact
       ✓ "Remove tag colors in New Task UI per Nik's request" — specific UI element + who requested

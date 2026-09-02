@@ -170,7 +170,7 @@ class ScreenCaptureManager {
     guard let directory = screenshotsDirectory() else { return nil }
     // The capture_screen chat tool writes the full frame plus native-resolution
     // detail tiles (multiple MB per call) and never deletes them. Sweep stale
-    // captures each time so ~/Documents/Omi/Screenshots cannot grow forever.
+    // captures each time so ~/Documents/Intentive/Screenshots cannot grow forever.
     pruneOldScreenshots()
 
     let formatter = DateFormatter()
@@ -241,12 +241,15 @@ class ScreenCaptureManager {
     guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
       return nil
     }
-    let directory =
-      documentsDirectory
-      .appendingPathComponent("Omi")
-      .appendingPathComponent("Screenshots")
+    let directory = screenshotsDirectory(in: documentsDirectory)
     try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
     return directory
+  }
+
+  static func screenshotsDirectory(in documentsDirectory: URL) -> URL {
+    documentsDirectory
+      .appendingPathComponent("Intentive")
+      .appendingPathComponent("Screenshots")
   }
 
   private static func displayIDUnderMouse() -> CGDirectDisplayID {

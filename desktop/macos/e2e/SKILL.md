@@ -1,12 +1,12 @@
 ---
 name: desktop-app-flows
-description: "Understand and explore the Omi desktop macOS app's UI flows, navigation patterns, and SwiftUI architecture. Use when developing features, fixing bugs, or verifying changes in desktop/ Swift files. Provides agent-swift commands to explore the live app, understand how screens connect, and verify your work."
+description: "Understand and explore the Intentive desktop macOS app's UI flows, navigation patterns, and SwiftUI architecture. Use when developing features, fixing bugs, or verifying changes in desktop/ Swift files. Provides agent-swift commands to explore the live app, understand how screens connect, and verify your work."
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
-# Omi Desktop App — Flows & Exploration
+# Intentive Desktop App — Flows & Exploration
 
-This skill teaches you the Omi desktop macOS app's navigation structure, screen architecture, and SwiftUI patterns. Use it when developing features (to understand how the app works), fixing bugs (to navigate to the affected screen), or verifying changes (to confirm your code works in the live app).
+This skill teaches you the Intentive desktop macOS app's navigation structure, screen architecture, and SwiftUI patterns. Use it when developing features (to understand how the app works), fixing bugs (to navigate to the affected screen), or verifying changes (to confirm your code works in the live app).
 
 ## Fast-Path for Local Iteration (start here)
 
@@ -431,7 +431,7 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Floating Bar — show/hide, background style, draggable, typed questions, screen sharing, voice
 ├── Notifications & Privacy — local master/frequency, assistant notifications, and privacy controls
 ├── Rewind — storage info, excluded apps list
-├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
+├── Shortcuts — Open Intentive shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
 ├── Advanced — AI Setup (Ask Mode)
 └── About — version info, Privacy & Data, retained links, software updates, update channel
 
@@ -442,7 +442,7 @@ Rewind overlay (View menu → Rewind or ⌘⌥R)
 System Tray Menu (menu bar icon)
 ├── Screen Capture (toggle)
 ├── Audio Recording (toggle)
-├── Open Omi Beta
+├── Open Intentive
 ├── Check for Updates...
 ├── [signed-in status]
 └── Quit
@@ -478,8 +478,8 @@ System Tray Menu (menu bar icon)
 - Click popupbutton → menu items appear as `menuitem` elements
 
 **System tray menu:**
-- Menu items accessible via the Omi menu bar extra (unnamed `AXMenuBarItem`)
-- Items: Screen Capture, Audio Recording, Open Omi Beta, Check for Updates, [auth status], Quit
+- Menu items accessible via the Intentive menu bar extra (unnamed `AXMenuBarItem`)
+- Items: Screen Capture, Audio Recording, Open Intentive, Check for Updates, [auth status], Quit
 - Access via `snapshot --json` (includes menu bar items)
 
 ## Known Flows
@@ -500,7 +500,6 @@ Reference flows in `desktop/macos/e2e/flows/*.yaml` describe the app's key user 
 | `flows/language.yaml` | Settings → Transcription language config | 5 | Language mode toggle, voice assistant languages |
 | `flows/screen-recording-permission.yaml` | Rewind permission flow | 7 | Grant Permission button, Capture status |
 | `flows/audio-recording.yaml` | Audio capture, mic source, transcription | 7 | Start/Stop Recording, BT/mic selection |
-| `flows/refer-external.yaml` | Refer a Friend | 3 | Profile → affiliate URL |
 | `flows/recording-finalization.yaml` | Recording lifecycle | 7 | Transcription storage, conversation detail |
 
 When you modify a Swift file, check if any flow's `covers:` includes it. That flow describes the user journey your change affects.

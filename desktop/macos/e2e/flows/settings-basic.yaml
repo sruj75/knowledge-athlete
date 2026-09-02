@@ -75,7 +75,7 @@ steps:
 
   - id: S8
     name: Navigate to Shortcuts section
-    do: "Click 'Shortcuts' in the Settings section list. Verify shortcut settings show Open Omi Shortcut options, Push to Talk key options, PTT microphone selector, and toggle options."
+    do: "Click 'Shortcuts' in the Settings section list. Verify shortcut settings show Open Intentive Shortcut options, Push to Talk key options, PTT microphone selector, and toggle options."
     expect:
       text_visible:
         - Shortcuts

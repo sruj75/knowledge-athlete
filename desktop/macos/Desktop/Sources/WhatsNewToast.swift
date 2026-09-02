@@ -97,7 +97,7 @@ private struct WhatsNewToastCard: View {
 
       VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
         HStack(alignment: .top, spacing: OmiSpacing.sm) {
-          Text("omi updated")
+          Text(DesktopLifecycleIdentityCopy.whatsNewTitle)
             .scaledFont(size: OmiType.body, weight: .semibold)
             .foregroundColor(OmiColors.textPrimary)
           Spacer(minLength: 0)

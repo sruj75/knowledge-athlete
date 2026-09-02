@@ -12,7 +12,7 @@ final class OAuthLoopbackCallbackServer: @unchecked Sendable {
 
   private var socketFD: Int32?
   private var activeClientFD: Int32?
-  private let queue = DispatchQueue(label: "com.omi.desktop.oauth-loopback-callback")
+  private let queue = DispatchQueue(label: "com.heyintentive.desktop.oauth-loopback-callback")
   private let lock = NSLock()
   private var continuation: CheckedContinuation<(code: String, state: String), Error>?
   private var pendingResult: Result<(code: String, state: String), Error>?
@@ -177,8 +177,8 @@ final class OAuthLoopbackCallbackServer: @unchecked Sendable {
 
     var documentTitle: String {
       switch self {
-      case .success: return "Signed in - Omi"
-      case .failure, .invalid: return "Authentication failed - Omi"
+      case .success: return "Signed in - Intentive"
+      case .failure, .invalid: return "Authentication failed - Intentive"
       }
     }
 
@@ -192,7 +192,7 @@ final class OAuthLoopbackCallbackServer: @unchecked Sendable {
 
     var message: String {
       switch self {
-      case .success: return "You can close this tab and return to Omi."
+      case .success: return "You can close this tab and return to Intentive."
       case .failure: return "You can close this tab and try again in the app."
       case .invalid: return "This authentication callback was invalid. You can close this tab."
       }
@@ -221,8 +221,8 @@ final class OAuthLoopbackCallbackServer: @unchecked Sendable {
     case (.success, let .some(appOpenURL)):
       let escapedURL = htmlAttributeEscaped(appOpenURL)
       openAppAction = """
-                <p class="open-app-message">Opening Omi… If it doesn’t come to the front, select Open Omi.</p>
-                <a class="open-app-button" id="open-omi" href="\(escapedURL)">Open Omi</a>
+                <p class="open-app-message">Opening Intentive… If it doesn’t come to the front, select Open Intentive.</p>
+                <a class="open-app-button" id="open-intentive" href="\(escapedURL)">Open Intentive</a>
         """
     default:
       openAppAction = ""
@@ -234,8 +234,8 @@ final class OAuthLoopbackCallbackServer: @unchecked Sendable {
       openAppScript = """
             <script>
                 window.setTimeout(function () {
-                    var openOmi = document.getElementById("open-omi");
-                    if (openOmi) { window.location.assign(openOmi.href); }
+                    var openIntentive = document.getElementById("open-intentive");
+                    if (openIntentive) { window.location.assign(openIntentive.href); }
                 }, 100);
             </script>
         """

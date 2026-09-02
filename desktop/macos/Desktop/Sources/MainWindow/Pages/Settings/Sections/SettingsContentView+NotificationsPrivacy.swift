@@ -38,7 +38,7 @@ extension SettingsContentView {
             // whether live suggestions are generated at all.
             settingRow(
               title: "Live Suggestions",
-              subtitle: "Suggest things in the notch, using what Omi already knows",
+              subtitle: "Suggest things in the notch using available local context",
               settingId: "notifications.livesuggestions"
             ) {
               Toggle("", isOn: $liveSuggestionsEnabled)
@@ -111,31 +111,12 @@ extension SettingsContentView {
 
   var privacySection: some View {
     VStack(spacing: OmiSpacing.xl) {
-      // Encryption
+      // Local data authority
       settingsCard(destination: .localData) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
-          settingsCardHeader(icon: "shield.lefthalf.filled", title: "Encryption")
+          settingsCardHeader(icon: "internaldrive", title: PrivacyTruthPresentation.dataLocationTitle)
 
-          HStack(spacing: OmiSpacing.sm) {
-            Image(systemName: "checkmark.circle.fill")
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(.green)
-              .frame(width: 20, alignment: .leading)
-
-            Text("Local database protection")
-              .scaledFont(size: OmiType.body)
-              .foregroundColor(OmiColors.textSecondary)
-
-            Text("Active")
-              .scaledFont(size: OmiType.micro, weight: .semibold)
-              .foregroundColor(.green)
-              .padding(.horizontal, OmiSpacing.xxs)
-              .padding(.vertical, OmiSpacing.hairline)
-              .background(Color.green.opacity(0.15))
-              .cornerRadius(OmiChrome.stripRadius)
-          }
-
-          Text("Conversation transcripts and metadata are stored in the app's local database.")
+          Text(PrivacyTruthPresentation.dataLocationDetail)
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textTertiary)
         }
@@ -144,6 +125,42 @@ extension SettingsContentView {
       // What We Track
       settingsCard(destination: .tracking) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
+          HStack(spacing: OmiSpacing.lg) {
+            Image(systemName: "chart.bar.xaxis")
+              .scaledFont(size: OmiType.body)
+              .foregroundColor(OmiColors.textSecondary)
+              .frame(width: 20)
+
+            VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+              Text(PrivacyTruthPresentation.analyticsControlTitle)
+                .scaledFont(size: OmiType.body, weight: .medium)
+                .foregroundColor(OmiColors.textPrimary)
+              Text(PrivacyTruthPresentation.analyticsControlDetail)
+                .scaledFont(size: OmiType.caption)
+                .foregroundColor(OmiColors.textTertiary)
+              Text(productAnalyticsConsent.status.detail)
+                .scaledFont(size: OmiType.caption)
+                .foregroundColor(
+                  productAnalyticsConsent.status == .configurationUnavailable
+                    ? OmiColors.warning : OmiColors.textTertiary)
+            }
+
+            Spacer()
+
+            Toggle(
+              "",
+              isOn: Binding(
+                get: { productAnalyticsConsent.isSharingEnabled },
+                set: { productAnalyticsConsent.setSharingEnabled($0) }
+              )
+            )
+            .toggleStyle(OmiToggleStyle())
+            .labelsHidden()
+          }
+
+          Divider()
+            .background(OmiColors.backgroundQuaternary)
+
           Button(action: {
             OmiMotion.withGated(.easeInOut(duration: 0.2)) {
               isTrackingExpanded.toggle()
@@ -171,40 +188,41 @@ extension SettingsContentView {
 
           if isTrackingExpanded {
             VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-              trackingItem("Onboarding steps completed")
-              trackingItem("Settings changes")
-              trackingItem("App installations and usage")
-              trackingItem("Transcript processing events")
-              trackingItem("Conversation creation and updates")
-              trackingItem("Memory extraction events")
-              trackingItem("Chat interactions")
-              trackingItem("Focus session events")
-              trackingItem("App open/close events")
+              ForEach(PrivacyTruthPresentation.trackingCategories, id: \.self) { category in
+                trackingItem(category)
+              }
+
+              Text(PrivacyTruthPresentation.trackingBoundary)
+                .scaledFont(size: OmiType.caption)
+                .foregroundColor(OmiColors.textTertiary)
+                .padding(.top, OmiSpacing.xxs)
             }
             .transition(.opacity)
           }
         }
       }
 
-      // Privacy Guarantees
-      settingsCard(settingId: "privacy.privacy") {
+      settingsCard(settingId: "privacy.managedservices") {
         VStack(alignment: .leading, spacing: OmiSpacing.sm) {
           HStack(spacing: OmiSpacing.sm) {
-            Image(systemName: "hand.raised.fill")
+            Image(systemName: "network")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textSecondary)
               .frame(width: 20)
 
-            Text("Privacy Guarantees")
+            Text("Managed services")
               .scaledFont(size: OmiType.body, weight: .medium)
               .foregroundColor(OmiColors.textPrimary)
           }
 
           VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-            privacyBullet("Anonymous tracking with randomly generated IDs")
-            privacyBullet("No personal info stored in analytics")
-            privacyBullet("Data is never sold or shared with third parties")
-            privacyBullet("Opt out of tracking at any time")
+            ForEach(PrivacyTruthPresentation.managedServices, id: \.name) { service in
+              trackingItem("\(service.name) — \(service.purpose)")
+            }
+            Text(PrivacyTruthPresentation.billingStatus)
+              .scaledFont(size: OmiType.caption)
+              .foregroundColor(OmiColors.textTertiary)
+              .padding(.top, OmiSpacing.xxs)
           }
         }
       }

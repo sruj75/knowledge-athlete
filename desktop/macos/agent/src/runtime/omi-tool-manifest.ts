@@ -316,7 +316,7 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ),
     voice: {
       realtimeDescription:
-        "Read what Omi knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns.",
+        "Read what Intentive knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns.",
     },
   },
   search_memories: {
@@ -402,7 +402,7 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ]),
     voice: {
       realtimeDescription:
-        "Check whether Omi has the requested macOS permission through the kernel-authorized native executor.",
+        "Check whether Intentive has the requested macOS permission through the kernel-authorized native executor.",
     },
   },
   request_permission: {
@@ -415,14 +415,14 @@ const swiftToolSurfacePatches: Record<string, OmiToolSurfacePatch> = {
     ]),
     voice: {
       realtimeDescription:
-        "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
+        "Request Intentive's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     },
   },
   get_local_status: {
     surfaces: ["desktop_chat"],
     capabilityDoc: doc(
       "Get Local Status",
-      "Report whether local Omi Desktop context is available.",
+      "Report whether local Intentive Desktop context is available.",
       ["Local API only."],
     ),
   },
@@ -532,7 +532,7 @@ const swiftToolManifestDrafts: OmiToolManifestEntryDraft[] = [
     timeoutClass: "normal",
     executor: { kind: "swiftTool" },
     intendedForAgents: true,
-    runtimePreconditions: ["Requires local Omi activity data."],
+    runtimePreconditions: ["Requires local Intentive activity data."],
     adapters: piOnly(),
   },
   {
@@ -874,7 +874,7 @@ export const swiftToolManifest: OmiToolManifestEntry[] = finalizeManifestEntries
 const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiToolVoiceConfig>> = {
   spawn_agent: {
     realtimeDescription:
-      "Start canonical Omi background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
+      "Start canonical Intentive background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
     schemaOverride: schema(
       {
         objective: { type: "string", description: "Self-contained background-agent objective." },
@@ -888,7 +888,7 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   list_agent_sessions: {
     realtimeDescription:
-      "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+      "List canonical Intentive-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
     schemaOverride: schema(
       {
         surfaceKind: {
@@ -902,11 +902,11 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
     ),
   },
   get_agent_run: {
-    realtimeDescription: "Inspect one canonical Omi-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
+    realtimeDescription: "Inspect one canonical Intentive-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
     schemaOverride: schema(
       {
         agentRef: { type: "string", description: "Opaque agent handle from list_agent_sessions." },
-        runId: { type: "string", description: "Canonical Omi run id." },
+        runId: { type: "string", description: "Canonical Intentive run id." },
         includeEvents: { type: "boolean", description: "Include ordered kernel events. Default true." },
         eventLimit: { type: "number", description: "Maximum events to return. Default 100." },
       },
@@ -915,26 +915,26 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   cancel_agent_run: {
     realtimeDescription:
-      "Request cancellation for one canonical Omi-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
+      "Request cancellation for one canonical Intentive-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
     schemaOverride: schema(
       {
         agentRef: { type: "string", description: "Opaque agent handle from list_agent_sessions." },
-        runId: { type: "string", description: "Canonical Omi run id to cancel." },
+        runId: { type: "string", description: "Canonical Intentive run id to cancel." },
       },
       [],
     ),
   },
   inspect_agent_artifacts: {
     realtimeDescription:
-      "Inspect metadata and references for canonical Omi-managed agent artifacts. Does not read arbitrary artifact contents.",
+      "Inspect metadata and references for canonical Intentive-managed agent artifacts. Does not read arbitrary artifact contents.",
     schemaOverride: schema(
       {
         agentRef: { type: "string", description: "Opaque agent handle from list_agent_sessions." },
         artifactRef: { type: "string", description: "Opaque artifact handle from inspect_agent_artifacts." },
-        artifactId: { type: "string", description: "Canonical Omi artifact id." },
-        sessionId: { type: "string", description: "Canonical Omi session id." },
-        runId: { type: "string", description: "Canonical Omi run id." },
-        attemptId: { type: "string", description: "Canonical Omi attempt id." },
+        artifactId: { type: "string", description: "Canonical Intentive artifact id." },
+        sessionId: { type: "string", description: "Canonical Intentive session id." },
+        runId: { type: "string", description: "Canonical Intentive run id." },
+        attemptId: { type: "string", description: "Canonical Intentive attempt id." },
         role: {
           type: "string",
           enum: ["input", "result", "checkpoint", "tool_output", "log", "other"],
@@ -947,7 +947,7 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   read_tool_output: {
     realtimeDescription:
-      "Read a bounded excerpt from an Omi tool-output artifact referenced by a prior toolResultEnvelope. Never request an arbitrary file path.",
+      "Read a bounded excerpt from an Intentive tool-output artifact referenced by a prior toolResultEnvelope. Never request an arbitrary file path.",
     schemaOverride: schema(
       {
         artifactId: { type: "string", description: "Canonical tool-output artifact id." },
@@ -958,7 +958,7 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   search_tool_output: {
     realtimeDescription:
-      "Search a saved Omi tool-output artifact for matching lines without returning the complete artifact.",
+      "Search a saved Intentive tool-output artifact for matching lines without returning the complete artifact.",
     schemaOverride: schema(
       {
         artifactId: { type: "string", description: "Canonical tool-output artifact id." },
@@ -970,19 +970,19 @@ const controlVoicePatches: Partial<Record<AgentControlManifestTool["name"], OmiT
   },
   update_agent_artifact_lifecycle: {
     realtimeDescription:
-      "Update metadata-only lifecycle state for one canonical Omi-managed agent artifact. Does not open, delete, retain, or read files.",
+      "Update metadata-only lifecycle state for one canonical Intentive-managed agent artifact. Does not open, delete, retain, or read files.",
     schemaOverride: schema(
       {
         artifactRef: { type: "string", description: "Opaque artifact handle from inspect_agent_artifacts." },
-        artifactId: { type: "string", description: "Canonical Omi artifact id." },
+        artifactId: { type: "string", description: "Canonical Intentive artifact id." },
         state: {
           type: "string",
           enum: ["retained", "dismissed", "opened"],
           description: "Target metadata lifecycle state.",
         },
-        sessionId: { type: "string", description: "Optional canonical Omi session id scope guard." },
-        runId: { type: "string", description: "Optional canonical Omi run id scope guard." },
-        attemptId: { type: "string", description: "Optional canonical Omi attempt id scope guard." },
+        sessionId: { type: "string", description: "Optional canonical Intentive session id scope guard." },
+        runId: { type: "string", description: "Optional canonical Intentive run id scope guard." },
+        attemptId: { type: "string", description: "Optional canonical Intentive attempt id scope guard." },
         reason: { type: "string", description: "Optional short reason." },
       },
       ["state"],

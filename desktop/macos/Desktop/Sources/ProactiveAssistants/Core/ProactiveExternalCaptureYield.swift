@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decides, once per capture tick, whether Omi must skip its periodic screen capture to
+/// Decides, once per capture tick, whether Intentive must skip its periodic screen capture to
 /// yield to an **external capture** in progress:
 ///
 /// - a screenshot / screen-recording app frontmost (CleanShot, Shottr, macOS screenshot, …):

@@ -6,8 +6,8 @@ import Cocoa
 class ShortcutSettings: ObservableObject {
   static let shared = ShortcutSettings()
 
-  /// Notification posted when the Ask Omi shortcut changes so hotkeys can be re-registered.
-  nonisolated static let askOmiShortcutChanged = Notification.Name("ShortcutSettings.askOmiShortcutChanged")
+  /// Notification posted when the Ask Intentive shortcut changes so hotkeys can be re-registered.
+  nonisolated static let askOmiShortcutChanged = Notification.Name("ShortcutSettings.askIntentiveShortcutChanged")
 
   struct KeyboardShortcut: Codable, Hashable {
     var keyCode: UInt16?
@@ -314,12 +314,12 @@ class ShortcutSettings: ObservableObject {
 
   @Published var askOmiEnabled: Bool {
     didSet {
-      UserDefaults.standard.set(askOmiEnabled, forKey: "shortcut_askOmiEnabled")
+      UserDefaults.standard.set(askOmiEnabled, forKey: "shortcut_askIntentiveEnabled")
       postAskOmiShortcutChangedIfNeeded()
     }
   }
 
-  /// Keeps the registration owner from observing a half-applied Ask Omi selection.
+  /// Keeps the registration owner from observing a half-applied Ask Intentive selection.
   /// The individual published values still update for SwiftUI, but the hotkey owner
   /// receives one notification only after both persisted values are final.
   func updateAskOmiRegistration(enabled: Bool, shortcut: KeyboardShortcut) {
@@ -560,7 +560,7 @@ class ShortcutSettings: ObservableObject {
     NotificationCenter.default.post(name: Self.askOmiShortcutChanged, object: nil)
   }
 
-  private static let askOmiShortcutDefaultsKey = "shortcut_askOmiKey"
+  private static let askOmiShortcutDefaultsKey = "shortcut_askIntentiveKey"
   private static let pttShortcutDefaultsKey = "shortcut_pttKey"
 
   private init() {
@@ -579,7 +579,7 @@ class ShortcutSettings: ObservableObject {
         legacyMapper: Self.legacyAskOmiShortcut
       ) ?? Self.defaultAskOmiShortcut
 
-    self.askOmiEnabled = UserDefaults.standard.object(forKey: "shortcut_askOmiEnabled") as? Bool ?? true
+    self.askOmiEnabled = UserDefaults.standard.object(forKey: "shortcut_askIntentiveEnabled") as? Bool ?? true
     self.pttEnabled = UserDefaults.standard.object(forKey: "shortcut_pttEnabled") as? Bool ?? true
     self.doubleTapForLock = UserDefaults.standard.object(forKey: "shortcut_doubleTapForLock") as? Bool ?? true
     self.solidBackground = UserDefaults.standard.object(forKey: "shortcut_solidBackground") as? Bool ?? false

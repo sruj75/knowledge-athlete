@@ -6,7 +6,7 @@ APP_BUNDLE="${1:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/prepare-desktop-bundle-native-deps.sh /path/to/Omi.app
+Usage: scripts/prepare-desktop-bundle-native-deps.sh /path/to/Intentive.app
 
 Normalizes bundled native Node dependencies before signing:
   - rewrites host-machine LC_ID_DYLIB values in .node dylibs

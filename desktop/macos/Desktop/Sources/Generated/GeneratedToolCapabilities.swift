@@ -93,9 +93,9 @@ enum GeneratedToolCapabilities {
       title: "List Agent Sessions",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "List Omi-managed agent sessions from the local runtime kernel.",
+      summary: "List Intentive-managed agent sessions from the local runtime kernel.",
       bullets: [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Use for current or recent kernel-backed Intentive agents/subagents across chat, PTT/realtime, and floating-bar pills.",
       "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id."
     ]
@@ -105,9 +105,9 @@ enum GeneratedToolCapabilities {
       title: "Get Agent Run",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Inspect one canonical Omi agent run.",
+      summary: "Inspect one canonical Intentive agent run.",
       bullets: [
-      "Use a runId from list_agent_sessions or a correlated Omi result.",
+      "Use a runId from list_agent_sessions or a correlated Intentive result.",
       "Returns the run, attempts, adapter bindings, events, and artifact metadata.",
       "For a completed child, use run.finalText to answer the user and keep the internal runId out of the user-visible response."
     ]
@@ -190,9 +190,9 @@ enum GeneratedToolCapabilities {
       title: "Cancel Agent Run",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Request cancellation for one canonical Omi agent run through the runtime kernel.",
+      summary: "Request cancellation for one canonical Intentive agent run through the runtime kernel.",
       bullets: [
-      "Use when the user asks to stop a running Omi agent/subagent.",
+      "Use when the user asks to stop a running Intentive agent/subagent.",
       "Returns whether cancellation was accepted, dispatched, and acknowledged."
     ]
     ),
@@ -201,7 +201,7 @@ enum GeneratedToolCapabilities {
       title: "Inspect Agent Artifacts",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Inspect canonical artifact metadata for an Omi agent artifact, session, run, or attempt.",
+      summary: "Inspect canonical artifact metadata for an Intentive agent artifact, session, run, or attempt.",
       bullets: [
       "Returns artifact references and metadata only.",
       "Use after get_agent_run when the user asks what files or outputs an agent produced."
@@ -212,7 +212,7 @@ enum GeneratedToolCapabilities {
       title: "Read Tool Output",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Read a bounded excerpt from a canonical Omi tool-output artifact.",
+      summary: "Read a bounded excerpt from a canonical Intentive tool-output artifact.",
       bullets: [
       "Requires a canonical artifact id and keeps provider payloads bounded.",
       "Use an artifactId returned by a toolResultEnvelope fullOutputRef or inspect_agent_artifacts.",
@@ -224,7 +224,7 @@ enum GeneratedToolCapabilities {
       title: "Search Tool Output",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Search a canonical Omi tool-output artifact without returning the complete artifact.",
+      summary: "Search a canonical Intentive tool-output artifact without returning the complete artifact.",
       bullets: [
       "Requires a canonical artifact id and returns bounded matching lines.",
       "Use after a truncated toolResultEnvelope to find the relevant local output."
@@ -235,7 +235,7 @@ enum GeneratedToolCapabilities {
       title: "Update Agent Artifact Lifecycle",
       latency: .fastLocal,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Update metadata-only lifecycle state for one canonical Omi agent artifact.",
+      summary: "Update metadata-only lifecycle state for one canonical Intentive agent artifact.",
       bullets: [
       "Use to mark artifact metadata as retained, dismissed, or opened after a user-visible artifact decision.",
       "Pass sessionId, runId, or attemptId when available as a scope guard.",
@@ -247,9 +247,9 @@ enum GeneratedToolCapabilities {
       title: "Send Agent Message",
       latency: .asyncBackground,
       surfaces: Set([.desktopChat]),
-      summary: "Send a follow-up message to an existing canonical Omi agent session.",
+      summary: "Send a follow-up message to an existing canonical Intentive agent session.",
       bullets: [
-      "Use when continuing a multi-turn conversation with an Omi-managed agent by sessionId.",
+      "Use when continuing a multi-turn conversation with an Intentive-managed agent by sessionId.",
       "Creates a new run in the existing session."
     ]
     ),
@@ -269,13 +269,13 @@ enum GeneratedToolCapabilities {
       title: "Spawn Agent",
       latency: .asyncBackground,
       surfaces: Set([.desktopChat, .realtimeHub]),
-      summary: "Start canonical Omi background work and optionally project it into floating-bar pills.",
+      summary: "Start canonical Intentive background work and optionally project it into floating-bar pills.",
       bullets: [
       "Creates a canonical kernel session/run; visible runs project into floating-bar pills.",
       "Calling spawn_agent is the only way to start a visible floating-bar background agent; saying you will start one does not start it.",
       "Use visible=false for parent-linked background work that should not appear as a pill.",
       "The primary coordinator decides in its model loop whether to call spawn_agent.",
-      "Pass toolPolicy.allowedToolNames to restrict which Omi tools the child agent may call; it can only narrow, never widen, the child's tool set.",
+      "Pass toolPolicy.allowedToolNames to restrict which Intentive tools the child agent may call; it can only narrow, never widen, the child's tool set.",
       "Inspect progress with list_agent_sessions or get_agent_run."
     ]
     ),

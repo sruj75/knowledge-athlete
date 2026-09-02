@@ -29,7 +29,7 @@ steps:
     do: "Run reset_onboarding and wait for the same named bundle to restart on the promise stage. Verify transcription and screen-analysis intents are off, neither capture owner is running, completion is false, and reset_onboarding remains listed only for this non-production bundle."
     expect:
       text_visible:
-        - "Set up Omi →"
+        - "Set up Intentive →"
         - "Skip"
 
   - id: S3

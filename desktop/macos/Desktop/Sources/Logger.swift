@@ -242,7 +242,7 @@ private func writeToLogFile(_ data: Data) {
 
 // MARK: - Performance Logging
 
-/// Log a performance event with timing info - writes to omi.log with [perf] tag
+/// Log a performance event with timing info - writes to the current identity's app log with [perf] tag
 func logPerf(_ message: String, duration: Double? = nil, cpu: Bool = false) {
   let timestamp = dateFormatter.string(from: Date())
   var parts = [logLine(timestamp: timestamp, category: "perf", message: message)]

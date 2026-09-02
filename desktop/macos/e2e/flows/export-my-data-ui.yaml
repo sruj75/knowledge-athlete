@@ -38,7 +38,7 @@ steps:
     name: Verify the native save panel
     ax.expect:
       text_visible:
-        - omi-data-export-
+        - intentive-data-export-
         - Cancel
 
   - id: S5
@@ -67,4 +67,4 @@ steps:
     ax.expect:
       timeout_ms: 45000
       text_visible:
-        - Saved omi-data-export-
+        - Saved intentive-data-export-

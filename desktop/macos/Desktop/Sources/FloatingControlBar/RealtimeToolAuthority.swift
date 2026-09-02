@@ -153,9 +153,9 @@ enum RealtimeAutomationTurnHarness {
 /// collects the bounded live-transcription window, then requires the stream to
 /// be quiet rather than deriving authority from the provider's type-only tool
 /// arguments. Waiting through the complete window matters: an early quiet gap
-/// must not authorize before a later suffix can name a non-Omi app. The bounded
+/// must not authorize before a later suffix can name a non-Intentive app. The bounded
 /// wait keeps the provider's tool turn moving and never converts missing context
-/// into an Omi permission request.
+/// into an Intentive permission request.
 enum RealtimePermissionTranscriptSettlementPolicy {
   static let quietPeriod: TimeInterval = 0.2
   static let maximumWait: TimeInterval = 1.0

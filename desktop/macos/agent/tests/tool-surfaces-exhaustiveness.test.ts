@@ -71,6 +71,12 @@ function hasRealtimeSurface(tool: (typeof omiToolManifest)[number]): boolean {
 }
 
 describe("tool surface exhaustiveness", () => {
+  it("publishes the final product identity in provider-facing capability copy", () => {
+    const rendered = JSON.stringify(omiToolManifest);
+    expect(rendered).toContain("Intentive");
+    expect(rendered).not.toMatch(/\bOmi\b/);
+  });
+
   it("declares and generates both permission tools across pi-mono and realtime", () => {
     const permissionTools = ["check_permission_status", "request_permission"];
     const piMonoNames = new Set(toolsForAdapter("pi-mono").map((tool) => tool.name));

@@ -6,7 +6,7 @@ enum NotchMoment {
   static let endAssistantId = "notch_end"
 }
 
-/// Drives the Second Brain notch "moments" — live receipts as Omi writes things
+/// Drives the Second Brain notch "moments" — live receipts as Intentive writes things
 /// down, and the conversation-end "N follow-ups ready" card — off REAL app state
 /// (transcription lifecycle + TasksStore), routed through the existing hardened
 /// notification path. It never touches the notch geometry or the voice/PTT code.
@@ -97,13 +97,13 @@ final class NotchMomentsCoordinator {
     let currentIds = Set(tasks.map(\.id))
     defer { knownTaskIds = currentIds }
     // Only surface receipts for tasks that appear WHILE listening — that's the
-    // "Omi is writing this down" moment. Backfilled loads shouldn't spam the pill.
+    // "Intentive is writing this down" moment. Backfilled loads shouldn't spam the pill.
     guard appState?.isTranscribing == true else { return }
     let newIds = currentIds.subtracting(knownTaskIds)
     guard !newIds.isEmpty else { return }
     // Only a task that was *just created* is a live receipt. A paginated backfill
     // or a re-opened old task also adds an id, but its createdAt is stale — skip it
-    // so the pill only shows "✓ Noted" the instant Omi actually writes something down.
+    // so the pill only shows "✓ Noted" the instant Intentive actually writes something down.
     let freshCutoff = Date().addingTimeInterval(-120)
     guard
       let newTask =

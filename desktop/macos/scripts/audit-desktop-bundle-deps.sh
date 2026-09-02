@@ -6,7 +6,7 @@ APP_BUNDLE="${1:-}"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/audit-desktop-bundle-deps.sh /path/to/Omi.app
+Usage: scripts/audit-desktop-bundle-deps.sh /path/to/Intentive.app
 
 Audits Mach-O load commands in a desktop app bundle. The audit fails when a
 bundled executable or dylib references developer-machine paths such as

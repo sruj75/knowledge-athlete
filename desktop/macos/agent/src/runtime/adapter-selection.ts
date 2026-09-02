@@ -22,5 +22,5 @@ export function managedPiIsActivated(
 }
 
 export function managedPiActivationError(): string {
-  return "Managed Omi authentication is unavailable. Sign in and try again.";
+  return "Managed Intentive authentication is unavailable. Sign in and try again.";
 }

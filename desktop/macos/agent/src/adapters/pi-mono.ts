@@ -4,7 +4,7 @@
 // in the same Node.js process. Custom tools relay back to Swift
 // via the existing tool_use/tool_result bridge protocol.
 //
-// Issue #6594: Pi-mono harness with Omi API proxy for server-side cost control.
+// Issue #6594: Pi-mono harness with the Intentive API proxy for server-side cost control.
 
 import { ChildProcess, spawn } from "child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
@@ -53,7 +53,7 @@ interface PiRpcEvent {
 
 interface PiMonoRelayContext {
   capabilityRef: string;
-  /** Omi-owned opaque correlation id. Never contains prompt or account data. */
+  /** Intentive-owned opaque correlation id. Never contains prompt or account data. */
   requestId: string;
   /** Owner-local conversation identity used only for provider trace grouping. */
   sessionId: string;
@@ -165,7 +165,7 @@ function resolveBundledPi(): string {
   // Prefer the direct package path — .bin/pi is a symlink that ditto resolves
   // into a flat copy, breaking its relative import of ./main.js
   // Note: URL.pathname percent-encodes spaces (%20) which breaks existsSync
-  // for app bundles with spaces in their name (e.g. "Omi Beta.app").
+  // for app bundles with spaces in their name (e.g. "Intentive Beta.app").
   const direct = decodeURIComponent(new URL(
     "../../node_modules/@earendil-works/pi-coding-agent/dist/cli.js",
     import.meta.url
@@ -264,7 +264,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       "-e",
       this.extensionPath,
       "--provider",
-      "omi",
+      "intentive",
       "--model",
       "gemini-3.7-flash",
     ];
@@ -304,7 +304,7 @@ export class PiMonoAdapter implements HarnessAdapter {
     env.OMI_ADAPTER_ID = "pi-mono";
     env.OMI_EXECUTION_ROLE = this.currentExecutionRole;
     env.OMI_CONTEXT_FILE = this.contextFilePath;
-    // Forward OMI_BRIDGE_PIPE so the extension can register omi-tools
+    // Forward OMI_BRIDGE_PIPE so the extension can register Intentive tools
     // (execute_sql, semantic_search, etc.) that forward to Swift.
     // The shared runtime process sets the pipe in process.env before starting pi-mono.
 
@@ -397,7 +397,7 @@ export class PiMonoAdapter implements HarnessAdapter {
     // model-selection seam in the adapter contract.
     this.sendCommand({
       type: "set_model",
-      provider: "omi",
+      provider: "intentive",
       modelId: "gemini-3.7-flash",
     });
 
@@ -635,7 +635,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       case HarnessFeature.BIDIRECTIONAL_RPC:
         return true;
       case HarnessFeature.COST_TRACKING:
-        return true; // Server-side via Omi API
+        return true; // Server-side via the Intentive API
       case HarnessFeature.SESSION_RESUME:
         return false;
       default:
@@ -779,7 +779,7 @@ export class PiMonoAdapter implements HarnessAdapter {
         // error (rate limit, 5xx). They do NOT end the in-flight turn — the
         // subsequent turn_end is still authoritative for completion.
         // agent_settled is an upstream advisory event; only turn_end carries
-        // the terminal result that can settle Omi's canonical run lifecycle.
+        // the terminal result that can settle Intentive's canonical run lifecycle.
         break;
 
       case "extension_ui_request":

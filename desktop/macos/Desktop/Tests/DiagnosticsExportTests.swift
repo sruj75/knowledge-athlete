@@ -60,7 +60,7 @@ import XCTest
       XCTAssertTrue(text.contains("applied basic settings for the user"), "over-redacted benign 'basic'")
 
       // Metadata header is present and offline-safe.
-      XCTAssertTrue(text.contains("# Omi Desktop Diagnostics"))
+      XCTAssertTrue(text.contains("# Intentive Desktop Diagnostics"))
       XCTAssertTrue(text.contains("os_version:"))
       XCTAssertTrue(text.contains("privacy: redacted_local_export"))
     }
@@ -75,7 +75,7 @@ import XCTest
 
       XCTAssertTrue(FileManager.default.fileExists(atPath: outURL.path))
       let written = try String(contentsOf: outURL, encoding: .utf8)
-      XCTAssertTrue(written.contains("# Omi Desktop Diagnostics"))
+      XCTAssertTrue(written.contains("# Intentive Desktop Diagnostics"))
       XCTAssertTrue(written.contains("hello"))
     }
 

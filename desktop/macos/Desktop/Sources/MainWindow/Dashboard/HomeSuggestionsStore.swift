@@ -254,6 +254,9 @@ struct DefaultHomeSuggestionLocalSources: HomeSuggestionLocalSources {
 }
 
 struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
+  static let systemPrompt =
+    "You write the suggested questions shown under the ask bar of Intentive, the user's personal AI assistant. The questions are ones the user would tap to ask about their own life and work."
+
   private struct Response: Decodable {
     let questions: [String]
   }
@@ -425,8 +428,7 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     ) {
       try await client.sendRequest(
         prompt: prompt,
-        systemPrompt:
-          "You write the suggested questions shown under the ask bar of omi, the user's personal AI assistant. The questions are ones the user would tap to ask about their own life and work.",
+        systemPrompt: Self.systemPrompt,
         responseSchema: schema
       )
     }

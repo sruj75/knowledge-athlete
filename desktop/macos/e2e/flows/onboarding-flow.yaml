@@ -16,6 +16,9 @@ covers:
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift
   - desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel+Steps.swift
+  - desktop/macos/Desktop/Sources/MainWindow/OnboardingOpenerView.swift
+  - desktop/macos/Desktop/Sources/MainWindow/SecondBrain/SBComponents.swift
+  - desktop/macos/Desktop/Sources/Theme/SecondBrainTokens.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+OnboardingJournal.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
   - desktop/macos/Desktop/Sources/AuthService.swift
@@ -34,15 +37,15 @@ preconditions:
 steps:
   - id: S1
     name: Reset into the retained first stage
-    do: "Run reset_onboarding, wait for the same named bundle to restart, and reconnect its automation port. Verify the promise card begins with 'Hey, I'm Omi, your second brain', offers 'Set up Omi →', and keeps a visible global Skip action."
+    do: "Run reset_onboarding, wait for the same named bundle to restart, and reconnect its automation port. Verify the promise card begins with 'Hey, I'm Intentive, your second brain', offers 'Set up Intentive →', and keeps a visible global Skip action."
     expect:
       text_visible:
-        - "Set up Omi →"
+        - "Set up Intentive →"
         - "Skip"
 
   - id: S2
     name: Save identity answers through their real owners
-    do: "Continue, enter a disposable name, choose YouTube for 'How did you hear about Omi?', and accept or change the spoken language. Verify the acquisition answer advances immediately and backend request capture contains no /v1/users/onboarding request."
+    do: "Continue, enter a disposable name, choose YouTube for 'How did you hear about Intentive?', and accept or change the spoken language. Verify the acquisition answer advances immediately and backend request capture contains no /v1/users/onboarding request."
     expect:
       text_visible:
         - "Let's give me senses. First, your microphone"
@@ -60,7 +63,7 @@ steps:
 
   - id: S5
     name: Shortcut and demo stages stay skippable
-    do: "Walk the open-Omi shortcut, push-to-talk shortcut, and screen-and-voice demo. Verify each shortcut can use 'Skip for now' until exercised and the demo exposes a clearly visible full-width 'Skip for now' while voice is unavailable or unfinished."
+    do: "Walk the Open Intentive shortcut, push-to-talk shortcut, and screen-and-voice demo. Verify each shortcut can use 'Skip for now' until exercised and the demo exposes a clearly visible full-width 'Skip for now' while voice is unavailable or unfinished."
     expect:
       text_visible:
         - "Skip for now"
@@ -90,7 +93,7 @@ steps:
     do: "As disposable account A, save a distinctive acquisition answer, leave a resumable setup step, and sign out. If Firebase sign-out is deliberately failed, verify A remains authenticated and capture/default/completion state is unchanged. Complete a successful sign-out, authenticate as disposable account B, and verify B starts at the promise with no A answer, resume step, setup transcript, fallback messages, opener, or running capture owner."
     expect:
       text_visible:
-        - "Set up Omi →"
+        - "Set up Intentive →"
 
   - id: S11
     name: Both user reset entrances share the capture-safe boundary

@@ -18,12 +18,12 @@ final class ChatDraftStoreTests: XCTestCase {
 
   func testDraftsRoundTripIndependentlyAcrossRelaunch() {
     let first = makeStore(ownerID: "user-a")
-    first.setText("main draft\nwith detail", for: .mainChat(contextID: "omi:default"))
+    first.setText("main draft\nwith detail", for: .mainChat(contextID: "intentive:default"))
     first.setText("notch draft", for: .floatingMain)
     first.flush()
 
     let relaunched = makeStore(ownerID: "user-a")
-    XCTAssertEqual(relaunched.text(for: .mainChat(contextID: "omi:default")), "main draft\nwith detail")
+    XCTAssertEqual(relaunched.text(for: .mainChat(contextID: "intentive:default")), "main draft\nwith detail")
     XCTAssertEqual(relaunched.text(for: .floatingMain), "notch draft")
   }
 
@@ -209,7 +209,7 @@ final class ChatDraftStoreTests: XCTestCase {
 
   func testCorruptRecordDoesNotAffectOtherDrafts() throws {
     let store = makeStore(ownerID: "user-a")
-    store.setText("main unique value", for: .mainChat(contextID: "omi:default"))
+    store.setText("main unique value", for: .mainChat(contextID: "intentive:default"))
     store.setText("notch survives", for: .floatingMain)
     store.flush()
 
@@ -220,7 +220,7 @@ final class ChatDraftStoreTests: XCTestCase {
     try Data("not-json".utf8).write(to: mainFile, options: .atomic)
 
     let relaunched = makeStore(ownerID: "user-a")
-    XCTAssertEqual(relaunched.text(for: .mainChat(contextID: "omi:default")), "")
+    XCTAssertEqual(relaunched.text(for: .mainChat(contextID: "intentive:default")), "")
     XCTAssertEqual(relaunched.text(for: .floatingMain), "notch survives")
   }
 

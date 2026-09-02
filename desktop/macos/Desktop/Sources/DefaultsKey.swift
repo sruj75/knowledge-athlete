@@ -40,7 +40,6 @@ enum DefaultsKey: String {
   case onboardingResumeStep = "sbOnboardingResumeStep"
   case onboardingJustCompleted = "onboardingJustCompleted"
   case onboardingExitOutcome = "onboardingExitOutcome"
-  case homeOmiDeviceAccountHistory = "home-omi-device-account-history"
   case chatScreenshotSharingEnabled = "chatScreenshotSharingEnabled"
   case clientDeviceDevInstallId = "dev-client-device-install-uuid"
   case clientDeviceInstallIdMirror = "client-device-install-uuid-mirror"

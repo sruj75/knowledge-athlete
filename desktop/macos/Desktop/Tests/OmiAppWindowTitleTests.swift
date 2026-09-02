@@ -7,31 +7,31 @@ final class OmiAppWindowTitleTests: XCTestCase {
   func testNamedBuildIncludesVersion() {
     XCTAssertEqual(
       OMIApp.windowTitle(
-        displayName: "Omi Beta",
+        displayName: "Intentive Beta",
         version: "0.12.73",
         launchMode: .full,
         isNonProduction: true),
-      "Omi Beta v0.12.73")
+      "Intentive Beta v0.12.73")
   }
 
   func testNamedRewindBuildIncludesVersion() {
     XCTAssertEqual(
       OMIApp.windowTitle(
-        displayName: "Omi Dev",
+        displayName: "Intentive Dev",
         version: "0.12.73",
         launchMode: .rewind,
         isNonProduction: true),
-      "Omi Dev Rewind v0.12.73")
+      "Intentive Dev Rewind v0.12.73")
   }
 
   func testEmptyVersionFallsBackToName() {
     XCTAssertEqual(
       OMIApp.windowTitle(
-        displayName: "Omi Beta",
+        displayName: "Intentive Beta",
         version: "",
         launchMode: .full,
         isNonProduction: true),
-      "Omi Beta")
+      "Intentive Beta")
   }
 
   func testProductionTitleRemainsUnchanged() {
@@ -41,6 +41,16 @@ final class OmiAppWindowTitleTests: XCTestCase {
         version: "0.12.70",
         launchMode: .full,
         isNonProduction: false),
-      "omi v0.12.70")
+      "Intentive v0.12.70")
+  }
+
+  func testProductionRewindTitleUsesIntentiveIdentity() {
+    XCTAssertEqual(
+      OMIApp.windowTitle(
+        displayName: "ignored",
+        version: "0.12.70",
+        launchMode: .rewind,
+        isNonProduction: false),
+      "Intentive Rewind v0.12.70")
   }
 }

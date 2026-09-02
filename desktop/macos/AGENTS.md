@@ -1,7 +1,7 @@
 # Desktop (macOS) — Developer Guide
 
 ## Project Overview
-OMI Desktop App for macOS (Swift)
+Intentive Desktop App for macOS (Swift)
 
 ## Logs & Debugging
 

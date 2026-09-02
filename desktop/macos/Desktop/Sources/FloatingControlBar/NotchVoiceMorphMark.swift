@@ -261,7 +261,7 @@ struct NotchVoiceMorphMark: View {
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(
-      isListening ? "Listening" : isSpeaking ? "Speaking" : isThinking ? "Thinking" : "Omi")
+      isListening ? "Listening" : isSpeaking ? "Speaking" : isThinking ? "Thinking" : "Intentive")
   }
 
   private func setMorphProgress(_ progress: CGFloat) {
@@ -330,7 +330,7 @@ struct NotchVoiceMorphMark: View {
           y: center.y + CGFloat(sin(angle)) * ringRadius
         )
       }
-      // PTT capture is one Omi-owned state, not an agent-status legend. White
+      // PTT capture is one Intentive-owned state, not an agent-status legend. White
       // keeps every waveform dot legible against the notch's black chrome.
       // Color follows the presentation, not the pulse magnitude, so a pause
       // in the reply can't flicker the ring between white and status colors.

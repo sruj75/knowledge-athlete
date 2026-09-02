@@ -22,8 +22,8 @@ final class AssistantSettingsVocabularyTests: XCTestCase {
     let original = settings.transcriptionVocabulary
     defer { settings.transcriptionVocabulary = original }
 
-    settings.transcriptionVocabulary = ["Knowledge Athlete", "omi", "Hypermind", "Knowledge Athlete"]
+    settings.transcriptionVocabulary = ["Knowledge Athlete", "intentive", "Hypermind", "Knowledge Athlete"]
 
-    XCTAssertEqual(settings.effectiveVocabulary, ["Omi", "Knowledge Athlete", "Hypermind"])
+    XCTAssertEqual(settings.effectiveVocabulary, ["Intentive", "Knowledge Athlete", "Hypermind"])
   }
 }

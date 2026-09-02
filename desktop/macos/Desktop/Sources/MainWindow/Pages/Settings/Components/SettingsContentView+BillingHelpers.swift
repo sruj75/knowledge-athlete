@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 import WebKit
 
 enum SubscriptionPlanPresentation {
+  static let loadingDetail = "Fetching subscription details..."
+
   static func selectionLabel(planTitle: String, startingPrice: String?) -> String {
     guard let startingPrice, !startingPrice.isEmpty else {
       return "Select \(planTitle)"
@@ -40,7 +42,7 @@ extension SettingsContentView {
 
   var currentPlanSubtitle: String {
     if isLoadingSubscription {
-      return "Fetching subscription details from omi."
+      return SubscriptionPlanPresentation.loadingDetail
     }
     if let detail = currentPlanBillingDetail {
       return detail

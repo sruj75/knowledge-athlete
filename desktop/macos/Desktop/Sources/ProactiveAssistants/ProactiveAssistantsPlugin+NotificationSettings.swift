@@ -228,9 +228,9 @@ enum UserNotificationCallbackBridge {
         try marker.write(to: resultURL, atomically: true, encoding: .utf8)
         chmod(resultURL.path, S_IRUSR | S_IWUSR)
       } catch {
-        NSLog("OMI NOTIFICATION CALLBACK SMOKE: failed to write result: %@", error.localizedDescription)
+        NSLog("INTENTIVE NOTIFICATION CALLBACK SMOKE: failed to write result: %@", error.localizedDescription)
       }
-      NSLog("OMI NOTIFICATION CALLBACK SMOKE: mainActor=%@", succeeded ? "true" : "false")
+      NSLog("INTENTIVE NOTIFICATION CALLBACK SMOKE: mainActor=%@", succeeded ? "true" : "false")
       NSApplication.shared.terminate(nil)
     }
     return true

@@ -15,7 +15,7 @@ steps:
     bridge.action:
       name: vocabulary_set_terms
       params:
-        terms: "Omi,[[MARKER:vocabulary]]"
+        terms: "Intentive,[[MARKER:vocabulary]]"
     expect:
       result.detail.saved: "true"
       result.detail.term_count: "2"

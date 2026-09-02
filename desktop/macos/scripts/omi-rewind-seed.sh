@@ -76,7 +76,7 @@ target = Path(sys.argv[2])
 source_db = source / "heyintentive.db"
 target_db = target / "heyintentive.db"
 
-# SQLite's backup API reads a coherent snapshot even while Omi Dev is writing
+# SQLite's backup API reads a coherent snapshot even while Intentive Dev is writing
 # through WAL. Copying the database plus its WAL/SHM files would not have that safety.
 source_connection = sqlite3.connect(f"{source_db.as_uri()}?mode=ro", uri=True)
 target_connection = sqlite3.connect(target_db)

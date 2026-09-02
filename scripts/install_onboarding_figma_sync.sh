@@ -5,9 +5,9 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SCRIPT_REPO=${SCRIPT_REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}
 WATCH_REPO=${WATCH_REPO:-$SCRIPT_REPO}
-STATE_DIR=${STATE_DIR:-"$HOME/Library/Application Support/OMIOnboardingSync"}
+STATE_DIR=${STATE_DIR:-"$HOME/Library/Application Support/IntentiveOnboardingSync"}
 EXPORT_REPO=${EXPORT_REPO:-"$STATE_DIR/export-worktree"}
-PLIST_PATH=${PLIST_PATH:-"$HOME/Library/LaunchAgents/com.omi.onboarding-figma-sync.plist"}
+PLIST_PATH=${PLIST_PATH:-"$HOME/Library/LaunchAgents/com.heyintentive.intentive.onboarding-figma-sync.plist"}
 CODEX_BIN=${CODEX_BIN:-$(command -v codex || true)}
 NODE_BIN=${NODE_BIN:-$(command -v node || true)}
 
@@ -33,7 +33,7 @@ cat >"$PLIST_PATH" <<EOF
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.omi.onboarding-figma-sync</string>
+  <string>com.heyintentive.intentive.onboarding-figma-sync</string>
   <key>ProgramArguments</key>
   <array>
     <string>$SCRIPT_REPO/scripts/run_onboarding_figma_sync.sh</string>
@@ -57,8 +57,8 @@ cat >"$PLIST_PATH" <<EOF
   <integer>10</integer>
   <key>WatchPaths</key>
   <array>
-    <string>$WATCH_REPO/desktop/Desktop/Sources</string>
-    <string>$WATCH_REPO/desktop/Desktop/Resources</string>
+    <string>$WATCH_REPO/desktop/macos/Desktop/Sources</string>
+    <string>$WATCH_REPO/desktop/macos/Desktop/Resources</string>
   </array>
   <key>StandardOutPath</key>
   <string>$STATE_DIR/launchd.out.log</string>
@@ -71,7 +71,7 @@ EOF
 plutil -lint "$PLIST_PATH" >/dev/null
 launchctl bootout "gui/$(id -u)" "$PLIST_PATH" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST_PATH"
-launchctl kickstart -k "gui/$(id -u)/com.omi.onboarding-figma-sync"
+launchctl kickstart -k "gui/$(id -u)/com.heyintentive.intentive.onboarding-figma-sync"
 
 echo "Installed onboarding Figma sync."
 echo "Script repo: $SCRIPT_REPO"

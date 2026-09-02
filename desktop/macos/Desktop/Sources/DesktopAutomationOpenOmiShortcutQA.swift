@@ -1,17 +1,18 @@
 import Cocoa
 
 extension DesktopAutomationActionRegistry {
-  /// Named-bundle QA selects the same Open Omi presets as the settings buttons,
+  /// Named-bundle QA selects the same Open Intentive presets as the settings buttons,
   /// then reads the real owner's registration trace around that atomic mutation.
   func registerOpenOmiShortcutActionsForQA() {
     #if DEBUG
       register(
-        name: "set_open_omi_shortcut",
-        summary: "Select an Open Omi shortcut preset through the production settings mutation. DEBUG non-prod only.",
+        name: "set_open_intentive_shortcut",
+        summary:
+          "Select an Open Intentive shortcut preset through the production settings mutation. DEBUG non-prod only.",
         params: ["preset"]
       ) { params in
         guard AppBuild.isNonProduction else {
-          return ["error": "set_open_omi_shortcut is disabled on production bundles"]
+          return ["error": "set_open_intentive_shortcut is disabled on production bundles"]
         }
         let shortcut: ShortcutSettings.KeyboardShortcut
         switch params["preset"] ?? "command_j" {
@@ -44,11 +45,11 @@ extension DesktopAutomationActionRegistry {
       }
 
       register(
-        name: "trigger_open_omi_shortcut",
-        summary: "Trigger the registered Open Omi shortcut action. DEBUG non-prod only."
+        name: "trigger_open_intentive_shortcut",
+        summary: "Trigger the registered Open Intentive shortcut action. DEBUG non-prod only."
       ) { _ in
         guard AppBuild.isNonProduction else {
-          return ["error": "trigger_open_omi_shortcut is disabled on production bundles"]
+          return ["error": "trigger_open_intentive_shortcut is disabled on production bundles"]
         }
         GlobalShortcutManager.shared.triggerOpenOmiShortcutForAutomation()
         try? await Task.sleep(for: .milliseconds(100))

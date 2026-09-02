@@ -90,7 +90,7 @@ html = f"""<!doctype html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OMI Onboarding Sync</title>
+    <title>Intentive Onboarding Sync</title>
     <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
     <style>
       :root {{
@@ -136,7 +136,7 @@ html = f"""<!doctype html>
   </head>
   <body>
     <header>
-      <h1>OMI Onboarding Sync</h1>
+      <h1>Intentive Onboarding Sync</h1>
       <p>Commit <code>{source_commit}</code> from <code>{source_branch}</code></p>
       <p>{len(assets)} onboarding steps, generated {manifest["generatedAt"]}</p>
     </header>

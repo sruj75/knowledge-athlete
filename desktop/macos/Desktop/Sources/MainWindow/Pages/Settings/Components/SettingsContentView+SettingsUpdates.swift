@@ -12,7 +12,7 @@ extension SettingsContentView {
         _, error in
         if let error {
           NSLog(
-            "OMI SETTINGS: Failed to open browser URL %@: %@", url.absoluteString,
+            "INTENTIVE SETTINGS: Failed to open browser URL %@: %@", url.absoluteString,
             error.localizedDescription)
           NSWorkspace.shared.open(url)
         }
@@ -51,7 +51,7 @@ extension SettingsContentView {
           try await AuthService.shared.signOut()
           isDeletingAccount = false
         } catch {
-          deleteAccountError = "Your account was deleted, but Omi couldn't sign you out. Quit and reopen Omi."
+          deleteAccountError = DesktopLifecycleIdentityCopy.accountDeletedSignOutFailed
           isDeletingAccount = false
         }
       } catch {

@@ -189,7 +189,7 @@ extension AppState {
   }
 
   /// Screen recording was granted while this process was running, so capture
-  /// stays dead until the app relaunches. Drives the "Reopen Omi" offer.
+  /// stays dead until the app relaunches. Drives the "Reopen Intentive" offer.
   var screenRecordingNeedsRelaunch: Bool {
     ScreenRecordingPermissionPolicy.needsRelaunchToApply(
       grantedNow: hasScreenRecordingPermission,

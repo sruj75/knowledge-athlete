@@ -3,6 +3,10 @@ import XCTest
 @testable import Omi_Computer
 
 final class SubscriptionPlanPresentationTests: XCTestCase {
+  func testLoadingDetailDoesNotClaimARetiredBillingIdentity() {
+    XCTAssertEqual(SubscriptionPlanPresentation.loadingDetail, "Fetching subscription details...")
+  }
+
   func testSelectionLabelIncludesTheStartingPrice() {
     XCTAssertEqual(
       SubscriptionPlanPresentation.selectionLabel(

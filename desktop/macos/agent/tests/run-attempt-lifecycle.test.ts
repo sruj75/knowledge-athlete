@@ -253,7 +253,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     ]);
     expect(readFileSync(new URL(artifacts[0].uri), "utf8")).toBe("hello from smoke test");
     expect(JSON.parse(artifacts[0].metadataJson)).toMatchObject({
-      omiManaged: true,
+      intentiveManaged: true,
       discoveredFromRunDirectory: true,
     });
     store.close();
@@ -289,7 +289,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
     expect(result.artifacts).toEqual(artifacts);
     expect(readFileSync(new URL(artifacts[0]!.uri), "utf8")).toBe("hello from managed workspace");
     expect(JSON.parse(artifacts[0]!.metadataJson)).toMatchObject({
-      omiManaged: true,
+      intentiveManaged: true,
       discoveredFromRunDirectory: true,
     });
     store.close();
@@ -415,7 +415,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       expect(readFileSync(new URL(artifacts[0]!.uri), "utf8")).toBe("<h1>Dog facts</h1>");
       expect(JSON.parse(artifacts[0]!.metadataJson)).toMatchObject({
         discoveredFromTerminalReport: true,
-        omiManaged: true,
+        intentiveManaged: true,
         originalUri: `file://${reportedPath}`,
       });
 
@@ -448,7 +448,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       ]);
       expect(JSON.parse(managedRootArtifacts[0]!.metadataJson)).toMatchObject({
         discoveredFromTerminalReport: true,
-        omiManaged: true,
+        intentiveManaged: true,
         managedPath: managedRootPath,
       });
 
@@ -475,7 +475,7 @@ describe("AgentRuntimeKernel run and attempt lifecycle", () => {
       expect(readFileSync(new URL(desktopArtifacts[0]!.uri), "utf8")).toBe("<h1>Cat facts</h1>");
       expect(JSON.parse(desktopArtifacts[0]!.metadataJson)).toMatchObject({
         discoveredFromTerminalReport: true,
-        omiManaged: true,
+        intentiveManaged: true,
         originalUri: `file://${desktopPath}`,
       });
 

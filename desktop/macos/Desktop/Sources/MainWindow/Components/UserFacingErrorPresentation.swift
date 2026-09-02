@@ -60,16 +60,16 @@ enum UserFacingErrorPresentation {
         case 403:
           return "You don't have permission to do that."
         case 409:
-          return "This changed while Omi was updating. Refresh and try again."
+          return "This changed while Intentive was updating. Refresh and try again."
         case 429:
-          return "Omi is busy right now. Try again in a moment."
+          return "Intentive is busy right now. Try again in a moment."
         case 500...599:
-          return "Omi's service is unavailable right now. Try again."
+          return "Intentive's service is unavailable right now. Try again."
         default:
           return fallback(for: context)
         }
       case .invalidResponse, .decodingError:
-        return "Omi received an unexpected response. Try again."
+        return "Intentive received an unexpected response. Try again."
       case .unsupportedTierScopedBulkMutation:
         return "That option isn't available yet."
       case .unauthorized:
@@ -110,7 +110,7 @@ enum UserFacingErrorPresentation {
     if lowered.contains("nsurlerror") || lowered.contains("cfstream") { return false }
     if lowered.range(of: #"\b[45]\d{2}\b"#, options: .regularExpression) != nil { return false }
     if text.filter({ $0 == ":" }).count > 1 { return false }
-    if lowered.hasPrefix("omi ") || lowered.hasPrefix("couldn't ") || lowered.hasPrefix("didn't ") {
+    if lowered.hasPrefix("intentive ") || lowered.hasPrefix("couldn't ") || lowered.hasPrefix("didn't ") {
       return true
     }
     return text.hasSuffix(".") && text.count < 120

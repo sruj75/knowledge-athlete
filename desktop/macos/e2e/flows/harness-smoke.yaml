@@ -1,7 +1,7 @@
 version: 1
 name: harness-smoke
 tier: 1
-description: Cursor-free smoke flow for the Omi desktop experience harness.
+description: Cursor-free smoke flow for the Intentive desktop experience harness.
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift

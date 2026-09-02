@@ -140,7 +140,7 @@ final class ChatDiscoverabilityTests: XCTestCase {
     XCTAssertTrue(prompt.contains("private history, conversations, memories"))
     XCTAssertTrue(prompt.contains("A direct URL → read that URL"))
     XCTAssertTrue(prompt.contains("For short follow-ups such as \"look it up,\""))
-    XCTAssertTrue(prompt.contains("Never treat an empty Omi result"))
+    XCTAssertTrue(prompt.contains("Never treat an empty Intentive result"))
   }
 
   func testToolPromptKeepsStructuredTaskLookupGuidance() {

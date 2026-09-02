@@ -8,7 +8,7 @@ enum AboutUserCard {
   static func render(name: String, facts: [String], overdue: Int, dueToday: Int) -> String {
     var lines: [String] = ["<about_user>"]
     if !name.isEmpty { lines.append("Name: \(name)") }
-    lines.append("What Omi knows about them:")
+    lines.append("What Intentive knows about them:")
     if facts.isEmpty {
       lines.append("- Nothing saved yet.")
     } else {

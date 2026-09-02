@@ -132,10 +132,12 @@ final class AgentRuntimeProcessTests: XCTestCase {
     let environment = [
       AgentRuntimeCredentialPolicy.hermeticFaultModelTokenEnvironmentKey: "fault-suite-model-token"
     ]
+    let faultBundleIdentifier =
+      AgentRuntimeCredentialPolicy.hermeticFaultBundleIdentifierPrefix + "abcdefghijklmnop"
 
     let token = AgentRuntimeCredentialPolicy.hermeticFaultModelToken(
       isNonProduction: true,
-      bundleIdentifier: AgentRuntimeCredentialPolicy.hermeticFaultBundleIdentifier,
+      bundleIdentifier: faultBundleIdentifier,
       environment: environment)
     XCTAssertEqual(token, "fault-suite-model-token")
     XCTAssertFalse(
@@ -147,22 +149,28 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertNil(
       AgentRuntimeCredentialPolicy.hermeticFaultModelToken(
         isNonProduction: false,
-        bundleIdentifier: AgentRuntimeCredentialPolicy.hermeticFaultBundleIdentifier,
+        bundleIdentifier: faultBundleIdentifier,
         environment: environment),
       "production must never accept a harness-supplied model token")
     XCTAssertNil(
       AgentRuntimeCredentialPolicy.hermeticFaultModelToken(
         isNonProduction: true,
-        bundleIdentifier: "com.omi.some-other-dev-bundle",
+        bundleIdentifier: "com.heyintentive.intentive.dev.omi-some-other-bundle",
         environment: environment),
       "only the named fault bundle may opt into the inert model token")
     XCTAssertNil(
       AgentRuntimeCredentialPolicy.hermeticFaultModelToken(
         isNonProduction: true,
-        bundleIdentifier: AgentRuntimeCredentialPolicy.hermeticFaultBundleIdentifier,
+        bundleIdentifier: faultBundleIdentifier,
         environment: [
           AgentRuntimeCredentialPolicy.hermeticFaultModelTokenEnvironmentKey: "   "
         ]))
+    XCTAssertNil(
+      AgentRuntimeCredentialPolicy.hermeticFaultModelToken(
+        isNonProduction: true,
+        bundleIdentifier: AgentRuntimeCredentialPolicy.hermeticFaultBundleIdentifierPrefix + "short",
+        environment: environment),
+      "a lookalike bundle without a harness run token must not receive the injected credential")
   }
 
   func testNonProductionJournalControlStartDoesNotRefreshCredentials() async throws {

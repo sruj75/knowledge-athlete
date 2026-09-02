@@ -1207,7 +1207,7 @@ if intentive_should_seed_named_profile "$IS_NAMED_BUNDLE" "${OMI_SEED_FROM_CANON
     fi
     step "Seeding shortcuts/settings from canonical Intentive Dev..."
     if ./scripts/omi-settings-seed.sh "$BUNDLE_ID" com.heyintentive.intentive.dev; then
-        auth_debug "AFTER settings seed: shortcut_askOmiEnabled=$(defaults read "$BUNDLE_ID" shortcut_askOmiEnabled 2>&1 || true)"
+        auth_debug "AFTER settings seed: shortcut_askIntentiveEnabled=$(defaults read "$BUNDLE_ID" shortcut_askIntentiveEnabled 2>&1 || true)"
         auth_debug "AFTER settings seed: devLazyPermissionsEnabled=$(defaults read "$BUNDLE_ID" devLazyPermissionsEnabled 2>&1 || true)"
     else
         echo "Warning: could not seed shortcuts/settings from Intentive Dev. Continuing with bundle defaults."

@@ -78,8 +78,8 @@ package struct DesktopStorageIdentity: Equatable {
   }
 }
 
-/// Runtime switches for the harness-owned Omi Dev local profile and named
-/// development bundle storage. Production, beta, and canonical Omi Dev preserve
+/// Runtime switches for the harness-owned Intentive Dev local profile and named
+/// development bundle storage. Production, beta, and canonical Intentive Dev preserve
 /// their existing shared storage roots.
 package enum DesktopLocalProfile {
   #if DEBUG

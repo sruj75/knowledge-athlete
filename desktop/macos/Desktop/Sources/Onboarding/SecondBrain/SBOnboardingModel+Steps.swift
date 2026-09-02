@@ -287,11 +287,11 @@ extension SBOnboardingModel {
 // MARK: - Summon shortcut (pick → press → notch)
 
 extension SBOnboardingModel {
-  /// Open-Omi options (tap to open the window).
+  /// Open-Intentive options (tap to open the window).
   var openShortcutOptions: [(id: String, shortcut: ShortcutSettings.KeyboardShortcut, sub: String)] {
     [
       // ⌘O is registered as its own always-on Carbon hotkey (GlobalShortcutManager
-      // .registerCommandO), so it reliably summons Omi globally — the natural,
+      // .registerCommandO), so it reliably summons Intentive globally — the natural,
       // expected "open" chord. Offer it first. (⌘J was dropped: onboarding testers
       // read it as arbitrary/random with no mnemonic, unlike ⌘O = "open".)
       ("cmdO", ShortcutSettings.askOmiCommandOShortcut, "tap to open"),
@@ -309,7 +309,7 @@ extension SBOnboardingModel {
   }
 
   /// Arm key detection exactly like the legacy OnboardingFloatingBarShortcutStepView:
-  /// suspend the live Ask-Omi Carbon hotkey (so pressing it doesn't steal focus or
+  /// suspend the live Ask-Intentive Carbon hotkey (so pressing it doesn't steal focus or
   /// get swallowed before our monitor sees it) and null the main menu (⌘O/⌘↩ are
   /// NSMenu key equivalents that AppKit dispatches before local monitors). Both are
   /// restored on leave. This is why the earlier attempt's monitor never fired.
@@ -404,7 +404,7 @@ extension SBOnboardingModel {
   }
 
   /// Pick + persist a shortcut. `isTalk` → push-to-talk chord (held, drives the
-  /// voice demo); otherwise the Ask-Omi open hotkey (tapped to open the window).
+  /// voice demo); otherwise the Ask-Intentive open hotkey (tapped to open the window).
   func pickShortcut(_ shortcut: ShortcutSettings.KeyboardShortcut, isTalk: Bool) {
     chosenShortcut = shortcut
     chosenShortcutIsPTT = isTalk
@@ -439,7 +439,7 @@ extension SBOnboardingModel {
   /// transcription, warm the bridge, and SHOW the notch so it stays visible while
   /// the user holds their key and asks about the screen. Screen capture is
   /// attached automatically for screen-aware questions; the answer streams into
-  /// the notch, which spins while Omi is thinking.
+  /// the notch, which spins while Intentive is thinking.
   func startScreenDemo() {
     screenDemoDone = false
     screenDemoPTTReady = false
@@ -485,7 +485,7 @@ extension SBOnboardingModel {
       let bar = FloatingControlBarManager.shared.barState
     else { return }
     PushToTalkManager.shared.setup(barState: bar)
-    // Mark the demo done the first time Omi actually answers. Voice answers
+    // Mark the demo done the first time Intentive actually answers. Voice answers
     // surface through `voiceProjection`; typed answers use `showingAIResponse`.
     // Drop the current voice projection so re-entering the demo cannot inherit a
     // stale response from a prior turn.

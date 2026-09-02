@@ -1132,7 +1132,7 @@ struct RewindPage: View {
         .scaledFont(size: OmiType.heading, weight: .semibold)
         .foregroundColor(.white)
 
-      Text("Try again. If this continues, restart Omi.")
+      Text("Try again. If this continues, restart Intentive.")
         .scaledFont(size: OmiType.body)
         .foregroundColor(.white.opacity(0.6))
 

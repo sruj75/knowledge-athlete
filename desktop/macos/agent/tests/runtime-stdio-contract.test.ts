@@ -145,7 +145,7 @@ describe("runtime stdio contract", () => {
       ownerId: "owner-contract",
       sessionId: resolved.sessionId,
       turnId: "turn-oversized-relay",
-      prompt: "Check Omi's screen-recording permission status.",
+      prompt: "Check Intentive's screen-recording permission status.",
       mode: "act",
     });
     const begun = await fixture.waitForMessage(

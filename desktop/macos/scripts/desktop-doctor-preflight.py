@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check local prerequisites for Omi desktop agent verification."""
+"""Check local prerequisites for Intentive desktop agent verification."""
 
 from __future__ import annotations
 

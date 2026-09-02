@@ -189,8 +189,8 @@ extension DesktopAutomationActionRegistry {
       }
 
       let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("omi-export-harness-\(UUID().uuidString)", isDirectory: true)
-      let destination = directory.appendingPathComponent("omi-data-export.json")
+        .appendingPathComponent("intentive-export-harness-\(UUID().uuidString)", isDirectory: true)
+      let destination = directory.appendingPathComponent("intentive-data-export.json")
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
       defer { try? FileManager.default.removeItem(at: directory) }
 

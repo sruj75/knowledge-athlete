@@ -121,7 +121,7 @@ struct ChatBubble: View {
   @ViewBuilder
   private func messageContentView(_ groupedBlocks: [ContentBlockGroup]) -> some View {
     if message.isStreaming && message.text.isEmpty && message.contentBlocks.isEmpty {
-      // The canonical assistant reply shows the spinning Omi mark while thinking.
+      // The canonical assistant reply shows the spinning Intentive mark while thinking.
     } else if message.sender == .ai && !message.contentBlocks.isEmpty {
       ForEach(groupedBlocks) { group in
         groupView(group)
@@ -259,7 +259,7 @@ struct ChatBubble: View {
         )
       )
     case .thinking:
-      // Omi replies like a person texting — no exposed "Thinking" reasoning
+      // Intentive replies like a person texting — no exposed "Thinking" reasoning
       // disclosure. The streaming typing indicator (spinning mark) carries the
       // wait on its own.
       return AnyView(EmptyView())

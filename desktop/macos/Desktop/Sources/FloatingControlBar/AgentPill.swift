@@ -2,8 +2,8 @@ import Combine
 import Foundation
 import SwiftUI
 
-/// A visible background-agent projection launched from the Ask Omi floating
-/// bar. Execution is owned by the canonical Omi agent runtime; this model only
+/// A visible background-agent projection launched from the Ask Intentive floating
+/// bar. Execution is owned by the canonical Intentive agent runtime; this model only
 /// drives the floating/notch-less pill UI.
 @MainActor
 final class AgentPill: ObservableObject, Identifiable {
@@ -388,7 +388,7 @@ final class AgentPillsManager: ObservableObject {
   }
 
   /// Spawn a visible pill projection backed by a canonical background-agent
-  /// session/run in the Omi runtime.
+  /// session/run in the Intentive runtime.
   @discardableResult
   func spawn(
     query: String,
@@ -820,10 +820,10 @@ final class AgentPillsManager: ObservableObject {
 
   /// Force-dismiss a pill.
   func dismiss(pillID: UUID) {
-    // If the pill being dismissed is the one currently shown in the Ask Omi
+    // If the pill being dismissed is the one currently shown in the Ask Intentive
     // surface, leave the agent surface first so conversationSurface does
     // not stay as .agent(id) pointing to a removed pill — which would leave
-    // the view falling through to blank/stale Omi content. (Codex P2.)
+    // the view falling through to blank/stale Intentive content. (Codex P2.)
     if FloatingControlBarManager.shared.activeAgentChatPillID == pillID {
       FloatingControlBarManager.shared.leaveActiveAgentSurfaceFromPillDismiss()
     }

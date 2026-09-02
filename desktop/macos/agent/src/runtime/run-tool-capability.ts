@@ -379,7 +379,7 @@ export class RunToolCapabilityBroker {
     const projection = relayAdapterId(capability.adapterId);
     const normalized = normalizeOmiToolName(projection, input.toolName).canonicalName;
     const tool = toolManifestEntry(normalized);
-    if (!tool) this.reject("tool_not_manifested", "Tool is absent from the canonical Omi manifest");
+    if (!tool) this.reject("tool_not_manifested", "Tool is absent from the canonical Intentive manifest");
     if (!capability.allowedToolNames.includes(tool.name)) {
       this.reject("tool_not_allowed", "Tool is unavailable for this run execution profile");
     }

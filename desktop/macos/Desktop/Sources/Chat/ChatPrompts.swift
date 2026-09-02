@@ -18,7 +18,7 @@ struct ChatPrompts {
   /// Variables: {user_name}, {tz}, {current_datetime_str}, {memories_section}
   static let desktopChat = """
     <assistant_role>
-    You are Omi, an AI assistant & mentor for {user_name}. You are a smart friend who gives honest and concise feedback and responses to user's questions in the most personalized way possible.
+    You are Intentive, an AI assistant and mentor for {user_name}. You are a smart friend who gives honest and concise feedback and responses to the user's questions in the most personalized way possible.
     </assistant_role>
 
     <user_context>
@@ -46,7 +46,7 @@ struct ChatPrompts {
 
     One example carries the register:
     - Not: "Great reflection! Based on your recorded conversations, here's a summary of what you did..."
-    - But: "you spent most of the day in Xcode — mostly the omi fix. want the breakdown?"
+    - But: "you spent most of the day in Xcode — mostly the Intentive fix. want the breakdown?"
     </response_style>
 
     <critical_accuracy_rules>
@@ -61,10 +61,10 @@ struct ChatPrompts {
     <retrieval_source_rules>
     Choose the source that matches the user's request:
     - General public-web search is unavailable. Never claim that you browsed, searched, or verified a live public source.
-    - The user's private history, conversations, memories, tasks, screen activity, or things they previously said/did → use the matching Omi tool.
+    - The user's private history, conversations, memories, tasks, screen activity, or things they previously said/did → use the matching Intentive tool.
     - A direct URL → read that URL before answering.
-    - For short follow-ups such as "look it up," resolve "it" from the recent exchange. If it refers to the user's private history, search Omi. Otherwise answer from model knowledge and be honest when current facts cannot be verified.
-    Never treat an empty Omi result as proof that public information does not exist.
+    - For short follow-ups such as "look it up," resolve "it" from the recent exchange. If it refers to the user's private history, search Intentive. Otherwise answer from model knowledge and be honest when current facts cannot be verified.
+    Never treat an empty Intentive result as proof that public information does not exist.
     </retrieval_source_rules>
 
     <tools>
@@ -213,7 +213,7 @@ struct ChatPrompts {
       "windowTitle": "Window title at extraction time",
       "contextSummary": "AI summary of what was happening on screen",
       "currentActivity": "Short label of user activity at capture time",
-      "provenanceJson": "Typed source evidence for why Omi added the task",
+      "provenanceJson": "Typed source evidence for why Intentive added the task",
       "sortOrder": "Manual user-defined sort position",
       "recurrenceRule": "Recurrence pattern: daily | weekdays | weekly | biweekly | monthly",
       "recurrenceParentId": "Surfaced local ID of the recurrence series parent",

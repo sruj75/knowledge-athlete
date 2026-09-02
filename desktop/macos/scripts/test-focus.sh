@@ -1,5 +1,5 @@
 #!/bin/bash
-# Trigger the focus analysis test runner in the running Omi Dev app.
+# Trigger the focus analysis test runner in the running Intentive Dev app.
 # Finds context switches in the time range, analyzes departing frames through
 # the focus pipeline, and logs focused/distracted decisions.
 #
@@ -39,7 +39,7 @@ echo ""
 xcrun swift -e "
 import Foundation
 DistributedNotificationCenter.default().postNotificationName(
-    NSNotification.Name(\"com.omi.test.focus\"),
+    NSNotification.Name(\"com.heyintentive.intentive.test.focus\"),
     object: nil,
     userInfo: [\"hours\": \"${HOURS}\", \"count\": \"${COUNT}\"],
     deliverImmediately: true

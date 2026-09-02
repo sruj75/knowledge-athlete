@@ -84,7 +84,7 @@ enum PTTContextVocabularyProvider {
     } else {
       activeWindowImage = nil
       if !activeAppName.isEmpty {
-        log("PTTContextVocabulary: skipped active-window OCR for Omi window (\(activeAppName))")
+        log("PTTContextVocabulary: skipped active-window OCR for Intentive window (\(activeAppName))")
       }
     }
 
@@ -321,7 +321,7 @@ enum PTTTranscriptContextualCorrector {
     return regex.stringByReplacingMatches(
       in: text,
       range: NSRange(location: 0, length: (text as NSString).length),
-      withTemplate: "Omi"
+      withTemplate: "Intentive"
     )
   }
 
@@ -352,7 +352,7 @@ enum PTTTranscriptContextualCorrector {
     guard !KeywordCollector.stopWords.contains(trimmed.lowercased()) else { return nil }
     if trimmed == trimmed.uppercased(),
       trimmed.count <= 4,
-      trimmed.caseInsensitiveCompare("Omi") != .orderedSame
+      trimmed.caseInsensitiveCompare("Intentive") != .orderedSame
     {
       return nil
     }
@@ -406,7 +406,7 @@ actor PTTTranscriptCleanupService {
       - Preserve the user's meaning and wording as much as possible.
       - Do not answer the question.
       - Do not add facts not implied by the raw transcript.
-      - Prefer Omi for the company/product name.
+      - Prefer Intentive for the company/product name.
       - If uncertain, leave the phrase unchanged.
       """
 

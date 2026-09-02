@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>omi</string>
+    <string>Intentive</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIconFile</key>
@@ -34,13 +34,13 @@
         <true/>
     </dict>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Omi needs screen recording permission to monitor your focus and detect distractions.</string>
+	<string>Intentive needs screen recording permission to monitor your focus and detect distractions.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Omi needs microphone access to transcribe your conversations in real-time.</string>
+	<string>Intentive needs microphone access to transcribe your conversations in real-time.</string>
 	<key>NSLocationUsageDescription</key>
-	<string>Omi can attach one location snapshot to a conversation when you allow it.</string>
+	<string>Intentive can attach one location snapshot to a conversation when you allow it.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>Omi needs permission to capture system audio for transcription of calls and meetings.</string>
+	<string>Intentive needs permission to capture system audio for transcription of calls and meetings.</string>
 	<key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -62,6 +62,10 @@
 	<!-- Release provider must stamp these four values before signing. Empty values
 	     deliberately disable Sparkle; there is no inherited Omi fallback. -->
 	<key>IntentiveManualDownloadURL</key>
+	<string></string>
+	<key>IntentivePostHogHost</key>
+	<string></string>
+	<key>IntentivePostHogProjectToken</key>
 	<string></string>
 	<key>IntentivePrivacyURL</key>
 	<string></string>

@@ -122,7 +122,7 @@ class GlobalShortcutManager: @unchecked Sendable {
   #endif
 
   private func observeSettings() {
-    // Re-register Ask Omi shortcut when user changes it in settings.
+    // Re-register Ask Intentive shortcut when user changes it in settings.
     shortcutObserver = NotificationCenter.default.addObserver(
       forName: ShortcutSettings.askOmiShortcutChanged,
       object: nil,
@@ -144,13 +144,13 @@ class GlobalShortcutManager: @unchecked Sendable {
   func registerShortcuts() {
     unregisterShortcuts()
     guard !isRegistrationSuspended else { return }
-    // Register Ask Omi shortcut from user settings
+    // Register Ask Intentive shortcut from user settings
     registerAskOmi()
     registerSummonHotkey()
   }
 
-  /// Registers ⌃⌘O as a dedicated global Carbon hotkey that summons Omi (fronts the
-  /// app + opens chat), independent of the user-configurable Ask-Omi shortcut. A
+  /// Registers ⌃⌘O as a dedicated global Carbon hotkey that summons Intentive (fronts the
+  /// app + opens chat), independent of the user-configurable Ask-Intentive shortcut. A
   /// Carbon hotkey fires system-wide without any extra permission. ⌃⌘O is chosen to
   /// dodge two collisions: bare ⌘O is File ▸ Open in every app (the frontmost app's
   /// menu swallows it), and any Option-based combo clashes with push-to-talk (Option
@@ -160,14 +160,14 @@ class GlobalShortcutManager: @unchecked Sendable {
       _ = unregisterHotKey(ref)
     }
     var hotKeyRef: EventHotKeyRef?
-    let hotKeyID = EventHotKeyID(signature: FourCharCode(0x4F4D_4921), id: HotKeyID.summonOmi.rawValue)  // "OMI!"
+    let hotKeyID = EventHotKeyID(signature: FourCharCode(0x494E_5421), id: HotKeyID.summonOmi.rawValue)  // "INT!"
     let status = RegisterEventHotKey(
       UInt32(kVK_ANSI_O), UInt32(controlKey | cmdKey), hotKeyID,
       GetApplicationEventTarget(), 0, &hotKeyRef
     )
     if status == noErr, let hotKeyRef {
       hotKeyRefs[.summonOmi] = .carbon(hotKeyRef)
-      logger("GlobalShortcutManager: Registered ⌃⌘O Omi summon hotkey")
+      logger("GlobalShortcutManager: Registered ⌃⌘O Intentive summon hotkey")
     } else {
       logger("GlobalShortcutManager: Failed to register ⌃⌘O hotkey, error: \(status)")
     }
@@ -184,7 +184,7 @@ class GlobalShortcutManager: @unchecked Sendable {
 
   func registerAskOmi() {
     guard !isRegistrationSuspended else { return }
-    // Unregister previous Ask Omi hotkey if any
+    // Unregister previous Ask Intentive hotkey if any
     if let ref = hotKeyRefs.removeValue(forKey: .askOmi) {
       _ = unregisterHotKey(ref)
     }
@@ -192,11 +192,11 @@ class GlobalShortcutManager: @unchecked Sendable {
       (ShortcutSettings.shared.askOmiEnabled, ShortcutSettings.shared.askOmiShortcut)
     }
     guard askOmiEnabled else {
-      logger("GlobalShortcutManager: Ask Omi shortcut is disabled")
+      logger("GlobalShortcutManager: Ask Intentive shortcut is disabled")
       return
     }
     guard askOmiShortcut.supportsGlobalHotKey, let keyCode = askOmiShortcut.keyCode else {
-      logger("GlobalShortcutManager: Ask Omi shortcut is not a registerable hotkey")
+      logger("GlobalShortcutManager: Ask Intentive shortcut is not a registerable hotkey")
       return
     }
     let outcome = registerHotKey(keyCode: Int(keyCode), modifiers: askOmiShortcut.carbonModifiers, id: .askOmi)
@@ -204,7 +204,7 @@ class GlobalShortcutManager: @unchecked Sendable {
     // "Registered" unconditionally — even when Carbon had rejected the combo
     // (e.g. another app owns it) — which made the silent failure actively misleading.
     if outcome == .registered {
-      logger("GlobalShortcutManager: Registered Ask Omi shortcut: \(askOmiShortcut.displayLabel)")
+      logger("GlobalShortcutManager: Registered Ask Intentive shortcut: \(askOmiShortcut.displayLabel)")
     }
   }
 
@@ -240,7 +240,7 @@ class GlobalShortcutManager: @unchecked Sendable {
 
   private static func registerWithCarbon(keyCode: Int, modifiers: Int) -> HotKeyRegistrationAttempt {
     var hotKeyRef: EventHotKeyRef?
-    let hotKeyID = EventHotKeyID(signature: FourCharCode(0x4F4D_4921), id: HotKeyID.askOmi.rawValue)  // "OMI!"
+    let hotKeyID = EventHotKeyID(signature: FourCharCode(0x494E_5421), id: HotKeyID.askOmi.rawValue)  // "INT!"
     let status = RegisterEventHotKey(
       UInt32(keyCode), UInt32(modifiers), hotKeyID,
       GetApplicationEventTarget(), 0, &hotKeyRef
@@ -320,9 +320,9 @@ class GlobalShortcutManager: @unchecked Sendable {
   }
 
   private func openOmiFromShortcut() {
-    NSLog("GlobalShortcutManager: Open Omi shortcut detected")
+    NSLog("GlobalShortcutManager: Open Intentive shortcut detected")
     DispatchQueue.main.async {
-      // Typing moved to the main app: the shortcut opens Omi itself
+      // Typing moved to the main app: the shortcut opens Intentive itself
       // instead of the floating bar's typed input panel — and lands straight in
       // the chat surface (the one continuous thread), not the resting hero.
       AppDelegate.summonWindowTarget()?.openMainAppWindow()
@@ -331,7 +331,7 @@ class GlobalShortcutManager: @unchecked Sendable {
   }
 
   #if DEBUG
-    /// Drives the same dispatched Open Omi action as a registered Carbon event.
+    /// Drives the same dispatched Open Intentive action as a registered Carbon event.
     func triggerOpenOmiShortcutForAutomation() {
       openOmiFromShortcut()
     }

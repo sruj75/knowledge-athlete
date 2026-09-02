@@ -36,7 +36,7 @@ const PERMISSION_TYPES: ReadonlyArray<{ type: string; phrases: readonly string[]
     ],
   },
   { type: "microphone", phrases: ["microphone", "mic permission", "microphone access"] },
-  { type: "notifications", phrases: ["notification permission", "notifications permission", "omi notifications"] },
+  { type: "notifications", phrases: ["notification permission", "notifications permission", "intentive notifications"] },
   { type: "accessibility", phrases: ["accessibility permission", "accessibility access"] },
 ];
 
@@ -95,7 +95,7 @@ export function routeExternalSurfaceTool(
       return {
         action: "reject",
         code: "permission_route_rejected",
-        message: "Permission tools require one supported Omi permission type",
+        message: "Permission tools require one supported Intentive permission type",
       };
     }
     if (
@@ -105,7 +105,7 @@ export function routeExternalSurfaceTool(
       return {
         action: "reject",
         code: "permission_target_rejected",
-        message: "Omi can only check or request permissions for the Omi app itself",
+        message: "Intentive can only check or request permissions for the Intentive app itself",
       };
     }
     if (
@@ -156,7 +156,7 @@ export function routeExternalSurfaceTool(
     return {
       action: "reject",
       code: "permission_target_rejected",
-      message: "Omi can only check or request permissions for the Omi app itself",
+      message: "Intentive can only check or request permissions for the Intentive app itself",
     };
   }
   if (
@@ -331,7 +331,7 @@ function captures(text: string, pattern: RegExp): string[] {
 function isLocalPermissionTarget(value: string): boolean {
   const normalized = normalizeTarget(value);
   const words = new Set(normalized.split(/[^a-z0-9]+/).filter(Boolean));
-  return words.has("omi") || normalized.startsWith("com.omi.")
+  return words.has("intentive") || normalized.startsWith("com.heyintentive.")
     || normalized === "this app" || normalized === "this application";
 }
 

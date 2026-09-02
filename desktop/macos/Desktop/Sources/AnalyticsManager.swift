@@ -2,13 +2,19 @@ import AppKit
 import Foundation
 import Sentry
 
+enum ProductTelemetryIdentity {
+  static let floatingBarOpenedEvent = "floating_bar_ask_intentive_opened"
+  static let floatingBarClosedEvent = "floating_bar_ask_intentive_closed"
+  static let openProductAction = "open_intentive"
+}
+
 /// Unified analytics manager that sends events to PostHog.
 /// Use this instead of calling PostHogManager directly
 @MainActor
 class AnalyticsManager {
   static let shared = AnalyticsManager()
 
-  /// Returns true for non-production Omi bundles so test apps don't pollute production analytics.
+  /// Returns true for non-production Intentive bundles so test apps don't pollute product analytics.
   nonisolated static var isDevBuild: Bool {
     AppBuild.isNonProduction
   }
@@ -66,27 +72,27 @@ class AnalyticsManager {
       log("Analytics: Skipping initialization (development build)")
       return
     }
-    PostHogManager.shared.initialize()
+    ProductAnalyticsConsentController.shared.start()
   }
 
   // MARK: - User Identification
 
   func identify() {
-    PostHogManager.shared.identify()
+    ProductAnalyticsConsentController.shared.identify()
   }
 
   func reset() {
-    PostHogManager.shared.reset()
+    ProductAnalyticsConsentController.shared.resetIdentity()
   }
 
   // MARK: - Opt In/Out
 
   func optInTracking() {
-    PostHogManager.shared.optIn()
+    ProductAnalyticsConsentController.shared.setSharingEnabled(true)
   }
 
   func optOutTracking() {
-    PostHogManager.shared.optOut()
+    ProductAnalyticsConsentController.shared.setSharingEnabled(false)
   }
 
   // MARK: - Onboarding Events
@@ -975,15 +981,15 @@ class AnalyticsManager {
     PostHogManager.shared.track("floating_bar_toggled", properties: props)
   }
 
-  /// Track when Ask OMI is opened (AI input panel shown)
+  /// Track when the Intentive input panel is opened.
   func floatingBarAskOmiOpened(source: String) {
     let props: [String: Any] = ["source": source]
-    PostHogManager.shared.track("floating_bar_ask_omi_opened", properties: props)
+    PostHogManager.shared.track(ProductTelemetryIdentity.floatingBarOpenedEvent, properties: props)
   }
 
   /// Track when the AI conversation is closed
   func floatingBarAskOmiClosed() {
-    PostHogManager.shared.track("floating_bar_ask_omi_closed")
+    PostHogManager.shared.track(ProductTelemetryIdentity.floatingBarClosedEvent)
   }
 
   /// Track when an AI query is sent from the floating bar

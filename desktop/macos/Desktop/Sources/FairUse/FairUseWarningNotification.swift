@@ -14,8 +14,8 @@ struct FairUseWarningPresentation: Equatable, Sendable {
         message:
           "Your speech usage is unusually high. This service is designed for personal conversations. "
           + "If this continues, you may receive a final fair-use warning. "
-          + "Contact support@heyintentive.com if you believe this is an error. "
-          + "Quote your case reference when contacting support.\(reference)")
+          + "If you believe this is an error, save your case reference for the support channel when it is published."
+          + reference)
     case "throttle":
       return Self(
         title: "Final Fair Use Warning",
@@ -23,8 +23,8 @@ struct FairUseWarningPresentation: Equatable, Sendable {
           "Due to high non-conversational usage, this is your final fair-use warning. "
           + "Transcription quality and access have not changed. "
           + "This warning resets after seven days without another qualifying violation. "
-          + "Contact support@heyintentive.com if you believe this is an error. "
-          + "Quote your case reference when contacting support.\(reference)")
+          + "If you believe this is an error, save your case reference for the support channel when it is published."
+          + reference)
     case "restrict":
       return Self(
         title: "Transcription Limit Reached",
@@ -32,7 +32,8 @@ struct FairUseWarningPresentation: Equatable, Sendable {
           "Your managed cloud transcription is temporarily limited for 30 days due to repeated fair-use violations. "
           + "Up to 30 minutes of managed cloud transcription remains available each UTC day. "
           + "On-device transcription continues only when it is available on this Mac. "
-          + "Contact support@heyintentive.com to discuss your usage.\(reference)")
+          + "Save your case reference for the support channel when it is published."
+          + reference)
     default:
       return nil
     }

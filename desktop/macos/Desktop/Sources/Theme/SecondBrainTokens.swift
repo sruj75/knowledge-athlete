@@ -171,7 +171,7 @@ package enum SBMotion {
   package static let toggle = Animation.easeOut(duration: 0.18)
 
   // Continuous loops (the only animations allowed to repeat).
-  /// Logo spin — 2.4s linear, ONLY while Omi is actively working.
+  /// Logo spin — 2.4s linear, ONLY while Intentive is actively working.
   package static let logoSpin = Animation.linear(duration: 2.4).repeatForever(autoreverses: false)
   /// Sign-in / hero breathing — 4s.
   package static let breathe = Animation.easeInOut(duration: 4.0).repeatForever(autoreverses: true)

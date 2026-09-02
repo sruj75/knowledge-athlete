@@ -284,10 +284,10 @@ struct DashboardPage: View {
     } else {
       VStack(spacing: OmiSpacing.md) {
         SBLogo(size: 38, spinning: false)
-        Text("Start a conversation")
+        Text(DesktopShellIdentityCopy.chatWelcomeTitle)
           .scaledFont(size: OmiType.heading, weight: .semibold)
           .foregroundStyle(OmiColors.textPrimary)
-        Text("Ask a question or choose one of the suggestions below.")
+        Text(DesktopShellIdentityCopy.chatWelcomeDetail)
           .scaledFont(size: OmiType.body)
           .foregroundStyle(OmiColors.textTertiary)
       }
@@ -302,7 +302,7 @@ struct DashboardPage: View {
       isSending: chatProvider.isSending,
       isStopping: chatProvider.isStopping,
       isSendDisabled: chatProvider.isCreatingSession,
-      placeholder: "Ask Omi anything",
+      placeholder: DesktopShellIdentityCopy.askAnything,
       requiresTextBeforeSend: true,
       mode: $chatProvider.chatMode,
       inputText: $chatProvider.draftText,

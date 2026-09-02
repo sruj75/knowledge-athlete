@@ -11,7 +11,7 @@ export interface ProtocolEnvelope {
   protocolVersion: ProtocolVersion;
   requestId: string;
   clientId: string;
-  /** Signed-in Omi/Firebase uid used to scope persisted runtime state. */
+  /** Signed-in Intentive/Firebase uid used to scope persisted runtime state. */
   ownerId?: string;
 }
 
@@ -39,7 +39,7 @@ export interface QueryMessage extends ProtocolEnvelope {
    * Per-turn reasoning-effort lane: "adaptive" for typed chat (model decides
    * its own thinking depth), "fast" for PTT/voice (speed-optimized, no
    * thinking). Relayed opaquely to the desktop backend as the
-   * x-omi-reasoning-effort header; never interpreted by the runtime.
+   * x-intentive-reasoning-effort header; never interpreted by the runtime.
    */
   reasoningEffort?: string;
 }
@@ -424,7 +424,7 @@ export interface TextDeltaMessage extends QueryScopedOutbound {
 export interface ToolUseMessage extends QueryScopedOutbound {
   type: "tool_use";
   callId: string;
-  /** Required together for executable Omi/Swift tool invocations; absent on display-only adapter events. */
+  /** Required together for executable Intentive/Swift tool invocations; absent on display-only adapter events. */
   invocationId?: string;
   capabilityRef?: string;
   ownerId?: string;

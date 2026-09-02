@@ -60,7 +60,7 @@ const omiPendingCalls = new Map<string, { connection: Socket; resolve: (result: 
 function connectOmiPipe(pipePath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const connection = createConnection(pipePath, () => {
-      process.stderr.write("[omi-tools] Connected to bridge pipe\n");
+      process.stderr.write("[intentive-tools] Connected to bridge pipe\n");
       resolve();
     });
     omiPipeConnection = connection;
@@ -84,16 +84,16 @@ function connectOmiPipe(pipePath: string): Promise<void> {
       }
     });
     connection.on("error", (error) => {
-      process.stderr.write(`[omi-tools] Pipe error: ${error.message}\n`);
+      process.stderr.write(`[intentive-tools] Pipe error: ${error.message}\n`);
       reject(error);
     });
     connection.on("close", () => {
-      process.stderr.write("[omi-tools] Pipe disconnected\n");
+      process.stderr.write("[intentive-tools] Pipe disconnected\n");
       if (omiPipeConnection !== connection) return;
       omiPipeConnection = null;
       for (const [callId, pending] of omiPendingCalls) {
         if (pending.connection !== connection) continue;
-        pending.resolve("Error: Omi bridge disconnected");
+        pending.resolve("Error: Intentive bridge disconnected");
         omiPendingCalls.delete(callId);
       }
     });
@@ -170,14 +170,14 @@ async function callSwiftTool(
   timeoutMs = OMI_TOOL_TIMEOUT_MS,
 ): Promise<string> {
   const connection = omiPipeConnection;
-  if (!connection) return "Error: not connected to Omi bridge";
+  if (!connection) return "Error: not connected to Intentive bridge";
   if (signal?.aborted) return "Error: tool call aborted";
   const capabilityRef = await omiRelayCapabilityRef();
-  if (!capabilityRef) return "Error: missing active Omi run capability for tool relay";
+  if (!capabilityRef) return "Error: missing active Intentive run capability for tool relay";
   if (signal?.aborted) return "Error: tool call aborted";
-  if (omiPipeConnection !== connection) return "Error: Omi bridge disconnected";
+  if (omiPipeConnection !== connection) return "Error: Intentive bridge disconnected";
 
-  const callId = `omi-ext-${++omiCallIdCounter}-${Date.now()}`;
+  const callId = `intentive-ext-${++omiCallIdCounter}-${Date.now()}`;
   return new Promise<string>((resolve) => {
     const timer = setTimeout(() => {
       omiPendingCalls.delete(callId);
@@ -220,14 +220,14 @@ export function applyOmiProviderHeaders(
   // process; the backend owns the real Gemini key.
   delete headers["x-goog-api-key"];
   if (firebaseToken) headers.authorization = `Bearer ${firebaseToken}`;
-  headers["x-omi-chat-contract-version"] = OMI_CHAT_CONTRACT_VERSION;
+  headers["x-intentive-chat-contract-version"] = OMI_CHAT_CONTRACT_VERSION;
   if (relayContextRaw === undefined) return;
   const requestId = omiRequestIdFromRelayContext(relayContextRaw);
-  if (requestId) headers["x-omi-request-id"] = requestId;
+  if (requestId) headers["x-intentive-request-id"] = requestId;
   const sessionId = omiSessionIdFromRelayContext(relayContextRaw);
-  if (sessionId) headers["x-omi-session-id"] = sessionId;
+  if (sessionId) headers["x-intentive-session-id"] = sessionId;
   const reasoningEffort = omiReasoningEffortFromRelayContext(relayContextRaw);
-  if (reasoningEffort) headers["x-omi-reasoning-effort"] = reasoningEffort;
+  if (reasoningEffort) headers["x-intentive-reasoning-effort"] = reasoningEffort;
 }
 
 function typeBoxSchemaForJsonSchema(schema: Record<string, unknown>): unknown {
@@ -339,13 +339,13 @@ export const OMI_TOOLS = omiToolsForExecutionRole(executionRole);
 async function registerOmiTools(pi: ExtensionAPI): Promise<void> {
   const pipePath = process.env.OMI_BRIDGE_PIPE;
   if (!pipePath) {
-    process.stderr.write("[omi-tools] OMI_BRIDGE_PIPE not set - typed tools unavailable\n");
+    process.stderr.write("[intentive-tools] OMI_BRIDGE_PIPE not set - typed tools unavailable\n");
     return;
   }
   try {
     await connectOmiPipe(pipePath);
   } catch (error) {
-    process.stderr.write(`[omi-tools] Failed to connect: ${error instanceof Error ? error.message : error}\n`);
+    process.stderr.write(`[intentive-tools] Failed to connect: ${error instanceof Error ? error.message : error}\n`);
     return;
   }
   for (const tool of OMI_TOOLS) pi.registerTool(tool);
@@ -357,18 +357,19 @@ async function registerOmiTools(pi: ExtensionAPI): Promise<void> {
         `${JSON.stringify(snapshot, null, 2)}\n`,
       );
     } catch (error) {
-      process.stderr.write(`[omi-tools] Failed to write tool snapshot: ${error instanceof Error ? error.message : error}\n`);
+      process.stderr.write(`[intentive-tools] Failed to write tool snapshot: ${error instanceof Error ? error.message : error}\n`);
     }
   }
   process.stderr.write(
-    `[omi-tools] adapter=pi-mono advertisedToolCount=${snapshot.advertisedToolCount} advertisedTools=${snapshot.advertisedToolNames.join(",")}\n`,
+    `[intentive-tools] adapter=pi-mono advertisedToolCount=${snapshot.advertisedToolCount} advertisedTools=${snapshot.advertisedToolNames.join(",")}\n`,
   );
 }
 
 export default function managedPiExtension(pi: ExtensionAPI): void {
-  const baseUrl = process.env.OMI_API_BASE_URL || "https://api.omi.me/v2";
+  const baseUrl = process.env.OMI_API_BASE_URL?.trim();
+  if (!baseUrl) throw new Error("Intentive managed provider requires a configured backend URL");
   installManagedProviderFetchBoundary(baseUrl);
-  pi.registerProvider("omi", {
+  pi.registerProvider("intentive", {
     api: "google-generative-ai",
     baseUrl,
     apiKey: OMI_MANAGED_PROVIDER_SENTINEL,

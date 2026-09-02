@@ -35,7 +35,7 @@ describe("OmiArtifactStorage", () => {
     expect(normalized.uri).toContain("/session-1/");
     expect(normalized.uri).toContain("/run-1/attempt-1/answer.txt");
     expect(normalized.metadata).toMatchObject({
-      omiManaged: true,
+      intentiveManaged: true,
       originalUri: pathToFileURL(source).toString(),
     });
     expect(normalized.contentHash).toMatch(/^sha256:/);

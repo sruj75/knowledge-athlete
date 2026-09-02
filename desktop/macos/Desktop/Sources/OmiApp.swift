@@ -16,7 +16,7 @@ enum LaunchMode: String {
     // Check for --mode=rewind argument
     for arg in CommandLine.arguments {
       if arg == "--mode=rewind" {
-        NSLog("OMI LaunchMode: Detected rewind mode from command line")
+        NSLog("INTENTIVE LaunchMode: Detected rewind mode from command line")
         return .rewind
       }
     }
@@ -60,7 +60,7 @@ class AuthState: ObservableObject {
       self.userEmail = savedEmail
     }
     NSLog(
-      "OMI AuthState: Initialized localProfile=%@ savedSignedIn=%@ email=%@ isRestoringAuth=%@",
+      "INTENTIVE AuthState: Initialized localProfile=%@ savedSignedIn=%@ email=%@ isRestoringAuth=%@",
       DesktopLocalProfile.isEnabled ? "true" : "false",
       savedSignedIn ? "true" : "false", savedEmail ?? "nil", self.isRestoringAuth ? "true" : "false"
     )
@@ -74,7 +74,7 @@ class AuthState: ObservableObject {
   func transition(to phase: AuthSessionPhase) {
     guard sessionPhase != phase else { return }
     sessionPhase = phase
-    NSLog("OMI AUTH: session phase -> %@", String(describing: phase))
+    NSLog("INTENTIVE AUTH: session phase -> %@", String(describing: phase))
   }
 
   /// Get the user's Firebase UID from UserDefaults (fallback when Firebase SDK auth fails)
@@ -102,7 +102,8 @@ struct OMIApp: App {
 
   static func windowTitle(displayName: String, version: String, launchMode: LaunchMode, isNonProduction: Bool) -> String
   {
-    let baseName = isNonProduction ? displayName : launchMode == .rewind ? "omi Rewind" : UpdateChannel.appDisplayName
+    let baseName =
+      isNonProduction ? displayName : launchMode == .rewind ? "Intentive Rewind" : UpdateChannel.appDisplayName
     let title = isNonProduction && launchMode == .rewind ? "\(baseName) Rewind" : baseName
     return version.isEmpty ? title : "\(title) v\(version)"
   }
@@ -131,7 +132,7 @@ struct OMIApp: App {
         .withFontScaling()
         .overlay(alignment: .bottomTrailing) { WhatsNewToastOverlay() }
         .onAppear {
-          log("OmiApp: Main window content appeared (mode: \(Self.launchMode.rawValue))")
+          log("Intentive: Main window content appeared (mode: \(Self.launchMode.rawValue))")
         }
     }
     .windowStyle(.titleBar)
@@ -217,8 +218,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   /// floating bar) must go through this reference instead of casting `NSApp.delegate`.
   nonisolated(unsafe) static weak var shared: AppDelegate?
 
-  /// The delegate that the summon call sites (global Open-Omi shortcut, floating bar
-  /// "Continue in Omi") route through to bring the main window forward. This exists as
+  /// The delegate that the summon call sites (global Open-Intentive shortcut, floating bar
+  /// "Continue in Intentive") route through to bring the main window forward. This exists as
   /// a single chokepoint precisely because `NSApp.delegate as? AppDelegate` returns
   /// `nil` under SwiftUI's `@NSApplicationDelegateAdaptor` — that cast silently
   /// no-oped every summon, so the app's window never came to the foreground.
@@ -527,7 +528,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     // Register global hotkey for Rewind (Cmd+Shift+Space)
     setupGlobalHotkeys()
 
-    // Register Carbon-based global shortcuts for floating control bar (Ask Omi)
+    // Register Carbon-based global shortcuts for floating control bar (Ask Intentive)
     GlobalShortcutManager.shared.registerShortcuts()
 
     // Ensure app always shows in dock as a regular app
@@ -585,7 +586,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
         }
       }
       if !foundOmiWindow {
-        log("AppDelegate: WARNING - 'Omi' window not found!")
+        log("AppDelegate: WARNING - 'Intentive' window not found!")
       }
     }
 
@@ -678,7 +679,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   private static func isMainOmiWindow(_ window: NSWindow) -> Bool {
-    MainActor.assumeIsolated { window.title.lowercased().hasPrefix("omi") }
+    MainActor.assumeIsolated { window.title.lowercased().hasPrefix("intentive") }
   }
 
   /// Run the narrow, bundle-local maintenance required for update integrity.
@@ -719,7 +720,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
           NSApp.activate()
           // Find and show main window
           for window in NSApp.windows {
-            if window.title.hasPrefix("Omi") {
+            if window.title.hasPrefix("Intentive") {
               window.makeKeyAndOrderFront(nil)
               break
             }
@@ -732,7 +733,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       return event
     }
 
-    // Ask Omi shortcut is registered via Carbon RegisterEventHotKey in
+    // Ask Intentive shortcut is registered via Carbon RegisterEventHotKey in
     // GlobalShortcutManager (works regardless of accessibility permission state).
 
     // Global monitor - for when OTHER apps are focused (Command+Option+R only)
@@ -748,7 +749,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     log(
       "AppDelegate: Hotkey monitors registered - global=\(globalHotkeyMonitor != nil), local=\(localHotkeyMonitor != nil)"
     )
-    log("AppDelegate: Hotkey is Command+Option+R (⌘⌥R), Ask Omi via Carbon hotkeys")
+    log("AppDelegate: Hotkey is Command+Option+R (⌘⌥R), Ask Intentive via Carbon hotkeys")
   }
 
   // Dock icon is always visible — LSUIElement=false and activation policy stays .regular
@@ -769,7 +770,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     if let button = item.button {
       if OMIApp.launchMode == .rewind {
         if let icon = NSImage(
-          systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "omi Rewind")
+          systemSymbolName: "clock.arrow.circlepath",
+          accessibilityDescription: DesktopShellIdentityCopy.rewindMenuAccessibility)
         {
           icon.isTemplate = true
           button.image = icon
@@ -829,14 +831,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     log("AppDelegate: [MENUBAR] NSStatusItem created successfully")
 
     let displayName =
-      Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "omi"
+      Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Intentive"
 
     // Set up the button with compact circle mark.
     if let button = statusBarItem.button {
       if OMIApp.launchMode == .rewind {
         // Rewind mode uses SF Symbol
         if let icon = NSImage(
-          systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "omi Rewind")
+          systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Intentive Rewind")
         {
           icon.isTemplate = true
           button.image = icon
@@ -850,16 +852,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
         icon.size = NSSize(width: 18, height: 18)
         button.image = icon
         button.imagePosition = .imageOnly
-        log("AppDelegate: [MENUBAR] Omi circle logo set successfully (size: \(icon.size))")
+        log("AppDelegate: [MENUBAR] product icon set successfully (size: \(icon.size))")
       } else {
         // Fallback to SF Symbol
-        if let icon = NSImage(systemSymbolName: "waveform", accessibilityDescription: "omi") {
+        if let icon = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Intentive") {
           icon.isTemplate = true
           button.image = icon
         }
-        log("AppDelegate: [MENUBAR] WARNING - Failed to load omi_menu_bar_icon, using fallback")
+        log("AppDelegate: [MENUBAR] WARNING - Failed to load menu bar icon resource, using fallback")
       }
-      button.toolTip = OMIApp.launchMode == .rewind ? "omi Rewind" : displayName
+      button.toolTip = OMIApp.launchMode == .rewind ? "Intentive Rewind" : displayName
     } else {
       log("AppDelegate: [MENUBAR] WARNING - statusBarItem.button is nil")
     }
@@ -964,11 +966,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   @MainActor @objc private func openOmiFromMenu() {
-    AnalyticsManager.shared.menuBarActionClicked(action: "open_omi")
+    AnalyticsManager.shared.menuBarActionClicked(action: ProductTelemetryIdentity.openProductAction)
     openMainAppWindow()
   }
 
-  /// "Continue in Omi": bring the main window forward *and* land on the chat
+  /// "Continue in Intentive": bring the main window forward *and* land on the chat
   /// timeline, wherever the window was last resting. The pending request
   /// survives window creation, so a freshly created window also lands on chat.
   @MainActor func openMainAppChat() {
@@ -976,9 +978,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     openMainAppWindow()
   }
 
-  /// Bring the main Omi window to the front, creating it if needed. Shared by
-  /// the menu-bar "Open Omi" item, the global Open Omi (formerly Ask Omi)
-  /// shortcut, and the floating bar's "Continue in Omi" affordance.
+  /// Bring the main Intentive window to the front, creating it if needed. Shared by
+  /// the menu-bar "Open Intentive" item, the global Open Intentive shortcut,
+  /// and the floating bar's "Continue in Intentive" affordance.
   @MainActor func openMainAppWindow() {
     // Capture this BEFORE any activate call mutates AppKit's notion of frontmost.
     let alreadyFrontmost = NSWorkspace.shared.frontmostApplication == NSRunningApplication.current
@@ -989,7 +991,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       foundWindow = revealMainWindowIfAvailable()
     }
     NSApp.activate(ignoringOtherApps: true)
-    // Bring Omi itself frontmost. On recent macOS an app can't reliably activate
+    // Bring Intentive itself frontmost. On recent macOS an app can't reliably activate
     // ITSELF from a background global-hotkey handler — `NSApp.activate` /
     // `NSWorkspace.openApplication(on self)` are ignored, so the window orders
     // front but the app never becomes active and keyboard focus stays with the
@@ -1003,7 +1005,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       try? opener.run()
     }
     if !foundWindow {
-      log("AppDelegate: [MENUBAR] WARNING - No Omi window found when opening main window")
+      log("AppDelegate: [MENUBAR] WARNING - No Intentive window found when opening main window")
     }
   }
 
@@ -1176,14 +1178,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   }
 
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-    // Always try to show the main Omi window when dock icon is clicked
-    for window in sender.windows where window.title.hasPrefix("Omi") {
+    // Always try to show the main Intentive window when dock icon is clicked
+    for window in sender.windows where window.title.hasPrefix("Intentive") {
       if window.isMiniaturized {
         window.deminiaturize(nil)
       }
       window.makeKeyAndOrderFront(nil)
       sender.activate(ignoringOtherApps: true)
-      log("AppDelegate: Restored Omi window from dock click (wasVisible=\(flag))")
+      log("AppDelegate: Restored Intentive window from dock click (wasVisible=\(flag))")
       return false
     }
     return true
@@ -1287,7 +1289,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       return
     }
 
-    NSLog("OMI AppDelegate: Received URL event: %@", urlString)
+    NSLog("INTENTIVE AppDelegate: Received URL event: %@", urlString)
 
     Task { @MainActor in
       AuthService.shared.handleOAuthCallback(url: url)

@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - Logo
 
-/// The 8-dot Omi mark, tinted to the current ink. Spins ONLY while Omi is
+/// The 8-dot Intentive mark, tinted to the current ink. Spins ONLY while Intentive is
 /// actively working (listening / thinking) — never decoratively.
 struct SBLogo: View {
   @Environment(\.sbTheme) private var sb

@@ -135,7 +135,7 @@ struct AIResponseView: View {
           .scaledFont(size: OmiType.body)
           .foregroundColor(.secondary)
       } else {
-        Text("omi says")
+        Text("Intentive says")
           .scaledFont(size: OmiType.body)
           .foregroundColor(.secondary)
       }
@@ -403,7 +403,7 @@ struct AIResponseView: View {
       HStack(spacing: OmiSpacing.xs) {
         Button(action: { onOpenMainApp?() }) {
           HStack(spacing: OmiSpacing.xs) {
-            Text("Continue in Omi")
+            Text(DesktopShellIdentityCopy.continueInApp)
               .scaledFont(size: OmiType.body, weight: .medium)
               .foregroundColor(.white.opacity(0.85))
             Spacer(minLength: 0)
@@ -418,7 +418,7 @@ struct AIResponseView: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Open the Omi app to keep chatting")
+        .help(DesktopShellIdentityCopy.keepChattingHelp)
       }
       .chatComposerShell(fill: OmiColors.backgroundSecondary.opacity(0.82))
     }

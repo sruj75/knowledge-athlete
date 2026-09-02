@@ -15,6 +15,8 @@ final class AboutUserCardTests: XCTestCase {
     XCTAssertTrue(card.contains("Name: Sam"))
     XCTAssertTrue(card.contains("- Lives in San Francisco"))
     XCTAssertTrue(card.contains("- Prefers concise answers"))
+    XCTAssertTrue(card.contains("What Intentive knows about them:"))
+    XCTAssertFalse(card.contains("What Omi knows about them:"))
     XCTAssertTrue(card.contains("2 overdue"))
     XCTAssertTrue(card.contains("3 due today"))
     XCTAssertTrue(card.contains("quick snapshot"))

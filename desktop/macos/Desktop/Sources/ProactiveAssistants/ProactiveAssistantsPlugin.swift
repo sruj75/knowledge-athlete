@@ -93,9 +93,9 @@ public class ProactiveAssistantsPlugin: NSObject {
   // (system-audio gating).
 
   /// Bundle IDs of third-party and system screenshot/screen-recording apps.
-  /// When one of these is frontmost, Omi's 3s capture loop contends with the
+  /// When one of these is frontmost, Intentive's 3s capture loop contends with the
   /// user's active capture (WindowServer locks + SCK arbitration), which can
-  /// freeze the other app's capture UI for 20-60 seconds. We pause Omi's
+  /// freeze the other app's capture UI for 20-60 seconds. We pause Intentive's
   /// capture entirely while any of these is frontmost.
   private static let screenshotAppBundleIDs: Set<String> = [
     "pl.maketheweb.cleanshotx",  // CleanShot X
@@ -1111,15 +1111,15 @@ public class ProactiveAssistantsPlugin: NSObject {
     // Distributed notifications may arrive on the posting thread, so entering a selector on this
     // MainActor-isolated plugin can trap before a Task-based actor hop executes.
     let observers = [
-      ProactiveTestNotificationObserver(name: NSNotification.Name("com.omi.test.insight")) {
+      ProactiveTestNotificationObserver(name: NSNotification.Name("com.heyintentive.intentive.test.insight")) {
         [weak self] payload in
         self?.handleInsightTestNotification(payload)
       },
-      ProactiveTestNotificationObserver(name: NSNotification.Name("com.omi.test.focus")) {
+      ProactiveTestNotificationObserver(name: NSNotification.Name("com.heyintentive.intentive.test.focus")) {
         [weak self] payload in
         self?.handleFocusTestNotification(payload)
       },
-      ProactiveTestNotificationObserver(name: NSNotification.Name("com.omi.test.notification")) {
+      ProactiveTestNotificationObserver(name: NSNotification.Name("com.heyintentive.intentive.test.notification")) {
         [weak self] payload in
         self?.handleNotificationTestNotification(payload)
       },
@@ -1159,7 +1159,7 @@ public class ProactiveAssistantsPlugin: NSObject {
       let assistantId = payload["assistantId"]?.trimmingCharacters(in: .whitespacesAndNewlines)
 
       let resolvedTitle = title?.isEmpty == false ? title! : "Insight"
-      let resolvedMessage = message?.isEmpty == false ? message! : "Test notification from Omi"
+      let resolvedMessage = message?.isEmpty == false ? message! : "Test notification from Intentive"
       let resolvedAssistantId = assistantId?.isEmpty == false ? assistantId! : "insight"
 
       let context = FloatingBarNotificationContext(
@@ -1374,8 +1374,7 @@ public class ProactiveAssistantsPlugin: NSObject {
         NotificationService.shared.sendNotification(
           ownerID: ownerID,
           title: "Screen Recording Permission Required",
-          message:
-            "omi needs screen recording permission to continue monitoring. Please re-enable it in System Settings.",
+          message: DesktopLifecycleIdentityCopy.screenRecordingPermissionRequired,
           deliverSystemBanner: true,
           respectFrequency: false
         )
@@ -1394,8 +1393,8 @@ public class ProactiveAssistantsPlugin: NSObject {
   // MARK: - Screenshot App Detection
 
   /// True when a known third-party / system screenshot or screen-recording app is
-  /// frontmost. While one is, Omi pauses its 3s capture loop so the user's capture
-  /// doesn't stall on WindowServer lock contention with Omi. See PR attached to
+  /// frontmost. While one is, Intentive pauses its 3s capture loop so the user's capture
+  /// doesn't stall on WindowServer lock contention with Intentive. See PR attached to
   /// the "CleanShot lags 20-60s" investigation.
   private func isScreenshotAppFrontmost() -> Bool {
     guard let frontApp = NSWorkspace.shared.frontmostApplication,

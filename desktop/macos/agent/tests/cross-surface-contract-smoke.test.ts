@@ -95,8 +95,8 @@ describe("cross-surface contract smoke", () => {
 
     expect(routeExternalSurfaceTool({
       toolName: "spawn_agent",
-      toolInput: { objective: "Request Omi screen share permission" },
-      originatingPrompt: "Please request Omi screen share permission now",
+      toolInput: { objective: "Request Intentive screen share permission" },
+      originatingPrompt: "Please request Intentive screen share permission now",
     })).toMatchObject({
       action: "execute",
       toolName: "request_permission",

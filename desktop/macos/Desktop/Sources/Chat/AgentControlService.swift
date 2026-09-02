@@ -190,7 +190,7 @@ final class AgentControlService {
     let sessions = object["sessions"] as? [[String: Any]] ?? []
     if sessions.isEmpty {
       agentHandles.removeAll()
-      return "No canonical Omi agent sessions found."
+      return "No canonical Intentive agent sessions found."
     }
 
     agentHandles.removeAll()
@@ -220,7 +220,7 @@ final class AgentControlService {
     }.joined(separator: "\n")
     let suffix = sessions.count > 8 ? "\nShowing 8 of \(sessions.count)." : ""
     return
-      "Canonical Omi agent sessions. Use agentRef values internally for follow-up tool calls; do not say them aloud.\n\(rows)\(suffix)"
+      "Canonical Intentive agent sessions. Use agentRef values internally for follow-up tool calls; do not say them aloud.\n\(rows)\(suffix)"
   }
 
   private func summarizeAgentRun(_ object: [String: Any]) -> String {

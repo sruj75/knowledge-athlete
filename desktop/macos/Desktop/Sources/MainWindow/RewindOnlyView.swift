@@ -55,7 +55,7 @@ struct RewindOnlyView: View {
       // Force dark appearance on the window
       DispatchQueue.main.async {
         for window in NSApp.windows {
-          if window.title.contains("Rewind") || window.title.lowercased().hasPrefix("omi") {
+          if window.title.contains("Rewind") || window.title.lowercased().hasPrefix("intentive") {
             window.appearance = NSAppearance(named: .darkAqua)
           }
         }
@@ -91,7 +91,7 @@ struct RewindOnlyView: View {
       Button {
         openFullApp()
       } label: {
-        Label("Open Full omi App", systemImage: "square.grid.2x2")
+        Label("Open Full Intentive App", systemImage: "square.grid.2x2")
       }
 
       Divider()

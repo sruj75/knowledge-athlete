@@ -316,4 +316,9 @@ final class HomeSuggestionsStoreTests: XCTestCase {
     XCTAssertEqual(generator.callCount, 2)
     XCTAssertEqual(store.personalizedQuestions, ["Owner A's private question?"])
   }
+
+  func testManagedSuggestionPromptUsesTheShippingProductIdentity() {
+    XCTAssertTrue(GeminiHomeSuggestionGenerator.systemPrompt.contains("ask bar of Intentive"))
+    XCTAssertFalse(GeminiHomeSuggestionGenerator.systemPrompt.localizedCaseInsensitiveContains("Omi"))
+  }
 }

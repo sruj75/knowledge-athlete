@@ -53,7 +53,7 @@ enum PTTInputDeviceRouting {
   private static let store = SnapshotStore()
 
   private static let probeQueue = DispatchQueue(
-    label: "com.omi.ptt.input-device-probe", qos: .userInitiated)
+    label: "com.heyintentive.intentive.ptt.input-device-probe", qos: .userInitiated)
 
   /// The routing resolved for `selectedUID`, or `nil` when no snapshot has landed for
   /// it yet. Returning the whole snapshot rather than just the device ID lets a caller

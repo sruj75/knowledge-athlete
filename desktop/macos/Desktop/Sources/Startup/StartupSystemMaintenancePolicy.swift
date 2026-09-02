@@ -27,7 +27,7 @@ struct StartupSystemMaintenanceSink: Sendable {
 
 /// System commands allowed during normal app startup.
 ///
-/// Keep this list bundle-local. Launching Omi must not mutate shared macOS
+/// Keep this list bundle-local. Launching Intentive must not mutate shared macOS
 /// services such as the Dock or icon cache agents.
 enum StartupSystemMaintenancePolicy {
   static func run(

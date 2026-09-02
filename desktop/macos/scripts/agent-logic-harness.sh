@@ -26,7 +26,7 @@ RUN_DIR="$DESKTOP_DIR/.harness/agent-logic/$RUN_ID"
 
 usage() {
   cat <<'USAGE'
-Focused harness for Omi desktop agent / voice logic.
+Focused harness for Intentive desktop agent / voice logic.
 
 Runs:
   1. Swift focused tests:
@@ -303,7 +303,7 @@ run_continuity_gauntlet() {
 
 total_start="$(now_seconds)"
 
-echo "Omi desktop agent logic harness"
+echo "Intentive desktop agent logic harness"
 echo "repo: $REPO_ROOT"
 echo "desktop: $DESKTOP_DIR"
 echo "git: $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"

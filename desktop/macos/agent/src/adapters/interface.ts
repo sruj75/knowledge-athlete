@@ -208,7 +208,7 @@ export function assertAdapterBindingContract(binding: AdapterBindingHandle, oper
     throw new Error(`${operation} returned an empty adapterNativeSessionId`);
   }
   if (binding.adapterNativeSessionId === binding.sessionId) {
-    throw new Error(`${operation} conflated Omi sessionId ${binding.sessionId} with adapterNativeSessionId`);
+    throw new Error(`${operation} conflated Intentive sessionId ${binding.sessionId} with adapterNativeSessionId`);
   }
 }
 
@@ -221,7 +221,7 @@ export function assertAdapterAttemptResultContract(
     throw new Error(`${operation} returned an empty adapterSessionId`);
   }
   if (result.adapterSessionId === context.sessionId) {
-    throw new Error(`${operation} conflated Omi sessionId ${context.sessionId} with adapter native session id`);
+    throw new Error(`${operation} conflated Intentive sessionId ${context.sessionId} with adapter native session id`);
   }
   if (result.adapterSessionId !== context.binding.adapterNativeSessionId) {
     throw new Error(`${operation} returned adapterSessionId ${result.adapterSessionId} for binding ${context.binding.adapterNativeSessionId}`);

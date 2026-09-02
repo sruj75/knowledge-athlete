@@ -464,7 +464,7 @@ describe("SqliteAgentStore", () => {
       sourceRunId: run.runId,
       sourceAttemptId: attempt.attemptId,
       intendedSurface: "main_chat",
-      targetKind: "ask_omi",
+      targetKind: "ask_intentive",
       contentHash: "sha256:artifact",
     });
     const memory = store.insertDesktopMemoryCandidate({
@@ -1074,7 +1074,7 @@ describe("SqliteAgentStore", () => {
       sourceSessionId: session.sessionId,
       sourceRunId: childRun.runId,
       intendedSurface: "main_chat",
-      targetKind: "ask_omi",
+      targetKind: "ask_intentive",
       deliveryStatus: "retrying",
       errorJson: "{}",
     });

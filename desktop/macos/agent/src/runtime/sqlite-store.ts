@@ -97,7 +97,7 @@ const phase1SchemaSql = `
 CREATE TABLE sessions (
   session_id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL,
-  agent_definition_id TEXT NOT NULL DEFAULT 'omi.generalist@1',
+  agent_definition_id TEXT NOT NULL DEFAULT 'intentive.generalist@1',
   title TEXT,
   title_origin TEXT NOT NULL DEFAULT 'default'
     CHECK (title_origin IN ('default', 'automatic', 'manual')),
@@ -887,7 +887,7 @@ export class SqliteAgentStore implements AgentStore {
     const session: AgentSession = {
       sessionId: input.sessionId ?? generateAgentId("session"),
       ownerId: input.ownerId,
-      agentDefinitionId: input.agentDefinitionId ?? "omi.generalist@1",
+      agentDefinitionId: input.agentDefinitionId ?? "intentive.generalist@1",
       title: input.title ?? null,
       status: input.status ?? "open",
       surfaceKind: input.surfaceKind,
@@ -2030,7 +2030,7 @@ function runDesktopArtifactDeliveriesMigration(db: Pick<DatabaseSync, "exec" | "
         source_run_id TEXT REFERENCES runs(run_id) ON DELETE SET NULL,
         source_attempt_id TEXT REFERENCES run_attempts(attempt_id) ON DELETE SET NULL,
         intended_surface TEXT NOT NULL,
-        target_kind TEXT NOT NULL CHECK (target_kind IN ('ask_omi','local_file','external_draft')),
+        target_kind TEXT NOT NULL CHECK (target_kind IN ('ask_intentive','local_file','external_draft')),
         target_ref TEXT,
         content_hash TEXT,
         review_status TEXT NOT NULL CHECK (review_status IN ('not_required','pending','approved','rejected')),

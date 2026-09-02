@@ -2,6 +2,13 @@
 @preconcurrency import CoreAudio
 import Foundation
 
+enum SystemAudioCaptureIdentity {
+  static let tapName = "Intentive System Audio Tap"
+  static let permissionPrimeTapName = "Intentive System Audio Tap (permission prime)"
+  static let aggregateDeviceName = "Intentive System Audio Tap Device"
+  static let aggregateDeviceUIDPrefix = "com.heyintentive.intentive.systemaudio."
+}
+
 /// Service for capturing system audio using Core Audio Taps (macOS 14.4+)
 /// Captures all system audio output and converts to 16-bit PCM at 16kHz for transcription
 @available(macOS 14.4, *)
@@ -71,7 +78,7 @@ class SystemAudioCaptureService: @unchecked Sendable {
 
   /// Dedicated queue for CoreAudio device operations (start/stop)
   /// to avoid blocking the main thread on AudioDeviceStart/Stop calls.
-  private let audioQueue = DispatchQueue(label: "com.omi.systemaudiocapture.device")
+  private let audioQueue = DispatchQueue(label: "com.heyintentive.intentive.systemaudiocapture.device")
 
   // MARK: - Permission Checking
 
@@ -138,7 +145,7 @@ class SystemAudioCaptureService: @unchecked Sendable {
     let tapUUID = UUID()
     let tapDescription = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
     tapDescription.uuid = tapUUID
-    tapDescription.name = "OMI System Audio Tap (permission prime)"
+    tapDescription.name = SystemAudioCaptureIdentity.permissionPrimeTapName
     tapDescription.muteBehavior = .unmuted  // Don't mute playback
 
     // 2. Create the process tap — this is what triggers/persists the consent.
@@ -154,8 +161,9 @@ class SystemAudioCaptureService: @unchecked Sendable {
     //    versions only register the tap consent once a tap-backed aggregate
     //    device is instantiated, so mirror startCaptureOnQueue exactly.
     let aggregateDescription: [String: Any] = [
-      kAudioAggregateDeviceNameKey as String: "OMI System Audio Tap Device",
-      kAudioAggregateDeviceUIDKey as String: "omi.systemaudio.\(tapUUID.uuidString)",
+      kAudioAggregateDeviceNameKey as String: SystemAudioCaptureIdentity.aggregateDeviceName,
+      kAudioAggregateDeviceUIDKey as String:
+        "\(SystemAudioCaptureIdentity.aggregateDeviceUIDPrefix)\(tapUUID.uuidString)",
       kAudioAggregateDeviceIsPrivateKey as String: true,
       kAudioAggregateDeviceTapListKey as String: [
         [
@@ -240,7 +248,7 @@ class SystemAudioCaptureService: @unchecked Sendable {
     // 1. Create tap description for all system audio
     let tapDescription = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
     tapDescription.uuid = tapUUID
-    tapDescription.name = "OMI System Audio Tap"
+    tapDescription.name = SystemAudioCaptureIdentity.tapName
     tapDescription.muteBehavior = .unmuted  // Don't mute playback
 
     // 2. Create the process tap
@@ -261,8 +269,9 @@ class SystemAudioCaptureService: @unchecked Sendable {
     // CoreAudio expects a CFNumber here ("non-zero value indicates that drift compensation
     // is enabled" — see <CoreAudio/AudioHardware.h>), not a CFBoolean.
     let aggregateDescription: [String: Any] = [
-      kAudioAggregateDeviceNameKey as String: "OMI System Audio Tap Device",
-      kAudioAggregateDeviceUIDKey as String: "omi.systemaudio.\(tapUUID.uuidString)",
+      kAudioAggregateDeviceNameKey as String: SystemAudioCaptureIdentity.aggregateDeviceName,
+      kAudioAggregateDeviceUIDKey as String:
+        "\(SystemAudioCaptureIdentity.aggregateDeviceUIDPrefix)\(tapUUID.uuidString)",
       kAudioAggregateDeviceIsPrivateKey as String: true,
       kAudioAggregateDeviceTapListKey as String: [
         [

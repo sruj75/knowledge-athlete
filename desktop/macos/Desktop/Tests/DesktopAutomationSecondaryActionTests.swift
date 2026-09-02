@@ -174,6 +174,8 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   func testPrivacySnapshotOmitsRetiredCloudControls() throws {
     let source = try bridgeSource()
     let body = try actionBody(named: "settings_privacy_snapshot", in: source)
+    XCTAssertTrue(body.contains("ProductAnalyticsConsentController.shared"))
+    XCTAssertTrue(body.contains("tracking_status"))
     XCTAssertTrue(body.contains("conversation_location"))
     XCTAssertTrue(body.contains("retired_cloud_controls_visible"))
     XCTAssertFalse(body.contains("getRecordingPermission"))

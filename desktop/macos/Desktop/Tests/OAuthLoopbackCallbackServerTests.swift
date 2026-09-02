@@ -18,9 +18,9 @@ final class OAuthLoopbackCallbackServerTests: XCTestCase {
     let response = try sendLoopbackRequest(port: server.port, target: "/callback?code=test-code&state=test-state")
     XCTAssertTrue(response.hasPrefix("HTTP/1.1 200 OK"))
     XCTAssertTrue(response.contains("You're signed in"))
-    XCTAssertTrue(response.contains("Opening Omi…"))
+    XCTAssertTrue(response.contains("Opening Intentive…"))
     XCTAssertTrue(response.contains("href=\"omi-test://open\""))
-    XCTAssertTrue(response.contains("window.location.assign(openOmi.href)"))
+    XCTAssertTrue(response.contains("window.location.assign(openIntentive.href)"))
 
     let result = try await callbackTask.value
     XCTAssertEqual(result.code, "test-code")
@@ -87,17 +87,17 @@ final class OAuthLoopbackCallbackServerTests: XCTestCase {
 
   func testResponseHTMLBuilderProducesBrandedSuccessAndFailurePages() {
     let success = OAuthLoopbackCallbackServer.responseHTML(for: .success, appOpenURL: "omi-test://open")
-    XCTAssertTrue(success.contains("<title>Signed in - Omi</title>"))
+    XCTAssertTrue(success.contains("<title>Signed in - Intentive</title>"))
     XCTAssertTrue(success.contains("You're signed in"))
     XCTAssertTrue(success.contains("background-color: #f7f7f7"))
-    XCTAssertTrue(success.contains("Open Omi"))
+    XCTAssertTrue(success.contains("Open Intentive"))
     XCTAssertTrue(success.contains("href=\"omi-test://open\""))
-    XCTAssertTrue(success.contains("window.location.assign(openOmi.href)"))
+    XCTAssertTrue(success.contains("window.location.assign(openIntentive.href)"))
     XCTAssertFalse(success.contains("window.close()"))
     XCTAssertFalse(success.contains("Authentication complete. You can close this tab."))
 
     let failure = OAuthLoopbackCallbackServer.responseHTML(for: .failure)
-    XCTAssertTrue(failure.contains("<title>Authentication failed - Omi</title>"))
+    XCTAssertTrue(failure.contains("<title>Authentication failed - Intentive</title>"))
     XCTAssertTrue(failure.contains("Authentication failed"))
     XCTAssertTrue(failure.contains("#d32f2f"))
 

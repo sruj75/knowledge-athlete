@@ -297,8 +297,8 @@ describe("external realtime surface authority", () => {
   it("reroutes permission-like spawn proposals to native tools and rejects external targets", () => {
     expect(routeExternalSurfaceTool({
       toolName: "spawn_agent",
-      toolInput: { objective: "Check whether Omi has screen recording permission" },
-      originatingPrompt: "Can you check Omi's screen recording permission?",
+      toolInput: { objective: "Check whether Intentive has screen recording permission" },
+      originatingPrompt: "Can you check Intentive's screen recording permission?",
     })).toEqual({
       action: "execute",
       toolName: "check_permission_status",
@@ -324,7 +324,7 @@ describe("external realtime surface authority", () => {
     expect(routeExternalSurfaceTool({
       toolName: "request_permission",
       toolInput: { type: "microphone" },
-      originatingPrompt: "Please grant Omi microphone permission",
+      originatingPrompt: "Please grant Intentive microphone permission",
     })).toMatchObject({
       action: "execute",
       toolName: "request_permission",
@@ -339,25 +339,25 @@ describe("external realtime surface authority", () => {
       toolName: "request_permission",
       toolInput: { type: "microphone" },
       originatingPrompt: "Yes, go ahead",
-      precedingAssistantText: "Would you like me to request Omi's microphone permission?",
+      precedingAssistantText: "Would you like me to request Intentive's microphone permission?",
     })).toMatchObject({ action: "execute", toolName: "request_permission" });
     expect(routeExternalSurfaceTool({
       toolName: "request_permission",
       toolInput: { type: "screen_recording" },
       originatingPrompt: "Request it",
-      precedingAssistantText: "I cannot see your screen because Omi needs Screen Recording permission. I can request that permission now.",
+      precedingAssistantText: "I cannot see your screen because Intentive needs Screen Recording permission. I can request that permission now.",
     })).toMatchObject({ action: "execute", toolName: "request_permission", toolInput: { type: "screen_recording" } });
     expect(routeExternalSurfaceTool({
       toolName: "request_permission",
       toolInput: { type: "screen_recording" },
       originatingPrompt: "Request permissions",
-      precedingAssistantText: "Omi needs microphone and Screen Recording permissions before continuing.",
+      precedingAssistantText: "Intentive needs microphone and Screen Recording permissions before continuing.",
     })).toMatchObject({ action: "reject", code: "permission_request_not_authorized" });
     expect(routeExternalSurfaceTool({
       toolName: "request_permission",
       toolInput: { type: "microphone" },
       originatingPrompt: "Request it",
-      precedingAssistantText: "Omi needs Screen Recording permission before I can see your screen.",
+      precedingAssistantText: "Intentive needs Screen Recording permission before I can see your screen.",
     })).toMatchObject({ action: "reject", code: "permission_request_not_authorized" });
     expect(routeExternalSurfaceTool({
       toolName: "request_permission",
@@ -390,7 +390,7 @@ describe("external realtime surface authority", () => {
     }
   });
 
-  it("canonicalizes screen-share vocabulary to Omi's Screen Recording permission", () => {
+  it("canonicalizes screen-share vocabulary to Intentive's Screen Recording permission", () => {
     for (const [phrase, inputType] of [
       ["screen share", "screen_share"],
       ["screen sharing", "screen_sharing"],
@@ -399,7 +399,7 @@ describe("external realtime surface authority", () => {
       expect(routeExternalSurfaceTool({
         toolName: "request_permission",
         toolInput: { type: inputType },
-        originatingPrompt: `Please request Omi's ${phrase} permission`,
+        originatingPrompt: `Please request Intentive's ${phrase} permission`,
       })).toEqual({
         action: "execute",
         toolName: "request_permission",
@@ -410,7 +410,7 @@ describe("external realtime surface authority", () => {
 
     expect(routeExternalSurfaceTool({
       toolName: "spawn_agent",
-      toolInput: { objective: "Request Omi's screen-sharing permission" },
+      toolInput: { objective: "Request Intentive's screen-sharing permission" },
       originatingPrompt: "Can you request screen share permissions?",
     })).toEqual({
       action: "execute",
@@ -447,7 +447,7 @@ describe("external realtime surface authority", () => {
     const permissionFixture = createFixture();
     const permissionRun = permissionFixture.kernel.beginExternalSurfaceRun({
       ...beginInput(permissionFixture.sessionId),
-      prompt: "Can you check Omi's screen recording permission?",
+      prompt: "Can you check Intentive's screen recording permission?",
     });
     expect(permissionFixture.kernel.routeExternalSurfaceToolInvocation({
       ownerId: "owner",
@@ -457,7 +457,7 @@ describe("external realtime surface authority", () => {
       invocationId: "permission-route",
       toolName: "spawn_agent",
       toolInput: {
-        objective: "Check whether Omi has screen recording permission",
+        objective: "Check whether Intentive has screen recording permission",
       },
     })).toMatchObject({
       toolName: "check_permission_status",
@@ -508,7 +508,7 @@ describe("external realtime surface authority", () => {
     });
     const proposal = {
       toolName: "spawn_agent",
-      toolInput: { objective: "Request Omi's screen-sharing permission" },
+      toolInput: { objective: "Request Intentive's screen-sharing permission" },
     };
     const typedRoute = typed.kernel.routeRelayedRunToolProposal({
       capabilityRef: typedAttempt.toolCapabilityRef,

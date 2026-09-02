@@ -2,7 +2,7 @@ import Foundation
 
 /// The personalized first beat shown in the Chat tab the instant onboarding
 /// finishes: a greeting addressed to the user by name + tappable starter
-/// questions that fire real Omi queries.
+/// questions that fire real Intentive queries.
 struct OnboardingOpenerContent: Equatable {
   /// Short headline: time of day + name ("Afternoon, Nik").
   let greeting: String

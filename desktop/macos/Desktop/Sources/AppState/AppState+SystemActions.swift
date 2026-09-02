@@ -154,14 +154,14 @@ extension AppState {
     }
   }
 
-  /// Eject any mounted Omi DMG volumes
+  /// Eject any mounted Intentive or transiently named DMG volumes.
   nonisolated func ejectMountedDMGVolumes() {
     let fileManager = FileManager.default
     let volumesPath = "/Volumes"
 
     guard let contents = try? fileManager.contentsOfDirectory(atPath: volumesPath) else { return }
 
-    for volume in contents where volume.lowercased().contains("omi") || volume.hasPrefix("dmg.") {
+    for volume in contents where Self.isIntentiveDMGVolumeName(volume) {
       let volumePath = "\(volumesPath)/\(volume)"
 
       // Try diskutil eject first
@@ -353,6 +353,10 @@ extension AppState {
         }
       }
     }
+  }
+
+  nonisolated static func isIntentiveDMGVolumeName(_ volume: String) -> Bool {
+    volume.localizedCaseInsensitiveContains("Intentive") || volume.hasPrefix("dmg.")
   }
 }
 

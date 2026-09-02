@@ -362,7 +362,7 @@ struct DesktopHomeView: View {
       handleAutomationNavigation(notification)
     }
     .onReceive(NotificationCenter.default.publisher(for: .navigateToChat)) { _ in
-      // The global shortcut / notch "Ask Omi" opens the continuous chat, which
+      // The global shortcut / notch "Ask Intentive" opens the continuous chat, which
       // lives on the chat-first home. DashboardPage focuses the input when it's
       // already mounted; if we're on another tab, switch home first and re-emit
       // so the now-mounted page catches it. Guard on the tab to avoid a loop.
@@ -373,7 +373,7 @@ struct DesktopHomeView: View {
         }
       }
     }
-    // "Continue in Omi" from the floating bar: switch to the Home tab; the
+    // "Continue in Intentive" from the floating bar: switch to the Home tab; the
     // dashboard consumes the pending request and opens the chat panel.
     .onReceive(NotificationCenter.default.publisher(for: .openMainChatRequested)) { _ in
       selectedIndex = DesktopDestination.home.rawValue
@@ -383,7 +383,7 @@ struct DesktopHomeView: View {
   private func enforceMainWindowMinimumSize() {
     let minimumContentSize = DesktopWindowLayoutPolicy.minimumContentSize
     DispatchQueue.main.async {
-      for window in NSApp.windows where window.title.lowercased().hasPrefix("omi") {
+      for window in NSApp.windows where window.title.lowercased().hasPrefix("intentive") {
         window.appearance = NSAppearance(named: .darkAqua)
         window.contentMinSize = minimumContentSize
         window.minSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: minimumContentSize)).size
@@ -422,7 +422,7 @@ struct DesktopHomeView: View {
       let objectBox = AnySendableBox(value: notification.object)
       MainActor.assumeIsolated {
         guard let window = objectBox.value as? NSWindow,
-          window.title.lowercased().hasPrefix("omi")
+          window.title.lowercased().hasPrefix("intentive")
         else { return }
         let frameMin = window.frameRect(
           forContentRect: NSRect(origin: .zero, size: minimumContentSize)
@@ -495,7 +495,7 @@ struct DesktopHomeView: View {
     guard DesktopAutomationLaunchOptions.isEnabled else { return }
 
     let currentWindow = NSApp.windows.first(where: {
-      $0.title.lowercased().hasPrefix("omi") && $0.isVisible
+      $0.title.lowercased().hasPrefix("intentive") && $0.isVisible
     })
     let onDashboard = selectedIndex == DesktopDestination.home.rawValue
     let priorHomeMode = DesktopAutomationStateStore.shared.current().homeMode
@@ -515,8 +515,8 @@ struct DesktopHomeView: View {
       isAppActive: NSApp.isActive,
       mainWindowTitle: currentWindow?.title,
       floatingBarVisible: FloatingControlBarManager.shared.automationState.isVisible,
-      askOmiOpen: FloatingControlBarManager.shared.automationState.isAskOmiOpen,
-      askOmiFocused: FloatingControlBarManager.shared.automationState.isAskOmiFocused,
+      askIntentiveOpen: FloatingControlBarManager.shared.automationState.isAskOmiOpen,
+      askIntentiveFocused: FloatingControlBarManager.shared.automationState.isAskOmiFocused,
       floatingBarFrame: FloatingControlBarManager.shared.automationState.frame,
       floatingBarVoiceListening: FloatingControlBarManager.shared.automationState.isVoiceListening,
       floatingBarVoiceResponseActive: FloatingControlBarManager.shared.automationState.isVoiceResponseActive,

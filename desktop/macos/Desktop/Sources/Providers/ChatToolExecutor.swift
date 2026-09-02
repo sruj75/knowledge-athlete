@@ -368,7 +368,7 @@ class ChatToolExecutor {
           toolName: toolName,
           reason: "screenshot_sharing_disabled",
           message:
-            "Screenshot sharing is turned off. The user can enable \"Screen Sharing in Chat\" in Settings → Floating Bar to let Omi see the screen."
+            "Screenshot sharing is turned off. The user can enable \"Screen Sharing in Chat\" in Settings → Floating Bar to let Intentive see the screen."
         ))
 
     default:
@@ -461,7 +461,7 @@ class ChatToolExecutor {
         toolName: "capture_screen",
         permission: "screen_recording",
         message:
-          "Screen Recording permission is not granted. Tell the user Omi cannot see their current screen yet and ask whether they want to grant access. Call request_permission with type=screen_recording only after they explicitly request or affirm it."
+          "Screen Recording permission is not granted. Tell the user Intentive cannot see their current screen yet and ask whether they want to grant access. Call request_permission with type=screen_recording only after they explicitly request or affirm it."
       )
     }
     guard
@@ -911,11 +911,11 @@ class ChatToolExecutor {
       return """
         {
           "ok": false,
-          "mode": "local_omi_desktop",
+          "mode": "local_intentive_desktop",
           "database_available": false,
           "screen_history_available": false,
           "local_affordances": \(localAffordancesJSON()),
-          "message": "Omi Desktop is running, but the local database is not available yet."
+          "message": "Intentive Desktop is running, but the local database is not available yet."
         }
         """
     }
@@ -928,7 +928,7 @@ class ChatToolExecutor {
       let formatter = ISO8601DateFormatter()
       let payload: [String: Any] = [
         "ok": true,
-        "mode": "local_omi_desktop",
+        "mode": "local_intentive_desktop",
         "database_available": true,
         "screen_history_available": stats.total > 0,
         "screenshot_count": stats.total,
@@ -947,7 +947,7 @@ class ChatToolExecutor {
         let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
         let json = String(data: data, encoding: .utf8)
       else {
-        return "Local Omi Desktop is available. Screenshots: \(stats.total), indexed: \(stats.indexed)."
+        return "Local Intentive Desktop is available. Screenshots: \(stats.total), indexed: \(stats.indexed)."
       }
       return json
     } catch {
@@ -955,11 +955,11 @@ class ChatToolExecutor {
       return """
         {
           "ok": false,
-          "mode": "local_omi_desktop",
+          "mode": "local_intentive_desktop",
           "database_available": false,
           "screen_history_available": false,
           "local_affordances": \(localAffordancesJSON()),
-          "message": "Failed to read local Omi status: \(error.localizedDescription)"
+          "message": "Failed to read local Intentive status: \(error.localizedDescription)"
         }
         """
     }
@@ -1312,7 +1312,7 @@ class ChatToolExecutor {
         type: type,
         granted: ScreenCaptureService.checkPermission(),
         pendingMessage:
-          "User needs to toggle Screen Recording for Omi in System Settings.",
+          "User needs to toggle Screen Recording for Intentive in System Settings.",
         requiresRestart: false
       )
 
@@ -1365,7 +1365,7 @@ class ChatToolExecutor {
         type: type,
         granted: granted,
         pendingMessage:
-          "User needs to allow notifications in the system dialog or enable Omi in System Settings > Notifications.",
+          "User needs to allow notifications in the system dialog or enable Intentive in System Settings > Notifications.",
         requiresRestart: false
       )
 
@@ -1388,7 +1388,7 @@ class ChatToolExecutor {
       return permissionRequestResult(
         type: type,
         granted: AXIsProcessTrusted(),
-        pendingMessage: "User needs to toggle Accessibility for Omi in System Settings.",
+        pendingMessage: "User needs to toggle Accessibility for Intentive in System Settings.",
         requiresRestart: false
       )
 

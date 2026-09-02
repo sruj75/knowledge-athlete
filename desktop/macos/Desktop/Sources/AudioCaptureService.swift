@@ -154,7 +154,7 @@ class AudioCaptureService: @unchecked Sendable {
 
   // Device change handling
   private var isReconfiguring = false
-  private let listenerQueue = DispatchQueue(label: "com.omi.audiocapture.listener")
+  private let listenerQueue = DispatchQueue(label: "com.heyintentive.intentive.audiocapture.listener")
 
   // Silent-mic watchdog state — tracks peak amplitude within a ~1 second window
   // so we can detect a Bluetooth mic that's alive-but-silent (A2DP profile conflict).
@@ -163,7 +163,7 @@ class AudioCaptureService: @unchecked Sendable {
 
   /// Dedicated queue for CoreAudio device operations (start/stop/reconfigure)
   /// to avoid blocking the main thread on AudioDeviceStart/Stop calls.
-  private let audioQueue = DispatchQueue(label: "com.omi.audiocapture.device")
+  private let audioQueue = DispatchQueue(label: "com.heyintentive.intentive.audiocapture.device")
 
   // MARK: - Public Methods
 

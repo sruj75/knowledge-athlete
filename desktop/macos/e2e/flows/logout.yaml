@@ -28,7 +28,7 @@ steps:
 
   - id: S2
     name: Sign out from the status menu
-    do: "Open the Omi menu-bar item and click Sign Out. This must use AppDelegate.signOut and ExplicitSignOutAction, not the bridge sign_out shortcut."
+    do: "Open the Intentive menu-bar item and click Sign Out. This must use AppDelegate.signOut and ExplicitSignOutAction, not the bridge sign_out shortcut."
 
   - id: S3
     name: Verify signed-out state

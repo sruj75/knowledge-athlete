@@ -92,6 +92,7 @@ final class TaskReminderServiceTests: XCTestCase {
     XCTAssertEqual(request?.content.body, "Task local_7")
     XCTAssertEqual(request?.content.userInfo["task_id"] as? String, "local_7")
     XCTAssertFalse(wantedID.contains(ownerID))
+    XCTAssertTrue(wantedID.hasPrefix("com.heyintentive.intentive.task-reminder."))
   }
 
   func testCompletionDeadlineRemovalAndDeleteCancelExactLocalIdentifier() async throws {

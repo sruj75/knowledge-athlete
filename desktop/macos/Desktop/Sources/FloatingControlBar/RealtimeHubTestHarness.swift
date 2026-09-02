@@ -139,7 +139,7 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
     case .requestPermission: stub = "Screen Recording permission request opened."
     case .listAgentSessions:
       stub =
-        "Canonical Omi agent sessions. Use agentRef values internally for follow-up tool calls; do not say them aloud.\n- agent_1: Example agent, running"
+        "Canonical Intentive agent sessions. Use agentRef values internally for follow-up tool calls; do not say them aloud.\n- agent_1: Example agent, running"
     case .getAgentRun: stub = "The selected canonical run is running, mode ask. Attempts: 1. Events returned: 3."
     case .cancelAgentRun:
       stub = "Cancel request: accepted=true, dispatched=true, acknowledged=true. Current status: cancelling."

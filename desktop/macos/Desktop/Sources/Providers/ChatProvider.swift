@@ -42,7 +42,7 @@ struct LocalChatSelectionStore {
     let ownerHash = SHA256.hash(data: Data(ownerID.utf8))
       .map { String(format: "%02x", $0) }
       .joined()
-    return "omi.chat.selected.v1.\(ownerHash)"
+    return "intentive.chat.selected.v1.\(ownerHash)"
   }
 }
 
@@ -319,7 +319,7 @@ enum ChatContentBlock: Identifiable {
 
   /// Human-friendly display name for a tool
   static func displayName(for toolName: String) -> String {
-    // Strip MCP prefix (e.g., "mcp__omi-tools__execute_sql" → "execute_sql")
+    // Strip MCP prefixes (e.g., "mcp__intentive-tools__execute_sql" → "execute_sql")
     let cleanName: String
     if toolName.hasPrefix("mcp__") {
       cleanName = String(toolName.split(separator: "__").last ?? Substring(toolName))
@@ -766,7 +766,7 @@ struct ChatMessage: Identifiable {
 
   /// Which surface produced this turn. This is only an ownership label for
   /// interruption/cancellation policy; chat history is canonical and renders
-  /// every Omi turn in every full chat timeline.
+  /// every Intentive turn in every full chat timeline.
   var turnOwner: ChatTurnOwner?
 
   /// Kernel journal lifecycle when this message was projected from a journal
@@ -911,7 +911,7 @@ struct ChatProviderAgentQueryInvocation {
   let reasoningEffort: String?
 }
 
-/// State management for local-authoritative managed Omi chat.
+/// State management for local-authoritative managed Intentive chat.
 /// Swift presents the shared timeline while the Node runtime owns accepted turns and catalog metadata.
 @MainActor
 class ChatProvider: ObservableObject {
@@ -958,7 +958,7 @@ class ChatProvider: ObservableObject {
     ================================================================================
     🚨 FLOATING BAR MODE — READ THIS FIRST BEFORE ANYTHING ELSE 🚨
     ================================================================================
-    Tool calls are untrusted capability proposals. The kernel owns the authoritative route, clarification decision, authorization, execution profile, and background-agent identity for this surface. Use returned Omi data rather than inventing personal facts, and never claim a proposed action or agent start succeeded before its canonical tool result.
+    Tool calls are untrusted capability proposals. The kernel owns the authoritative route, clarification decision, authorization, execution profile, and background-agent identity for this surface. Use returned Intentive data rather than inventing personal facts, and never claim a proposed action or agent start succeeded before its canonical tool result.
     If a screenshot is attached and the user asks a deictic question like "which one", "which option", "which suits me", "what should I choose", or "what's on my screen", ground the answer in the visible options first and prefer what is actually on screen over unrelated context.
     If the screenshot already clearly shows the relevant options, do not ignore it just because the query is short or ambiguous.
     Respond concisely in 1-2 sentences. No lists. No headers.
@@ -1252,7 +1252,7 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Current Model
   var currentModel: String {
-    "Omi"
+    "Intentive"
   }
 
   // MARK: - System Prompt
@@ -1471,11 +1471,11 @@ class ChatProvider: ObservableObject {
     await APIKeyService.shared.waitForKeys()
     await preparePromptContextIfNeeded()
     try await resolvedAgentClient().start()
-    // Managed Pi never falls back when its Omi credential is unavailable.
+    // Managed Pi never falls back when its Intentive credential is unavailable.
     await resolvedAgentClient().setGlobalAuthHandlers(
       onAuthRequired: { [weak self] _, _ in
         Task { @MainActor [weak self] in
-          self?.errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
+          self?.errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
         }
       },
       onAuthSuccess: { [weak self] in
@@ -3921,7 +3921,7 @@ class ChatProvider: ObservableObject {
       return nil
     }
     if usageLimiter.isLimitReached {
-      log("ChatProvider: pinned Omi session blocked by free-tier monthly limit")
+      log("ChatProvider: pinned Intentive session blocked by free-tier monthly limit")
       errorMessage = "You've reached \(usageLimiter.limitDescription). Upgrade to keep chatting."
       NotificationCenter.default.post(
         name: .showUsageLimitPopup,
@@ -4538,7 +4538,7 @@ class ChatProvider: ObservableObject {
           onAuthRequired: { [weak self] _, _ in
             callbackQueue.submit { @MainActor [weak self] in
               guard let self else { return }
-              self.errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
+              self.errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
             }
           },
           onAuthSuccess: { [weak self] in
@@ -4780,7 +4780,7 @@ class ChatProvider: ObservableObject {
       }
 
       // Skip client-side cost telemetry because the native managed Gemini route
-      // already logs Omi-account token/cost usage server-side. Question
+      // already logs Intentive-account token/cost usage server-side. Question
       // quota is recorded by the transient inference endpoint, so model calls
       // and helper calls cannot double-count.
       completedResponseText = messageText
@@ -5030,7 +5030,7 @@ class ChatProvider: ObservableObject {
         failure.failureCode == .authentication
       {
         currentError = nil
-        errorMessage = "Omi authentication is required for managed AI. Sign in, then try again."
+        errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
         lastFailedPrompt = trimmedText
       } else if let bridgeError = error as? BridgeError,
         let card = ChatErrorState.from(bridgeError)
@@ -6151,7 +6151,7 @@ class ChatProvider: ObservableObject {
   }
 
   /// Snapshot for the floating-bar chat. It intentionally returns the same
-  /// canonical Omi chat timeline as main chat so typed notch, PTT, and
+  /// canonical Intentive chat timeline as main chat so typed notch, PTT, and
   /// spawned-agent links can be verified from either surface.
   func automationFloatingChatSnapshot(limit: Int) -> [String: String] {
     automationChatSnapshot(limit: limit)

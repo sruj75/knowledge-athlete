@@ -8,7 +8,7 @@ import Foundation
 /// a new context and has settled there. An idle user costs nothing, which is the cost
 /// contract established by `4584c0a9` ("no notifications → no screen analysis").
 ///
-/// It is also grounded. Before judging, it assembles what Omi already knows — memories,
+/// It is also grounded. Before judging, it assembles what Intentive already knows — memories,
 /// open commitments — so a suggestion can carry information that is not already on the
 /// user's screen. That is the difference between a card worth reading and the ~25%
 /// click-through that got the old surface switched off by default in `48239de8`.
@@ -158,7 +158,7 @@ actor SuggestionAssistant: ProactiveAssistant {
     }
 
     // Grounding is assembled BEFORE the spend decision, because it is free and it is the
-    // spend decision. If Omi knows nothing about this context it has no advantage over the
+    // spend decision. If Intentive knows nothing about this context it has no advantage over the
     // user's own eyes, and a suggestion from that position is the ~25%-CTR noise that got
     // the old surface switched off.
     let grounding: SuggestionGrounding
@@ -208,7 +208,7 @@ actor SuggestionAssistant: ProactiveAssistant {
 
   // MARK: - Grounding
 
-  /// Assemble what Omi already knows, scoped to the current context.
+  /// Assemble what Intentive already knows, scoped to the current context.
   ///
   /// Every source here is on-device and FTS- or memory-backed, in the low-millisecond
   /// range. Nothing on this path touches the network: embedding search and the backend

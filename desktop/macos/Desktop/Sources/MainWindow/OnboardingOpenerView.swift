@@ -2,7 +2,7 @@ import AppKit
 import OmiTheme
 import SwiftUI
 
-/// The first beat after onboarding: Omi greets the user by name (and today's
+/// The first beat after onboarding: Intentive greets the user by name (and today's
 /// calendar, when connected) and offers tappable starters that fire real queries.
 /// Rendered in the empty-chat slot of both the Home chat and the Chat tab, so it
 /// shows wherever the user lands post-onboarding and never pollutes history.

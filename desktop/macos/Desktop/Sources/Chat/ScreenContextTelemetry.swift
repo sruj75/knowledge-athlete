@@ -105,7 +105,7 @@ enum ScreenContextAutoIncludePolicy {
 
     switch turnOwner {
     case .floatingDefault, .floatingVoice:
-      // The onboarding demo's whole premise is "Omi reads your screen", but its
+      // The onboarding demo's whole premise is "Intentive reads your screen", but its
       // suggested query has no screen-cue words. Treat onboarding floating turns
       // as explicit so a real capture is attempted and capture/permission
       // failures surface in the answer instead of a silently blind reply.
@@ -453,7 +453,7 @@ enum ScreenContextWorkContextBuilder {
       ],
       "timeline": [],
       "guidance":
-        "No screen context is available because Screen Recording is not enabled for Omi. ONLY if the user's question depends on seeing their screen: start your reply by telling them to enable Screen Recording for Omi in System Settings > Privacy & Security, then answer what you can. For questions that do not need the screen, answer normally and do not mention permissions.",
+        "No screen context is available because Screen Recording is not enabled for Intentive. ONLY if the user's question depends on seeing their screen: start your reply by telling them to enable Screen Recording for Intentive in System Settings > Privacy & Security, then answer what you can. For questions that do not need the screen, answer normally and do not mention permissions.",
     ]
   }
 
@@ -481,7 +481,7 @@ enum ScreenContextWorkContextBuilder {
         ],
         "timeline": [],
         "guidance":
-          "A live capture failed even though Screen Recording shows granted. The usual cause is that the permission was granted after Omi launched and only takes effect after a relaunch. START your reply by telling the user to quit and reopen Omi to activate Screen Recording, then answer what you can without the screen. Do not answer from screen history.",
+          "A live capture failed even though Screen Recording shows granted. The usual cause is that the permission was granted after Intentive launched and only takes effect after a relaunch. START your reply by telling the user to quit and reopen Intentive to activate Screen Recording, then answer what you can without the screen. Do not answer from screen history.",
       ]
     }
     return [
@@ -551,7 +551,7 @@ enum ScreenContextWorkContextBuilder {
           "screen_now": fresh,
           "timeline": [],
           "latest_capture_age_seconds": 0,
-          "memories_hint": "For the user's operating principles/preferences, also call search_memories (omi-memory).",
+          "memories_hint": "For the user's operating principles/preferences, also call search_memories.",
           "guidance":
             "The local Rewind timeline database is unavailable, but a fresh live screen capture succeeded. Use capture_screen if raw pixels are necessary.",
         ]
@@ -563,7 +563,7 @@ enum ScreenContextWorkContextBuilder {
         "failure_code": ScreenContextFailureCode.databaseUnavailable.rawValue,
         "screen_now": ["available": false, "failure_code": ScreenContextFailureCode.databaseUnavailable.rawValue],
         "timeline": [],
-        "guidance": "Omi Desktop local screen history is not available yet.",
+        "guidance": "Intentive Desktop local screen history is not available yet.",
       ]
     }
 
@@ -693,7 +693,7 @@ enum ScreenContextWorkContextBuilder {
       "window_minutes": minutes,
       "screen_now": screenNow,
       "timeline": timeline,
-      "memories_hint": "For the user's operating principles/preferences, also call search_memories (omi-memory).",
+      "memories_hint": "For the user's operating principles/preferences, also call search_memories.",
       "guidance":
         "This is recent historical on-screen activity, not proof of the current visible screen. Use it for history; for a direct current-screen question, obtain a live capture instead of answering from this payload.",
     ]
@@ -748,7 +748,7 @@ enum ScreenContextWorkContextBuilder {
       ],
       "timeline": [],
       "guidance":
-        "Omi does not have Screen Recording permission for current screen access. Tell the user plainly, then call request_permission with type=screen_recording if current screen access is needed.",
+        "Intentive does not have Screen Recording permission for current screen access. Tell the user plainly, then call request_permission with type=screen_recording if current screen access is needed.",
       "next_tool": "request_permission",
       "next_tool_arguments": [
         "type": "screen_recording"

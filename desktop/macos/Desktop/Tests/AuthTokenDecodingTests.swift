@@ -80,7 +80,7 @@ final class AuthTokenDecodingTests: XCTestCase {
     let source = try desktopSource(relativePath: "Sources/AuthService.swift")
 
     XCTAssertTrue(source.contains("tokens = try Self.decodeFirebaseTokenResult(from: data)"))
-    XCTAssertTrue(source.contains("OMI AUTH: Failed to parse Firebase signInWithIdp response: %@"))
+    XCTAssertTrue(source.contains("INTENTIVE AUTH: Failed to parse Firebase signInWithIdp response: %@"))
   }
 
   private func desktopSource(relativePath: String) throws -> String {

@@ -274,7 +274,7 @@ const sendAgentMessageSchema = strictObject({
   prompt: z.string().min(1),
   mode: runModeSchema.default("ask"),
   requestId: z.string().min(1).optional(),
-  clientId: z.string().min(1).default("omi-control-tools"),
+  clientId: z.string().min(1).default("intentive-control-tools"),
   metadata: z.record(z.string(), z.unknown()).default({}),
 });
 
@@ -292,7 +292,7 @@ const spawnBackgroundAgentSchema = strictObject({
   ownerId: z.string().min(1).optional(),
   mode: runModeSchema.default("act"),
   requestId: z.string().min(1).optional(),
-  clientId: z.string().min(1).default("omi-control-tools"),
+  clientId: z.string().min(1).default("intentive-control-tools"),
   metadata: z.record(z.string(), z.unknown()).default({}),
   toolPolicy: toolPolicySchema.optional(),
 });
@@ -310,7 +310,7 @@ const spawnAgentPublicShape = {
   externalRefId: z.string().min(1).optional(),
   ownerId: z.string().min(1).optional(),
   requestId: z.string().min(1).optional(),
-  clientId: z.string().min(1).default("omi-control-tools"),
+  clientId: z.string().min(1).default("intentive-control-tools"),
   metadata: z.record(z.string(), z.unknown()).default({}),
   toolPolicy: toolPolicySchema.optional(),
 } as const;
@@ -330,7 +330,7 @@ const runAgentAndWaitSchema = strictObject({
   ownerId: z.string().min(1).optional(),
   runMode: runModeSchema.default("ask"),
   requestId: z.string().min(1).optional(),
-  clientId: z.string().min(1).default("omi-control-tools"),
+  clientId: z.string().min(1).default("intentive-control-tools"),
   maxDepth: z.coerce.number().int().min(1).max(5).default(3),
   maxBudgetUsd: z.coerce.number().positive().max(10).default(5),
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -1258,7 +1258,7 @@ export async function handleAgentControlToolCall(
 function assertCanonicalRunId(value: string, fieldName: string): void {
   if (!value.startsWith("run_")) {
     throw new Error(
-      `${fieldName} must be a canonical Omi run_id starting with "run_"; omit it for a top-level background agent`,
+      `${fieldName} must be a canonical Intentive run_id starting with "run_"; omit it for a top-level background agent`,
     );
   }
 }

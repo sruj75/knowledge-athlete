@@ -6,9 +6,17 @@ import XCTest
 ///
 /// `captureScreenWithDetailTiles` (the `capture_screen` chat tool) wrote the
 /// full frame plus native-resolution detail tiles into
-/// ~/Documents/Omi/Screenshots and nothing ever deleted them — unbounded disk
+/// the product Documents screenshot directory and nothing ever deleted them — unbounded disk
 /// growth. Captures now sweep files older than the retention window.
 final class ScreenCaptureRetentionTests: XCTestCase {
+  func testScreenshotDirectoryUsesIntentiveIdentity() {
+    let documents = URL(fileURLWithPath: "/Users/test/Documents", isDirectory: true)
+
+    XCTAssertEqual(
+      ScreenCaptureManager.screenshotsDirectory(in: documents).path,
+      "/Users/test/Documents/Intentive/Screenshots")
+  }
+
   func testStaleFilesBeyondRetentionAreSelected() {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let dir = URL(fileURLWithPath: "/tmp/omi-screens")

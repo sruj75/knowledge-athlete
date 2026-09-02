@@ -1,7 +1,7 @@
 version: 1
 name: subagent-row-benchmark
 tier: 3
-description: Cursor-free timing for selecting subagent rows and returning to main Ask Omi.
+description: Cursor-free timing for selecting subagent rows and returning to main Ask Intentive.
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/AgentPill.swift
@@ -15,7 +15,7 @@ steps:
       name: seed_subagents
       count: "3"
     wait:
-      state.askOmiOpen: true
+      state.askIntentiveOpen: true
 
   - id: S2
     name: Open Subagent 1

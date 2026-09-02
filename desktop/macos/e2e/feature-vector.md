@@ -1,4 +1,4 @@
-# Omi Desktop App Feature Vector for Flow-Walker
+# Intentive Desktop App Feature Vector for Flow-Walker
 ## Updated 2026-07-09
 
 ### Purpose
@@ -48,7 +48,7 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 9 | Memory search | memory (4) | 12 | 3 | 2 | ✅ flow: `memory-depth.yaml` + `memories.yaml` |
 | 10 | Tasks — list, refresh | retrieval-action (3) | 9 | 3 | 2 | ✅ flow: `tasks-crud.yaml` + `tasks.yaml` |
 | 11 | Quick Note (Conversations) | intelligence (3) | 9 | 2 | 2 | ✅ flow: `quick-note.yaml` |
-| 12 | Floating bar / Ask Omi | intelligence (3) | 9 | 2 | 2 | ✅ flow: `floating-bar-functional.yaml` |
+| 12 | Floating bar / Ask Intentive | intelligence (3) | 9 | 2 | 2 | ✅ flow: `floating-bar-functional.yaml` |
 
 ### SECONDARY SURFACES (priority 6-12) — first-class rows
 
@@ -64,7 +64,6 @@ Prioritized feature map to guide desktop E2E coverage. Uses the same two-dimensi
 | 23 | Transcription language settings | understand (4) | 8 | 3 | 3 | ✅ flow: `language.yaml` (set + snapshot) |
 | 24 | Privacy disclosure and tracking snapshot | — | 5 | 2 | 2 | ✅ flow: `privacy-settings.yaml` (toggle snapshot) |
 | 25 | Plan / usage (billing) | — | 5 | 2 | 1 | ✅ flow: `plan-usage.yaml` (subscription snapshot) |
-| 28 | Refer a Friend (external affiliate URL) | retrieval-action (3) | 6 | 0 | 2 | ⚠️ manual: `refer-external.yaml` (profile menu → browser) |
 | 29 | Delete account (confirmation only) | — | 5 | 0 | 2 | ⚠️ manual: `delete-account.yaml` (never confirms) |
 | 30 | Logout (local auth / emulator) | — | 5 | 1 | 2 | ⚠️ manual: `logout.yaml` (`sign_out` bridge; not prod OAuth) |
 | 31 | Onboarding (first launch / reset) | — | 5 | 1 | 1 | ⚠️ manual: `onboarding-flow.yaml` + `onboarding-smoke.yaml` — retained stages, two exits, reset/relaunch |
@@ -92,7 +91,6 @@ Agent-local flows with `tier: manual` — **not** qualification-tier (T2). Run i
 
 | Flow | Why manual | Destructive? |
 |------|------------|--------------|
-| `refer-external.yaml` | Opens `https://affiliate.omi.me` in the default browser | No |
 | `delete-account.yaml` | Exercises confirmation sheet only; **never** taps Delete Permanently | Yes (gated) |
 | `logout.yaml` | Sign out via Settings; requires **local Auth emulator** (`make desktop-run-local`), not prod OAuth | No |
 | `onboarding-smoke.yaml` | Named-bundle reset/restart, capture-safe replay, retained-data controls, and two consecutive genuine exits | Yes (local reset) |
@@ -132,7 +130,6 @@ Do **not** promote destructive flows (`delete-account`, `onboarding-smoke`) to t
 | settings-basic | 9/9 | PASS | flow-walker.beastoin.workers.dev/runs/RoTW8GeljN.html |
 | rewind | 4/4 | PASS | flow-walker.beastoin.workers.dev/runs/1HE5OsPOOy.html |
 | apps (retired by S-06) | 6/6 | HISTORICAL PASS | flow-walker.beastoin.workers.dev/runs/VDGw-wbHqa.html |
-| refer-external | — | — | superseded old `refer.yaml` (profile menu, not sidebar page) |
 | screen-recording-permission | 7/7 | PASS | flow-walker.beastoin.workers.dev/runs/3WoXUG6xkT.html |
 | audio-recording | 7/7 | PASS | flow-walker.beastoin.workers.dev/runs/UdkzB-dYG_.html |
 
@@ -143,7 +140,7 @@ Do **not** promote destructive flows (`delete-account`, `onboarding-smoke`) to t
 Wave 1/2 T2 hermetic flows landed for secondary surfaces:
 
 - `conversation-detail.yaml`, `memory-crud.yaml`, `vocabulary.yaml`, `goals-dashboard.yaml`, `plan-usage.yaml`, `privacy-settings.yaml`, `conversation-folders.yaml`
-- Bridge actions power mutations and deep snapshots; Live P2 manual lane unchanged for prod auth, delete-account, logout, and refer-external.
+- Bridge actions power mutations and deep snapshots; Live P2 manual lane remains for prod auth, delete-account, and logout.
 
 Waves 4–7 (code landed; Wave 8 live qualification complete):
 
@@ -172,7 +169,7 @@ T2 qualification matrix: **32/32 flows green** (2026-07-09 manual qualification 
 
 - **Bridge first:** `scripts/omi-ctl` + `e2e/flows/*.yaml` with `bridge.navigate` / `bridge.action`.
 - **Walker second:** `agent-swift` for manual Live P2 lane and TCC-dependent flows.
-- Primary AX navigation is the top bar: Home, Memory, Tasks, and Insights. Memory owns Memories and Conversations; Insights owns Insights and Focus. Refer a Friend lives in the profile menu popover.
+- Primary AX navigation is the top bar: Home, Memory, Tasks, and Insights. Memory owns Memories and Conversations; Insights owns Insights and Focus.
 - System tray menu items: `openOmiFromMenu`, `checkForUpdates`, `resetOnboarding`, `reportIssue`, `signOut`, `quitApp`
 - Keyboard shortcuts via View menu: Cmd+1 (Home), Cmd+2 (Memories), Cmd+3 (Tasks), Cmd+4 (Insights), Cmd+, (Settings). Cmd+Option-R retains Rewind.
 - Flow-walker target: an owned named non-production bundle until S-29 supplies the signed `com.heyintentive.intentive.beta` candidate

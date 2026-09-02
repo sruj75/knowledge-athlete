@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/app-config.sh"
 derive_omi_app_config "$BUNDLE_NAME"
 
 # Qualification profiles never inherit onboarding, capture, shortcut, or UI
-# state from a previous attempt or from Omi Dev.
+# state from a previous attempt or from Intentive Dev.
 rm -rf "$HOME/Library/Application Support/$BUNDLE_NAME" "$HOME/Library/Caches/$BUNDLE_NAME"
 defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
 defaults write "$BUNDLE_ID" hasCompletedOnboarding -bool true

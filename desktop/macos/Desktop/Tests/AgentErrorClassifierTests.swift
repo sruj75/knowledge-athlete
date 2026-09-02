@@ -16,6 +16,7 @@ final class AgentErrorClassifierTests: XCTestCase {
       classified.userMessage.lowercased().contains("try again"),
       "copy must not prescribe retries for an unretryable billing error")
     XCTAssertTrue(classified.userMessage.contains("provider balance"))
+    XCTAssertFalse(classified.userMessage.lowercased().contains("contact support"))
   }
 
   func testAuthExpiryRoutesToReconnectNotGenericError() {
@@ -66,7 +67,10 @@ final class AgentErrorClassifierTests: XCTestCase {
 
   func testLocalDataErrorsAreClassifiedForBugTracking() {
     for raw in ["cannot start a transaction within a transaction", "database disk image is malformed"] {
-      XCTAssertEqual(AgentErrorClassifier.classify(raw).code, .localDataError, raw)
+      let classified = AgentErrorClassifier.classify(raw)
+      XCTAssertEqual(classified.code, .localDataError, raw)
+      XCTAssertTrue(classified.userMessage.contains("Intentive"), raw)
+      XCTAssertFalse(classified.userMessage.contains("Omi"), raw)
     }
   }
 

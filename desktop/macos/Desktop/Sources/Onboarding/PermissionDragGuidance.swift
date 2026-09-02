@@ -19,7 +19,7 @@ enum PermissionDragGuidance {
     let appName =
       (Bundle.main.infoDictionary?["CFBundleName"] as? String)
       ?? (Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String)
-      ?? "Omi"
+      ?? "Intentive"
     let icon = NSApp.applicationIconImage ?? NSWorkspace.shared.icon(forFile: appURL.path)
 
     // System Settings launches asynchronously (100s of ms). Wait for its window to

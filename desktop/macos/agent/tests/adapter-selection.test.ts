@@ -24,7 +24,7 @@ describe("managed Pi selection and activation", () => {
     expect(managedPiIsActivated("  ")).toBe(false);
     expect(managedPiIsActivated("managed-token")).toBe(true);
     expect(managedPiActivationError()).toBe(
-      "Managed Omi authentication is unavailable. Sign in and try again."
+      "Managed Intentive authentication is unavailable. Sign in and try again."
     );
   });
 

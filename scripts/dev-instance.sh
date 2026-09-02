@@ -3,7 +3,7 @@
 #
 # Multiple agents/worktrees building the macOS app used to collide: they all grabbed
 # the same ports (backend 8080, automation 47777), the same bundle name
-# ("Omi Dev"), and run.sh killed *every* backend by process name. This derives a
+# ("Intentive Dev"), and run.sh killed *every* backend by process name. This derives a
 # stable, unique "instance" from the current git worktree so each one gets its own
 # ports, its own bundle, and its own pidfile — zero cross-talk, automatically.
 # Pair with desktop/macos/scripts/run-sh-build-lock.sh: build serialization is also
@@ -17,7 +17,7 @@
 #   OMI_DEV_DIR       per-instance pidfile/scratch dir (<worktree>/.dev)
 #
 # The PRIMARY worktree (a normal `git clone`, not a linked `git worktree add`) keeps
-# the historical defaults — offset 0, app name "Omi Dev" — so the main checkout is
+# the primary defaults — offset 0, app name "Intentive Dev" — so the main checkout is
 # unchanged. Only linked worktrees get isolated values.
 
 _omi_wt="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -40,7 +40,7 @@ if [ "$_omi_linked" = "1" ]; then
   : "${OMI_APP_NAME:=omi-$OMI_INSTANCE}"
 else
   _omi_off=0
-  : "${OMI_APP_NAME:=Omi Dev}"
+  : "${OMI_APP_NAME:=Intentive Dev}"
 fi
 
 : "${PYTHON_PORT:=$((8080 + _omi_off))}"

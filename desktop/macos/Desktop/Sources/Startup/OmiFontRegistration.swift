@@ -30,7 +30,7 @@ enum OmiFontRegistration {
     }
 
     guard !urls.isEmpty else {
-      NSLog("OmiFontRegistration: no bundled .ttf fonts found — Geist will fall back to system font")
+      NSLog("FontRegistration: no bundled .ttf fonts found — Geist will fall back to system font")
       return
     }
 
@@ -39,7 +39,7 @@ enum OmiFontRegistration {
       if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
         // A benign failure (e.g. already registered) is fine; the Font helpers fall back.
         let message = error?.takeRetainedValue().localizedDescription ?? "unknown"
-        NSLog("OmiFontRegistration: \(url.lastPathComponent) not registered (\(message))")
+        NSLog("FontRegistration: \(url.lastPathComponent) not registered (\(message))")
       }
     }
   }

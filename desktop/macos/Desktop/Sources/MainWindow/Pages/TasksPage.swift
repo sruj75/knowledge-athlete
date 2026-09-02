@@ -1273,14 +1273,14 @@ private struct TaskWhyButton: View {
   @State private var showing = false
 
   var body: some View {
-    Button(task.source == "screenshot" ? "Why Omi added this" : "Why") { showing.toggle() }
+    Button(task.source == "screenshot" ? "Why Intentive added this" : "Why") { showing.toggle() }
       .buttonStyle(.plain)
       .scaledFont(size: OmiType.caption)
       .foregroundColor(OmiColors.textTertiary)
       .accessibilityIdentifier("task-why-\(task.id)")
       .popover(isPresented: $showing) {
         VStack(alignment: .leading, spacing: OmiSpacing.sm) {
-          Text(task.source == "screenshot" ? "Why Omi added this" : "Why")
+          Text(task.source == "screenshot" ? "Why Intentive added this" : "Why")
             .scaledFont(size: OmiType.body, weight: .semibold)
           Text("This task came from \(task.sourceAppLabel.lowercased()) context.")
           Text("\((task.provenance ?? []).count) linked source\((task.provenance ?? []).count == 1 ? "" : "s")")

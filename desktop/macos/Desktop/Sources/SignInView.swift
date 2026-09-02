@@ -2,12 +2,24 @@ import AppKit
 import OmiTheme
 import SwiftUI
 
+enum SignInIdentityPresentation {
+  static let productName = "Intentive"
+  static let headline = "A second brain you can trust"
+  static let detail =
+    "Your conversations and memories stay on this Mac. Intentive uses managed services when a feature needs them."
+  static let footer = "open source · local-first · pause anytime"
+
+  static var allText: String {
+    [productName, headline, detail, footer].joined(separator: "\n")
+  }
+}
+
 struct SignInView: View {
   @ObservedObject var authState: AuthState
   @Environment(\.sbTheme) private var sb
   @State private var breathe = false
-  /// Sign-in opens on just the Omi mark + wordmark; after a beat the mark spins,
-  /// the "Omi" wordmark fades, and the rest of the screen reveals.
+  /// Sign-in opens on just the product mark + wordmark; after a beat the mark spins,
+  /// the wordmark fades, and the rest of the screen reveals.
   @State private var introRevealed = false
 
   private static let logoImage: NSImage? = {
@@ -53,7 +65,7 @@ struct SignInView: View {
             .animation(SBMotion.breathe, value: breathe)
 
           if !introRevealed {
-            Text("Omi")
+            Text(SignInIdentityPresentation.productName)
               .geist(size: 40, weight: .semibold, tracking: 40 * -0.02)
               .foregroundStyle(sb.ink)
               .transition(.opacity)
@@ -62,7 +74,7 @@ struct SignInView: View {
 
         if introRevealed {
           Group {
-            Text("A second brain you trust\nmore than your first")
+            Text(SignInIdentityPresentation.headline)
               .geist(size: 32, weight: .semibold, tracking: 32 * -0.03)
               .foregroundStyle(sb.ink)
               .multilineTextAlignment(.center)
@@ -70,7 +82,7 @@ struct SignInView: View {
               .fixedSize(horizontal: false, vertical: true)
               .padding(.top, 28)
 
-            Text("It remembers every conversation — and does the follow-ups.")
+            Text(SignInIdentityPresentation.detail)
               .geist(size: 15)
               .foregroundStyle(sb.ink(.w55))
               .multilineTextAlignment(.center)
@@ -119,7 +131,7 @@ struct SignInView: View {
                 .padding(.top, 12)
             }
 
-            Text("open source · runs on your mac · pause anytime")
+            Text(SignInIdentityPresentation.footer)
               .geistMono(size: 12)
               .foregroundStyle(sb.ink(.w35))
               .padding(.top, 28)
@@ -185,7 +197,7 @@ struct SignInView: View {
       } catch {
         let errorMsg = UserFacingErrorPresentation.message(for: error, while: .signIn)
         authState.error = errorMsg
-        NSLog("OMI Sign in error: %@", errorMsg)
+        NSLog("Intentive sign-in error: %@", errorMsg)
       }
     }
   }

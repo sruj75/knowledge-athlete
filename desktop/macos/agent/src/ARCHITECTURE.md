@@ -65,7 +65,7 @@ Swift desktop client
   raw control-tool cwd values cannot default a deliverable to Desktop. Explicit
   external-delivery reports are copied into the managed directory.
 - Pi forwards typed prompts without adding a public-web policy or synthetic tool
-  activity. Private Omi tools and explicit URL readers remain separate capabilities.
+  activity. Private desktop tools and explicit URL readers remain separate capabilities.
 - Generated tool manifests and Swift executors are updated together through
   `../scripts/generate-tool-surfaces.mjs`; hand-edited capability mirrors are
   prohibited.
