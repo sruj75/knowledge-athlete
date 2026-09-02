@@ -235,7 +235,7 @@ name with no direct user-visible identity.
 - GitHub retains candidate tagging and intake observation plus qualification,
   preview, promotion, retry, recovery, and rollback controls. The new Mac provider
   definition owns build/sign/notarize/package/smoke/publish but stays fail-closed until
-  protected provider groups and the production/public inputs are configured.
+  the remaining protected provider-group fields and production/public inputs are configured.
 - The universal dylibs in `desktop/macos/vendor/libwebp/` now have checked-in
   checksum/architecture/install-name/deployment-target/dependency verification,
   a pinned source-rebuild fallback, and nested-signing preparation scripts.

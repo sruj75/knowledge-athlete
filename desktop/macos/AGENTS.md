@@ -62,10 +62,10 @@ intentionally incomplete:
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
 3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
 4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
-   Sparkle, notarization, Firebase production, website, protected publication, or production
-   backend/feed inputs are missing. Never substitute inherited Omi values.
-5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until their remaining Omi
-   provider endpoints/secrets are removed and the complete owned inputs in
+   Apple signing/notarization, preview, website, remaining protected publication, or production
+   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, Sparkle keypair, and
+   Sentry upload token are already protected. Never substitute inherited Omi values.
+5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until the remaining owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
 The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
@@ -88,8 +88,10 @@ Stable is manual:
 **Artifact provider:** the Codemagic login is established and the selected owned application is
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
-protected Codemagic groups are not populated yet, so no candidate may be dispatched. The second
-empty provider record was deleted; only the selected application is a build authority.
+protected groups already hold the owned Stable/Beta Firebase plists, Sparkle keypair, and Sentry
+upload token. Apple signing/notarization and preview values remain incomplete, so no candidate may
+be dispatched. The second empty provider record was deleted; only the selected application is a
+build authority.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
@@ -244,7 +246,7 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
 - **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/heyintentive-desktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
 - **Managed agent boundary**: production Chat, background Pills, and voice work use `pi-mono`, managed Sonnet, and the owned Unix socket. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
-- **Release builds**: root `codemagic.yaml` plus `scripts/codemagic-release.sh` are the only artifact builder. They remain fail-closed until the protected provider groups and exact production/public inputs in `OWNER-PROVIDER-DECISIONS.md` are configured; GitHub controls tag, observe, qualify, promote, or recover but never build.
+- **Release builds**: root `codemagic.yaml` plus `scripts/codemagic-release.sh` are the only artifact builder. They remain fail-closed until the remaining protected provider-group fields and exact production/public inputs in `OWNER-PROVIDER-DECISIONS.md` are configured; GitHub controls tag, observe, qualify, promote, or recover but never build.
 - **DO NOT** use bare `swift build` — it will fail with SDK version mismatch
 - **DO NOT** use `xcodebuild` — there is no `.xcodeproj`
 - **DO NOT** launch the app directly from `build/` — always use `./run.sh`. The canonical build installs to `/Applications/Intentive Dev.app`; named builds install to `/Applications/<OMI_APP_NAME>.app`. This is required for macOS "Quit & Reopen" to find the correct binary.
