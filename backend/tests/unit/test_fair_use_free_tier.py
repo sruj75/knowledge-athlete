@@ -6,6 +6,7 @@ abuse-detected users: none → warning → throttle → restrict.
 """
 
 import asyncio
+import threading
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
@@ -115,6 +116,27 @@ class TestTriggerClassifierFreeTier:
         _fair_use_db.create_fair_use_event.return_value = 'evt-123'
         _fair_use_db.get_fair_use_events.return_value = [{'case_ref': 'FU-TEST01'}]
         _fair_use_db.update_fair_use_state.reset_mock()
+
+    @patch.object(fair_use_mod, 'get_enforcement_stage', return_value='none')
+    def test_redis_client_lookup_runs_off_the_event_loop(self, _mock_stage, monkeypatch):
+        event_loop_thread = threading.get_ident()
+        lookup_threads = []
+        redis = MagicMock()
+        redis.set.return_value = False
+
+        def redis_client():
+            lookup_threads.append(threading.get_ident())
+            return redis
+
+        monkeypatch.setattr(fair_use_mod, 'get_redis_client', redis_client)
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(fair_use_mod.trigger_free_exhaustion_if_needed('test-uid', _make_trigger()))
+        finally:
+            loop.close()
+
+        assert lookup_threads
+        assert lookup_threads[0] != event_loop_thread
 
     @patch.object(fair_use_mod, 'FAIR_USE_ENABLED', True)
     @patch.object(fair_use_mod, 'is_free_credits_exhausted', return_value=True)

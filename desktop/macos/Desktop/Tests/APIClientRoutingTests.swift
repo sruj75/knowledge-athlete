@@ -271,6 +271,16 @@ final class APIClientRoutingTests: XCTestCase {
       ))
   }
 
+  func testBundleEnvironmentRejectsBackendOnlyAndRetiredProviderCredentials() {
+    XCTAssertEqual(
+      BundleEnvironment.bundledValueRejectionReason(for: "GEMINI_API_KEY"),
+      "provider credentials stay on the backend")
+    XCTAssertEqual(
+      BundleEnvironment.bundledValueRejectionReason(for: "GOOGLE_CALENDAR_API_KEY"),
+      "retired provider credential")
+    XCTAssertNil(BundleEnvironment.bundledValueRejectionReason(for: "FIREBASE_API_KEY"))
+  }
+
   func testBetaProductionChannelUsesProductionBackendRatherThanDevelopment() {
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(
@@ -433,7 +443,7 @@ final class APIClientRoutingTests: XCTestCase {
       {
         "error": "quota exhausted",
         "reason": "provider_quota_exceeded",
-        "provider": "openai",
+        "provider": "gemini",
         "backend_route": "/v2/realtime/session",
         "upstream_status_code": 429,
         "retryable": true,
@@ -444,9 +454,7 @@ final class APIClientRoutingTests: XCTestCase {
     let client = await makeTestClient()
 
     do {
-      _ = try await client.mintRealtimeToken(
-        provider: "openai",
-        expectedOwnerID: "realtime-routing-owner")
+      _ = try await client.mintRealtimeToken(expectedOwnerID: "realtime-routing-owner")
       XCTFail("Expected structured realtime mint failure")
     } catch let error as RealtimeTokenMintError {
       XCTAssertEqual(error.statusCode, 429)
@@ -664,12 +672,10 @@ final class APIClientRoutingTests: XCTestCase {
       label: "generateSessionTitle")
   }
 
-  func testRealtimeUsageReportContainsOnlyProviderModelAndTokenCounts() async {
+  func testRealtimeUsageReportContainsOnlyTokenCounts() async {
     let client = await makeTestClient()
 
     await client.reportRealtimeUsage(
-      provider: "openai",
-      model: "gpt-realtime-2",
       inputText: 11,
       inputAudio: 12,
       inputCached: 13,
@@ -685,8 +691,8 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertEqual(
       Set(body?.keys.map { $0 } ?? []),
       Set([
-        "provider", "model", "input_text_tokens", "input_audio_tokens", "input_cached_tokens",
-        "output_text_tokens", "output_audio_tokens",
+        "input_text_tokens", "input_audio_tokens", "input_cached_tokens", "output_text_tokens",
+        "output_audio_tokens",
       ]))
     XCTAssertEqual(body?["input_cached_tokens"] as? Int, 13)
   }

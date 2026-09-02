@@ -308,13 +308,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// replay it in order before committing.
   var reconnectAudioBuffer: RealtimeReconnectAudioBuffer?
 
-  /// Failover chain: when the Auto-selected (primary) provider can't connect, the hub
-  /// tries the OTHER realtime provider before dropping to the legacy Claude cascade.
-  /// nil = on the primary; non-nil = the provider we failed over TO.
-  var fallbackProvider: RealtimeHubProvider?
-  /// Reason passed to ``failoverToAlternateProvider``; cleared after a successful connect on the alternate.
-  var pendingFailoverReason: String?
-
   override init() {
     super.init()
     Task { [weak self] in
@@ -328,11 +321,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     }
   }
 
-  /// The realtime provider to actually connect: the failover pick if we've switched to
-  /// it, otherwise the user/Auto-selected one.
-  var effectiveProvider: RealtimeHubProvider {
-    fallbackProvider ?? RealtimeHubSettings.shared.provider
-  }
+  var effectiveProvider: RealtimeHubProvider { .gemini }
 
   var currentOwnerScope: RealtimeHubOwnerScope {
     RealtimeHubOwnerScope.capture(currentOwnerID: RuntimeOwnerIdentity.currentOwnerId())
@@ -431,8 +420,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     pendingSessionRefreshReason = nil
     reconnectPending = false
     hubReconnectStrikes = 0
-    fallbackProvider = nil
-    pendingFailoverReason = nil
     admittedInputTurnID = nil
     turnTranscript = ""
     providerTranscriptFinalized = false
@@ -531,17 +518,17 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   #if DEBUG
     /// Installs a detached, never-started physical session so owner-boundary
     /// tests exercise the production controller without network or wall clocks.
-    func installOwnerBoundaryFixture(ownerID: String) {
+    func installOwnerBoundaryFixture(ownerID: String, readyForInput: Bool = false) {
       teardownSession()
       let ownerScope = RealtimeHubOwnerScope.authenticated(ownerID)
       let fixtureSession = RealtimeHubSession(
-        provider: .openai,
+        provider: .gemini,
         auth: .hermeticStub,
         instructions: "owner-boundary-fixture",
         delegate: self)
       session = fixtureSession
       voiceSessionID = VoiceSessionID()
-      sessionProvider = .openai
+      sessionProvider = .gemini
       sessionAuth = .hermeticStub
       sessionOwnerBinding = PhysicalSessionOwnerBinding(
         sourceID: ObjectIdentifier(fixtureSession),
@@ -556,6 +543,14 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       prefetchedVoiceSemanticGuidance = "owner semantic guidance"
       prefetchedVoiceContextTurnIDs = ["owner-turn"]
       prefetchedVoiceContextOwnerScope = ownerScope
+      if readyForInput {
+        let surface = AgentSurfaceReference.realtimeVoice(chatId: "owner-boundary-fixture")
+        prefetchedVoiceContextSurface = surface
+        sessionVoiceContextFreshnessIdentity = prefetchedVoiceContextFreshnessIdentity
+        sessionVoiceContextSurface = surface
+        testingLocalProfileTransportAuthorized = true
+        fixtureSession.markReadyForTesting()
+      }
       pendingSessionRefreshReason = "owner-fixture-refresh"
       turnAudio16k = Data(repeating: 1, count: 16)
     }
@@ -686,151 +681,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     return true
   }
 
-  /// Switch to the other realtime provider after the current one fails to connect.
-  /// Returns true if a failover was started. Only fires once per chain (primary →
-  /// alternate); if the alternate also fails we stop and let PTT use the Claude cascade.
-  @discardableResult
-  func failoverToAlternateProvider(reason: String = "other", mintAttemptId: String? = nil) -> Bool {
-    guard fallbackProvider == nil else {
-      var exhaustedExtra: [String: Any] = ["user_visible": false]
-      if let mintAttemptId { exhaustedExtra["mint_attempt_id"] = mintAttemptId }
-      DesktopDiagnosticsManager.shared.recordFallback(
-        area: "realtime_hub",
-        from: effectiveProvider.rawValue,
-        to: "cascade",
-        reason: reason,
-        outcome: .exhausted,
-        extra: exhaustedExtra)
-      return false  // already on the alternate → cascade
-    }
-    let primary = RealtimeHubSettings.shared.provider
-    fallbackProvider = primary.alternate
-    pendingFailoverReason = reason
-    var degradedExtra: [String: Any] = ["user_visible": false]
-    if let mintAttemptId { degradedExtra["mint_attempt_id"] = mintAttemptId }
-    DesktopDiagnosticsManager.shared.recordFallback(
-      area: "realtime_hub",
-      from: primary.rawValue,
-      to: primary.alternate.rawValue,
-      reason: reason,
-      outcome: .degraded,
-      extra: degradedExtra)
-    log(
-      "RealtimeHub: \(primary.displayName) unavailable — failing over to \(primary.alternate.displayName)"
-    )
-    replaceSessionAfterDrain()
-    return true
-  }
-
-  func failoverReason(for failureClass: CredentialFailureClass?) -> String {
-    switch failureClass {
-    case .providerAuthFailed:
-      return "auth"
-    case .providerQuotaExceeded:
-      return "quota"
-    case .backendUnauthorized, .requiresLogin, .paywalled,
-      .backendTransient, .providerTransient, .providerPolicyClose, .unknown, .none:
-      return "other"
-    }
-  }
-
-  @discardableResult
-  func failoverBargeInReplacement(
-    from provider: RealtimeHubProvider,
-    reason: String,
-    mintAttemptId: String? = nil
-  ) -> Bool {
-    guard fallbackProvider == nil else {
-      recordBargeInReplacementFailoverExhausted(
-        from: provider,
-        reason: reason,
-        mintAttemptId: mintAttemptId)
-      return false
-    }
-    guard let pendingTurn = replacementAudioBuffer,
-      let replacementOwnerScope = pendingBargeInOwnerScope,
-      isOwnerScopeCurrent(replacementOwnerScope),
-      let responseID = voiceResponseID
-    else { return false }
-
-    let alternate = provider.alternate
-    fallbackProvider = alternate
-    pendingFailoverReason = reason
-    var degradedExtra: [String: Any] = ["user_visible": false]
-    if let mintAttemptId { degradedExtra["mint_attempt_id"] = mintAttemptId }
-    DesktopDiagnosticsManager.shared.recordFallback(
-      area: "realtime_hub",
-      from: provider.rawValue,
-      to: alternate.rawValue,
-      reason: reason,
-      outcome: .degraded,
-      extra: degradedExtra)
-    log(
-      "RealtimeHub: preserving barge-in turn while failing over "
-        + "\(provider.displayName) → \(alternate.displayName)")
-    #if DEBUG
-      if sessionAuth?.reportsUsage == false {
-        pendingBargeInProvider = alternate
-        pendingBargeInAuth = .hermeticStub
-        replacementAudioBuffer = pendingTurn
-        voiceResponseID = responseID
-        pendingBargeInOwnerScope = replacementOwnerScope
-        replaceSessionAfterDrain(
-          preservingBargeInReplacement: true,
-          rewarmAfterDrain: false)
-        startReplacementSessionForBargeIn(
-          provider: alternate,
-          auth: .hermeticStub,
-          ownerScope: replacementOwnerScope)
-        return true
-      }
-    #endif
-    guard AuthService.shared.isSignedIn else {
-      recordBargeInReplacementFailoverExhausted(
-        from: alternate,
-        reason: reason,
-        mintAttemptId: mintAttemptId)
-      return false
-    }
-    pendingBargeInProvider = alternate
-    // A newer PTT can rotate continuity while the real alternate token is minting; the start path remints it.
-    pendingBargeInAuth = .managedEphemeral("")
-    replacementAudioBuffer = pendingTurn
-    voiceResponseID = responseID
-    pendingBargeInOwnerScope = replacementOwnerScope
-    replaceSessionAfterDrain(
-      preservingBargeInReplacement: true,
-      rewarmAfterDrain: false)
-    remintReplacementSessionForBargeIn(provider: alternate)
-    return true
-  }
-
-  func recordBargeInReplacementFailoverExhausted(
-    from provider: RealtimeHubProvider,
-    reason: String,
-    mintAttemptId: String?
-  ) {
-    var exhaustedExtra: [String: Any] = ["user_visible": false]
-    if let mintAttemptId { exhaustedExtra["mint_attempt_id"] = mintAttemptId }
-    DesktopDiagnosticsManager.shared.recordFallback(
-      area: "realtime_hub",
-      from: provider.rawValue,
-      to: "cascade",
-      reason: reason,
-      outcome: .exhausted,
-      extra: exhaustedExtra)
-  }
-
-  func shouldFailoverToAlternate(for failureClass: CredentialFailureClass?) -> Bool {
-    switch failureClass {
-    case .providerAuthFailed, .providerQuotaExceeded:
-      return true
-    case .backendUnauthorized, .requiresLogin, .paywalled,
-      .backendTransient, .providerTransient, .providerPolicyClose, .unknown, .none:
-      return false
-    }
-  }
-
   func recordRealtimeMintFailure(
     _ error: RealtimeTokenMintError,
     provider providerParam: String,
@@ -924,16 +774,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   }
 
   func setup() {
-    // The hub provider follows the "Voice Model" picker, so re-warm when it changes —
-    // observe the live settings notification (posted by the picker, RealtimeOmniSettings
-    // setters, and AutoModelSelector). Register exactly once — duplicate registrations
-    // (re-entrant setup) fired settingsChanged N times, each tearing down + recreating
-    // the socket, which orphaned a connecting session (Gemini 1001/1008 closes).
-    NotificationCenter.default.removeObserver(
-      self, name: .realtimeOmniSettingsDidChange, object: nil)
-    NotificationCenter.default.addObserver(
-      self, selector: #selector(settingsChanged),
-      name: .realtimeOmniSettingsDidChange, object: nil)
     // After the Mac sleeps, a long-lived WS can come back a "zombie": still open at the
     // socket level (so PTT routes a turn to it), but the server is gone — the turn commits
     // and silently never replies, with no close event to trigger reconnect or fallback. The
@@ -952,7 +792,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     NotificationCenter.default.addObserver(
       self, selector: #selector(voiceLanguagesChanged),
       name: .voiceLanguagesDidChange, object: nil)
-    // Expose the headless E2E action (omi-ctl action hub_test_turn pcm=… provider=…).
+    // Expose the headless E2E action (omi-ctl action hub_test_turn pcm=…).
     RealtimeHubTestHarness.registerAutomationAction()
     registerPTTLanguageTestAction()
     registerRapidPTTBurstTestAction()
@@ -1206,20 +1046,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     requestSessionHandoff(reason: .voiceLanguages)
   }
 
-  @objc private func settingsChanged() {
-    resetFailoverForProviderSettingsChange()
-    // Only reconnect if the provider actually changed — avoids redundant
-    // teardown/recreate races on unrelated notifications.
-    if session != nil, sessionProvider == RealtimeHubSettings.shared.provider,
-      RealtimeHubOwnerFence.canReuseWarmSession(
-        sessionOwner: sessionOwnerScope,
-        currentOwnerID: RuntimeOwnerIdentity.currentOwnerId())
-    {
-      return
-    }
-    requestSessionHandoff(reason: .providerSettings)
-  }
-
   /// The only ordinary session-maintenance entrypoint. A captured PTT turn
   /// owns bounded audio while this method changes a physical binding; all other
   /// maintenance defers until the reducer reports an idle lifecycle.
@@ -1273,9 +1099,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return
     }
     log("RealtimeHub: applying deferred \(reason) session handoff")
-    if reason == RealtimeHubSessionHandoffReason.providerSettings.rawValue {
-      resetFailoverForProviderSettingsChange()
-    }
     guard let typedReason = RealtimeHubSessionHandoffReason(rawValue: reason) else {
       return
     }
@@ -1329,14 +1152,6 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return true
     }
     return false
-  }
-
-  func resetFailoverForProviderSettingsChange() {
-    // A new pick (user or Auto/AutoModelSelector) re-evaluates from the primary.
-    // This reset moves with session replacement so an active fallback turn keeps
-    // a coherent provider identity until it terminates.
-    fallbackProvider = nil
-    pendingFailoverReason = nil
   }
 
 }

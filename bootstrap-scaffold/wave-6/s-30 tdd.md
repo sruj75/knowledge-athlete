@@ -48,12 +48,72 @@ The worktree was clean on branch `plan-waves-5-6-slices` when planning began. No
 
 Planning authorities inspected were root [`../../AGENTS.md`](../../AGENTS.md), [`../../backend/AGENTS.md`](../../backend/AGENTS.md), [`../../desktop/macos/AGENTS.md`](../../desktop/macos/AGENTS.md), [`../../desktop/macos/e2e/SKILL.md`](../../desktop/macos/e2e/SKILL.md), `PRODUCT.md`, `FORK.md`, `BACKLOG.md`, the requirements/deletion/research/Dodo authorities in `bootstrap-scaffold/`, the Waves 3–4 closeout, and the relevant S-09, S-17, S-20, S-21, S-22, and S-25 plans and handoffs. Current source, tests, workflows, release scripts, resources, and operator documentation were then inspected to distinguish implemented behavior from future-owner plans.
 
+### 2.1 Execution-context refresh — 2026-08-29
+
+This refresh changes S-30's entry facts, not its scope or completion status. The
+historical planning baseline above remains provenance; implementation must use a
+fresh execution head.
+
+- S-26 through S-29 are now integrated on `origin/main` through merge
+  `2a966c29f27e7604a129df3a9f595ff055d391a5`. The current setup branch is
+  `98ff1714b125b09b17d3ca741d090232be95901c`; neither SHA is S-30 acceptance
+  evidence.
+- The approved identity packet now fixes product/app name `Intentive`, shared
+  slug `heyintentive`, domain `heyintentive.com`, bundle family
+  `com.heyintentive.intentive{,.beta,.dev}`, repository
+  `sruj75/knowledge-athlete`, and Apple team `24D6NXS6H7`. Legal text, effective
+  dates, working support/privacy contacts, and final public pages remain
+  unapproved/unpublished and still block their owning cycles.
+- Firebase Development, Beta, and Stable apps exist in the owner-approved MVP
+  project `knowledge-athlete`; Google Firebase Auth is configured. Apple remains
+  enabled in Firebase but cannot be accepted until the Apple membership and
+  identifiers/capabilities are restored.
+- The owned `knowledge-athlete-dev` Cloud Run revision now serves an immutable
+  image from the `knowledge-athlete/us-west1/intentive` registry with Upstash
+  Redis, Firestore runtime identity, Firebase API key, and Google OAuth wired.
+  Health and the Google authorize-to-provider boundary passed. This is
+  development infrastructure, not production or final S-31 deployment proof.
+- Codemagic is connected to the owned repository; the repository workflows,
+  new Sparkle keypair, Stable/Beta Firebase inputs, and Sentry symbol-upload
+  credential are configured. Apple signing/notarization values, preview
+  resources, production URLs/origin, release GitHub App, trusted runner, and a
+  real candidate remain open.
+- Provider inventory must be derived from retained callers rather than copied
+  from Omi's deployment YAML. Gemini owns managed text, embeddings, and
+  realtime voice; OpenAI is retained only for TTS; Modulate is retained for
+  managed batch STT but intentionally postponed; Langfuse owns model tracing
+  and prompt management; and PostHog owns product telemetry. Anthropic,
+  Artificial Analysis, Calendar credentials, the legacy desktop Anthropic key,
+  provider selection, OpenAI text/realtime, and Vertex inference are deleted
+  requirements. The active development Cloud Run revision still lacks exact
+  Gemini and Langfuse secret bindings, so neither has live-provider evidence
+  yet. PostHog's owned project identity and all truthful provider disclosures
+  remain S-30 inputs.
+
+Accordingly, the production-edit gate is no longer blocked by missing S-27,
+S-28, or S-29 repository integration. It remains blocked by the unfinished
+identity/legal/public-contact packet and by unowned PostHog/managed-provider
+inputs where a final visible or public claim depends on them. Do not recreate
+deleted provider accounts merely to make the inherited manifest look complete.
+
+### 2.2 Gemini-first provider refresh — 2026-09-01
+
+The governing provider decisions now supersede the retained-provider inventory
+in §2.1. Normal Chat and every retained managed text workload use Gemini 3.7
+Flash; Gemini Live is the only realtime voice provider; and OpenAI remains only
+for the unchanged `gpt-4o-mini-tts` route. Auto, Artificial Analysis, Anthropic,
+OpenAI text/embeddings/realtime, and the omni relay are deleted. Modulate remains
+the postponed batch-STT credential. Langfuse tracing and prompt management are
+implemented in repository code; only exact development secret binding and live
+trace proof remain. S-30 disclosure and PostHog acceptance must describe this
+final map, not the superseded Omi inventory.
+
 ## 3. Outcome
 
 S-30 closes the gap between the final architecture and what the product says about itself. On one integrated execution head:
 
 - every current user-facing product name, icon, wordmark, image, window/menu title, permission explanation, sign-in and onboarding sentence, Home/Memory string, notification, error, update message, About row, external URL, support email, Terms/Privacy link, and provider disclosure belongs to the final approved identity and tells the literal truth;
-- PostHog, Sentry, and LangSmith retain their selected jobs under owned project identities, accurate event/release/service names, and the already-decided consent boundaries;
+- PostHog, Sentry, and Langfuse retain their selected jobs under owned project identities, accurate event/release/service names, and the already-decided consent boundaries;
 - backend and operator-facing current documentation describes one `us-west1` Cloud Run backend per environment, local product-data authority, transient managed compute, fixed Modulate STT, disabled billing, owned S-29 release lanes, and S-28 clean namespaces without reviving deleted products or services;
 - the S-29 public product, Terms, Privacy, release-note, manifest, preview, Beta, and Stable destinations exist and agree with the app and operator documents;
 - broad residue searches find no current Omi/BasedHardware identity or false local/cloud/privacy promise in shipping macOS, non-Windows release, backend/operator, analytics/log/service, or current public/legal surfaces;
@@ -92,14 +152,14 @@ The detailed requirement sections and indexed rows were read. The current ledger
 | **IR-893** | Describe the actual manual `workflow_dispatch` candidate path and dedicated M1 builder after S-29 reconciles code and component guidance. | 8, 9 |
 | **IR-894** | Keep server-owned signed manifests/pointers and candidate/Beta/Stable rings; make their names, URLs, artifacts, and operator prose consistent. | 6, 7, 9 |
 | **IR-895** | Keep signed branch previews and owned preview URLs; align visible and operator identity without changing preview mechanics. | 6, 9 |
-| **IR-896** | Complete the small external product/Terms/Privacy site and GitHub release-note destinations. Privacy must disclose local authority, Firebase, Dodo, PostHog, Sentry, LangSmith, AI providers, and Modulate accurately. | 5, 6, 9 |
+| **IR-896** | Complete the small external product/Terms/Privacy site and GitHub release-note destinations. Privacy must disclose local authority, Firebase, Dodo, PostHog, Sentry, Langfuse, AI providers, and Modulate accurately. | 5, 6, 9 |
 | **IR-927** | Keep the update policy and blocker while correcting product/backend/Firestore/download/operator wording after S-29. | 7, 8 |
 | **IR-928** | Keep RAM remediation and extreme relaunch behavior, with obsolete AgentSync already absent; rebrand current guidance and logs only. | 7, 8 |
 | **IR-929** | Keep guarded runtime DMG self-install behavior; consume S-28/S-29 app/bundle/environment identity and update current messages, logs, and tests. | 7 |
 | **IR-930** | Preserve S-21's local stats and absence of **Apps Installed**; change only identity-bearing surrounding copy if needed. | 4 |
 | **IR-931** | Consume S-28's owned storage/bundle namespaces and no-Omi-import/no-takeover contract; never add legacy migration as part of rebranding. | 1, 7, 8, 10 |
 
-Related guard decisions constrain the plan: IR-802 forbids a redundant provider-disclosure card; IR-804 keeps backend compatibility without `backend_required`; IR-808 keeps Redis ephemeral; IR-809 keeps the update/preview bucket; IR-821 keeps local What’s New without cloud announcement storage; IR-827/828/832 retain LangSmith, Prompt Hub, and website evaluation with truthful disclosure; IR-839–849 assign infrastructure to S-26/S-27; IR-868/877 retain durable account deletion; IR-871 permits stable `run.app` API URLs for v1 rather than requiring a custom API domain; IR-879/886 retain sanitized Cloud Logging for 30 days without a separate archive; IR-890 retains required indexes; IR-891 retains the offline harness; IR-897 keeps rejected source controls absent; IR-939 belongs to S-29's release cache. [`../dodo-integration.md`](../dodo-integration.md) keeps `BILLING_MODE=disabled` through all six waves; S-30 must neither activate Dodo nor imply that checkout is available.
+Related guard decisions constrain the plan: IR-802 forbids a redundant provider-disclosure card; IR-804 keeps backend compatibility without `backend_required`; IR-808 keeps Redis ephemeral; IR-809 keeps the update/preview bucket; IR-821 keeps local What’s New without cloud announcement storage; IR-827/828/832 retain Langfuse, Prompt Hub, and website evaluation with truthful disclosure; IR-839–849 assign infrastructure to S-26/S-27; IR-868/877 retain durable account deletion; IR-871 permits stable `run.app` API URLs for v1 rather than requiring a custom API domain; IR-879/886 retain sanitized Cloud Logging for 30 days without a separate archive; IR-890 retains required indexes; IR-891 retains the offline harness; IR-897 keeps rejected source controls absent; IR-939 belongs to S-29's release cache. [`../dodo-integration.md`](../dodo-integration.md) keeps `BILLING_MODE=disabled` through all six waves; S-30 must neither activate Dodo nor imply that checkout is available.
 
 ## 5. Dependencies and entry gates
 
@@ -113,7 +173,7 @@ Stop if the pinned SHA is no longer an ancestor, assigned decisions changed, unr
 
 Planning artifacts alone do not satisfy this gate. Production cycles require integrated, tested outputs from:
 
-- **S-09:** one startup-authoritative PostHog preference, identity detach on opt-out, separate Sentry and Enhanced Diagnostics, truthful tracking inventory, and owned PostHog/Sentry/LangSmith configuration;
+- **S-09:** one startup-authoritative PostHog preference, identity detach on opt-out, separate Sentry and Enhanced Diagnostics, truthful tracking inventory, and owned PostHog/Sentry/Langfuse configuration;
 - **S-17:** retained onboarding/permission state machine, explicit capture choices, truthful functional permission behavior, local/Firebase answer authority, and deleted AI-onboarding residue;
 - **S-21:** canonical Home/Memory/Tasks/Insights shell, local Privacy & Data routing, no Help Center, local stats, and no Apps count;
 - **S-27:** exactly one canonical backend per environment in `us-west1` under verified owned Google Cloud/Firebase/Redis/Firestore/GCS/Cloud Tasks/WIF/secret identities;
@@ -130,8 +190,8 @@ The repository does not authorize a final name merely because its fork is named 
 2. approved app icon, wordmark, monochrome menu/notch marks, sign-in/onboarding backdrop, accessibility labels, and asset licenses/provenance;
 3. final stable/Beta display names, S-28 bundle/app-group/Keychain/storage/default/log/cache/update namespaces, URL schemes, and S-29 artifact filenames;
 4. canonical product, Terms, Privacy, support, GitHub repository/release, appcast/manifest, preview, Beta, and Stable URLs plus the support email and accountable mailbox owner;
-5. owned PostHog project/token/host, Sentry org/project/DSN/release convention, LangSmith project/workspace, Cloud Run service/project names, and approved external service labels—secret values delivered through existing secret/config owners, never copied into prose;
-6. a fact-reviewed data-flow matrix covering local stores, Firebase Auth/minimal account metadata, Dodo's disabled/current role, PostHog, Sentry, Enhanced Diagnostics, LangSmith, OpenAI, Gemini, Anthropic if still retained, Modulate, Redis, Firestore, GCS update/preview assets, retention, purpose, content categories, opt-out/control, and deletion/export behavior;
+5. owned PostHog project/token/host, Sentry org/project/DSN/release convention, Langfuse project/workspace, Cloud Run service/project names, and approved external service labels—secret values delivered through existing secret/config owners, never copied into prose;
+6. a fact-reviewed data-flow matrix covering local stores, Firebase Auth/minimal account metadata, Dodo's disabled/current role, PostHog, Sentry, Enhanced Diagnostics, Langfuse, OpenAI TTS, Gemini, Modulate, Redis, Firestore, GCS update/preview assets, retention, purpose, content categories, opt-out/control, and deletion/export behavior;
 7. approved public Privacy and Terms text, effective date, jurisdiction/contact details, and evidence for every security, encryption, retention, deletion, and “on this Mac” claim.
 
 Product and legal owners approve literal copy; engineering proves it matches shipped code. Missing, placeholder, redirect-only, inaccessible, or mutually inconsistent inputs block the affected GREEN. Never invent encryption, sale/sharing, retention, regionality, compliance, open-source, provider, or deletion promises.
@@ -164,7 +224,7 @@ The exact IR-269 empty-state and IR-287 Memory subtitle are already present and 
 
 ### 6.3 Privacy, tracking, and managed-provider truth
 
-`SettingsContentView+NotificationsPrivacy.swift` still presents an asserted `Active` local-database protection state, a duplicate Privacy Guarantees card with absolutes, and a stale What We Track inventory. `PostHogManager.swift` and `AnalyticsManager.swift` retain product analytics; `OmiApp.swift`, `Observability/SentryBeforeSendPolicy.swift`, feedback, diagnostics, and release scripts retain Sentry; backend model paths retain LangSmith where selected.
+`SettingsContentView+NotificationsPrivacy.swift` still presents an asserted `Active` local-database protection state, a duplicate Privacy Guarantees card with absolutes, and a stale What We Track inventory. `PostHogManager.swift` and `AnalyticsManager.swift` retain product analytics; `OmiApp.swift`, `Observability/SentryBeforeSendPolicy.swift`, feedback, diagnostics, and release scripts retain Sentry; backend model paths retain Langfuse where selected.
 
 At this baseline, PostHog configuration includes an inherited project token/host and Sentry configuration/release upload still carries inherited OmiApp identity. S-09 owns consent mechanics and provider-project configuration. S-30 consumes that seam to make the final in-app and public disclosures agree with observed event/payload categories. Sentry remains independent from the PostHog toggle; Enhanced Diagnostics remains a separate explicit control.
 
@@ -207,7 +267,7 @@ The inventory is by externally meaningful surface, not merely by string. Paths a
 | Updater/self-install/repair | update services, `Startup/AppInstaller.swift`, Manual Installation disclosure, repair HTML/scripts/tests | S-28 namespace; S-29 manifest/artifacts/signing | **ADAPT** messages, filenames, URLs, logs after mechanics integrate |
 | Analytics events/properties | Analytics/PostHog call sites, event enums/strings, consent tests, dashboards named in docs | S-09 owned projects and migration decision | **ADAPT** brand-bearing names atomically; keep meanings/schema unless approved migration says otherwise |
 | Sentry releases/services | app startup, before-send policy, feedback, release upload/workflows, release docs | S-09 owned Sentry; S-29 build/release | **ADAPT** org/project/release/service identity; keep filtering and issue value |
-| LangSmith/model trace identity | backend model client/config, Prompt Hub/eval docs/workflows | S-09/S-22 retained trace owners | **ADAPT** project/workspace/current service name; preserve content boundaries |
+| Langfuse/model trace identity | backend model client/config, Prompt Hub/eval docs/workflows | S-09/S-22 retained trace owners | **ADAPT** project/workspace/current service name; preserve content boundaries |
 | Backend providers and API truth | `backend/AGENTS.md`, `backend/README.md`, route/service docs, OpenAPI descriptions, environment templates | S-22/S-26/S-27 integrated runtime | **ADAPT** current descriptions; do not change routes/providers/topology |
 | Cloud/deploy service names | runtime env, workflow/script/config/OpenTofu outputs, probes, logging labels, runbooks | S-27 canonical owned infrastructure | **VERIFY/ADAPT** residual external names; no live rename in S-30 |
 | Release/publication names | workflows/scripts/schemas/fixtures/docs, GitHub tags/assets, appcast/manifests/pointers/previews | S-29 release implementation | **VERIFY/ADAPT** identity and prose; mechanics remain S-29 |
@@ -224,7 +284,7 @@ The implementation PR must attach a machine-readable or tabular match ledger for
 
 | Class | S-30 meaning | Examples |
 |---|---|---|
-| **KEEP AS IS** | Already-decided behavior or exact copy that must not move during the truth pass. | IR-269/287 Memory strings; sign-in layout; onboarding transitions; Home dark layout; Privacy & Data route; About version selection; update toast timing; local notifications; Sentry/PostHog/LangSmith jobs; `BILLING_MODE=disabled`; historical changelog/provenance. |
+| **KEEP AS IS** | Already-decided behavior or exact copy that must not move during the truth pass. | IR-269/287 Memory strings; sign-in layout; onboarding transitions; Home dark layout; Privacy & Data route; About version selection; update toast timing; local notifications; Sentry/PostHog/Langfuse jobs; `BILLING_MODE=disabled`; historical changelog/provenance. |
 | **ADAPT** | Replace current externally meaningful identity, destination, or statement with approved truth at the existing owner. | Icons/wordmarks, product nouns, permission descriptions, Privacy/What We Track, provider/service/release names, URLs, support email, About, updater/repair text, operator docs. |
 | **DELETE** | Remove inherited content or duplicate assertions that have no retained product role. | Old current-use art, fake `Active` security status, four Privacy Guarantees absolutes, stale Help Center references, current Omi/BasedHardware destinations, obsolete service/provider claims. |
 | **SIMPLIFY AFTER** | Only after GREEN and caller proof, consolidate duplicate literal strings or delete obsolete test/docs helpers without changing behavior. | Repeated product-display copy at an existing narrow owner; duplicate URL constants already superseded by S-28/S-29; stale snapshot fixtures. No new global copy framework. |
@@ -239,7 +299,7 @@ The implementation PR must attach a machine-readable or tabular match ledger for
 3. Optional translation and retained model workloads use only the providers selected by current product/runtime authorities. Copy never promises “fully local” computation.
 4. Firebase authentication and minimal retained server metadata remain; Redis stays ephemeral; Dodo stays disabled; export and account deletion retain their selected compositions.
 5. PostHog remains local default-on and user-controllable only through S-09's owner. Off applies before setup/identify, stops PostHog capture, and detaches identity. Sentry and Enhanced Diagnostics stay separate.
-6. Sentry retains crash/diagnostic value and privacy filtering. LangSmith retains only reviewed model trace/evaluation roles. Raw sensitive content is never added to logs or analytics while renaming.
+6. Sentry retains crash/diagnostic value and privacy filtering. Langfuse retains only reviewed model trace/evaluation roles. Raw sensitive content is never added to logs or analytics while renaming.
 7. The onboarding state machine, permission request timing, explicit listening choice, Skip/completion semantics, and local opener behavior remain as integrated from S-17.
 8. The Home/Memory/Tasks/Insights/Rewind routes, local stores, Stats behavior, static-welcome priority, and exact IR-269/287 text remain as integrated from S-19/S-21.
 9. The neutral dark design stays visually equivalent. No icon, asset, accent, glow, gradient, or generated art introduces purple.
@@ -263,7 +323,7 @@ Approved identity/legal packet (human authority, versioned evidence)
 Existing narrow owners
   S-28 app/bundle/storage identity ----> Info.plist, app display, URL scheme, local namespaces
   S-29 release/public identity --------> artifacts, tags, appcast/manifests, website/Terms/Privacy URLs
-  S-09 telemetry owners --------------> PostHog preference/project, Sentry project/release, LangSmith
+  S-09 telemetry owners --------------> PostHog preference/project, Sentry project/release, Langfuse
   App/UI source owners ----------------> sign-in, onboarding, Home, Settings, About, notifications, errors
   Backend/deploy owners ---------------> provider/service/log labels and operator documentation
                                   |
@@ -377,7 +437,7 @@ When an existing test's literal copy or destination expectation changes in the s
 
 **Why current fails:** the pinned Privacy UI contains a fake active-security state, false absolutes, stale categories, and inherited provider/project identity; the final public Privacy page does not yet exist in this checkout.
 
-**Minimum GREEN:** Consume S-09's tested control/config owners, delete the fake/duplicate cards, rewrite data-location and What We Track from the observed payload matrix, and update public Privacy content for local authorities, Firebase, disabled/current Dodo role, PostHog, Sentry, LangSmith, managed AI providers, Modulate, retention/control/export/deletion boundaries. Never claim raw content is excluded unless payload tests prove it for that provider.
+**Minimum GREEN:** Consume S-09's tested control/config owners, delete the fake/duplicate cards, rewrite data-location and What We Track from the observed payload matrix, and update public Privacy content for local authorities, Firebase, disabled/current Dodo role, PostHog, Sentry, Langfuse, managed AI providers, Modulate, retention/control/export/deletion boundaries. Never claim raw content is excluded unless payload tests prove it for that provider.
 
 **Retained behavior:** PostHog-only preference, independent Sentry, explicit Enhanced Diagnostics, local product authority, transient managed compute, Report Issue, Export My Data, account deletion, no redundant disclosure card.
 
@@ -427,7 +487,7 @@ When an existing test's literal copy or destination expectation changes in the s
 
 ### Cycle 8 — migrate externally meaningful analytics, release, log, and service identity atomically
 
-**Intended RED:** At telemetry/log/release/deploy adapters, emit representative events, Sentry envelopes/releases, LangSmith trace metadata, fallback telemetry, backend logs, Cloud Run labels, and release evidence. Assert approved project/service/release identity, unchanged bounded semantic fields, sanitized content, and no old externally visible name. Use labelled static tripwires for caller-free retired event/service strings only after behavioral payload tests exist.
+**Intended RED:** At telemetry/log/release/deploy adapters, emit representative events, Sentry envelopes/releases, Langfuse trace metadata, fallback telemetry, backend logs, Cloud Run labels, and release evidence. Assert approved project/service/release identity, unchanged bounded semantic fields, sanitized content, and no old externally visible name. Use labelled static tripwires for caller-free retired event/service strings only after behavioral payload tests exist.
 
 **Why current fails:** inherited PostHog/Sentry configuration, brand-bearing event/action names, Omi auth/log prefixes, release org/project names, service examples, and operator labels remain. Blind renaming could split dashboards or break automation protocols.
 
@@ -435,9 +495,9 @@ When an existing test's literal copy or destination expectation changes in the s
 
 **Retained behavior:** telemetry consent, diagnostics, fallback semantics, release health, provider traces, log sanitizer, one-backend topology, automation behavior, and operational observability.
 
-**Expected source/tests/contracts/docs/config:** Analytics/PostHog/Sentry/LangSmith owners and tests, automation bridge/client/action names if externally consumed, backend logging config/sanitizer tests, S-27 service config, S-29 workflows/scripts/schemas/fixtures/docs, dashboards/runbooks referenced by the migration ledger.
+**Expected source/tests/contracts/docs/config:** Analytics/PostHog/Sentry/Langfuse owners and tests, automation bridge/client/action names if externally consumed, backend logging config/sanitizer tests, S-27 service config, S-29 workflows/scripts/schemas/fixtures/docs, dashboards/runbooks referenced by the migration ledger.
 
-**Exact verification:** representative payload snapshot tests, opt-out/no-network test, Sentry before-send/release tests, LangSmith config tests, backend logging/sanitizer tests, release-process guards, automation harness, and exact old/new event/service residue searches.
+**Exact verification:** representative payload snapshot tests, opt-out/no-network test, Sentry before-send/release tests, Langfuse config tests, backend logging/sanitizer tests, release-process guards, automation harness, and exact old/new event/service residue searches.
 
 **Deletion/simplification enabled:** old project/release/service/event/log identifiers and caller-free aliases; duplicated docs after one current authority exists.
 
@@ -445,7 +505,7 @@ When an existing test's literal copy or destination expectation changes in the s
 
 ### Cycle 9 — publish one truthful current product, privacy, legal, provider, and operator story
 
-**Intended RED:** Render the S-29 product/Terms/Privacy pages and run current-doc contract checks against the integrated runtime/deploy/release manifests. Assert consistent identity/contact/effective-date links and literal architecture: local authorities; Firebase; Dodo disabled/current role; PostHog/Sentry/LangSmith; selected AI providers; Modulate; one `us-west1` backend; manual candidate publication; signed preview/candidate/Beta/Stable and rollback. Assert no retired product/service/storage/provider or automatic-release claim.
+**Intended RED:** Render the S-29 product/Terms/Privacy pages and run current-doc contract checks against the integrated runtime/deploy/release manifests. Assert consistent identity/contact/effective-date links and literal architecture: local authorities; Firebase; Dodo disabled/current role; PostHog/Sentry/Langfuse; selected AI providers; Modulate; one `us-west1` backend; manual candidate publication; signed preview/candidate/Beta/Stable and rollback. Assert no retired product/service/storage/provider or automatic-release claim.
 
 **Why current fails:** the public site is absent at the planning baseline; root/backend/desktop/release docs still contain inherited brand, domains, resources, and stale topology; desktop release guidance currently conflicts with the workflow.
 
@@ -484,7 +544,7 @@ When an existing test's literal copy or destination expectation changes in the s
 | Owner | S-30 consumes | S-30 must not absorb | S-30 hands off |
 |---|---|---|---|
 | **S-08** | Firebase auth/session/export/account-deletion boundaries | Auth redesign or new identity provider | Truthful auth/minimal-account disclosure |
-| **S-09** | PostHog preference/project, Sentry separation, LangSmith and diagnostics boundaries | Consent redesign, raw-content telemetry expansion, live project creation | Final provider names, in-app/public disclosure, event/release identity ledger |
+| **S-09** | PostHog preference/project, Sentry separation, Langfuse and diagnostics boundaries | Consent redesign, raw-content telemetry expansion, live project creation | Final provider names, in-app/public disclosure, event/release identity ledger |
 | **S-17** | Retained onboarding/permission/capture behavior | Flow/state-machine redesign | Final brand/art/copy and repository link |
 | **S-19/S-20/S-21** | Home shell, Chat/PTT, local notifications/fair-use, Privacy & Data route, local Stats | Navigation, notification semantics, or product behavior changes | Final visible identity and fact-checked wording |
 | **S-22/S-26** | Selected managed-provider callers and one source/runtime shape | Model/provider or backend architecture selection | Truthful provider/capability/operator prose |
@@ -521,7 +581,7 @@ rg -n -i --hidden --glob '!desktop/windows/**' \
 
 # Provider, telemetry, service, region, and release identity.
 rg -n --hidden --glob '!desktop/windows/**' \
-  'PostHog|Sentry|LangSmith|Modulate|OpenAI|Gemini|Anthropic|Firebase|Firestore|Redis|Dodo|GCS|Cloud Run|us-west1|workflow_dispatch|appcast|candidate|preview|Beta|Stable' \
+  'PostHog|Sentry|Langfuse|Modulate|OpenAI|Gemini|Anthropic|Firebase|Firestore|Redis|Dodo|GCS|Cloud Run|us-west1|workflow_dispatch|appcast|candidate|preview|Beta|Stable' \
   desktop/macos backend .github scripts PRODUCT.md
 
 # Visible/error/notification/accessibility/automation candidates in Swift.
@@ -535,7 +595,7 @@ rg -n -F 'Memories you add and insights learned from your conversations and acti
 rg -n -F 'Memories and insights saved on this Mac.' \
   desktop/macos/Desktop/Sources desktop/macos/Desktop/Tests
 rg -n -i --glob '*.swift' --glob '*.py' --glob '*.js' --glob '*.mjs' \
-  'PostHog|Sentry|LangSmith|Modulate|Privacy & Data|Visit Website|Terms' \
+  'PostHog|Sentry|Langfuse|Modulate|Privacy & Data|Visit Website|Terms' \
   desktop/macos backend .github
 
 # Protected/excluded matches are inventoried separately, never scrubbed blindly.
@@ -707,7 +767,7 @@ Use the offline/local backend and S-27's read-only non-production inventory/prob
 - `/v1/health`, authenticated `/metrics`, and representative retained routes resolve through the one canonical backend;
 - runtime/deploy manifests and actual non-production revision metadata say `us-west1`, the owned project/service identity, retained Firebase/Redis/Firestore/GCS/Cloud Tasks roles, and no retired duplicate service;
 - `/v4/listen` disclosure matches managed Modulate transport and transient segments; model/translation disclosures match configured providers without sending user content merely to test copy;
-- sanitized logs, Sentry dry-run payloads, PostHog debug recorder, and LangSmith configuration use approved projects/service/release names and no secrets/PII;
+- sanitized logs, Sentry dry-run payloads, PostHog debug recorder, and Langfuse configuration use approved projects/service/release names and no secrets/PII;
 - `BILLING_MODE=disabled` produces zero Dodo checkout/portal/provider calls and every UI/public statement remains truthful about that state.
 
 Live provider success is not required to prove a copy string. Final all-waves real-provider continuity remains BL-001. If a claim can only be proven by an authorized real non-production probe, leave its row open rather than asserting it.
@@ -737,7 +797,7 @@ Using S-29's signed fixtures/dry-run/non-production lanes only:
 
 S-30 repository work does not itself:
 
-- create/rename/delete PostHog, Sentry, LangSmith, Modulate, AI-provider, Firebase, Google Cloud, Redis, Dodo, GitHub, DNS, email, or website accounts/resources;
+- create/rename/delete PostHog, Sentry, Langfuse, Modulate, AI-provider, Firebase, Google Cloud, Redis, Dodo, GitHub, DNS, email, or website accounts/resources;
 - rotate or distribute secrets, migrate analytics history/dashboards, rename a live Cloud Run service, deploy backend/site code, mutate IAM, or change retention settings;
 - sign, notarize, publish, promote, roll back, or update a production desktop build or appcast/manifest pointer;
 - launch or alter production Omi/Omi Beta bundles, import legacy user data, or change customer data;
@@ -804,9 +864,9 @@ The genuine unresolved choices are external identity/legal inputs and predecesso
 - [ ] Fake `Active` security state, Privacy Guarantees card, and four false absolutes are deleted.
 - [ ] What We Track matches observed PostHog/Sentry fields/categories and raw-content exclusions.
 - [ ] PostHog default/setup/identify/opt-out/detach/re-enable behavior passes; Sentry and Enhanced Diagnostics remain independent.
-- [ ] In-app and public Privacy accurately distinguish local authority, Firebase/minimal server data, Dodo disabled/current role, PostHog, Sentry, LangSmith, retained AI providers, Modulate, retention, controls, export, and deletion.
+- [ ] In-app and public Privacy accurately distinguish local authority, Firebase/minimal server data, Dodo disabled/current role, PostHog, Sentry, Langfuse, retained AI providers, Modulate, retention, controls, export, and deletion.
 - [ ] No IR-802 redundant provider card is added.
-- [ ] Owned PostHog/Sentry/LangSmith project/release/service identities are configured through existing secret/config owners; no secret/PII enters source, logs, analytics, or evidence.
+- [ ] Owned PostHog/Sentry/Langfuse project/release/service identities are configured through existing secret/config owners; no secret/PII enters source, logs, analytics, or evidence.
 
 ### Links, updates, release, and operator truth
 

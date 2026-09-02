@@ -1,12 +1,13 @@
 """Deterministic LLM responses for hermetic desktop E2E (OMI_LLM_STUB=1).
 
 Ported from the retired Rust `llm_stub.rs` during the canonical Python cutover.
-Returns OpenAI-compatible JSON / SSE instead of calling upstream
+Returns deterministic provider-native fixtures instead of calling upstream
 providers, and echoes any ``[[MARKER:...]]`` token found in the latest user turn.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -292,152 +293,6 @@ def stub_directive(body: Mapping[str, object]) -> StubDirective:
     return _TextDirective(stub_assistant_text(user_text))
 
 
-def _sse(payload: dict[str, object]) -> str:
-    return f'data: {json.dumps(payload, separators=(",", ":"))}\n\n'
-
-
-def text_completion_payload(text: str) -> dict[str, object]:
-    return {
-        'id': 'chatcmpl-stub',
-        'object': 'chat.completion',
-        'created': 0,
-        'model': 'omi-stub',
-        'choices': [
-            {
-                'index': 0,
-                'message': {'role': 'assistant', 'content': text},
-                'finish_reason': 'stop',
-            }
-        ],
-    }
-
-
-def tool_call_completion_payload(name: str, arguments: Mapping[str, Any]) -> dict[str, object]:
-    return {
-        'id': 'chatcmpl-stub',
-        'object': 'chat.completion',
-        'created': 0,
-        'model': 'omi-stub',
-        'choices': [
-            {
-                'index': 0,
-                'message': {
-                    'role': 'assistant',
-                    'content': None,
-                    'tool_calls': [
-                        {
-                            'id': f'call_omi_stub_{name}',
-                            'type': 'function',
-                            'function': {
-                                'name': name,
-                                'arguments': json.dumps(arguments, separators=(',', ':')),
-                            },
-                        }
-                    ],
-                },
-                'finish_reason': 'tool_calls',
-            }
-        ],
-    }
-
-
-def text_stream_chunks(text: str) -> list[str]:
-    return [
-        _sse(
-            {
-                'id': 'chatcmpl-stub',
-                'object': 'chat.completion.chunk',
-                'created': 0,
-                'model': 'omi-stub',
-                'choices': [
-                    {
-                        'index': 0,
-                        'delta': {'role': 'assistant', 'content': text},
-                        'finish_reason': None,
-                    }
-                ],
-            }
-        ),
-        _sse(
-            {
-                'id': 'chatcmpl-stub',
-                'object': 'chat.completion.chunk',
-                'created': 0,
-                'model': 'omi-stub',
-                'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}],
-            }
-        ),
-        'data: [DONE]\n\n',
-    ]
-
-
-def tool_call_stream_chunks(name: str, arguments: Mapping[str, Any]) -> list[str]:
-    call_id = f'call_omi_stub_{name}'
-    return [
-        _sse(
-            {
-                'id': 'chatcmpl-stub',
-                'object': 'chat.completion.chunk',
-                'created': 0,
-                'model': 'omi-stub',
-                'choices': [
-                    {
-                        'index': 0,
-                        'delta': {
-                            'role': 'assistant',
-                            'tool_calls': [
-                                {
-                                    'index': 0,
-                                    'id': call_id,
-                                    'type': 'function',
-                                    'function': {
-                                        'name': name,
-                                        'arguments': json.dumps(arguments, separators=(',', ':')),
-                                    },
-                                }
-                            ],
-                        },
-                        'finish_reason': None,
-                    }
-                ],
-            }
-        ),
-        _sse(
-            {
-                'id': 'chatcmpl-stub',
-                'object': 'chat.completion.chunk',
-                'created': 0,
-                'model': 'omi-stub',
-                'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'tool_calls'}],
-            }
-        ),
-        'data: [DONE]\n\n',
-    ]
-
-
-def stub_chat_completions_json(body: Mapping[str, object]) -> dict[str, object]:
-    directive = stub_directive(body)
-    if isinstance(directive, _ToolCallDirective):
-        return tool_call_completion_payload(directive.name, directive.arguments)
-    return text_completion_payload(directive.text)
-
-
-async def stub_chat_completions_stream(body: Mapping[str, object]) -> AsyncIterator[str]:
-    import asyncio
-
-    user_text = extract_latest_user_text(body)
-    directive = stub_directive(body)
-    if isinstance(directive, _ToolCallDirective):
-        chunks = tool_call_stream_chunks(directive.name, directive.arguments)
-    else:
-        chunks = text_stream_chunks(directive.text)
-    delay_ms = first_chunk_delay_ms(user_text)
-    for index, chunk in enumerate(chunks):
-        if index == 0 and delay_ms:
-            await asyncio.sleep(delay_ms / 1000.0)
-        yield chunk
-
-
 def extract_latest_gemini_user_text(body_text: str) -> str:
     try:
         value = json.loads(body_text)
@@ -482,3 +337,110 @@ def stub_gemini_proxy_json(body_text: str) -> dict[str, object]:
             if isinstance(properties, Mapping) and 'questions' in properties:
                 return gemini_json_payload(json.dumps({'questions': []}, separators=(',', ':')))
     return gemini_json_payload(stub_assistant_text(extract_latest_gemini_user_text(body_text)))
+
+
+def _native_gemini_stub_body(body: Mapping[str, object]) -> dict[str, object]:
+    messages: list[dict[str, object]] = []
+    contents = body.get('contents')
+    if not isinstance(contents, list):
+        contents = []
+    for content in contents:
+        if not isinstance(content, Mapping):
+            continue
+        parts = content.get('parts')
+        if not isinstance(parts, list):
+            continue
+        role = content.get('role')
+        text = '\n'.join(
+            part['text'] for part in parts if isinstance(part, Mapping) and isinstance(part.get('text'), str)
+        )
+        if text:
+            messages.append({'role': 'assistant' if role == 'model' else 'user', 'content': text})
+        if role == 'model':
+            tool_calls: list[dict[str, object]] = []
+            for part in parts:
+                function_call = part.get('functionCall') if isinstance(part, Mapping) else None
+                if not isinstance(function_call, Mapping) or not isinstance(function_call.get('name'), str):
+                    continue
+                name = function_call['name']
+                tool_calls.append(
+                    {
+                        'id': f'call_omi_stub_{name}',
+                        'type': 'function',
+                        'function': {'name': name, 'arguments': function_call.get('args', {})},
+                    }
+                )
+            if tool_calls:
+                messages.append({'role': 'assistant', 'tool_calls': tool_calls})
+        else:
+            for part in parts:
+                function_response = part.get('functionResponse') if isinstance(part, Mapping) else None
+                if not isinstance(function_response, Mapping) or not isinstance(function_response.get('name'), str):
+                    continue
+                name = function_response['name']
+                response = function_response.get('response')
+                if isinstance(response, Mapping):
+                    tool_result = response.get('output', response.get('error', ''))
+                else:
+                    tool_result = response
+                messages.append(
+                    {
+                        'role': 'tool',
+                        'tool_call_id': f'call_omi_stub_{name}',
+                        'content': str(tool_result or ''),
+                    }
+                )
+    tools: list[dict[str, object]] = []
+    tool_groups = body.get('tools')
+    if not isinstance(tool_groups, list):
+        tool_groups = []
+    for group in tool_groups:
+        declarations = group.get('functionDeclarations') if isinstance(group, Mapping) else None
+        if not isinstance(declarations, list):
+            continue
+        for declaration in declarations:
+            if not isinstance(declaration, Mapping) or not isinstance(declaration.get('name'), str):
+                continue
+            tools.append(
+                {
+                    'type': 'function',
+                    'function': {
+                        'name': declaration['name'],
+                        'parameters': declaration.get('parametersJsonSchema', {'type': 'object'}),
+                    },
+                }
+            )
+    result: dict[str, object] = {'messages': messages}
+    if tools:
+        result['tools'] = tools
+    return result
+
+
+def gemini_stream_payload(body: Mapping[str, object]) -> dict[str, object]:
+    directive = stub_directive(_native_gemini_stub_body(body))
+    if isinstance(directive, _ToolCallDirective):
+        parts: list[dict[str, object]] = [
+            {
+                'functionCall': {'name': directive.name, 'args': directive.arguments},
+                'thoughtSignature': 'c3R1Yi10aG91Z2h0LXNpZ25hdHVyZQ==',
+            }
+        ]
+    else:
+        parts = [{'text': directive.text}]
+    return {
+        'candidates': [{'content': {'parts': parts, 'role': 'model'}, 'finishReason': 'STOP'}],
+        'usageMetadata': {
+            'promptTokenCount': 1,
+            'candidatesTokenCount': 1,
+            'totalTokenCount': 2,
+        },
+    }
+
+
+async def stub_gemini_stream(body: Mapping[str, object]) -> AsyncIterator[bytes]:
+    user_text = extract_latest_gemini_user_text(json.dumps(body, separators=(',', ':')))
+    delay_ms = first_chunk_delay_ms(user_text)
+    if delay_ms:
+        await asyncio.sleep(delay_ms / 1000.0)
+    payload = json.dumps(gemini_stream_payload(body), separators=(',', ':')).encode()
+    yield b'data: ' + payload + b'\n\n'

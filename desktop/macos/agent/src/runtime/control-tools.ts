@@ -509,7 +509,7 @@ function controlSpawnProfile(
   }
   return {
     adapterId: defaultControlAdapterId(context),
-    modelProfile: "omi-sonnet",
+    modelProfile: "gemini-3.7-flash",
     workingDirectory: context.workingDirectory,
   };
 }
@@ -1543,7 +1543,6 @@ function stringifyToolResult(
     ...([[512, 24, 32], [256, 16, 24], [128, 10, 16], [64, 6, 10], [32, 3, 8]] as const)
       .map((limits) => compactProviderPayload(payload, ...limits)),
   ];
-
   for (const projectedPayload of candidates) {
     const projectedJson = JSON.stringify(projectedPayload) ?? "{}";
     const projectedBytes = Buffer.byteLength(projectedJson, "utf8");

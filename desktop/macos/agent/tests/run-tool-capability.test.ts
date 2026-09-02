@@ -30,7 +30,7 @@ function fixture(role: "coordinator" | "leaf" = "coordinator") {
     surfaceKind: role === "leaf" ? "background_agent" : "main_chat",
     defaultAdapterId: "pi-mono",
     providerBoundary: "managed_cloud",
-    modelProfile: "omi-sonnet",
+    modelProfile: "gemini-3.7-flash",
     executionRole: role,
   });
   const run = store.insertRun({

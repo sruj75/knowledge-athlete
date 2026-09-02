@@ -92,7 +92,7 @@ final class ListenProtocolTests: XCTestCase {
       "{\"type\":\"freemium_threshold_reached\",\"remaining_seconds\":120,\"action\":\"setup_on_device_stt\"}")
     service.parseBackendResponse(
       """
-      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"openai/gpt-5.1:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"}
+      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"gemini/gemini-3.7-flash:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"}
       """)
     service.parseBackendResponse(
       """
@@ -132,7 +132,7 @@ final class ListenProtocolTests: XCTestCase {
     let service = try wiredConversationService(onEvent: { _ in eventCalls += 1 })
     let base =
       """
-      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"openai/gpt-5.1:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"
+      {"type":"fair_use_review_requested","review_id":"11111111-1111-4111-8111-111111111111","trigger":"daily","window_speech_ms":{"daily_ms":7200001,"three_day_ms":7200001,"weekly_ms":7200001},"thresholds_ms":{"daily_ms":7200000,"three_day_ms":28800000,"weekly_ms":36000000},"classifier_contract":"gemini/gemini-3.7-flash:prompt-v2","requested_at":"2026-08-21T08:00:00Z","expires_at":"2026-08-21T20:00:00Z"
       """
 
     service.parseBackendResponse(base + ",\"title\":\"must not cross\"}")

@@ -28,10 +28,10 @@ final class AgentRuntimeContractFixtureTests: XCTestCase {
     let adapterIDs = Set(
       (contract["adapterConformance"] as? [[String: Any]] ?? [])
         .compactMap { $0["adapterId"] as? String })
-    XCTAssertEqual(adapterIDs, ["pi-mono", "gemini-realtime", "openai-realtime"])
+    XCTAssertEqual(adapterIDs, ["pi-mono", "gemini-realtime"])
     XCTAssertTrue(
       (contract["adapterConformance"] as? [[String: Any]] ?? []).contains {
-        $0["adapterId"] as? String == "openai-realtime" && $0["transport"] as? String == "swift_realtime"
+        $0["adapterId"] as? String == "gemini-realtime" && $0["transport"] as? String == "swift_realtime"
       })
   }
 
@@ -82,10 +82,9 @@ final class AgentRuntimeContractFixtureTests: XCTestCase {
         encoding: .utf8))
 
     for adapter in adapters where adapter["transport"] as? String == "swift_realtime" {
-      let provider: RealtimeHubProvider = adapter["adapterId"] as? String == "gemini-realtime" ? .gemini : .openai
-      XCTAssertTrue([RealtimeHubProvider.gemini, .openai].contains(provider))
+      XCTAssertEqual(adapter["adapterId"] as? String, "gemini-realtime")
       let providerResult = RealtimeProviderToolResultPolicy.prepare(
-        provider: provider,
+        provider: .gemini,
         name: toolName,
         output: oversizedOutput)
       let output = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(providerResult.output.utf8)) as? [String: Any])

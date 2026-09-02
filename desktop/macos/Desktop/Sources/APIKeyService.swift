@@ -2,18 +2,16 @@ import Foundation
 
 /// Fetches API keys from the backend at runtime instead of bundling them in the app.
 ///
-/// NOTE: Deepgram, Gemini, Anthropic keys are NO LONGER fetched from the backend —
-/// they are proxied server-side (issues #5861, #6594).
-/// Firebase and Calendar keys are still served via /v1/config/api-keys.
+/// Provider inference keys are never returned by this endpoint; managed model
+/// requests are authenticated to the backend and proxied server-side.
+/// Firebase bootstrap configuration is served via /v1/config/api-keys.
 
 @MainActor
 final class APIKeyService: ObservableObject {
   static let shared = APIKeyService()
 
   // Backend-provided keys (in-memory only, never persisted to disk)
-  @Published private(set) var geminiApiKey: String?
   @Published private(set) var firebaseApiKey: String?
-  @Published private(set) var googleCalendarApiKey: String?
   @Published private(set) var isLoaded: Bool = false
   @Published private(set) var loadError: String?
 
@@ -29,7 +27,7 @@ final class APIKeyService: ObservableObject {
 
   /// Wait for keys to be loaded. Returns immediately if already loaded.
   /// If no fetch is in-flight, starts one (handles app-restart-while-signed-in case).
-  /// A previously failed fetch clears fetchTask, so Calendar/Chat callers can retry without restarting.
+  /// A previously failed fetch clears fetchTask, so callers can retry without restarting.
   func waitForKeys() async {
     if isLoaded { return }
     if fetchTask == nil {
@@ -45,16 +43,8 @@ final class APIKeyService: ObservableObject {
     }
   }
 
-  var effectiveGeminiKey: String? {
-    geminiApiKey
-  }
-
   var effectiveFirebaseApiKey: String? {
     firebaseApiKey
-  }
-
-  var effectiveGoogleCalendarApiKey: String? {
-    googleCalendarApiKey
   }
 
   /// Fetch keys from the backend. Call after Firebase auth is ready.
@@ -65,9 +55,7 @@ final class APIKeyService: ObservableObject {
     for attempt in 1...3 {
       do {
         let keys = try await APIClient.shared.fetchApiKeys()
-        self.geminiApiKey = keys.geminiApiKey
         self.firebaseApiKey = keys.firebaseApiKey
-        self.googleCalendarApiKey = keys.googleCalendarApiKey
         self.isLoaded = true
 
         // Set env vars so existing getenv() consumers keep working during transition
@@ -80,9 +68,7 @@ final class APIKeyService: ObservableObject {
         // re-login can never refetch keys until the app is relaunched.
         fetchTask = nil
 
-        log(
-          "APIKeyService: Fetched keys from backend (gemini=\(keys.geminiApiKey != nil), firebase=\(keys.firebaseApiKey != nil), calendar=\(keys.googleCalendarApiKey != nil))"
-        )
+        log("APIKeyService: Fetched client configuration from backend (firebase=\(keys.firebaseApiKey != nil))")
         return
       } catch {
         let delay = pow(2.0, Double(attempt - 1))
@@ -103,9 +89,7 @@ final class APIKeyService: ObservableObject {
 
   /// Clear all keys (e.g. on sign-out)
   func clear() {
-    geminiApiKey = nil
     firebaseApiKey = nil
-    googleCalendarApiKey = nil
     isLoaded = false
     loadError = nil
     // Drop any completed/in-flight fetch task so the next sign-in can start a
@@ -113,22 +97,14 @@ final class APIKeyService: ObservableObject {
     fetchTask?.cancel()
     fetchTask = nil
 
-    unsetenv("GEMINI_API_KEY")
     // NOTE: Do NOT unset FIREBASE_API_KEY — it's needed for the next sign-in
     // (auth bootstrap requires Firebase key before backend is reachable)
-    unsetenv("GOOGLE_CALENDAR_API_KEY")
   }
 
   /// Push effective keys into the process environment for backward compatibility.
   private func applyToEnvironment() {
-    if let key = effectiveGeminiKey {
-      setenv("GEMINI_API_KEY", key, 1)
-    }
     if let key = effectiveFirebaseApiKey {
       setenv("FIREBASE_API_KEY", key, 1)
-    }
-    if let key = effectiveGoogleCalendarApiKey {
-      setenv("GOOGLE_CALENDAR_API_KEY", key, 1)
     }
   }
 
@@ -136,14 +112,10 @@ final class APIKeyService: ObservableObject {
   // These read from UserDefaults (thread-safe) and getenv() (set by applyToEnvironment).
   // Use these from actors, nonisolated inits, and background threads.
 
-  nonisolated static var currentGeminiKey: String? {
-    getenv("GEMINI_API_KEY").flatMap { String(validatingCString: $0) }
-  }
-
   /// True when the app has enough configuration to start transcription and screen analysis.
   /// In managed mode, a canonical backend URL removes any need for client-side provider keys.
   nonisolated static var keysAvailable: Bool {
-    getenv("GEMINI_API_KEY") != nil || getenv("OMI_PYTHON_API_URL") != nil
+    getenv("OMI_PYTHON_API_URL") != nil
   }
 
 }

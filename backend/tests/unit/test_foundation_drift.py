@@ -37,6 +37,8 @@ def external_inputs() -> dict[str, str]:
         'PRIVATE_SERVICE_ACCESS_RANGE_NAME': 'backend-dev-services',
         'PRIVATE_SERVICE_ACCESS_RANGE_CIDR': '10.80.0.0/16',
         'REDIS_INSTANCE_NAME': 'backend-dev-cache',
+        'REDIS_DB_HOST': 'redis.external.example',
+        'REDIS_DB_PORT': '6379',
         'RUNTIME_GCP_PROJECT_ID': 'runtime-dev',
         'BUCKET_DESKTOP_UPDATES': 'desktop-updates-dev',
         'BACKEND_RUNTIME_SERVICE_ACCOUNT': 'runtime-dev@project-dev.iam.gserviceaccount.com',
@@ -65,9 +67,8 @@ def grant_members(grants: list[dict]) -> list[str]:
     return [grant['member'] for grant in grants]
 
 
-def fake_gcloud(command):
+def fake_gcloud(command, wanted):
     words = tuple(command)
-    wanted = expected_observable_foundation(expected_dev())
     if words[1:5] == ('iam', 'workload-identity-pools', 'providers', 'describe'):
         provider = wanted['wif']
         return {
@@ -268,19 +269,47 @@ def fake_gcloud(command):
 
 def test_fake_gcloud_describes_match_the_development_foundation() -> None:
     expected = expected_dev()
+    wanted = expected_observable_foundation(expected)
+    commands = []
 
-    actual = collect_live_foundation(expected, project='runtime-dev', runner=fake_gcloud)
+    def recording_runner(command):
+        commands.append(tuple(command))
+        return fake_gcloud(command, wanted)
 
-    assert drift_paths(expected_observable_foundation(expected), actual) == []
+    actual = collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=recording_runner,
+    )
+
+    assert drift_paths(wanted, actual) == []
+    assert not any(command[1:2] == ('compute',) for command in commands)
+    assert not any(command[1:2] == ('redis',) for command in commands)
+    cloud_run_describes = [command for command in commands if command[1:4] == ('run', 'services', 'describe')]
+    assert cloud_run_describes == [
+        (
+            'gcloud',
+            'run',
+            'services',
+            'describe',
+            'knowledge-athlete-dev',
+            '--region',
+            'us-west1',
+            '--project',
+            'runtime-dev',
+            '--format=json',
+        )
+    ]
 
 
-def test_redis_tls_or_tier_drift_is_reported_at_the_exact_field() -> None:
+def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> None:
     expected = expected_observable_foundation(expected_dev())
     observed = deepcopy(expected)
     observed['redis']['transit_encryption'] = 'DISABLED'
-    observed['redis']['tier'] = 'STANDARD_HA'
+    observed['redis']['plan'] = 'paid'
 
-    assert drift_paths(expected, observed) == ['redis.tier', 'redis.transit_encryption']
+    assert drift_paths(expected, observed) == ['redis.plan', 'redis.transit_encryption']
 
 
 def test_missing_resource_section_fails_closed_without_secret_values() -> None:

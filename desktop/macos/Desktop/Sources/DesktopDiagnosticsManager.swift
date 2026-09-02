@@ -18,7 +18,6 @@ enum DesktopHealthEventName: String {
   case voiceToolLatency = "voice_tool_latency"
   case realtimeTokenMintFailed = "realtime_token_mint_failed"
   case realtimeProviderExpectedIdleTeardown = "realtime_provider_expected_idle_teardown"
-  case realtimeProviderExpectedSessionRotation = "realtime_provider_expected_session_rotation"
   case realtimeProviderPolicyClose = "realtime_provider_policy_close"
   case realtimeProviderSessionError = "realtime_provider_session_error"
   case realtimeProviderCloseResolution = "realtime_provider_close_resolution"
@@ -40,7 +39,7 @@ enum DesktopStateAuthoritySeam: String {
 
 /// The immediate customer-turn/recovery decision made after a realtime transport
 /// closes. This is deliberately separate from the raw close event: the close is
-/// captured before the controller chooses a replacement, failover, or terminal
+/// captured before the controller chooses a replacement, cascade, or terminal
 /// path, while this closed set records that decision without provider payloads.
 enum RealtimeProviderCloseTurnOutcome: String {
   case notInterrupted = "not_interrupted"
@@ -51,7 +50,6 @@ enum RealtimeProviderCloseTurnOutcome: String {
 enum RealtimeProviderCloseRecoveryAction: String {
   case none
   case sessionRewarm = "session_rewarm"
-  case providerFailover = "provider_failover"
   case cascade
 }
 
@@ -674,10 +672,8 @@ final class DesktopDiagnosticsManager {
     switch normalizedCategory {
     case RealtimeHubCloseCategory.expectedIdleTeardown.rawValue:
       event = .realtimeProviderExpectedIdleTeardown
-    case RealtimeHubCloseCategory.expectedSessionRotation.rawValue:
-      event = .realtimeProviderExpectedSessionRotation
     case RealtimeHubCloseCategory.providerPolicyCloseFast.rawValue,
-      CredentialFailureClass.providerPolicyClose(provider: .openai).logValue:
+      CredentialFailureClass.providerPolicyClose(provider: .gemini).logValue:
       event = .realtimeProviderPolicyClose
     default:
       event = .realtimeProviderSessionError
@@ -686,9 +682,7 @@ final class DesktopDiagnosticsManager {
     // so a release-regression rollup can exclude normal idle teardown / planned
     // session rotation without enumerating the two `realtime_provider_expected_*`
     // event names (#10425). Expected lifecycle stays inspectable, never an error.
-    let expectedLifecycle =
-      event == .realtimeProviderExpectedIdleTeardown
-      || event == .realtimeProviderExpectedSessionRotation
+    let expectedLifecycle = event == .realtimeProviderExpectedIdleTeardown
     var properties: [String: Any] = [
       "provider": safeProvider(provider),
       "category": normalizedCategory,
@@ -698,10 +692,6 @@ final class DesktopDiagnosticsManager {
       "expected": expectedLifecycle,
       "lifecycle_class": expectedLifecycle ? "expected" : "error",
     ]
-    if normalizedCategory == RealtimeHubCloseCategory.expectedSessionRotation.rawValue {
-      properties["recovery_action"] = "rotate_realtime_session"
-      properties["recovery_result"] = activeTurn ? "turn_terminated_and_rewarm_started" : "rewarm_started"
-    }
     if let authMode {
       properties["auth_mode"] = authMode.rawValue
     }

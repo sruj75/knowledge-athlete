@@ -20,8 +20,6 @@ prepare_google_credentials()
 from routers import (
     chat,
     transcribe,
-    omni_relay,
-    auto_model,
     users,
     payment,
     auth,
@@ -42,7 +40,7 @@ from routers import (
 )
 
 from utils.other.timeout import TimeoutMiddleware
-from utils.observability import log_langsmith_status
+from utils.observability import log_langfuse_status, shutdown_langfuse
 from utils.billing.config import validate_billing_config
 from utils.http_client import close_all_clients
 from utils.executors import (
@@ -50,13 +48,14 @@ from utils.executors import (
     log_executor_health,
     run_blocking,
     db_executor,
+    llm_executor,
 )
 from utils.executors import start_background_task
 from utils.cloud_tasks import validate_account_deletion_dispatch_configuration
 from services.users.account_deletion import reconcile_pending_deletion_wipes
 
-# Log LangSmith tracing status at startup
-log_langsmith_status()
+# Log Langfuse tracing status at startup without constructing the SDK client.
+log_langfuse_status()
 
 # Validate active billing configuration without constructing a provider client.
 validate_billing_config()
@@ -92,8 +91,6 @@ app.add_middleware(
 )
 
 app.include_router(transcribe.router)
-app.include_router(omni_relay.router)
-app.include_router(auto_model.router)
 app.include_router(chat.router)
 # app.include_router(screenpipe.router)
 app.include_router(users.router)
@@ -181,6 +178,10 @@ async def shutdown_event():
     # Cloud Run sends SIGKILL about ten seconds after SIGTERM. Leave margin for
     # uvicorn/process teardown after bounded task drain and client closure.
     await drain_background_tasks(timeout=7.0)
+    try:
+        await asyncio.wait_for(run_blocking(llm_executor, shutdown_langfuse), timeout=1.0)
+    except TimeoutError:
+        logger.warning('Langfuse shutdown exceeded its one-second budget')
     try:
         await asyncio.wait_for(close_all_clients(), timeout=1.0)
     except TimeoutError:

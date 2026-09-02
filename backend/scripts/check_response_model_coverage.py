@@ -49,7 +49,6 @@ LEGIT_NON_JSON: dict[tuple[str, str], str] = {
     # --- OAuth / OpenID well-known discovery documents (spec-defined, not app-consumed) ---
     # --- Cloud Tasks job runners (OIDC-verified internal, return JSONResponse acks directly) ---
     ("users.py", "run_account_deletion_wipe"): "Cloud Tasks job runner (OIDC-verified internal, JSONResponse acks)",
-    ("omni_relay.py", "omni_relay"): "relay proxy (forwards to upstream, JSONResponse passthrough)",
 }
 
 

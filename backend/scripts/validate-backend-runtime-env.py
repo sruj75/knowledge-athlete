@@ -21,6 +21,7 @@ from scripts.firestore_workflow_policy import (  # noqa: E402
     reconciliation_invocations,
 )
 from scripts.backend_workflow_contract import validate_immutable_deploy_contract  # noqa: E402
+from scripts import cloud_run_deployment_identity  # noqa: E402
 from scripts.foundation_contract import validation_messages as foundation_validation_messages  # noqa: E402
 from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
     ValidationError,
@@ -302,29 +303,33 @@ def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> 
 
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     network = _as_config_dict(cloud_run.get('network')) or {}
-    expected_network = {
-        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-        '--vpc-egress': 'private-ranges-only',
-    }
+    expected_network = (
+        {}
+        if env == 'dev'
+        else {
+            '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+            '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+            '--vpc-egress': 'private-ranges-only',
+        }
+    )
     if network.get('flags') != expected_network:
-        errors.append(
-            ValidationError(scope, 'private network flags must use owned inputs and private-ranges-only egress')
-        )
+        errors.append(ValidationError(scope, 'network flags must match the environment-owned connectivity profile'))
 
     services = _as_config_dict(cloud_run.get('services')) or {}
     backend = _as_config_dict(services.get('backend')) or {}
+    if backend.get('deployment_name') != {'env_var': 'BACKEND_CLOUD_RUN_SERVICE'}:
+        errors.append(ValidationError(scope, 'deployment_name must bind $BACKEND_CLOUD_RUN_SERVICE'))
     expected_flags: ConfigDict = {
-        '--cpu': '2',
-        '--memory': '4Gi',
+        '--cpu': '1' if env == 'dev' else '2',
+        '--memory': '2Gi' if env == 'dev' else '4Gi',
         '--concurrency': '20',
         '--timeout': '3600s',
         '--min-instances': '0' if env == 'dev' else '1',
-        '--max-instances': '3' if env == 'dev' else '10',
+        '--max-instances': '1' if env == 'dev' else '10',
         '--execution-environment': 'gen2',
         '--allow-unauthenticated': True,
         '--no-session-affinity': True,
-        '--no-cpu-throttling': True,
+        '--cpu-throttling' if env == 'dev' else '--no-cpu-throttling': True,
         '--no-cpu-boost': True,
         '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
         '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
@@ -380,9 +385,9 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
                 _as_config_dict(service_config.get('secrets')) or {},
             )
         )
-
+    required_services = _MANAGED_STT_CLOUD_RUN_SERVICES
     required_scopes = {
-        *(f'{env}/cloud_run/{service}' for service in _MANAGED_STT_CLOUD_RUN_SERVICES if service in cloud_run_services),
+        *(f'{env}/cloud_run/{service}' for service in required_services if service in cloud_run_services),
     }
     for scope, env_map, secrets_map in surfaces:
         retired = sorted(
@@ -1065,6 +1070,9 @@ def _extract_workflow_cloud_run_targets(
 ) -> dict[str, dict[str, ConfigDict]]:
     workflow_env = _as_config_dict(workflow.get('env')) or {}
     rendered_runtime_env = _rendered_runtime_env_outputs(workflow, env=env, manifest=manifest)
+    env_config = _get_env_config(manifest, env)
+    cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
+    expected_services = _as_config_dict(cloud_run.get('services')) or {}
     services: dict[str, ConfigDict] = {}
     jobs: dict[str, ConfigDict] = {}
     workflow_jobs = _as_config_dict(workflow.get('jobs'))
@@ -1074,6 +1082,7 @@ def _extract_workflow_cloud_run_targets(
         job = _as_config_dict(raw_job)
         if job is None:
             continue
+        job_env = {**workflow_env, **(_as_config_dict(job.get('env')) or {})}
         steps = _as_config_list(job.get('steps'))
         if steps is None:
             continue
@@ -1092,11 +1101,11 @@ def _extract_workflow_cloud_run_targets(
                 )
                 if not (env_vars or secrets or flags):
                     continue
-                service = _resolve_workflow_string(step_with.get('service'), workflow_env)
-                job_name = _resolve_workflow_string(step_with.get('job'), workflow_env)
+                service = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('service'), job_env)
+                job_name = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('job'), job_env)
                 payload = {'env_vars': env_vars, 'secrets': secrets, 'flags': flags}
                 if service is not None:
-                    services[service] = payload
+                    services[cloud_run_deployment_identity.logical_service_name(service, expected_services)] = payload
                 if job_name is not None:
                     jobs[job_name] = payload
     return {'services': services, 'jobs': jobs}
@@ -1179,15 +1188,6 @@ def _is_cloud_run_deploy_step(step: object) -> bool:
         return False
     uses = step_dict.get('uses')
     return isinstance(uses, str) and uses.startswith('google-github-actions/deploy-cloudrun@')
-
-
-def _resolve_workflow_string(value: object, workflow_env: ConfigDict) -> str | None:
-    if not isinstance(value, str):
-        return None
-    resolved = value
-    for env_name, env_value in workflow_env.items():
-        resolved = resolved.replace('${{ env.' + str(env_name) + ' }}', str(env_value))
-    return resolved
 
 
 def _rendered_runtime_env_outputs(workflow: ConfigDict, *, env: str, manifest: ConfigDict) -> StringMap:
@@ -1466,18 +1466,22 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
     # Fetch and live-validate those services; any separately owned job contract
     # is validated statically against the rendered state.
     services: ConfigDict = {}
-    project = _resolved_external_value('gcp_project', env_config['gcp_project'])
+    project = cloud_run_deployment_identity.resolve_external_value('gcp_project', env_config['gcp_project'])
     region = env_config['region']
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     service_configs = _as_config_dict(cloud_run.get('services')) or {}
     for service, raw_service_config in service_configs.items():
         service_config = _as_config_dict(raw_service_config) or {}
+        deployment_name = cloud_run_deployment_identity.resolve_external_value(
+            f'{service} deployment_name',
+            service_config.get('deployment_name'),
+        )
         command = [
             'gcloud',
             'run',
             'services',
             'describe',
-            service,
+            deployment_name,
             f'--project={project}',
             f'--region={region}',
             '--format=json',
@@ -1532,18 +1536,6 @@ def _cloud_run_network_flags_from_annotations(annotations: object) -> StringMap:
     return flags
 
 
-def _resolved_external_value(name: str, raw_value: object) -> str:
-    entry = _as_config_dict(raw_value)
-    if entry is None:
-        value = str(raw_value or '').strip()
-    else:
-        env_var = entry.get('env_var')
-        value = os.getenv(str(env_var), '').strip() if isinstance(env_var, str) else ''
-    if not value:
-        raise ValueError(f'{name} requires its declared external input')
-    return value
-
-
 def _cloud_run_service_flags_from_state(
     *,
     annotations: ConfigDict,
@@ -1579,8 +1571,11 @@ def _cloud_run_service_flags_from_state(
             flags[flag] = str(value)
     if annotations.get('run.googleapis.com/sessionAffinity') == 'false':
         flags['--no-session-affinity'] = 'true'
-    if annotations.get('run.googleapis.com/cpu-throttling') == 'false':
+    cpu_throttling = annotations.get('run.googleapis.com/cpu-throttling')
+    if cpu_throttling == 'false':
         flags['--no-cpu-throttling'] = 'true'
+    elif cpu_throttling == 'true':
+        flags['--cpu-throttling'] = 'true'
     if annotations.get('run.googleapis.com/startup-cpu-boost') == 'false':
         flags['--no-cpu-boost'] = 'true'
     for flag, key in (('--startup-probe', 'startupProbe'), ('--liveness-probe', 'livenessProbe')):

@@ -41,7 +41,7 @@ Ship a macOS-first product with these boundaries:
 - the one retained Python backend is narrowed to approved account, billing,
   quota, managed-model, transient STT, update, release, and operational work;
 - retained cloud services use our Firebase, Google Cloud, Dodo Payments,
-  Modulate, PostHog, Sentry, LangSmith, and other approved accounts;
+  Modulate, PostHog, Sentry, Langfuse, and other approved accounts;
 - Omi wearable, per-user Agent VM, duplicate cloud data, rejected providers,
   connector products, and their control planes are gone; and
 - Windows is ignored completely. It is not inspected, changed, repaired, or
@@ -359,9 +359,9 @@ Later waves use the same one-plan-per-slice structure inside `wave-2/` through
 through `S-31`.
 
 The exact blocking edges and each slice's keep/delete boundary are recorded in
-the complete slice register below. The current v1 provider choice is resolved:
-retain Gemini Live and OpenAI Realtime with Auto, explicit switching, and
-failover unless a later requirement deliberately reopens that decision.
+the complete slice register below. The provider decision was deliberately
+reopened for the Gemini-first simplification: retain Gemini Live as the sole
+realtime provider and degrade through the existing buffered batch path.
 
 ## Shared closure contract
 
@@ -1011,17 +1011,21 @@ IR-254, IR-805, IR-827, IR-828, IR-832, IR-836, IR-837, IR-879, IR-886
 
 - **Keep:** Sentry, PostHog, privacy-bounded PTT lifecycle diagnostics, local
   query tracing/rotating JSONL, Enhanced Diagnostics, Report an Issue, offline
-  diagnostic export, LangSmith traces/runs/feedback, Prompt Hub with TTL cache
-  and repository fallback, lightweight authenticated metrics, sanitized Cloud
+  diagnostic export, Langfuse traces/generations, Prompt Management with the
+  SDK's 300-second cache and identical repository fallback, lightweight authenticated metrics, sanitized Cloud
   Logging, and 30-day log retention.
 - **Adapt:** point every retained SDK, DSN, key, host, project, environment,
   identity attach/detach, disclosure, and sampling rule to our accounts; add a
   local PostHog analytics toggle while keeping Sentry diagnostics separate.
+  Use the same owned US Langfuse project, append the deliberately blank
+  `intentive-chat-system` prompt without changing the five historical
+  `intentive-runtime-bundle` versions, and never invent Omi's inaccessible
+  LangSmith prompt text.
 - **Delete:** deprecated PTT events, Crisp, Sentry-to-cloud-Task bridge, in-app
   ratings, duplicate privacy cards/fake Active states, and the self-hosted
   Prometheus/Grafana/Loki/Alloy/Alertmanager product.
 - **Close when:** consent/opt-out, sign-in/sign-out identity, issue submission,
-  incident breadcrumbs, LangSmith prompt/trace correlation, and redaction are
+  incident breadcrumbs, Langfuse prompt/trace correlation, and redaction are
   verified in owned development projects before production keys are installed.
 
 ### S-10 — Make conversations and transcripts local-authoritative
@@ -1337,11 +1341,10 @@ leftover navigation/search residue
 **Primary decisions:** IR-053, IR-113, IR-600 through IR-609, IR-710 through
 IR-732, IR-827, IR-828
 
-- **Keep explicit routes only:** managed Claude normal Chat; both current realtime
-  providers and the decided v1 Auto/switch/failover policy; Gemini Flash/Lite
-  generation, translation, and embeddings; Vertex plus platform-key AI Studio;
-  OpenAI memory normalization/extraction/conflict, conversation summary/action
-  items, greeting, and discard; LangSmith and Prompt Hub.
+- **Keep explicit routes only:** native managed Gemini 3.7 Flash normal Chat and
+  former managed text workloads; Gemini Live as the sole realtime provider;
+  Gemini Flash-Lite titles/translation and existing Gemini generation/embedding
+  routes through the Developer API; OpenAI TTS; Langfuse tracing and Prompt Management.
 - **Adapt:** every retained model call receives bounded local inputs, returns a
   transient result, and lets the Mac validate/commit it to the owning local
   store; provider calls live directly in the canonical backend where cloud
@@ -1642,17 +1645,17 @@ infrastructure boundaries; the detailed decision still lives in the ledger.
 | IR-940 | S-04; S-29 protects the separately retained release/qualification system |
 | IR-941 | S-04; live Notifications and Rewind remain protected behaviors |
 
-## Realtime provider choice for v1 — keep both
+## Realtime provider choice for v1 — Gemini only
 
-The reviewed v1 requirement is decided: keep Auto, Gemini Live, OpenAI Realtime,
-explicit switching, and failover. Choosing only one provider would be an optional
-future simplification, not an open requirement or Wave blocker. Therefore:
+The earlier dual-provider choice is deliberately reopened. Retain Gemini Live,
+delete Auto and OpenAI Realtime, and use the existing bounded batch recovery
+path after same-provider reconnect is exhausted. Therefore:
 
-- this choice does not block deletion/localization work;
-- S-19 and S-22 must preserve both current providers and their tests;
-- no new abstraction or migration should be added in anticipation; and
-- if a future decision reopens consolidation, create one narrow successor slice that removes
-  the losing provider end to end without changing the rest of PTT.
+- provider/model choice is server-owned and not user-selectable;
+- Artificial Analysis and cross-provider failover have no surviving purpose;
+- the omni relay is deleted rather than retained as a compatibility endpoint; and
+- Gemini Live failure preserves the turn buffer and identity before Modulate
+  batch STT, Gemini Chat, and retained OpenAI TTS.
 
 ## Out of scope
 
@@ -1661,7 +1664,7 @@ future simplification, not an open requirement or Wave blocker. Therefore:
   automation
 - New product features not already selected in the requirements ledger
 - Re-deciding retained behavior merely because it is complex
-- Any future consolidation of the decided v1 Gemini Live plus OpenAI Realtime portfolio
+- Replacing the retained Gemini Live or buffered recovery orchestration
 - Replacing battle-tested retained behavior with a speculative rewrite
 - Opening issues, pushing branches, or creating a PR without a separate request
 

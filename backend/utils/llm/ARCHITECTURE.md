@@ -10,18 +10,17 @@ fail closed. Environment variables do not select a quality profile, provider, or
 - `model_config.py` — exhaustive workload contracts and provider-owned options.
 - `clients.py` — lazy direct clients plus workload lookup, cache-key binding, output caps,
   shared embeddings, and structured parser primitives.
-- `anthropic_transport.py` — bounded direct Chat deadlines, pre-output transport retry,
+- `managed_stream_transport.py` — bounded direct Chat deadlines, pre-output transport retry,
   progress heartbeat, and cancellation cleanup.
-- `providers.py` — small OpenAI and Gemini construction primitives.
+- `providers.py` — small Gemini construction primitives.
 - `provider_errors.py` — sanitized managed-provider failure reporting.
 - `usage_tracker.py` — feature-level authoritative quota and usage accounting.
-- `vertex_auth.py` — shared bounded Vertex token refresh for the desktop Gemini proxy.
 
 ## Retained workload groups
 
 - `conversation_processing.py` — transient discard, structure, and action-item candidates.
 - `memory_compute.py` — transient Memory extraction, normalization, and conflict proposals.
-- `fair_use_classifier.py` — S-20's pinned direct OpenAI classification dependency.
+- `fair_use_classifier.py` — S-20's pinned Gemini classification dependency.
 - `temporal.py` and prompt/parser modules — deterministic prompt support only.
 
 Joan follow-ups, automatic folder assignment, Wrapped, the application OpenRouter

@@ -14,6 +14,11 @@ from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 import yaml
 
 try:
+    from scripts.cloud_run_deployment_identity import resolve_external_value
+except ModuleNotFoundError:  # Direct script execution places backend/scripts on sys.path.
+    from cloud_run_deployment_identity import resolve_external_value  # type: ignore[no-redef]
+
+try:
     from scripts.foundation_live_contract import (
         bucket_lifecycle_rules as _bucket_lifecycle_rules,
         budget_notification_channels as _budget_notification_channels,
@@ -82,13 +87,14 @@ def expected_foundation(
 
 
 def collect_live_foundation(
-    expected: Mapping[str, Any], *, project: str, runner: Runner | None = None
+    expected: Mapping[str, Any], *, project: str, cloud_run_service: str, runner: Runner | None = None
 ) -> dict[str, Any]:
     run = runner or _run_json
     wif = _mapping(expected.get('wif'), 'wif')
     network = _mapping(expected.get('network'), 'network')
-    psa = _mapping(network.get('private_service_access'), 'private_service_access')
     redis = _mapping(expected.get('redis'), 'redis')
+    external_redis = _uses_external_redis(redis)
+    psa = {} if external_redis else _mapping(network.get('private_service_access'), 'private_service_access')
     firestore = _mapping(expected.get('firestore'), 'firestore')
     gcs = _mapping(expected.get('gcs'), 'gcs')
     tasks = _mapping(_mapping(expected.get('tasks'), 'tasks').get('queue'), 'tasks queue')
@@ -148,71 +154,76 @@ def collect_live_foundation(
         )
     )
 
-    network_doc = _object(
-        run(
-            (
-                'gcloud',
-                'compute',
-                'networks',
-                'describe',
-                _string(network.get('vpc'), 'vpc'),
-                '--project',
-                project,
-                '--format=json',
+    network_doc: dict[str, Any] = {}
+    subnet_doc: dict[str, Any] = {}
+    range_doc: dict[str, Any] = {}
+    range_cidr = ''
+    redis_doc: dict[str, Any] = {}
+    if not external_redis:
+        network_doc = _object(
+            run(
+                (
+                    'gcloud',
+                    'compute',
+                    'networks',
+                    'describe',
+                    _string(network.get('vpc'), 'vpc'),
+                    '--project',
+                    project,
+                    '--format=json',
+                )
             )
         )
-    )
-    subnet_doc = _object(
-        run(
-            (
-                'gcloud',
-                'compute',
-                'networks',
-                'subnets',
-                'describe',
-                _string(network.get('subnet'), 'subnet'),
-                '--region',
-                region,
-                '--project',
-                project,
-                '--format=json',
+        subnet_doc = _object(
+            run(
+                (
+                    'gcloud',
+                    'compute',
+                    'networks',
+                    'subnets',
+                    'describe',
+                    _string(network.get('subnet'), 'subnet'),
+                    '--region',
+                    region,
+                    '--project',
+                    project,
+                    '--format=json',
+                )
             )
         )
-    )
-    range_doc = _object(
-        run(
-            (
-                'gcloud',
-                'compute',
-                'addresses',
-                'describe',
-                _string(psa.get('range_name'), 'private-service range'),
-                '--global',
-                '--project',
-                project,
-                '--format=json',
+        range_doc = _object(
+            run(
+                (
+                    'gcloud',
+                    'compute',
+                    'addresses',
+                    'describe',
+                    _string(psa.get('range_name'), 'private-service range'),
+                    '--global',
+                    '--project',
+                    project,
+                    '--format=json',
+                )
             )
         )
-    )
-    prefix = int(range_doc.get('prefixLength') or 0)
-    range_cidr = str(ipaddress.ip_network(f"{range_doc.get('address')}/{prefix}", strict=False))
-
-    redis_doc = _object(
-        run(
-            (
-                'gcloud',
-                'redis',
-                'instances',
-                'describe',
-                _string(redis.get('instance_name'), 'Redis instance'),
-                '--region',
-                region,
-                '--project',
-                project,
-                '--format=json',
+        prefix = int(range_doc.get('prefixLength') or 0)
+        range_cidr = str(ipaddress.ip_network(f"{range_doc.get('address')}/{prefix}", strict=False))
+        redis_doc = _object(
+            run(
+                (
+                    'gcloud',
+                    'redis',
+                    'instances',
+                    'describe',
+                    _string(redis.get('instance_name'), 'Redis instance'),
+                    '--region',
+                    region,
+                    '--project',
+                    project,
+                    '--format=json',
+                )
             )
         )
-    )
     firestore_doc = _object(
         run(
             (
@@ -324,7 +335,7 @@ def collect_live_foundation(
                 'run',
                 'services',
                 'describe',
-                'backend',
+                cloud_run_service,
                 '--region',
                 region,
                 '--project',
@@ -413,27 +424,35 @@ def collect_live_foundation(
                 for policy in wif_policies
             },
         },
-        'network': {
-            'region': _leaf(subnet_doc.get('region')),
-            'vpc': network_name,
-            'subnet': _leaf(subnet_doc.get('name')),
-            'private_service_access': {
-                'range_name': _leaf(range_doc.get('name')),
-                'range_cidr': range_cidr,
-                'purpose': range_doc.get('purpose'),
-                'status': range_doc.get('status'),
-            },
-        },
-        'redis': {
-            'instance_name': _leaf(redis_doc.get('name')),
-            'region': _leaf(redis_doc.get('locationId')),
-            'tier': redis_doc.get('tier'),
-            'memory_gib': redis_doc.get('memorySizeGb'),
-            'private_service_access': redis_doc.get('connectMode') == 'PRIVATE_SERVICE_ACCESS'
-            and authorized_network == network_name,
-            'auth': redis_doc.get('authEnabled'),
-            'transit_encryption': redis_doc.get('transitEncryptionMode'),
-        },
+        'network': (
+            dict(network)
+            if external_redis
+            else {
+                'region': _leaf(subnet_doc.get('region')),
+                'vpc': network_name,
+                'subnet': _leaf(subnet_doc.get('name')),
+                'private_service_access': {
+                    'range_name': _leaf(range_doc.get('name')),
+                    'range_cidr': range_cidr,
+                    'purpose': range_doc.get('purpose'),
+                    'status': range_doc.get('status'),
+                },
+            }
+        ),
+        'redis': (
+            dict(redis)
+            if external_redis
+            else {
+                'instance_name': _leaf(redis_doc.get('name')),
+                'region': _leaf(redis_doc.get('locationId')),
+                'tier': redis_doc.get('tier'),
+                'memory_gib': redis_doc.get('memorySizeGb'),
+                'private_service_access': redis_doc.get('connectMode') == 'PRIVATE_SERVICE_ACCESS'
+                and authorized_network == network_name,
+                'auth': redis_doc.get('authEnabled'),
+                'transit_encryption': redis_doc.get('transitEncryptionMode'),
+            }
+        ),
         'firestore': {
             'project': _resource_segment(firestore_doc.get('name'), 'projects'),
             'database': _leaf(firestore_doc.get('name')),
@@ -529,7 +548,9 @@ def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any
     provider_resource = _string(wif.get('provider'), 'WIF provider')
     provider_project_number, _, provider_name = _provider_parts(provider_resource)
     network = _mapping(expected.get('network'), 'network')
-    psa = _mapping(network.get('private_service_access'), 'private_service_access')
+    redis = _mapping(expected.get('redis'), 'redis')
+    external_redis = _uses_external_redis(redis)
+    psa = {} if external_redis else _mapping(network.get('private_service_access'), 'private_service_access')
     firestore = _mapping(expected.get('firestore'), 'firestore')
     gcs = _mapping(expected.get('gcs'), 'gcs')
     queue = _mapping(_mapping(expected.get('tasks'), 'tasks').get('queue'), 'queue')
@@ -558,18 +579,22 @@ def expected_observable_foundation(expected: Mapping[str, Any]) -> dict[str, Any
                 for policy in wif_policies
             },
         },
-        'network': {
-            'region': network.get('region'),
-            'vpc': network.get('vpc'),
-            'subnet': network.get('subnet'),
-            'private_service_access': {
-                'range_name': psa.get('range_name'),
-                'range_cidr': str(ipaddress.ip_network(_string(psa.get('range_cidr'), 'private-service CIDR'))),
-                'purpose': 'VPC_PEERING',
-                'status': 'RESERVED',
-            },
-        },
-        'redis': dict(_mapping(expected.get('redis'), 'redis')),
+        'network': (
+            dict(network)
+            if external_redis
+            else {
+                'region': network.get('region'),
+                'vpc': network.get('vpc'),
+                'subnet': network.get('subnet'),
+                'private_service_access': {
+                    'range_name': psa.get('range_name'),
+                    'range_cidr': str(ipaddress.ip_network(_string(psa.get('range_cidr'), 'private-service CIDR'))),
+                    'purpose': 'VPC_PEERING',
+                    'status': 'RESERVED',
+                },
+            }
+        ),
+        'redis': dict(redis),
         'firestore': {'project': firestore.get('project'), 'database': firestore.get('database')},
         'gcs': {
             'bucket': gcs.get('bucket'),
@@ -653,8 +678,27 @@ def drift_paths(expected: object, actual: object, *, path: str = '') -> list[str
 
 
 def environment_name(expected: Mapping[str, Any]) -> str:
-    redis = _mapping(expected.get('redis'), 'redis')
-    return 'development' if redis.get('tier') == 'BASIC' else 'prod'
+    claims = _mapping(_mapping(expected.get('wif'), 'wif').get('claims'), 'WIF claims')
+    return _string(claims.get('environment'), 'WIF environment')
+
+
+def cloud_run_deployment_name(
+    manifest: Mapping[str, Any], *, environment: str, external_inputs: Mapping[str, str]
+) -> str:
+    environments = _mapping(manifest.get('environments'), 'environments')
+    env_config = _mapping(environments.get(environment), environment)
+    cloud_run = _mapping(env_config.get('cloud_run'), f'{environment} cloud_run')
+    services = _mapping(cloud_run.get('services'), f'{environment} cloud_run services')
+    backend = _mapping(services.get('backend'), f'{environment} backend service')
+    return resolve_external_value(
+        'backend deployment_name',
+        backend.get('deployment_name'),
+        external_inputs=external_inputs,
+    )
+
+
+def _uses_external_redis(redis: Mapping[str, Any]) -> bool:
+    return redis.get('provider') == 'upstash'
 
 
 def _unconditional_grants(members: Iterable[str]) -> list[dict[str, Any]]:
@@ -734,11 +778,19 @@ def main() -> int:
             raise ValueError('runtime manifest must be a mapping')
         expected = expected_foundation(manifest, environment=args.env, external_inputs=os.environ)
         wanted = expected_observable_foundation(expected)
-        actual = (
-            collect_live_foundation(expected, project=os.environ.get('GCP_PROJECT_ID', ''))
-            if args.check_live
-            else json.loads(args.state.read_text(encoding='utf-8'))
-        )
+        if args.check_live:
+            deployment_name = cloud_run_deployment_name(
+                manifest,
+                environment=args.env,
+                external_inputs=os.environ,
+            )
+            actual = collect_live_foundation(
+                expected,
+                project=os.environ.get('GCP_PROJECT_ID', ''),
+                cloud_run_service=deployment_name,
+            )
+        else:
+            actual = json.loads(args.state.read_text(encoding='utf-8'))
         paths = drift_paths(wanted, actual)
     except (OSError, ValueError, subprocess.CalledProcessError, json.JSONDecodeError, yaml.YAMLError) as exc:
         print(f'ERROR: foundation readiness failed: {exc}')

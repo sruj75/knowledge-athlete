@@ -212,7 +212,7 @@ class AgentSafetyGuard:
 # Oversized chat-input guard.
 #
 # An extremely long chat message (or a long conversation history) can exceed the chat model's
-# context window. When that happens the Anthropic call raises an input-too-long error which the
+# context window. When that happens the managed call raises an input-too-long error which the
 # agent loop swallows into a streamed text chunk without a terminal ``done:`` frame, so the mobile
 # client never finalizes a reply and the user sees "no response" (or a generic error). The decision
 # logic below is kept pure and import-light (the token counter is injected) so it can be unit-tested
@@ -231,7 +231,7 @@ def _int_from_env(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-# claude-sonnet-4-6 (the chat_agent model) has a 200k-token context window. Cap the conversation
+# gemini-3.7-flash (the chat_agent model) is intentionally capped at a 200k-token context window. Cap the conversation
 # input well below it so the system prompt, tool schemas, accumulated tool results and the reply
 # tokens all still fit. 120k tokens is ~90k words of conversation — far beyond any legitimate
 # mobile chat, so real usage is never rejected, only pathological paste-dumps.
@@ -248,7 +248,7 @@ INPUT_TOO_LONG_MESSAGE = (
 def message_text(content: Any) -> str:
     """Best-effort plain text of a message's content.
 
-    Handles a plain string, an Anthropic-style list of content blocks (dicts with a ``text``
+    Handles a plain string or a list of content blocks (dicts with a ``text``
     field, e.g. ``{"type": "text", "text": ...}``), or a bare list of strings. Non-text blocks
     (images, tool results) contribute nothing to the text token estimate.
     """

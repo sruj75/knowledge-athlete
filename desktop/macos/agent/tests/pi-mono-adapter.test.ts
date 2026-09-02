@@ -201,7 +201,11 @@ describe("PiMonoAdapter prompt correlation", () => {
 
     const execution = runtime.executeAttempt(attemptContext, () => {}, new AbortController().signal);
     const relayContext = JSON.parse(readFileSync((adapter as any).contextFilePath, "utf8"));
-    expect(relayContext).toEqual({ capabilityRef: "cap_runtime", requestId: "request-runtime" });
+    expect(relayContext).toEqual({
+      capabilityRef: "cap_runtime",
+      requestId: "request-runtime",
+      sessionId: "ses_runtime",
+    });
 
     (adapter as any).handleTurnEnd(makeTurnEndEvent("done"));
     await expect(execution).resolves.toMatchObject({ terminalStatus: "succeeded" });
@@ -648,8 +652,8 @@ describe("PiMonoAdapter source-level invariants", () => {
     expect(piMonoSrc).not.toMatch(/env\.OMI_API_KEY\s*=\s*`Bearer \$\{/);
   });
 
-  it("always scrubs ANTHROPIC_API_KEY from the child env", () => {
-    expect(piMonoSrc).toMatch(/delete\s+env\.ANTHROPIC_API_KEY\s*;?/);
+  it("scrubs every inherited provider API key from the child env", () => {
+    expect(piMonoSrc).toMatch(/upper\.endsWith\("_API_KEY"\)/);
   });
 });
 
@@ -697,7 +701,7 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
       "--mode", "rpc",
       "-e", "/fake/ext.ts",
       "--provider", "omi",
-      "--model", "omi-sonnet",
+      "--model", "gemini-3.7-flash",
     ]));
 
     await adapter.stop();

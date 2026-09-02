@@ -57,7 +57,7 @@ concurrency:
 env:
   SERVICE: backend
   REGION: us-west1
-  CHAT_CONTRACT_VERSION: '1'
+  CHAT_CONTRACT_VERSION: '2'
   CANDIDATE_TAG: backend-gate-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
@@ -84,6 +84,8 @@ jobs:
     permissions:
       id-token: 'write'
     runs-on: ubuntu-latest
+    env:
+      CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
     steps:
       - name: Validate Environment Input
         run: |
@@ -107,7 +109,8 @@ jobs:
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
-          service_json="$(gcloud run services describe "$SERVICE" \
+          test -n "$CLOUD_RUN_SERVICE"
+          service_json="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --format=json)"
@@ -128,16 +131,16 @@ jobs:
                   else empty end]
             | if length == 1 then .[0] else empty end
           ' <<<"$service_json")"
-          if [[ ! "$serving_revision" =~ ^${SERVICE}-[a-z0-9-]+$ ]]; then
-            echo "ERROR: Cloud Run returned an invalid serving revision for $SERVICE." >&2
+          if [[ ! "$serving_revision" =~ ^${CLOUD_RUN_SERVICE}-[a-z0-9-]+$ ]]; then
+            echo "ERROR: Cloud Run returned an invalid serving revision for $CLOUD_RUN_SERVICE." >&2
             exit 1
           fi
           if [[ "$spec_revision" == "$serving_revision" ]]; then
-            echo "$SERVICE already routes 100% to serving revision $serving_revision."
+            echo "$CLOUD_RUN_SERVICE already routes 100% to serving revision $serving_revision."
             exit 0
           fi
-          echo "Restoring $SERVICE spec traffic to currently serving revision $serving_revision."
-          gcloud run services update-traffic "$SERVICE" \
+          echo "Restoring $CLOUD_RUN_SERVICE spec traffic to currently serving revision $serving_revision."
+          gcloud run services update-traffic "$CLOUD_RUN_SERVICE" \
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --to-revisions="$serving_revision=100" \
@@ -149,7 +152,7 @@ jobs:
           PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
-          gcloud run services describe "$SERVICE" \
+          gcloud run services describe "$CLOUD_RUN_SERVICE" \
             --project="$PROJECT_ID" \
             --region="$REGION" \
             --format='yaml(metadata.name,status.url,status.latestReadyRevisionName,status.traffic)'
@@ -164,6 +167,9 @@ jobs:
       contents: 'read'
       id-token: 'write'
     runs-on: ubuntu-latest
+    env:
+      BACKEND_CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
     steps:
       - name: Validate maintenance inputs
         env:
@@ -237,8 +243,9 @@ jobs:
             --project="$PROJECT_ID" \
             --include-tags \
             --format=json > artifacts/backend-artifact-inventory.json
+          test -n "$CLOUD_RUN_SERVICE"
           gcloud run revisions list \
-            --service="$SERVICE" \
+            --service="$CLOUD_RUN_SERVICE" \
             --region="$REGION" \
             --project="$PROJECT_ID" \
             --format='value(spec.containers[0].image)' \
@@ -440,6 +447,9 @@ jobs:
       id-token: 'write'
 
     runs-on: ubuntu-latest
+    env:
+      BACKEND_CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
     steps:
       - name: Validate Environment Input
         run: |
@@ -558,19 +568,19 @@ jobs:
           BETA_PROMOTION_TOKEN_VERSION: ${{ vars.BETA_PROMOTION_TOKEN_VERSION }}
           GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
           POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          LANGFUSE_PUBLIC_KEY_VERSION: ${{ vars.LANGFUSE_PUBLIC_KEY_VERSION }}
+          LANGFUSE_SECRET_KEY_VERSION: ${{ vars.LANGFUSE_SECRET_KEY_VERSION }}
           MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
-          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
-          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           PREFLIGHT_ARGS=(
             --env ${{ vars.ENV }}
             --project ${{ vars.GCP_PROJECT_ID }}
             --region ${{ env.REGION }}
+            --service "${{ env.CLOUD_RUN_SERVICE }}"
             --check-secrets
             --check-traffic
           )
@@ -636,22 +646,21 @@ jobs:
           BETA_PROMOTION_TOKEN_VERSION: ${{ vars.BETA_PROMOTION_TOKEN_VERSION }}
           GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
           POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          LANGFUSE_PUBLIC_KEY_VERSION: ${{ vars.LANGFUSE_PUBLIC_KEY_VERSION }}
+          LANGFUSE_SECRET_KEY_VERSION: ${{ vars.LANGFUSE_SECRET_KEY_VERSION }}
           MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
-          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
-          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/render_backend_runtime_env.py" --env ${{ vars.ENV }} >> "$GITHUB_OUTPUT"
 
-      - name: Deploy ${{ env.SERVICE }} to Cloud Run
+      - name: Deploy owned Cloud Run service
         id: deploy-backend
         uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: ${{ env.SERVICE }}
+          service: ${{ env.CLOUD_RUN_SERVICE }}
           region: ${{ env.REGION }}
           project_id: ${{ vars.GCP_PROJECT_ID }}
           image: ${{ steps.push-runtime-image.outputs.immutable_ref }}
@@ -666,17 +675,18 @@ jobs:
           env_vars: ${{ steps.runtime-env.outputs.backend_env_vars }}
           secrets: ${{ steps.runtime-env.outputs.backend_secrets }}
 
-      - name: Capture ${{ env.SERVICE }} revision
+      - name: Capture owned Cloud Run revision
         id: capture-backend-revision
         run: |
-          echo "revision=backend-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
+          test -n "$CLOUD_RUN_SERVICE"
+          echo "revision=${CLOUD_RUN_SERVICE}-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Validate discovered canonical service URL
         env:
           EXPECTED_BACKEND_URL: ${{ steps.account-deletion-target.outputs.backend_url }}
         run: |
           set -euo pipefail
-          discovered="$(gcloud run services describe "${{ env.SERVICE }}" \
+          discovered="$(gcloud run services describe "${{ env.CLOUD_RUN_SERVICE }}" \
             --region="${{ env.REGION }}" \
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --format='value(status.url)')"
@@ -692,7 +702,7 @@ jobs:
           test -n "$TASKS_INVOKER_SA"
           test -n "$LEGACY_TASKS_INVOKER_SA"
           for signer in "$TASKS_INVOKER_SA" "$LEGACY_TASKS_INVOKER_SA"; do
-            gcloud run services add-iam-policy-binding "${{ env.SERVICE }}" \
+            gcloud run services add-iam-policy-binding "${{ env.CLOUD_RUN_SERVICE }}" \
               --region="${{ env.REGION }}" \
               --project="${{ vars.GCP_PROJECT_ID }}" \
               --member="serviceAccount:${signer}" \
@@ -721,7 +731,7 @@ jobs:
             --env ${{ vars.ENV }} \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
-            --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }}
+            --wait-revision-ready "${{ env.CLOUD_RUN_SERVICE }}"=${{ steps.capture-backend-revision.outputs.revision }}
 
       - name: Verify canonical backend image lineage
         id: verify-image-lineage
@@ -750,13 +760,12 @@ jobs:
           BETA_PROMOTION_TOKEN_VERSION: ${{ vars.BETA_PROMOTION_TOKEN_VERSION }}
           GOOGLE_CLIENT_SECRET_VERSION: ${{ vars.GOOGLE_CLIENT_SECRET_VERSION }}
           POSTHOG_PROJECT_API_KEY_VERSION: ${{ vars.POSTHOG_PROJECT_API_KEY_VERSION }}
+          LANGFUSE_PUBLIC_KEY_VERSION: ${{ vars.LANGFUSE_PUBLIC_KEY_VERSION }}
+          LANGFUSE_SECRET_KEY_VERSION: ${{ vars.LANGFUSE_SECRET_KEY_VERSION }}
           MODULATE_API_KEY_VERSION: ${{ vars.MODULATE_API_KEY_VERSION }}
           GEMINI_API_KEY_VERSION: ${{ vars.GEMINI_API_KEY_VERSION }}
           OPENAI_API_KEY_VERSION: ${{ vars.OPENAI_API_KEY_VERSION }}
-          ANTHROPIC_API_KEY_VERSION: ${{ vars.ANTHROPIC_API_KEY_VERSION }}
-          DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION: ${{ vars.DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION }}
           FIREBASE_API_KEY_VERSION: ${{ vars.FIREBASE_API_KEY_VERSION }}
-          GOOGLE_CALENDAR_API_KEY_VERSION: ${{ vars.GOOGLE_CALENDAR_API_KEY_VERSION }}
           REDIS_DB_PASSWORD_VERSION: ${{ vars.REDIS_DB_PASSWORD_VERSION }}
         run: |
           python3 "$DEPLOY_CONTROL_SCRIPTS/validate-backend-runtime-env.py" --env ${{ vars.ENV }} --check-workflows --workflow-root "$DEPLOY_WORKFLOW_ROOT" --check-live-cloud-run
@@ -767,13 +776,13 @@ jobs:
           candidate_url="$(python3 "$DEPLOY_CONTROL_SCRIPTS/resolve_cloud_run_tagged_url.py" \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --region=${{ env.REGION }} \
-            --service=${{ env.SERVICE }} \
+            --service=${{ env.CLOUD_RUN_SERVICE }} \
             --revision=${{ steps.capture-backend-revision.outputs.revision }} \
             --tag="$CANDIDATE_TAG")"
           printf 'url=%s\n' "$candidate_url" >> "$GITHUB_OUTPUT"
 
       - name: Gate backend candidate on known audio
-        if: ${{ github.event.inputs.environment == 'development' }}
+        if: ${{ github.event.inputs.environment == 'development' && vars.MODULATE_API_KEY_VERSION != '' }}
         uses: ./.github/actions/transcription-release-candidate-probe
         with:
           candidate_api_url: ${{ steps.candidate-url.outputs.url }}
@@ -793,6 +802,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment "${{ vars.ENV }}" \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/backend-cloud-run-candidate-release-vector.json
 
@@ -820,25 +830,23 @@ jobs:
             --workflow-run-id="$GITHUB_RUN_ID" \
             --evidence-path=artifacts/backend-chat-candidate.json
 
-      - name: Prove canonical candidate managed realtime provider paths
+      - name: Prove canonical candidate managed Gemini realtime path
         run: |
           set -euo pipefail
-          for provider in openai gemini; do
-            for attempt in 1 2 3; do
-              probe_exit=0
-              "$DEPLOY_WORKFLOW_ROOT/scripts/voice-provider-probe.sh" "$provider" \
-                "${{ steps.candidate-url.outputs.url }}" \
-                --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" || probe_exit=$?
-              if [[ "$probe_exit" -eq 0 ]]; then
-                break
-              fi
-              if [[ "$probe_exit" -ne 75 || "$attempt" -eq 3 ]]; then
-                echo "Managed realtime provider proof failed for $provider." >&2
-                exit "$probe_exit"
-              fi
-              echo "Retrying $provider provider proof after a retryable upstream failure ($attempt/3)."
-              sleep 5
-            done
+          for attempt in 1 2 3; do
+            probe_exit=0
+            "$DEPLOY_WORKFLOW_ROOT/scripts/voice-provider-probe.sh" \
+              "${{ steps.candidate-url.outputs.url }}" \
+              --bearer-token-file="$BACKEND_CANDIDATE_PROBE_TOKEN_FILE" || probe_exit=$?
+            if [[ "$probe_exit" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$probe_exit" -ne 75 || "$attempt" -eq 3 ]]; then
+              echo "Managed Gemini realtime proof failed." >&2
+              exit "$probe_exit"
+            fi
+            echo "Retrying Gemini realtime proof after a retryable upstream failure ($attempt/3)."
+            sleep 5
           done
 
       - name: Delete backend candidate probe identity
@@ -851,7 +859,7 @@ jobs:
       - name: Remove passed transcription candidate tag
         if: ${{ success() }}
         run: |
-          gcloud run services update-traffic ${{ env.SERVICE }} \
+          gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}" \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --region=${{ env.REGION }} \
             --remove-tags="$CANDIDATE_TAG" \
@@ -862,7 +870,7 @@ jobs:
         # not only after the candidate URL resolution step succeeds.
         if: ${{ failure() && steps.deploy-backend.outcome == 'success' }}
         run: |
-          gcloud run services update-traffic ${{ env.SERVICE }} \
+          gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}" \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --region=${{ env.REGION }} \
             --remove-tags="$CANDIDATE_TAG" \
@@ -879,6 +887,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment "${{ vars.ENV }}" \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/backend-deployment-composition.json
 
@@ -888,17 +897,17 @@ jobs:
           python3 "$DEPLOY_CONTROL_SCRIPTS/cloud_run_traffic_snapshot.py" capture \
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
-            --service backend \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --output artifacts/backend-cloud-run-pre-promotion-traffic-snapshot.json
 
       - name: Verify validated revisions are still current
         run: |
-          test "$(gcloud run services describe backend --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
+          test "$(gcloud run services describe "${{ env.CLOUD_RUN_SERVICE }}" --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
 
       - name: Shift Cloud Run traffic to validated revisions
         id: shift-cloud-run-traffic
         run: |
-          gcloud run services update-traffic backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
+          gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}" --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
 
       # A traffic command can complete after an earlier target has moved. The
       # shared deploy lock prevents competing writers, while this read-only
@@ -914,6 +923,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment "${{ vars.ENV }}" \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/backend-serving-release-vector.json
 
@@ -971,7 +981,7 @@ jobs:
           expected_traffic=()
           if [[ "${{ steps.shift-cloud-run-traffic.outcome }}" == "success" ]]; then
             expected_traffic=(
-              --expect-cloud-run-traffic backend=${{ steps.capture-backend-revision.outputs.revision }}
+              --expect-cloud-run-traffic "${{ env.CLOUD_RUN_SERVICE }}"=${{ steps.capture-backend-revision.outputs.revision }}
             )
           fi
           python3 "$DEPLOY_CONTROL_SCRIPTS/deploy_status_report.py" \
@@ -979,7 +989,7 @@ jobs:
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
             --include-cloud-run \
-            --cloud-run-service backend \
+            --cloud-run-service "${{ env.CLOUD_RUN_SERVICE }}" \
             "${expected_traffic[@]}" \
             | tee /tmp/cloud-run-deploy-status.txt
           if [[ "${{ github.event.inputs.environment }}" == "prod" ]]; then
@@ -1019,7 +1029,7 @@ jobs:
           environment: ${{ github.event.inputs.environment }}
           release_version: ${{ github.event.inputs.release_version }}
           status: ${{ job.status }}
-          service: ${{ env.SERVICE }}
+          service: ${{ env.CLOUD_RUN_SERVICE }}
 
       - name: Notify deployment status on Telegram
         if: always() && github.event.inputs.environment == 'prod'

@@ -28,7 +28,7 @@ describe("SessionExecutionProfile", () => {
       surfaceKind: "main_chat",
       defaultAdapterId: "pi-mono",
       providerBoundary: "managed_cloud",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/omi-artifacts",
     });
 
@@ -36,7 +36,7 @@ describe("SessionExecutionProfile", () => {
       generation: 1,
       adapterId: "pi-mono",
       credentialScope: "managed_cloud",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       workingDirectory: "/tmp/omi-artifacts",
       executionRole: "coordinator",
       source: "creation",
@@ -55,7 +55,7 @@ describe("SessionExecutionProfile", () => {
       surfaceKind: "floating_bar",
       defaultAdapterId: "pi-mono",
       providerBoundary: "managed_cloud",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/omi-artifacts",
     });
     const projected = applyExecutionProfileToSession(
@@ -65,7 +65,7 @@ describe("SessionExecutionProfile", () => {
     expect(projected).toMatchObject({
       defaultAdapterId: "pi-mono",
       providerBoundary: "managed_cloud",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: "/tmp/omi-artifacts",
     });
     store.close();

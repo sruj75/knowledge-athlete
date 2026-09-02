@@ -982,7 +982,7 @@ async function main(): Promise<void> {
     stateDir: agentStateDir(),
     canonicalExecutionProfile: {
       adapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       workingDirectory: agentArtifactsDir(),
     },
   });
@@ -1120,7 +1120,7 @@ async function main(): Promise<void> {
       },
       defaultAdapterId,
       providerBoundary: "managed_cloud",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       defaultCwd: agentArtifactsDir(),
       executionRole: executionRoleForSurface(input),
     });
@@ -1209,7 +1209,7 @@ async function main(): Promise<void> {
           },
           defaultAdapterId,
           providerBoundary: "managed_cloud",
-          modelProfile: "omi-sonnet",
+          modelProfile: "gemini-3.7-flash",
           defaultCwd: agentArtifactsDir(),
           executionRole: executionRoleForSurface(resolve),
           title: resolve.title ?? null,
@@ -1273,7 +1273,7 @@ async function main(): Promise<void> {
               chatId: request.chatId,
               title: request.title,
               defaultAdapterId,
-              modelProfile: "omi-sonnet",
+              modelProfile: "gemini-3.7-flash",
               defaultCwd: agentArtifactsDir(),
             }),
           });

@@ -17,6 +17,17 @@ enum BundleEnvironment {
     return launchValue.isEmpty
   }
 
+  static func bundledValueRejectionReason(for key: String) -> String? {
+    switch key {
+    case "GEMINI_API_KEY":
+      return "provider credentials stay on the backend"
+    case "GOOGLE_CALENDAR_API_KEY":
+      return "retired provider credential"
+    default:
+      return nil
+    }
+  }
+
   static func loadIfNeeded() {
     guard !didLoad else { return }
     didLoad = true
@@ -35,9 +46,8 @@ enum BundleEnvironment {
         guard parts.count == 2 else { continue }
         let key = String(parts[0]).trimmingCharacters(in: .whitespaces)
         guard !key.hasPrefix("#") else { continue }
-        let backendServedKeys = ["GEMINI_API_KEY", "GOOGLE_CALENDAR_API_KEY"]
-        if backendServedKeys.contains(key) {
-          log("  Skipped \(key) (fetched from backend via APIKeyService)")
+        if let reason = bundledValueRejectionReason(for: key) {
+          log("  Skipped \(key) (\(reason))")
           continue
         }
         guard shouldApplyBundledValue(for: key) else {

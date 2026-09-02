@@ -105,7 +105,7 @@ def test_real_check_lists_provider_credentials(monkeypatch: pytest.MonkeyPatch, 
     (repo / "AGENTS.md").write_text("agents", encoding="utf-8")
     (repo / ".git").mkdir()
     (repo / "backend").mkdir()
-    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("PROVIDER_MODE", "real")
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))

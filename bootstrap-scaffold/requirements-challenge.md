@@ -97,13 +97,13 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-052 | Retained Rewind, Focus-glow, and global PTT behavior requires macOS Accessibility permission | Reviewed | Keep for global PTT and precise Rewind/Focus window detection; CGWindow is fallback only |
 | IR-053 | Local semantic search requires transient Gemini embedding computation through the authenticated Python desktop proxy | Reviewed | Keep transient proxy compute; vectors and similarity search remain local-only |
 | IR-054 | The first Mac release requires a push-to-talk spoken-assistant capability | Reviewed at parent only | Keep the parent capability; challenge every child behavior separately |
-| IR-055 | Push-to-talk requires a backend WebSocket relay as an intermediate STT fallback when the direct realtime hub fails | Reviewed | Keep the live relay fallback; prune independently rejected children |
+| IR-055 | Push-to-talk requires a backend WebSocket relay as an intermediate STT fallback when the direct realtime hub fails | Reopened for Gemini-first simplification | Delete the omni relay; on Gemini Live failure retain the bounded PCM turn and use the existing batch-STT recovery after release |
 | IR-056 | Managed PTT sessions require client-reported token usage and server-side cost/quota accounting | Reviewed | Keep count-only per-user usage/cost/quota accounting |
 | IR-057 | Every minted realtime credential requires a hashed Firestore session-audit document | Reviewed | Delete unread audit documents and writer |
 | IR-058 | PTT must support user-supplied OpenAI/Gemini API keys in addition to managed subscriber access | Reviewed | Delete PTT BYOK access; product-wide BYOK is also deleted under IR-062 |
 | IR-059 | PTT requires completed-turn batch STT as the final recovery path when realtime voice and relay transcription fail | Reviewed | Keep final batch recovery |
 | IR-060 | Normal PTT must use a provider-native realtime speech-to-speech model instead of always using STT, the normal text agent, and TTS | Reviewed | Keep current realtime speech-to-speech primary path |
-| IR-061 | The primary realtime PTT path must support both OpenAI Realtime and Gemini Live with cross-provider failover | Reviewed | Keep both providers, explicit switching, and cross-provider failover |
+| IR-061 | The primary realtime PTT path must support both OpenAI Realtime and Gemini Live with cross-provider failover | Reopened for Gemini-first simplification | Keep Gemini Live only; replace cross-provider failover with same-provider reconnect followed by buffered batch STT, Gemini Chat, and retained OpenAI TTS |
 | IR-062 | The product requires a second free BYOK access plan in which a user supplies OpenAI, Anthropic, Gemini, and Deepgram keys | Reviewed | Delete all customer BYOK and retain only managed product credentials |
 | IR-063 | Retained PTT must use the current system-wide hold shortcut implemented through Accessibility-trusted global key monitoring | Reviewed | Keep existing global hold behavior and retain minimal Accessibility support |
 | IR-064 | PTT needs a double-tap locked mode that records hands-free until the shortcut is tapped again | Reviewed | Keep the existing local locked-recording behavior |
@@ -154,8 +154,8 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-109 | Typed Chat and realtime PTT must continue the same local conversation | Reviewed | Keep the existing shared-conversation behavior, with local journal/context authority |
 | IR-110 | Realtime PTT must keep a provider session preconnected before the user presses the shortcut | Reviewed | Keep the existing preconnected realtime session for v1 |
 | IR-111 | Realtime PTT must attach local context-plan/cache identity hashes to backend usage reports | Reviewed | Delete the four unused identity/replacement fields; keep actual provider token counts, including cached input |
-| IR-112 | A retained warm PTT session must reconnect or be replaced when its transport, owner, or local context becomes stale | Reviewed by dependency | Keep same-provider correctness replacements; IR-061 also keeps cross-provider failover |
-| IR-113 | Normal desktop Chat must run its local agent loop against managed Claude inference through Python `/v2/chat/completions` | Reviewed | Keep exactly as implemented for v1 |
+| IR-112 | A retained warm PTT session must reconnect or be replaced when its transport, owner, or local context becomes stale | Reviewed after Gemini-first simplification | Keep Gemini same-provider correctness replacement; provider crossing is deleted by IR-061 |
+| IR-113 | Normal desktop Chat must run its local agent loop against managed Claude inference through Python `/v2/chat/completions` | Reopened for Gemini-first simplification | Keep the proven local Pi orchestration but use its bundled native Gemini adapter against authenticated `/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` |
 | IR-114 | PTT must continue emitting the legacy `floating_bar_ptt_started` and `floating_bar_ptt_ended` PostHog events | Reviewed | Delete both deprecated events; this does not delete PostHog or the newer PTT lifecycle diagnostic |
 | IR-115 | The fork must retain Sentry and PostHog telemetry but send it to projects owned by this product | Reviewed | Keep both platforms and existing telemetry architecture; replace every Omi project identity with our own configuration |
 | IR-116 | PTT must retain its authoritative privacy-bounded lifecycle and incident diagnostics | Reviewed | Keep the accurate privacy-bounded diagnostics and route remote events to our Sentry/PostHog projects |
@@ -479,20 +479,20 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-528 | Top-bar “new since you were last here” counters | Reviewed | delete the top-bar aggregate new-item counters |
 | IR-529 | Global Escape navigation back to Home | Reviewed | keep the current shell-level Escape-to-Home behavior exactly |
 | IR-530 | Compact top navigation on narrow windows | Reviewed | keep the current responsive top-navigation substitution |
-| IR-600 | Realtime PTT must expose Auto, Gemini, and OpenAI selection and refresh Auto daily from Artificial Analysis proxy-model scores | Reviewed | Keep exactly as implemented |
+| IR-600 | Realtime PTT must expose Auto, Gemini, and OpenAI selection and refresh Auto daily from Artificial Analysis proxy-model scores | Reopened for Gemini-first simplification | Delete Auto, OpenAI Realtime, the picker, saved provider state, and Artificial Analysis; the server pins Gemini Live |
 | IR-601 | Realtime PTT must be able to escalate a difficult or challenged answer to managed Claude through `ask_higher_model` | Reviewed after reopen | Delete the entire realtime `ask_higher_model` tool and its unique execution path |
 | IR-602 | A voice `ask_higher_model` escalation for current facts must perform a real live web lookup | Reviewed by dependency | Delete with IR-601; no voice escalation or live-web claim remains |
 | IR-603 | A background Agent Pill without a prefetched title must call Claude Haiku to improve its title and transient acknowledgement | Reviewed | Delete the cosmetic model call; keep deterministic local metadata and authoritative prefetched titles |
 | IR-604 | The shipped Advanced Settings screen must include a Chat Prompt Lab with direct Anthropic BYOK, AI grading, real personal context, git prompt history, and production ratings | Reviewed | Delete the entire shipped Chat Prompt Lab; keep prompt evaluation outside the customer app |
-| IR-605 | Sonnet-only normal Chat must retain dormant user-model-selection state and an internally routable Claude Opus alternative | Reviewed | Pin v1 normal Chat to Sonnet end-to-end; delete dormant Opus and product-selection scaffolding |
+| IR-605 | Sonnet-only normal Chat must retain dormant user-model-selection state and an internally routable Claude Opus alternative | Reopened for Gemini-first simplification | Pin normal Chat to the actual `gemini-3.7-flash` ID and delete every Claude identity and provider-selection remnant |
 | IR-606 | Desktop model configuration must retain Claude Haiku synthesis and ChatLab identities after their only product callers are deleted | Reviewed by dependency | Delete the orphaned Haiku/ChatLab configuration with IR-047, IR-603, and IR-604 |
 | IR-607 | Every LLM-gateway provider attempt requires an immutable per-attempt Firestore cost/accounting document | Reviewed | Delete the unread attempt ledger; keep authoritative quota/usage counters and operational metrics |
 | IR-608 | Retained Python model workloads require a separately deployed GKE LLM gateway between the backend APIs and model providers | Reviewed | Delete the independent gateway service; retain direct managed-provider calls inside the owning Python backends |
 | IR-609 | Backend model workloads require three global model-quality profiles named `premium`, `max`, and `byok` | Reviewed | Delete the global profile system; keep one explicit managed provider/model route per surviving workload |
-| IR-610 | Cloud transcription fair-use enforcement requires GPT classification of recent hosted conversation summaries and a warning/throttle/restrict case system | Reviewed | Keep and adapt the fair-use system; all evidence, inference, stages, thresholds, support, retention, and override children are resolved by IR-611 through IR-709 |
+| IR-610 | Cloud transcription fair-use enforcement requires GPT classification of recent hosted conversation summaries and a warning/throttle/restrict case system | Reopened for Gemini-first simplification | Keep the fair-use system and its failure policy, but run its bounded transient classification through Gemini 3.7 Flash |
 | IR-611 | The adapted fair-use classifier requires private conversation titles and overview text from the Mac's local-authoritative history | Reviewed at evidence-source boundary | Reuse the current recent-conversation evidence pattern, assembled from local GRDB; do not restore hosted conversation copies |
-| IR-612 | Local-authoritative fair-use evidence must preserve the existing GPT-5.1 classifier rather than introducing a different local model | Reviewed after correction | Keep GPT-5.1 as transient managed compute over bounded evidence assembled from local GRDB; do not add an on-device model/runtime or hosted conversation authority |
-| IR-613 | Durable fair-use case records require the classifier's conversation titles, local IDs, and content-specific evidence reasons | Reviewed by transient-compute boundary | Permit bounded evidence only in the transient GPT-5.1 request; persist only content-free verdict, usage, and enforcement facts in the backend |
+| IR-612 | Local-authoritative fair-use evidence must preserve the existing GPT-5.1 classifier rather than introducing a different local model | Reopened for Gemini-first simplification | Replace GPT-5.1 with Gemini 3.7 Flash as transient managed compute over the same bounded local evidence; retain the existing parser and fail-open behavior |
+| IR-613 | Durable fair-use case records require the classifier's conversation titles, local IDs, and content-specific evidence reasons | Reviewed after Gemini-first simplification | Permit bounded evidence only in the transient Gemini request; persist only content-free verdict, usage, and enforcement facts in the backend |
 | IR-614 | The seven-day fair-use `throttle` stage must actually reduce transcription quality | Reviewed | Keep the three-strike pattern; present throttle as a notify-only final warning and make its seven-day reset real |
 | IR-615 | Exhausting the Free plan's ordinary transcription allowance must be recorded as a perfect-score fair-use violation | Reviewed | Keep the current combined quota and fair-use path unchanged, including synthetic `free_exhausted` escalation and upgrade cleanup |
 | IR-616 | One canonical Tasks list versus the unreachable Board view | Reviewed | keep the current grouped Tasks list and delete the unreachable Board implementation |
@@ -589,29 +589,29 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-707 | Every fair-use classifier review in the last seven and thirty days counts as a violation even when its score is below the misuse threshold | Reviewed | Count only verdicts at or above 0.7 created after the latest support reset; keep lower-score reviews as non-strike history |
 | IR-708 | Content-free fair-use event and support history must remain indefinitely until account deletion | Reviewed | Keep the current account-lifetime history exactly; no TTL or cleanup service, with deletion through account deletion |
 | IR-709 | The fair-use kill switch and exempt-UID list must bypass every enforcement effect, including existing restrict-stage cloud budgets | Reviewed after reversal | Keep the current partial kill-switch/exemption behavior exactly; do not repair existing restrict-stage live-cloud budget enforcement |
-| IR-710 | Explicitly added or corrected local memories require managed normalization before durable lifecycle admission | Reviewed after code-path correction | Keep the existing OpenAI GPT-4.1-mini `memory_l2` normalization pattern as a bounded transient backend call; the Mac validates and commits locally |
+| IR-710 | Explicitly added or corrected local memories require managed normalization before durable lifecycle admission | Reopened for Gemini-first simplification | Keep the bounded `memory_l2` pattern and local validation/commit, but route transient inference to Gemini 3.7 Flash |
 | IR-711 | Retained Mac Gemini workloads require an unreachable persisted Premium/Max model tier that changes Flash workloads to Pro | Reviewed after dead-path verification | Pin live callers to their current defaults and delete only the proven-dead Mac tier selector; preserve separately reachable Python-proxy Pro support for its own audit |
-| IR-712 | The retained authenticated Gemini proxy requires both Google Vertex AI and Gemini AI Studio upstream access paths | Reviewed | Keep Vertex when explicitly configured plus platform-key AI Studio fallback/local development; delete only customer-BYOK routing |
+| IR-712 | The retained authenticated Gemini proxy requires both Google Vertex AI and Gemini AI Studio upstream access paths | Reopened for Gemini-first simplification | Use the Gemini Developer API only; delete Vertex model selection and fallback while preserving Cloud Run ADC for non-model GCP infrastructure |
 | IR-713 | The retained managed Gemini proxy requires shared per-user request limits and bounded request/output controls | Reviewed | Keep the exact authenticated, entitlement-gated, 30/minute, 1,500/day, fail-closed Redis and payload-shape guardrail pattern |
 | IR-714 | The canonical Python backend requires a second ElevenLabs `/v2/tts/synthesize` contract beside the retained OpenAI Mac TTS route | Reviewed | Delete the verified callerless ElevenLabs route and its exclusive support surface; preserve `/v1/tts/synthesize` and shared rate limiting |
 | IR-715 | Retained Chat web lookup requires a second Perplexity/Sonar search implementation beside any Claude-owned search behavior | Reviewed | Delete the verified callerless Perplexity/Sonar slice; do not use this deletion to add, retain, or remove Claude web search |
 | IR-716 | Normal typed Chat must search the live public web through Claude's server-side search tool | Reviewed | Delete public-web search completely across typed Chat, voice, hosted-agent residue, and provider configuration |
 | IR-717 | The authenticated Gemini proxy must accept `gemini-2.5-pro` for hand-crafted requests despite having no retained product caller | Reviewed | Delete Pro admission and its exclusive soft-limit downgrade/tier logic; keep live Flash, Flash-Lite, and embedding routes |
-| IR-718 | Retained Mac Gemini workloads require an authenticated streaming proxy and `streamGenerateContent` action | Reviewed | Delete the verified callerless Gemini streaming route/action and exclusive plumbing; preserve normal generation and embeddings |
+| IR-718 | Retained Mac Gemini workloads require an authenticated streaming proxy and `streamGenerateContent` action | Reopened for Gemini-first simplification | Keep one authenticated native streaming action exclusively for normal Chat, preserving raw Gemini SSE and server-held credentials; keep non-stream generation and embeddings unchanged |
 | IR-719 | The Gemini proxy must continue accepting the legacy `gemini-3-flash-preview` model name as an alias for current Flash | Reviewed after recommendation reversal | Keep the small battle-tested preview-to-Flash compatibility rewrite unchanged |
-| IR-720 | OpenRouter should be deleted when its current Wrapped workload is removed | Reviewed after reversal | Delete the complete OpenRouter integration after Wrapped; keep direct OpenAI, Anthropic, and Gemini unchanged |
+| IR-720 | OpenRouter should be deleted when its current Wrapped workload is removed | Reviewed after Gemini-first simplification | Keep OpenRouter deleted; retained managed inference is direct Gemini plus the separate OpenAI TTS route |
 | IR-721 | The retained automatic six-word Chat title requires an explicit managed model route after localizing session authority | Reviewed | Keep the current Gemini 2.5 Flash-Lite title computation; return transiently and commit only to the local session catalog |
-| IR-722 | The retained automatic local Chat greeting requires an explicit managed model route after deleting cloud Chat and memory authority | Reviewed | Keep the current OpenAI GPT-5.4-mini greeting behavior with bounded local context, transient compute, and local journal commit |
+| IR-722 | The retained automatic local Chat greeting requires an explicit managed model route after deleting cloud Chat and memory authority | Reopened for Gemini-first simplification | Preserve the bounded greeting contract and local journal commit while routing transient inference to Gemini 3.7 Flash |
 | IR-723 | Retained local proactive assistants require the backend Mentor/App `proactive_notification` model pipeline | Reviewed | Delete the dead cloud notification model workload; preserve local Mac proactive assistants and Gemini compute |
 | IR-724 | Subscription purchase and transcription-limit messaging require GPT-written personalized push copy built from cloud memories | Reviewed | Delete the notification model route, cloud-memory reads, and FCM callers; keep authoritative billing/quota state and deterministic local Mac presentation |
 | IR-725 | The retained Mac product requires OpenGlass/smart-glasses camera frames to be described by a dedicated backend vision-model pipeline | Reviewed | Delete both smart-glasses model routes and live-listener photo-processing ingress; preserve unrelated Mac image and historical-photo surfaces |
 | IR-726 | Retained cloud-STT live translation requires a separately deployed self-hosted NLLB GPU service plus Gemini fallback | Reviewed | Delete NLLB and use the existing Gemini 2.5 Flash-Lite translation path alone; preserve live translation behavior and local result authority |
-| IR-727 | Retained conversation enrichment requires separate structured-summary and action-item model calls after localizing result authority | Reviewed | Keep both existing OpenAI GPT-5.4-mini calls and prompts as transient compute; Mac validates and commits accepted results locally |
-| IR-728 | Retained conversation-derived Memories require an explicit managed model route for evidence-backed initial extraction | Reviewed | Keep the existing OpenAI GPT-4.1-mini `memory_l1` pattern as transient compute; Mac verifies evidence and admits accepted candidates locally |
+| IR-727 | Retained conversation enrichment requires separate structured-summary and action-item model calls after localizing result authority | Reopened for Gemini-first simplification | Keep both calls, prompts, validation, and local commit boundaries while routing transient inference to Gemini 3.7 Flash |
+| IR-728 | Retained conversation-derived Memories require an explicit managed model route for evidence-backed initial extraction | Reopened for Gemini-first simplification | Keep the `memory_l1` evidence and local admission pattern while routing transient inference to Gemini 3.7 Flash |
 | IR-729 | The retained canonical Memory product requires the older conversation-memory, learning, and external-category model routes beside `memory_l1` | Reviewed | Delete the legacy `memories`, `learnings`, and `memory_category` routes and old-versus-canonical selector; keep `memory_l1`, `memory_l2`, and retained lifecycle conflict handling |
-| IR-730 | Evidence-backed Short-term memories require a separate managed consolidation judgment after initial extraction | Reviewed | Keep the existing OpenAI GPT-4.1-mini `memory_conflict` consolidation pattern as transient compute; Mac supplies bounded local candidates, validates every reference, and commits locally |
-| IR-731 | Retained local Pi Chat requires the older Python `chat_extraction` classifier/RAG calls and `chat_graph` persona-answer route | Reviewed | Delete both old cloud-Chat model routes and their exclusive hosted RAG/persona helpers; preserve local Pi, managed Claude `/v2/chat/completions`, local retrieval, attachments, greetings, and titles |
-| IR-732 | Automatic ambient capture requires a managed judgment for short transcripts that may be accidental or meaningless | Reviewed | Keep the existing OpenAI GPT-4.1-nano `conv_discard` prompt as transient compute; Mac owns the conversation, validates the result, and keeps content on model failure |
+| IR-730 | Evidence-backed Short-term memories require a separate managed consolidation judgment after initial extraction | Reopened for Gemini-first simplification | Keep bounded candidates, reference validation, and local commit while routing `memory_conflict` inference to Gemini 3.7 Flash |
+| IR-731 | Retained local Pi Chat requires the older Python `chat_extraction` classifier/RAG calls and `chat_graph` persona-answer route | Reviewed after Gemini-first simplification | Keep those old routes deleted; preserve local Pi, native managed Gemini streaming, local retrieval, attachments, greetings, and titles |
+| IR-732 | Automatic ambient capture requires a managed judgment for short transcripts that may be accidental or meaningless | Reopened for Gemini-first simplification | Keep the discard prompt, local ownership, validation, and keep-on-failure policy while routing transient inference to Gemini 3.7 Flash |
 | IR-733 | A command-line `--skip-onboarding` argument may mark setup complete without running the retained Skip or completion lifecycle | Reviewed | Keep the argument and direct completion-flag behavior exactly as implemented, including availability in published builds |
 | IR-734 | Closing the last app window before onboarding completion terminates the entire menu-bar process | Reviewed | Keep the current pre-completion quit behavior; after completion, closing the window leaves the menu-bar app running |
 | IR-735 | Completion/resume/journal disagreement must emit onboarding state-authority diagnostics while the completion flag remains the UI gate | Reviewed | Keep the content-free disagreement diagnostics and let the completion flag remain the UI winner |
@@ -642,12 +642,12 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-824 | The first release requires a hosted Limitless ZIP-import job that creates cloud Omi conversations | Reviewed | Delete the complete Limitless cloud-import product; do not preclude a separately justified local importer |
 | IR-825 | Locally authoritative Tasks require cloud daily, weekly, and overall productivity-score APIs after their UI was rejected | Reviewed | Delete the orphaned score APIs and widgets; preserve local Task completion data |
 | IR-826 | A Mac-only product requires Omi's mobile Firebase Cloud Messaging token and push-delivery platform | Reviewed | Delete FCM and adapt surviving server-side warnings into authenticated Mac state plus local macOS presentation |
-| IR-827 | Sentry and PostHog make dedicated LLM tracing and website-based model observability unnecessary | Reviewed | Keep the current LangSmith tracing, run, and feedback lifecycle for v1 in our own LangSmith project |
-| IR-828 | The production agent prompt must live only in the repository rather than using LangSmith Prompt Hub | Reviewed | Keep Prompt Hub fetching, version metadata, TTL cache, and repository fallback for v1 |
+| IR-827 | Sentry and PostHog make dedicated LLM tracing and website-based model observability unnecessary | Reviewed after provider migration | Preserve Omi's request lifecycle while replacing LangSmith with Langfuse in the owned Intentive project |
+| IR-828 | The production agent prompt must live only in the repository rather than using managed prompt storage | Reviewed after provider migration | Keep Langfuse prompt fetching/linking, a 300-second SDK cache, and an identical blank repository fallback until Intentive authors its prompt |
 | IR-829 | Retained local proactive assistants require a separate Firestore Mentor notification-frequency setting | Reviewed | Delete the orphaned server Mentor setting; preserve local proactive-assistant controls |
 | IR-830 | Moving product data to local GRDB eliminates the user's ability to export their own product data | Reviewed | Keep one simple local Export My Data flow and narrow the server export to genuine retained account metadata |
 | IR-831 | Authoritative managed-AI metering requires unused detailed usage-reader APIs and personal-adapter cost self-reporting | Reviewed | Delete the unused detailed readers and personal self-report; keep server metering, quota, and total managed cost |
-| IR-832 | Keeping LangSmith tracing requires restoring Omi's in-app thumbs-up/down rating product and cloud Chat-message copies | Reviewed | Keep LangSmith website-side annotation and evaluation for v1; keep the rejected in-app rating product deleted |
+| IR-832 | Keeping model tracing requires restoring Omi's in-app thumbs-up/down rating product and cloud Chat-message copies | Reviewed after provider migration | Keep Langfuse website-side annotation and evaluation; keep the rejected in-app rating product deleted |
 | IR-833 | The retained Mac product requires Omi's cloud conversation-summary rating API and Firestore analytics record | Reviewed | Delete the complete conversation-summary rating product; it has no live Mac caller and rates rejected cloud data |
 | IR-834 | The retained Chat experience requires the old Joan endpoint that generates a follow-up question from a cloud conversation | Reviewed | Delete the Joan follow-up-question endpoint; preserve independent local Chat suggestions, onboarding, and proactive behavior |
 | IR-835 | Retained billing and fair-use metering require a separate unused API that returns today, monthly, yearly, and all-time usage history | Reviewed | Delete the unused detailed usage-history API; preserve authoritative billing, quota, and fair-use metering |
@@ -882,7 +882,7 @@ macOS product
 │       ├── language-aware batch fallback retry                 KEEP; ADAPT (IR-072)
 │       ├── double-tap hands-free locked recording              KEEP (IR-064)
 │       ├── provider-native realtime speech-to-speech           KEEP (IR-060)
-│       ├── OpenAI plus Gemini with explicit switching/failover KEEP BOTH (IR-061)
+│       ├── Gemini Live only; reconnect then batch cascade      KEEP GEMINI ONLY (IR-061)
 │       ├── interruption/barge-in behavior                      KEEP; CHILDREN RESOLVED (IR-073)
 │       │   └── interrupted exchange in local continuity        KEEP; CHILD RESOLVED (IR-074/075)
 │       │       └── truthful interrupted-state marker           KEEP; LOCAL METADATA + UI + CONTEXT (IR-075)
@@ -929,7 +929,7 @@ macOS product
 │       ├── managed-session usage/cost/quota ledger             KEEP (IR-056)
 │       ├── BYOK provider access                                DELETE FOR PTT (IR-058)
 │       ├── per-token Firestore session-audit document          DELETE; NO READER (IR-057)
-│       ├── backend WebSocket relay as intermediate STT fallback KEEP (IR-055)
+│       ├── backend WebSocket relay as intermediate STT fallback DELETE (IR-055)
 │       ├── completed-turn batch-STT/text-agent/TTS fallback    KEEP (IR-059)
 │       ├── warm connection/cache/reconnect behavior            RESOLVED (IR-110–112/061)
 │       └── voice settings, diagnostics, harnesses, and tests   RESOLVED (IR-114–119/600)
@@ -950,15 +950,15 @@ macOS product
 │   └── Privacy, Advanced, Floating Bar, General, Notifications,
 │       Rewind, About, update, and support settings              KEEP/ADAPT/DELETE AS REVIEWED (IR-204–255)
 ├── AI model compute and Python backend
-│   ├── core local-agent Chat -> managed Claude proxy          KEEP AS-IS FOR V1 (IR-113)
+│   ├── core local-agent Chat -> native managed Gemini stream  KEEP ORCHESTRATION (IR-113)
 │   │   ├── packaged managed-Pi provider/tool extension          KEEP CORE; STRIP REJECTED RESIDUE (IR-937)
 │   │   ├── customer-selectable agent adapters                  DELETE; MANAGED PI ONLY (IR-800)
 │   │   │   └── orphaned compiled Claude ACP bridge             DELETE BY DEPENDENCY (IR-936)
 │   │   ├── Hermes/OpenClaw directed background agents          DELETE; MANAGED PI ONLY (IR-800)
 │   │   ├── separate AI Chat Settings destination               DELETE; MOVE ASK MODE (IR-801)
 │   │   └── replacement static provider-disclosure card          DO NOT ADD (IR-802)
-│   ├── realtime PTT OpenAI/Gemini portfolio                   KEEP BOTH + SWITCH/FAIL OVER (IR-061)
-│   ├── daily Artificial Analysis Auto provider picker        KEEP AS-IS (IR-600)
+│   ├── realtime PTT Gemini Live                               KEEP GEMINI ONLY (IR-061)
+│   ├── daily Artificial Analysis Auto provider picker        DELETE (IR-600)
 │   ├── realtime voice -> Claude higher-model escalation      DELETE (IR-601)
 │   │   └── live web lookup through the deleted escalation      DELETE BY DEPENDENCY (IR-602)
 │   ├── Agent Pill cosmetic Claude title/ack generation       DELETE (IR-603)
@@ -1020,7 +1020,7 @@ macOS product
 │   ├── release manifests + Beta/Stable channel control          ADAPT + KEEP SERVER AUTHORITY (IR-894)
 │   ├── signed branch-preview publication                         ADAPT + KEEP UNDER OUR OWNERSHIP (IR-895)
 │   ├── PostHog/Sentry/diagnostics/issue reporting                COVERED (IR-115/204–211/805)
-│   ├── LangSmith model observability                             COVERED (IR-827/828/832)
+│   ├── Langfuse model observability                              COVERED (IR-827/828/832)
 │   ├── public website, legal policy, Terms, release notes        ADAPT TO SMALL EXTERNAL STATIC SITE + GITHUB NOTES (IR-896)
 │   ├── absent-source workflows/manifests/preflight triggers      DELETE; WINDOWS UNTOUCHED (IR-897)
 │   └── standalone Remotion marketing-video project               DELETE; NOT A RUNTIME/RELEASE INPUT (IR-935)
@@ -1046,12 +1046,12 @@ macOS product
     ├── hosted Limitless ZIP-import job                           DELETE; CLOUD CONVERSATION PIPELINE (IR-824)
     ├── Firestore task productivity-score API                     DELETE; UI AND CLOUD TASK AUTHORITY REJECTED (IR-825)
     ├── mobile FCM token/push platform                             DELETE; ADAPT SURVIVING WARNINGS TO MAC (IR-826)
-    ├── LangSmith LLM tracing and feedback                         KEEP FOR V1; USE OUR PROJECT (IR-827)
-    ├── LangSmith Prompt Hub                                       KEEP REMOTE PROMPT + LOCAL FALLBACK (IR-828)
+    ├── Langfuse LLM generations and traces                        KEEP FOR V1; USE OUR PROJECT (IR-827)
+    ├── Langfuse Prompt Management                                 KEEP BLANK REMOTE PROMPT + IDENTICAL LOCAL FALLBACK (IR-828)
     ├── server Mentor notification-frequency setting               DELETE; KEEP LOCAL PROACTIVE CONTROLS (IR-829)
     ├── user product-data export                                   ADAPT TO LOCAL; SERVER EXPORT ONLY RETAINED METADATA (IR-830)
     ├── detailed/self-reported LLM usage APIs                       DELETE EXTRAS; KEEP AUTHORITATIVE METERING (IR-831)
-    ├── LangSmith feedback boundary                                 KEEP WEBSITE ANNOTATION/EVAL; NO IN-APP RATING RESTORATION (IR-832)
+    ├── Langfuse feedback boundary                                  KEEP WEBSITE ANNOTATION/EVAL; NO IN-APP RATING RESTORATION (IR-832)
     ├── cloud conversation-summary rating product                   DELETE; NO MAC CALLER, REJECTED CLOUD AUTHORITY (IR-833)
     ├── Joan cloud-conversation follow-up-question endpoint         DELETE; KEEP INDEPENDENT LOCAL CHAT BEHAVIOR (IR-834)
     ├── detailed general usage-history API                          DELETE; KEEP BILLING/QUOTA/FAIR-USE METERING (IR-835)
@@ -1743,7 +1743,7 @@ Reversed after clarifying that OpenRouter is not carrying normal Chat, PTT, reta
 
 After removing Wrapped, delete the product-backend OpenRouter provider registration and client factory; `OPENROUTER_API_KEY` templates, secret wiring, validation, development-harness setup, and deployment configuration; OpenRouter model-name/vendor-prefix and temperature branches; OpenRouter-specific streaming, BYOK rerouting, observability dimensions, fixtures, tests, documentation, and direct-provider guard vocabulary proven exclusive to it; and all standalone-gateway OpenRouter support already leaving under IR-608.
 
-Preserve direct OpenAI workloads, direct Anthropic normal Chat, direct Google Vertex/AI Studio Gemini generation and embeddings, OpenAI Realtime and Gemini Live PTT, their credentials, their focused tests, and shared provider abstractions still used by them. Do not connect OpenRouter alongside Gemini and do not replace it with another aggregation provider.
+Preserve the direct Gemini Developer API workloads, Gemini Live PTT, retained OpenAI TTS, their credentials, their focused tests, and shared provider abstractions still used by them. Do not connect OpenRouter alongside Gemini and do not replace it with another aggregation provider.
 
 No product code has been changed.
 
@@ -2068,7 +2068,7 @@ The Python product backend still contains an older cloud Chat stack with two mod
 
 For example, “What did I discuss with Sam last week?” can first trigger classifiers for context and dates, then select hosted filter catalogs, query hosted conversation/vector data, summarize chunks, and finally answer. Those steps belong to the backend-owned Chat/RAG architecture.
 
-The retained normal Chat selected under IR-113 has a different boundary: the local Node/Pi agent decides which typed local tool to call, reads authoritative local conversations/memories/tasks/goals through those tools, and sends only each inference step through authenticated managed Claude `/v2/chat/completions`. That endpoint lives in `desktop_chat.py` and does not call `chat_extraction` or `chat_graph`.
+The retained normal Chat selected under IR-113 has a different boundary: the local Node/Pi agent decides which typed local tool to call, reads authoritative local conversations/memories/tasks/goals through those tools, and sends only each inference step through the authenticated native Gemini stream. That endpoint lives in `desktop_chat.py` and does not call `chat_extraction` or `chat_graph`.
 
 The remaining old callers also lose their product owners: hidden conversation metadata/filter extraction is deleted under IR-371, Pinecone and the hosted knowledge graph under IR-807/256, cloud persona Chat under IR-045, cloud file handling under IR-044, imported text/message processing under IR-047, and postprocessed emotion advice under IR-372. Automatic local greetings and titles use the separately retained IR-722 and IR-721 routes.
 
@@ -2078,7 +2078,7 @@ The remaining old callers also lose their product owners: hidden conversation me
 
 Confirmed: remove both model-profile entries; `chat_extraction` classifiers, date/filter selection, chunk extraction/summarization, hosted-product-question and cloud RAG helpers; `chat_graph` persona streaming; old hosted agentic retrieval orchestration and exclusive prompt/schema/usage/test/script surfaces; and the old `/v2/messages` processing branches that have no independently retained caller. Remove shared files only after reference-tracing and moving any small provider-neutral helper still used by a retained route.
 
-Preserve the local Node/Pi agent loop; authenticated managed-Claude `/v2/chat/completions`; local owner-scoped journal and multiple-thread catalog; typed local conversation/memory/task/goal retrieval; local semantic and exact search; locally managed attachments; automatic greeting/title computations retained under IR-722/721; realtime PTT; and independently retained voice-message STT or reporting endpoints that happen to share a Python router file. Do not replace Pi's tool choice with another classifier layer or route normal Chat through the deleted hosted RAG stack.
+Preserve the local Node/Pi agent loop; authenticated native managed-Gemini stream; local owner-scoped journal and multiple-thread catalog; typed local conversation/memory/task/goal retrieval; local semantic and exact search; locally managed attachments; automatic greeting/title computations retained under IR-722/721; realtime PTT; and independently retained voice-message STT or reporting endpoints that happen to share a Python router file. Do not replace Pi's tool choice with another classifier layer or route normal Chat through the deleted hosted RAG stack.
 
 No product code has been changed.
 
@@ -2223,7 +2223,7 @@ The Mac's primary `APIClient.baseURL` points to the product backend. The smaller
 | Stripe payment implementation | Replace with Dodo Payments while preserving the account/entitlement flow (IR-006) |
 | PTT/realtime voice children, voice-message STT, relay and TTS | Closed by IR-054 through IR-112, IR-224, IR-600 through IR-603, IR-007/055/056/057/061, and IR-714 |
 | Memories, tasks, goals, focus, insights and proactive results | Keep selected Mac behavior with local authority; delete cloud synchronization/control planes (IR-024 through IR-038) |
-| Server chat sessions/messages/files and LLM orchestration | Keep transient managed-Claude inference and locally owned Chat behavior; delete backend journal/file/RAG/persona authority (IR-003/040 through IR-049/113/721/722/731/800) |
+| Server chat sessions/messages/files and LLM orchestration | Keep transient managed-Gemini inference and locally owned Chat behavior; delete backend journal/file/RAG/persona authority (IR-003/040 through IR-049/113/721/722/731/800) |
 | Apps, personas, integrations, calendar, X, imports and sharing | Delete rejected hosted product surfaces; preserve only independently retained local capabilities (IR-045 through IR-051/141/142/723/724/816 through IR-821) |
 | AI profile, assistant settings, and global proactive-notification controls | Keep behavior locally; delete backend authority/synchronization (IR-036/037/038) |
 | Scheduled Daily Summary generation, storage, sharing and delivery | Delete for the first Mac release (IR-039) |
@@ -3929,7 +3929,7 @@ Leaving the demo cancels unfinished warmup/setup, removes the response observer,
 
 PTT plus screen context is a central retained interaction and not obvious from static copy. This stage both teaches the gesture and validates the full chain before the user depends on it elsewhere. The implementation already limits the cost/risk: it can be skipped, uses temporary local history, does not persist its forced live mode, retries failed warmup, and tears down its real runtime ownership when the stage ends.
 
-IR-061 now keeps both realtime providers, so the demo may exercise whichever configured OpenAI Realtime or Gemini Live path is primary at that moment. IR-113 separately keeps the current managed-Claude path for normal typed Chat.
+IR-061 now keeps Gemini Live as the sole realtime provider. IR-113 separately keeps the local Pi loop while routing normal typed Chat through native managed Gemini.
 
 ### Question
 
@@ -14511,7 +14511,7 @@ Therefore deleting BYOK is not deleting Chat, transcription, embeddings, Focus, 
 - the migration of our own product billing from Stripe to Dodo;
 - platform-owned provider credentials and managed ephemeral credentials required by separately retained compute;
 - per-user usage/cost/quota accounting where our account pays the provider;
-- both OpenAI Realtime and Gemini Live for managed PTT, including explicit switching and cross-provider failover under IR-061; other model/provider workload choices remain separately unresolved;
+- Gemini Live as the sole managed PTT provider, with same-provider reconnect and batch recovery under IR-061; other model/provider workload choices remain separately resolved by their owning rows;
 - ordinary server/deployment/test provider secrets required to run retained managed compute. These are controlled product infrastructure, not keys entered by customers. Remove the production app's `dev_*` provider-key fields and storage with BYOK rather than preserving them under a developer label.
 
 ### Practical choices
@@ -17563,77 +17563,59 @@ This is no longer an independent yes/no product choice. IR-110 keeps a connectio
 
 Deleting these while keeping warm PTT would produce stale-context answers, lost captured audio, cross-account leakage risk, or a first turn that silently hangs after sleep. The code can still be simplified when rejected BYOK, unused cache-report metadata, and deleted providers are removed, but these correctness boundaries remain for whichever realtime provider survives.
 
-### Cross-provider sibling
+### Retired cross-provider sibling
 
-IR-112 itself establishes the same-provider reconnect and correctness-replacement boundary. IR-061 subsequently keeps the sibling behavior that tries the other retained realtime provider after an authentication, quota, or qualifying early transport failure.
+IR-112 itself establishes the same-provider reconnect and correctness-replacement boundary. IR-061 now deletes the former sibling behavior that tried another realtime provider after an authentication, quota, or qualifying early transport failure.
 
 ### Decision
 
-`resolved by dependency - keep same-provider reconnect and correctness replacement; IR-061 also keeps cross-provider failover`
+`reopened and resolved - keep same-provider reconnect and correctness replacement; delete cross-provider failover under IR-061`
 
 No code deletion is authorized yet.
 
-## IR-113 - Managed Claude inference for the local desktop Chat agent
+## IR-113 - Managed Gemini inference for the local desktop Chat agent
 
 ### Requirement implied by the code
 
-> Normal desktop Chat must keep running its agent loop locally on the Mac while sending each model-inference step through the authenticated Python `/v2/chat/completions` endpoint to Anthropic Claude.
+> Normal desktop Chat keeps its proven local Pi orchestration while each model
+> step streams natively through the authenticated Gemini Developer API boundary.
 
-### What “local agent” means in the current product
+### Retained local authority
 
-The agent's control system is local:
-
-- the Node kernel and Pi agent loop run inside the Mac app;
-- conversation identity, context selection, journal turns, and restart durability live in local `omi-agentd.sqlite3`;
-- scoped tool proposals are authorized by the local kernel and executed through retained local Swift tools;
+- the Node kernel and Pi agent loop still run inside the Mac app;
+- conversation identity, context selection, journal turns, and restart durability
+  remain in local `omi-agentd.sqlite3`;
+- the local kernel still authorizes scoped tool proposals and retained Swift tools
+  execute them; and
 - the rejected per-user GCE agent VM is not involved.
 
-The language model itself is not local. The bundled Pi adapter receives the user's Firebase token and calls the product backend using an OpenAI-compatible wire format:
+### Managed inference boundary
 
 ```text
 typed Chat request
   -> local Swift ChatProvider
-  -> local Node kernel + Pi agent loop
-  -> authenticated POST /v2/chat/completions
-  -> Python checks product entitlement, quota, and rate limit
-  -> Python translates the request to Anthropic Messages
-  -> Claude Sonnet/Opus streams model output back
-  -> local loop performs scoped tools and records the final exchange locally
+  -> local Node kernel + Pi google-generative-ai adapter
+  -> Firebase-authenticated POST
+     /v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse
+  -> Python checks entitlement, quota, rate limits, and bounded transport policy
+  -> Python injects GEMINI_API_KEY and streams native Gemini SSE bytes unchanged
+  -> local Pi loop performs scoped tools and records the final exchange locally
 ```
 
-The endpoint maps public names such as `omi-sonnet` and `omi-opus` to configured Claude models. It records count-only model usage for the retained subscription/quota boundary. It does not need to own the Chat thread or copy the local journal into a server database.
-
-IR-601 deletes the former PTT `ask_higher_model` caller and IR-603 deletes the cosmetic Agent Pill title/ack caller. Those removals do not delete the endpoint because normal Chat remains its foundational caller.
-
-### Why this is separate from Gemini versus OpenAI realtime voice
-
-IR-061 keeps both OpenAI Realtime and Gemini Live for provider-native spoken PTT. Normal typed Chat currently uses neither provider for its core agent reasoning; it uses Anthropic. Keeping both PTT providers therefore does not itself retain or remove this endpoint or the Anthropic dependency; IR-113 remains a separate model decision.
-
-### Practical choices
-
-1. **Keep the current managed Claude boundary for v1.** Preserve the local kernel/Pi behavior and the narrow authenticated Python model proxy. Remove rejected cloud journal sync and agent-VM code around it, but not the inference gateway.
-2. **Move the local agent loop to OpenAI or Gemini now.** Keep local state/tools but replace the model and verify prompts, tool-call behavior, streaming, caching, error mapping, usage accounting, and agent-loop quality. The wire protocol alone does not make model behavior interchangeable.
-3. **Bundle a local model.** Remove this cloud inference dependency, but add model downloads, hardware compatibility, memory/thermal constraints, quality work, and a new inference runtime. That is a different product project rather than a shipping simplification.
-
-### Recommendation
-
-`keep the existing local-agent plus managed-Claude-proxy boundary for v1`
-
-It is the working core Chat path and already matches the architecture we want: local authority and tool execution with transient hosted compute. Replacing the reasoning model now would be a high-risk product rewrite. The Python backend can still be reduced to a narrow shared gateway instead of retaining cloud agent state or synchronization.
-
-### Question
-
-Should normal Chat keep using the existing local Node/Pi agent loop with Claude inference through our authenticated Python `/v2/chat/completions` endpoint for v1?
+The desktop never receives or sends the Gemini key. Native contents, tools,
+images, thinking parts, and `thoughtSignature` values are not translated. The
+backend may tee terminal `usageMetadata` for count-only billing without altering
+the stream.
 
 ### Decision
 
-`keep the existing local Node/Pi agent loop with managed Claude inference through Python /v2/chat/completions exactly as implemented for v1`
+`reopened and resolved - keep the existing local Node/Pi loop, replace the Claude proxy with native managed Gemini 3.7 Flash, and expose no provider picker or compatibility alias`
 
-Confirmed: preserve the current separation of responsibilities. The local Mac remains authoritative for the Chat conversation, context plan, Pi model/tool/model loop, tool authorization and execution, restart durability, and journal. The authenticated Python endpoint remains a transient managed-inference gateway that checks entitlement, quota, and rate limits; maps the supported Omi model names to Claude; translates the OpenAI-compatible request into Anthropic Messages; streams text and tool events back to the local loop; and records count-only usage.
-
-Do not make normal typed Chat provider-switchable for v1 and do not redirect it to either retained realtime-voice provider. This decision keeps the existing Claude configuration, request/streaming contract, prompt and tool-call behavior, retry/error mapping, subscription accounting, environment binding, and focused tests. It does not restore the rejected cloud agent VM, server-owned Chat history, cloud journal synchronization, or customer BYOK. IR-601 separately deletes PTT `ask_higher_model`, and IR-603 separately deletes cosmetic Agent Pill title/ack generation.
-
-No code deletion is authorized yet.
+Keep the existing 200k input and 16,384-output caps, transport timeouts,
+heartbeat, pre-first-byte-only retry, cancellation, Firebase authentication,
+quota enforcement, sanitized errors, and local ownership. Delete the Anthropic
+client, translator, SDK and credentials. This does not restore cloud Chat state,
+customer BYOK, or the rejected agent VM.
 
 ## IR-800 - Managed Pi as the only desktop agent adapter
 
@@ -17642,7 +17624,7 @@ No code deletion is authorized yet.
 Normal Chat currently exposes the same global **AI Provider** picker in both **AI Chat** and **Advanced > AI Setup**. It stores one `chatBridgeMode` preference and can route future sessions through four agent adapters:
 
 ```text
-Omi AI    -> bundled Pi runtime -> our authenticated managed-Claude route
+Intentive AI -> bundled Pi runtime -> our authenticated native Gemini route
 Claude    -> ACP adapter -> customer's Claude/Claude Code OAuth credentials
 Hermes    -> locally installed Hermes executable/ACP adapter
 OpenClaw  -> locally installed OpenClaw executable/adapter
@@ -17650,9 +17632,9 @@ OpenClaw  -> locally installed OpenClaw executable/adapter
 
 The external modes are not confined to that picker. `spawn_agent` can carry a `provider` override for Hermes or OpenClaw, the Mac and Node runtime discover those executables, realtime PTT dynamically advertises installed provider names in its tool schema, and provider-specific Agent Pills, setup failures, routing metadata, activation policies, logos, and tests follow the resulting run.
 
-The Claude mode also reads Claude's application-support token cache and checks or deletes the `Claude Code-credentials` Keychain item. This is a customer-owned alternate credential/runtime path. It is not the managed Claude inference kept under IR-113.
+The Claude mode also reads Claude's application-support token cache and checks or deletes the `Claude Code-credentials` Keychain item. This is a customer-owned alternate credential/runtime path. It is not the managed Gemini inference kept under IR-113.
 
-IR-113 already pins v1 normal Chat to the local Node/Pi loop plus our authenticated managed-Claude proxy and explicitly rejects a provider-switchable normal Chat. The remaining question was whether external adapters still earned a separate background-agent purpose.
+IR-113 already pins v1 normal Chat to the local Node/Pi loop plus our authenticated native Gemini stream and explicitly rejects a provider-switchable normal Chat. The remaining question was whether external adapters still earned a separate background-agent purpose.
 
 ### Decision
 
@@ -17660,7 +17642,7 @@ IR-113 already pins v1 normal Chat to the local Node/Pi loop plus our authentica
 
 Confirmed: normal Chat and all retained background Agent Pills use the managed Pi adapter. Delete the Claude ACP, Hermes, and OpenClaw adapter implementations and activation/registry branches; the global provider picker in both Settings locations; non-Pi `BridgeMode`/`AgentHarnessMode`/adapter identities and stored-preference compatibility that have no surviving caller; customer-Claude OAuth events/state/URL launch, config-file and Keychain inspection/deletion, connection status and Disconnect UI; local Hermes/OpenClaw executable discovery and environment injection; directed-provider `spawn_agent` input/schema/admission/routing; realtime dynamic provider advertisement; provider-specific pill identity, logos, setup messages, failure formatting, telemetry dimensions, generated contracts, fixtures, tests, and documentation.
 
-Keep the bundled Pi adapter and whatever generic runtime interface it genuinely requires, the local Node kernel and Pi model/tool/model loop, local tool authorization/execution, local journal and restart durability, ordinary managed and background agents, and the authenticated Python managed-Claude inference boundary retained by IR-113. This does not delete the separately retained OpenAI Realtime and Gemini Live PTT transports, cloud-STT providers, or other non-agent model workloads merely because they are also called providers.
+Keep the bundled Pi adapter and whatever generic runtime interface it genuinely requires, the local Node kernel and Pi model/tool/model loop, local tool authorization/execution, local journal and restart durability, ordinary managed and background agents, and the authenticated native Gemini inference boundary retained by IR-113. This does not delete Gemini Live PTT, cloud-STT providers, retained OpenAI TTS, or other non-agent model workloads merely because they are also called providers.
 
 No product-code deletion is authorized yet.
 
@@ -17685,7 +17667,7 @@ IR-218 explicitly keeps Ask Mode exactly as implemented, including its current i
 
 Confirmed: move the existing Ask Mode card without changing its label, default-off preference, conditional composer switch, per-turn plumbing, current SQL-only check, or tests required by IR-218. Place it beside the surviving Voice Model control in **Advanced > AI Setup**. Delete the top-level **AI Chat** sidebar destination, empty section renderer, exclusive search/navigation/deep-link/automation routing, and section-only tests after all rejected cards are removed.
 
-This does not delete normal Chat, Ask Mode, the floating Chat composer, managed Pi, managed Claude inference, or the separate Floating Bar Settings page.
+This does not delete normal Chat, Ask Mode, the floating Chat composer, managed Pi, managed Gemini inference, or the separate Floating Bar Settings page.
 
 No product-code deletion is authorized yet.
 
@@ -17693,7 +17675,7 @@ No product-code deletion is authorized yet.
 
 ### Context
 
-IR-800 removes the current provider selector and its attribution line. A proposed replacement was a read-only **Chat Model** card in Advanced Settings stating that the agent loop is local while inference uses managed Claude through our service.
+IR-800 removes the current provider selector and its attribution line. A proposed replacement was a read-only **Chat Model** card in Advanced Settings stating that the agent loop is local while inference uses managed cloud inference through our service.
 
 That card does not exist in the current product and would add a new permanent Settings surface after removing provider choice.
 
@@ -18168,37 +18150,37 @@ For surviving fair-use or managed-usage transitions, expose the authoritative st
 
 No product code has been changed.
 
-## IR-827 - LangSmith LLM tracing, observability, and feedback
+## IR-827 - Langfuse LLM tracing and observability
 
 ### Exact current behavior
 
-When configured with a LangSmith API key, the Python backend can attach LangSmith tracer callbacks to agentic Chat runs, assign a run ID, inspect the resulting execution in a LangSmith project, store the run relationship for feedback, and forward user rating feedback to that run. Environment settings choose global or scoped tracing, endpoint, and project. This is model-specific observability: it explains prompts, model/tool execution, and response behavior that Sentry crash diagnostics and PostHog product events do not replace.
+The authenticated Python Chat boundary now creates one fail-open Langfuse generation for every real Gemini request. A deterministic trace ID derived from the Firebase UID and request ID joins provider calls from one local tool loop; the optional bounded Mac session ID groups traces without creating backend Chat authority. Each generation records only explicit provider input/output, stop reason, token/cache counts, first-token timing, and bounded correlation metadata from the native Gemini stream. It never records credentials, arbitrary request objects, or raw exception text. This model-specific evidence is distinct from Sentry crash diagnostics and PostHog product events.
 
 ### Decision
 
-`keep the current LangSmith lifecycle for v1`
+`preserve Omi's observability lifecycle while replacing only the vendor with Langfuse`
 
-Confirmed: retain LangSmith tracing configuration, scoped/global enablement, tracer callbacks, run IDs and metadata, Chat-run association, user-feedback submission, startup status, project/endpoint/API-key configuration, dependency, and focused tests. Configure it against this product's own LangSmith account/project and make the product's privacy/telemetry disclosures truthful about the model content and metadata sent to that service.
+Confirmed: use the existing owned US Langfuse project and the current v4 SDK for lazy client initialization, deterministic trace correlation, prompt-linked generations, sanitized status/error reporting, and bounded shutdown flushing. Require both public and secret keys before enabling delivery, and keep every failure outside the Chat behavior boundary. The implementation deliberately does not restore backend Chat persistence, server-side tool spans, in-app ratings, or Omi's deleted agent architecture.
 
-Keep Sentry and PostHog as separate retained systems with their own responsibilities. Do not replace LangSmith with Langfuse or add dual delivery for v1; a possible later migration is outside the present first-release requirement.
+Keep Sentry and PostHog as separate retained systems with their own responsibilities. Remove all Intentive runtime LangSmith imports and configuration; a transitive package required by LangChain is not an active provider path. Do not add dual delivery or a generic observability-provider abstraction.
 
 No product code has been changed.
 
-## IR-828 - LangSmith Prompt Hub
+## IR-828 - Langfuse Prompt Management
 
 ### Exact current behavior
 
-The backend can pull the agentic system prompt by name from LangSmith Prompt Hub, extract its template and commit/version metadata, cache it in-process for a configurable TTL that defaults to five minutes, and render it with the normal runtime variables. When the key, network, prompt, or template extraction is unavailable, it uses the complete repository-owned fallback prompt. Trace metadata records whether the selected prompt came from LangSmith or the fallback.
+The surviving authenticated Chat boundary fetches the text prompt named `intentive-chat-system` from the existing Intentive Langfuse project using the `production` label and a 300-second SDK cache. The managed text is composed before the existing Mac kernel system policy, and a successfully fetched Langfuse prompt object is linked to the generation. When credentials, network, or prompt lookup are unavailable, the repository fallback is used and the generation records `prompt_source=fallback` and `prompt_version=fallback` without a false prompt-version link.
 
-This deliberately permits prompt iteration through the LangSmith website without a backend code deployment while retaining an operational fallback.
+Omi's LangSmith prompt is not public source and is unavailable to this fork, so it must not be invented or described as copied. The new Langfuse prompt and repository fallback are deliberately the same blank text until Intentive authors its own system prompt. The pre-existing `intentive-runtime-bundle` prompt and all five of its versions remain untouched in the same project as history; this Chat integration does not rename, overwrite, relabel, or delete them.
 
 ### Decision
 
-`keep Prompt Hub plus the repository fallback for v1`
+`keep Langfuse Prompt Management plus an identical repository fallback`
 
-Confirmed: retain remote prompt fetching, the configured prompt name, commit/version metadata, TTL cache and invalidation behavior, safe rendering, source metadata, local fallback, environment configuration, startup visibility, and focused tests. Repoint the default Omi prompt/project identity to this product's own LangSmith resources during rebranding.
+Confirmed: retain remote prompt fetching/linking, the configured prompt name, version metadata, Langfuse SDK cache and stale-while-revalidate behavior, source metadata, identical blank local fallback, environment configuration, and focused tests. Resolve it through the bounded LLM executor only after request validation and skip all prompt and tracing work for the offline stub.
 
-Accept the current two-level authority: the LangSmith prompt is authoritative when successfully fetched, and the versioned repository prompt is the availability fallback. Do not migrate this lifecycle to Langfuse for v1.
+Accept the current two-level authority: the Langfuse prompt is authoritative when successfully fetched, and the identical repository text is the availability fallback. Prompt history is append-only operator state in Langfuse and is not deleted by repository automation.
 
 No product code has been changed.
 
@@ -18258,23 +18240,23 @@ These extras are distinct from the retained server-side writers, `/v1/users/me/u
 
 Confirmed: remove the two unused detailed-reader routes and models, the personal-adapter POST route/model, Mac `recordLlmUsage` client and rejected-harness caller, generated bindings, route-policy entries, and exclusive tests/docs. Remove aggregation helpers only if no retained operator or billing caller remains.
 
-Preserve authoritative server-recorded managed Chat usage, managed PTT count/cost reporting, quota-question idempotency, `/usage-quota`, the total managed-cost value used by the existing limiter, Dodo entitlement mapping, fair-use accounting, billing controls, and LangSmith traces. Do not let arbitrary customer-supplied cost values influence retained billing or quota state.
+Preserve authoritative server-recorded managed Chat usage, managed PTT count/cost reporting, quota-question idempotency, `/usage-quota`, the total managed-cost value used by the existing limiter, Dodo entitlement mapping, fair-use accounting, billing controls, and Langfuse traces. Do not let arbitrary customer-supplied cost values influence retained billing or quota state.
 
 No product code has been changed.
 
-## IR-832 - LangSmith feedback without restoring the in-app rating product
+## IR-832 - Langfuse operator evaluation without restoring the in-app rating product
 
 ### Exact current boundary
 
-IR-827 keeps LangSmith for tracing and model observability in our own project. LangSmith's website lets operators inspect traces, attach annotations, create datasets, and evaluate model behavior without requiring an end-user rating button inside the Mac app.
+IR-827 keeps Langfuse for tracing and model observability in our own project. The Langfuse website lets operators inspect traces, attach annotations, create datasets, and evaluate model behavior without requiring an end-user rating button inside the Mac app.
 
 Omi's separate in-app thumbs-up/down flow copies Chat-message/rating data into cloud analytics and emits a rating event. IR-043 already rejected that product because the retained local Chat has no justified need for the cloud copy or user-facing rating control.
 
 ### Decision
 
-`keep LangSmith website-side annotation and evaluation; do not restore in-app ratings`
+`keep Langfuse website-side annotation and evaluation; do not restore in-app ratings`
 
-Confirmed: retain trace collection and the LangSmith website's operator-side annotation, dataset, and evaluation lifecycle for v1. Keep the in-app thumbs-up/down controls, Firestore message/rating analytics, and coupled rating event deleted under IR-043. If explicit end-user feedback is justified later, it requires its own local-authoritative requirement rather than silently reviving Omi's cloud rating pipeline.
+Confirmed: retain trace collection and Langfuse's operator-side annotation, dataset, and evaluation lifecycle for v1. Keep the in-app thumbs-up/down controls, Firestore message/rating analytics, and coupled rating event deleted under IR-043. If explicit end-user feedback is justified later, it requires its own local-authoritative requirement rather than silently reviving Omi's cloud rating pipeline.
 
 No product code has been changed.
 
@@ -18284,13 +18266,13 @@ No product code has been changed.
 
 `POST /v1/users/analytics/memory_summary` stores a rating against a hosted Omi conversation summary in Firestore, and the matching `GET` route tells a client whether that conversation has already been rated. The current Mac has no live caller; only generated client bindings remain.
 
-This is not LangSmith trace evaluation. It is a separate product-analytics feature tied to the rejected cloud conversation/summary authority.
+This is not Langfuse trace evaluation. It is a separate product-analytics feature tied to the rejected cloud conversation/summary authority.
 
 ### Decision
 
 `delete the cloud conversation-summary rating product`
 
-Confirmed: remove both routes, request/response models, Firestore rating helpers and fields, generated bindings, route-policy entries, and exclusive tests/docs. Preserve LangSmith operator-side evaluation under IR-827/832 and the retained local conversation/transcript experience.
+Confirmed: remove both routes, request/response models, Firestore rating helpers and fields, generated bindings, route-policy entries, and exclusive tests/docs. Preserve Langfuse operator-side evaluation under IR-827/832 and the retained local conversation/transcript experience.
 
 No product code has been changed.
 
@@ -18334,7 +18316,7 @@ No product code has been changed.
 
 `backend/charts/monitoring/` contains Omi's Kubernetes observability platform: Prometheus scrapes application and infrastructure measurements; Grafana hosts dashboards; Loki stores logs in GCS; Alloy collects pod logs; Alertmanager routes alerts; exporters and adapters expose GCP, node, and GPU measurements and drive some Kubernetes autoscaling. Its configuration is centered on Omi's GKE services, domains, namespaces, buckets, GPU fleets, Pusher, LLM gateway, and other deployments already rejected by this audit.
 
-Running it is not a library choice. It means deploying and maintaining another stateful cloud stack, storage retention, secrets, dashboards, alerts, and upgrades. The retained v1 already keeps Sentry for failures, PostHog for product analytics, LangSmith for model traces, and can use its hosting provider's built-in service logs and infrastructure measurements.
+Running it is not a library choice. It means deploying and maintaining another stateful cloud stack, storage retention, secrets, dashboards, alerts, and upgrades. The retained v1 already keeps Sentry for failures, PostHog for product analytics, Langfuse for model traces, and can use its hosting provider's built-in service logs and infrastructure measurements.
 
 ### Decision
 
@@ -18342,7 +18324,7 @@ Running it is not a library choice. It means deploying and maintaining another s
 
 Confirmed: remove the monitoring Helm charts, Omi-specific Prometheus scrape deployment, Grafana/Loki/Alloy/Alertmanager infrastructure, exporters/adapters used only by that stack, Omi dashboards and alert rules, monitoring-domain/bucket/secrets configuration, deploy workflows, and exclusive tests/docs. Remove monitoring references from deleted service charts as their owning services disappear.
 
-Preserve Sentry, PostHog, LangSmith, ordinary sanitized backend logs, provider-native infrastructure monitoring, and the separately retained lightweight metrics surface under IR-837. A future managed metrics integration may consume that surface without recreating Omi's GKE monitoring platform.
+Preserve Sentry, PostHog, Langfuse, ordinary sanitized backend logs, provider-native infrastructure monitoring, and the separately retained lightweight metrics surface under IR-837. A future managed metrics integration may consume that surface without recreating Omi's GKE monitoring platform.
 
 No product code has been changed.
 
@@ -18522,7 +18504,7 @@ No product code has been changed.
 
 ### Exact current pattern
 
-The runtime manifest separates ordinary configuration from secret bindings. Cloud Run receives references to Google Secret Manager entries instead of storing provider keys and signing credentials in the repository or inline workflow YAML. Our retained backend still needs genuine credentials for selected managed AI/STT providers, Dodo, Firebase/server identity where applicable, Sentry/PostHog/LangSmith, signing, and other separately retained boundaries.
+The runtime manifest separates ordinary configuration from secret bindings. Cloud Run receives references to Google Secret Manager entries instead of storing provider keys and signing credentials in the repository or inline workflow YAML. Our retained backend still needs genuine credentials for selected managed AI/STT providers, Dodo, Firebase/server identity where applicable, Sentry/PostHog/Langfuse, signing, and other separately retained boundaries.
 
 Many current secret names instead belong to deleted sync, gateway, Apps, connectors, Twilio, Typesense, wearable, cloud-memory, or duplicate-service behavior.
 
@@ -18994,7 +18976,7 @@ No product code has been changed.
 
 The FastAPI process uses ordinary Python logging, including standard stream handlers and the repository's privacy/sanitization boundaries. On Cloud Run, request logs, container standard output/error, and platform system logs are collected by Cloud Logging without a separately hosted collector. IR-836 already deletes Omi's GKE Prometheus/Grafana/Loki/Alloy/Alertmanager platform; deleting that platform does not require making the retained backend operationally opaque.
 
-Sentry remains the error-diagnostic authority selected elsewhere, PostHog remains the product-analytics authority, and LangSmith remains the model-tracing authority. Cloud Logging supplies the surrounding backend request/runtime evidence rather than replacing any of those systems.
+Sentry remains the error-diagnostic authority selected elsewhere, PostHog remains the product-analytics authority, and Langfuse remains the model-tracing authority. Cloud Logging supplies the surrounding backend request/runtime evidence rather than replacing any of those systems.
 
 ### Decision
 
@@ -19002,7 +18984,7 @@ Sentry remains the error-diagnostic authority selected elsewhere, PostHog remain
 
 Confirmed: preserve retained application logs to standard output/error, Cloud Run request and system logs, severity and useful correlation metadata already shared by surviving code, and the existing rules against raw sensitive payloads. Remove logs, labels, filters, sinks, dashboards, and configuration owned exclusively by rejected services. Do not deploy a logging agent, Loki replacement, custom collector, cross-cloud export pipeline, or another hosted logging product for v1.
 
-This decision does not merge Cloud Logging with Sentry, PostHog, or LangSmith and does not authorize transcript, audio, prompt, secret, token, or other raw sensitive content in logs. Log-retention duration and exclusions are separate operational configuration details rather than silently expanded here.
+This decision does not merge Cloud Logging with Sentry, PostHog, or Langfuse and does not authorize transcript, audio, prompt, secret, token, or other raw sensitive content in logs. Log-retention duration and exclusions are separate operational configuration details rather than silently expanded here.
 
 No product code has been changed.
 
@@ -19126,7 +19108,7 @@ IR-879 keeps Cloud Run's automatically collected request, container, and system 
 
 Confirmed: retain the development and production projects' ordinary 30-day `_Default` log retention and query recent backend evidence in Cloud Logging. Do not add a custom long-retention bucket, GCS/BigQuery export, cross-cloud sink, or third-party log archive for v1. Remove sinks or buckets exclusive to Omi's deleted Loki/GKE stack.
 
-The privacy boundary remains stronger than the retention period: raw audio, transcripts, screenshots, prompts, files, authorization tokens, secrets, payment payloads, and other sensitive customer content must not be logged merely because entries expire after 30 days. Sentry, PostHog, and LangSmith keep their separately accepted scopes and are not log archives.
+The privacy boundary remains stronger than the retention period: raw audio, transcripts, screenshots, prompts, files, authorization tokens, secrets, payment payloads, and other sensitive customer content must not be logged merely because entries expire after 30 days. Sentry, PostHog, and Langfuse keep their separately accepted scopes and are not log archives.
 
 No product code has been changed.
 
@@ -19307,7 +19289,7 @@ The first release therefore needs a truthful destination map without silently re
 
 `ADAPT - use one small externally hosted product and legal site, with exact release notes on GitHub`
 
-Confirmed: keep the Mac's visible **Visit Website**, Terms and real Privacy Policy destinations, but point them to pages we own on one small externally hosted static site. The Privacy Policy must truthfully describe the final retained architecture and processors, including local product-data authority plus Firebase account state, Dodo billing, PostHog, Sentry, LangSmith, managed AI and Modulate where applicable. Keep exact version release notes on our GitHub Releases pages and point the retained release-note behavior there.
+Confirmed: keep the Mac's visible **Visit Website**, Terms and real Privacy Policy destinations, but point them to pages we own on one small externally hosted static site. The Privacy Policy must truthfully describe the final retained architecture and processors, including local product-data authority plus Firebase account state, Dodo billing, PostHog, Sentry, Langfuse, managed AI and Modulate where applicable. Keep exact version release notes on our GitHub Releases pages and point the retained release-note behavior there.
 
 Do not restore the absent Omi `web/` monorepo, admin/personas applications, public-build deployment system or another application backend merely to host these pages. Do not leave Omi URLs or absolute privacy claims in the Mac, remove the retained public links, or treat the in-app local data/settings page as the legal Privacy Policy.
 
@@ -22184,28 +22166,28 @@ PTT spoken-assistant capability                                  KEEP; CHILDREN 
 │   └── provider context caching and reconnect policy           RESOLVED (IR-111/112/061)
 │       ├── PTT cache-identity usage metadata                  DELETE UNUSED FIELDS (IR-111)
 │       ├── same-provider reconnect/context replacement        KEEP BY DEPENDENCY (IR-112)
-│       └── cross-provider failover                             KEEP (IR-061)
+│       └── cross-provider failover                             DELETE (IR-061)
 ├── account and provider credentials
 │   ├── managed subscriber access and ephemeral tokens          KEEP (IR-007)
 │   ├── managed-session usage/cost/quota ledger                 KEEP (IR-056)
 │   ├── BYOK OpenAI/Gemini keys                                 DELETE FOR PTT (IR-058)
 │   └── unread Firestore token-mint audit records               DELETE (IR-057)
 ├── AI model compute and Python backend
-│   ├── core local-agent Chat -> managed Claude proxy          KEEP AS-IS FOR V1 (IR-113)
-│   ├── realtime PTT OpenAI/Gemini portfolio                   KEEP BOTH + SWITCH/FAIL OVER (IR-061)
-│   ├── daily Artificial Analysis Auto provider picker        KEEP AS-IS (IR-600)
+│   ├── core local-agent Chat -> native managed Gemini stream  KEEP ORCHESTRATION (IR-113)
+│   ├── realtime PTT Gemini Live                               KEEP GEMINI ONLY (IR-061)
+│   ├── daily Artificial Analysis Auto provider picker        DELETE (IR-600)
 │   ├── realtime voice -> Claude higher-model escalation      DELETE (IR-601)
 │   │   └── live web lookup through the deleted escalation      DELETE BY DEPENDENCY (IR-602)
 │   ├── Agent Pill cosmetic Claude title/ack generation       DELETE (IR-603)
 │   ├── shipped Chat Prompt Lab + direct Anthropic BYOK       DELETE (IR-604)
-│   ├── dormant normal-Chat Opus/selection scaffolding        DELETE; PIN SONNET (IR-605)
+│   ├── dormant normal-Chat Opus/selection scaffolding        DELETE; PIN GEMINI 3.7 FLASH (IR-605)
 │   ├── orphaned desktop Haiku/ChatLab model identities       DELETE BY DEPENDENCY (IR-606)
 │   ├── per-attempt LLM-gateway Firestore cost ledger         DELETE; NO READER (IR-607)
 │   ├── separately deployed internal LLM gateway service      DELETE; COLLAPSE INTO BACKENDS (IR-608)
 │   ├── global premium/max/BYOK model-QoS profiles             DELETE; ONE ROUTE PER WORKLOAD (IR-609)
-│   ├── GPT fair-use classifier + graduated restriction       KEEP + ADAPT; CHILDREN RESOLVED (IR-610)
+│   ├── Gemini fair-use classifier + graduated restriction    KEEP + ADAPT; CHILDREN RESOLVED (IR-610)
 │   │   ├── classifier evidence from local conversations       KEEP SAME PATTERN; SOURCE FROM LOCAL GRDB (IR-611)
-│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GPT-5.1 (IR-612)
+│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GEMINI 3.7 FLASH (IR-612)
 │   │   ├── durable storage of classifier content evidence     DISCARD CONTENT; STORE FACTS ONLY (IR-613)
 │   │   ├── seven-day throttle-stage product effect             FINAL WARNING + REAL RESET (IR-614)
 │   │   ├── Free allowance exhaustion as fair-use abuse          KEEP CURRENT PATTERN (IR-615)
@@ -22222,13 +22204,13 @@ PTT spoken-assistant capability                                  KEEP; CHILDREN 
 │   ├── transient Gemini embedding proxy                      KEEP (IR-053)
 │   └── retained model workloads                               CLOSED BY IR-710 THROUGH IR-732
 ├── failure paths
-│   ├── backend realtime-STT relay                              KEEP (IR-055)
+│   ├── backend realtime-STT relay                              DELETE (IR-055)
 │   ├── completed-turn batch STT -> text agent -> TTS           KEEP (IR-059)
 │   └── failure UI, retry, and degraded-mode policy             RESOLVED (IR-118)
 │       └── terminal two-second status banner                   KEEP AS-IS (IR-118)
 └── support surface
     ├── provider and voice settings                             RESOLVED (IR-600)
-    │   └── Auto/Gemini/OpenAI Voice Model selection           KEEP AS-IS (IR-600)
+    │   └── Voice Model provider selection                     DELETE (IR-600)
     ├── PTT notch/pill lifecycle presentation                  KEEP AS-IS (IR-119)
     ├── diagnostics and tracing                                 RESOLVED (IR-114–117)
     │   ├── Sentry + PostHog platform ownership                    KEEP; MIGRATE PROJECTS (IR-115)
@@ -22749,9 +22731,11 @@ When the primary realtime hub cannot connect, do we require live interim transcr
 
 ### Decision
 
-`resolved - keep the intermediate backend realtime-STT relay as a PTT fallback when the direct provider hub is unavailable while the user is still holding the shortcut. Preserve live interim/final fallback transcription and the handoff into the normal text-agent/TTS answer path. This keeps microphone audio forwarding through /v1/omni/relay for fallback turns. Do not infer that the relay keeps PTT BYOK, both providers, every setting, or all current protocol branches; IR-058 still removes PTT BYOK and the remaining children stay separately reviewable.`
+`reopened and resolved - delete the intermediate backend realtime-STT relay. When Gemini Live is unavailable, retain the bounded complete PCM turn and its identity while the user continues holding; after release, run the existing silence gate and completed-turn batch STT, then Gemini Chat and retained OpenAI TTS. A failed batch transcription remains the terminal transcription error.`
 
-No code deletion is authorized yet.
+This reopened decision supersedes the earlier relay-retention analysis above. The
+Gemini-first provider simplification implements the deletion without a compatibility
+endpoint.
 
 ## IR-059 - Completed-turn batch STT as final PTT recovery
 
@@ -22908,15 +22892,16 @@ Should the first release keep both OpenAI Realtime and Gemini Live for managed P
 
 ### Decision
 
-`keep both OpenAI Realtime and Gemini Live as interchangeable managed PTT providers, with explicit switching and cross-provider failover`
+`reopened and resolved - keep Gemini Live only; delete OpenAI Realtime, provider switching, and cross-provider failover`
 
-Confirmed: retain both provider-native speech-to-speech implementations as first-class production paths. Preserve managed short-lived credential minting for both providers; the direct client WebSocket transports; provider-specific session setup, microphone sample-rate handling, audio/transcript/event parsing, tool-call and tool-result protocols, screenshot grounding, interruption mechanics, usage parsing and count-only accounting; and the focused tests that keep both paths behaviorally interchangeable behind the normalized realtime-hub contract.
+Gemini `gemini-3.1-flash-live-preview` owns the one native speech-to-speech
+path. Preserve its same-provider reconnect, barge-in session replacement, tools,
+journal, turn claims, and bounded audio buffer. If reconnect cannot recover the
+turn, cascade after release through batch STT, Gemini Chat, and retained OpenAI
+TTS. OpenAI remains only the separate spoken-text output provider.
 
-Retain an explicit provider-selection seam so the configured primary can be changed between OpenAI and Gemini without changing the surrounding PTT product. If the chosen primary fails with an eligible authentication, quota, or early transport failure, try the other retained native provider before degrading to the separately retained backend relay and batch-STT -> normal-Chat -> TTS paths.
-
-This does not restore customer BYOK, which remains deleted under IR-058/062. IR-600 subsequently keeps the daily Artificial Analysis-backed Auto picker and the current user-facing Voice Model selection exactly as implemented. Specific model aliases may be upgraded behind each retained provider contract without reopening the decision to keep both providers.
-
-No code deletion is authorized yet.
+This reopened decision supersedes the dual-provider analysis above and does not
+restore customer BYOK.
 
 ## Parallel review range: Python backend and model workloads
 
@@ -22960,13 +22945,12 @@ Should Auto remain exactly as implemented, or should the first release keep only
 
 ### Decision
 
-`keep the Auto/Gemini/OpenAI Voice Model selection and daily Artificial Analysis-backed Auto behavior exactly as implemented`
+`reopened and resolved - delete Auto, the Voice Model picker, and Artificial Analysis; server-pin realtime voice to Gemini Live`
 
-Confirmed: preserve Auto as the default option and retain the complete current control plane unchanged: the three-choice Advanced Settings picker and labels; persisted manual selection; effective-provider display; authenticated `/v1/auto/model-pick` route; Artificial Analysis proxy-model mapping, 65/35 quality-speed scoring, attribution, and 24-hour backend cache; once-per-local-day Mac refresh; last-good local cache; Gemini fallback; settings-change notification and realtime-hub re-warm; environment configuration; and existing tests.
-
-Manual Gemini and OpenAI choices remain available whenever the user wants to bypass Auto and switch directly. When Auto is selected, its resolved provider remains the primary; the cross-provider failover retained under IR-061 still applies afterward when that primary has an eligible failure. This decision changes no provider protocol, customer-BYOK decision, model alias, or product code.
-
-No code deletion is authorized yet.
+There is no remaining provider portfolio to rank. Delete the saved selection,
+daily refresh and caches, `/v1/auto/model-pick`, Artificial Analysis client and
+credential, provider-status UI, and provider-change rewarm branch. Keep the
+separate OpenAI TTS voice picker unchanged.
 
 ## IR-601 - Realtime voice escalation to the managed Claude model
 
@@ -23011,9 +22995,13 @@ Should realtime voice retain `ask_higher_model` so it can hand difficult or chal
 
 `delete the realtime ask_higher_model tool entirely`
 
-Reopened and confirmed after the live-web mismatch was explained: remove `ask_higher_model` from the source tool manifest and regenerated OpenAI/Gemini schemas, realtime capability lists, authorization surface, provider instructions, dispatch switch, synthetic harnesses, and tests. Delete its unique Mac execution path: `escalateToHigherModel`, escalation prompt/body construction, `omi_web_search` flag, owner-bound higher-model transport, response parsing, failure text, logging, and comments. Remove files or context/cache plumbing only when no surviving caller remains after regeneration and reference tracing.
+Reopened and confirmed after the live-web mismatch was explained: remove `ask_higher_model` from the source tool manifest and regenerated Gemini schema, realtime capability lists, authorization surface, provider instructions, dispatch switch, synthetic harnesses, and tests. Delete its unique Mac execution path: `escalateToHigherModel`, escalation prompt/body construction, `omi_web_search` flag, owner-bound higher-model transport, response parsing, failure text, logging, and comments. Remove files or context/cache plumbing only when no surviving caller remains after regeneration and reference tracing.
 
-The selected OpenAI Realtime or Gemini Live model now owns every ordinary voice answer itself. It must answer, decline, or state that it cannot verify live information; voice no longer calls Claude for a second opinion. This does not delete the managed `/v2/chat/completions` endpoint or normal typed Chat retained under IR-113. IR-603 separately deletes the Agent Pill title/ack caller. This decision does not change the two-provider portfolio, Auto/manual selection, or cross-provider transport failover retained under IR-061 and IR-600.
+Gemini Live now owns every ordinary voice answer itself. It must answer, decline,
+or state that it cannot verify live information; voice no longer calls a second
+model for another opinion. Normal typed Chat remains under IR-113's native
+managed-Gemini boundary. IR-603 separately deletes the Agent Pill title/ack
+caller, while IR-061/600 delete provider choice and cross-provider failover.
 
 No code deletion is authorized yet.
 
@@ -23109,7 +23097,7 @@ Should we delete this cosmetic Haiku call and keep Agent Pill title/status gener
 
 Confirmed for v1 simplicity and ease of mind: remove `generateTitleAndAck`, its extra authenticated `/v2/chat/completions` request, Haiku model selection, prompt, eight-second timeout, response/JSON parsing, late title/status mutation, logs, comments, and tests that exist only for this cosmetic call. Remove the unused generated acknowledgement and instant-ack helpers only where reference tracing proves no surviving caller.
 
-Preserve the immediate deterministic title derived from the request, the normal `Starting…` -> `Working…` -> terminal status lifecycle, any authoritative title or acknowledgement already supplied by the router, account-owner fencing around surviving pill updates, and all background-agent execution, results, journal, and UI behavior unrelated to cosmetic generation. The managed Claude endpoint remains for normal typed Chat under IR-113.
+Preserve the immediate deterministic title derived from the request, the normal `Starting…` -> `Working…` -> terminal status lifecycle, any authoritative title or acknowledgement already supplied by the router, account-owner fencing around surviving pill updates, and all background-agent execution, results, journal, and UI behavior unrelated to cosmetic generation. Native managed Gemini remains for normal typed Chat under IR-113.
 
 No code deletion is authorized yet.
 
@@ -23134,7 +23122,7 @@ The lab is not normal Chat. It is an internal product-development workbench embe
 - it fetches production ratings and tries to attribute them to prompt versions by date;
 - in an ordinary shipped app without the source repository, the git-history portion simply becomes empty.
 
-The lab does not change the production prompt automatically. Its generated versions and evaluation work help a developer compare prompt ideas inside the UI. Removing it does not remove normal typed Chat, its production prompt, the local agent loop, or the retained managed Claude endpoint.
+The lab does not change the production prompt automatically. Its generated versions and evaluation work help a developer compare prompt ideas inside the UI. Removing it does not remove normal typed Chat, its production prompt, the local agent loop, or the retained managed Gemini endpoint.
 
 ### Existing decision conflict
 
@@ -23162,7 +23150,7 @@ Should the v1 app delete Chat Prompt Lab entirely, or retain it as a gated inter
 
 Confirmed: remove the unconditional Advanced Settings Dev Tools card, `ChatLabView` and its window manager/view model/data models, the `chatlab_anthropic_api_key` preference and direct Anthropic requests, prompt generation and AI grading, real-context lab questions and isolated `chat_lab` runtime surface, repository/git prompt-history reader, production-ratings attribution, prompt-version comparison/editor state, ChatProvider lab-only helpers, ChatLab-only model constants, and exclusive tests and documentation. Reference-trace shared Chat/runtime helpers before removal and retain anything with an independent production caller.
 
-This does not change normal Chat, its production prompt, the local Node/Pi loop, managed Claude inference retained under IR-113, production message rating behavior outside the lab, or repository-level testing. If prompt evaluation is needed later, build it as an explicitly internal harness or developer script that is not shipped to customers and does not recreate customer BYOK.
+This does not change normal Chat, its production prompt, the local Node/Pi loop, managed Gemini inference retained under IR-113, production message rating behavior outside the lab, or repository-level testing. If prompt evaluation is needed later, build it as an explicitly internal harness or developer script that is not shipped to customers and does not recreate customer BYOK.
 
 No code deletion is authorized yet.
 
@@ -23212,13 +23200,18 @@ For v1 ease of mind, should normal Chat be pinned to Sonnet everywhere, or shoul
 
 ### Decision
 
-`pin normal Chat to Sonnet for v1 and delete dormant Opus/product-selection scaffolding`
+`reopened and resolved - pin normal Chat to the actual gemini-3.7-flash ID and delete all Claude identities and selection scaffolding`
 
-Confirmed: make one canonical Sonnet identity authoritative for retained normal Chat and background-agent launches. Remove the product-side selected-model preference, one-choice/dead model-menu accessors and target, sanitization/tier-change state used only for selection, conditional model fallbacks, Pi `omi-opus` registration, in-tree Opus mappings, and Opus-only tests and comments. Migrate every surviving in-tree caller to the canonical Sonnet route in the same implementation change.
+Confirmed: make `gemini-3.7-flash` authoritative for retained normal Chat and
+background-agent launches. Remove the selected-model preference, dead menu,
+Opus registration/mappings, `omi-sonnet` runtime alias, and Claude-only tests and
+comments. Migrate the current development SQLite profile once by appending a new
+canonical execution-profile generation; historical audit rows may retain their
+original value but no runtime alias survives.
 
-Preserve the normal Chat experience, local Node/Pi agent loop, tools, context and journal, managed Python inference boundary, Sonnet configuration, and the separate realtime Gemini/OpenAI picker. Before removing a backend-accepted alias, check the released-client API contract; any genuinely required compatibility must be explicit and versioned rather than preserving dormant product selection. Haiku and dated identifiers are resolved separately under IR-606.
-
-No code deletion is authorized yet.
+Preserve the local Node/Pi loop, tools, context, journal, and managed Python
+inference boundary. Realtime voice is separately pinned to Gemini Live under
+IR-061. Flash-Lite workloads remain separately retained.
 
 ## IR-606 - Orphaned desktop Haiku and ChatLab model identities
 
@@ -23417,7 +23410,10 @@ Should we delete the global `premium`/`max`/`byok` profile system and keep one e
 
 Confirmed: remove the duplicated `premium`, `max`, and `byok` maps; the global startup `MODEL_QOS` selector; customer-BYOK route upgrades; profile-name/accessor/logging machinery; and profile-only tests/docs/config. Replace them with one typed managed provider/model route for each workload that survives its own audit. Delete a workload's route when that workload is rejected rather than keeping dead feature vocabulary in a generic map.
 
-This decision does not choose every remaining provider/model in bulk. Normal Chat remains pinned to Sonnet under IR-605, realtime voice remains separately switchable between OpenAI and Gemini under IR-061/600, and later requirements will resolve each remaining Python workload once.
+This decision does not choose every remaining provider/model in bulk. The
+reopened provider decisions now pin normal Chat and retained managed text to
+Gemini 3.7 Flash, and pin realtime voice to Gemini Live under IR-061/600.
+Remaining workload decisions still resolve their own behavior once.
 
 No product code deletion is authorized yet.
 
@@ -23538,7 +23534,7 @@ backend rolling speech meter crosses a soft trigger
 
 Do not recreate durable hosted conversation documents, upload raw transcripts/audio, or let an empty/stale server conversation query stand in for the Mac's real local history. The evidence is assembled only after a soft trigger and exists only for that review.
 
-This decision establishes where the evidence comes from, not yet where model inference runs. The repository has no existing general-purpose on-device language model for this task. `AgentBridge` is a local runtime/orchestrator, but its normal model inference is managed Claude through the Python desktop backend, so using it would still send the bounded title/overview evidence off the Mac. IR-612 resolves that boundary explicitly.
+This decision establishes where the evidence comes from, not yet where model inference runs. The repository has no existing general-purpose on-device language model for this task. `AgentBridge` is a local runtime/orchestrator, but its normal model inference is managed Gemini through the Python desktop backend, so using it would still send the bounded title/overview evidence off the Mac. IR-612 resolves that boundary explicitly.
 
 No product code deletion is authorized yet.
 
@@ -28971,7 +28967,7 @@ The current trigger set includes `floating_bar`, `service`, and `workstream`. IR
 
 `keep bounded managed-Pi completion context in live voice and remove the rejected workstream trigger`
 
-Confirmed: preserve terminal-transition observation for retained background surfaces, canonical local completion-delta reads, the previous-hour window, five-run bound, untrusted-context marking, no immediate synthetic response, delivery only into a live session, retry on provider readiness, and exactly-once checkpoint advancement only after successful injection. Keep the behavior compatible with both retained OpenAI Realtime and Gemini Live sessions.
+Confirmed: preserve terminal-transition observation for retained background surfaces, canonical local completion-delta reads, the previous-hour window, five-run bound, untrusted-context marking, no immediate synthetic response, delivery only into a live session, retry on provider readiness, and exactly-once checkpoint advancement only after successful injection. Keep the behavior compatible with the retained Gemini Live session.
 
 Remove `workstream` from the trigger set and delete any coupling that exists only for the rejected workstream product. Keep `service` only for genuinely retained local managed-Pi service runs. Do not add another model call, cloud completion store, immediate spoken interruption, or second completion authority.
 
@@ -29239,7 +29235,7 @@ No product code has been changed.
 
 The extension currently combines surviving and rejected behavior in one file. It registers Omi's OpenAI-compatible provider against `https://api.omi.me/v2`, advertises Omi Sonnet and Omi Opus, adds optional four-provider BYOK headers, forwards request-correlation and reasoning-lane metadata, registers the scoped Omi tool manifest over the private Unix-socket bridge, retains the rejected skill-search/load compatibility, classifies Pi's general shell/file calls through a dangerous-command denylist, and appends every tool call/result to `~/.omi/pi-mono-audit.log`. No other live Mac component reads that audit log.
 
-Every boundary is already decided: IR-113/800 retain managed Pi and its managed-Claude proxy; IR-922/923 retain the private typed-tool route; IR-062 deletes product-wide BYOK; IR-605 pins normal Chat to Sonnet and removes Opus selection; IR-217 deletes Pi skill compatibility; IR-049 deletes broad shell/file execution and its exclusive denylist/audit surfaces; and IR-871/931 replace Omi's endpoint and local identity with this product's owned names.
+Every boundary is already decided: IR-113/800 retain managed Pi and its native managed-Gemini stream; IR-922/923 retain the private typed-tool route; IR-062 deletes product-wide BYOK; IR-605 pins normal Chat to `gemini-3.7-flash` and removes Claude selection; IR-217 deletes Pi skill compatibility; IR-049 deletes broad shell/file execution and its exclusive denylist/audit surfaces; and IR-871/931 replace Omi's endpoint and local identity with this product's owned names.
 
 ### Decision
 

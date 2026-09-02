@@ -147,8 +147,45 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'HTTP_ACCOUNT_DELETION_WIPE_RUN_TIMEOUT=1500' in service_env
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE=' in service_env
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA=' in service_env
+    assert 'LANGFUSE_BASE_URL=https://us.cloud.langfuse.com' in service_env
+    assert 'LANGFUSE_TRACING_ENVIRONMENT=production' in service_env
+    assert 'LANGFUSE_PROMPT_NAME=intentive-chat-system' in service_env
+    assert 'LANGFUSE_PROMPT_CACHE_TTL_SECONDS=300' in service_env
+    assert 'LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:7' in _job_secret_lines(output, 'backend')
+    assert 'LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:7' in _job_secret_lines(output, 'backend')
     assert 'backend_sync_env_vars' not in output
     assert 'OMI_LLM_GATEWAY' not in output
+
+
+def test_render_dev_emits_free_tier_cloud_run_without_private_network(capsys, monkeypatch):
+    monkeypatch.delenv('CLOUD_RUN_VPC_NETWORK', raising=False)
+    monkeypatch.delenv('CLOUD_RUN_VPC_SUBNET', raising=False)
+    monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
+    monkeypatch.setenv(
+        'ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.com/v1/users/account-deletion-wipes/run'
+    )
+    monkeypatch.setenv(
+        'ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE', 'https://backend.example.com/v1/users/account-deletion-wipes/run'
+    )
+    monkeypatch.setenv('ACCOUNT_DELETION_TASKS_INVOKER_SA', 'invoker@project.iam.gserviceaccount.com')
+    monkeypatch.setenv(
+        'ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE',
+        'https://legacy.example.com/v1/users/account-deletion-wipes/run',
+    )
+    monkeypatch.setenv('ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA', 'legacy@project.iam.gserviceaccount.com')
+    monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'dev'])
+
+    assert _MODULE['main']() == 0
+    output = capsys.readouterr().out
+
+    assert _output_value(output, 'cloud_run_flags') == ''
+    service_flags = _output_value(output, 'backend_flags')
+    assert '--cpu=1' in service_flags
+    assert '--memory=2Gi' in service_flags
+    assert '--min-instances=0' in service_flags
+    assert '--max-instances=1' in service_flags
+    assert '--cpu-throttling' in service_flags
+    assert '--no-cpu-throttling' not in service_flags
 
 
 def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(capsys, monkeypatch):

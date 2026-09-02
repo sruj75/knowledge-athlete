@@ -74,12 +74,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/ee/67/531ea369ba64dcff5
 wheels = [{ url = "https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl", upload-time = 2024-05-20T21:33:24Z, size = 13643, hashes = { sha256 = "1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53" } }]
 
 [[packages]]
-name = "anthropic"
-version = "0.111.0"
-sdist = { url = "https://files.pythonhosted.org/packages/b9/8a/9afc7305a2ce4b52b30e137f83cd2a6a90b918b3997073db11bb5a1de55a/anthropic-0.111.0.tar.gz", upload-time = 2026-06-18T17:31:44Z, size = 934001, hashes = { sha256 = "39cbda0ac17a6d423e5bf609811bd69b26eddf6299d7a468126e05bc711ce826" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/f1/bb/09e82a81885d787f350fb55ca9df865b63140dd28b3b5b3104c4ae261657/anthropic-0.111.0-py3-none-any.whl", upload-time = 2026-06-18T17:31:43Z, size = 929774, hashes = { sha256 = "c14edb36ed80da9099acbd26b5cec810d76606c31f32a0d56a4cf9d4fa9e25ae" } }]
-
-[[packages]]
 name = "antlr4-python3-runtime"
 version = "4.9.3"
 sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz", upload-time = 2021-11-06T17:52:23Z, size = 117034, hashes = { sha256 = "f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b" } }
@@ -251,12 +245,6 @@ wheels = [{ url = "https://files.pythonhosted.org/packages/87/a1/8c5287991ddb8d3
 name = "docopt"
 version = "0.6.2"
 sdist = { url = "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz", upload-time = 2014-06-16T11:18:57Z, size = 25901, hashes = { sha256 = "49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491" } }
-
-[[packages]]
-name = "docstring-parser"
-version = "0.18.0"
-sdist = { url = "https://files.pythonhosted.org/packages/e0/4d/f332313098c1de1b2d2ff91cf2674415cc7cddab2ca1b01ae29774bd5fdf/docstring_parser-0.18.0.tar.gz", upload-time = 2026-04-14T04:09:19Z, size = 29341, hashes = { sha256 = "292510982205c12b1248696f44959db3cdd1740237a968ea1e2e7a900eeb2015" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/a7/5f/ed01f9a3cdffbd5a008556fc7b2a08ddb1cc6ace7effa7340604b1d16699/docstring_parser-0.18.0-py3-none-any.whl", upload-time = 2026-04-14T04:09:18Z, size = 22484, hashes = { sha256 = "b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b" } }]
 
 [[packages]]
 name = "dodopayments"
@@ -672,12 +660,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/ff/27/f3c8f47b7c194c42a
 wheels = [{ url = "https://files.pythonhosted.org/packages/83/9d/c79a367e3379cf6b7d0cc43d558a411a5097d55291f2ce2f573420adb523/langchain_google_genai-3.2.0-py3-none-any.whl", upload-time = 2025-11-24T14:33:10Z, size = 57604, hashes = { sha256 = "689fc159d4623a184678e24771f6d52373e983a8fc8d342e44352aaf28e9445d" } }]
 
 [[packages]]
-name = "langchain-openai"
-version = "1.1.14"
-sdist = { url = "https://files.pythonhosted.org/packages/8e/f5/b1a56f703fb90952b07ff9fb5507123a39df1267d62a7f2bb821c5dbb628/langchain_openai-1.1.14.tar.gz", upload-time = 2026-04-16T14:55:24Z, size = 1115195, hashes = { sha256 = "71b4262932fabe506ce79c175dbc956cc48f24d81e20b27662df493147750643" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/0b/fa/8c33befbc0cf81b21371cc1dab4e7bf94a80b8116194f263a5021ec02529/langchain_openai-1.1.14-py3-none-any.whl", upload-time = 2026-04-16T14:55:23Z, size = 88705, hashes = { sha256 = "cb525d2011f9813fc15a7dcfd4bca5b87badcbcb2c113a7fbe45d1b8a1bbb69c" } }]
-
-[[packages]]
 name = "langchain-protocol"
 version = "0.0.18"
 sdist = { url = "https://files.pythonhosted.org/packages/d2/59/b5959aea96faa9146e2e49a7a22882b3528c62efafe9a6a95beab30c2305/langchain_protocol-0.0.18.tar.gz", upload-time = 2026-06-18T17:08:26Z, size = 6150, hashes = { sha256 = "ec3e11782f1ed0c9db38e5a9ed01b0e7a0d3fba406faa8aef6594b73c56a63e6" } }
@@ -693,6 +675,12 @@ wheels = [{ url = "https://files.pythonhosted.org/packages/d3/26/1ef06f56198d631
 name = "langdetect"
 version = "1.0.9"
 sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", upload-time = 2021-05-07T07:54:13Z, size = 981474, hashes = { sha256 = "cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0" } }
+
+[[packages]]
+name = "langfuse"
+version = "4.15.1"
+sdist = { url = "https://files.pythonhosted.org/packages/c2/51/ed5569bc2dcc8fe767e3b315207a7511ad23d00d811f02bbf0d6f80bf906/langfuse-4.15.1.tar.gz", upload-time = 2026-08-28T07:55:15Z, size = 432353, hashes = { sha256 = "70cb47529a6ba78383c4f2a197eb3d3ab9d39529c9e6b568d392150c1f40dbb9" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/2a/f9/7160bafcfe9797575359a9e77f810cf26f57f55a7c5ceda602fd9e353ddf/langfuse-4.15.1-py3-none-any.whl", upload-time = 2026-08-28T07:55:14Z, size = 789929, hashes = { sha256 = "795760693a62895157b6f5d6c80f1ad524fd12380995f06f82fc3a627b88c8d4" } }]
 
 [[packages]]
 name = "langgraph"
@@ -880,10 +868,40 @@ version = "1.19.0"
 wheels = [{ url = "https://files.pythonhosted.org/packages/80/16/fc200316725d04731d8ffc5d2105887a1e400d760b0c7fd464744335cd29/onnxruntime-1.19.0-cp311-cp311-macosx_11_0_universal2.whl", upload-time = 2024-08-15T19:17:32Z, size = 16778356, hashes = { sha256 = "a2b53b3c287cd933e5eb597273926e899082d8c84ab96e1b34035764a1627e17" } }]
 
 [[packages]]
-name = "openai"
-version = "2.38.0"
-sdist = { url = "https://files.pythonhosted.org/packages/8f/12/cfa322c5f5dd8fa21aab9a7a8e979e7a11123800f86ca8d82eb68a83d213/openai-2.38.0.tar.gz", upload-time = 2026-05-21T21:23:42Z, size = 772764, hashes = { sha256 = "798694c6cf74145541fda94325b6f8f72d8e1fd0262cc137c8d728177a6a4ce3" } }
-wheels = [{ url = "https://files.pythonhosted.org/packages/0a/bf/ccff9be562e24207716d04ef9dc931c76aff0c89a7265da43e2104d7fe06/openai-2.38.0-py3-none-any.whl", upload-time = 2026-05-21T21:23:39Z, size = 1344910, hashes = { sha256 = "ec6661c57b2dcc47414a767e6e3335c7ed3d19c9696999283a3c82e95c756a3c" } }]
+name = "opentelemetry-api"
+version = "1.44.0"
+sdist = { url = "https://files.pythonhosted.org/packages/ee/8b/aa9e2d8b8dfa7c946f7dec5d1f8f6ba8eca062f43509a06bdb5ce93d26c0/opentelemetry_api-1.44.0.tar.gz", upload-time = 2026-07-16T15:25:32Z, size = 72406, hashes = { sha256 = "67647e5e9566edcf421166fdf022b3537f818635daa852b289e34604dc6fb33a" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/ca/6f/a04e900f465ff3221ccc395522503e2d10e79fa21f2723c8e177aae1e0d1/opentelemetry_api-1.44.0-py3-none-any.whl", upload-time = 2026-07-16T15:25:11Z, size = 60018, hashes = { sha256 = "94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef" } }]
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-common"
+version = "1.44.0"
+sdist = { url = "https://files.pythonhosted.org/packages/61/09/4d717852c1cf3f854b76c7110a5d00883bc3c99288b9b0dbcbeb9e306eb6/opentelemetry_exporter_otlp_proto_common-1.44.0.tar.gz", upload-time = 2026-07-16T15:25:37Z, size = 20202, hashes = { sha256 = "dc87a5a5bc58f149a56d1547e4691588fa12994cdc3bc039a694ccb3375862ac" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/5e/71/65fd9d54c10b860f87c045ccee1264cab7011268895d3528818a29c1172a/opentelemetry_exporter_otlp_proto_common-1.44.0-py3-none-any.whl", upload-time = 2026-07-16T15:25:18Z, size = 17045, hashes = { sha256 = "9a9fe61bba73d802904bc989f1d6b4a7b1ee40f06c40e98d6f85af65aaebb694" } }]
+
+[[packages]]
+name = "opentelemetry-exporter-otlp-proto-http"
+version = "1.44.0"
+sdist = { url = "https://files.pythonhosted.org/packages/1a/87/95e2a5aaa795b4e2260d74e16df2d5541deb2ea9de010bcd615f4dee2654/opentelemetry_exporter_otlp_proto_http-1.44.0.tar.gz", upload-time = 2026-07-16T15:25:39Z, size = 25806, hashes = { sha256 = "c633d7270ad6b57cd4cfbe8b0007a9e2e7c0cb50bd6c50fe2a7b245f721a09d8" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/cd/d0/fdeb1a98d8d3a6205f5f297c51b4a9bfe65126ab60339669bbe3dd54c2e2/opentelemetry_exporter_otlp_proto_http-1.44.0-py3-none-any.whl", upload-time = 2026-07-16T15:25:20Z, size = 21850, hashes = { sha256 = "838592fce774c1c8bb7b9a0a7facbfa82e17be5a8a4e94cef10cb84ae026bae3" } }]
+
+[[packages]]
+name = "opentelemetry-proto"
+version = "1.44.0"
+sdist = { url = "https://files.pythonhosted.org/packages/64/01/40ac4ae9a149263cc52c2cee200ddd80cb6d8db1a4610abf8eabce0fe771/opentelemetry_proto-1.44.0.tar.gz", upload-time = 2026-07-16T15:25:45Z, size = 46488, hashes = { sha256 = "c547a79c2f8c0c515d31509154682e5921c7cfd5ca67b70e1f9266e2c3e103f3" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/d1/7c/8be563d68e93bbefa5c8affb82ddcff91b3ad858ce49957ba7b16fd3e0ab/opentelemetry_proto-1.44.0-py3-none-any.whl", upload-time = 2026-07-16T15:25:28Z, size = 72483, hashes = { sha256 = "898b155a0e1557afd867478fb6158e8122a46329ca0bb8dc53cc55e98f017f56" } }]
+
+[[packages]]
+name = "opentelemetry-sdk"
+version = "1.44.0"
+sdist = { url = "https://files.pythonhosted.org/packages/5d/77/a6592cbc7c8d9bcc9d6757a9df45e04a7c585e3e6e7a13456da522b21109/opentelemetry_sdk-1.44.0.tar.gz", upload-time = 2026-07-16T15:25:46Z, size = 208624, hashes = { sha256 = "cebe7f65dc12f26ead75c6064de12fd2a9052e5060c0272d402cfa203aae123b" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/e7/23/ff077e61886ee020a17ce9c8b6fa11c601c8d8345b09ea24f605445df62a/opentelemetry_sdk-1.44.0-py3-none-any.whl", upload-time = 2026-07-16T15:25:29Z, size = 137221, hashes = { sha256 = "df081c4c6bcfdb1211e3e86140376792643128a25f8d72d1d27675936e7e96ad" } }]
+
+[[packages]]
+name = "opentelemetry-semantic-conventions"
+version = "0.65b0"
+sdist = { url = "https://files.pythonhosted.org/packages/8f/73/0cbdebcb4cf545fdd328da14f5137e37d0770c3f26185e478b0d15d94f50/opentelemetry_semantic_conventions-0.65b0.tar.gz", upload-time = 2026-07-16T15:25:46Z, size = 148774, hashes = { sha256 = "f9b2b81e9d5b64f11bc952075e7e9c7fb0aab075c7fd1c46d597f1b919852d60" } }
+wheels = [{ url = "https://files.pythonhosted.org/packages/a6/0e/49df70d9b81fb5cbae4bbf2a49d865b09bcbcbc4eb53f5851b1027738d78/opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl", upload-time = 2026-07-16T15:25:30Z, size = 204645, hashes = { sha256 = "1cacde7b0ad306f84c5ef08c3dbe1bbaf20165bba6f8bff43b670e555a086bcb" } }]
 
 [[packages]]
 name = "optuna"
@@ -1563,6 +1581,15 @@ name = "werkzeug"
 version = "3.1.8"
 sdist = { url = "https://files.pythonhosted.org/packages/dd/b2/381be8cfdee792dd117872481b6e378f85c957dd7c5bca38897b08f765fd/werkzeug-3.1.8.tar.gz", upload-time = 2026-04-02T18:49:14Z, size = 875852, hashes = { sha256 = "9bad61a4268dac112f1c5cd4630a56ede601b6ed420300677a869083d70a4c44" } }
 wheels = [{ url = "https://files.pythonhosted.org/packages/93/8c/2e650f2afeb7ee576912636c23ddb621c91ac6a98e66dc8d29c3c69446e1/werkzeug-3.1.8-py3-none-any.whl", upload-time = 2026-04-02T18:49:12Z, size = 226459, hashes = { sha256 = "63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50" } }]
+
+[[packages]]
+name = "wrapt"
+version = "2.4.0"
+sdist = { url = "https://files.pythonhosted.org/packages/65/ba/8dc25478ed234dacc7d83c671634f347d0bdfb65bf0502f41879cf2f15a9/wrapt-2.4.0.tar.gz", upload-time = 2026-08-30T04:41:51Z, size = 161179, hashes = { sha256 = "7082fc1f94b020ac275870c4af71b09cff22876fe6e9c4c0ad01ea21d217b288" } }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/f0/f2f25fe8d516e63354ce4b027d4dc8d824bbf1f5f173f0bb83ce1bcbf706/wrapt-2.4.0-cp311-cp311-macosx_10_9_x86_64.whl", upload-time = 2026-08-30T04:39:25Z, size = 95620, hashes = { sha256 = "a67ec80d15ac199d4a9a04a33f3039a1c219c9bf1c07b1b0422497613f167fb9" } },
+    { url = "https://files.pythonhosted.org/packages/79/c8/fafe0002f572ced999c792cfe8b05d39269c63d8193d15d25bd828bcad7a/wrapt-2.4.0-py3-none-any.whl", upload-time = 2026-08-30T04:41:49Z, size = 73713, hashes = { sha256 = "18aabd9301d06026f5900538051773d6f87f65ae02cdc60de482df978513dc0a" } },
+]
 
 [[packages]]
 name = "xxhash"

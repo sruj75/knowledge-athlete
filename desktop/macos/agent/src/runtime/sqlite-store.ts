@@ -67,6 +67,7 @@ const JOURNAL_PRODUCING_ATTEMPT_MIGRATION_VERSION = 27;
 const MANAGED_PI_EXECUTION_PROFILE_MIGRATION_VERSION = 29;
 const LOCAL_CHAT_CATALOG_MIGRATION_VERSION = 31;
 const DROP_CHAT_PROJECTION_MIGRATION_VERSION = 32;
+const GEMINI_MODEL_PROFILE_MIGRATION_VERSION = 33;
 const RETIRED_CHAT_PROJECTION_MIGRATION_VERSIONS = [22, 23, 24, 26, 28] as const;
 
 const ACTIVE_ATTEMPT_STATUSES = ["queued", "starting", "running", "waiting_input", "waiting_approval", "cancelling"] as const;
@@ -83,7 +84,7 @@ export interface SqliteAgentStoreOptions {
   databaseFactory?: DatabaseFactory;
   canonicalExecutionProfile?: {
     adapterId: "pi-mono";
-    modelProfile: "omi-sonnet";
+    modelProfile: "gemini-3.7-flash";
     workingDirectory: string;
   };
 }
@@ -387,6 +388,11 @@ export function probeNodeSqliteRuntime(options: NodeSqliteProbeOptions = {}): vo
     runRetiredTaskProductMigration(db, Date.now());
     runLocalChatCatalogMigration(db, Date.now());
     runDropChatProjectionMigration(db, Date.now());
+    runGeminiModelProfileMigration(db, Date.now(), {
+      adapterId: "pi-mono",
+      modelProfile: "gemini-3.7-flash",
+      workingDirectory: "/tmp/intentive-agent-probe",
+    });
     runTransaction(db, () => {
       db?.prepare("INSERT INTO sessions (session_id, owner_id, status, surface_kind, default_adapter_id, created_at_ms, updated_at_ms, last_activity_at_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
         "ses_probe",
@@ -427,7 +433,7 @@ export class SqliteAgentStore implements AgentStore {
     this.nowMs = options.nowMs ?? Date.now;
     this.canonicalExecutionProfile = options.canonicalExecutionProfile ?? {
       adapterId: "pi-mono",
-      modelProfile: "omi-sonnet",
+      modelProfile: "gemini-3.7-flash",
       workingDirectory: join(dirname(databasePath), "artifacts"),
     };
 
@@ -530,6 +536,9 @@ export class SqliteAgentStore implements AgentStore {
     }
     if (!this.hasMigration(DROP_CHAT_PROJECTION_MIGRATION_VERSION)) {
       runDropChatProjectionMigration(this.db, this.nowMs());
+    }
+    if (!this.hasMigration(GEMINI_MODEL_PROFILE_MIGRATION_VERSION)) {
+      runGeminiModelProfileMigration(this.db, this.nowMs(), this.canonicalExecutionProfile);
     }
   }
 
@@ -2899,6 +2908,69 @@ function runDropChatProjectionMigration(
     `);
     db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
       DROP_CHAT_PROJECTION_MIGRATION_VERSION,
+      appliedAtMs,
+    );
+  });
+}
+
+function runGeminiModelProfileMigration(
+  db: Pick<DatabaseSync, "exec" | "prepare" | "isTransaction">,
+  appliedAtMs: number,
+  canonicalProfile: NonNullable<SqliteAgentStoreOptions["canonicalExecutionProfile"]>,
+): void {
+  runTransaction(db, () => {
+    const sessions = db.prepare(
+      `SELECT s.session_id, s.current_profile_generation, p.execution_role
+       FROM sessions s
+       JOIN session_execution_profiles p
+         ON p.session_id = s.session_id
+        AND p.generation = s.current_profile_generation
+       WHERE p.adapter_id = 'pi-mono'
+         AND COALESCE(p.model_profile, '') = 'omi-sonnet'
+       ORDER BY s.created_at_ms ASC, s.session_id ASC`,
+    ).all() as Row[];
+    const nextGeneration = db.prepare(
+      "SELECT COALESCE(MAX(generation), 0) + 1 AS generation FROM session_execution_profiles WHERE session_id = ?",
+    );
+    const insertProfile = db.prepare(
+      `INSERT INTO session_execution_profiles(
+         session_id, generation, adapter_id, credential_scope, model_profile,
+         working_directory, execution_role, source, audit_json, created_at_ms
+       ) VALUES (?, ?, 'pi-mono', 'managed_cloud', ?, ?, ?, 'migration', ?, ?)`,
+    );
+    const updateSession = db.prepare(
+      `UPDATE sessions
+       SET current_profile_generation = ?, model_profile = ?, updated_at_ms = ?
+       WHERE session_id = ?`,
+    );
+    const staleBindings = db.prepare(
+      `UPDATE adapter_bindings
+       SET status = 'stale', adapter_instance_id = NULL,
+           invalidated_at_ms = COALESCE(invalidated_at_ms, ?), updated_at_ms = ?
+       WHERE session_id = ? AND status = 'active'`,
+    );
+
+    for (const session of sessions) {
+      const sessionId = text(session.session_id);
+      const generation = Number((nextGeneration.get(sessionId) as Row).generation);
+      insertProfile.run(
+        sessionId,
+        generation,
+        canonicalProfile.modelProfile,
+        canonicalProfile.workingDirectory,
+        session.execution_role,
+        JSON.stringify({
+          reason: "gemini_model_profile_upgrade",
+          previousGeneration: Number(session.current_profile_generation),
+        }),
+        appliedAtMs,
+      );
+      updateSession.run(generation, canonicalProfile.modelProfile, appliedAtMs, sessionId);
+      staleBindings.run(appliedAtMs, appliedAtMs, sessionId);
+    }
+
+    db.prepare("INSERT INTO schema_migrations (version, applied_at_ms) VALUES (?, ?)").run(
+      GEMINI_MODEL_PROFILE_MIGRATION_VERSION,
       appliedAtMs,
     );
   });

@@ -45,7 +45,7 @@ def test_review_claims_and_commit_are_durable_in_firestore_emulator():
         'misuse_score': 0.9,
         'usage_type': 'audiobook',
         'confidence': 0.8,
-        'model': 'openai/gpt-5.1',
+        'model': 'gemini/gemini-3.7-flash',
         'prompt_version': 'v2',
     }
     processing_claims: list[str | None] = []

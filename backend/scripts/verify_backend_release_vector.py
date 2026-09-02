@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-CLOUD_RUN_SERVICES = ('backend',)
 CLOUD_RUN_TIMEOUT_SECONDS = 3600
 IMMUTABLE_IMAGE_RE = re.compile(r'^us-west1-docker\.pkg\.dev/[^/]+/[^/]+/backend:[0-9a-f]{40}@sha256:[0-9a-f]{64}$')
+CLOUD_RUN_SERVICE_RE = re.compile(r'^[a-z][a-z0-9-]{0,62}$')
 
 
 @dataclass(frozen=True)
@@ -25,6 +25,7 @@ class DeploymentExpectation:
     project: str
     region: str
     environment: str
+    service_name: str
     image: str
     revisions: Mapping[str, str]
 
@@ -37,6 +38,7 @@ def build_expectation(
     project: str,
     region: str,
     environment: str,
+    service_name: str,
     short_sha: str | None = None,
     expected_image: str | None = None,
 ) -> DeploymentExpectation:
@@ -47,6 +49,9 @@ def build_expectation(
         raise ValueError('deploy run ID and attempt must be decimal integers')
     if environment not in {'dev', 'prod'}:
         raise ValueError("environment must be 'dev' or 'prod'")
+    normalized_service_name = service_name.strip()
+    if not CLOUD_RUN_SERVICE_RE.fullmatch(normalized_service_name):
+        raise ValueError('service name must be a non-empty Cloud Run service identifier')
     if short_sha is not None:
         normalized_short = short_sha.strip().lower()
         if len(normalized_short) < 7 or any(char not in '0123456789abcdef' for char in normalized_short):
@@ -66,8 +71,9 @@ def build_expectation(
         project=project,
         region=region,
         environment=environment,
+        service_name=normalized_service_name,
         image=expected_image.strip(),
-        revisions={'backend': f'backend-{suffix}'},
+        revisions={'backend': f'{normalized_service_name}-{suffix}'},
     )
 
 
@@ -82,7 +88,7 @@ def build_read_only_commands(
             'run',
             'services',
             'describe',
-            'backend',
+            expectation.service_name,
             f'--project={expectation.project}',
             f'--region={expectation.region}',
             '--format=json',
@@ -248,6 +254,7 @@ def evidence(
             'deploy_run_id': expectation.deploy_run_id,
             'deploy_run_attempt': expectation.deploy_run_attempt,
             'environment': expectation.environment,
+            'cloud_run_service': expectation.service_name,
             'immutable_image': expectation.image,
             'cloud_run_revisions': dict(expectation.revisions),
             'require_serving_traffic': require_serving_traffic,
@@ -293,6 +300,7 @@ def main() -> int:
     parser.add_argument('--project', required=True)
     parser.add_argument('--region', default='us-west1')
     parser.add_argument('--environment', choices=('dev', 'prod'), required=True)
+    parser.add_argument('--service', required=True, help='Environment-owned Cloud Run service name.')
     parser.add_argument('--expected-image')
     parser.add_argument('--candidate', action='store_true')
     parser.add_argument('--evidence-path', type=Path)
@@ -306,6 +314,7 @@ def main() -> int:
             project=args.project,
             region=args.region,
             environment=args.environment,
+            service_name=args.service,
             expected_image=args.expected_image,
         )
         commands = build_read_only_commands(expectation, include_candidate_revisions=args.candidate)

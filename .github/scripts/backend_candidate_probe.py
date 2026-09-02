@@ -53,7 +53,9 @@ def _require_object(value: object, *, stage: str) -> dict[str, Any]:
 def validate_process_health(payload: object) -> dict[str, str]:
     health = _require_object(payload, stage="process_health")
     if health != {"status": "ok"}:
-        raise ProbeError(f"process_health: expected the shallow canonical contract, got {json.dumps(health, sort_keys=True)}")
+        raise ProbeError(
+            f"process_health: expected the shallow canonical contract, got {json.dumps(health, sort_keys=True)}"
+        )
     return {"status": "ok"}
 
 
@@ -90,7 +92,7 @@ def parse_sse(
     max_elapsed_seconds: float | None = None,
 ) -> tuple[str, bool, float, bool]:
     text: list[str] = []
-    saw_done = False
+    saw_terminal = False
     saw_usage = False
     first_event_seconds: float | None = None
     started_at = time.monotonic() if started_at is None else started_at
@@ -105,9 +107,6 @@ def parse_sse(
         if not line.startswith("data:"):
             continue
         data = line[5:].strip()
-        if data == "[DONE]":
-            saw_done = True
-            continue
         try:
             event = _require_object(json.loads(data), stage=stage)
         except json.JSONDecodeError as error:
@@ -120,26 +119,32 @@ def parse_sse(
             first_event_seconds = time.monotonic() - started_at
             if first_event_seconds > MAX_FIRST_EVENT_SECONDS:
                 raise ProbeError(f"{stage}: first event exceeded {MAX_FIRST_EVENT_SECONDS}s budget")
-        usage = event.get("usage")
+        usage = event.get("usageMetadata")
         if isinstance(usage, dict):
             saw_usage = True
-        choices = event.get("choices")
-        if not isinstance(choices, list):
+        candidates = event.get("candidates")
+        if not isinstance(candidates, list):
             continue
-        for choice in choices:
-            if not isinstance(choice, dict):
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
                 continue
-            delta = choice.get("delta")
-            if isinstance(delta, dict) and isinstance(delta.get("content"), str):
-                text.append(delta["content"])
+            if isinstance(candidate.get("finishReason"), str):
+                saw_terminal = True
+            content = candidate.get("content")
+            parts = content.get("parts") if isinstance(content, dict) else None
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if isinstance(part, dict) and part.get("thought") is not True and isinstance(part.get("text"), str):
+                    text.append(part["text"])
     answer = "".join(text).strip()
-    if not saw_done:
-        raise ProbeError(f"{stage}: stream ended without [DONE]")
+    if not saw_terminal:
+        raise ProbeError(f"{stage}: stream ended without a terminal candidate")
     if not answer:
         raise ProbeError(f"{stage}: stream completed without answer text")
     if first_event_seconds is None:
         raise ProbeError(f"{stage}: stream completed without events")
-    return answer, saw_done, first_event_seconds, saw_usage
+    return answer, saw_terminal, first_event_seconds, saw_usage
 
 
 def _request_json(url: str, *, timeout: int = HTTP_TIMEOUT_SECONDS) -> object:
@@ -182,31 +187,39 @@ def _chat_request(
     stage: str,
     timeout: int = HTTP_TIMEOUT_SECONDS,
 ) -> ChatResult:
+    contents = [
+        {
+            "role": "model" if message["role"] == "assistant" else "user",
+            "parts": [{"text": message["content"]}],
+        }
+        for message in messages
+    ]
     payload = {
-        "model": "omi-sonnet",
-        "messages": messages,
-        "stream": True,
-        "max_completion_tokens": 512,
+        "contents": contents,
+        "generationConfig": {
+            "maxOutputTokens": 512,
+            "thinkingConfig": {"thinkingLevel": "LOW"},
+        },
         "tools": [
             {
-                "type": "function",
-                "function": {
-                    "name": "release_probe_noop",
-                    "description": "Release-probe placeholder. Never call this tool.",
-                    "parameters": {"type": "object", "properties": {}},
-                },
+                "functionDeclarations": [
+                    {
+                        "name": "release_probe_noop",
+                        "description": "Release-probe placeholder. Never call this tool.",
+                        "parametersJsonSchema": {"type": "object", "properties": {}},
+                    }
+                ]
             }
         ],
     }
     request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/v2/chat/completions",
+        f"{base_url.rstrip('/')}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
         data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
         headers={
             "Accept": "text/event-stream",
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
             "x-omi-chat-contract-version": contract_version,
-            "x-omi-reasoning-effort": "fast",
         },
         method="POST",
     )

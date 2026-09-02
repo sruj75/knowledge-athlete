@@ -25,8 +25,7 @@ extension RealtimeHubController {
     let bargeIn = providerResponseInFlight || reducerNativePlaybackActive || voicePlaybackActive
     let bargeInAction = RealtimeHubBargeInAction.decide(
       providerResponseInFlight: providerResponseInFlight,
-      playbackActive: reducerNativePlaybackActive || voicePlaybackActive,
-      strategy: session?.bargeInStrategy ?? .inSessionCancel)
+      playbackActive: reducerNativePlaybackActive || voicePlaybackActive)
     let supersedesPendingReplacement = replacementAudioBuffer != nil
     let requiresCompletedGeminiSessionBoundary =
       sessionProvider == .gemini && geminiSessionNeedsTurnBoundary
@@ -59,7 +58,7 @@ extension RealtimeHubController {
     turnIdempotencyKey = "voice:\(turnID.rawValue.uuidString.lowercased())"
     resetScreenGrounding(for: turnID)
     if let interruptedTurnTask, !supersedesPendingReplacement {
-      if !providerResponseInFlight || session?.bargeInStrategy != .freshSession {
+      if !providerResponseInFlight {
         enqueueTurnPersistence(idempotencyKey: interruptedTurnIdempotencyKey) { [weak self] in
           guard let interruptedTurn = await interruptedTurnTask.value else { return true }
           return await self?.persistTurnDirectlyToKernel(
@@ -103,15 +102,9 @@ extension RealtimeHubController {
       }
     } else {
       switch bargeInAction {
-      case .cancelInSession:
-        // OpenAI exposes an explicit response.cancel path, so the warm socket and
-        // conversation context survive while the next input buffer starts clean.
-        log("RealtimeHub[\(providerTag)]: barge-in — interrupting in-flight reply (same session)")
-        session?.cancelActiveResponse()
       case .replaceSession:
-        // Gemini Live has no reliable in-session cancel for a streaming reply. Reusing
-        // that socket can leave the next PTT turn queued behind the old generation, so
-        // replace the connection and let the fresh session buffer this new turn while it opens.
+        // Reusing a Gemini socket after a streaming reply can leave the next PTT
+        // turn queued behind the old generation, so replace it for a clean turn.
         if restartSessionForBargeIn(interruptedTurnTask: interruptedTurnTask) {
           deferredFreshSessionContextPrefetch = true
           log("RealtimeHub: barge-in — replacing session for clean next turn")
@@ -369,10 +362,7 @@ extension RealtimeHubController {
   }
 
   func sendAudio(_ pcm16k: Data, to s: RealtimeHubSession) {
-    let rate = s.requiredInputSampleRate
-    let pcm =
-      rate == 16000 ? pcm16k : PushToTalkManager.resamplePCM16(pcm16k, from: 16000, to: rate)
-    s.sendAudio(pcm)
+    s.sendAudio(pcm16k)
   }
 
   /// PTT-up: end the turn; the model now responds (and may call tools).
@@ -474,7 +464,7 @@ extension RealtimeHubController {
     if let voiceResponseID {
       // PTT-up can beat asynchronous context preparation. Queue begin before
       // commit on the session transport so Gemini always has activityStart and
-      // OpenAI always has an immutable event identity.
+      // the turn keeps one immutable response identity.
       s.beginInputTurn(
         turnID: turnID,
         responseID: voiceResponseID,

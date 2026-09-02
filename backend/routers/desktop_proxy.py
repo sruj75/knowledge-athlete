@@ -12,7 +12,6 @@ from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
     stub_gemini_proxy_json,
 )
-from utils.llm.vertex_auth import VertexAccessTokenSupplier
 from utils.other.endpoints import get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
@@ -20,13 +19,11 @@ router = APIRouter()
 
 _ALLOWED_ACTIONS = frozenset({"generateContent", "embedContent", "batchEmbedContents"})
 _ALLOWED_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-embedding-001"})
-_VERTEX_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-embedding-001"})
 _MAX_BODY_BYTES = 5 * 1024 * 1024
 _MAX_OUTPUT_TOKENS = 8192
 _DEFAULT_THINKING_BUDGET = 1024
 _BURST_LIMIT = 30
 _DAILY_HARD_LIMIT = 1500
-_vertex_tokens = VertexAccessTokenSupplier()
 
 
 def _path_parts(path: str) -> tuple[str, str, str]:
@@ -105,14 +102,6 @@ def _sanitize(body: bytes, action: str) -> bytes:
     return json.dumps(payload, separators=(",", ":")).encode()
 
 
-def _vertex_url(model: str, action: str) -> str | None:
-    project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
-    if model not in _VERTEX_MODELS or not project:
-        return None
-    location = os.getenv("GCP_LOCATION", "us-west1").strip()
-    return f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model}:{action}"
-
-
 def _studio_url(path: str) -> str:
     key = os.getenv("GEMINI_API_KEY")
     if not key:
@@ -120,22 +109,9 @@ def _studio_url(path: str) -> str:
     return f"https://generativelanguage.googleapis.com/v1beta/{path}"
 
 
-async def _upstream(
-    path: str, model: str, action: str, query: dict[str, str]
-) -> tuple[str, dict[str, str], dict[str, str], bool]:
-    vertex_url = _vertex_url(model, action)
-    if vertex_url:
-        try:
-            method = "predict" if action == "embedContent" else action
-            return (
-                _vertex_url(model, method) or vertex_url,
-                {"Authorization": f"Bearer {await _vertex_tokens.get_access_token()}"},
-                query,
-                True,
-            )
-        except Exception:
-            pass
-    return _studio_url(path), {}, {**query, "key": os.getenv("GEMINI_API_KEY", "")}, False
+def _upstream(path: str, query: dict[str, str]) -> tuple[str, dict[str, str], dict[str, str]]:
+    key = os.getenv("GEMINI_API_KEY", "")
+    return _studio_url(path), {"x-goog-api-key": key}, {name: value for name, value in query.items() if name != "key"}
 
 
 async def _meter_server_request(uid: str, path: str, model: str, action: str) -> str:
@@ -162,27 +138,6 @@ async def _meter_server_request(uid: str, path: str, model: str, action: str) ->
     return path
 
 
-def _vertex_embedding_request(body: bytes) -> bytes:
-    payload = json.loads(body)
-    try:
-        text = payload["content"]["parts"][0]["text"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise HTTPException(status_code=400, detail="embedContent requires content.parts[0].text") from exc
-    instance = {"content": text}
-    for source, destination in (("taskType", "task_type"), ("title", "title")):
-        if source in payload:
-            instance[destination] = payload[source]
-    return json.dumps({"instances": [instance]}, separators=(",", ":")).encode()
-
-
-def _vertex_embedding_response(body: bytes) -> bytes:
-    try:
-        values = json.loads(body)["predictions"][0]["embeddings"]["values"]
-    except (KeyError, IndexError, TypeError, ValueError):
-        return body
-    return json.dumps({"embedding": {"values": values}}, separators=(",", ":")).encode()
-
-
 async def _proxy(request: Request, path: str, uid: str) -> Response:
     body = await request.body()
     if len(body) > _MAX_BODY_BYTES:
@@ -198,20 +153,17 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
     path = await _meter_server_request(uid, path, model, action)
     _, model, action = _path_parts(path)
     body = _sanitize(body, action)
-    url, headers, params, using_vertex = await _upstream(path, model, action, dict(request.query_params))
-    if using_vertex and action == "embedContent":
-        body = _vertex_embedding_request(body)
+    url, headers, params = _upstream(path, dict(request.query_params))
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(240, connect=10)) as client:
             response = await client.post(
                 url, params=params, content=body, headers={"Content-Type": "application/json", **headers}
             )
-        content = (
-            _vertex_embedding_response(response.content)
-            if using_vertex and action == "embedContent"
-            else response.content
+        return Response(
+            response.content,
+            status_code=response.status_code,
+            media_type=response.headers.get("content-type"),
         )
-        return Response(content, status_code=response.status_code, media_type=response.headers.get("content-type"))
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="Gemini request timed out") from exc
     except httpx.HTTPError as exc:

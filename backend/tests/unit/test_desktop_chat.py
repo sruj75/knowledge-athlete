@@ -1,195 +1,343 @@
+import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
+import httpx
 import pytest
+from fastapi import HTTPException
 
 from routers import desktop_chat
-from utils.llm import model_config
+from utils.observability.langfuse import ChatGeneration
+from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
 
-
-def test_anthropic_adapter_uses_managed_client():
-    from utils.llm import clients
-
-    managed_messages = object()
-    proxy = clients._AnthropicClientProxy(default=SimpleNamespace(messages=managed_messages))
-    assert proxy.messages is managed_messages
-
-
-def test_anthropic_adapter_has_no_retired_gateway_controls():
-    from utils.llm import clients
-
-    managed_messages = object()
-    proxy = clients._AnthropicClientProxy(default=SimpleNamespace(messages=managed_messages))
-
-    assert proxy.messages is managed_messages
-    assert not hasattr(clients, 'get_gateway_anthropic_client')
-    assert not hasattr(clients, 'should_route_features_through_gateway')
-
-
-def test_request_translates_openai_tool_history_and_alias():
-    public_model, payload = desktop_chat._request(
-        {
-            'model': 'omi-sonnet',
-            'max_completion_tokens': 20_000,
-            'messages': [
-                {'role': 'developer', 'content': 'be concise'},
-                {
-                    'role': 'assistant',
-                    'tool_calls': [
-                        {
-                            'id': 'call_1',
-                            'type': 'function',
-                            'function': {'name': 'weather', 'arguments': '{"city":"NYC"}'},
-                        }
-                    ],
-                },
-                {'role': 'tool', 'tool_call_id': 'call_1', 'content': 'sunny'},
-            ],
-            'tools': [{'type': 'function', 'function': {'name': 'weather', 'parameters': {'type': 'object'}}}],
-            'tool_choice': 'auto',
-        }
-    )
-    assert public_model == 'omi-sonnet'
-    assert payload['model'] == model_config.get_model('chat_agent')
-    assert payload['max_tokens'] == 16_384
-    assert payload['system'] == 'be concise'
-    assert payload['messages'][1]['content'][0]['tool_use_id'] == 'call_1'
-    assert payload['tool_choice'] == {'type': 'auto'}
-
-
-@pytest.mark.parametrize(
-    'retired_alias',
-    [
-        'omi-opus',
-        'claude-opus-4-6',
-        'claude-opus-4-20250514',
-        'claude-sonnet-4-6',
-        'claude-sonnet-4-20250514',
-        'claude-haiku-4-5',
-        'claude-haiku-4-5-20251001',
-    ],
+_PROMPT = ResolvedRuntimePrompt(
+    text='',
+    name='intentive-chat-system',
+    version='1',
+    source='fallback',
+    prompt_client=None,
 )
-def test_request_rejects_noncanonical_model_aliases(retired_alias):
-    with pytest.raises(ValueError, match='unsupported model'):
-        desktop_chat._request({'model': retired_alias, 'messages': []})
 
 
-def test_response_preserves_openai_tool_and_cache_usage():
-    message = SimpleNamespace(
-        id='msg_1',
-        content=[SimpleNamespace(type='tool_use', id='call_1', name='weather', input={'city': 'NYC'})],
-        stop_reason='tool_use',
-        usage=SimpleNamespace(
-            input_tokens=3, cache_creation_input_tokens=2, cache_read_input_tokens=5, output_tokens=7
-        ),
-    )
-    response = desktop_chat._message_response(message, 'omi-sonnet')
-    assert response['choices'][0]['finish_reason'] == 'tool_calls'
-    assert json.loads(response['choices'][0]['message']['tool_calls'][0]['function']['arguments']) == {'city': 'NYC'}
-    assert response['usage'] == {
-        'prompt_tokens': 10,
-        'completion_tokens': 7,
-        'total_tokens': 17,
-        'prompt_tokens_details': {'cached_tokens': 5},
+@pytest.fixture(autouse=True)
+def _disable_real_langfuse(monkeypatch):
+    monkeypatch.setattr(desktop_chat, 'start_chat_generation', lambda **_: ChatGeneration(None, None))
+
+
+def _native_body() -> dict[str, object]:
+    return {
+        'contents': [
+            {'role': 'user', 'parts': [{'text': 'hello'}, {'inlineData': {'mimeType': 'image/png', 'data': 'AA=='}}]},
+            {
+                'role': 'model',
+                'parts': [
+                    {
+                        'functionCall': {'name': 'lookup', 'args': {'query': 'one'}},
+                        'thoughtSignature': 'c2lnbmF0dXJl',
+                    }
+                ],
+            },
+            {
+                'role': 'user',
+                'parts': [{'functionResponse': {'name': 'lookup', 'response': {'output': 'result'}}}],
+            },
+        ],
+        'tools': [{'functionDeclarations': [{'name': 'lookup', 'parametersJsonSchema': {'type': 'object'}}]}],
+        'generationConfig': {'maxOutputTokens': 99_999, 'thinkingConfig': {'thinkingLevel': 'MEDIUM'}},
     }
 
 
-@pytest.mark.asyncio
-async def test_stream_emits_openai_terminal_event(monkeypatch):
-    class Stream:
-        async def __aenter__(self):
-            return self
+def test_native_request_preserves_gemini_content_tools_images_and_thought_signature():
+    body = _native_body()
+    original_contents = json.loads(json.dumps(body['contents']))
+    original_tools = json.loads(json.dumps(body['tools']))
 
-        async def __aexit__(self, *_):
-            return None
+    payload = desktop_chat._validate_native_request('gemini-3.7-flash', body, 'sse')
 
-        def __aiter__(self):
-            async def events():
-                yield SimpleNamespace(
-                    type='content_block_delta', delta=SimpleNamespace(type='text_delta', text='hello')
-                )
-                yield SimpleNamespace(
-                    type='message_delta',
-                    delta=SimpleNamespace(stop_reason='end_turn'),
-                    usage=SimpleNamespace(
-                        input_tokens=1, cache_creation_input_tokens=0, cache_read_input_tokens=0, output_tokens=1
-                    ),
-                )
+    assert payload['contents'] == original_contents
+    assert payload['tools'] == original_tools
+    assert payload['generationConfig']['maxOutputTokens'] == 16_384
+    assert payload['contents'][1]['parts'][0]['thoughtSignature'] == 'c2lnbmF0dXJl'
 
-            return events()
 
-    monkeypatch.setattr(
-        desktop_chat, 'anthropic_client', SimpleNamespace(messages=SimpleNamespace(stream=lambda **_: Stream()))
-    )
+@pytest.mark.parametrize('level', ['MINIMAL', 'XHIGH', 'off'])
+def test_native_request_rejects_unadvertised_thinking_levels(level):
+    body = _native_body()
+    body['generationConfig']['thinkingConfig']['thinkingLevel'] = level
+    with pytest.raises(ValueError, match='unsupported thinkingLevel'):
+        desktop_chat._validate_native_request('gemini-3.7-flash', body, 'sse')
 
-    async def record_usage(*_):
+
+def test_native_request_rejects_aliases_and_non_sse_modes():
+    with pytest.raises(ValueError, match='unsupported model'):
+        desktop_chat._validate_native_request('omi-sonnet', {'contents': []}, 'sse')
+    with pytest.raises(ValueError, match='alt must be sse'):
+        desktop_chat._validate_native_request('gemini-3.7-flash', {'contents': []}, 'json')
+
+
+@pytest.mark.parametrize(
+    ('field_path', 'value', 'message'),
+    [
+        (('cachedContent',), 'cachedContents/client-owned', 'unsupported request field'),
+        (('generationConfig', 'responseMimeType'), 'application/json', 'unsupported generationConfig field'),
+        (('generationConfig', 'thinkingConfig', 'thinkingBudget'), 100, 'unsupported thinkingConfig field'),
+    ],
+)
+def test_native_request_rejects_fields_outside_the_managed_chat_contract(field_path, value, message):
+    body = _native_body()
+    target = body
+    for key in field_path[:-1]:
+        target = target[key]
+    target[field_path[-1]] = value
+
+    with pytest.raises(ValueError, match=message):
+        desktop_chat._validate_native_request('gemini-3.7-flash', body, 'sse')
+
+
+class _Response:
+    def __init__(self, chunks: list[bytes]):
+        self.chunks = chunks
+
+    def raise_for_status(self):
         return None
 
-    monkeypatch.setattr(desktop_chat, '_record_usage', record_usage)
-    events = [
-        event
-        async for event in desktop_chat._stream(
-            {'model': 'claude-sonnet-4-6', 'max_tokens': 1, 'messages': []}, 'omi-sonnet', 'user'
-        )
-    ]
-    assert json.loads(events[1][6:])['choices'][0]['delta'] == {'content': 'hello'}
-    assert events[-1] == 'data: [DONE]\n\n'
+    def aiter_raw(self):
+        async def iterator():
+            for chunk in self.chunks:
+                yield chunk
+
+        return iterator()
+
+
+class _Manager:
+    def __init__(self, response: _Response | None = None, error: Exception | None = None):
+        self.response = response
+        self.error = error
+
+    async def __aenter__(self):
+        if self.error is not None:
+            raise self.error
+        return self.response
+
+    async def __aexit__(self, *_):
+        return None
+
+
+class _Client:
+    def __init__(self, manager: _Manager):
+        self.manager = manager
+        self.calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def stream(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.manager
+
+
+class _Semaphore:
+    def __init__(self):
+        self.entries = 0
+
+    async def __aenter__(self):
+        self.entries += 1
+
+    async def __aexit__(self, *_):
+        return None
 
 
 @pytest.mark.asyncio
-async def test_stream_reports_managed_provider_failure_without_echoing_detail(monkeypatch):
-    sentinel = 'private upstream detail'
-    recorded = []
-
-    class FailedStream:
-        async def __aenter__(self):
-            raise RuntimeError(sentinel)
-
-        async def __aexit__(self, *_):
-            return None
-
-    monkeypatch.setattr(
-        desktop_chat,
-        'anthropic_client',
-        SimpleNamespace(messages=SimpleNamespace(stream=lambda **_: FailedStream())),
+async def test_stream_relays_raw_gemini_sse_and_tees_terminal_usage(monkeypatch):
+    first = (
+        b'data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"lookup",'
+        b'"args":{"query":"one"}},"thoughtSignature":"c2ln"}]},"finishReason":"STOP"}]}\n\n'
     )
+    terminal = (
+        b'data: {"usageMetadata":{"promptTokenCount":7,"cachedContentTokenCount":2,'
+        b'"candidatesTokenCount":3,"thoughtsTokenCount":1,"totalTokenCount":11}}\n\n'
+    )
+    client = _Client(_Manager(_Response([first, terminal])))
+    semaphore = _Semaphore()
+    recorded: list[tuple[object, ...]] = []
+    monkeypatch.setattr(desktop_chat, 'get_gemini_client', lambda: client)
+    monkeypatch.setattr(desktop_chat, 'get_gemini_semaphore', lambda: semaphore)
+
+    async def record(*args):
+        recorded.append(args)
+
+    monkeypatch.setattr(desktop_chat, '_record_usage', record)
+    stream = desktop_chat._stream_native_gemini(
+        _native_body(),
+        'user-1',
+        api_key='server-gemini-secret',
+        request_id='request-1',
+        session_id='session-1',
+        platform='macos',
+        prompt=_PROMPT,
+    )
+
+    chunks = [chunk async for chunk in stream]
+
+    assert chunks == [first, terminal]
+    assert b'c2ln' in chunks[0]
+    assert b'server-gemini-secret' not in b''.join(chunks)
+    assert semaphore.entries == 1
+    assert client.calls[0][1]['headers']['x-goog-api-key'] == 'server-gemini-secret'
+    assert recorded == [
+        (
+            'user-1',
+            {
+                'promptTokenCount': 7,
+                'cachedContentTokenCount': 2,
+                'candidatesTokenCount': 3,
+                'thoughtsTokenCount': 1,
+                'totalTokenCount': 11,
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_stream_sanitizes_upstream_failure(monkeypatch):
+    private_detail = 'private upstream response'
+    client = _Client(_Manager(error=RuntimeError(private_detail)))
+    recorded = []
+    monkeypatch.setattr(desktop_chat, 'get_gemini_client', lambda: client)
     monkeypatch.setattr(desktop_chat, 'handle_llm_error', lambda *args, **kwargs: recorded.append((args, kwargs)))
 
-    events = [
-        event
-        async for event in desktop_chat._stream(
-            {'model': 'claude-sonnet-4-6', 'max_tokens': 1, 'messages': []}, 'omi-sonnet', 'user'
+    chunks = [
+        chunk
+        async for chunk in desktop_chat._stream_native_gemini(
+            {'contents': []},
+            'user-1',
+            api_key='secret',
+            request_id='request-1',
+            session_id=None,
+            platform='macos',
+            prompt=_PROMPT,
         )
     ]
 
-    assert recorded[0][0][1] == 'anthropic'
-    assert recorded[0][1] == {'feature': 'chat_agent', 'model': model_config.get_model('chat_agent')}
-    assert sentinel not in ''.join(events)
+    assert private_detail.encode() not in b''.join(chunks)
+    assert json.loads(chunks[-1][6:])['error']['message'] == 'Upstream provider error'
+    assert recorded[0][0][1] == 'gemini'
 
 
 @pytest.mark.asyncio
-async def test_server_metering_fails_closed_when_rate_limit_storage_fails(monkeypatch):
-    async def run_blocking(_, function, *args):
-        return function(*args)
+@pytest.mark.parametrize(
+    ('status_code', 'reason', 'status', 'retryable'),
+    [
+        (401, 'provider_auth_failed', 'UNAUTHENTICATED', False),
+        (429, 'provider_quota_exceeded', 'RESOURCE_EXHAUSTED', True),
+    ],
+)
+async def test_stream_types_provider_owned_auth_and_quota_failures(monkeypatch, status_code, reason, status, retryable):
+    request = httpx.Request('POST', 'https://generativelanguage.googleapis.com/v1beta/models/test')
+    response = httpx.Response(status_code, request=request)
+    client = _Client(
+        _Manager(error=httpx.HTTPStatusError('sanitized upstream failure', request=request, response=response))
+    )
+    monkeypatch.setattr(desktop_chat, 'get_gemini_client', lambda: client)
+    monkeypatch.setattr(desktop_chat, 'handle_llm_error', lambda *args, **kwargs: None)
 
-    monkeypatch.setattr(desktop_chat, 'run_blocking', run_blocking)
-    monkeypatch.setattr(desktop_chat.redis_db, 'check_rate_limit', lambda *_: (_ for _ in ()).throw(RuntimeError()))
+    chunks = [
+        chunk
+        async for chunk in desktop_chat._stream_native_gemini(
+            {'contents': []},
+            'user-1',
+            api_key='secret',
+            request_id='request-1',
+            session_id=None,
+            platform='macos',
+            prompt=_PROMPT,
+        )
+    ]
 
-    with pytest.raises(desktop_chat.HTTPException) as error:
-        await desktop_chat._meter_server_request('user')
-    assert error.value.status_code == 503
+    payload = json.loads(chunks[-1][6:])
+    assert payload['error'] == {
+        'code': status_code,
+        'message': 'Upstream provider error',
+        'status': status,
+    }
+    assert payload['reason'] == reason
+    assert payload['provider'] == 'gemini'
+    assert payload['backend_route'] == '/v2/models/gemini-3.7-flash:streamGenerateContent'
+    assert payload['upstream_status_code'] == status_code
+    assert payload['retryable'] is retryable
+    assert b'sanitized upstream failure' not in b''.join(chunks)
 
 
 @pytest.mark.asyncio
-async def test_server_metering_rejects_exhausted_user(monkeypatch):
-    async def run_blocking(_, function, *args):
-        return function(*args)
+async def test_stream_preserves_cancellation(monkeypatch):
+    client = _Client(_Manager(error=asyncio.CancelledError()))
+    monkeypatch.setattr(desktop_chat, 'get_gemini_client', lambda: client)
+    stream = desktop_chat._stream_native_gemini(
+        {'contents': []},
+        'user-1',
+        api_key='secret',
+        request_id='request-1',
+        session_id=None,
+        platform='macos',
+        prompt=_PROMPT,
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await anext(stream)
 
-    monkeypatch.setattr(desktop_chat, 'run_blocking', run_blocking)
-    monkeypatch.setattr(desktop_chat.redis_db, 'check_rate_limit', lambda *_: (False, 0, 37))
 
-    with pytest.raises(desktop_chat.HTTPException) as error:
-        await desktop_chat._meter_server_request('user')
-    assert error.value.status_code == 429
-    assert error.value.headers == {'Retry-After': '37'}
+@pytest.mark.asyncio
+async def test_offline_endpoint_returns_native_gemini_sse_without_provider_key(monkeypatch):
+    monkeypatch.setattr(desktop_chat, 'llm_stub_enabled', lambda: True)
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+
+    response = await desktop_chat.stream_generate_content(
+        model='gemini-3.7-flash',
+        body={'contents': [{'role': 'user', 'parts': [{'text': 'Reply with exactly PROBE'}]}]},
+        alt='sse',
+        uid='user-1',
+        x_app_platform='macos',
+        x_omi_chat_contract_version='2',
+        x_omi_request_id='request-1',
+        x_omi_session_id='session-1',
+    )
+
+    chunks = [chunk async for chunk in response.body_iterator]
+    payload = json.loads(chunks[0][6:])
+    assert payload['candidates'][0]['content']['parts'][0]['text'] == 'PROBE'
+    assert response.headers['x-omi-chat-contract-version'] == '2'
+    assert 'server-gemini-secret' not in str(payload)
+
+
+@pytest.mark.asyncio
+async def test_endpoint_rejects_client_gemini_key_before_offline_dispatch(monkeypatch):
+    monkeypatch.setattr(desktop_chat, 'llm_stub_enabled', lambda: True)
+    with pytest.raises(HTTPException) as caught:
+        await desktop_chat.stream_generate_content(
+            model='gemini-3.7-flash',
+            body={'contents': []},
+            alt='sse',
+            uid='user-1',
+            x_app_platform='macos',
+            x_omi_chat_contract_version='2',
+            x_omi_request_id='request-1',
+            x_omi_session_id=None,
+            x_goog_api_key='must-not-cross-managed-boundary',
+        )
+
+    assert caught.value.status_code == 400
+    assert caught.value.detail == 'Client provider keys are not accepted'
+
+
+@pytest.mark.asyncio
+async def test_endpoint_requires_server_managed_gemini_key_outside_stub(monkeypatch):
+    monkeypatch.setattr(desktop_chat, 'llm_stub_enabled', lambda: False)
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    with pytest.raises(Exception) as caught:
+        await desktop_chat.stream_generate_content(
+            model='gemini-3.7-flash',
+            body={'contents': []},
+            alt='sse',
+            uid='user-1',
+            x_app_platform='macos',
+            x_omi_chat_contract_version='2',
+            x_omi_request_id='request-1',
+            x_omi_session_id=None,
+        )
+    assert getattr(caught.value, 'status_code', None) == 503

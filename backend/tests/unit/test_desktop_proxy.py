@@ -39,7 +39,6 @@ def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(m
             return httpx.Response(200, content=b'{"managed":true}', headers={'content-type': 'application/json'})
 
     meter = MagicMock(side_effect=[(True, 1, 60), (True, 1, 86_400)])
-    monkeypatch.delenv('GOOGLE_CLOUD_PROJECT', raising=False)
     monkeypatch.setenv('GEMINI_API_KEY', 'managed-gemini-key')
     monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
     monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', meter)
@@ -64,7 +63,8 @@ def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(m
     assert outbound['url'] == (
         'https://generativelanguage.googleapis.com/v1beta/' 'models/gemini-2.5-flash:generateContent'
     )
-    assert outbound['params']['key'] == 'managed-gemini-key'
+    assert 'key' not in outbound['params']
+    assert outbound['headers']['x-goog-api-key'] == 'managed-gemini-key'
     assert 'legacy-customer-key' not in outbound['headers'].values()
     assert json.loads(outbound['content']) == {
         'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}],
@@ -129,43 +129,34 @@ def test_streaming_proxy_route_is_absent():
     assert response.status_code == 404
 
 
-def test_desktop_live_suggestions_model_is_allowed_and_vertex_routed(monkeypatch):
+def test_desktop_live_suggestions_model_is_allowed_on_the_developer_api():
     """Desktop live suggestions run on Flash-Lite (ModelQoS.suggestions), so the proxy must forward it."""
     assert desktop_proxy._path_parts("models/gemini-2.5-flash-lite:generateContent") == (
         "models/gemini-2.5-flash-lite:generateContent",
         "gemini-2.5-flash-lite",
         "generateContent",
     )
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "omi-test")
-    monkeypatch.setenv("GCP_LOCATION", "us-central1")
-    assert desktop_proxy._vertex_url("gemini-2.5-flash-lite", "generateContent") == (
-        "https://us-central1-aiplatform.googleapis.com/v1/projects/omi-test/locations/us-central1"
-        "/publishers/google/models/gemini-2.5-flash-lite:generateContent"
-    )
 
 
-def test_every_model_the_desktop_client_ships_is_proxy_allowlisted():
+def test_every_proxy_model_the_desktop_client_ships_is_proxy_allowlisted():
     """Static checker: ModelQoS.swift picks the models the desktop sends to this proxy.
 
     Not behavioral coverage — it reads the client's model table so a tier change there
-    cannot ship a model the proxy answers with 403.
+    cannot ship a proxy-routed model the proxy answers with 403. Normal Chat is excluded
+    because it uses the native versioned streaming boundary instead of this legacy proxy.
     """
     qos = BACKEND_DIR.parent / "desktop/macos/Desktop/Sources/ModelQoS.swift"
     if not qos.exists():  # partial checkouts (backend-only forks) have no desktop tree
         pytest.skip("desktop sources are not present in this checkout")
-    client_models = set(re.findall(r'"(gemini-[^"]+)"', qos.read_text()))
-    assert client_models
-    assert client_models <= desktop_proxy._ALLOWED_MODELS
-
-
-def test_vertex_embedding_translation_round_trip():
-    request = desktop_proxy._vertex_embedding_request(
-        b'{"content":{"parts":[{"text":"hello"}]},"taskType":"RETRIEVAL_QUERY","title":"note"}'
+    proxy_models = set(
+        re.findall(
+            r'static let (?:proactive|taskExtraction|insight|suggestions|embedding) = "(gemini-[^"]+)"',
+            qos.read_text(),
+        )
     )
-    assert json.loads(request) == {"instances": [{"content": "hello", "task_type": "RETRIEVAL_QUERY", "title": "note"}]}
-    assert json.loads(
-        desktop_proxy._vertex_embedding_response(b'{"predictions":[{"embeddings":{"values":[1,2]}}]}')
-    ) == {"embedding": {"values": [1, 2]}}
+    assert proxy_models
+    assert proxy_models <= desktop_proxy._ALLOWED_MODELS
+    assert "gemini-3.7-flash" not in desktop_proxy._ALLOWED_MODELS
 
 
 @pytest.mark.asyncio

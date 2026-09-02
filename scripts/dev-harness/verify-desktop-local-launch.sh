@@ -34,14 +34,15 @@ else
   echo "warning: $OMI_CTL not found; skipping omi-ctl state check"
 fi
 
-chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/chat/completions" \
+chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse" \
   -H 'Content-Type: application/json' \
-  -d '{"model":"claude-3-5-sonnet-20241022","messages":[{"role":"user","content":"ping"}],"max_tokens":1}' || true)"
+  -H 'X-Omi-Chat-Contract-Version: 2' \
+  -d '{"contents":[{"role":"user","parts":[{"text":"ping"}]}],"generationConfig":{"maxOutputTokens":1}}' || true)"
 if [ "$chat_status" = "404" ]; then
-  echo "chat smoke: POST /v2/chat/completions returned 404" >&2
+  echo "chat smoke: native Gemini route returned 404" >&2
   failures=$((failures + 1))
 else
-  echo "chat smoke: POST /v2/chat/completions returned HTTP ${chat_status:-unknown} (non-404)"
+  echo "chat smoke: native Gemini route returned HTTP ${chat_status:-unknown} (non-404)"
 fi
 
 if [ -f "$BACKEND_LOG" ]; then

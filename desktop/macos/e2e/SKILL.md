@@ -432,7 +432,7 @@ Settings (SettingsPage.swift) — use `click` for section rows
 ├── Notifications & Privacy — local master/frequency, assistant notifications, and privacy controls
 ├── Rewind — storage info, excluded apps list
 ├── Shortcuts — Open Omi shortcut, Push to Talk key, PTT microphone, locked mode, PTT sounds
-├── Advanced — AI Setup (Voice Model, Ask Mode)
+├── Advanced — AI Setup (Ask Mode)
 └── About — version info, Privacy & Data, retained links, software updates, update channel
 
 Rewind overlay (View menu → Rewind or ⌘⌥R)

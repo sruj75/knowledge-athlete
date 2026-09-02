@@ -25,7 +25,7 @@ def test_main_app_owns_retained_routes_and_rejects_retired_service_routes() -> N
 
     for method, path in (
         ('GET', '/v1/config/api-keys'),
-        ('POST', '/v2/chat/completions'),
+        ('POST', '/v2/models/{model}:streamGenerateContent'),
         ('POST', '/v1/proxy/gemini/models'),
         ('POST', '/v2/realtime/session'),
         ('POST', '/v1/tts/synthesize'),
@@ -68,7 +68,7 @@ def test_main_app_owns_the_single_backend_lifecycle_and_retained_operational_rou
             'status': 'healthy',
             'service': 'omi-backend',
             'version': '0.1.0',
-            'chat_contract_version': '1',
+            'chat_contract_version': '2',
         }
         assert client.get('/metrics').status_code == 401
         with pytest.raises(WebSocketDisconnect) as closed:

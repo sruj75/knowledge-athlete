@@ -142,12 +142,10 @@ actor APIClient {
       authPolicy: authPolicy)
   }
 
-  /// Phase 2 realtime hub: ask the backend to mint a short-lived ephemeral token
-  /// for `provider` ("openai"|"gemini"). The backend gates on auth + paywall.
+  /// Ask the backend to mint a short-lived Gemini Live token. The backend gates on auth + paywall.
   /// Credential failures are typed so the hub can recover deterministically instead
   /// of treating every failure as a silent fallback.
   func mintRealtimeToken(
-    provider: String,
     expectedOwnerID: String,
     customBaseURL: String? = nil
   ) async throws -> String {
@@ -163,7 +161,6 @@ actor APIClient {
       throw CredentialHealthError.backendTransient(statusCode: nil, message: "Invalid desktop backend URL.")
     }
 
-    let providerType = CredentialHealthManager.realtimeProvider(from: provider)
     let authPolicy = RequestAuthPolicy.ownerBound(expectedOwnerID)
     try validateExpectedOwner(authPolicy)
     var request = URLRequest(url: url)
@@ -171,32 +168,32 @@ actor APIClient {
     request.allHTTPHeaderFields = try await buildHeaders(
       requireAuth: true,
       expectedAuthOwnerId: expectedOwnerID)
-    request.httpBody = try JSONEncoder().encode(["provider": provider])
+    request.httpBody = Data("{}".utf8)
 
     do {
       return try await performRealtimeMintRequest(
         request,
-        provider: providerType,
+        provider: .gemini,
         authPolicy: authPolicy,
         retriedAuth: false)
     } catch let error as RealtimeTokenMintError {
-      log("APIClient: realtime token mint failed for \(provider): \(error.localizedDescription)")
+      log("APIClient: Gemini realtime token mint failed: \(error.localizedDescription)")
       throw error
     } catch let error as CredentialHealthError {
-      log("APIClient: realtime token mint failed for \(provider): \(error.localizedDescription)")
+      log("APIClient: Gemini realtime token mint failed: \(error.localizedDescription)")
       throw error
     } catch let error as AuthError {
-      log("APIClient: realtime token mint rejected after owner change for \(provider)")
+      log("APIClient: Gemini realtime token mint rejected after owner change")
       throw error
     } catch {
-      log("APIClient: realtime token mint failed for \(provider): \(error.localizedDescription)")
+      log("APIClient: Gemini realtime token mint failed: \(error.localizedDescription)")
       throw CredentialHealthError.backendTransient(statusCode: nil, message: error.localizedDescription)
     }
   }
 
   private func performRealtimeMintRequest(
     _ request: URLRequest,
-    provider: RealtimeHubProvider?,
+    provider: ManagedInferenceProvider?,
     authPolicy: RequestAuthPolicy,
     retriedAuth: Bool
   ) async throws -> String {
@@ -278,8 +275,6 @@ actor APIClient {
   /// it into the llm_usage cost ledger. Fire-and-forget; failures are
   /// logged and dropped (the backend reconciler is the eventual safety net).
   func reportRealtimeUsage(
-    provider: String,
-    model: String,
     inputText: Int,
     inputAudio: Int,
     inputCached: Int,
@@ -298,8 +293,6 @@ actor APIClient {
       let headers = try await buildHeaders(requireAuth: true)
       for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
       let body: [String: Any] = [
-        "provider": provider,
-        "model": model,
         "input_text_tokens": inputText,
         "input_audio_tokens": inputAudio,
         "input_cached_tokens": inputCached,

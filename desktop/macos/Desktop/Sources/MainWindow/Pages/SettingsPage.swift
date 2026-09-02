@@ -214,7 +214,6 @@ struct SettingsContentView: View {
   @AppStorage("multiChatEnabled") var multiChatEnabled = false
 
   // Advanced AI settings
-  @AppStorage("realtimeOmniProvider") var realtimeOmniProvider: String = RealtimeOmniProvider.auto.rawValue
   @AppStorage("askModeEnabled") var askModeEnabled = false
   @AppStorage(BetaEnhancedDiagnosticsConfiguration.defaultsKey) var betaEnhancedDiagnosticsEnabled = true
 

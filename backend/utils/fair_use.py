@@ -364,7 +364,7 @@ def escalate_enforcement(
 ) -> Dict[str, Any]:
     """Apply the retained synthetic Free-exhaustion result.
 
-    Semantic GPT-5.1 results use the transactional review acceptance path. Free-exhausted
+    Semantic Gemini results use the transactional review acceptance path. Free-exhausted
     users still use this pre-Mac synthetic score and the same three-positive progression.
 
     Returns dict describing the action taken.
@@ -670,6 +670,16 @@ def is_managed_stt_budget_exhausted(uid: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _acquire_classifier_lock(key: str, token: str) -> Any:
+    """Create the Redis client and acquire the lock inside the DB executor."""
+    return get_redis_client().set(
+        key,
+        token,
+        nx=True,
+        ex=FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS,
+    )
+
+
 async def trigger_free_exhaustion_if_needed(
     uid: str, triggered_caps: List[Dict[str, Any]], session_id: str = ''
 ) -> None:
@@ -678,7 +688,7 @@ async def trigger_free_exhaustion_if_needed(
     Uses a Redis lock to prevent concurrent runs for the same user.
     Runs asynchronously — does not block the WebSocket path.
 
-    Semantic GPT-5.1 classification now enters only through the authenticated,
+    Semantic Gemini classification now enters only through the authenticated,
     owner-bound local-evidence review endpoint.
     """
     # Already at terminal stage — no escalation possible, skip LLM + lock (#6316)
@@ -694,14 +704,7 @@ async def trigger_free_exhaustion_if_needed(
     lock_token = str(uuid.uuid4())
 
     try:
-        acquired = await run_blocking(
-            db_executor,
-            get_redis_client().set,
-            lock_key,
-            lock_token,
-            nx=True,
-            ex=FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS,
-        )
+        acquired = await run_blocking(db_executor, _acquire_classifier_lock, lock_key, lock_token)
         if not acquired:
             logger.info(f'fair_use: classifier already running/recent for {uid}')
             return

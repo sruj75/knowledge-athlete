@@ -31,8 +31,7 @@ _STATEFUL_CAPABILITY_MARKERS = ("vector", "index", "webhook", "callback", "queue
 _PROVIDER_SECRET_NAMES = (
     "OPENAI_API_KEY",
     "MODULATE_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "GROQ_API_KEY",
+    "GEMINI_API_KEY",
 )
 
 
@@ -136,11 +135,9 @@ def default_provider_specs(repo_root: Path) -> tuple[ProviderSpec, ...]:
             data_use="training disabled / synthetic-or-local-QA inputs only",
             retention="provider policy; not harness-authoritative state",
             region="provider default",
-            allowed_endpoints=("https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/embeddings"),
-            allowed_capabilities=("llm.chat", "embedding.read"),
-            budget=ProviderBudget(max_requests_per_session=60, max_requests_per_day=300, max_tokens=200_000),
-            fake_module="llm",
-            fake_source_path=str(fake_root / "llm.py"),
+            allowed_endpoints=("https://api.openai.com/v1/audio/speech",),
+            allowed_capabilities=("tts.speech",),
+            budget=ProviderBudget(max_requests_per_session=60, max_requests_per_day=300, max_audio_seconds=3_600),
         ),
         ProviderSpec(
             name="modulate",
@@ -179,18 +176,8 @@ def default_provider_specs(repo_root: Path) -> tuple[ProviderSpec, ...]:
             ),
             allowed_capabilities=("llm.chat", "embedding.read"),
             budget=ProviderBudget(max_requests_per_session=60, max_requests_per_day=300, max_tokens=200_000),
-        ),
-        ProviderSpec(
-            name="anthropic",
-            credential_env="ANTHROPIC_API_KEY",
-            billing_owner="developer-local-qa",
-            quota="local-harness $10/day developer budget",
-            data_use="training disabled / synthetic-or-local-QA inputs only",
-            retention="provider policy; not harness-authoritative state",
-            region="provider default",
-            allowed_endpoints=("https://api.anthropic.com/v1/messages",),
-            allowed_capabilities=("llm.chat",),
-            budget=ProviderBudget(max_requests_per_session=60, max_requests_per_day=300, max_tokens=200_000),
+            fake_module="llm",
+            fake_source_path=str(fake_root / "llm.py"),
         ),
     )
 

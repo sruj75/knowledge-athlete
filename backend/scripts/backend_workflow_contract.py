@@ -11,6 +11,7 @@ def validate_immutable_deploy_contract(workflow_file: str, workflow: Mapping[str
         return []
     jobs = _mapping(workflow.get('jobs'))
     deploy = _mapping(jobs.get('deploy'))
+    deploy_env = _mapping(deploy.get('env'))
     steps = [_mapping(step) for step in _list(deploy.get('steps'))]
     named = {str(step.get('name')): (index, step) for index, step in enumerate(steps)}
     required_names = (
@@ -33,12 +34,14 @@ def validate_immutable_deploy_contract(workflow_file: str, workflow: Mapping[str
         (index, step)
         for index, step in enumerate(steps)
         if step.get('uses') == 'google-github-actions/deploy-cloudrun@v3'
-        and _mapping(step.get('with')).get('service') in {'${{ env.SERVICE }}', 'backend'}
+        and _mapping(step.get('with')).get('service') == '${{ env.CLOUD_RUN_SERVICE }}'
     ]
     if len(deploy_steps) != 1:
         errors.append('backend workflow must deploy exactly one canonical Cloud Run service')
         return errors
     deploy_index, deploy_step = deploy_steps[0]
+    if deploy_env.get('CLOUD_RUN_SERVICE') != '${{ vars.BACKEND_CLOUD_RUN_SERVICE }}':
+        errors.append('backend workflow must bind the Cloud Run service through its deployment environment')
 
     build_with = _mapping(build.get('with'))
     capture_run = str(capture.get('run') or '')

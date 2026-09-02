@@ -69,7 +69,7 @@
       "properties": {"maxBytes": {"const": 8192}, "mustExclude": {"type": "array", "items": {"type": "string"}}}
     },
     "adapterConformance": {
-      "type": "array", "minItems": 3,
+      "type": "array", "minItems": 2,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["adapterId", "surface", "transport", "expectsToolEnvelope", "scenarios"],

@@ -1398,10 +1398,10 @@ struct VoiceTurnReducer {
       }
       cancel(.providerReconnect, in: &model, effects: &effects)
       model.turn?.providerConnection = .ready
-      if turn.phase == .awaitingResponse, turn.hubCommitPending {
-        // The physical release already happened, but its buffered input never
-        // reached a provider. Return it to the finalizing boundary so the
-        // existing transcription fallback can own the same turn exactly once.
+      if turn.phase == .awaitingResponse {
+        // The physical release already happened. Whether the provider failed
+        // before or after accepting the commit, return the preserved PCM to the
+        // finalizing boundary so batch transcription can own this turn once.
         model.turn?.phase = .finalizing
         model.turn?.hubCommitPending = false
         model.turn?.projection.isResponseWaiting = false
@@ -1948,12 +1948,12 @@ struct VoiceTurnReducer {
       case .playbackDrain:
         terminate(&model, reason: .playbackFailed, effects: &effects)
       case .providerReconnect:
-        guard turn.phase.isRecording || turn.phase == .finalizing || turn.hubCommitPending else {
+        guard turn.phase.isRecording || turn.phase == .finalizing || turn.phase == .awaitingResponse else {
           terminate(&model, reason: .providerFailed, effects: &effects)
           return VoiceTurnReduction(model: model, effects: effects)
         }
         model.turn?.providerConnection = .ready
-        if turn.phase == .awaitingResponse, turn.hubCommitPending {
+        if turn.phase == .awaitingResponse {
           model.turn?.phase = .finalizing
           model.turn?.hubCommitPending = false
           model.turn?.projection.isResponseWaiting = false

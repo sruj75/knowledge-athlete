@@ -9,15 +9,27 @@ enum ManagedProviderFailureReason: String, Equatable {
   case quotaExceeded = "provider_quota_exceeded"
 }
 
+enum ManagedInferenceProvider: String, Equatable {
+  case gemini
+  case openai
+
+  var displayName: String {
+    switch self {
+    case .gemini: "Gemini"
+    case .openai: "OpenAI"
+    }
+  }
+}
+
 enum CredentialFailureClass: Equatable {
   case backendUnauthorized
   case requiresLogin
   case paywalled
-  case providerAuthFailed(provider: RealtimeHubProvider, mode: CredentialAuthMode)
-  case providerQuotaExceeded(provider: RealtimeHubProvider)
+  case providerAuthFailed(provider: ManagedInferenceProvider, mode: CredentialAuthMode)
+  case providerQuotaExceeded(provider: ManagedInferenceProvider)
   case backendTransient(statusCode: Int?)
-  case providerTransient(provider: RealtimeHubProvider)
-  case providerPolicyClose(provider: RealtimeHubProvider)
+  case providerTransient(provider: ManagedInferenceProvider)
+  case providerPolicyClose(provider: ManagedInferenceProvider)
   case unknown
 
   var isAccountWide: Bool {
@@ -56,17 +68,17 @@ enum CredentialFailureClass: Equatable {
 struct CredentialRecoveryIssue: Equatable {
   let failureClass: CredentialFailureClass
   let message: String
-  let provider: RealtimeHubProvider?
+  let provider: ManagedInferenceProvider?
   let authMode: CredentialAuthMode?
 }
 
 enum CredentialHealthError: LocalizedError, Equatable {
   case requiresLogin(message: String)
   case paywalled(message: String)
-  case providerAuth(provider: RealtimeHubProvider, mode: CredentialAuthMode, message: String)
-  case providerQuota(provider: RealtimeHubProvider, message: String)
+  case providerAuth(provider: ManagedInferenceProvider, mode: CredentialAuthMode, message: String)
+  case providerQuota(provider: ManagedInferenceProvider, message: String)
   case backendTransient(statusCode: Int?, message: String)
-  case providerTransient(provider: RealtimeHubProvider, message: String)
+  case providerTransient(provider: ManagedInferenceProvider, message: String)
   case unknown(message: String)
 
   var failureClass: CredentialFailureClass {
@@ -88,7 +100,7 @@ enum CredentialHealthError: LocalizedError, Equatable {
     }
   }
 
-  var provider: RealtimeHubProvider? {
+  var provider: ManagedInferenceProvider? {
     switch self {
     case .providerAuth(let provider, _, _), .providerQuota(let provider, _), .providerTransient(let provider, _):
       return provider
@@ -143,7 +155,7 @@ final class CredentialHealthManager: ObservableObject {
 
   func recordProviderFailure(
     _ failureClass: CredentialFailureClass,
-    provider: RealtimeHubProvider,
+    provider: ManagedInferenceProvider,
     authMode: CredentialAuthMode,
     context: String
   ) {
@@ -157,7 +169,7 @@ final class CredentialHealthManager: ObservableObject {
 
   private func record(
     failureClass: CredentialFailureClass,
-    provider: RealtimeHubProvider?,
+    provider: ManagedInferenceProvider?,
     authMode: CredentialAuthMode?,
     message: String,
     context: String
@@ -172,12 +184,12 @@ final class CredentialHealthManager: ObservableObject {
         + " provider=\(provider?.rawValue ?? "none") auth_mode=\(authMode?.rawValue ?? "none")")
   }
 
-  private func recoveryMessage(for failureClass: CredentialFailureClass, provider: RealtimeHubProvider) -> String {
+  private func recoveryMessage(for failureClass: CredentialFailureClass, provider: ManagedInferenceProvider) -> String {
     switch failureClass {
     case .providerAuthFailed:
       return "\(provider.displayName) authentication failed. Voice responses are using fallback."
     case .providerQuotaExceeded:
-      return "Your \(provider.displayName) quota is exhausted. Add quota or switch providers."
+      return "Your \(provider.displayName) quota is exhausted. Add quota or try again later."
     case .providerPolicyClose:
       return "\(provider.displayName) rejected the realtime session. Voice responses are using fallback."
     case .providerTransient:
@@ -187,18 +199,14 @@ final class CredentialHealthManager: ObservableObject {
     }
   }
 
-  nonisolated static func realtimeProvider(from raw: String) -> RealtimeHubProvider? {
-    switch raw.lowercased() {
-    case "openai": return .openai
-    case "gemini": return .gemini
-    default: return nil
-    }
+  nonisolated static func managedProvider(from raw: String) -> ManagedInferenceProvider? {
+    ManagedInferenceProvider(rawValue: raw.lowercased())
   }
 
   nonisolated static func classifyHTTPFailure(
     statusCode: Int,
     payload: APIErrorPayload?,
-    provider: RealtimeHubProvider?
+    provider: ManagedInferenceProvider?
   ) -> CredentialHealthError {
     let message = payload?.preferredMessage ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
     if payload?.managedProviderFailureReason == .authFailed, let provider {
@@ -229,7 +237,7 @@ final class CredentialHealthManager: ObservableObject {
 
   nonisolated static func classifyProviderClose(
     message: String,
-    provider: RealtimeHubProvider
+    provider: ManagedInferenceProvider
   ) -> CredentialFailureClass {
     let lower = message.lowercased()
     if lower.contains("insufficient_quota") || lower.contains("quota") || lower.contains("resource exhausted")

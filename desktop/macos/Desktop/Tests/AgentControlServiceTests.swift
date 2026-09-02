@@ -414,26 +414,24 @@ final class RealtimeProviderToolResultPolicyTests: XCTestCase {
     XCTAssertEqual(envelope["fullOutputRef"] as? String, "artifact:tool-output:provider-oversize")
   }
 
-  func testGeminiAndOpenAIWrapSpawnAuthorizationFailures() throws {
-    for provider in [RealtimeHubProvider.gemini, .openai] {
-      let code = "external_surface_tool_failed"
-      let message = "The tool could not be authorized. Please try again."
-      let result = RealtimeProviderToolResultPolicy.prepare(
-        provider: provider,
-        name: HubTool.spawnAgent.rawValue,
-        output: RealtimeProviderToolResultPolicy.rejectedOutput(code: code, message: message))
-      let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.output.utf8)) as? [String: Any])
-      let error = try XCTUnwrap(object["error"] as? [String: Any])
-      let envelope = try XCTUnwrap(object["toolResultEnvelope"] as? [String: Any])
+  func testGeminiWrapsSpawnAuthorizationFailures() throws {
+    let code = "external_surface_tool_failed"
+    let message = "The tool could not be authorized. Please try again."
+    let result = RealtimeProviderToolResultPolicy.prepare(
+      provider: .gemini,
+      name: HubTool.spawnAgent.rawValue,
+      output: RealtimeProviderToolResultPolicy.rejectedOutput(code: code, message: message))
+    let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.output.utf8)) as? [String: Any])
+    let error = try XCTUnwrap(object["error"] as? [String: Any])
+    let envelope = try XCTUnwrap(object["toolResultEnvelope"] as? [String: Any])
 
-      XCTAssertFalse(result.wasOversized)
-      XCTAssertEqual(object["ok"] as? Bool, false)
-      XCTAssertEqual(error["code"] as? String, code)
-      XCTAssertEqual(envelope["status"] as? String, "failed")
-      XCTAssertEqual((envelope["provenance"] as? [String: Any])?["toolName"] as? String, HubTool.spawnAgent.rawValue)
-      XCTAssertTrue(
-        ((envelope["provenance"] as? [String: Any])?["invocationId"] as? String ?? "").contains(provider.rawValue))
-    }
+    XCTAssertFalse(result.wasOversized)
+    XCTAssertEqual(object["ok"] as? Bool, false)
+    XCTAssertEqual(error["code"] as? String, code)
+    XCTAssertEqual(envelope["status"] as? String, "failed")
+    XCTAssertEqual((envelope["provenance"] as? [String: Any])?["toolName"] as? String, HubTool.spawnAgent.rawValue)
+    XCTAssertTrue(
+      ((envelope["provenance"] as? [String: Any])?["invocationId"] as? String ?? "").contains("gemini"))
   }
 
   func testSpawnRejectionPreservesAuthorizedNodeEnvelope() throws {
@@ -464,7 +462,7 @@ final class RealtimeProviderToolResultPolicyTests: XCTestCase {
       message: "The tool could not be authorized.",
       preservingCanonicalEnvelopeFrom: sourceOutput)
     let result = RealtimeProviderToolResultPolicy.prepare(
-      provider: .openai,
+      provider: .gemini,
       name: HubTool.spawnAgent.rawValue,
       output: rejected)
     let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.output.utf8)) as? [String: Any])

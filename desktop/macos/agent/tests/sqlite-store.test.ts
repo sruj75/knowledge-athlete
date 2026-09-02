@@ -30,7 +30,7 @@ describe("SqliteAgentStore", () => {
     store.migrate();
     store.migrate();
 
-    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(31);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(32);
     expect(tableNames(store)).toEqual([
       "adapter_bindings",
       "artifacts",
@@ -123,7 +123,7 @@ describe("SqliteAgentStore", () => {
       nowMs: () => 500,
       canonicalExecutionProfile: {
         adapterId: "pi-mono",
-        modelProfile: "omi-sonnet",
+        modelProfile: "gemini-3.7-flash",
         workingDirectory: "/private/managed-agent-artifacts",
       },
     });
@@ -138,7 +138,7 @@ describe("SqliteAgentStore", () => {
       )).toMatchObject({
         adapter_id: "pi-mono",
         credential_scope: "managed_cloud",
-        model_profile: "omi-sonnet",
+        model_profile: "gemini-3.7-flash",
         working_directory: "/private/managed-agent-artifacts",
         execution_role: index === 0 ? "coordinator" : "leaf",
         source: "migration",
@@ -157,7 +157,7 @@ describe("SqliteAgentStore", () => {
       )).toMatchObject({
         current_profile_generation: 2,
         default_adapter_id: "pi-mono",
-        model_profile: "omi-sonnet",
+        model_profile: "gemini-3.7-flash",
         default_cwd: "/private/managed-agent-artifacts",
       });
     }
@@ -166,6 +166,60 @@ describe("SqliteAgentStore", () => {
     expect(store.getRow("SELECT COUNT(*) AS count FROM adapter_bindings WHERE status = 'stale'").count).toBe(4);
     expect(store.getRow("SELECT status FROM runs WHERE run_id = ?", [interruptedRun.runId]).status).toBe("orphaned");
     expect(store.getRow("SELECT status FROM run_attempts WHERE run_id = ?", [interruptedRun.runId]).status).toBe("orphaned");
+    store.close();
+  });
+
+  it("migrates a persisted omi-sonnet profile once without retaining an alias", () => {
+    const databasePath = newDatabasePath();
+    let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false });
+    const session = store.insertSession({
+      ownerId: "owner",
+      surfaceKind: "main_chat",
+      defaultAdapterId: "pi-mono",
+      providerBoundary: "managed_cloud",
+      modelProfile: "omi-sonnet",
+      defaultCwd: "/tmp/legacy-managed-chat",
+      executionRole: "coordinator",
+    });
+    store.insertAdapterBinding({
+      sessionId: session.sessionId,
+      adapterId: "pi-mono",
+      bindingGeneration: 1,
+      profileGeneration: 1,
+      resumeFidelity: "none",
+      status: "active",
+      adapterNativeSessionId: "legacy-managed-worker",
+    });
+    store.execute("DELETE FROM schema_migrations WHERE version = 33");
+    store.close();
+
+    store = new SqliteAgentStore({
+      databasePath,
+      reconcileOnOpen: false,
+      nowMs: () => 700,
+      canonicalExecutionProfile: {
+        adapterId: "pi-mono",
+        modelProfile: "gemini-3.7-flash",
+        workingDirectory: "/private/managed-agent-artifacts",
+      },
+    });
+
+    expect(store.getRow(
+      "SELECT current_profile_generation, model_profile FROM sessions WHERE session_id = ?",
+      [session.sessionId],
+    )).toMatchObject({ current_profile_generation: 2, model_profile: "gemini-3.7-flash" });
+    expect(store.getRow(
+      "SELECT model_profile, source FROM session_execution_profiles WHERE session_id = ? AND generation = 2",
+      [session.sessionId],
+    )).toMatchObject({ model_profile: "gemini-3.7-flash", source: "migration" });
+    expect(store.getRow(
+      "SELECT model_profile FROM session_execution_profiles WHERE session_id = ? AND generation = 1",
+      [session.sessionId],
+    ).model_profile).toBe("omi-sonnet");
+    expect(store.getRow(
+      "SELECT status, adapter_instance_id FROM adapter_bindings WHERE session_id = ?",
+      [session.sessionId],
+    )).toMatchObject({ status: "stale", adapter_instance_id: null });
     store.close();
   });
 

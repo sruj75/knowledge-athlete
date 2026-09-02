@@ -29,7 +29,7 @@ def test_wrapped_routes_and_openrouter_workload_are_absent() -> None:
     assert not {route_key for route_key in route_keys if route_key[1].startswith('/v1/wrapped/')}
     assert 'wrapped_analysis' not in model_config.get_all_workloads()
     assert all(workload.provider != 'openrouter' for workload in model_config.get_all_workloads().values())
-    assert ('POST', '/v2/chat/completions') in route_keys
+    assert ('POST', '/v2/models/{model}:streamGenerateContent') in route_keys
 
 
 def test_e2e_llm_fake_registers_only_retained_provider_endpoints() -> None:
@@ -39,8 +39,11 @@ def test_e2e_llm_fake_registers_only_retained_provider_endpoints() -> None:
     configure_llm_fakes(success)
     configure_llm_error(failure)
 
-    assert success.paths == ['/v1/chat/completions', '/v1/messages', '/v1/embeddings']
-    assert failure.paths == ['/v1/chat/completions', '/v1/messages']
+    assert success.paths == [
+        '/v1beta/models/gemini-3.7-flash:generateContent',
+        '/v1beta/models/gemini-2.5-flash-lite:generateContent',
+    ]
+    assert failure.paths == success.paths
 
 
 def test_openrouter_secret_is_absent_from_deployment_classification() -> None:

@@ -56,9 +56,6 @@ class Message(BaseModel):
     report_reason: Optional[str] = None
     chat_session_id: Optional[str] = None
     session_id: Optional[str] = None
-    langsmith_run_id: Optional[str] = None  # LangSmith run ID for operator trace correlation
-    prompt_name: Optional[str] = None  # LangSmith prompt name for versioning
-    prompt_commit: Optional[str] = None  # LangSmith prompt commit/version for traceability
     # Desktop journal compatibility fields. These are optional so the existing
     # message response remains readable by older clients while a new client can
     # reconcile the canonical turn identity and structured payload exactly.

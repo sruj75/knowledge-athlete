@@ -10,25 +10,13 @@ final class PiMonoWiringTests: XCTestCase {
     XCTAssertNil(AgentRuntimeRouting.harnessMode(from: "unknown"))
   }
 
-  func testApiKeysResponseDecodesWithoutAnthropicKey() throws {
+  func testApiKeysResponseIgnoresRetiredProviderFields() throws {
     let json = """
       {
         "firebase_api_key": "AIza-test",
-        "google_calendar_api_key": "cal-key"
-      }
-      """.data(using: .utf8)!
-    let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)
-
-    XCTAssertEqual(response.firebaseApiKey, "AIza-test")
-    XCTAssertEqual(response.googleCalendarApiKey, "cal-key")
-  }
-
-  func testApiKeysResponseIgnoresUnknownAnthropicField() throws {
-    let json = """
-      {
-        "firebase_api_key": "AIza-test",
-        "anthropic_api_key": "sk-ant-LEAKED",
-        "google_calendar_api_key": "cal-key"
+        "anthropic_api_key": "sk-ant-retired",
+        "google_calendar_api_key": "cal-key",
+        "deepgram_api_key": "dg-retired"
       }
       """.data(using: .utf8)!
     let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)
@@ -36,6 +24,8 @@ final class PiMonoWiringTests: XCTestCase {
 
     XCTAssertEqual(response.firebaseApiKey, "AIza-test")
     XCTAssertFalse(propertyNames.contains("anthropicApiKey"))
+    XCTAssertFalse(propertyNames.contains("googleCalendarApiKey"))
+    XCTAssertFalse(propertyNames.contains("deepgramApiKey"))
   }
 
   func testRemovedBridgeAndCredentialSurfacesStayAbsent() throws {

@@ -11,7 +11,7 @@ Verifies:
 Usage:
     cd backend && python -m tests.eval.test_proactive_tools_eval
 
-Requires OPENAI_API_KEY in environment.
+Requires GEMINI_API_KEY in environment.
 """
 
 import json
@@ -21,13 +21,13 @@ from typing import List, Dict, Any
 
 from pydantic import BaseModel, Field
 
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ---------------------------------------------------------------------------
 # LLM clients
 # ---------------------------------------------------------------------------
-llm_mini = ChatOpenAI(model="gpt-4.1-mini")
-llm_judge = ChatOpenAI(model="gpt-5.1")
+llm_mini = ChatGoogleGenerativeAI(model="gemini-3.7-flash")
+llm_judge = ChatGoogleGenerativeAI(model="gemini-3.7-flash")
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +355,7 @@ def run_eval_case(case: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def judge_notification(case: Dict[str, Any], eval_result: Dict[str, Any], should_notify: bool) -> Dict[str, Any]:
-    """Use gpt-5.1 to judge the quality of a notification decision."""
+    """Use Gemini 3.7 Flash to judge the quality of a notification decision."""
     if not should_notify:
         # For cases that should NOT notify
         if not eval_result["has_advice"]:
@@ -420,7 +420,7 @@ def main():
 
     print(f"\n{'='*70}")
     print(f"PROACTIVE MENTOR — UNIFIED PROMPT EVAL ({total_cases} test cases)")
-    print(f"Model: gpt-4.1-mini | Judge: gpt-5.1")
+    print("Model: gemini-3.7-flash | Judge: gemini-3.7-flash")
     print(f"{'='*70}")
 
     results = []

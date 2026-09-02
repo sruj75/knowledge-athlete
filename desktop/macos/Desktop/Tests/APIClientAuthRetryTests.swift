@@ -438,7 +438,7 @@ import XCTest
           {
             "error":"Incorrect API key provided",
             "reason":"provider_auth_failed",
-            "provider":"openai",
+            "provider":"gemini",
             "backend_route":"/v2/realtime/session",
             "upstream_status_code":401,
             "retryable":false
@@ -460,14 +460,12 @@ import XCTest
       try configureRefreshableSession(idToken: ownerToken)
 
       do {
-        _ = try await client.mintRealtimeToken(
-          provider: "openai",
-          expectedOwnerID: "user-1")
+        _ = try await client.mintRealtimeToken(expectedOwnerID: "user-1")
         XCTFail("Expected provider authorization failure")
       } catch let error as RealtimeTokenMintError {
         XCTAssertEqual(
           error.healthError.failureClass,
-          .providerAuthFailed(provider: .openai, mode: .managed))
+          .providerAuthFailed(provider: .gemini, mode: .managed))
       }
 
       XCTAssertEqual(AuthRetryURLStub.attempts, 1)

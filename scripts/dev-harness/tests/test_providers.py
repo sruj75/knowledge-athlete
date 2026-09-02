@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dev_harness import config, providers, safety
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-OPENAI_FAKE_RELATIVE_PATH = Path("backend") / "testing" / "e2e" / "fakes" / "llm.py"
+GEMINI_FAKE_RELATIVE_PATH = Path("backend") / "testing" / "e2e" / "fakes" / "llm.py"
 MODULATE_FAKE_RELATIVE_PATH = Path("backend") / "testing" / "e2e" / "fakes" / "stt.py"
 
 
@@ -21,7 +21,6 @@ def _real_env(api_key: str = "sk-local-dev-test-key") -> dict[str, str]:
         "OPENAI_API_KEY": api_key,
         "MODULATE_API_KEY": "modulate-local-dev-test-key",
         "GEMINI_API_KEY": "gemini-local-dev-test-key",
-        "ANTHROPIC_API_KEY": "sk-ant-local-dev-test-key",
     }
 
 
@@ -43,8 +42,8 @@ def test_credential_checker_real_and_offline_modes(monkeypatch: pytest.MonkeyPat
 
     assert offline.ok
     assert offline.enabled_external_providers == ()
-    assert "openai" in offline.offline_fake_sources
-    assert Path(offline.offline_fake_sources["openai"]).relative_to(REPO_ROOT) == OPENAI_FAKE_RELATIVE_PATH
+    assert "gemini" in offline.offline_fake_sources
+    assert Path(offline.offline_fake_sources["gemini"]).relative_to(REPO_ROOT) == GEMINI_FAKE_RELATIVE_PATH
     assert Path(offline.offline_fake_sources["modulate"]).relative_to(REPO_ROOT) == MODULATE_FAKE_RELATIVE_PATH
 
 
@@ -57,7 +56,6 @@ def test_real_mode_reports_fingerprints_without_leaking_secrets() -> None:
         "openai",
         "modulate",
         "gemini",
-        "anthropic",
     }
     assert report.fingerprints["openai"] == providers.secret_fingerprint(env["OPENAI_API_KEY"])
     assert report.fingerprints["modulate"] == providers.secret_fingerprint(env["MODULATE_API_KEY"])
@@ -65,7 +63,6 @@ def test_real_mode_reports_fingerprints_without_leaking_secrets() -> None:
     assert env["OPENAI_API_KEY"] not in rendered
     assert env["MODULATE_API_KEY"] not in rendered
     assert env["GEMINI_API_KEY"] not in rendered
-    assert env["ANTHROPIC_API_KEY"] not in rendered
     assert "sha256:" in rendered
 
 
@@ -75,8 +72,8 @@ def test_endpoint_and_capability_allowlists() -> None:
     broker.check_request(
         providers.ProviderRequest(
             provider="openai",
-            capability="llm.chat",
-            endpoint="https://api.openai.com/v1/chat/completions",
+            capability="tts.speech",
+            endpoint="https://api.openai.com/v1/audio/speech",
             estimated_cost_usd=0.01,
         )
     )
@@ -94,7 +91,7 @@ def test_endpoint_and_capability_allowlists() -> None:
             providers.ProviderRequest(
                 provider="openai",
                 capability="llm.finetune",
-                endpoint="https://api.openai.com/v1/chat/completions",
+                endpoint="https://api.openai.com/v1/audio/speech",
                 estimated_cost_usd=0.01,
             )
         )
@@ -102,8 +99,8 @@ def test_endpoint_and_capability_allowlists() -> None:
         broker.check_request(
             providers.ProviderRequest(
                 provider="openai",
-                capability="llm.chat",
-                endpoint="https://api.evil.example/v1/chat/completions",
+                capability="tts.speech",
+                endpoint="https://api.evil.example/v1/audio/speech",
                 estimated_cost_usd=0.01,
             )
         )
@@ -111,8 +108,8 @@ def test_endpoint_and_capability_allowlists() -> None:
         broker.check_request(
             providers.ProviderRequest(
                 provider="openai",
-                capability="llm.chat",
-                endpoint="https://api.openai.com/v1/chat/completions",
+                capability="tts.speech",
+                endpoint="https://api.openai.com/v1/audio/speech",
             )
         )
 
@@ -123,9 +120,9 @@ def test_hosted_vector_and_external_state_writes_are_rejected() -> None:
     with pytest.raises(providers.ProviderPolicyError, match="vector/index writes"):
         broker.check_request(
             providers.ProviderRequest(
-                provider="openai",
+                provider="gemini",
                 capability="embedding.read",
-                endpoint="https://api.openai.com/v1/embeddings",
+                endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
                 estimated_cost_usd=0.01,
                 uses_vector_or_index_write=True,
             )
@@ -134,8 +131,8 @@ def test_hosted_vector_and_external_state_writes_are_rejected() -> None:
         broker.check_request(
             providers.ProviderRequest(
                 provider="openai",
-                capability="llm.chat",
-                endpoint="https://api.openai.com/v1/chat/completions",
+                capability="tts.speech",
+                endpoint="https://api.openai.com/v1/audio/speech",
                 estimated_cost_usd=0.01,
                 uses_webhook=True,
             )
@@ -144,8 +141,8 @@ def test_hosted_vector_and_external_state_writes_are_rejected() -> None:
         broker.check_request(
             providers.ProviderRequest(
                 provider="openai",
-                capability="llm.chat",
-                endpoint="https://api.openai.com/v1/chat/completions",
+                capability="tts.speech",
+                endpoint="https://api.openai.com/v1/audio/speech",
                 estimated_cost_usd=0.01,
                 replay_after_restart=True,
             )
@@ -156,17 +153,17 @@ def test_offline_mode_uses_hermetic_shared_fake_provider_wrapper() -> None:
     registry = providers.OfflineProviderRegistry(REPO_ROOT)
     fake_paths = registry.fake_source_paths()
 
-    assert Path(fake_paths["openai"]).relative_to(REPO_ROOT) == OPENAI_FAKE_RELATIVE_PATH
+    assert Path(fake_paths["gemini"]).relative_to(REPO_ROOT) == GEMINI_FAKE_RELATIVE_PATH
     assert Path(fake_paths["modulate"]).relative_to(REPO_ROOT) == MODULATE_FAKE_RELATIVE_PATH
-    llm_fake = registry.load_fake("openai")
-    response = llm_fake.make_openai_chat_response()
-    assert response["id"] == "chatcmpl-fake-e2e-test"
+    llm_fake = registry.load_fake("gemini")
+    response = llm_fake.make_gemini_response()
+    assert response["candidates"][0]["finishReason"] == "STOP"
     offline_broker = providers.ProviderBroker(REPO_ROOT, env={"PROVIDER_MODE": "offline"})
     offline_broker.check_request(
         providers.ProviderRequest(
-            provider="openai",
+            provider="gemini",
             capability="llm.chat",
-            endpoint="https://api.openai.com/v1/chat/completions",
+            endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
             estimated_cost_usd=0.0,
         )
     )
@@ -205,7 +202,6 @@ def test_provider_secrets_injected_into_child_env(tmp_path: Path) -> None:
                 f"OPENAI_API_KEY={secret}",
                 "MODULATE_API_KEY=modulate-local-dev-test-key",
                 "GEMINI_API_KEY=gemini-local-dev-test-key",
-                "ANTHROPIC_API_KEY=sk-ant-local-dev-test-key",
             ]
         )
         + "\n",
@@ -217,12 +213,12 @@ def test_provider_secrets_injected_into_child_env(tmp_path: Path) -> None:
     if existing := env.get("PYTHONPATH"):
         pythonpath.append(existing)
     env["PYTHONPATH"] = os.pathsep.join(pythonpath)
-    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY"):
         env.pop(key, None)
 
     cfg = config.load_config(repo, env=env, create_layout=True)
     child = config.child_env_for(cfg)
-    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY"):
         expected = config.parse_secrets_file(cfg).secrets[key]
         assert child.get(key) == expected
     assert secret not in "\n".join(

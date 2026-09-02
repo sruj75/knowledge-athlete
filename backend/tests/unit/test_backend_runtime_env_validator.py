@@ -91,20 +91,40 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'ACCOUNT_DELETION_DISPATCH_MODE',
         'DESKTOP_UPDATE_POINTERS_MODE',
         'POSTHOG_HOST',
+        'LANGFUSE_BASE_URL',
+        'LANGFUSE_TRACING_ENVIRONMENT',
+        'LANGFUSE_PROMPT_NAME',
+        'LANGFUSE_PROMPT_CACHE_TTL_SECONDS',
         'REDIS_DB_HOST',
         'REDIS_DB_PORT',
         'REDIS_DB_CA_CERT_PEM',
     } <= set(backend['env'])
     assert {
-        'MODULATE_API_KEY',
         'GEMINI_API_KEY',
         'OPENAI_API_KEY',
-        'ANTHROPIC_API_KEY',
         'FIREBASE_API_KEY',
         'REDIS_DB_PASSWORD',
-        'POSTHOG_PROJECT_API_KEY',
+        'LANGFUSE_PUBLIC_KEY',
+        'LANGFUSE_SECRET_KEY',
     } <= set(backend['secrets'])
+    if env_name == 'dev':
+        assert 'MODULATE_API_KEY' in backend['secrets']
+        assert {'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(backend['secrets'])
+        workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
+        deploy_steps = workflow['jobs']['deploy']['steps']
+        transcription_gate = next(
+            step for step in deploy_steps if step.get('name') == 'Gate backend candidate on known audio'
+        )
+        assert transcription_gate['if'] == (
+            "${{ github.event.inputs.environment == 'development' && vars.MODULATE_API_KEY_VERSION != '' }}"
+        )
+    else:
+        assert {'MODULATE_API_KEY', 'POSTHOG_PROJECT_API_KEY'} <= set(backend['secrets'])
+        assert 'GOOGLE_CALENDAR_API_KEY' not in backend['secrets']
     assert backend['env']['BILLING_MODE']['value'] == 'disabled'
+    assert backend['env']['LANGFUSE_BASE_URL']['value'] == 'https://us.cloud.langfuse.com'
+    assert backend['env']['LANGFUSE_PROMPT_NAME']['value'] == 'intentive-chat-system'
+    assert backend['env']['LANGFUSE_PROMPT_CACHE_TTL_SECONDS']['value'] == '300'
     for binding in backend['secrets'].values():
         assert set(binding) <= {'secret', 'version_env_var'}
 
@@ -123,8 +143,28 @@ def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inp
     assert all(binding.get('version') != 'latest' for binding in backend['secrets'].values())
 
 
-@pytest.mark.parametrize(('env_name', 'minimum', 'maximum'), [('dev', '0', '3'), ('prod', '1', '10')])
-def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, maximum):
+@pytest.mark.parametrize(
+    ('env_name', 'network_flags', 'cpu', 'memory', 'minimum', 'maximum', 'cpu_mode'),
+    [
+        ('dev', {}, '1', '2Gi', '0', '1', '--cpu-throttling'),
+        (
+            'prod',
+            {
+                '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
+                '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
+                '--vpc-egress': 'private-ranges-only',
+            },
+            '2',
+            '4Gi',
+            '1',
+            '10',
+            '--no-cpu-throttling',
+        ),
+    ],
+)
+def test_canonical_cloud_run_contract_is_explicit_and_owned(
+    env_name, network_flags, cpu, memory, minimum, maximum, cpu_mode
+):
     validator = load_validator()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
     env_config = manifest['environments'][env_name]
@@ -134,14 +174,10 @@ def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, m
     assert env_config['gcp_project'] == {'env_var': 'GCP_PROJECT_ID'}
     assert env_config['runtime_gcp_project'] == {'env_var': 'RUNTIME_GCP_PROJECT_ID'}
     assert env_config['region'] == 'us-west1'
-    assert cloud_run['network']['flags'] == {
-        '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-        '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-        '--vpc-egress': 'private-ranges-only',
-    }
-    assert backend['flags'] == {
-        '--cpu': '2',
-        '--memory': '4Gi',
+    assert cloud_run['network']['flags'] == network_flags
+    expected_flags = {
+        '--cpu': cpu,
+        '--memory': memory,
         '--concurrency': '20',
         '--timeout': '3600s',
         '--min-instances': minimum,
@@ -149,11 +185,12 @@ def test_canonical_cloud_run_contract_is_explicit_and_owned(env_name, minimum, m
         '--execution-environment': 'gen2',
         '--allow-unauthenticated': True,
         '--no-session-affinity': True,
-        '--no-cpu-throttling': True,
+        cpu_mode: True,
         '--no-cpu-boost': True,
         '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
         '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
     }
+    assert backend['flags'] == expected_flags
 
 
 def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift(tmp_path):
@@ -171,31 +208,41 @@ def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift
     assert any('OPENAI_API_KEY must select an exact version input' in error.message for error in errors)
 
 
-@pytest.mark.parametrize(
-    ('env_name', 'redis_tier', 'alerts'),
-    [
-        ('dev', 'BASIC', []),
-        ('prod', 'STANDARD_HA', ['health_unreachable', 'cloud_run_5xx']),
-    ],
-)
-def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, redis_tier, alerts):
+@pytest.mark.parametrize(('env_name', 'alerts'), [('dev', []), ('prod', ['health_unreachable', 'cloud_run_5xx'])])
+def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, alerts):
     validator = load_validator()
     foundation = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments'][env_name]['foundation']
 
-    assert foundation['network']['region'] == 'us-west1'
-    assert foundation['network']['private_service_access'] == {
-        'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
-        'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
-    }
-    assert foundation['redis'] == {
-        'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
-        'region': 'us-west1',
-        'tier': redis_tier,
-        'memory_gib': 1,
-        'private_service_access': True,
-        'auth': True,
-        'transit_encryption': 'SERVER_AUTHENTICATION',
-    }
+    if env_name == 'dev':
+        assert foundation['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
+        assert foundation['redis'] == {
+            'provider': 'upstash',
+            'database': 'intentive-development',
+            'region': 'us-west-2',
+            'plan': 'free',
+            'endpoint': {
+                'host': {'env_var': 'REDIS_DB_HOST'},
+                'port': {'env_var': 'REDIS_DB_PORT'},
+            },
+            'auth': True,
+            'transit_encryption': 'TLS',
+            'verification': 'runtime-tls-probe',
+        }
+    else:
+        assert foundation['network']['region'] == 'us-west1'
+        assert foundation['network']['private_service_access'] == {
+            'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
+            'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
+        }
+        assert foundation['redis'] == {
+            'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
+            'region': 'us-west1',
+            'tier': 'STANDARD_HA',
+            'memory_gib': 1,
+            'private_service_access': True,
+            'auth': True,
+            'transit_encryption': 'SERVER_AUTHENTICATION',
+        }
     assert foundation['tasks']['queue'] == {
         'name': 'account-deletion',
         'location': 'us-west1',
@@ -734,7 +781,8 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     assert not any('HOSTED_PUSHER_API_URL must be listed' in error.message for error in errors)
 
 
-def test_managed_stt_surfaces_require_modulate_binding():
+@pytest.mark.parametrize('env_name', ['dev', 'prod'])
+def test_hosted_managed_stt_surface_requires_modulate_binding(env_name):
     validator = load_validator()
     env_config = {
         'cloud_run': {
@@ -744,14 +792,13 @@ def test_managed_stt_surfaces_require_modulate_binding():
         },
     }
 
-    errors = validator._validate_managed_stt_contract('dev', env_config)
+    errors = validator._validate_managed_stt_contract(env_name, env_config)
 
     assert errors == [
         validator.ValidationError(
-            scope,
+            f'{env_name}/cloud_run/backend',
             'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
-        for scope in ('dev/cloud_run/backend',)
     ]
 
 
@@ -841,10 +888,11 @@ def test_repo_rendered_cloud_run_matches_manifest():
     assert validator.validate_runtime_env(env='prod', check_rendered_cloud_run=True) == []
 
 
-def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
+@pytest.mark.parametrize('env_name', ['dev', 'prod'])
+def test_missing_modulate_binding_is_rejected_for_rendered_hosted_cloud_run(tmp_path, env_name):
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
-    services = manifest['environments']['dev']['cloud_run']['services']
+    services = manifest['environments'][env_name]['cloud_run']['services']
     required_services = {'backend'}
     for service_name in required_services:
         services[service_name]['secrets'].pop('MODULATE_API_KEY')
@@ -852,7 +900,7 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
     manifest_path = tmp_path / 'runtime_env.yaml'
     write_yaml(manifest_path, manifest)
 
-    errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path, check_rendered_cloud_run=True)
+    errors = validator.validate_runtime_env(env=env_name, manifest_path=manifest_path, check_rendered_cloud_run=True)
 
     assert {
         (error.scope, error.message)
@@ -860,7 +908,7 @@ def test_missing_modulate_binding_is_rejected_for_rendered_cloud_run(tmp_path):
         if error.message == 'managed transcription surface is missing non-empty MODULATE_API_KEY'
     } == {
         (
-            f'dev/cloud_run/{service_name}',
+            f'{env_name}/cloud_run/{service_name}',
             'managed transcription surface is missing non-empty MODULATE_API_KEY',
         )
         for service_name in required_services
@@ -888,7 +936,9 @@ def _live_env_config():
         'gcp_project': 'based-hardware',
         'region': 'us-central1',
         'cloud_run': {
-            'services': {'backend': {}},
+            'services': {
+                'backend': {'deployment_name': {'env_var': 'BACKEND_CLOUD_RUN_SERVICE'}},
+            },
             'jobs': {'maintenance-job': {}},
         },
     }
@@ -899,6 +949,7 @@ def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
     # describe services only and never run `gcloud run jobs describe`.
     validator = load_validator()
     described = []
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'knowledge-athlete-dev')
 
     def fake_run(command, **kwargs):
         described.append(command)
@@ -911,12 +962,45 @@ def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
     assert 'jobs' not in state  # no live job state → consumer skips job env checks
     assert 'backend' in state['services']  # services are still fetched + validated
     assert any('services' in cmd for cmd in described)
+    assert all('knowledge-athlete-dev' in cmd for cmd in described)
+    assert all('backend' not in cmd for cmd in described)
+
+
+def test_fetch_live_cloud_run_state_rejects_missing_deployment_binding_before_gcloud(monkeypatch):
+    validator = load_validator()
+    env_config = _live_env_config()
+    env_config['cloud_run']['services']['backend'] = {}
+    commands = []
+
+    monkeypatch.setattr(validator.subprocess, 'run', lambda command, **_kwargs: commands.append(command))
+
+    with pytest.raises(ValueError, match='backend deployment_name requires its declared external input'):
+        validator._fetch_live_cloud_run_state(env_config)
+
+    assert commands == []
+
+
+def test_manifest_requires_environment_owned_cloud_run_deployment_name(tmp_path):
+    validator = load_validator()
+    manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
+    manifest['environments']['dev']['cloud_run']['services']['backend'].pop('deployment_name', None)
+    manifest_path = tmp_path / 'runtime_env.yaml'
+    write_yaml(manifest_path, manifest)
+
+    errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path)
+
+    assert any(
+        error.scope == 'dev/cloud_run/backend'
+        and error.message == 'deployment_name must bind $BACKEND_CLOUD_RUN_SERVICE'
+        for error in errors
+    )
 
 
 def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract(monkeypatch):
     validator = load_validator()
     env_config = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments']['prod']
     monkeypatch.setenv('GCP_PROJECT_ID', 'owned-prod')
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'intentive-production')
     document = {
         'spec': {
             'template': {
@@ -972,3 +1056,18 @@ def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract
     assert flags['--service-account'] == 'runtime@owned-prod.iam.gserviceaccount.com'
     assert flags['--no-cpu-throttling'] == 'true'
     assert flags['--startup-probe'].startswith('httpGet.path=/v1/health,periodSeconds=10')
+
+
+def test_live_cloud_run_describe_normalizes_request_based_cpu() -> None:
+    validator = load_validator()
+
+    flags = validator._cloud_run_service_flags_from_state(
+        annotations={'run.googleapis.com/cpu-throttling': 'true'},
+        template_spec={},
+        container={},
+        service_config={'forbidden_env': []},
+        env_entries=[],
+    )
+
+    assert flags['--cpu-throttling'] == 'true'
+    assert '--no-cpu-throttling' not in flags

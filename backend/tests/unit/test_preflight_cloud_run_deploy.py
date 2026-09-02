@@ -17,13 +17,12 @@ _SECRET_VERSION_INPUTS = (
     'BETA_PROMOTION_TOKEN_VERSION',
     'GOOGLE_CLIENT_SECRET_VERSION',
     'POSTHOG_PROJECT_API_KEY_VERSION',
+    'LANGFUSE_PUBLIC_KEY_VERSION',
+    'LANGFUSE_SECRET_KEY_VERSION',
     'MODULATE_API_KEY_VERSION',
     'GEMINI_API_KEY_VERSION',
     'OPENAI_API_KEY_VERSION',
-    'ANTHROPIC_API_KEY_VERSION',
-    'DESKTOP_LEGACY_ANTHROPIC_KEY_VERSION',
     'FIREBASE_API_KEY_VERSION',
-    'GOOGLE_CALENDAR_API_KEY_VERSION',
     'REDIS_DB_PASSWORD_VERSION',
 )
 
@@ -56,6 +55,8 @@ def test_check_rendered_secrets_reports_missing(monkeypatch: pytest.MonkeyPatch)
 
     secret_names = {item.secret_name for item in missing}
     assert 'BETA_PROMOTION_TOKEN' in secret_names
+    assert 'LANGFUSE_PUBLIC_KEY' in secret_names
+    assert 'LANGFUSE_SECRET_KEY' in secret_names
     assert 'GOOGLE_CLIENT_ID' not in secret_names
 
 
@@ -72,6 +73,19 @@ def test_check_rendered_secrets_passes_when_secrets_exist(monkeypatch: pytest.Mo
     assert missing == []
 
 
+def test_development_manifest_includes_owned_provider_secrets_and_excludes_retired_ones() -> None:
+    preflight = load_preflight()
+    manifest = preflight.render_backend_runtime_env._load_yaml(BACKEND_ROOT / 'deploy/runtime_env.yaml')
+    secrets = manifest['environments']['dev']['cloud_run']['services']['backend']['secrets']
+
+    assert 'GEMINI_API_KEY' in secrets
+    assert 'OPENAI_API_KEY' in secrets
+    assert 'MODULATE_API_KEY' in secrets
+    assert 'LANGFUSE_PUBLIC_KEY' in secrets
+    assert 'LANGFUSE_SECRET_KEY' in secrets
+    assert {'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(secrets)
+
+
 def test_parse_revision_targets_rejects_blank_values() -> None:
     preflight = load_preflight()
 
@@ -86,8 +100,11 @@ def test_parse_revision_targets_rejects_missing_equals() -> None:
         preflight._parse_revision_targets(['backend'])
 
 
-def test_runtime_binding_check_accepts_manifest_literal_and_secret_bindings_read_only(tmp_path: Path) -> None:
+def test_runtime_binding_check_accepts_manifest_literal_and_secret_bindings_read_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     preflight = load_preflight()
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'knowledge-athlete-dev')
     manifest = tmp_path / 'runtime_env.yaml'
     manifest.write_text(
         '''\
@@ -97,6 +114,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            env_var: BACKEND_CLOUD_RUN_SERVICE
           env:
             PUBLIC_SETTING:
               value: public
@@ -148,7 +167,7 @@ environments:
             'run',
             'services',
             'describe',
-            'backend',
+            'knowledge-athlete-dev',
             '--project=based-hardware-dev',
             '--region=us-central1',
             '--format=json',
@@ -168,6 +187,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           secrets:
             PRIVATE_SETTING:
               secret: expected-secret
@@ -191,6 +212,37 @@ environments:
     ]
 
 
+def test_runtime_binding_check_rejects_missing_deployment_name_without_querying_cloud_run(tmp_path: Path) -> None:
+    preflight = load_preflight()
+    manifest = tmp_path / 'runtime_env.yaml'
+    manifest.write_text(
+        '''\
+environments:
+  dev:
+    gcp_project: based-hardware-dev
+    cloud_run:
+      services:
+        backend:
+          env: {}
+          secrets: {}
+''',
+        encoding='utf-8',
+    )
+    commands: list[list[str]] = []
+
+    with pytest.raises(ValueError, match='Cloud Run service backend deployment_name is missing'):
+        preflight.check_runtime_bindings(
+            services=('backend',),
+            env='dev',
+            project='based-hardware-dev',
+            region='us-central1',
+            manifest_path=manifest,
+            runner=lambda command, **_kwargs: commands.append(command),
+        )
+
+    assert commands == []
+
+
 def test_runtime_binding_check_rejects_multi_container_live_service_shape(tmp_path: Path) -> None:
     preflight = load_preflight()
     manifest = tmp_path / 'runtime_env.yaml'
@@ -202,6 +254,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public
@@ -243,6 +297,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public
@@ -276,6 +332,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             GLOBAL_PUBLIC:
               value: global
@@ -284,6 +342,8 @@ environments:
               secret: inherited-secret
               version: '3'
         backend-beta:
+          deployment_name:
+            value: knowledge-athlete-beta
           env:
             RETAINED_PUBLIC:
               value: retained
@@ -345,6 +405,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public

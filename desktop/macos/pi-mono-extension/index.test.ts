@@ -8,6 +8,7 @@ import { join } from "node:path";
 import {
   OMI_CHAT_CONTRACT_VERSION,
   OMI_LONG_CONTROL_TOOL_TIMEOUT_MS,
+  OMI_MANAGED_PROVIDER_SENTINEL,
   OMI_TOOL_TIMEOUT_MS,
   OMI_TOOLS,
   __callSwiftToolForTest,
@@ -16,9 +17,11 @@ import {
   __registerOmiToolsForTest,
   __resetOmiPipeForTest,
   applyOmiProviderHeaders,
+  createManagedProviderFetch,
   default as managedPiExtension,
   omiReasoningEffortFromRelayContext,
   omiRequestIdFromRelayContext,
+  omiSessionIdFromRelayContext,
   omiToolResultContent,
   omiToolsForExecutionRole,
 } from "./index.ts";
@@ -28,25 +31,103 @@ import {
   toolNamesForAdapter,
   toolsForAdapter,
 } from "../agent/src/runtime/omi-tool-manifest.ts";
+import { convertMessages } from "@earendil-works/pi-ai/api/google-shared";
 
 test("managed provider headers retain correlation and the bounded reasoning contract", () => {
   assert.equal(omiRequestIdFromRelayContext('{"requestId":"req_01AB-cd"}'), "req_01AB-cd");
   assert.equal(omiRequestIdFromRelayContext('{"requestId":"has space"}'), undefined);
   assert.equal(omiRequestIdFromRelayContext(JSON.stringify({ requestId: "x".repeat(129) })), undefined);
+  assert.equal(omiSessionIdFromRelayContext('{"sessionId":"session_01AB-cd"}'), "session_01AB-cd");
+  assert.equal(omiSessionIdFromRelayContext('{"sessionId":"has space"}'), undefined);
+  assert.equal(omiSessionIdFromRelayContext(JSON.stringify({ sessionId: "x".repeat(129) })), undefined);
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"adaptive"}'), "adaptive");
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"fast"}'), "fast");
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"max"}'), undefined);
 
-  const headers: Record<string, string> = {};
-  applyOmiProviderHeaders(headers, JSON.stringify({ requestId: "req_1", reasoningEffort: "adaptive" }));
+  const headers: Record<string, string> = { "x-goog-api-key": "must-not-leave-desktop" };
+  applyOmiProviderHeaders(
+    headers,
+    JSON.stringify({ requestId: "req_1", sessionId: "session_1", reasoningEffort: "adaptive" }),
+    "firebase-token",
+  );
   assert.deepEqual(headers, {
+    "authorization": "Bearer firebase-token",
     "x-omi-chat-contract-version": OMI_CHAT_CONTRACT_VERSION,
     "x-omi-request-id": "req_1",
+    "x-omi-session-id": "session_1",
     "x-omi-reasoning-effort": "adaptive",
   });
 });
 
-test("the extension registers only the managed Omi Sonnet provider", () => {
+test("final managed dispatch removes the Google adapter key without touching Firebase auth", async () => {
+  let dispatched: Request | undefined;
+  const fetchBoundary = createManagedProviderFetch(
+    async (input, init) => {
+      dispatched = input instanceof Request ? input : new Request(input, init);
+      return new Response(null, { status: 204 });
+    },
+    new Set(["https://managed.example/v2"]),
+  );
+  const request = new Request(
+    "https://managed.example/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+    {
+      method: "POST",
+      headers: {
+        authorization: "Bearer firebase-token",
+        "x-goog-api-key": OMI_MANAGED_PROVIDER_SENTINEL,
+      },
+      body: "{}",
+    },
+  );
+
+  await fetchBoundary(request);
+
+  assert.equal(dispatched?.headers.get("authorization"), "Bearer firebase-token");
+  assert.equal(dispatched?.headers.get("x-goog-api-key"), null);
+});
+
+test("the bundled Gemini adapter replays exact thought signatures and merges parallel tool results", () => {
+  const signature = "ZXhhY3QtdGhvdWdodC1zaWduYXR1cmU=";
+  const model = {
+    id: "gemini-3.7-flash",
+    provider: "omi",
+    api: "google-generative-ai",
+    input: ["text", "image"],
+  } as never;
+  const contents = convertMessages(model, {
+    systemPrompt: "",
+    tools: [],
+    messages: [
+      { role: "user", content: "Use both tools", timestamp: 1 },
+      {
+        role: "assistant",
+        provider: "omi",
+        model: "gemini-3.7-flash",
+        api: "google-generative-ai",
+        timestamp: 2,
+        stopReason: "toolUse",
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [
+          { type: "toolCall", id: "call-one", name: "first_tool", arguments: {}, thoughtSignature: signature },
+          { type: "toolCall", id: "call-two", name: "second_tool", arguments: {} },
+        ],
+      },
+      { role: "toolResult", toolCallId: "call-one", toolName: "first_tool", content: [{ type: "text", text: "one" }], isError: false, timestamp: 3 },
+      { role: "toolResult", toolCallId: "call-two", toolName: "second_tool", content: [{ type: "text", text: "two" }], isError: false, timestamp: 4 },
+    ],
+  } as never);
+
+  assert.equal(contents[1]?.parts?.[0]?.thoughtSignature, signature);
+  assert.deepEqual(contents[2], {
+    role: "user",
+    parts: [
+      { functionResponse: { name: "first_tool", response: { output: "one" } } },
+      { functionResponse: { name: "second_tool", response: { output: "two" } } },
+    ],
+  });
+});
+
+test("the extension registers only the native managed Gemini provider", () => {
   const providers: Array<{ name: string; config: Record<string, unknown> }> = [];
   const handlers: string[] = [];
   managedPiExtension({
@@ -62,8 +143,18 @@ test("the extension registers only the managed Omi Sonnet provider", () => {
   assert.equal(providers[0]?.name, "omi");
   assert.deepEqual(
     (providers[0]?.config.models as Array<Record<string, unknown>>).map((model) => model.id),
-    ["omi-sonnet"],
+    ["gemini-3.7-flash"],
   );
+  assert.equal(providers[0]?.config.api, "google-generative-ai");
+  assert.equal(providers[0]?.config.apiKey, OMI_MANAGED_PROVIDER_SENTINEL);
+  assert.equal(providers[0]?.config.authHeader, true);
+  assert.deepEqual((providers[0]?.config.models as Array<Record<string, unknown>>)[0]?.thinkingLevelMap, {
+    off: null,
+    minimal: null,
+    low: "low",
+    medium: "medium",
+    high: "high",
+  });
   assert.deepEqual(handlers, ["before_provider_headers"]);
 });
 
@@ -97,7 +188,9 @@ test("managed provider registration ignores inherited legacy customer keys", () 
   }
 
   assert.equal(registration?.baseUrl, "https://managed.example/v2");
-  assert.equal(registration?.apiKey, "managed-registration-token");
+  assert.equal(registration?.apiKey, OMI_MANAGED_PROVIDER_SENTINEL);
+  assert.notEqual(registration?.apiKey, "managed-registration-token");
+  assert.equal(registration?.api, "google-generative-ai");
   assert.equal(registration?.headers, undefined);
 });
 

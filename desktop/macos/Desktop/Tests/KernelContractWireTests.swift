@@ -220,7 +220,7 @@ final class KernelContractWireTests: XCTestCase {
         "profileGeneration": 2,
         "adapterId": "pi-mono",
         "credentialScope": "managed_cloud",
-        "modelProfile": "omi-sonnet",
+        "modelProfile": "gemini-3.7-flash",
         "workingDirectory": "/tmp/private-artifacts",
         "executionRole": "coordinator",
       ],
@@ -230,7 +230,7 @@ final class KernelContractWireTests: XCTestCase {
     XCTAssertEqual(session.profile.profileGeneration, 2)
     XCTAssertEqual(session.profile.adapterId, "pi-mono")
     XCTAssertEqual(session.profile.credentialScope, .managedCloud)
-    XCTAssertEqual(session.profile.modelProfile, "omi-sonnet")
+    XCTAssertEqual(session.profile.modelProfile, "gemini-3.7-flash")
     XCTAssertEqual(session.profile.executionRole, .coordinator)
   }
 

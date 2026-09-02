@@ -55,6 +55,8 @@ interface PiMonoRelayContext {
   capabilityRef: string;
   /** Omi-owned opaque correlation id. Never contains prompt or account data. */
   requestId: string;
+  /** Owner-local conversation identity used only for provider trace grouping. */
+  sessionId: string;
   /** Per-turn effort lane ("adaptive" | "fast") relayed to the gateway. */
   reasoningEffort?: string;
 }
@@ -264,7 +266,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       "--provider",
       "omi",
       "--model",
-      "omi-sonnet",
+      "gemini-3.7-flash",
     ];
     // Pi has no set_system_prompt RPC — system prompt must be baked at spawn
     // time via the --system-prompt CLI flag. To change it, restart the process.
@@ -272,32 +274,29 @@ export class PiMonoAdapter implements HarnessAdapter {
       args.push("--system-prompt", this.currentSystemPrompt);
     }
 
-    // SECURITY: require a Firebase ID token. We MUST NOT fall back to
-    // ANTHROPIC_API_KEY — the Omi backend rejects provider keys and forwarding
-    // one here would leak the upstream secret to api.omi.me.
+    // SECURITY: require a Firebase ID token. The desktop never receives a
+    // managed provider credential; the backend injects it after authentication.
     if (!this.config.authToken) {
       throw new Error(
         "pi-mono adapter requires config.authToken (Firebase ID token)"
       );
     }
 
-    // Scrub direct Anthropic access and every retired OMI_BYOK_* value so the
-    // extension cannot accidentally read customer credentials. pi-mono talks
-    // to api.omi.me with OMI_API_KEY only.
+    // Scrub direct provider access and every retired OMI_BYOK_* value. Pi talks
+    // to the managed backend with the Firebase token in OMI_API_KEY only.
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
     };
-    delete env.ANTHROPIC_API_KEY;
     for (const key of Object.keys(env)) {
-      if (key.toUpperCase().startsWith("OMI_BYOK_")) {
+      const upper = key.toUpperCase();
+      if (upper.startsWith("OMI_BYOK_") || upper.endsWith("_API_KEY")) {
         delete env[key];
       }
     }
 
 
-    // Pass the raw Firebase ID token. pi's openai-completions client already
-    // prepends `Authorization: Bearer ${apiKey}` — adding our own "Bearer "
-    // prefix here would produce a malformed `Bearer Bearer <token>` header.
+    // Pass the raw Firebase ID token. The managed extension owns the Bearer
+    // header and the backend replaces it with the server-held Gemini key upstream.
     env.OMI_API_KEY = this.config.authToken;
     if (this.config.omiApiBaseUrl) {
       env.OMI_API_BASE_URL = this.config.omiApiBaseUrl;
@@ -399,7 +398,7 @@ export class PiMonoAdapter implements HarnessAdapter {
     this.sendCommand({
       type: "set_model",
       provider: "omi",
-      modelId: "omi-sonnet",
+      modelId: "gemini-3.7-flash",
     });
 
     return sessionId;
@@ -698,6 +697,7 @@ export class PiMonoAdapter implements HarnessAdapter {
       JSON.stringify({
         capabilityRef: context.capabilityRef,
         requestId: context.requestId,
+        sessionId: context.sessionId,
         ...(context.reasoningEffort ? { reasoningEffort: context.reasoningEffort } : {}),
       })
     );
@@ -1088,6 +1088,7 @@ export class PiMonoRuntimeAdapter implements RuntimeAdapter {
         {
           capabilityRef: context.toolCapabilityRef,
           requestId: context.requestId,
+          sessionId: context.sessionId,
           reasoningEffort: relayReasoningEffort(context.metadata),
         }
       );

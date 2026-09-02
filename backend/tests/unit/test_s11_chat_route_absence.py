@@ -42,7 +42,7 @@ def test_retained_chat_compute_routes_remain_mounted() -> None:
 
     assert client.post('/v2/chat/initial-message').status_code == 401
     assert client.post('/v2/chat/generate-title').status_code == 401
-    assert client.post('/v2/chat/completions').status_code == 401
+    assert client.post('/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse').status_code == 401
     assert client.post('/v2/voice-messages').status_code == 401
 
 

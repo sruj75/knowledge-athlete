@@ -1,7 +1,7 @@
 """
 Fake LLM HTTP server using pytest-httpserver.
 
-Provides deterministic responses for OpenAI and Anthropic LLM endpoints.
+Provides deterministic responses for retained Gemini LLM endpoints.
 Every request returns the same structured JSON response
 so tests are fully reproducible.
 """
@@ -32,37 +32,18 @@ DEFAULT_STRUCTURED_RESPONSE = {
 DEFAULT_SUMMARY = "Discussion about Q4 planning and deliverables."
 
 
-def make_openai_chat_response(content: str = None) -> dict:
-    """Build a fake OpenAI /v1/chat/completions response."""
+def make_gemini_response(content: str = None) -> dict:
+    """Build a fake Gemini generateContent response."""
     if content is None:
         content = json.dumps(DEFAULT_STRUCTURED_RESPONSE)
     return {
-        "id": "chatcmpl-fake-e2e-test",
-        "object": "chat.completion",
-        "model": "gpt-4.1-mini",
-        "choices": [
+        "candidates": [
             {
-                "index": 0,
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
+                "content": {"role": "model", "parts": [{"text": content}]},
+                "finishReason": "STOP",
             }
         ],
-        "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
-    }
-
-
-def make_anthropic_response(content: str = None) -> dict:
-    """Build a fake Anthropic /v1/messages response."""
-    if content is None:
-        content = json.dumps(DEFAULT_STRUCTURED_RESPONSE)
-    return {
-        "id": "msg_fake-e2e-test",
-        "type": "message",
-        "role": "assistant",
-        "content": [{"type": "text", "text": content}],
-        "model": "claude-sonnet-4-6",
-        "stop_reason": "end_turn",
-        "usage": {"input_tokens": 100, "output_tokens": 50},
+        "usageMetadata": {"promptTokenCount": 100, "candidatesTokenCount": 50, "totalTokenCount": 150},
     }
 
 
@@ -74,27 +55,10 @@ def configure_llm_fakes(httpserver):
     processing produces predictable results.
     """
 
-    # OpenAI chat completions
-    httpserver.expect_request("/v1/chat/completions").respond_with_json(
-        make_openai_chat_response(), status=200, content_type="application/json"
-    )
-
-    # Anthropic messages
-    httpserver.expect_request("/v1/messages").respond_with_json(
-        make_anthropic_response(), status=200, content_type="application/json"
-    )
-
-    # OpenAI embeddings
-    httpserver.expect_request("/v1/embeddings").respond_with_json(
-        {
-            "object": "list",
-            "data": [{"embedding": [0.1] * 1536, "index": 0}],
-            "model": "text-embedding-3-small",
-            "usage": {"prompt_tokens": 10, "total_tokens": 10},
-        },
-        status=200,
-        content_type="application/json",
-    )
+    for model in ("gemini-3.7-flash", "gemini-2.5-flash-lite"):
+        httpserver.expect_request(f"/v1beta/models/{model}:generateContent").respond_with_json(
+            make_gemini_response(), status=200, content_type="application/json"
+        )
 
 
 def configure_llm_error(httpserver, status_code: int = 500):
@@ -103,7 +67,10 @@ def configure_llm_error(httpserver, status_code: int = 500):
     Used by failure-mode tests to verify graceful degradation.
     """
     # Clear existing handlers and add error responses
-    for endpoint in ["/v1/chat/completions", "/v1/messages"]:
+    for endpoint in [
+        "/v1beta/models/gemini-3.7-flash:generateContent",
+        "/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    ]:
         httpserver.expect_request(endpoint).respond_with_json(
             {"error": {"message": "LLM service unavailable", "type": "server_error"}},
             status=status_code,

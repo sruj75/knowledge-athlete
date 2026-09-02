@@ -982,30 +982,21 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
         route: .omniSTT, activeSessionID: sessionID))
   }
 
-  func testProviderSpecificBargeInPlanIsDeterministic() {
+  func testGeminiBargeInPlanIsDeterministic() {
     XCTAssertEqual(
       RealtimeHubBargeInAction.decide(
         providerResponseInFlight: true,
-        playbackActive: true,
-        strategy: .inSessionCancel),
-      .cancelInSession)
-    XCTAssertEqual(
-      RealtimeHubBargeInAction.decide(
-        providerResponseInFlight: true,
-        playbackActive: true,
-        strategy: .freshSession),
+        playbackActive: true),
       .replaceSession)
     XCTAssertEqual(
       RealtimeHubBargeInAction.decide(
         providerResponseInFlight: false,
-        playbackActive: true,
-        strategy: .inSessionCancel),
+        playbackActive: true),
       .stopPlaybackTail)
     XCTAssertEqual(
       RealtimeHubBargeInAction.decide(
         providerResponseInFlight: false,
-        playbackActive: false,
-        strategy: .freshSession),
+        playbackActive: false),
       .none)
   }
 
@@ -1102,17 +1093,13 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertFalse(source.contains("floatingAgentStatusContext"))
   }
 
-  func testManagedReplacementFailoverPreservesBufferedTurnAndIdentity() throws {
+  func testGeminiReplacementPreservesBufferedTurnAndIdentity() throws {
     let source = try realtimeHubControllerSource()
 
-    XCTAssertTrue(source.contains("let pendingTurn = replacementAudioBuffer"))
-    XCTAssertTrue(source.contains("let responseID = voiceResponseID"))
-    XCTAssertTrue(source.contains("replacementAudioBuffer = pendingTurn"))
-    XCTAssertTrue(source.contains("voiceResponseID = responseID"))
-    XCTAssertTrue(source.contains("pendingBargeInOwnerScope = replacementOwnerScope"))
-    XCTAssertFalse(source.contains("APIKeyService.byokKey(alternate"))
-    XCTAssertTrue(source.contains("pendingBargeInAuth = .managedEphemeral(\"\")"))
-    XCTAssertTrue(source.contains("remintReplacementSessionForBargeIn(provider: alternate)"))
+    XCTAssertTrue(source.contains("replacementAudioBuffer = RealtimeReplacementAudioBuffer("))
+    XCTAssertTrue(source.contains("pendingBargeInProvider = provider"))
+    XCTAssertTrue(source.contains("pendingBargeInAuth = auth"))
+    XCTAssertTrue(source.contains("remintReplacementSessionForBargeIn(provider: provider)"))
     XCTAssertTrue(source.contains("let replayedReplacementTurn = replacementAudioBuffer != nil"))
     XCTAssertTrue(
       source.contains(
@@ -1124,6 +1111,8 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertTrue(source.contains("if let pending = replacementAudioBuffer"))
     XCTAssertTrue(source.contains("VoiceTurnCoordinator.shared.activeTurn?.hubCommitPending == true"))
     XCTAssertTrue(source.contains("session?.commitInputTurn()"))
+    XCTAssertFalse(source.contains("alternateProvider"))
+    XCTAssertFalse(source.contains("failoverToAlternateProvider"))
   }
 
   func testCompletedGeminiTurnRequiresFreshSessionBeforeNextPTT() throws {
@@ -1149,34 +1138,17 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertTrue(source.contains("if let interruptedTurnTask, !supersedesPendingReplacement"))
   }
 
-  func testFailoverRemintKeepsReplacementRotatableAndRejectsStaleMint() throws {
+  func testGeminiRemintKeepsReplacementRotatableAndRejectsStaleMint() throws {
     let source = try realtimeHubControllerSource()
 
-    XCTAssertTrue(source.contains("pendingBargeInProvider = alternate"))
-    XCTAssertTrue(source.contains("pendingBargeInAuth = .managedEphemeral(\"\")"))
+    XCTAssertTrue(source.contains("pendingBargeInProvider = provider"))
+    XCTAssertTrue(source.contains("pendingBargeInAuth = auth"))
     XCTAssertTrue(source.contains("var bargeInReplacementGeneration: UInt64 = 0"))
     XCTAssertTrue(source.contains("generation == self.bargeInReplacementGeneration"))
     XCTAssertTrue(source.contains("let currentProvider = pendingBargeInProvider"))
     XCTAssertGreaterThanOrEqual(
       source.components(separatedBy: "self.redriveReplacementMintIfStale(").count - 1,
       5)
-  }
-
-  func testProviderResponseAndInputItemIDsOwnCallbackIdentity() throws {
-    let session = try realtimeHubSessionSource()
-
-    XCTAssertTrue(session.contains("openAIPendingResponseIdentities.removeFirst()"))
-    XCTAssertTrue(session.contains("openAIPendingInputIdentities.removeFirst()"))
-    XCTAssertTrue(session.contains("openAIResponseIdentities[id] = pending.identity"))
-    XCTAssertTrue(session.contains("openAIInputItemIdentities[itemID] = identity"))
-    XCTAssertTrue(session.contains("openAIResponseIdentity(for: e)"))
-    XCTAssertTrue(session.contains("openAIInputIdentity(for: e)"))
-    XCTAssertTrue(session.contains("emitAudio(d, identity: identity)"))
-    XCTAssertTrue(session.contains("finishTurn(identity: responseIdentity)"))
-    XCTAssertTrue(
-      session.contains("PendingOpenAIResponseIdentity(identity: identity, canceled: false)"))
-    XCTAssertTrue(session.contains("openAIPendingResponseIdentities[pendingIndex].canceled = true"))
-    XCTAssertTrue(session.contains("guard !pending.canceled else"))
   }
 
   func testFastCommitQueuesBeginBeforeProviderCommit() throws {

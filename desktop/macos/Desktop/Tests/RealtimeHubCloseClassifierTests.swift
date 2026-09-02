@@ -82,49 +82,11 @@ final class RealtimeHubCloseClassifierTests: XCTestCase {
     XCTAssertTrue(RealtimeHubCloseClassifier.shouldReportToSentry(category))
   }
 
-  func testClassifiesOpenAIMaximumDurationAsExpectedSessionRotation() {
-    let category = RealtimeHubCloseClassifier.category(
-      message: "Your session hit the maximum duration of 60 minutes.",
-      aliveFor: 60 * 60,
-      provider: .openai)
-
-    XCTAssertEqual(category, .expectedSessionRotation)
-    XCTAssertEqual(
-      RealtimeHubCloseClassifier.sessionRotationPlan(
-        for: category,
-        hasActiveTurn: false),
-      .rewarmIdleTransport)
-    XCTAssertFalse(RealtimeHubCloseClassifier.shouldReportToSentry(category))
-  }
-
-  func testOpenAISessionRotationDuringTurnRequiresReducerOwnedTerminalization() {
-    let category = RealtimeHubCloseClassifier.category(
-      message: "Your session hit the maximum duration of 60 minutes.",
-      aliveFor: 60 * 60,
-      hasActiveTurn: true,
-      provider: .openai)
-
-    XCTAssertEqual(
-      RealtimeHubCloseClassifier.sessionRotationPlan(
-        for: category,
-        hasActiveTurn: true),
-      .terminateActiveTurnAndRewarm)
-  }
-
-  func testDoesNotClassifyMaximumDurationForAnotherProvider() {
-    let category = RealtimeHubCloseClassifier.category(
-      message: "Your session hit the maximum duration of 60 minutes.",
-      aliveFor: 60 * 60,
-      provider: .gemini)
-
-    XCTAssertNil(category)
-  }
-
   func testClassifiesAgedIdleSocketNotConnectedAsExpectedTeardown() {
     let category = RealtimeHubCloseClassifier.category(
       message: "The operation couldn’t be completed. Socket is not connected",
       aliveFor: 60 * 60,
-      provider: .openai)
+      provider: .gemini)
 
     XCTAssertEqual(category, .expectedIdleTeardown)
     XCTAssertFalse(RealtimeHubCloseClassifier.shouldReportToSentry(category))
@@ -135,7 +97,7 @@ final class RealtimeHubCloseClassifierTests: XCTestCase {
       message: "The operation couldn’t be completed. Socket is not connected",
       aliveFor: 60 * 60,
       hasActiveTurn: true,
-      provider: .openai)
+      provider: .gemini)
 
     XCTAssertNil(category)
     XCTAssertTrue(RealtimeHubCloseClassifier.shouldReportToSentry(category))
@@ -145,7 +107,7 @@ final class RealtimeHubCloseClassifierTests: XCTestCase {
     let category = RealtimeHubCloseClassifier.category(
       message: "The operation couldn’t be completed. Socket is not connected",
       aliveFor: 3,
-      provider: .openai)
+      provider: .gemini)
 
     XCTAssertNil(category)
     XCTAssertTrue(RealtimeHubCloseClassifier.shouldReportToSentry(category))
@@ -172,9 +134,9 @@ final class RealtimeHubCloseClassifierTests: XCTestCase {
   func testCredentialClassifierDetectsProviderAuthFailures() {
     let failure = CredentialHealthManager.classifyProviderClose(
       message: "Request had invalid authentication credentials",
-      provider: .openai)
+      provider: .gemini)
 
-    XCTAssertEqual(failure, .providerAuthFailed(provider: .openai, mode: .managed))
+    XCTAssertEqual(failure, .providerAuthFailed(provider: .gemini, mode: .managed))
   }
 
   func testCredentialClassifierDetectsQuotaFailures() {

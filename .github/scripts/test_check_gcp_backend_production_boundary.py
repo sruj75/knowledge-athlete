@@ -37,7 +37,7 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
                 "      deploy_targets:\n        type: string\n      mode:\n",
             ),
             "reintroduces_backend_sync": (
-                "          service: ${{ env.SERVICE }}\n",
+                "          service: ${{ env.CLOUD_RUN_SERVICE }}\n",
                 "          service: backend-sync\n",
             ),
             "omits_no_traffic_candidate_tag": (

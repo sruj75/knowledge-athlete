@@ -8,7 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse
 from google.cloud import firestore
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, StrictInt
 
 from database._client import get_firestore_client
 from utils.executors import db_executor, run_blocking
@@ -18,9 +18,7 @@ from utils.subscription import is_trial_paywalled
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_OPENAI_CLIENT_SECRETS_URL = "https://api.openai.com/v1/realtime/client_secrets"
 _GEMINI_AUTH_TOKENS_URL = "https://generativelanguage.googleapis.com/v1alpha/auth_tokens"
-_OPENAI_REALTIME_MODEL = "gpt-realtime-2"
 _GEMINI_LIVE_MODEL = "models/gemini-3.1-flash-live-preview"
 _SESSION_START_WINDOW_MIN = 2
 _SESSION_MAX_MIN = 30
@@ -28,14 +26,12 @@ _TRIAL_EXPIRED_MESSAGE = "Desktop trial expired. Upgrade to continue managed voi
 
 
 class MintRequest(BaseModel):
-    provider: StrictStr
+    model_config = ConfigDict(extra="forbid")
 
 
 class UsageReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: StrictStr
-    model: StrictStr = ""
     input_text_tokens: StrictInt = 0
     input_audio_tokens: StrictInt = 0
     input_cached_tokens: StrictInt = 0
@@ -120,55 +116,29 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_user
             status_code=402,
             content={"error": "trial_expired", "message": _TRIAL_EXPIRED_MESSAGE},
         )
-    if request.provider == "openai":
-        key = os.getenv("OPENAI_API_KEY", "").strip()
-        if not key:
-            return _error(503, "provider_not_configured", "OpenAI realtime is not configured", "OpenAI", retryable=True)
-        data, error = await _post_json(
-            _OPENAI_CLIENT_SECRETS_URL,
-            "openai",
-            {"Authorization": f"Bearer {key}"},
-            {"session": {"type": "realtime", "model": _OPENAI_REALTIME_MODEL}},
-        )
-        if error:
-            return error
-        token = data.get("value") if data else None
-        if not isinstance(token, str):
-            return _error(
-                502, "provider_mint_transport_error", "openai mint: no client secret in response", retryable=True
-            )
-        expires_at = json.dumps(data["expires_at"], separators=(",", ":")) if data and "expires_at" in data else None
-        return JSONResponse(
-            {"provider": "openai", "token": token, **({"expires_at": expires_at} if expires_at is not None else {})}
-        )
-    if request.provider == "gemini":
-        key = os.getenv("GEMINI_API_KEY", "").strip()
-        if not key:
-            return _error(503, "provider_not_configured", "Gemini realtime is not configured", "Gemini", retryable=True)
-        now = datetime.now(timezone.utc)
-        start = (now + timedelta(minutes=_SESSION_START_WINDOW_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        expires_at = (now + timedelta(minutes=_SESSION_MAX_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        data, error = await _post_json(
-            _GEMINI_AUTH_TOKENS_URL,
-            "gemini",
-            {},
-            {"uses": 1, "expireTime": expires_at, "newSessionExpireTime": start},
-            {"key": key},
-        )
-        if error:
-            return error
-        token = data.get("name") if data else None
-        if not isinstance(token, str):
-            return _error(
-                502, "provider_mint_transport_error", "gemini mint: no token name in response", retryable=True
-            )
-        return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at})
-    return _error(400, "bad_provider", 'provider must be "openai" or "gemini"')
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        return _error(503, "provider_not_configured", "Gemini realtime is not configured", "Gemini", retryable=True)
+    now = datetime.now(timezone.utc)
+    start = (now + timedelta(minutes=_SESSION_START_WINDOW_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expires_at = (now + timedelta(minutes=_SESSION_MAX_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    data, error = await _post_json(
+        _GEMINI_AUTH_TOKENS_URL,
+        "gemini",
+        {},
+        {"uses": 1, "expireTime": expires_at, "newSessionExpireTime": start},
+        {"key": key},
+    )
+    if error:
+        return error
+    token = data.get("name") if data else None
+    if not isinstance(token, str):
+        return _error(502, "provider_mint_transport_error", "gemini mint: no token name in response", retryable=True)
+    return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at})
 
 
 def _record_usage(
     uid: str,
-    report: UsageReport,
     input_tokens: int,
     output_tokens: int,
     cached_tokens: int,
@@ -198,7 +168,7 @@ def _record_usage(
 
 
 def _usage_cost(report: UsageReport) -> float:
-    rates = (4.0, 32.0, 0.4, 24.0, 64.0) if report.provider == "openai" else (0.75, 3.0, 0.075, 4.5, 12.0)
+    rates = (0.75, 3.0, 0.075, 4.5, 12.0)
     return (
         sum(
             value * rate
@@ -235,7 +205,6 @@ async def report_usage(report: UsageReport, uid: str = Depends(get_current_user_
             db_executor,
             _record_usage,
             uid,
-            report,
             input_tokens,
             output_tokens,
             cached_tokens,

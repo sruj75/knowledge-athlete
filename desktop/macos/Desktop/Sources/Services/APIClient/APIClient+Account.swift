@@ -78,16 +78,10 @@ extension APIClient {
   // MARK: - API Keys
 
   struct ApiKeysResponse: Decodable {
-    let deepgramApiKey: String?
-    let geminiApiKey: String?
     let firebaseApiKey: String?
-    let googleCalendarApiKey: String?
 
     enum CodingKeys: String, CodingKey {
-      case deepgramApiKey = "deepgram_api_key"
-      case geminiApiKey = "gemini_api_key"
       case firebaseApiKey = "firebase_api_key"
-      case googleCalendarApiKey = "google_calendar_api_key"
     }
   }
 

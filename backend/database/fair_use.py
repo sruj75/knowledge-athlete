@@ -368,7 +368,7 @@ def apply_fair_use_review_result(
             'classifier_score': misuse_score,
             'classifier_type': classifier_type,
             'classifier_confidence': max(0.0, min(1.0, float(classifier_result.get('confidence') or 0.0))),
-            'classifier_model': str(classifier_result.get('model') or 'openai/gpt-5.1'),
+            'classifier_model': str(classifier_result.get('model') or 'gemini/gemini-3.7-flash'),
             'classifier_prompt_version': str(classifier_result.get('prompt_version') or 'v2'),
             'enforcement_action': action,
             'previous_stage': previous_stage,

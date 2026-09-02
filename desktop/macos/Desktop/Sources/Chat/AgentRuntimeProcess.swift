@@ -2587,9 +2587,6 @@ actor AgentRuntimeProcess {
         env["OMI_AGENT_ALLOW_CONTROL_ONLY"] = "1"
       }
     #endif
-    env.removeValue(forKey: "ANTHROPIC_API_KEY")
-    env.removeValue(forKey: "CLAUDE_CODE_USE_VERTEX")
-
     let backendBase = await APIClient.shared.baseURL
     try assertStartupAuthority(
       authorizationSnapshot,

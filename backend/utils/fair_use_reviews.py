@@ -13,7 +13,7 @@ from database.redis_connection import get_redis_client
 from .fair_use import FAIR_USE_CLASSIFIER_COOLDOWN_SECONDS, fair_use_caps_for_entitlement
 from .observability.fallback import record_fallback
 
-FAIR_USE_CLASSIFIER_CONTRACT = 'openai/gpt-5.1:prompt-v2'
+FAIR_USE_CLASSIFIER_CONTRACT = 'gemini/gemini-3.7-flash:prompt-v2'
 logger = logging.getLogger(__name__)
 
 _CREATE_PENDING_REVIEW_SCRIPT = """
