@@ -1711,7 +1711,6 @@ function projectProviderPayload(fullPayload: Record<string, unknown>, toolName: 
     [128, 10, 16],
     [64, 6, 10],
     [48, 4, 8],
-    [32, 3, 6],
   ] as const;
   for (const limits of projectionLimits) {
     const compact = compactProviderPayload(fullPayload, ...limits);
