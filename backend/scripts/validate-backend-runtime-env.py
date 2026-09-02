@@ -385,7 +385,7 @@ def _validate_managed_stt_contract(env: str, env_config: ConfigDict) -> list[Val
                 _as_config_dict(service_config.get('secrets')) or {},
             )
         )
-    required_services = _MANAGED_STT_CLOUD_RUN_SERVICES if env == 'prod' else ()
+    required_services = _MANAGED_STT_CLOUD_RUN_SERVICES
     required_scopes = {
         *(f'{env}/cloud_run/{service}' for service in required_services if service in cloud_run_services),
     }

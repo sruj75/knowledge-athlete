@@ -73,16 +73,17 @@ def test_check_rendered_secrets_passes_when_secrets_exist(monkeypatch: pytest.Mo
     assert missing == []
 
 
-def test_development_manifest_excludes_postponed_and_retired_provider_secrets() -> None:
+def test_development_manifest_includes_owned_provider_secrets_and_excludes_retired_ones() -> None:
     preflight = load_preflight()
     manifest = preflight.render_backend_runtime_env._load_yaml(BACKEND_ROOT / 'deploy/runtime_env.yaml')
     secrets = manifest['environments']['dev']['cloud_run']['services']['backend']['secrets']
 
     assert 'GEMINI_API_KEY' in secrets
     assert 'OPENAI_API_KEY' in secrets
+    assert 'MODULATE_API_KEY' in secrets
     assert 'LANGFUSE_PUBLIC_KEY' in secrets
     assert 'LANGFUSE_SECRET_KEY' in secrets
-    assert {'POSTHOG_PROJECT_API_KEY', 'MODULATE_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(secrets)
+    assert {'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(secrets)
 
 
 def test_parse_revision_targets_rejects_blank_values() -> None:

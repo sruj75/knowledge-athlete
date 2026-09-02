@@ -220,6 +220,9 @@ environments:
             GOOGLE_CLIENT_SECRET:
               secret: GOOGLE_CLIENT_SECRET
               version_env_var: GOOGLE_CLIENT_SECRET_VERSION
+            MODULATE_API_KEY:
+              secret: MODULATE_API_KEY
+              version_env_var: MODULATE_API_KEY_VERSION
             LANGFUSE_PUBLIC_KEY:
               secret: LANGFUSE_PUBLIC_KEY
               version_env_var: LANGFUSE_PUBLIC_KEY_VERSION

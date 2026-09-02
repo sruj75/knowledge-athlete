@@ -121,15 +121,16 @@ executed; it does not certify a final SHA or mark any S-31 cycle green.
   candidate/channel evidence remain open.
 - Retained-caller analysis narrows the managed-provider gate: Gemini owns
   managed text, embeddings, and realtime voice; OpenAI owns TTS only; Modulate
-  owns managed batch STT but is explicitly postponed; PostHog owns product
+  owns managed batch and streaming STT; PostHog owns product
   telemetry; and Langfuse owns model tracing and prompt management. Google
   Calendar, both Anthropic credentials, Artificial Analysis, provider
   selection, OpenAI text/realtime, and Vertex inference are deleted and must
   not be provisioned. The Gemini and Langfuse repository paths are implemented,
-  but the active Cloud Run revision does not bind their exact secret versions,
-  so neither is live-provider evidence yet. S-31 must prove the single Gemini
-  Developer API route and must not recreate `USE_VERTEX_AI=true` or any deleted
-  provider merely to satisfy an inherited declaration.
+  but the active Cloud Run revision does not bind their exact secret versions.
+  The owned Modulate key is now prepared with a 500-credit and two-model limit,
+  but it likewise has no live-provider evidence. S-31 must prove the single
+  Gemini Developer API route and must not recreate `USE_VERTEX_AI=true` or any
+  deleted provider merely to satisfy an inherited declaration.
 
 These facts reduce setup ambiguity but do not weaken G2, G5, or the one-final-SHA
 rule. Missing real-provider, Apple, preview, production, runner, and S-30 inputs
@@ -142,10 +143,12 @@ One development `GEMINI_API_KEY` owns Gemini 3.7 Flash, the existing Flash-Lite
 workloads, embeddings, and Gemini Live. One `OPENAI_API_KEY` remains TTS-only.
 Anthropic, Artificial Analysis, `USE_VERTEX_AI`, OpenAI text/embeddings/realtime,
 provider selection, and the omni relay are deleted from the runtime contract.
-Modulate remains postponed, so live batch recovery cannot be claimed until its
-separate credential is configured. The dormant Gemini secret may be inspected,
-but an exact version must not be bound to Cloud Run without separate deployment
-authorization. Langfuse tracing and prompt management are already implemented;
+The owned Modulate key is now stored as exact development Secret Manager version
+1 and limited to the retained batch and streaming models, but live batch recovery
+cannot be claimed until an authorized development deployment binds and exercises
+it. The dormant Gemini secret may be inspected, but an exact version must not be
+bound to Cloud Run without separate deployment authorization. Langfuse tracing
+and prompt management are already implemented;
 their exact development secret bindings and one real fail-open trace remain
 required S-31 evidence.
 
@@ -241,8 +244,8 @@ at final closure and must record any changed detailed decision as a stop.
   Tier-2, natural authenticated physical PTT, Gemini Live, same-provider
   reconnect, tools, typed-to-PTT blind recall, deploy-inline mint, and the
   buffered batch-recovery lane. A fake/echo response cannot prove live-provider
-  continuity; the hermetic STT seam may prove only the postponed Modulate path's
-  client behavior.
+  continuity; until the prepared Modulate key is deployed, the hermetic STT seam
+  proves only the Modulate path's client behavior.
 - **BL-002:** repository absence cannot classify a live resource. Verified
   operator/environment/project identity is mandatory before read-only inventory,
   and mutation needs separate authorization.
@@ -527,7 +530,8 @@ has it.
 6. **PTT is physical and continuous.** Final voice proof uses actual captured
    audio on the named bundle, Gemini Live with same-provider reconnect, and
    typed -> PTT -> blind recall. The buffered batch-recovery UI is proved
-   hermetically until Modulate is configured. Controller, manager, reducer,
+   hermetically until the prepared Modulate secret is deployed and exercised.
+   Controller, manager, reducer,
    forced-text, and echo runs are supporting evidence only.
 7. **Durable account deletion.** Persisted intent, opaque task, exact OIDC
    signer/audience, lock, retry, reconciliation, billing cancellation, auth
@@ -1594,8 +1598,9 @@ Global stop conditions:
   success with no stale/invalid transitions.
 - [ ] Gemini Live, same-provider reconnect, language, tools, typed-to-PTT blind
   recall, deploy-inline mint, direct-provider, and buffered batch-recovery rows
-  all pass on the same SHA; BL-001 is closed without fake substitution. Until
-  Modulate is configured, its live recovery row remains explicitly unverified.
+  all pass on the same SHA; BL-001 is closed without fake substitution. The
+  Modulate key is configured, but its live recovery row remains explicitly
+  unverified until the exact version is deployed and exercised.
 
 ### Infrastructure and account lifecycle
 

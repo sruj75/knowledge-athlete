@@ -82,7 +82,7 @@ backend (main.py, canonical Cloud Run service)
 
 ```
 
-Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy. The production runtime manifest requires `MODULATE_API_KEY`; development deliberately omits it while owner provisioning is postponed, so a development revision without that binding cannot count as managed-STT or continuity evidence.
+Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its language/capability policy. Both hosted runtime manifests require an exact `MODULATE_API_KEY` secret version; a revision without that binding cannot count as managed-STT or continuity evidence.
 
 - **backend** (`main.py`) — The one REST/WebSocket Cloud Run service. `/v4/listen` applies in-process `VADStreamingGate`, streams fixed PCM directly to Modulate, and returns transient canonical segments without a side channel, People, or conversation storage. Retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
 - **Deployment identity** — `backend` is the logical service and container-image label. Workflows resolve the real environment-owned Cloud Run name only from `BACKEND_CLOUD_RUN_SERVICE`; development is `knowledge-athlete-dev`, while production stays unset until that service is approved. Never fall back to deploying a Cloud Run service literally named `backend`.
