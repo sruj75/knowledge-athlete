@@ -1,20 +1,20 @@
 """Tests for ``backend.routers.auth._validate_redirect_uri``.
 
-The validator must accept every ``redirect_uri`` shape the Omi clients
-already use today (mobile, desktop, named-bundle desktop builds, CLI) and
+The validator must accept every ``redirect_uri`` shape the Intentive clients
+use today (stable, beta, desktop developer/named builds, and CLI) and
 reject anything that could leak the OAuth code off-device. These tests
 serve as a regression guard — if the allowlist tightens in a way that
 rejects an existing client's URI, CI will fail here before any deploy.
 
 Mapping to real-world clients:
 
-* ``omi://auth/callback``                — retained legacy client scheme
-* ``omi-computer://auth/callback``       — desktop prod build
-* ``omi-computer-dev://auth/callback``   — desktop dev build (``Desktop/Info.plist``)
-* ``omi-fix-rewind://auth/callback``     — example named test bundle
-* ``com.omi.app://auth/callback``        — reverse-DNS form (RFC 8252-recommended)
-* ``http://127.0.0.1:PORT/callback``     — omi-cli loopback server
-* ``http://localhost:PORT/callback``     — omi-cli loopback (alt)
+* ``heyintentive://auth/callback``             — stable desktop build
+* ``heyintentive-beta://auth/callback``        — beta desktop build
+* ``heyintentive-dev://auth/callback``         — desktop dev build (``Desktop/Info.plist``)
+* ``heyintentive-omi-fix-rewind://auth/callback`` — example named test bundle
+* ``com.heyintentive.intentive://auth/callback``  — reverse-DNS form (RFC 8252-recommended)
+* ``http://127.0.0.1:PORT/callback``          — CLI loopback server
+* ``http://localhost:PORT/callback``          — CLI loopback (alt)
 * ``http://[::1]:PORT/callback``         — IPv6 loopback
 """
 
@@ -121,23 +121,23 @@ if str(BACKEND_DIR) not in sys.path:
 from routers.auth import _validate_redirect_uri  # noqa: E402
 
 # ---------------------------------------------------------------------------
-# Acceptance — every shape an existing Omi client uses
+# Acceptance — every shape an existing Intentive client uses
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "uri",
     [
-        # Flutter mobile
-        "omi://auth/callback",
-        # Desktop prod
-        "omi-computer://auth/callback",
+        # Stable desktop
+        "heyintentive://auth/callback",
+        # Beta desktop
+        "heyintentive-beta://auth/callback",
         # Desktop dev (Desktop/Info.plist)
-        "omi-computer-dev://auth/callback",
-        # Named test bundle (CLAUDE.md "omi-{anything}" convention)
-        "omi-fix-rewind://auth/callback",
+        "heyintentive-dev://auth/callback",
+        # Named test bundle (AGENTS.md ``omi-{anything}`` bundle convention)
+        "heyintentive-omi-fix-rewind://auth/callback",
         # Reverse-DNS custom scheme (RFC 8252-recommended)
-        "com.omi.app://auth/callback",
+        "com.heyintentive.intentive://auth/callback",
         # CLI loopback — IPv4 numeric
         "http://127.0.0.1:8765/callback",
         # CLI loopback — hostname
@@ -145,13 +145,13 @@ from routers.auth import _validate_redirect_uri  # noqa: E402
         # CLI loopback — IPv6
         "http://[::1]:5000/callback",
         # Custom scheme without a path (degenerate but valid)
-        "omi://",
+        "heyintentive://",
         # Custom scheme carrying its own state in the query
-        "omi-computer://auth/callback?from=settings",
+        "heyintentive://auth/callback?from=settings",
     ],
 )
 def test_validator_accepts_every_known_client_shape(uri: str) -> None:
-    # Should not raise for anything an Omi client actually sends.
+    # Should not raise for anything an Intentive client actually sends.
     _validate_redirect_uri(uri)
 
 
@@ -173,7 +173,7 @@ def test_validator_accepts_every_known_client_shape(uri: str) -> None:
         "https://localhost/cb",  # https NEVER allowed, even on loopback
         # http — non-loopback hostname rejected
         "http://attacker.example.com/cb",
-        "http://omi.me/cb",
+        "http://remote.example.com/cb",
         "http://192.168.1.42/cb",
         # Browser-executable schemes
         "javascript:alert(1)",
@@ -185,12 +185,12 @@ def test_validator_accepts_every_known_client_shape(uri: str) -> None:
         "about:blank",
         # Malformed scheme
         "://x",
-        "1omi://auth/callback",  # scheme must start with a letter
-        "omi$://auth/callback",  # ``$`` not allowed in scheme
+        "1intentive://auth/callback",  # scheme must start with a letter
+        "intentive$://auth/callback",  # ``$`` not allowed in scheme
         # Non-ASCII letters: RFC 3986 forbids these in scheme names. Python's
         # ``str.isalpha`` would accept them — we explicitly use ASCII-only.
-        "ômi://auth/callback",
-        "омi://auth/callback",  # cyrillic 'о'
+        "întentive://auth/callback",
+        "іntentive://auth/callback",  # cyrillic 'і'
     ],
 )
 def test_validator_rejects_dangerous_or_malformed_uris(uri: str) -> None:
@@ -211,9 +211,9 @@ def test_http_remote_host_rejection_message_mentions_loopback() -> None:
     assert "loopback" in info.value.detail.lower()
 
 
-def test_default_omi_redirect_unchanged() -> None:
-    """The mobile app's exact redirect MUST keep working — most-load-bearing case."""
-    _validate_redirect_uri("omi://auth/callback")
+def test_default_intentive_redirect_is_accepted() -> None:
+    """The stable app's exact redirect is the default native callback."""
+    _validate_redirect_uri("heyintentive://auth/callback")
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ def test_default_omi_redirect_unchanged() -> None:
 from unittest.mock import AsyncMock
 
 from routers.auth import (  # noqa: E402
-    _DEFAULT_MOBILE_REDIRECT,
+    _DEFAULT_NATIVE_REDIRECT,
     _code_challenge_for_verifier,
     _validate_pkce_challenge,
     _verify_pkce_code_verifier,
@@ -272,7 +272,7 @@ class TestPkceBinding:
                 auth_authorize(
                     request=request,
                     provider="google",
-                    redirect_uri="omi://auth/callback",
+                    redirect_uri="heyintentive://auth/callback",
                     state="state",
                 )
             )
@@ -292,7 +292,7 @@ class TestPkceBinding:
                 auth_authorize(
                     request=request,
                     provider="google",
-                    redirect_uri="omi://auth/callback",
+                    redirect_uri="heyintentive://auth/callback",
                     state="state",
                     code_challenge=_PKCE_CHALLENGE,
                     code_challenge_method="S256",
@@ -318,7 +318,7 @@ class TestAuthCodeBinding:
                         'provider_id': 'google.com',
                     }
                 ),
-                'redirect_uri': 'omi-computer://auth/callback',
+                'redirect_uri': 'heyintentive-dev://auth/callback',
                 'code_challenge': _PKCE_CHALLENGE,
                 'code_challenge_method': 'S256',
             }
@@ -335,7 +335,7 @@ class TestAuthCodeBinding:
                         request=request,
                         grant_type='authorization_code',
                         code='test-code',
-                        redirect_uri='omi-evil://auth/callback',  # mismatch
+                        redirect_uri='heyintentive-evil://auth/callback',  # mismatch
                         use_custom_token=False,
                     )
                 )
@@ -354,7 +354,7 @@ class TestAuthCodeBinding:
                         'provider_id': 'google.com',
                     }
                 ),
-                'redirect_uri': 'omi-computer://auth/callback',
+                'redirect_uri': 'heyintentive-dev://auth/callback',
                 'code_challenge': _PKCE_CHALLENGE,
                 'code_challenge_method': 'S256',
             }
@@ -370,7 +370,7 @@ class TestAuthCodeBinding:
                     request=request,
                     grant_type='authorization_code',
                     code='test-code',
-                    redirect_uri='omi-computer://auth/callback',  # match
+                    redirect_uri='heyintentive-dev://auth/callback',  # match
                     use_custom_token=False,
                     code_verifier=_PKCE_VERIFIER,
                 )
@@ -397,7 +397,7 @@ class TestAuthCodeBinding:
                         'provider_id': 'google.com',
                     }
                 ),
-                'redirect_uri': 'omi://auth/callback',
+                'redirect_uri': 'heyintentive://auth/callback',
                 'code_challenge': _PKCE_CHALLENGE,
                 'code_challenge_method': 'S256',
             }
@@ -414,7 +414,7 @@ class TestAuthCodeBinding:
                         request=request,
                         grant_type='authorization_code',
                         code='test-code',
-                        redirect_uri='omi://auth/callback',
+                        redirect_uri='heyintentive://auth/callback',
                         use_custom_token=False,
                         code_verifier=code_verifier,
                     )
@@ -429,7 +429,7 @@ class TestAuthCodeBinding:
                 'credentials': json.dumps(
                     {'provider': 'google', 'id_token': 't', 'access_token': 'a', 'provider_id': 'google.com'}
                 ),
-                'redirect_uri': 'omi://auth/callback',
+                'redirect_uri': 'heyintentive://auth/callback',
             }
         )
 
@@ -443,7 +443,7 @@ class TestAuthCodeBinding:
                         request=request,
                         grant_type='authorization_code',
                         code='test-code',
-                        redirect_uri='omi://auth/callback',
+                        redirect_uri='heyintentive://auth/callback',
                         use_custom_token=False,
                         code_verifier=_PKCE_VERIFIER,
                     )
@@ -472,7 +472,7 @@ class TestAuthCodeBinding:
                     request=request,
                     grant_type='authorization_code',
                     code='legacy-code',
-                    redirect_uri='omi://auth/callback',
+                    redirect_uri='heyintentive://auth/callback',
                     use_custom_token=False,
                 )
             )
@@ -499,7 +499,7 @@ class TestAuthCodeBinding:
                         request=request,
                         grant_type='authorization_code',
                         code='c',
-                        redirect_uri='omi://auth/callback',
+                        redirect_uri='heyintentive://auth/callback',
                         use_custom_token=False,
                     )
                 )
@@ -523,11 +523,12 @@ class TestCallbackTemplateRendering:
         html = template.render(
             code="test-auth-code",
             state="test-state",
-            redirect_uri="omi-computer://auth/callback",
+            redirect_uri="heyintentive-dev://auth/callback",
         )
 
-        assert 'omi-computer://auth/callback' in html
-        assert "omi://auth/callback" not in html  # hardcoded value must not appear
+        assert '<title>Authentication Successful - Intentive</title>' in html
+        assert 'heyintentive-dev://auth/callback' in html
+        assert 'heyintentive://auth/callback' not in html  # hardcoded value must not appear
 
     def test_template_json_escapes_redirect_uri(self):
         """Verify redirect_uri is JSON-escaped in the template (XSS prevention)."""
@@ -542,13 +543,13 @@ class TestCallbackTemplateRendering:
         html = template.render(
             code='test</script><script>alert(1)',
             state='test-state',
-            redirect_uri='omi-computer://auth/callback',
+            redirect_uri='heyintentive-dev://auth/callback',
         )
 
         assert '</script><script>' not in html
 
     def test_template_defaults_when_redirect_uri_missing(self):
-        """Verify template falls back to omi://auth/callback when redirect_uri not provided."""
+        """Verify template falls back to heyintentive://auth/callback when redirect_uri is omitted."""
         pytest.importorskip("jinja2")
         from jinja2 import Environment, FileSystemLoader
         import pathlib
@@ -562,7 +563,7 @@ class TestCallbackTemplateRendering:
             state="test-state",
         )
 
-        assert 'omi://auth/callback' in html
+        assert 'heyintentive://auth/callback' in html
 
 
 class TestCallbackEndpoints:
@@ -575,7 +576,7 @@ class TestCallbackEndpoints:
 
         session_data = {
             'provider': 'google',
-            'redirect_uri': 'omi-computer://auth/callback',
+            'redirect_uri': 'heyintentive-dev://auth/callback',
             'state': 'test-state',
             'flow_type': 'user_auth',
             'code_challenge': _PKCE_CHALLENGE,
@@ -599,7 +600,7 @@ class TestCallbackEndpoints:
             stored_json = mock_set_code.call_args[0][1]
             ttl = mock_set_code.call_args[0][2]
             stored = json.loads(stored_json)
-            assert stored['redirect_uri'] == 'omi-computer://auth/callback'
+            assert stored['redirect_uri'] == 'heyintentive-dev://auth/callback'
             assert stored['code_challenge'] == _PKCE_CHALLENGE
             assert stored['code_challenge_method'] == 'S256'
             assert 'credentials' in stored
@@ -630,7 +631,7 @@ class TestCallbackEndpoints:
             mock_templates.TemplateResponse.return_value = MagicMock()
             asyncio.get_event_loop().run_until_complete(auth_callback_google(request=request, code='c', state='s'))
             stored = json.loads(mock_set_code.call_args[0][1])
-            assert stored['redirect_uri'] == _DEFAULT_MOBILE_REDIRECT
+            assert stored['redirect_uri'] == _DEFAULT_NATIVE_REDIRECT
             assert stored['code_challenge'] == _PKCE_CHALLENGE
 
 
@@ -654,7 +655,7 @@ class TestTokenEdgeCases:
                     request=request,
                     grant_type='authorization_code',
                     code='the-code',
-                    redirect_uri='omi://auth/callback',
+                    redirect_uri='heyintentive://auth/callback',
                     use_custom_token=False,
                 )
             )
@@ -672,7 +673,7 @@ class TestTokenEdgeCases:
                         request=request,
                         grant_type='authorization_code',
                         code='gone',
-                        redirect_uri='omi://auth/callback',
+                        redirect_uri='heyintentive://auth/callback',
                         use_custom_token=False,
                     )
                 )
@@ -691,7 +692,7 @@ class TestTokenEdgeCases:
                     'access_token': 'dict-at',
                     'provider_id': 'google.com',
                 },
-                'redirect_uri': 'omi://auth/callback',
+                'redirect_uri': 'heyintentive://auth/callback',
                 'code_challenge': _PKCE_CHALLENGE,
                 'code_challenge_method': 'S256',
             }
@@ -704,7 +705,7 @@ class TestTokenEdgeCases:
                     request=request,
                     grant_type='authorization_code',
                     code='c',
-                    redirect_uri='omi://auth/callback',
+                    redirect_uri='heyintentive://auth/callback',
                     use_custom_token=False,
                     code_verifier=_PKCE_VERIFIER,
                 )
@@ -726,7 +727,7 @@ class TestTokenEdgeCases:
                         'provider_id': 'apple.com',
                     }
                 ),
-                'redirect_uri': 'omi://auth/callback',
+                'redirect_uri': 'heyintentive://auth/callback',
                 'code_challenge': _PKCE_CHALLENGE,
                 'code_challenge_method': 'S256',
                 'provider': 'apple',
@@ -745,7 +746,7 @@ class TestTokenEdgeCases:
                         request=request,
                         grant_type='authorization_code',
                         code='c',
-                        redirect_uri='omi://auth/callback',
+                        redirect_uri='heyintentive://auth/callback',
                         use_custom_token=True,
                         code_verifier=_PKCE_VERIFIER,
                     )
@@ -764,7 +765,7 @@ class TestTokenEdgeCases:
                     request=request,
                     grant_type='client_credentials',
                     code='c',
-                    redirect_uri='omi://auth/callback',
+                    redirect_uri='heyintentive://auth/callback',
                     use_custom_token=False,
                 )
             )

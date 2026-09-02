@@ -1,6 +1,6 @@
 """Tests for billable_transcription_seconds (#4700).
 
-Listening minutes kept increasing while the Omi device was off: client
+Listening minutes kept increasing while the wearable device was off: client
 keepalive pings hold the /v4/listen socket open after audio stops, and usage
 was billed as raw wall-clock time since the last record. Billing must be
 clamped to the last audio byte actually received.

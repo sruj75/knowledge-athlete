@@ -75,8 +75,8 @@ def _release_channel(release: ReleaseInfo) -> str:
 def _manual_download_url(release: ReleaseInfo) -> str:
     if release.manual_download_url and release.manual_download_url.strip():
         return release.manual_download_url.strip()
-    if release.download_url.endswith("/Omi.zip"):
-        return f"{release.download_url[:-len('Omi.zip')]}Omi.dmg"
+    if release.download_url.endswith("/Intentive.zip"):
+        return f"{release.download_url[:-len('Intentive.zip')]}Intentive.dmg"
     return release.download_url
 
 
@@ -85,8 +85,8 @@ def _appcast_xml(releases: list[ReleaseInfo], platform: str) -> str:
         '<?xml version="1.0" encoding="utf-8"?>',
         '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">',
         "  <channel>",
-        "    <title>Omi Desktop Updates</title>",
-        "    <description>Omi AI Desktop Application</description>",
+        "    <title>Intentive Desktop Updates</title>",
+        "    <description>Intentive Desktop Application</description>",
         "    <language>en</language>",
     ]
     seen_channels: set[str] = set()
@@ -100,7 +100,7 @@ def _appcast_xml(releases: list[ReleaseInfo], platform: str) -> str:
         lines.extend(
             [
                 "    <item>",
-                f"      <title>Omi {escape(release.version)}</title>",
+                f"      <title>Intentive {escape(release.version)}</title>",
                 f"      <sparkle:version>{release.build_number}</sparkle:version>",
                 f"      <sparkle:shortVersionString>{escape(release.version)}</sparkle:shortVersionString>",
                 f"      <description><![CDATA[{changes.replace(']]>', ']]]]><![CDATA[>')}]]></description>",

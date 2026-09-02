@@ -20,13 +20,13 @@ class FirestoreReadMode(StrEnum):
 
 
 FIRESTORE_READ_OPERATIONS = Counter(
-    'omi_firestore_read_operations_total',
+    'intentive_firestore_read_operations_total',
     'Firestore reads by reviewed query family and boundedness',
     ['family', 'mode'],
 )
 
 FIRESTORE_DOCUMENTS_PER_OPERATION = Histogram(
-    'omi_firestore_documents_per_operation',
+    'intentive_firestore_documents_per_operation',
     'Firestore documents iterated for a reviewed read operation',
     ['family'],
     buckets=(0, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500),

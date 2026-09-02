@@ -353,7 +353,7 @@ def _imported_modules(
 
 def source_closure_errors(contract: ImageContract) -> list[str]:
     errors: list[str] = []
-    with tempfile.TemporaryDirectory(prefix=f"omi-runtime-image-{contract.name}-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix=f"intentive-runtime-image-{contract.name}-") as temp_dir:
         runtime_root = Path(temp_dir)
         stage_runtime_sources(contract, runtime_root)
         visited: set[str] = set()

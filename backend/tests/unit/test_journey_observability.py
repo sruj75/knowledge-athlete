@@ -29,6 +29,7 @@ def test_journey_contract_uses_only_closed_privacy_safe_labels(monkeypatch):
 
 def test_idle_metrics_export_retained_zero_valued_children_without_user_traffic():
     exported = metrics.generate_latest().decode()
-    assert 'omi_journey_accepted_total{journey="chat_response"}' in exported
-    assert 'omi_live_stt_accepted_total' in exported
-    assert 'omi_live_stt_terminal_total' in exported
+    assert 'intentive_journey_accepted_total{journey="chat_response"}' in exported
+    assert 'intentive_live_stt_accepted_total' in exported
+    assert 'intentive_live_stt_terminal_total' in exported
+    assert 'omi_journey_accepted_total' not in exported

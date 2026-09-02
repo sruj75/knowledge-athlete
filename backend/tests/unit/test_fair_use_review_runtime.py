@@ -154,7 +154,6 @@ async def test_restricted_budget_exhaustion_emits_once_keeps_socket_and_discards
         {
             'resets_at': '2026-08-22T00:00:00Z',
             'case_ref': 'FU-ABC123DEF456',
-            'support_email': 'support@heyintentive.com',
             'type': 'fair_use_managed_cloud_exhausted',
         }
     ]

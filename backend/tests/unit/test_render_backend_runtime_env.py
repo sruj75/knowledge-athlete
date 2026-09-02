@@ -121,8 +121,8 @@ def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsy
 
 
 def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, monkeypatch):
-    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'omi-prod-vpc')
-    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'omi-prod-subnet')
+    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'intentive-test-vpc')
+    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'intentive-test-subnet')
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
     monkeypatch.setenv(
         'ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.com/v1/users/account-deletion-wipes/run'

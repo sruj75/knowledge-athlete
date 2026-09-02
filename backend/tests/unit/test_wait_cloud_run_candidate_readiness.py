@@ -29,7 +29,7 @@ class SequenceCloudRunner:
 
 def _config() -> readiness.CandidateConfig:
     return readiness.CandidateConfig(
-        project='omi-prod',
+        project='intentive-production-test',
         region='us-central1',
         service='frontend',
         revision='frontend-candidate-00001',
@@ -61,7 +61,7 @@ def test_ready_false_reports_reason_message_and_candidate_identity() -> None:
     report = readiness.format_failure(_config(), observation)
 
     assert observation.is_ready is False
-    assert 'candidate.project=omi-prod' in report
+    assert 'candidate.project=intentive-production-test' in report
     assert 'candidate.region=us-central1' in report
     assert 'candidate.service=frontend' in report
     assert 'candidate.revision=frontend-candidate-00001' in report
@@ -75,7 +75,7 @@ def test_ready_false_reports_reason_message_and_candidate_identity() -> None:
             'revisions',
             'describe',
             'frontend-candidate-00001',
-            '--project=omi-prod',
+            '--project=intentive-production-test',
             '--region=us-central1',
             '--format=json',
         ]
@@ -213,7 +213,7 @@ def test_unknown_ready_state_keeps_polling_until_candidate_is_ready() -> None:
 
 def test_logging_url_filters_one_revision_and_escapes_filter_values() -> None:
     config = readiness.CandidateConfig(
-        project='omi-prod',
+        project='intentive-production-test',
         region='us-central1',
         service='frontend" OR severity>=ERROR',
         revision='frontend-candidate-00001',
@@ -223,7 +223,7 @@ def test_logging_url_filters_one_revision_and_escapes_filter_values() -> None:
     decoded = unquote(url)
 
     assert url.startswith('https://console.cloud.google.com/logs/query;query=')
-    assert decoded.endswith('?project=omi-prod')
+    assert decoded.endswith('?project=intentive-production-test')
     assert 'resource.type="cloud_run_revision"' in decoded
     assert 'resource.labels.service_name="frontend\\" OR severity>=ERROR"' in decoded
     assert 'resource.labels.revision_name="frontend-candidate-00001"' in decoded

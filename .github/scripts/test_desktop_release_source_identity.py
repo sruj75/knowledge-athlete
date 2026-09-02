@@ -19,7 +19,7 @@ SPEC.loader.exec_module(identity)
 PLANNED_SHA = "a" * 40
 CANDIDATE_SHA = "b" * 40
 CHANGELOG_SHA = "c" * 40
-PR_URL = "https://github.com/BasedHardware/omi/pull/12345"
+PR_URL = "https://github.com/sruj75/knowledge-athlete/pull/12345"
 RELEASE_TAG = "v1.2.3+10203-macos"
 
 

@@ -35,7 +35,7 @@ def test_output_uses_required_status_vocabulary_and_json_formatting():
 
     decoded = json.loads(json.dumps(module.sanitize(report), sort_keys=True))
 
-    assert decoded["suite"] == "omi_product_capability_synthetics"
+    assert decoded["suite"] == "intentive_product_capability_synthetics"
     assert decoded["status_vocabulary"] == ["FAIL", "NOT_RUN", "PASS", "SKIP_NO_CREDENTIALS"]
     assert {check["status"] for check in decoded["checks"]} <= set(decoded["status_vocabulary"])
     assert decoded["summary"]["NOT_RUN"] >= 2
@@ -61,7 +61,7 @@ def test_missing_backend_url_skips_network_only_checks_without_credentials():
 def test_redaction_masks_tokens_and_secret_fields():
     module = _load_module()
     payload = {
-        "authorization": "Bearer omi_oat_rawsecretvalue",
+        "authorization": "Bearer intentive_oat_rawsecretvalue",
         "message": "sk-test-not-real and client_secret=super-secret and token:abc123",
         "nested": ["api_key=fake-provider-key"],
     }
@@ -84,7 +84,7 @@ def test_failing_check_sets_overall_failure(monkeypatch):
     monkeypatch.setattr(
         module,
         "backend_health_check",
-        lambda _config: ("FAIL", "health failed", {"body": "Bearer omi_mcp_should_not_leak"}),
+        lambda _config: ("FAIL", "health failed", {"body": "Bearer intentive_mcp_should_not_leak"}),
     )
     monkeypatch.setattr(
         module,

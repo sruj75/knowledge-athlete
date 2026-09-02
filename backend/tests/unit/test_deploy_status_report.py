@@ -25,7 +25,7 @@ def test_cloud_run_report_requires_ready_revision_to_serve_expected_traffic() ->
         state,
         services=['backend'],
         expected_traffic=parse_expected_traffic(['backend=backend-abc1234-1']),
-        project='based-hardware',
+        project='knowledge-athlete',
         region='us-central1',
     )
 
@@ -80,7 +80,7 @@ def test_cloud_run_report_flags_spec_status_mismatch_and_emits_repair_command() 
         state,
         services=['backend'],
         expected_traffic={},
-        project='based-hardware',
+        project='knowledge-athlete',
         region='us-central1',
     )
 
@@ -91,7 +91,7 @@ def test_cloud_run_report_flags_spec_status_mismatch_and_emits_repair_command() 
             'FAIL',
             'backend',
             'spec.traffic (backend-failed-1) != status.traffic (backend-good-1); repair: '
-            'gcloud run services update-traffic backend --project=based-hardware '
+            'gcloud run services update-traffic backend --project=knowledge-athlete '
             '--region=us-central1 --to-revisions=backend-good-1=100 --quiet',
         )
         in findings

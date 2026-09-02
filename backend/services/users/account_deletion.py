@@ -22,7 +22,7 @@ ACCOUNT_DELETION_WIPE_FAILED = 'Account Deletion Wipe Failed'
 
 # Service-level PostHog distinct_id only. Never re-identify a deleted Firebase UID
 # as a person profile (success path runs after Auth + Firestore wipe).
-_ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'omi-service:account-deletion'
+_ACCOUNT_DELETION_TELEMETRY_DISTINCT_ID = 'intentive-service:account-deletion'
 
 
 def _emit_deletion_telemetry(uid: str, event: str, properties: dict[str, object]) -> None:

@@ -3,7 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 
-RUNTIME_GOOGLE_CREDENTIALS_PATH = Path('/tmp/omi-google-credentials.json')
+RUNTIME_GOOGLE_CREDENTIALS_PATH = Path('/tmp/intentive-google-credentials.json')
 
 
 def prepare_google_credentials() -> None:

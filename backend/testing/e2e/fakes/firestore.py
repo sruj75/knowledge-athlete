@@ -124,7 +124,7 @@ def patch_google_firestore():
     Monkeypatch google.cloud.firestore.Client so that ``firestore.Client()```
     (as used in database/_client.py) returns our MockFirestore instance.
 
-    Must be called BEFORE any omi backend module is imported.
+    Must be called BEFORE any Intentive backend module is imported.
     Note: google.auth.default is already patched at conftest import time
     to prevent DefaultCredentialsError during Client() construction.
     """

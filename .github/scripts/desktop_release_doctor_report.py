@@ -338,7 +338,7 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
         surfaces.append(
             _unavailable_surface(
                 "backend_health_identity",
-                {"process_status": "ok", "service": "omi-backend", "chat_contract_version": "1"},
+                {"process_status": "ok", "service": "backend", "chat_contract_version": "1"},
                 backend,
             )
         )
@@ -346,7 +346,7 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
         valid = (
             backend.get("status") == "healthy"
             and backend.get("process_status") == "ok"
-            and backend.get("service") == "omi-backend"
+            and backend.get("service") == "backend"
             and backend.get("chat_contract_version") == "1"
         )
         surfaces.append(
@@ -356,7 +356,7 @@ def _stable_surfaces(snapshot: dict[str, object], release_id: str, tag_sha: str,
                 "aligned" if valid else "customer_visible_split",
                 {
                     "process_status": "ok",
-                    "service": "omi-backend",
+                    "service": "backend",
                     "chat_contract_version": "1",
                 },
                 {

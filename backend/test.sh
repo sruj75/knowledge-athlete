@@ -216,7 +216,7 @@ if [[ "$use_file_isolation" == "1" || "$use_file_isolation" == "true" ]]; then
   done
 
   if [[ "$failed" -ne 0 ]]; then
-    rerun_list="/tmp/omi-backend-unit-failures.txt"
+    rerun_list="/tmp/intentive-backend-unit-failures.txt"
     echo
     echo "Backend unit suite failed."
     echo "Reproduce only the failed file(s) with the same test.sh runner and timing guard:"

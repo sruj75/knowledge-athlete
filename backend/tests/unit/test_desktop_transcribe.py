@@ -409,7 +409,7 @@ class TestTranscribePcmBytes:
                 encoding='linear16',
                 sample_rate=16000,
                 channels=1,
-                keywords=['Omi'],
+                keywords=['Intentive'],
             )
 
         assert result == ('Hello world', 'en')
@@ -421,7 +421,7 @@ class TestTranscribePcmBytes:
             channels=1,
             language='multi',
             return_language=True,
-            keywords=['Omi'],
+            keywords=['Intentive'],
         )
 
     def test_linear16_silence_returns_without_calling_provider(self):

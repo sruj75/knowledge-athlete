@@ -73,7 +73,7 @@ class ResolveDesktopChangelogSyncTests(unittest.TestCase):
             planned_source_sha=tip,
             version="0.12.143",
             main_ref="main",
-            repository_slug="BasedHardware/omi",
+            repository_slug="sruj75/knowledge-athlete",
         )
         elapsed = time.monotonic() - started
         self.assertLess(elapsed, 5.0, "must not O(n) scan main history")
@@ -110,7 +110,7 @@ class ResolveDesktopChangelogSyncTests(unittest.TestCase):
             planned_source_sha=tip,
             version="0.12.143",
             main_ref="main",
-            repository_slug="BasedHardware/omi",
+            repository_slug="sruj75/knowledge-athlete",
         )
         self.assertEqual(result["mode"], "missing")
         self.assertEqual(result["commit"], "")

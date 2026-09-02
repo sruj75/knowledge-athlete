@@ -66,7 +66,7 @@ def test_main_app_owns_the_single_backend_lifecycle_and_retained_operational_rou
     with TestClient(main.app, raise_server_exceptions=False) as client:
         assert client.get('/').json() == {
             'status': 'healthy',
-            'service': 'omi-backend',
+            'service': 'backend',
             'version': '0.1.0',
             'chat_contract_version': '2',
         }

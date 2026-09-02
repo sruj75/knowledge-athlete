@@ -90,7 +90,7 @@ def load_from_api(
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "omi-pr-preflight",
+            "User-Agent": "intentive-pr-preflight",
         },
     )
     for attempt in range(1, _API_ATTEMPTS + 1):

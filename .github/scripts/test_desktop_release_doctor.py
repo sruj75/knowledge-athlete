@@ -72,7 +72,7 @@ def healthy_snapshot(*, phase: str = "beta") -> dict[str, object]:
         "backend": {
             "status": "healthy",
             "process_status": "ok",
-            "service": "omi-backend",
+            "service": "backend",
             "chat_contract_version": "1",
         },
         "tracking": {"status": "retired"},

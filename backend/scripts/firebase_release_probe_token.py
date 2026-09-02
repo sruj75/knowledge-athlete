@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 FIREBASE_API_KEY_SECRET = 'FIREBASE_API_KEY'
-PROBE_UID = 'omi-release-probe'
+PROBE_UID = 'intentive-release-probe'
 CUSTOM_TOKEN_AUDIENCE = 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit'
 IAM_CREDENTIALS_URL = 'https://iamcredentials.googleapis.com/v1'
 IDENTITY_TOOLKIT_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken'
@@ -250,7 +250,7 @@ def _signed_custom_token_locally(credentials_path: Path, firebase_project: str) 
             raise ProbeTokenError('custom_token_signing', 'credential_unavailable')
         try:
             descriptor, key_path = tempfile.mkstemp(
-                prefix='omi-firebase-probe-signer-',
+                prefix='intentive-firebase-probe-signer-',
                 dir=os.environ.get('RUNNER_TEMP'),
             )
             try:
@@ -420,7 +420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             json.dumps(
                 {
-                    'suite': 'omi_firebase_release_probe_token',
+                    'suite': 'intentive_firebase_release_probe_token',
                     'stage': error.stage,
                     'error_class': error.error_class,
                     'status': 'FAIL',
@@ -430,7 +430,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     finally:
         token = ''
-    print(json.dumps({'suite': 'omi_firebase_release_probe_token', 'status': 'PASS'}))
+    print(json.dumps({'suite': 'intentive_firebase_release_probe_token', 'status': 'PASS'}))
     return 0
 
 

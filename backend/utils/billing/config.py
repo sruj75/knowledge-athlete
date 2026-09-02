@@ -56,20 +56,21 @@ def load_billing_config() -> BillingConfig:
         allowed = ', '.join(item.value for item in BillingMode)
         raise BillingConfigurationError(f'BILLING_MODE must be one of: {allowed}') from exc
 
-    public_base_url = (_nonempty_env('BASE_URL') or 'https://api.omi.me').rstrip('/') + '/'
+    configured_base_url = _nonempty_env('BASE_URL')
     if mode is BillingMode.disabled:
         return BillingConfig(
             mode=mode,
             api_key=None,
             webhook_key=None,
             catalog=None,
-            public_base_url=public_base_url,
+            public_base_url=configured_base_url.rstrip('/') + '/' if configured_base_url else '',
         )
 
     required = {
         'DODO_PAYMENTS_API_KEY': _nonempty_env('DODO_PAYMENTS_API_KEY'),
         'DODO_PAYMENTS_WEBHOOK_KEY': _nonempty_env('DODO_PAYMENTS_WEBHOOK_KEY'),
         'DODO_BILLING_CATALOG_JSON': _nonempty_env('DODO_BILLING_CATALOG_JSON'),
+        'BASE_URL': configured_base_url,
     }
     missing = [name for name, value in required.items() if value is None]
     if missing:
@@ -85,7 +86,7 @@ def load_billing_config() -> BillingConfig:
         api_key=required['DODO_PAYMENTS_API_KEY'],
         webhook_key=required['DODO_PAYMENTS_WEBHOOK_KEY'],
         catalog=catalog,
-        public_base_url=public_base_url,
+        public_base_url=(required['BASE_URL'] or '').rstrip('/') + '/',
     )
 
 

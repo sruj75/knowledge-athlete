@@ -707,7 +707,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
                         'uses': 'google-github-actions/deploy-cloudrun@v2',
                         'with': {
                             'job': '${{ env.SERVICE }}',
-                            'env_vars': 'GOOGLE_CLOUD_PROJECT=based-hardware\n',
+                            'env_vars': 'GOOGLE_CLOUD_PROJECT=knowledge-athlete\n',
                             'secrets': 'SERVICE_ACCOUNT_JSON=SERVICE_ACCOUNT_JSON:latest\n',
                             'flags': '--remove-env-vars=STALE_KEY',
                         },
@@ -724,8 +724,8 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
             'schema_version': 1,
             'environments': {
                 'dev': {
-                    'gcp_project': 'based-hardware',
-                    'runtime_gcp_project': 'based-hardware',
+                    'gcp_project': 'knowledge-athlete',
+                    'runtime_gcp_project': 'knowledge-athlete',
                     'region': 'us-central1',
                     'gke': {'backend-listen': {'values_file': str(values_file), 'env': {}}},
                     'cloud_run': {
@@ -733,7 +733,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
                         'services': {},
                         'jobs': {
                             'maintenance-job': {
-                                'env': {'GOOGLE_CLOUD_PROJECT': {'value': 'based-hardware'}},
+                                'env': {'GOOGLE_CLOUD_PROJECT': {'value': 'knowledge-athlete'}},
                                 'forbidden_env': ['HOSTED_PUSHER_API_URL'],
                                 'secrets': {
                                     'SERVICE_ACCOUNT_JSON': {
@@ -766,7 +766,7 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
                     'uses': 'google-github-actions/deploy-cloudrun@v2',
                     'with': {
                         'job': '${{ env.SERVICE }}',
-                        'env_vars': 'GOOGLE_CLOUD_PROJECT=based-hardware\n',
+                        'env_vars': 'GOOGLE_CLOUD_PROJECT=knowledge-athlete\n',
                         'secrets': 'SERVICE_ACCOUNT_JSON=SERVICE_ACCOUNT_JSON:latest\n',
                         'flags': '--remove-env-vars=STALE_KEY,HOSTED_PUSHER_API_URL',
                     },
@@ -933,7 +933,7 @@ _LIVE_SERVICE_JSON = '{"spec":{"template":{"metadata":{"annotations":{}},"spec":
 
 def _live_env_config():
     return {
-        'gcp_project': 'based-hardware',
+        'gcp_project': 'knowledge-athlete',
         'region': 'us-central1',
         'cloud_run': {
             'services': {

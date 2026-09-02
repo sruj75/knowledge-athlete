@@ -23,7 +23,7 @@ def _load_module():
     return module
 
 
-def _id_token(*, aud='based-hardware', sub='omi-release-probe'):
+def _id_token(*, aud='knowledge-athlete', sub='intentive-release-probe'):
     claims = {
         'aud': aud,
         'iss': f'https://securetoken.google.com/{aud}',
@@ -43,7 +43,7 @@ def test_mint_probe_token_uses_fixed_uid_short_lived_custom_claims_and_discards_
         if stage == 'secret_access':
             return 'firebase-api-key-that-must-not-leak'
         if stage == 'service_account':
-            return 'deployer@omi-prod.iam.gserviceaccount.com'
+            return 'intentive-dev-deploy@knowledge-athlete.iam.gserviceaccount.com'
         return 'gcp-access-token-that-must-not-leak'
 
     def fake_request(url, *, body, access_token, stage):
@@ -59,7 +59,7 @@ def test_mint_probe_token_uses_fixed_uid_short_lived_custom_claims_and_discards_
     monkeypatch.setattr(module, '_request_json', fake_request)
     monkeypatch.setattr(module.time, 'time', lambda: 1_700_000_000)
 
-    assert module.mint_probe_token('based-hardware-dev', 'based-hardware') == _id_token()
+    assert module.mint_probe_token('knowledge-athlete', 'knowledge-athlete') == _id_token()
     assert commands[0][0][0:5] == ['gcloud', 'secrets', 'versions', 'access', 'latest']
     signing_url, signing_body, signing_access_token, signing_stage = requests[0]
     claims = json.loads(signing_body['payload'])
@@ -89,13 +89,20 @@ def test_token_acquisition_failure_is_redacted_and_does_not_create_output(monkey
     )
 
     exit_code = module.main(
-        ['--secret-project', 'omi-prod', '--firebase-project', 'based-hardware', '--token-output', str(output)]
+        [
+            '--secret-project',
+            'knowledge-athlete',
+            '--firebase-project',
+            'knowledge-athlete',
+            '--token-output',
+            str(output),
+        ]
     )
 
     report = json.loads(capsys.readouterr().out)
     assert exit_code == 1
     assert report == {
-        'suite': 'omi_firebase_release_probe_token',
+        'suite': 'intentive_firebase_release_probe_token',
         'stage': 'secret_access',
         'error_class': 'operation_failed',
         'status': 'FAIL',
@@ -132,9 +139,9 @@ def test_write_token_fails_closed_when_owner_only_permissions_are_unavailable(mo
     exit_code = module.main(
         [
             '--secret-project',
-            'omi-deploy',
+            'knowledge-athlete',
             '--firebase-project',
-            'omi-prod',
+            'knowledge-athlete',
             '--token-output',
             str(output),
         ]
@@ -143,7 +150,7 @@ def test_write_token_fails_closed_when_owner_only_permissions_are_unavailable(mo
     report = json.loads(capsys.readouterr().out)
     assert exit_code == 1
     assert report == {
-        'suite': 'omi_firebase_release_probe_token',
+        'suite': 'intentive_firebase_release_probe_token',
         'stage': 'token_output',
         'error_class': 'operation_failed',
         'status': 'FAIL',
@@ -167,13 +174,17 @@ def test_write_token_uses_owner_only_permissions(tmp_path):
 def test_mint_probe_token_rejects_a_token_for_a_different_firebase_auth_project(monkeypatch):
     module = _load_module()
     monkeypatch.setattr(module, '_access_secret', lambda _project: 'api-key-that-must-not-leak')
-    monkeypatch.setattr(module, '_active_service_account', lambda: 'deployer@omi-prod.iam.gserviceaccount.com')
+    monkeypatch.setattr(
+        module,
+        '_active_service_account',
+        lambda: 'intentive-dev-deploy@knowledge-athlete.iam.gserviceaccount.com',
+    )
     monkeypatch.setattr(module, '_access_token', lambda: 'access-token-that-must-not-leak')
     monkeypatch.setattr(module, '_signed_custom_token', lambda _account, _token: 'custom-token-that-must-not-leak')
     monkeypatch.setattr(module, '_exchange_custom_token', lambda _custom, _key: _id_token(aud='wrong-project'))
 
     try:
-        module.mint_probe_token('based-hardware-dev', 'based-hardware')
+        module.mint_probe_token('knowledge-athlete', 'knowledge-athlete')
     except module.ProbeTokenError as error:
         assert error.stage == 'firebase_token_claims'
     else:
@@ -190,10 +201,10 @@ def test_local_signer_uses_matching_service_account_without_remote_iam(monkeypat
         json.dumps(
             {
                 'type': 'service_account',
-                'project_id': 'based-hardware',
+                'project_id': 'knowledge-athlete',
                 'private_key_id': 'fixed-key-id',
                 'private_key': '-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n',
-                'client_email': 'firebase-probe@based-hardware.iam.gserviceaccount.com',
+                'client_email': 'firebase-probe@knowledge-athlete.iam.gserviceaccount.com',
             }
         ),
         encoding='utf-8',
@@ -206,13 +217,13 @@ def test_local_signer_uses_matching_service_account_without_remote_iam(monkeypat
     )
     monkeypatch.setattr(module.time, 'time', lambda: 1_700_000_000)
 
-    token = module._signed_custom_token_locally(credentials, 'based-hardware')
+    token = module._signed_custom_token_locally(credentials, 'knowledge-athlete')
     header_part, claims_part, signature_part = token.split('.')
     header = json.loads(base64.urlsafe_b64decode(header_part + '=' * (-len(header_part) % 4)))
     claims = json.loads(base64.urlsafe_b64decode(claims_part + '=' * (-len(claims_part) % 4)))
 
     assert header == {'alg': 'RS256', 'kid': 'fixed-key-id', 'typ': 'JWT'}
-    assert claims['iss'] == 'firebase-probe@based-hardware.iam.gserviceaccount.com'
+    assert claims['iss'] == 'firebase-probe@knowledge-athlete.iam.gserviceaccount.com'
     assert claims['sub'] == claims['iss']
     assert claims['uid'] == module.PROBE_UID
     assert claims['claims'] == {'release_probe': True}
@@ -226,7 +237,7 @@ def test_local_signer_fails_before_creating_a_key_file_when_private_modes_are_un
         module,
         '_read_signer_credentials',
         lambda _path, _project: (
-            'firebase-probe@based-hardware.iam.gserviceaccount.com',
+            'firebase-probe@knowledge-athlete.iam.gserviceaccount.com',
             'fixed-key-id',
             '-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n',
         ),
@@ -239,7 +250,7 @@ def test_local_signer_fails_before_creating_a_key_file_when_private_modes_are_un
     )
 
     with pytest.raises(module.ProbeTokenError) as error:
-        module._signed_custom_token_locally(tmp_path / 'firebase-signer.json', 'based-hardware')
+        module._signed_custom_token_locally(tmp_path / 'firebase-signer.json', 'knowledge-athlete')
 
     assert error.value.stage == 'custom_token_signing'
     assert error.value.error_class == 'credential_unavailable'
@@ -255,10 +266,10 @@ def test_local_signer_rejects_cross_project_credentials_before_signing(monkeypat
         json.dumps(
             {
                 'type': 'service_account',
-                'project_id': 'based-hardware-dev',
+                'project_id': 'different-project',
                 'private_key_id': 'fixed-key-id',
                 'private_key': '-----BEGIN PRIVATE KEY-----\nnot-a-real-key\n-----END PRIVATE KEY-----\n',
-                'client_email': 'firebase-probe@based-hardware-dev.iam.gserviceaccount.com',
+                'client_email': 'firebase-probe@different-project.iam.gserviceaccount.com',
             }
         ),
         encoding='utf-8',
@@ -271,7 +282,7 @@ def test_local_signer_rejects_cross_project_credentials_before_signing(monkeypat
     )
 
     try:
-        module._signed_custom_token_locally(credentials, 'based-hardware')
+        module._signed_custom_token_locally(credentials, 'knowledge-athlete')
     except module.ProbeTokenError as error:
         assert error.stage == 'signer_credentials'
         assert error.error_class == 'project_mismatch'
@@ -326,10 +337,10 @@ def test_mint_probe_token_prefers_explicit_local_signer(monkeypatch, tmp_path):
     )
 
     assert (
-        module.mint_probe_token('based-hardware-dev', 'based-hardware', signer_credentials_file=signer) == _id_token()
+        module.mint_probe_token('knowledge-athlete', 'knowledge-athlete', signer_credentials_file=signer) == _id_token()
     )
     assert calls == [
-        ('secret', 'based-hardware-dev'),
-        ('local_signer', signer, 'based-hardware'),
+        ('secret', 'knowledge-athlete'),
+        ('local_signer', signer, 'knowledge-athlete'),
         ('exchange', 'custom-token', 'api-key'),
     ]

@@ -26,7 +26,7 @@ STATUS_NOT_RUN = "NOT_RUN"
 VALID_STATUSES = {STATUS_PASS, STATUS_FAIL, STATUS_SKIP_NO_CREDENTIALS, STATUS_NOT_RUN}
 
 SENSITIVE_PATTERNS = [
-    re.compile(r"omi_(?:oat|ort|mcp)_[A-Za-z0-9._~+-]+"),
+    re.compile(r"(?:omi|intentive)_(?:oat|ort|mcp)_[A-Za-z0-9._~+-]+"),
     re.compile(r"sk-[A-Za-z0-9._-]+"),
     re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"),
     re.compile(r"(?i)(authorization[\"']?\s*[:=]\s*[\"']?)[A-Za-z0-9._~+/=-]+"),
@@ -204,7 +204,7 @@ def build_report(config: SyntheticConfig) -> dict[str, Any]:
     if counts[STATUS_PASS] == 0 and not counts[STATUS_FAIL]:
         overall_status = STATUS_NOT_RUN
     return {
-        "suite": "omi_product_capability_synthetics",
+        "suite": "intentive_product_capability_synthetics",
         "status": overall_status,
         "status_vocabulary": sorted(VALID_STATUSES),
         "secret_safety": {
@@ -219,13 +219,13 @@ def build_report(config: SyntheticConfig) -> dict[str, Any]:
 
 
 def print_human_summary(report: dict[str, Any]) -> None:
-    print(f"Omi product-capability synthetics: {report['status']}")
+    print(f"Intentive product-capability synthetics: {report['status']}")
     for check in report["checks"]:
         print(f"- {check['status']} {check['name']}: {check['summary']}")
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run safe Omi product-capability synthetic checks.")
+    parser = argparse.ArgumentParser(description="Run safe Intentive product-capability synthetic checks.")
     parser.add_argument("--backend-url", default=os.environ.get("OMI_SYNTHETIC_BACKEND_URL"))
     parser.add_argument("--json-only", action="store_true", help="Emit machine-readable JSON only.")
     parser.add_argument("--no-local-fixtures", action="store_true", help="Skip hermetic e2e fixture checks.")

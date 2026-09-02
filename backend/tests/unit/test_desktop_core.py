@@ -22,7 +22,7 @@ def test_root_reports_only_canonical_backend_identity(monkeypatch):
     client = make_client()
     expected = {
         "status": "healthy",
-        "service": "omi-backend",
+        "service": "backend",
         "version": "0.1.0",
         "chat_contract_version": "2",
     }

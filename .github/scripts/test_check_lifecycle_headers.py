@@ -41,7 +41,7 @@ class HeaderTests(unittest.TestCase):
             path = write(
                 Path(tmp),
                 "one_time.py",
-                "# LIFECYCLE: one-time\n# DELETE-AFTER: https://github.com/BasedHardware/omi/issues/123\n",
+                "# LIFECYCLE: one-time\n# DELETE-AFTER: https://github.com/sruj75/knowledge-athlete/issues/123\n",
             )
             self.assertEqual(parse_lifecycle_header(path), ("one-time", None))
 

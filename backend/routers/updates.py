@@ -321,7 +321,7 @@ async def _find_desktop_release_by_tag(tag_name: str) -> Optional[Dict]:
 
 
 async def _resolve_beta_identity_enclosure(entry: Dict) -> Optional[tuple]:
-    """(download_url, ed_signature) of the Omi Beta artifact for this entry's release.
+    """(download_url, ed_signature) of the Intentive Beta artifact for this entry's release.
 
     None when the release predates the dual-identity pipeline — the item is then
     omitted from the beta feed rather than served with a stable-identity artifact.
@@ -800,8 +800,8 @@ def _generate_appcast_xml(items: List[Dict], platform: str) -> str:
         '<?xml version="1.0" encoding="utf-8"?>',
         '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">',
         '  <channel>',
-        '    <title>Omi Desktop Updates</title>',
-        '    <description>Omi AI Desktop Application</description>',
+        '    <title>Intentive Desktop Updates</title>',
+        '    <description>Intentive Desktop Application</description>',
         '    <language>en</language>',
     ]
 
@@ -821,7 +821,7 @@ def _generate_appcast_xml(items: List[Dict], platform: str) -> str:
         safe_html = changes_html.replace(']]>', ']]]]><![CDATA[>')
 
         lines.append('    <item>')
-        lines.append(f'      <title>Omi {xml_escape(version)}</title>')
+        lines.append(f'      <title>Intentive {xml_escape(version)}</title>')
         lines.append(f'      <sparkle:version>{xml_escape(short_version)}</sparkle:version>')
         lines.append(f'      <sparkle:shortVersionString>{xml_escape(version)}</sparkle:shortVersionString>')
         lines.append(f'      <description><![CDATA[{safe_html}]]></description>')
@@ -857,7 +857,7 @@ async def get_desktop_appcast_xml(
     Returns a single feed with both beta and stable channel items.
     Sparkle clients filter by their configured allowed channels.
 
-    identity=beta is requested only by the separately-installable "Omi Beta" app
+    identity=beta is requested only by the separately-installable Intentive Beta app
     (its SUFeedURL carries the parameter): it gets beta-channel items only, with
     beta-identity enclosures, so Sparkle can never replace it with a
     stable-identity bundle. Legacy stable-identity installs on the beta channel
@@ -941,8 +941,8 @@ async def download_latest_desktop_release(
     Both channels resolve only from their explicit channel pointer or the same
     channel in the legacy release metadata; the requested channel is strict
     (404 when empty — QA/tooling contract).
-    Defaults to stable channel (for macos.omi.me). Use channel=beta for QA.
-    identity=beta serves the separately-installable "Omi Beta" DMG, which runs
+    Defaults to the stable channel. Use channel=beta for QA.
+    identity=beta serves the separately-installable Intentive Beta DMG, which runs
     side-by-side with stable.
     """
     if identity == "beta":
@@ -952,7 +952,7 @@ async def download_latest_desktop_release(
         raise HTTPException(status_code=404, detail=f"No live desktop releases found for platform: {platform}")
 
     if identity == "beta" and platform == "macos":
-        # Serve the side-by-side Omi Beta DMG when the live beta release ships it;
+        # Serve the side-by-side Intentive Beta DMG when the live beta release ships it;
         # otherwise fall back to the stable-identity installer so the public link
         # never 404s pre-rollout. The strict identity guard stays on the Sparkle
         # feed where in-place replacement could corrupt an install's identity.
@@ -993,10 +993,9 @@ async def download_beta_desktop_release(
 ):
     """
     Serve the latest beta release as an auto-download landing page.
-    Legacy convenience route: macos.omi.me/beta now redirects straight to
-    /v2/desktop/download/latest?channel=beta (URL-map urlRedirect.pathRedirect
-    does carry query params); kept for old shared links. Serves the
-    side-by-side Omi Beta identity once a live beta release ships it.
+    Convenience route for the Beta download landing page. It delegates to the
+    canonical latest-download resolver and serves the side-by-side Intentive
+    Beta identity once a live beta release ships it.
     """
     return await download_latest_desktop_release(platform=platform, channel="beta", identity="beta")
 

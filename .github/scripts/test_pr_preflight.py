@@ -53,12 +53,12 @@ class MetadataTests(unittest.TestCase):
                 ).encode()
             )
 
-        metadata = load_from_api("BasedHardware/omi", 9402, "test-token", opener=opener)
+        metadata = load_from_api("sruj75/knowledge-athlete", 9402, "test-token", opener=opener)
         self.assertEqual(metadata.number, 9402)
         self.assertIn("INV-CHAT-1", metadata.body)
         self.assertEqual(metadata.updated_at, "2026-07-10T21:17:00Z")
         self.assertEqual(metadata.labels, ("no-changelog-needed",))
-        self.assertEqual(captured["url"], "https://api.github.com/repos/BasedHardware/omi/pulls/9402")
+        self.assertEqual(captured["url"], "https://api.github.com/repos/sruj75/knowledge-athlete/pulls/9402")
         self.assertEqual(captured["authorization"], "Bearer test-token")
         self.assertEqual(captured["timeout"], 15)
 
@@ -77,7 +77,7 @@ class MetadataTests(unittest.TestCase):
                 raise outcome
             return outcome  # type: ignore[return-value]
 
-        metadata = load_from_api("BasedHardware/omi", 9847, "test-token", opener=opener, sleeper=sleeps.append)
+        metadata = load_from_api("sruj75/knowledge-athlete", 9847, "test-token", opener=opener, sleeper=sleeps.append)
         self.assertEqual(metadata.number, 9847)
         self.assertEqual(sleeps, [2.0, 4.0])
 
@@ -89,7 +89,7 @@ class MetadataTests(unittest.TestCase):
             raise urllib.error.HTTPError("url", 404, "not found", None, io.BytesIO())  # type: ignore[arg-type]
 
         with self.assertRaisesRegex(RuntimeError, "HTTP 404") as raised:
-            load_from_api("BasedHardware/omi", 9847, "test-token", opener=opener, sleeper=lambda _: None)
+            load_from_api("sruj75/knowledge-athlete", 9847, "test-token", opener=opener, sleeper=lambda _: None)
         self.assertEqual(calls["count"], 1)
         cause = raised.exception.__cause__
         self.assertIsInstance(cause, urllib.error.HTTPError)
@@ -103,7 +103,7 @@ class MetadataTests(unittest.TestCase):
             raise TimeoutError("timed out")
 
         with self.assertRaisesRegex(TransientPRMetadataError, "request failed"):
-            load_from_api("BasedHardware/omi", 9847, "test-token", opener=opener, sleeper=lambda _: None)
+            load_from_api("sruj75/knowledge-athlete", 9847, "test-token", opener=opener, sleeper=lambda _: None)
         self.assertEqual(calls["count"], 3)
 
     def test_event_payload_loader_uses_top_level_pr_number(self) -> None:
@@ -148,7 +148,7 @@ class MetadataTests(unittest.TestCase):
             with patch.dict(os.environ, {"OMI_PR_BODY_FILE": ""}), patch(
                 "pr_preflight.load_from_api", side_effect=TransientPRMetadataError("GitHub API unavailable")
             ), redirect_stderr(warnings):
-                metadata = resolve_pr_metadata(REPO_ROOT, None, "BasedHardware/omi", 9847, event_path)
+                metadata = resolve_pr_metadata(REPO_ROOT, None, "sruj75/knowledge-athlete", 9847, event_path)
 
         self.assertIsNotNone(metadata)
         self.assertEqual(metadata.body, "current")
@@ -159,7 +159,7 @@ class MetadataTests(unittest.TestCase):
             "pr_preflight.load_from_api", side_effect=RuntimeError("GitHub API returned HTTP 403")
         ):
             with self.assertRaisesRegex(RuntimeError, "HTTP 403"):
-                resolve_pr_metadata(REPO_ROOT, None, "BasedHardware/omi", 9847, Path("event.json"))
+                resolve_pr_metadata(REPO_ROOT, None, "sruj75/knowledge-athlete", 9847, Path("event.json"))
 
 
 class SelectionTests(unittest.TestCase):
@@ -341,9 +341,9 @@ class SelectionTests(unittest.TestCase):
                     "-C",
                     str(root),
                     "-c",
-                    "user.name=Omi Test",
+                    "user.name=Intentive Test",
                     "-c",
-                    "user.email=omi-test@example.com",
+                    "user.email=intentive-test@example.com",
                     "commit",
                     "-qm",
                     "fixture",

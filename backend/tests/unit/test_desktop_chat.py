@@ -301,7 +301,7 @@ async def test_offline_endpoint_returns_native_gemini_sse_without_provider_key(m
     chunks = [chunk async for chunk in response.body_iterator]
     payload = json.loads(chunks[0][6:])
     assert payload['candidates'][0]['content']['parts'][0]['text'] == 'PROBE'
-    assert response.headers['x-omi-chat-contract-version'] == '2'
+    assert response.headers['x-intentive-chat-contract-version'] == '2'
     assert 'server-gemini-secret' not in str(payload)
 
 

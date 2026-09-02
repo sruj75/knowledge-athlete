@@ -48,9 +48,10 @@ make dev-up          # Firebase Auth + Firestore emulators + local Redis
 make dev-desktop     # the above, then launch the macOS app against it
 ```
 
-The emulators replace Google, not the AI vendors. For a hermetic local stack,
+The emulators replace Google, not the managed providers. For a hermetic local stack,
 run `PROVIDER_MODE=offline make dev-up` without provider credentials. Real mode
-requires OpenAI, Modulate, Gemini, and Anthropic keys in
+uses Gemini for model compute, Modulate for speech-to-text, OpenAI for TTS only,
+and Langfuse for tracing/prompt management. Their credentials belong in
 `backend/.env.local-dev`; `make dev-init` creates that untracked file.
 
 `desktop/macos/run.sh --yolo` skips the local backend and targets the owned
@@ -64,8 +65,9 @@ ffmpeg, opus.
 
 ## Rebrand checklist — before shipping your own build
 
-Every item below is omi's identity baked into the source. The build succeeds without
-changing them, which is exactly why they are easy to ship by accident.
+The historical inventory later in this file records Omi identity that was baked into
+the source. The build could succeed without changing those values, which is exactly
+why each current successor or protected exception needs explicit ownership.
 
 ### Owner-approved successor identity
 
@@ -84,9 +86,11 @@ and the current external-resource handoff are recorded in
 | Named development / preview prefixes | `com.heyintentive.intentive.dev.`, `com.heyintentive.intentive.preview.` |
 | Google Cloud project | existing Firebase/GCP project `knowledge-athlete`; billing active, with a permanent-Free-Tier operating constraint |
 | Development Cloud Run service | public-ingress `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; protected routes enforce Firebase authentication and development desktop defaults target its discovered URL |
-| Container repository | not provisioned in `knowledge-athlete`; Cloud Run imported the immutable recovery image and all temporary cross-project reader bindings were removed |
+| Container repository | `knowledge-athlete/us-west1/intentive/backend`; the active development revision uses an owned immutable digest and no longer reads a cross-project recovery image |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
+| PostHog | unconfigured; the Mac fails closed until an owned project token and HTTPS host are supplied through the Intentive configuration keys |
+| Langfuse | owned US Cloud project `Intentive`; tracing and Prompt Management remain fail-open observability, not product-data authority |
 
 `intentive.life` and `intuitive.life` are not product domains. They must not be
 used for product URLs, support/privacy addresses, bundle identity, or public copy.
@@ -107,6 +111,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   coordination. Development desktop defaults target it; it is not production authority.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
+- PostHog has no approved project token. Product analytics therefore stays off;
+  the inherited Omi token is neither embedded nor used as a fallback.
+- Existing Omi icon, logo, and backdrop bytes remain unchanged placeholders until
+  the owner supplies and approves an Intentive asset pack. They are not shippable assets.
 
 ### Remaining release blockers
 
@@ -121,6 +129,8 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   `intentive-macos-release` / `intentive-macos-preview`. Protected provider groups, the GitHub
   release app/token boundary, trusted Intentive M1 runner, production backend/feed, public site,
   and approved legal/support destinations are not configured.
+- An approved Intentive app icon, mark, wordmark, and any replacement sign-in backdrop
+  are still required before a candidate can be called visually rebranded.
 - The complete beginner-facing checklist and account map are tracked in
   [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md).
 
@@ -145,7 +155,7 @@ you are shipping this as your own product.
 
 This historical upstream audit is anchored to baseline commit
 `81b5b889cad9eabe7477c9ff6a167a46f56912b6` and the upstream source snapshot
-listed above. The inventory below records what owns each identity today. It
+listed above. The inventory below records what owned each identity at that baseline. It
 deliberately does not choose replacements or prescribe migration order.
 
 **Coupling legend:** **visible brand** is user-facing copy or imagery;
@@ -157,7 +167,7 @@ name with no direct user-visible identity.
 
 ### macOS identity and persistence
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | Product and bundle names | `omi`, `Omi`, `Omi Beta`, `Omi Dev`, Swift package/executable `Omi Computer` | Historical upstream plist/package/run configuration and the predecessor of `desktop/macos/scripts/create-intentive-beta-variant.sh` | Finder, menus, onboarding, permission copy, and signed bundle names continued to show Omi in the inherited snapshot. | Omi/BasedHardware | visible brand |
 | Brand assets | `OmiIcon`, `omi_app_icon.png`, `omi_text_logo.png`, `omi_menu_bar_icon.png`, `omi_notch_logo.svg`, Omi demo media, and related source names | `desktop/macos/Desktop/Sources/Resources/`, `desktop/macos/omi_icon.icns` | Packaged app, menu bar, onboarding, chat, and installer artwork remain Omi artwork. | Omi/BasedHardware | visible brand |
@@ -178,7 +188,7 @@ name with no direct user-visible identity.
 
 ### Windows and shared desktop identity
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | Windows package | App ID `com.omiwindows.app`, product `Omi for Windows`, executable `omi-windows`, installer `Omi-for-Windows-Setup-*` | `desktop/windows/electron-builder.config.mjs`, `desktop/windows/package.json` | Windows install, shortcuts, uninstall entry, process, and artifact names remain Omi-branded. | Omi/BasedHardware | visible brand; external identifier |
 | Windows assets/copy | Committed Omi icons plus Omi website, help, terms, pricing, referral, device, and source links | `desktop/windows/resources/`, renderer settings/home components | Packaged UI and external navigation continue to present or open Omi properties. | Omi/BasedHardware | visible brand; service endpoint |
@@ -191,7 +201,7 @@ name with no direct user-visible identity.
 
 ### Backend, cloud, and release ownership
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | GitHub source/releases | `BasedHardware/omi`; this fork's remote is `sruj75/knowledge-athlete` | Backend update routes, `desktop/macos/Desktop/Sources/AppBuild.swift`, Electron builder/updater, desktop workflows | Changelogs, update assets, preview admission, release evidence, and allowlists still resolve or require the upstream repository. | Omi/BasedHardware; local fork | service endpoint; release infrastructure |
 | GCP/Firebase projects | Externally supplied development/production project IDs, project numbers, Firebase projects, networks, service accounts, and resource names | `backend/deploy/runtime_env.yaml`, `.github/workflows/gcp_backend*.yml`, `.github/workflows/gcp_firestore_indexes.yml` | The tracked contract rejects inherited defaults and requires environment-scoped owned inputs. This snapshot does not claim those resources exist, match the declaration, or that inherited live resources are safe to remove; that needs verified read-only inventory and separately authorized mutation. | Product cloud operator; Google Cloud | external identifier; release infrastructure |
@@ -200,7 +210,7 @@ name with no direct user-visible identity.
 | Public domains | Desktop consumers still contain `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and retained service-specific Omi hosts; backend deployment acceptance uses its owned stable `run.app` URL | Desktop clients and release workflows; backend deploy workflows | S-27 removes inherited DNS from backend deployment authority without absorbing S-29's desktop routing, feeds, downloads, signing, or channel migration. | Omi/BasedHardware for retained desktop endpoints; product cloud operator for backend `run.app` | service endpoint |
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
 | Backend data plane | Externally named Firestore plus environment-isolated private Redis, one retained update/preview GCS bucket, the account-deletion queue, and canonical Cloud Run, all in `us-west1` | `backend/database/`, `backend/config/desktop_storage.py`, `backend/deploy/runtime_env.yaml`, backend workflows | The manifest owns the redacted shape: ADC/exact secrets, Redis AUTH and verified TLS, survivor-only create-safe indexes, update/preview prefixes, queue signer/audience, logging/alerts/budgets, and dry-run-only registry cleanup. Mac conversations and Memories remain excluded; live conformance remains unverified. | Repository contract; product cloud operator; cloud providers | service endpoint; persistent identity |
-| Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
+| Provider credentials | Gemini for managed text, embeddings, and realtime voice; Modulate for speech-to-text; OpenAI for text-to-speech only; Langfuse for prompt management and tracing; Dodo Payments disabled | Backend env templates, runtime env contract, workflow secrets, and `OWNER-PROVIDER-DECISIONS.md` | Retained providers fail closed or fail open at their documented boundaries when owned configuration is absent. Anthropic, Artificial Analysis, Vertex inference, and OpenAI text/embedding/realtime credentials are deleted requirements. Billing remains disabled unless a separately authorized operator explicitly selects and configures a Dodo mode. | Third-party accounts configured by the Intentive operator | service endpoint |
 | macOS build lane | Codemagic app `6a8ff0296fc70d39540cb56a`, workflows `intentive-macos-release` / `intentive-macos-preview`, `CODEMAGIC_API_TOKEN`, trusted runner labels `intentive-desktop-qualification` / `intentive-qual-m1-studio`, then GitHub promotion workflows | `codemagic.yaml`, `desktop/macos/scripts/codemagic-release.sh`, `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | The tracked provider definition binds exact tag/SHA, build, signing, notarization, Sparkle, symbols, smoke, and immutable publication. It is deliberately non-executable until protected provider groups, production inputs, and the trusted runner are configured. | Intentive operator; Codemagic; GitHub; trusted self-hosted runner | release infrastructure |
 | Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
 | Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
@@ -287,9 +297,9 @@ maintenance jobs, parity fixtures, and generated hosted DTOs are absent.
 
 The backend retains exactly three authenticated stateless proposal routes:
 `/v1/memory/compute/extract`, `/normalize`, and `/consolidate`. They use pinned
-OpenAI GPT-4.1-mini compute and cannot assign a durable Memory identity or
-persist input/output. Gemini embedding remains a transient shared proxy; the
-Mac owns the resulting vectors. S-22 may replace provider routing, S-23 owns
+Gemini 3.7 Flash compute and cannot assign a durable Memory identity or persist
+input/output. Gemini embedding remains a transient shared proxy; the Mac owns
+the resulting vectors. S-23 owns
 remaining hosted conversation internals, and S-24/S-25 own their separately
 listed cloud-state and operational teardown boundaries.
 

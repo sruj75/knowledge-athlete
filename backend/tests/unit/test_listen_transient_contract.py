@@ -40,7 +40,7 @@ def test_route_accepts_only_immutable_session_snapshot(monkeypatch: pytest.Monke
     client, captured = _listen_app(monkeypatch)
 
     with client.websocket_connect(
-        "/v4/listen?language=auto&translation_target=es&vocabulary=Omi&vocabulary=Knowledge%20Athlete",
+        "/v4/listen?language=auto&translation_target=es&vocabulary=Intentive&vocabulary=Knowledge%20Athlete",
         headers={"Authorization": "Bearer test", "X-App-Platform": "macos"},
     ) as websocket:
         assert websocket.receive_json() == {"type": "service_status", "status": "ready"}
@@ -49,7 +49,7 @@ def test_route_accepts_only_immutable_session_snapshot(monkeypatch: pytest.Monke
     assert request.uid == "uid-transient"
     assert request.config.language == "auto"
     assert request.config.translation_target == "es"
-    assert request.config.vocabulary == ("Omi", "Knowledge Athlete")
+    assert request.config.vocabulary == ("Intentive", "Knowledge Athlete")
     assert request.platform == "macos"
     assert request.audio.sample_rate == 16_000
     assert request.audio.channels == 1
@@ -221,7 +221,7 @@ def test_real_route_streams_segment_and_keyed_translation_without_product_state(
 
     with TestClient(app) as client:
         with client.websocket_connect(
-            "/v4/listen?language=en&translation_target=es&vocabulary=Omi",
+            "/v4/listen?language=en&translation_target=es&vocabulary=Intentive",
             headers={"Authorization": "Bearer test", "X-App-Platform": "macos"},
         ) as websocket:
             assert _receive_event(websocket, "service_status") == {"type": "service_status", "status": "ready"}
@@ -436,7 +436,7 @@ async def test_modulate_first_frame_contains_exact_session_configuration(monkeyp
         lambda _segments: None,
         16_000,
         "en",
-        vocabulary=("Omi", "Knowledge Athlete"),
+        vocabulary=("Intentive", "Knowledge Athlete"),
         canonical_segments=True,
     )
     await asyncio.sleep(0)
@@ -447,7 +447,7 @@ async def test_modulate_first_frame_contains_exact_session_configuration(monkeyp
         json.dumps(
             {
                 "language": "en",
-                "custom_terms": ["Omi", "Knowledge Athlete"],
+                "custom_terms": ["Intentive", "Knowledge Athlete"],
                 "speaker_diarization": True,
                 "partial_results": False,
             },

@@ -51,6 +51,13 @@ class PublishDesktopCandidateTagTests(unittest.TestCase):
         self.assertIn("check-codemagic-tag-intake.py", tag_job)
         self.assertIn("if: always() && steps.final-plan.outputs.should_release == 'true'", tag_job)
 
+    def test_repo_hygiene_uses_the_same_intentive_release_app_identity(self) -> None:
+        # omi-test-quality: source-inspection -- this validates workflow secret wiring.
+        workflow = (SCRIPT.parents[1] / "workflows" / "repo-hygiene.yml").read_text(encoding="utf-8")
+        self.assertIn("app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}", workflow)
+        self.assertIn("private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}", workflow)
+        self.assertNotIn("OMI_BOT", workflow)
+
     def test_native_git_transport_publishes_a_lightweight_tag_not_an_annotated_tag(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -163,7 +170,7 @@ class PublishDesktopCandidateTagTests(unittest.TestCase):
             stdout="",
             stderr=(
                 "remote: cannot lock ref 'refs/tags/v1.2.3+10203-macos': reference already exists "
-                "https://x-access-token:ghp_supersecret@github.com/BasedHardware/omi.git"
+                "https://x-access-token:ghp_supersecret@github.com/sruj75/knowledge-athlete.git"
             ),
         )
         with patch.object(publisher.subprocess, "run", return_value=result):

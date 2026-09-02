@@ -23,7 +23,7 @@ assert SPEC and SPEC.loader
 planner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(planner)
 
-REPOSITORY = "BasedHardware/omi"
+REPOSITORY = "sruj75/knowledge-athlete"
 SOURCE_SHA = "a" * 40
 LATER_NON_DESKTOP_SHA = "b" * 40
 LATEST_TAG = "v0.0.1+1-macos"
@@ -448,7 +448,7 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
         observations = [
             ("waiting", "", "no immutable candidate tag exists"),
             ("waiting", "", "no immutable candidate tag exists"),
-            ("active", LATEST_TAG, "Release OMI Desktop (Swift) is in_progress"),
+            ("active", LATEST_TAG, "Build Intentive macOS candidate is in_progress"),
         ]
         output = io.StringIO()
         with (

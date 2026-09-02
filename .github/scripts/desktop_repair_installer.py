@@ -77,17 +77,17 @@ def build_repair_bundle(manifest: dict[str, Any], bucket: str) -> dict[str, Any]
 <head>
   <meta charset=\"utf-8\">
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-  <title>Download Omi for macOS</title>
+  <title>Download Intentive for macOS</title>
 </head>
 <body>
   <main>
-    <h1>Download Omi for macOS</h1>
+    <h1>Download Intentive for macOS</h1>
     <p>Stable version {version} is ready to install.</p>
-    <p><a href=\"{safe_installer_url}\">Download the verified Omi installer</a></p>
+    <p><a href=\"{safe_installer_url}\">Download the verified Intentive installer</a></p>
     <ol>
       <li>Open the downloaded DMG.</li>
-      <li>Move Omi to the <code>/Applications</code> folder.</li>
-      <li>Open Omi from <code>/Applications</code> to finish the update.</li>
+      <li>Move Intentive to the <code>/Applications</code> folder.</li>
+      <li>Open Intentive from <code>/Applications</code> to finish the update.</li>
     </ol>
   </main>
 </body>

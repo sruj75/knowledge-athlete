@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect and validate Omi's agent-friendly failure-class protocol.
+"""Inspect and validate Intentive's agent-friendly failure-class protocol.
 
 Definitions live in .github/failure-classes/ as one JSON file per semantic
 failure-class ID. This CLI never classifies a change from its diff or paths;

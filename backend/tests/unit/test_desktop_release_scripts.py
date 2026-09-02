@@ -113,8 +113,8 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
     trusted_tag_run = {
         "status": "completed",
         "conclusion": "success",
-        "repository": {"full_name": "BasedHardware/omi"},
-        "head_repository": {"full_name": "BasedHardware/omi"},
+        "repository": {"full_name": "sruj75/knowledge-athlete"},
+        "head_repository": {"full_name": "sruj75/knowledge-athlete"},
         "event": "workflow_dispatch",
         "path": ".github/workflows/desktop_qualify_beta.yml",
         "head_branch": tag,
@@ -122,10 +122,10 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
         "name": "Qualify Desktop Beta Candidate",
     }
 
-    admission.validate_qualification_run(trusted_tag_run, "BasedHardware/omi", tag, candidate_sha)
+    admission.validate_qualification_run(trusted_tag_run, "sruj75/knowledge-athlete", tag, candidate_sha)
     drifted_main_run = {**trusted_tag_run, "head_branch": "main", "head_sha": "b" * 40}
     with pytest.raises(ValueError, match="candidate tag"):
-        admission.validate_qualification_run(drifted_main_run, "BasedHardware/omi", tag, candidate_sha)
+        admission.validate_qualification_run(drifted_main_run, "sruj75/knowledge-athlete", tag, candidate_sha)
 
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
     assert 'git -C "$source_dir" checkout --quiet --detach "refs/tags/$RELEASE_TAG"' in qualification
@@ -139,7 +139,7 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
 def test_dmgbuild_does_not_attach_finder_info_to_the_signed_app():
     settings = runpy.run_path(
         str(DMGBUILD_SETTINGS),
-        init_globals={"defines": {"app_name": "Omi", "app_path": "/tmp/Omi.app"}},
+        init_globals={"defines": {"app_name": "Intentive", "app_path": "/tmp/Intentive.app"}},
     )
 
     assert settings.get("hide_extensions", []) == []
@@ -363,7 +363,7 @@ def test_local_candidate_evidence_beta_stable_repoint_and_retry_simulation():
 def test_stable_repair_bundle_uses_the_retained_manifest_installer_identity():
     manifest = _manifest()
 
-    bundle = repair_installer.build_repair_bundle(manifest, "gs://omi_macos_updates")
+    bundle = repair_installer.build_repair_bundle(manifest, "gs://knowledge-athlete-desktop-updates-dev")
 
     assert bundle["repair_object"] == "stable/v0.12.64+12064-macos/repair.json"
     assert bundle["repair"]["channel"] == "stable"
@@ -373,6 +373,8 @@ def test_stable_repair_bundle_uses_the_retained_manifest_installer_identity():
         == "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.64+12064-macos/intentive.dmg"
     )
     assert "/Applications" in bundle["landing_page"]
+    assert "Download Intentive for macOS" in bundle["landing_page"]
+    assert "Download Omi" not in bundle["landing_page"]
 
 
 @pytest.mark.parametrize("field, value", [("platform", "windows"), ("dmg_sha256", "not-a-digest")])
@@ -381,7 +383,7 @@ def test_stable_repair_bundle_rejects_incomplete_or_wrong_platform_manifest(fiel
     manifest[field] = value
 
     with pytest.raises(ValueError):
-        repair_installer.build_repair_bundle(manifest, "gs://omi_macos_updates")
+        repair_installer.build_repair_bundle(manifest, "gs://knowledge-athlete-desktop-updates-dev")
 
 
 def test_stable_repair_bundle_requires_the_release_publication_time():
@@ -389,7 +391,7 @@ def test_stable_repair_bundle_requires_the_release_publication_time():
     manifest.pop("published_at")
 
     with pytest.raises(ValueError, match="published_at"):
-        repair_installer.build_repair_bundle(manifest, "gs://omi_macos_updates")
+        repair_installer.build_repair_bundle(manifest, "gs://knowledge-athlete-desktop-updates-dev")
 
 
 def test_qualification_is_serialized_by_machine_without_release_body_state():

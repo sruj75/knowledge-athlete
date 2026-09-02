@@ -285,7 +285,7 @@ async def fetch_url_tool(url: str) -> str:
         return 'Error: URL must start with http:// or https://'
 
     headers: Dict[str, str] = {
-        'User-Agent': 'Mozilla/5.0 (compatible; Omi-AI-Bot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; Intentive-AI-Bot/1.0)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7',
         'Accept-Language': 'en-US,en;q=0.5',
     }

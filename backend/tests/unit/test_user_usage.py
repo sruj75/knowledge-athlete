@@ -63,7 +63,7 @@ def test_counts_nested_desktop_chat_plus_flat_backend_chat(mock_db):
                     "quota_questions": 5,  # visible user turns — counted
                     "cost_usd": 1.5,
                 },
-                "desktop_chat_omi": {"call_count": 3},  # breakdown — must NOT double-count
+                "desktop_chat_intentive": {"call_count": 3},  # breakdown — must NOT double-count
                 "desktop_chat_realtime": {
                     "call_count": 2,
                     "quota_questions": 2,

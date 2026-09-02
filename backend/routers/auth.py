@@ -36,7 +36,7 @@ templates = Jinja2Templates(directory=str(templates_path))
 
 # Loopback hosts permitted for CLI/native-app OAuth flows per RFC 8252 §7.3.
 _LOOPBACK_HOSTNAMES = {"localhost", "127.0.0.1", "::1"}
-_DEFAULT_MOBILE_REDIRECT = "omi://auth/callback"
+_DEFAULT_NATIVE_REDIRECT = "heyintentive://auth/callback"
 
 # Schemes that must NOT receive an OAuth code:
 #   - ``https``: would leak the code to an arbitrary remote host. (Loopback OAuth
@@ -62,9 +62,9 @@ def _validate_redirect_uri(redirect_uri: str) -> None:
 
     Allow:
 
-    * **Custom app schemes** (``omi://``, ``omi-computer://``,
-      ``omi-computer-dev://``, ``omi-fix-rewind://``, ``com.omi.app://``,
-      etc.). The Omi mobile app, the macOS desktop app, and per-bundle
+    * **Custom app schemes** (``heyintentive://``, ``heyintentive-beta://``,
+      ``heyintentive-dev://``, ``heyintentive-preview-*://``, etc.). The
+      Intentive macOS app and per-bundle developer test builds
       developer test builds register their own URL schemes with the OS
       via ``CFBundleURLSchemes`` / Android intent filters; this is the
       standard native-app OAuth callback mechanism per RFC 8252.
@@ -293,7 +293,7 @@ async def auth_authorize(
     code_challenge_method: Optional[str] = None,
 ):
     """
-    User authentication authorization endpoint for the main Omi app
+    User authentication authorization endpoint for the main Intentive app
     Supports both initial sign-in and account linking flows
     """
     auth_flow_id = _auth_flow_id_from_state(state)
@@ -416,7 +416,7 @@ async def auth_callback_google(
 
     # Create temporary auth code bound to the original redirect_uri
     auth_code = str(uuid.uuid4())
-    app_redirect_uri = session_data.get('redirect_uri', _DEFAULT_MOBILE_REDIRECT)
+    app_redirect_uri = session_data.get('redirect_uri', _DEFAULT_NATIVE_REDIRECT)
     code_data = _auth_code_data_from_session(oauth_credentials, app_redirect_uri, session_data)
     await run_blocking(critical_executor, set_auth_code, auth_code, code_data, 300)
     _log_auth_event(
@@ -517,7 +517,7 @@ async def auth_callback_apple_post(
 
     # Create temporary auth code bound to the original redirect_uri
     auth_code = str(uuid.uuid4())
-    app_redirect_uri = session_data.get('redirect_uri', _DEFAULT_MOBILE_REDIRECT)
+    app_redirect_uri = session_data.get('redirect_uri', _DEFAULT_NATIVE_REDIRECT)
     code_data = _auth_code_data_from_session(oauth_credentials, app_redirect_uri, session_data)
     await run_blocking(critical_executor, set_auth_code, auth_code, code_data, 300)
     _log_auth_event(

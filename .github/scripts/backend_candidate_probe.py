@@ -67,7 +67,7 @@ def validate_compatibility(
     health = _require_object(payload, stage="compatibility")
     expected = {
         "status": "healthy",
-        "service": "omi-backend",
+        "service": "backend",
         "chat_contract_version": expected_contract_version,
     }
     mismatches = {
@@ -79,7 +79,7 @@ def validate_compatibility(
         raise ProbeError(f"compatibility: incompatible service contract {json.dumps(mismatches, sort_keys=True)}")
     return {
         "chat_contract_version": expected_contract_version,
-        "service": "omi-backend",
+        "service": "backend",
         "status": "healthy",
     }
 
@@ -219,14 +219,14 @@ def _chat_request(
             "Accept": "text/event-stream",
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "x-omi-chat-contract-version": contract_version,
+            "x-intentive-chat-contract-version": contract_version,
         },
         method="POST",
     )
     started_at = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            response_contract = response.headers.get("x-omi-chat-contract-version")
+            response_contract = response.headers.get("x-intentive-chat-contract-version")
             if response_contract != contract_version:
                 raise ProbeError(
                     f"{stage}: response contract mismatch "

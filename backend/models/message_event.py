@@ -53,4 +53,3 @@ class FairUseManagedCloudExhaustedEvent(MessageEvent):
     event_type: str = 'fair_use_managed_cloud_exhausted'
     resets_at: str
     case_ref: str = ''
-    support_email: str = 'support@heyintentive.com'

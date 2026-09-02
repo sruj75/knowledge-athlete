@@ -1,117 +1,60 @@
-# Omi Backend Setup
+# Intentive backend
 
-This README provides a quick setup guide for the Omi backend. For a comprehensive step-by-step guide with detailed explanations, please refer to the [Backend Setup Documentation](https://docs.omi.me/doc/developer/backend/Backend_Setup).
+The backend is Intentive's authenticated transient-compute boundary. It serves
+the retained REST and WebSocket APIs without becoming the durable authority for
+macOS conversations, Memories, tasks, Chat history, Focus, Insights, or Rewind.
+Those product records remain in owner-scoped storage on the Mac.
 
-## Quick Setup Steps
+Read [`AGENTS.md`](AGENTS.md) before changing backend code. It is the current
+authority for environment stages, async rules, service boundaries, logging,
+providers, and tests.
 
-1. Install the google-cloud-sdk
-   - Mac: `brew install google-cloud-sdk`
-   - Windows: `choco install gcloudsdk`
-   - Nix envdir: It should be pre-installed
+## Quick start
 
-2. You will need to have your own Google Cloud Project with Firebase enabled. If you've already set up Firebase for the Omi app, you're good to go. If not, please refer to the [Firebase Setup Guide](https://firebase.google.com/docs/projects/learn-more).
-   - **IMPORTANT:** Make sure you have the [`Cloud Resource Manager API`](https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com), [`Firebase Management API`](https://console.cloud.google.com/apis/library/firebase.googleapis.com), and [`Cloud Firestore API`](https://console.developers.google.com/apis/api/firestore.googleapis.com/overview) enabled in the [Google Cloud API Console](https://console.cloud.google.com/apis/dashboard) **before proceeding to the next steps**. Failure to enable these APIs will result in authentication errors.
-3. Run the following commands one by one to authenticate with Google Cloud:
-   ```bash
-   gcloud auth login
-   gcloud config set project <project-id>
-   gcloud auth application-default login --project <project-id>
-   ```
-   Replace `<project-id>` with your Google Cloud Project ID.
-   This should generate the `application_default_credentials.json` file in the gcloud config directory (`~/.config/gcloud` on macOS/Linux or `%APPDATA%\gcloud` on Windows). This file is read automatically by gcloud in Python.
+From the repository root:
 
-4. Install Python 3.11
-   - Mac: `brew install python@3.11`
-   - Windows: Install Python 3.11 from [python.org](https://www.python.org/downloads/windows/), then verify `python --version` prints `3.11.x`
-   - Nix envdir: It should be pre-installed; verify `python --version` prints `3.11.x`
+```bash
+make setup
+PROVIDER_MODE=offline make dev-up
+```
 
-5. Install `pip` if it doesn't exist (follow instructions on [pip installation page](https://pip.pypa.io/en/stable/installation/))
+The offline stage runs the Firebase/Firestore emulators, local Redis, and shared
+hermetic provider fakes. It does not require managed-provider credentials.
 
-6. Install `git` and `ffmpeg`
-   - Mac: `brew install git ffmpeg`
-   - Windows: `choco install git.install ffmpeg`
-   - Nix envdir: These should be pre-installed
+To serve only this component with an already prepared environment:
 
-7. Install `opus` (required for audio processing)
-   - Mac: `brew install opus`
-   - Windows: install a native `libopus` build and make sure its DLL directory is on `PATH`
-     - MSYS2 UCRT64 example: `pacman -S mingw-w64-ucrt-x86_64-opus`
-     - Add `C:\msys64\ucrt64\bin` to `PATH`, then verify from a new shell with `where.exe opus.dll`
+```bash
+cd backend
+./scripts/dev-serve.sh
+```
 
-8. Move to the backend directory: `cd backend`
+Environment stages are `local`, `offline`, `dev`, and `prod`. Use the matching
+untracked environment file; do not commit credentials. Hosted development and
+production use the Cloud Run runtime service account through Application Default
+Credentials and reject committed or runtime credential files.
 
-9. Create your environment file: `cp .env.template .env`
+## Retained providers
 
-10. Set up Redis
-    - [Upstash](https://console.upstash.com/) is recommended - sign up and create a free instance
+- Google Gemini: managed text, embeddings, and realtime voice
+- Modulate: live and prerecorded speech-to-text
+- OpenAI: `gpt-4o-mini-tts` text-to-speech only
+- Langfuse: fail-open prompt management and model tracing
+- Firebase: authentication and minimal retained account data
+- Redis: ephemeral coordination
+- Dodo Payments: disabled unless an operator explicitly selects and configures a billing mode
 
-11. Add the necessary API keys in the `.env` file:
-    - [OpenAI API Key](https://platform.openai.com/settings/organization/api-keys)
-    - Modulate API key for managed transcription
-    - Redis credentials from your [Upstash Console](https://console.upstash.com/)
-    - Set `ADMIN_KEY` to a temporary value (e.g., `123`) for local development
+Normal Chat must not route through Anthropic, Artificial Analysis, Vertex model
+inference, or OpenAI text/realtime APIs.
 
-12. Install Python dependencies (choose one of the following approaches):
+## Verification
 
-    **Option A: Using a virtual environment (recommended)**
-    ```bash
-    # Verify Python 3.11 before creating the virtual environment
-    python --version
+```bash
+cd backend
+bash test-preflight.sh
+./test.sh
+```
 
-    # Create a virtual environment
-    python -m venv venv
-
-    # Activate the virtual environment
-    # On Windows:
-    venv\Scripts\activate
-    # On macOS/Linux:
-    source venv/bin/activate
-
-    # Install dependencies within the virtual environment
-    pip install -r requirements.txt
-    ```
-    You should see `(venv)` at the beginning of your command prompt when the virtual environment is active.
-
-    **Option B: Direct installation**
-    ```bash
-    # Install dependencies globally
-    pip install -r requirements.txt
-    ```
-
-13. Model assets are local-only. `pretrained_models/` is intentionally ignored; do not commit model binaries or symlinks. Runtime VAD uses the tracked ONNX asset under `utils/stt/assets/`, while live integration tests that reference legacy Silero fixtures need those files placed locally under `pretrained_models/`.
-
-14. Sign up on [ngrok](https://ngrok.com/) and follow the steps to configure it
-    - During onboarding, get your authentication token and run `ngrok config add-authtoken <your-token>`
-
-15. During the onboarding flow, under the `Static Domain` section, Ngrok should provide you with a static domain and a command to point your localhost to that static domain. Replace the port from 80 to 8000 in that command and run it in your terminal:
-    ```bash
-    ngrok http --domain=example.ngrok-free.app 8000
-    ```
-
-16. Start the backend server:
-    ```bash
-    uvicorn main:app --reload --env-file .env
-    ```
-
-17. Troubleshooting: If you get any error mentioning "no internet connection" while downloading models, add the following lines in the `utils/stt/vad.py` file after the import statements:
-    ```python
-    import ssl
-    ssl._create_default_https_context = ssl._create_unverified_context
-    ```
-
-18. Now try running the server again: `uvicorn main:app --reload --env-file .env`
-
-19. In your Omi app's environment, set `BASE_API_URL` to the URL provided by ngrok (e.g., `https://example.ngrok-free.app`)
-
-20. Your app should now be using your local backend
-
-21. If you used a virtual environment, when you're done, deactivate it by running:
-    ```bash
-    deactivate
-    ```
-
-## Additional Resources
-
-- [Full Backend Setup Documentation](https://docs.omi.me/developer/backend/Backend_Setup)
-- [Omi Documentation](https://docs.omi.me/)
-- [Community Support](http://discord.omi.me)
+The canonical hosted shape is one environment-owned Cloud Run backend in
+`us-west1`. The tracked runtime manifest and workflows describe that shape; they
+do not prove that a production service or its secrets exist, and running tests
+does not authorize a deployment.

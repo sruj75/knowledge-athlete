@@ -31,7 +31,7 @@ VERIFIER = load_module("verify_backend_release_admission", VERIFIER_PATH)
 AUTO_VERIFIER = load_module("verify_auto_backend_release_admission", AUTO_VERIFIER_PATH)
 
 SHA = "a" * 40
-REPOSITORY = "BasedHardware/omi"
+REPOSITORY = "sruj75/knowledge-athlete"
 
 
 def admitted_run(**overrides: object) -> dict[str, object]:
@@ -90,7 +90,7 @@ class ReleaseAdmissionVerifierTests(unittest.TestCase):
             ("conclusion", {"conclusion": "failure"}),
             ("branch", {"head_branch": "release"}),
             ("sha", {"head_sha": "b" * 40}),
-            ("repository", {"head_repository": {"full_name": "fork/omi"}}),
+            ("repository", {"head_repository": {"full_name": "fork/knowledge-athlete"}}),
         )
         for name, overrides in cases:
             with self.subTest(name=name), self.assertRaisesRegex(VERIFIER.ReleaseAdmissionError, "no successful main"):

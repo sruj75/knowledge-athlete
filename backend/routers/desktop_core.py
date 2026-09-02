@@ -8,7 +8,7 @@ from utils.other.endpoints import get_current_user_uid
 router = APIRouter()
 
 BACKEND_VERSION = "0.1.0"
-BACKEND_SERVICE = "omi-backend"
+BACKEND_SERVICE = "backend"
 CHAT_CONTRACT_VERSION = "2"
 
 

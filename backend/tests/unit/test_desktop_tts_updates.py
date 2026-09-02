@@ -83,7 +83,7 @@ def _release(**overrides):
     values = {
         "version": "1.0.0",
         "build_number": 1,
-        "download_url": "https://example.com/Omi.zip",
+        "download_url": "https://example.com/Intentive.zip",
         "ed_signature": "signature",
         "published_at": "2026-07-26T00:00:00Z",
         "is_live": True,
@@ -107,9 +107,9 @@ def test_appcast_deduplicates_staging_and_preserves_stable_default_channel():
         ],
         "macos",
     )
-    assert "Omi 2.0.0" in xml
-    assert "Omi 1.0.0" not in xml
-    assert "Omi 3.0.0" in xml
+    assert "Intentive 2.0.0" in xml
+    assert "Intentive 1.0.0" not in xml
+    assert "Intentive 3.0.0" in xml
     assert xml.count("<sparkle:channel>") == 1
 
 
@@ -118,4 +118,4 @@ def test_manual_download_prefers_explicit_dmg_then_github_zip_derivation():
         _manual_download_url(_release(manual_download_url="https://example.com/custom.dmg"))
         == "https://example.com/custom.dmg"
     )
-    assert _manual_download_url(_release()) == "https://example.com/Omi.dmg"
+    assert _manual_download_url(_release()) == "https://example.com/Intentive.dmg"
