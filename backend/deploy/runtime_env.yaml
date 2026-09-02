@@ -101,6 +101,8 @@ environments:
         flags: {}
       services:
         backend:
+          deployment_name:
+            env_var: BACKEND_CLOUD_RUN_SERVICE
           service_account:
             env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
           forbidden_env:
@@ -340,6 +342,8 @@ environments:
           --vpc-egress: private-ranges-only
       services:
         backend:
+          deployment_name:
+            env_var: BACKEND_CLOUD_RUN_SERVICE
           service_account:
             env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
           forbidden_env:

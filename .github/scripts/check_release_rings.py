@@ -63,6 +63,7 @@ def check() -> list[str]:
                 "Verify serving backend release vector",
                 "github.event.inputs.environment == 'prod'",
                 "SERVICE: backend",
+                "CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}",
                 "Smoke promoted production serving API",
             ),
         )

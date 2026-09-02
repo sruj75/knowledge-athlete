@@ -276,11 +276,31 @@ def test_fake_gcloud_describes_match_the_development_foundation() -> None:
         commands.append(tuple(command))
         return fake_gcloud(command, wanted)
 
-    actual = collect_live_foundation(expected, project='runtime-dev', runner=recording_runner)
+    actual = collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=recording_runner,
+    )
 
     assert drift_paths(wanted, actual) == []
     assert not any(command[1:2] == ('compute',) for command in commands)
     assert not any(command[1:2] == ('redis',) for command in commands)
+    cloud_run_describes = [command for command in commands if command[1:4] == ('run', 'services', 'describe')]
+    assert cloud_run_describes == [
+        (
+            'gcloud',
+            'run',
+            'services',
+            'describe',
+            'knowledge-athlete-dev',
+            '--region',
+            'us-west1',
+            '--project',
+            'runtime-dev',
+            '--format=json',
+        )
+    ]
 
 
 def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> None:

@@ -220,7 +220,10 @@ def validate_auto_workflow(text: str) -> list[str]:
                 "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission",
                 "auto backend scope decision must treat API or identity ambiguity as guarded admission",
             ),
-            ("echo \"applies=true\" >> \"$GITHUB_OUTPUT\"", "auto backend scope decision must continue to guarded admission when supersession is uncertain"),
+            (
+                "echo \"applies=true\" >> \"$GITHUB_OUTPUT\"",
+                "auto backend scope decision must continue to guarded admission when supersession is uncertain",
+            ),
             ("echo \"applies=false\" >> \"$GITHUB_OUTPUT\"", "auto backend scope decision must publish a no-op result"),
             (
                 "Backend development deploy superseded no-op",
@@ -238,7 +241,9 @@ def validate_auto_workflow(text: str) -> list[str]:
             ("Green no-op", "auto backend scope decision must summarize green no-ops"),
         ):
             require_fragment(errors, scope_decision, fragment, message)
-        fallback_summary = "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission"
+        fallback_summary = (
+            "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission"
+        )
         if scope_decision.count(fallback_summary) != 2:
             errors.append("auto backend scope decision must treat API or identity ambiguity as guarded admission")
         for forbidden, message in (
@@ -259,9 +264,7 @@ def validate_auto_workflow(text: str) -> list[str]:
         )
         condition = folded_job_condition(firestore_job)
         if condition != AUTO_SOURCE_ADMISSION_CONDITION:
-            errors.append(
-                "auto source-admission job must use exactly the fail-closed Release Eligibility predicate"
-            )
+            errors.append("auto source-admission job must use exactly the fail-closed Release Eligibility predicate")
         require_fragment(
             errors,
             firestore_job,
@@ -354,9 +357,13 @@ def validate_auto_workflow(text: str) -> list[str]:
         if admission_index is not None and credential_index is not None and admission_index > credential_index:
             errors.append("automatic release-proof freshness validation must run before read-only credential use")
         if admission_index is not None and checkout_index is not None and admission_index > checkout_index:
-            errors.append("automatic release-proof freshness validation must run before admitted-source checkout or execution")
+            errors.append(
+                "automatic release-proof freshness validation must run before admitted-source checkout or execution"
+            )
         if admission_index is not None and auth_index is not None and admission_index > auth_index:
-            errors.append("automatic release-proof freshness validation must run before read-only Firestore authentication")
+            errors.append(
+                "automatic release-proof freshness validation must run before read-only Firestore authentication"
+            )
         if credential_index is not None and checkout_index is not None and credential_index > checkout_index:
             errors.append("read-only credential use must run before admitted-source checkout")
         if checkout_index is not None and auth_index is not None and checkout_index > auth_index:
@@ -371,7 +378,9 @@ def validate_auto_workflow(text: str) -> list[str]:
     if "github.sha" in text:
         errors.append("auto backend deploy must not use github.sha after workflow_run admission")
     if text.count(AUTO_PROOF_SHA) != 3:
-        errors.append("auto backend deploy must use workflow_run.head_sha only in scope decision and current-main admission guard")
+        errors.append(
+            "auto backend deploy must use workflow_run.head_sha only in scope decision and current-main admission guard"
+        )
     if text.count(AUTO_PROOF_RUN_ATTEMPT) != 1:
         errors.append("auto backend deploy must use workflow_run.run_attempt only in the source-admission guard")
     if text.count(f"ref: {AUTO_FIRESTORE_ADMITTED_SHA}") != 1:
@@ -420,7 +429,7 @@ def validate_manual_workflow(text: str) -> list[str]:
             errors.append("traffic-only repair must remain independent of repository source")
         for fragment, message in (
             (
-                'gcloud run services describe "$SERVICE"',
+                'gcloud run services describe "$CLOUD_RUN_SERVICE"',
                 "traffic-only repair must discover the currently serving revision from Cloud Run",
             ),
             (
@@ -489,7 +498,10 @@ def validate_manual_workflow(text: str) -> list[str]:
         ("--sha \"$DEPLOY_SHA\"", "manual source admission must verify the requested SHA"),
         ("--repository \"$GITHUB_REPOSITORY\"", "manual source admission must verify the source repository"),
         ("--workflow-runs \"$proof_path\"", "manual source admission must verify the queried workflow runs"),
-        ("printf 'admitted_sha=%s\\n' \"$DEPLOY_SHA\" >> \"$GITHUB_OUTPUT\"", "manual source admission must publish the checked SHA"),
+        (
+            "printf 'admitted_sha=%s\\n' \"$DEPLOY_SHA\" >> \"$GITHUB_OUTPUT\"",
+            "manual source admission must publish the checked SHA",
+        ),
     ):
         require_fragment(errors, admission, fragment, message)
 

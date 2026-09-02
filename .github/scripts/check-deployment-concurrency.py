@@ -246,6 +246,7 @@ def validate_backend_deploy(name: str, text: str) -> list[str]:
             '--project',
             '--region',
             '--environment',
+            '--service "${{ env.CLOUD_RUN_SERVICE }}"',
             f'artifacts/{evidence_prefix}-cloud-run-candidate-release-vector.json',
         ),
         'Capture Cloud Run pre-promotion traffic snapshot': (
@@ -256,11 +257,11 @@ def validate_backend_deploy(name: str, text: str) -> list[str]:
             ),
             '--project',
             '--region',
-            '--service backend',
+            '--service "${{ env.CLOUD_RUN_SERVICE }}"',
             f'--output artifacts/{evidence_prefix}-cloud-run-pre-promotion-traffic-snapshot.json',
         ),
         'Shift Cloud Run traffic to validated revisions': (
-            'gcloud run services update-traffic backend',
+            'gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}"',
             '--to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100',
             '--quiet',
         ),
@@ -273,6 +274,7 @@ def validate_backend_deploy(name: str, text: str) -> list[str]:
             '--project',
             '--region',
             '--environment',
+            '--service "${{ env.CLOUD_RUN_SERVICE }}"',
             f'artifacts/{evidence_prefix}-serving-release-vector.json',
         ),
         'Restore Cloud Run traffic snapshot after failed promotion': (
@@ -295,8 +297,12 @@ def validate_backend_deploy(name: str, text: str) -> list[str]:
             if fragment not in step_text:
                 errors.append(f'{name}: {required_name} is missing active contract fragment {fragment!r}')
 
-    cloud_run_deploy = named_steps.get('Deploy ${{ env.SERVICE }} to Cloud Run', '')
-    for fragment in ('uses: google-github-actions/deploy-cloudrun@', 'service: ${{ env.SERVICE }}', '--timeout=1500s'):
+    cloud_run_deploy = named_steps.get('Deploy owned Cloud Run service', '')
+    for fragment in (
+        'uses: google-github-actions/deploy-cloudrun@',
+        'service: ${{ env.CLOUD_RUN_SERVICE }}',
+        '${{ steps.runtime-env.outputs.backend_flags }}',
+    ):
         if fragment not in cloud_run_deploy:
             errors.append(f'{name}: canonical Cloud Run deploy is missing active contract fragment {fragment!r}')
 
@@ -304,7 +310,8 @@ def validate_backend_deploy(name: str, text: str) -> list[str]:
     for marker in (
         'verify_backend_release_vector.py',
         'cloud_run_traffic_snapshot.py',
-        '--service backend',
+        '--service "${{ env.CLOUD_RUN_SERVICE }}"',
+        'CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}',
         'SHORT_SHA="$(git rev-parse --short=7 HEAD)"',
         'revision_suffix=${SHORT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',
     ):
@@ -380,34 +387,39 @@ jobs:
     backend_fixture = """name: fixture
 jobs:
   deploy:
+    env:
+      CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
     steps:
       - name: Prepare immutable revision
         run: |
           SHORT_SHA="$(git rev-parse --short=7 HEAD)"
           echo 'revision_suffix=${SHORT_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'
-      - name: Deploy ${{ env.SERVICE }} to Cloud Run
+      - name: Deploy owned Cloud Run service
         uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: ${{ env.SERVICE }}
-          flags: --timeout=1500s
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          flags: ${{ steps.runtime-env.outputs.backend_flags }}
       - name: Accept no-traffic Cloud Run candidate
         run: |
           python3 backend/scripts/verify_backend_release_vector.py --candidate \\
             --commit-sha "${{ needs.firestore_readiness.outputs.admitted_sha }}" --short-sha abcdef0 \\
             --deploy-run-id 1 --deploy-run-attempt 1 --project project --region region \\
-            --environment dev --evidence-path artifacts/dev-backend-cloud-run-candidate-release-vector.json
+            --environment dev --service "${{ env.CLOUD_RUN_SERVICE }}" \
+            --evidence-path artifacts/dev-backend-cloud-run-candidate-release-vector.json
       - name: Capture Cloud Run pre-promotion traffic snapshot
         run: |
           python3 backend/scripts/cloud_run_traffic_snapshot.py capture --project project --region region \\
-            --service backend --output artifacts/dev-backend-cloud-run-pre-promotion-traffic-snapshot.json
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
+            --output artifacts/dev-backend-cloud-run-pre-promotion-traffic-snapshot.json
       - name: Shift Cloud Run traffic to validated revisions
-        run: gcloud run services update-traffic backend --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
+        run: gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}" --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
       - name: Verify serving backend release vector
         run: |
           python3 backend/scripts/verify_backend_release_vector.py \\
             --commit-sha "${{ needs.firestore_readiness.outputs.admitted_sha }}" --short-sha abcdef0 \\
             --deploy-run-id 1 --deploy-run-attempt 1 --project project --region region \\
-            --environment dev --evidence-path artifacts/dev-backend-serving-release-vector.json
+            --environment dev --service "${{ env.CLOUD_RUN_SERVICE }}" \
+            --evidence-path artifacts/dev-backend-serving-release-vector.json
       - name: Restore Cloud Run traffic snapshot after failed promotion
         if: ${{ failure() && steps.cloud-run-traffic-snapshot.outcome == 'success' && (steps.shift-cloud-run-traffic.outcome == 'failure' || steps.verify-serving-release-vector.outcome == 'failure') }}
         run: |
@@ -419,10 +431,10 @@ jobs:
         raise PolicyError('safe backend deploy fixture does not satisfy the narrowed lifecycle contract')
     mutations = (
         ('verify_backend_release_vector.py --candidate', 'verify_backend_release_vector.py'),
-        ('--service backend', '--service backend-sync'),
+        ('--service "${{ env.CLOUD_RUN_SERVICE }}"', '--service backend-sync'),
         ('if: ${{ failure()', 'if: ${{ always()'),
         ('--evidence-path artifacts/dev-backend-serving-release-vector.json', '# serving evidence removed'),
-        ('--timeout=1500s', '--timeout=300s'),
+        ('${{ steps.runtime-env.outputs.backend_flags }}', '--timeout=300s'),
     )
     for expected, replacement in mutations:
         mutated = backend_fixture.replace(expected, replacement, 1)

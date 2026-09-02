@@ -946,7 +946,9 @@ def _live_env_config():
         'gcp_project': 'based-hardware',
         'region': 'us-central1',
         'cloud_run': {
-            'services': {'backend': {}},
+            'services': {
+                'backend': {'deployment_name': {'env_var': 'BACKEND_CLOUD_RUN_SERVICE'}},
+            },
             'jobs': {'maintenance-job': {}},
         },
     }
@@ -957,6 +959,7 @@ def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
     # describe services only and never run `gcloud run jobs describe`.
     validator = load_validator()
     described = []
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'knowledge-athlete-dev')
 
     def fake_run(command, **kwargs):
         described.append(command)
@@ -969,12 +972,45 @@ def test_fetch_live_cloud_run_state_validates_services_only(monkeypatch):
     assert 'jobs' not in state  # no live job state → consumer skips job env checks
     assert 'backend' in state['services']  # services are still fetched + validated
     assert any('services' in cmd for cmd in described)
+    assert all('knowledge-athlete-dev' in cmd for cmd in described)
+    assert all('backend' not in cmd for cmd in described)
+
+
+def test_fetch_live_cloud_run_state_rejects_missing_deployment_binding_before_gcloud(monkeypatch):
+    validator = load_validator()
+    env_config = _live_env_config()
+    env_config['cloud_run']['services']['backend'] = {}
+    commands = []
+
+    monkeypatch.setattr(validator.subprocess, 'run', lambda command, **_kwargs: commands.append(command))
+
+    with pytest.raises(ValueError, match='backend deployment_name requires its declared external input'):
+        validator._fetch_live_cloud_run_state(env_config)
+
+    assert commands == []
+
+
+def test_manifest_requires_environment_owned_cloud_run_deployment_name(tmp_path):
+    validator = load_validator()
+    manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
+    manifest['environments']['dev']['cloud_run']['services']['backend'].pop('deployment_name', None)
+    manifest_path = tmp_path / 'runtime_env.yaml'
+    write_yaml(manifest_path, manifest)
+
+    errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path)
+
+    assert any(
+        error.scope == 'dev/cloud_run/backend'
+        and error.message == 'deployment_name must bind $BACKEND_CLOUD_RUN_SERVICE'
+        for error in errors
+    )
 
 
 def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract(monkeypatch):
     validator = load_validator()
     env_config = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments']['prod']
     monkeypatch.setenv('GCP_PROJECT_ID', 'owned-prod')
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'intentive-production')
     document = {
         'spec': {
             'template': {

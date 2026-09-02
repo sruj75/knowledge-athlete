@@ -75,6 +75,7 @@ Last confirmed: 2026-09-02
   - Disabled `knowledge-athlete-dev-runtime@agentic-accountability.iam.gserviceaccount.com`.
   - Preserved the exact backend container image in the shared `intentive` Artifact Registry for recovery; do not delete the shared repository or unrelated images.
 - Created and verified 2026-08-29: public-ingress Cloud Run service `knowledge-athlete-dev` in `knowledge-athlete/us-west1`.
+  - Deployment automation must resolve the environment-scoped GitHub variable `BACKEND_CLOUD_RUN_SERVICE`; development owns the value `knowledge-athlete-dev`. The internal runtime/image label remains `backend` and must never be used as a fallback Cloud Run service name. Production intentionally has no value until its service is separately approved and created.
   - Stable service URL used by OAuth and development clients: `https://knowledge-athlete-dev-674306938907.us-west1.run.app`; Cloud Run also reports the compatible alias `https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`.
   - Active revision: `knowledge-athlete-dev-00002-pjn`, serving 100% of development traffic from owned immutable image digest `sha256:3129ea2d5d2a67bb23d4c2db42894b5de33f005660cd733dfc1b443e797379c8`, built from repository commit `98ff1714b125b09b17d3ca741d090232be95901c`.
   - Cloud Run grants `roles/run.invoker` only to `allUsers`, matching the repository's `--allow-unauthenticated` ingress contract. Public `/v1/health` returns `200`; a protected route without a Firebase token reaches FastAPI and returns `401`.

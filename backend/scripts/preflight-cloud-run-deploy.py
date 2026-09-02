@@ -148,9 +148,10 @@ def check_runtime_bindings(
         service_config = render_backend_runtime_env._as_config_dict(raw_service_config)
         if service_config is None:
             raise ValueError(f'Missing Cloud Run service config for {service}')
+        deployment_name = _deployment_name(service=service, service_config=service_config)
         expected = _expected_runtime_bindings(service=service, service_config=service_config)
         declared_names = expected.public_names | set(expected.secret_references)
-        document = _describe_cloud_run_service(service=service, project=project, region=region, runner=runner)
+        document = _describe_cloud_run_service(service=deployment_name, project=project, region=region, runner=runner)
         container = _single_container(document, operation='Runtime binding check')
         actual = _actual_runtime_bindings(
             service=service,
@@ -178,6 +179,17 @@ def check_runtime_bindings(
                 )
 
     return drift
+
+
+def _deployment_name(*, service: str, service_config: dict[str, Any]) -> str:
+    raw = service_config.get('deployment_name')
+    entry = render_backend_runtime_env._as_config_dict(raw)
+    if entry is None:
+        raise ValueError(f'Cloud Run service {service} deployment_name is missing')
+    value = render_backend_runtime_env._runtime_value(f'{service} deployment_name', entry)
+    if value is None:
+        raise ValueError(f'Cloud Run service {service} deployment_name is missing')
+    return value
 
 
 def _require_manifest_scope(*, env: str, project: str, manifest_path: Path, check_name: str) -> None:

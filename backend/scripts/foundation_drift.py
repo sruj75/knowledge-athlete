@@ -14,6 +14,11 @@ from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 import yaml
 
 try:
+    from scripts.cloud_run_deployment_identity import resolve_external_value
+except ModuleNotFoundError:  # Direct script execution places backend/scripts on sys.path.
+    from cloud_run_deployment_identity import resolve_external_value  # type: ignore[no-redef]
+
+try:
     from scripts.foundation_live_contract import (
         bucket_lifecycle_rules as _bucket_lifecycle_rules,
         budget_notification_channels as _budget_notification_channels,
@@ -82,7 +87,7 @@ def expected_foundation(
 
 
 def collect_live_foundation(
-    expected: Mapping[str, Any], *, project: str, runner: Runner | None = None
+    expected: Mapping[str, Any], *, project: str, cloud_run_service: str, runner: Runner | None = None
 ) -> dict[str, Any]:
     run = runner or _run_json
     wif = _mapping(expected.get('wif'), 'wif')
@@ -330,7 +335,7 @@ def collect_live_foundation(
                 'run',
                 'services',
                 'describe',
-                'backend',
+                cloud_run_service,
                 '--region',
                 region,
                 '--project',
@@ -677,6 +682,21 @@ def environment_name(expected: Mapping[str, Any]) -> str:
     return _string(claims.get('environment'), 'WIF environment')
 
 
+def cloud_run_deployment_name(
+    manifest: Mapping[str, Any], *, environment: str, external_inputs: Mapping[str, str]
+) -> str:
+    environments = _mapping(manifest.get('environments'), 'environments')
+    env_config = _mapping(environments.get(environment), environment)
+    cloud_run = _mapping(env_config.get('cloud_run'), f'{environment} cloud_run')
+    services = _mapping(cloud_run.get('services'), f'{environment} cloud_run services')
+    backend = _mapping(services.get('backend'), f'{environment} backend service')
+    return resolve_external_value(
+        'backend deployment_name',
+        backend.get('deployment_name'),
+        external_inputs=external_inputs,
+    )
+
+
 def _uses_external_redis(redis: Mapping[str, Any]) -> bool:
     return redis.get('provider') == 'upstash'
 
@@ -758,11 +778,19 @@ def main() -> int:
             raise ValueError('runtime manifest must be a mapping')
         expected = expected_foundation(manifest, environment=args.env, external_inputs=os.environ)
         wanted = expected_observable_foundation(expected)
-        actual = (
-            collect_live_foundation(expected, project=os.environ.get('GCP_PROJECT_ID', ''))
-            if args.check_live
-            else json.loads(args.state.read_text(encoding='utf-8'))
-        )
+        if args.check_live:
+            deployment_name = cloud_run_deployment_name(
+                manifest,
+                environment=args.env,
+                external_inputs=os.environ,
+            )
+            actual = collect_live_foundation(
+                expected,
+                project=os.environ.get('GCP_PROJECT_ID', ''),
+                cloud_run_service=deployment_name,
+            )
+        else:
+            actual = json.loads(args.state.read_text(encoding='utf-8'))
         paths = drift_paths(wanted, actual)
     except (OSError, ValueError, subprocess.CalledProcessError, json.JSONDecodeError, yaml.YAMLError) as exc:
         print(f'ERROR: foundation readiness failed: {exc}')

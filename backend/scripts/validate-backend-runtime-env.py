@@ -21,6 +21,7 @@ from scripts.firestore_workflow_policy import (  # noqa: E402
     reconciliation_invocations,
 )
 from scripts.backend_workflow_contract import validate_immutable_deploy_contract  # noqa: E402
+from scripts import cloud_run_deployment_identity  # noqa: E402
 from scripts.foundation_contract import validation_messages as foundation_validation_messages  # noqa: E402
 from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
     ValidationError,
@@ -316,6 +317,8 @@ def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> 
 
     services = _as_config_dict(cloud_run.get('services')) or {}
     backend = _as_config_dict(services.get('backend')) or {}
+    if backend.get('deployment_name') != {'env_var': 'BACKEND_CLOUD_RUN_SERVICE'}:
+        errors.append(ValidationError(scope, 'deployment_name must bind $BACKEND_CLOUD_RUN_SERVICE'))
     expected_flags: ConfigDict = {
         '--cpu': '1' if env == 'dev' else '2',
         '--memory': '2Gi' if env == 'dev' else '4Gi',
@@ -1067,6 +1070,9 @@ def _extract_workflow_cloud_run_targets(
 ) -> dict[str, dict[str, ConfigDict]]:
     workflow_env = _as_config_dict(workflow.get('env')) or {}
     rendered_runtime_env = _rendered_runtime_env_outputs(workflow, env=env, manifest=manifest)
+    env_config = _get_env_config(manifest, env)
+    cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
+    expected_services = _as_config_dict(cloud_run.get('services')) or {}
     services: dict[str, ConfigDict] = {}
     jobs: dict[str, ConfigDict] = {}
     workflow_jobs = _as_config_dict(workflow.get('jobs'))
@@ -1076,6 +1082,7 @@ def _extract_workflow_cloud_run_targets(
         job = _as_config_dict(raw_job)
         if job is None:
             continue
+        job_env = {**workflow_env, **(_as_config_dict(job.get('env')) or {})}
         steps = _as_config_list(job.get('steps'))
         if steps is None:
             continue
@@ -1094,11 +1101,11 @@ def _extract_workflow_cloud_run_targets(
                 )
                 if not (env_vars or secrets or flags):
                     continue
-                service = _resolve_workflow_string(step_with.get('service'), workflow_env)
-                job_name = _resolve_workflow_string(step_with.get('job'), workflow_env)
+                service = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('service'), job_env)
+                job_name = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('job'), job_env)
                 payload = {'env_vars': env_vars, 'secrets': secrets, 'flags': flags}
                 if service is not None:
-                    services[service] = payload
+                    services[cloud_run_deployment_identity.logical_service_name(service, expected_services)] = payload
                 if job_name is not None:
                     jobs[job_name] = payload
     return {'services': services, 'jobs': jobs}
@@ -1181,15 +1188,6 @@ def _is_cloud_run_deploy_step(step: object) -> bool:
         return False
     uses = step_dict.get('uses')
     return isinstance(uses, str) and uses.startswith('google-github-actions/deploy-cloudrun@')
-
-
-def _resolve_workflow_string(value: object, workflow_env: ConfigDict) -> str | None:
-    if not isinstance(value, str):
-        return None
-    resolved = value
-    for env_name, env_value in workflow_env.items():
-        resolved = resolved.replace('${{ env.' + str(env_name) + ' }}', str(env_value))
-    return resolved
 
 
 def _rendered_runtime_env_outputs(workflow: ConfigDict, *, env: str, manifest: ConfigDict) -> StringMap:
@@ -1468,18 +1466,22 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
     # Fetch and live-validate those services; any separately owned job contract
     # is validated statically against the rendered state.
     services: ConfigDict = {}
-    project = _resolved_external_value('gcp_project', env_config['gcp_project'])
+    project = cloud_run_deployment_identity.resolve_external_value('gcp_project', env_config['gcp_project'])
     region = env_config['region']
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     service_configs = _as_config_dict(cloud_run.get('services')) or {}
     for service, raw_service_config in service_configs.items():
         service_config = _as_config_dict(raw_service_config) or {}
+        deployment_name = cloud_run_deployment_identity.resolve_external_value(
+            f'{service} deployment_name',
+            service_config.get('deployment_name'),
+        )
         command = [
             'gcloud',
             'run',
             'services',
             'describe',
-            service,
+            deployment_name,
             f'--project={project}',
             f'--region={region}',
             '--format=json',
@@ -1532,18 +1534,6 @@ def _cloud_run_network_flags_from_annotations(annotations: object) -> StringMap:
     if isinstance(egress, str):
         flags['--vpc-egress'] = egress
     return flags
-
-
-def _resolved_external_value(name: str, raw_value: object) -> str:
-    entry = _as_config_dict(raw_value)
-    if entry is None:
-        value = str(raw_value or '').strip()
-    else:
-        env_var = entry.get('env_var')
-        value = os.getenv(str(env_var), '').strip() if isinstance(env_var, str) else ''
-    if not value:
-        raise ValueError(f'{name} requires its declared external input')
-    return value
 
 
 def _cloud_run_service_flags_from_state(

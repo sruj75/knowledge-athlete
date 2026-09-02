@@ -23,6 +23,7 @@ def _expectation(*, environment: str = 'dev') -> verify.DeploymentExpectation:
         project='based-hardware-dev' if environment == 'dev' else 'based-hardware',
         region='us-central1',
         environment=environment,
+        service_name='knowledge-athlete-dev' if environment == 'dev' else 'intentive-production',
         expected_image=EXPECTED_IMAGE,
     )
 
@@ -68,7 +69,8 @@ def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -
     expectation = _expectation()
 
     assert expectation.image == EXPECTED_IMAGE
-    assert expectation.revisions == {'backend': 'backend-abcdef1-12345-2'}
+    assert expectation.service_name == 'knowledge-athlete-dev'
+    assert expectation.revisions == {'backend': 'knowledge-athlete-dev-abcdef1-12345-2'}
     assert expectation.environment == 'dev'
 
 
@@ -79,6 +81,7 @@ def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -
         ({'short_sha': '1234567'}, 'prefix'),
         ({'deploy_run_id': 'run'}, 'decimal integers'),
         ({'environment': 'stage'}, 'environment'),
+        ({'service_name': 'Backend'}, 'service name'),
         ({'expected_image': 'us-west1-docker.pkg.dev/owned/backend:latest'}, 'expected image'),
     ],
 )
@@ -91,6 +94,7 @@ def test_expectation_rejects_ambiguous_release_identity(kwargs: dict, message: s
         'project': 'based-hardware-dev',
         'region': 'us-central1',
         'environment': 'dev',
+        'service_name': 'knowledge-athlete-dev',
         'expected_image': EXPECTED_IMAGE,
     }
     arguments.update(kwargs)
@@ -106,6 +110,7 @@ def test_read_only_commands_query_only_canonical_backend() -> None:
 
     assert set(serving) == {'cloud_run/backend'}
     assert set(candidate) == {'cloud_run/backend', 'cloud_run_revision/backend'}
+    assert serving['cloud_run/backend'][4] == 'knowledge-athlete-dev'
     verify.assert_commands_are_read_only(candidate)
     with pytest.raises(ValueError, match='not a read-only'):
         verify.assert_commands_are_read_only({'bad': ['gcloud', 'run', 'services', 'update', 'backend']})
@@ -183,7 +188,8 @@ def test_evidence_is_bounded_to_canonical_backend() -> None:
     result = verify.evidence(expectation, documents, [])
 
     assert result['result'] == 'pass'
-    assert result['release_vector']['cloud_run_revisions'] == {'backend': 'backend-abcdef1-12345-2'}
+    assert result['release_vector']['cloud_run_revisions'] == {'backend': 'intentive-production-abcdef1-12345-2'}
+    assert result['release_vector']['cloud_run_service'] == 'intentive-production'
     assert set(result['cloud_run']) == {'backend'}
     assert 'gke' not in result
 
@@ -212,6 +218,8 @@ def test_main_writes_candidate_evidence_without_mutating_cloud(monkeypatch, tmp_
             'based-hardware-dev',
             '--environment',
             'dev',
+            '--service',
+            'knowledge-athlete-dev',
             '--candidate',
             '--expected-image',
             EXPECTED_IMAGE,
@@ -230,7 +238,11 @@ def test_backend_workflows_verify_only_one_cloud_run_release_vector() -> None:
     for workflow_name in ('gcp_backend.yml', 'gcp_backend_auto_dev.yml'):
         workflow = (REPO_DIR / '.github' / 'workflows' / workflow_name).read_text(encoding='utf-8')
         assert 'verify_backend_release_vector.py' in workflow
-        assert '--expect-cloud-run-traffic backend=' in workflow
+        assert 'CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}' in workflow
+        assert '--service "${{ env.CLOUD_RUN_SERVICE }}"' in workflow
+        assert '--expect-cloud-run-traffic "${{ env.CLOUD_RUN_SERVICE }}"=' in workflow
+        assert 'gcloud run services describe backend' not in workflow
+        assert 'gcloud run services update-traffic backend' not in workflow
         assert 'backend-sync' not in workflow
         assert 'backend-listen' not in workflow
         assert 'kubectl ' not in workflow

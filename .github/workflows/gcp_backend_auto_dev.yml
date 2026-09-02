@@ -264,6 +264,9 @@ jobs:
       id-token: 'write'
 
     runs-on: ubuntu-latest
+    env:
+      BACKEND_CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
+      CLOUD_RUN_SERVICE: ${{ vars.BACKEND_CLOUD_RUN_SERVICE }}
     steps:
       # To workaround "no space left on device" issue of GitHub-hosted runner
       - name: Delete huge unnecessary tools folder
@@ -344,6 +347,7 @@ jobs:
             --env dev \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --check-secrets \
             --check-traffic \
             --repair-traffic
@@ -426,11 +430,11 @@ jobs:
           --region="${{ env.REGION }}"
           --check-runtime-bindings
 
-      - name: Deploy ${{ env.SERVICE }} to Cloud Run
+      - name: Deploy owned Cloud Run service
         id: deploy-backend
         uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: ${{ env.SERVICE }}
+          service: ${{ env.CLOUD_RUN_SERVICE }}
           region: ${{ env.REGION }}
           project_id: ${{ vars.GCP_PROJECT_ID }}
           image: ${{ steps.push-runtime-image.outputs.immutable_ref }}
@@ -445,17 +449,18 @@ jobs:
           env_vars: ${{ steps.runtime-env.outputs.backend_env_vars }}
           secrets: ${{ steps.runtime-env.outputs.backend_secrets }}
 
-      - name: Capture ${{ env.SERVICE }} revision
+      - name: Capture owned Cloud Run revision
         id: capture-backend-revision
         run: |
-          echo "revision=backend-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
+          test -n "$CLOUD_RUN_SERVICE"
+          echo "revision=${CLOUD_RUN_SERVICE}-${{ steps.image-tag.outputs.revision_suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Validate discovered canonical service URL
         env:
           EXPECTED_BACKEND_URL: ${{ steps.account-deletion-target.outputs.backend_url }}
         run: |
           set -euo pipefail
-          discovered="$(gcloud run services describe backend \
+          discovered="$(gcloud run services describe "${{ env.CLOUD_RUN_SERVICE }}" \
             --project="${{ vars.GCP_PROJECT_ID }}" \
             --region="${{ env.REGION }}" \
             --format='value(status.url)')"
@@ -471,7 +476,7 @@ jobs:
           test -n "$TASKS_INVOKER_SA"
           test -n "$LEGACY_TASKS_INVOKER_SA"
           for signer in "$TASKS_INVOKER_SA" "$LEGACY_TASKS_INVOKER_SA"; do
-            gcloud run services add-iam-policy-binding backend \
+            gcloud run services add-iam-policy-binding "${{ env.CLOUD_RUN_SERVICE }}" \
               --region="${{ env.REGION }}" \
               --project="${{ vars.GCP_PROJECT_ID }}" \
               --member="serviceAccount:${signer}" \
@@ -500,7 +505,7 @@ jobs:
             --env dev \
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
-            --wait-revision-ready backend=${{ steps.capture-backend-revision.outputs.revision }}
+            --wait-revision-ready "${{ env.CLOUD_RUN_SERVICE }}"=${{ steps.capture-backend-revision.outputs.revision }}
 
       - name: Verify canonical backend image lineage
         id: verify-image-lineage
@@ -528,10 +533,10 @@ jobs:
           backend_url="$(python3 backend/scripts/resolve_cloud_run_tagged_url.py \
             --project=${{ vars.GCP_PROJECT_ID }} \
             --region=${{ env.REGION }} \
-            --service=backend \
+            --service="${{ env.CLOUD_RUN_SERVICE }}" \
             --revision=${{ steps.capture-backend-revision.outputs.revision }} \
             --tag=${{ env.CANDIDATE_TAG }})"
-          backend_audience="$(gcloud run services describe backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
+          backend_audience="$(gcloud run services describe "${{ env.CLOUD_RUN_SERVICE }}" --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.url)')"
           test -n "$backend_audience"
           {
             echo "backend_url=${backend_url}"
@@ -571,6 +576,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-cloud-run-candidate-release-vector.json
 
@@ -634,6 +640,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-deployment-composition.json
 
@@ -643,17 +650,17 @@ jobs:
           python3 backend/scripts/cloud_run_traffic_snapshot.py capture \
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
-            --service backend \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --output artifacts/dev-backend-cloud-run-pre-promotion-traffic-snapshot.json
 
       - name: Verify validated revisions are still current
         run: |
-          test "$(gcloud run services describe backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
+          test "$(gcloud run services describe "${{ env.CLOUD_RUN_SERVICE }}" --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --format='value(status.latestCreatedRevisionName)')" = "${{ steps.capture-backend-revision.outputs.revision }}"
 
       - name: Shift Cloud Run traffic to validated revisions
         id: shift-cloud-run-traffic
         run: |
-          gcloud run services update-traffic backend --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
+          gcloud run services update-traffic "${{ env.CLOUD_RUN_SERVICE }}" --project=${{ vars.GCP_PROJECT_ID }} --region=${{ env.REGION }} --to-revisions=${{ steps.capture-backend-revision.outputs.revision }}=100 --quiet
 
       # The no-traffic candidate gate proves readiness; this post-promotion
       # read verifies that every serving tier actually converged on the same
@@ -669,6 +676,7 @@ jobs:
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ env.REGION }}" \
             --environment dev \
+            --service "${{ env.CLOUD_RUN_SERVICE }}" \
             --expected-image "${{ steps.push-runtime-image.outputs.immutable_ref }}" \
             --evidence-path artifacts/dev-backend-serving-release-vector.json
 
@@ -687,8 +695,8 @@ jobs:
             --project ${{ vars.GCP_PROJECT_ID }} \
             --region ${{ env.REGION }} \
             --include-cloud-run \
-            --cloud-run-service backend \
-            --expect-cloud-run-traffic backend=${{ steps.capture-backend-revision.outputs.revision }} \
+            --cloud-run-service "${{ env.CLOUD_RUN_SERVICE }}" \
+            --expect-cloud-run-traffic "${{ env.CLOUD_RUN_SERVICE }}"=${{ steps.capture-backend-revision.outputs.revision }} \
             --candidate-acceptance-manifest backend/deploy/dev_candidate_acceptance.json \
             --candidate-acceptance-evidence artifacts/dev-backend-candidate-acceptance.json \
             --candidate-status-output artifacts/dev-backend-candidate-status.json

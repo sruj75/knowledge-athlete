@@ -99,8 +99,11 @@ def test_parse_revision_targets_rejects_missing_equals() -> None:
         preflight._parse_revision_targets(['backend'])
 
 
-def test_runtime_binding_check_accepts_manifest_literal_and_secret_bindings_read_only(tmp_path: Path) -> None:
+def test_runtime_binding_check_accepts_manifest_literal_and_secret_bindings_read_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     preflight = load_preflight()
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'knowledge-athlete-dev')
     manifest = tmp_path / 'runtime_env.yaml'
     manifest.write_text(
         '''\
@@ -110,6 +113,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            env_var: BACKEND_CLOUD_RUN_SERVICE
           env:
             PUBLIC_SETTING:
               value: public
@@ -161,7 +166,7 @@ environments:
             'run',
             'services',
             'describe',
-            'backend',
+            'knowledge-athlete-dev',
             '--project=based-hardware-dev',
             '--region=us-central1',
             '--format=json',
@@ -181,6 +186,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           secrets:
             PRIVATE_SETTING:
               secret: expected-secret
@@ -204,6 +211,37 @@ environments:
     ]
 
 
+def test_runtime_binding_check_rejects_missing_deployment_name_without_querying_cloud_run(tmp_path: Path) -> None:
+    preflight = load_preflight()
+    manifest = tmp_path / 'runtime_env.yaml'
+    manifest.write_text(
+        '''\
+environments:
+  dev:
+    gcp_project: based-hardware-dev
+    cloud_run:
+      services:
+        backend:
+          env: {}
+          secrets: {}
+''',
+        encoding='utf-8',
+    )
+    commands: list[list[str]] = []
+
+    with pytest.raises(ValueError, match='Cloud Run service backend deployment_name is missing'):
+        preflight.check_runtime_bindings(
+            services=('backend',),
+            env='dev',
+            project='based-hardware-dev',
+            region='us-central1',
+            manifest_path=manifest,
+            runner=lambda command, **_kwargs: commands.append(command),
+        )
+
+    assert commands == []
+
+
 def test_runtime_binding_check_rejects_multi_container_live_service_shape(tmp_path: Path) -> None:
     preflight = load_preflight()
     manifest = tmp_path / 'runtime_env.yaml'
@@ -215,6 +253,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public
@@ -256,6 +296,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public
@@ -289,6 +331,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             GLOBAL_PUBLIC:
               value: global
@@ -297,6 +341,8 @@ environments:
               secret: inherited-secret
               version: '3'
         backend-beta:
+          deployment_name:
+            value: knowledge-athlete-beta
           env:
             RETAINED_PUBLIC:
               value: retained
@@ -358,6 +404,8 @@ environments:
     cloud_run:
       services:
         backend:
+          deployment_name:
+            value: knowledge-athlete-dev
           env:
             PUBLIC_SETTING:
               value: public
