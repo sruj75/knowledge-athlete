@@ -129,7 +129,7 @@ An inherited variable in Omi's deployment declaration is not proof that Intentiv
 - `MODULATE_API_KEY` is genuinely retained for fixed managed live and prerecorded-overflow STT, but the owner explicitly postponed Modulate setup. This leaves managed STT and S-31 real-provider continuity open; it is not evidence that Modulate is unused.
 - `POSTHOG_PROJECT_API_KEY` is retained telemetry, but the owned PostHog project identity and truthful disclosure remain S-30 inputs. Do not reuse an inherited Omi token.
 - `ARTIFICIALANALYSIS_API_KEY` is deleted with Auto and the provider picker; there is no remaining provider comparison to score.
-- LangSmith-to-Langfuse remains a separate follow-up and is not part of Gemini-first provider deletion acceptance.
+- Langfuse now owns Chat tracing and prompt management. The repository runtime/configuration migration is complete, but the development Cloud Run service still needs exact Langfuse secret-version bindings and a real fail-open trace before it is live evidence.
 - `DESKTOP_GOOGLE_CALENDAR_API_KEY` must not be configured: IR-106, IR-142, IR-144, and IR-375 delete the Calendar creation/import/enrichment/linking surfaces.
 
 ## Release-readiness checklist
@@ -168,7 +168,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Use the one free Upstash database `intentive-development` for development and owner-approved early MVP production. Do not provision Google Memorystore under the current cost constraint; revisit environment isolation before meaningful production traffic.
 - [x] Store the development Redis password, Firebase API key, and Google OAuth client ID/secret as exact Secret Manager version 1 values. The runtime identity has secret-level access only to the Redis password, Firebase API key, and Google OAuth secret.
 - [x] Retire the active service's cross-project recovery-image dependency by building and serving an immutable backend image from `knowledge-athlete/us-west1/intentive`.
-- [ ] Retain one owned OpenAI key for TTS only. Inspect the dormant Gemini secret metadata and, under separate deployment authorization, bind one exact authorization-key version to development. Do not create Anthropic or Artificial Analysis credentials. Modulate remains deliberately postponed, and Langfuse work remains separate. No provider secret may be invented, committed, or copied from Omi.
+- [ ] Retain one owned OpenAI key for TTS only. Inspect the dormant Gemini secret metadata and bind one exact authorization-key version to development. Do not create Anthropic or Artificial Analysis credentials. Modulate remains deliberately postponed. Bind exact owned Langfuse secret versions only when the development revision is deployed, then prove one real fail-open trace. No provider secret may be invented, committed, or copied from Omi.
 - [x] Admit public Cloud Run invocation while retaining Firebase authentication on protected routes, and point development desktop defaults at the discovered owned URL.
 - [ ] Enable the Cloud Billing Budget API and configure owner-approved alerts if cost notifications are wanted. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
 

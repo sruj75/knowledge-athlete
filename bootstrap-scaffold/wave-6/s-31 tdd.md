@@ -119,22 +119,17 @@ executed; it does not certify a final SHA or mark any S-31 cycle green.
   signing/notarization, preview storage/registry, production origins/URLs,
   GitHub release application, trusted Apple Silicon runner, and real signed
   candidate/channel evidence remain open.
-- Retained-caller analysis narrows the managed-provider gate: OpenAI owns
-  conversation/Memory/realtime/TTS work; Anthropic owns managed Chat; Gemini
-  owns titles/translation/selected desktop, embedding, and realtime work;
-  Modulate owns managed STT; PostHog owns product telemetry; Artificial
-  Analysis owns the exact daily Auto choice; and LangSmith remains planned
-  operator tracing/Prompt Hub tooling. Google Calendar and the legacy desktop
-  Anthropic credential are inherited residue and must not be created. No owned
-  OpenAI, Anthropic, or Modulate credential is configured yet; Modulate is
-  explicitly postponed. An interrupted setup created a restricted Gemini key
-  and secret version, but the active Cloud Run revision does not bind it, so it
-  is dormant rather than qualified. The current development runtime keeps
-  Vertex AI disabled; S-31 must prove one consistent Developer API/Vertex route
-  and must not inherit `USE_VERTEX_AI=true` blindly. Artificial Analysis is
-  missing from the runtime declaration, while LangSmith's current production
-  caller/runtime binding is incomplete; both remain open evidence, not implied
-  configuration requirements to satisfy by inventing keys.
+- Retained-caller analysis narrows the managed-provider gate: Gemini owns
+  managed text, embeddings, and realtime voice; OpenAI owns TTS only; Modulate
+  owns managed batch STT but is explicitly postponed; PostHog owns product
+  telemetry; and Langfuse owns model tracing and prompt management. Google
+  Calendar, both Anthropic credentials, Artificial Analysis, provider
+  selection, OpenAI text/realtime, and Vertex inference are deleted and must
+  not be provisioned. The Gemini and Langfuse repository paths are implemented,
+  but the active Cloud Run revision does not bind their exact secret versions,
+  so neither is live-provider evidence yet. S-31 must prove the single Gemini
+  Developer API route and must not recreate `USE_VERTEX_AI=true` or any deleted
+  provider merely to satisfy an inherited declaration.
 
 These facts reduce setup ambiguity but do not weaken G2, G5, or the one-final-SHA
 rule. Missing real-provider, Apple, preview, production, runner, and S-30 inputs
@@ -150,8 +145,9 @@ provider selection, and the omni relay are deleted from the runtime contract.
 Modulate remains postponed, so live batch recovery cannot be claimed until its
 separate credential is configured. The dormant Gemini secret may be inspected,
 but an exact version must not be bound to Cloud Run without separate deployment
-authorization. Langfuse is a separate follow-up and is not S-31 evidence from
-this change.
+authorization. Langfuse tracing and prompt management are already implemented;
+their exact development secret bindings and one real fail-open trace remain
+required S-31 evidence.
 
 ## 3. Outcome
 
@@ -494,7 +490,7 @@ has it.
 | Build/sign/notarize | S-29 provider definition, entitlements, profiles, libwebp cache, signed smoke | Owned universal app/dSYM/DMG/Sparkle ZIP with provenance and notarization | Digest/signature/notary/Gatekeeper/architecture/minimum-OS/package smoke |
 | Updates/channels | Sparkle policy, backend manifests/pointers, candidate/qualification/promotion/recovery/rollback workflows | Owned feed/key/assets, Beta/Stable authority, activity gates | Own-first-build update, required update, Beta qualification, rollback, manual Stable |
 | Previews/public/legal | preview registry/workflow, product site, Terms/Privacy/support/GitHub Releases | Owned signed previews and truthful reachable destinations | Publish/open/replace/delist mutable preview pointer while retaining immutable manifest/artifact evidence; link/status/content inventory; no Omi destination |
-| Telemetry/support | PostHog/Sentry/LangSmith, local QueryTracer, diagnostics/export/report | Owned projects, consent, redaction, 30-day platform logs | Opt-out, identity detach, fallback signals, feedback dry run, no sensitive evidence |
+| Telemetry/support | PostHog/Sentry/Langfuse, local QueryTracer, diagnostics/export/report | Owned projects, consent, redaction, 30-day platform logs | Opt-out, identity detach, fallback signals, feedback dry run, no sensitive evidence |
 | Windows | Outside the macOS roadmap | Outside the macOS roadmap | Do not inspect, edit, test, generate, release, or use as closure evidence |
 
 ## 8. Behavior classification
@@ -507,7 +503,7 @@ has it.
 | **SIMPLIFY AFTER** | After full correctness and residue classification, remove duplicate evidence entry points, redundant manual evidence transformations, or obsolete final-owner lists only where one surviving shared primitive can replace them. No product or infrastructure redesign. |
 | **ACCELERATE AFTER** | Measure clean setup, focused test, local stack, incremental/full named bundle, backend deploy, candidate intake, qualification, promotion/recovery, and rollback. Improve only the highest avoidable repeated delay proven by the measurements; otherwise `none`. |
 | **AUTOMATE LAST** | Extend an existing check/manifest/workflow only for a stable repeated step observed during S-31. Prefer current evidence manifests and lanes. If no repeated bottleneck or correctness gap remains, `none`. |
-| **OUT OF SCOPE / DEFERRED** | New product features, UI redesign, speculative refactors, production capacity redesign, Windows, Omi data takeover, bulk cloud teardown, unsupported compatibility, another roadmap slice, and any external mutation lacking its named authorization. Langfuse migration remains a separate follow-up. |
+| **OUT OF SCOPE / DEFERRED** | New product features, UI redesign, speculative refactors, production capacity redesign, Windows, Omi data takeover, bulk cloud teardown, unsupported compatibility, another roadmap slice, and any external mutation lacking its named authorization. Langfuse implementation is integrated; only its live secret binding and provider proof remain in scope for closure evidence. |
 
 ## 9. Retained behavioral invariants
 
@@ -592,7 +588,7 @@ one final committed SHA
   |     Artifact Registry / Secret Manager / Logging / alerts / budgets
   |     approved OpenAI / Anthropic / Gemini / Modulate
   |     Dodo disabled -> authorized test -> separately authorized live
-  |     PostHog / Sentry / LangSmith
+  |     PostHog / Sentry / Langfuse
   |
   +-- owned Mac release system
         build provider -> Developer ID -> notarization

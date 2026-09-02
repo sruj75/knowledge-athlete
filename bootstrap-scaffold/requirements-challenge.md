@@ -18154,7 +18154,7 @@ No product code has been changed.
 
 ### Exact current behavior
 
-The authenticated Python Chat boundary now creates one fail-open Langfuse generation for every real Anthropic request. A deterministic trace ID derived from the Firebase UID and request ID joins provider calls from one local tool loop; the optional bounded Mac session ID groups traces without creating backend Chat authority. Each generation records only explicit provider input/output, stop reason, token/cache counts, first-token timing, and bounded correlation metadata. It never records credentials, arbitrary request objects, or raw exception text. This model-specific evidence is distinct from Sentry crash diagnostics and PostHog product events.
+The authenticated Python Chat boundary now creates one fail-open Langfuse generation for every real Gemini request. A deterministic trace ID derived from the Firebase UID and request ID joins provider calls from one local tool loop; the optional bounded Mac session ID groups traces without creating backend Chat authority. Each generation records only explicit provider input/output, stop reason, token/cache counts, first-token timing, and bounded correlation metadata from the native Gemini stream. It never records credentials, arbitrary request objects, or raw exception text. This model-specific evidence is distinct from Sentry crash diagnostics and PostHog product events.
 
 ### Decision
 
