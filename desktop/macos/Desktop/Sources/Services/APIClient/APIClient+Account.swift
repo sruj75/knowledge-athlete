@@ -78,11 +78,9 @@ extension APIClient {
   // MARK: - API Keys
 
   struct ApiKeysResponse: Decodable {
-    let deepgramApiKey: String?
     let firebaseApiKey: String?
 
     enum CodingKeys: String, CodingKey {
-      case deepgramApiKey = "deepgram_api_key"
       case firebaseApiKey = "firebase_api_key"
     }
   }

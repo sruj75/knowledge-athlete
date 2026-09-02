@@ -271,6 +271,16 @@ final class APIClientRoutingTests: XCTestCase {
       ))
   }
 
+  func testBundleEnvironmentRejectsBackendOnlyAndRetiredProviderCredentials() {
+    XCTAssertEqual(
+      BundleEnvironment.bundledValueRejectionReason(for: "GEMINI_API_KEY"),
+      "provider credentials stay on the backend")
+    XCTAssertEqual(
+      BundleEnvironment.bundledValueRejectionReason(for: "GOOGLE_CALENDAR_API_KEY"),
+      "retired provider credential")
+    XCTAssertNil(BundleEnvironment.bundledValueRejectionReason(for: "FIREBASE_API_KEY"))
+  }
+
   func testBetaProductionChannelUsesProductionBackendRatherThanDevelopment() {
     XCTAssertFalse(
       DesktopBackendEnvironment.shouldUseDevelopmentBackends(

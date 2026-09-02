@@ -15,7 +15,8 @@ final class PiMonoWiringTests: XCTestCase {
       {
         "firebase_api_key": "AIza-test",
         "anthropic_api_key": "sk-ant-retired",
-        "google_calendar_api_key": "cal-key"
+        "google_calendar_api_key": "cal-key",
+        "deepgram_api_key": "dg-retired"
       }
       """.data(using: .utf8)!
     let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)
@@ -24,20 +25,7 @@ final class PiMonoWiringTests: XCTestCase {
     XCTAssertEqual(response.firebaseApiKey, "AIza-test")
     XCTAssertFalse(propertyNames.contains("anthropicApiKey"))
     XCTAssertFalse(propertyNames.contains("googleCalendarApiKey"))
-  }
-
-  func testApiKeysResponseIgnoresUnknownAnthropicField() throws {
-    let json = """
-      {
-        "firebase_api_key": "AIza-test",
-        "anthropic_api_key": "sk-ant-LEAKED"
-      }
-      """.data(using: .utf8)!
-    let response = try JSONDecoder().decode(APIClient.ApiKeysResponse.self, from: json)
-    let propertyNames = Mirror(reflecting: response).children.map { $0.label ?? "" }
-
-    XCTAssertEqual(response.firebaseApiKey, "AIza-test")
-    XCTAssertFalse(propertyNames.contains("anthropicApiKey"))
+    XCTAssertFalse(propertyNames.contains("deepgramApiKey"))
   }
 
   func testRemovedBridgeAndCredentialSurfacesStayAbsent() throws {

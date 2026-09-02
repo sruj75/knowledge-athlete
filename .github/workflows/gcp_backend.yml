@@ -770,7 +770,7 @@ jobs:
           printf 'url=%s\n' "$candidate_url" >> "$GITHUB_OUTPUT"
 
       - name: Gate backend candidate on known audio
-        if: ${{ github.event.inputs.environment == 'development' }}
+        if: ${{ github.event.inputs.environment == 'development' && vars.MODULATE_API_KEY_VERSION != '' }}
         uses: ./.github/actions/transcription-release-candidate-probe
         with:
           candidate_api_url: ${{ steps.candidate-url.outputs.url }}

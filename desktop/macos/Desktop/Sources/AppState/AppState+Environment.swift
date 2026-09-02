@@ -27,8 +27,8 @@ extension AppState {
             }
             // API keys are fetched from the backend at runtime (APIKeyService).
             // Do NOT load them from .env — defer entirely to APIKeyService.fetchKeys().
-            if key == "GEMINI_API_KEY" {
-              log("  Skipped GEMINI_API_KEY (provider credentials stay on the backend)")
+            if let reason = BundleEnvironment.bundledValueRejectionReason(for: key) {
+              log("  Skipped \(key) (\(reason))")
               continue
             }
             guard BundleEnvironment.shouldApplyBundledValue(for: key) else {

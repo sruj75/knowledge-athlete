@@ -204,7 +204,7 @@ S-31 composes their final behavior and does not reopen their decisions.
 | IR-017 through IR-023 | S-02, S-03, S-10, S-16 | Mac capture plus transient `/v4/listen`, local conversation commit, Modulate, local Parakeet, language/vocabulary, and generic speakers. |
 | IR-024 through IR-038 | S-12, S-13, S-14 | Local Memories, Tasks/Goals, Focus/Insights/profile/proactive authority, restart durability, and owner isolation. |
 | IR-039 through IR-053 | S-05, S-06, S-07, S-11, S-15, S-17, S-23 | Local Chat/Home/Rewind and scoped tools survive; hosted products, connectors, BYOK, and cloud copies do not. |
-| IR-054 through IR-119 | S-03, S-05, S-07, S-09 through S-16, S-19, S-20, S-22 | Complete physical PTT/realtime lifecycle, both providers, failover, local grounding, privacy, continuity, diagnostics, and exact deleted tools. |
+| IR-054 through IR-119 | S-03, S-05, S-07, S-09 through S-16, S-19, S-20, S-22 | Complete physical PTT/realtime lifecycle through Gemini Live, same-provider recovery, local grounding, privacy, continuity, diagnostics, and exact deleted tools. |
 | IR-120 through IR-124 | S-08, S-10, S-17, S-23, S-25 | Durable account deletion, narrowed account metadata, truthful export, and removed cloud product/account residue. |
 | IR-125 through IR-169 | S-17, S-30 | Narrow onboarding, permissions, Skip/completion/restart behavior, and final truthful copy. |
 | IR-170 through IR-211 | S-08, S-09, S-18, S-30 | Owned auth/telemetry/privacy, account lifecycle, Dodo behavior, and truthful disclosure. |
@@ -212,7 +212,7 @@ S-31 composes their final behavior and does not reopen their decisions.
 | IR-256 through IR-292 | S-06, S-10, S-12, S-23, S-24, S-30 | Full local Memory behavior and provenance with no hosted Memory/search/vector authority. |
 | IR-293 through IR-405 | S-02, S-03, S-10, S-16, S-23, S-24 | Full local Conversations/transcription behavior with no server product authority or cloud product objects. |
 | IR-500 through IR-530 | S-11 through S-14, S-21, S-30 | Home/Chat shell and projections from one local product mind. |
-| IR-600 through IR-615 | S-05, S-07, S-09, S-19, S-20, S-22 | Explicit managed model portfolio, fair-use split authority, provider selection, and observability. |
+| IR-600 through IR-615 | S-05, S-07, S-09, S-19, S-20, S-22 | Explicit fixed managed model portfolio, fair-use split authority, typed workload ownership, and observability. |
 | IR-616 through IR-658 | S-13, S-21 | Local task/goal UX, recurrence, order, Undo, assistant, and deleted task-intelligence/productivity surfaces. |
 | IR-659 through IR-699 | S-14, S-15, S-21 | Exact Focus/Insights/Rewind behaviors, including deliberately retained quirks. |
 | IR-700 through IR-735 | S-10, S-12, S-14, S-17, S-20, S-22, S-23 | Model-result ownership, fair-use behavior, onboarding lifecycle, and deleted hosted products. |
@@ -586,7 +586,7 @@ one final committed SHA
   +-- retained managed dependencies only
   |     owned Firebase / Cloud Run / Redis / Firestore / GCS / Cloud Tasks
   |     Artifact Registry / Secret Manager / Logging / alerts / budgets
-  |     approved OpenAI / Anthropic / Gemini / Modulate
+  |     approved Gemini / OpenAI TTS / Modulate
   |     Dodo disabled -> authorized test -> separately authorized live
   |     PostHog / Sentry / Langfuse
   |
@@ -690,7 +690,7 @@ adding an S-31 workaround.
   regenerate route/OpenAPI/Swift artifacts from source. Return substantive
   defects to their owner. Preserve historical changelogs and required MIT
   provenance.
-- **Retained behavior protected:** local authorities, both realtime providers,
+- **Retained behavior protected:** local authorities, Gemini Live realtime,
   transient compute, account deletion, update/release, telemetry, and every
   positive-owner search in section 13.
 - **Expected change surfaces:** only proven residue in already-owned source,

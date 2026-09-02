@@ -109,6 +109,14 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
     } <= set(backend['secrets'])
     if env_name == 'dev':
         assert {'MODULATE_API_KEY', 'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(backend['secrets'])
+        workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
+        deploy_steps = workflow['jobs']['deploy']['steps']
+        transcription_gate = next(
+            step for step in deploy_steps if step.get('name') == 'Gate backend candidate on known audio'
+        )
+        assert transcription_gate['if'] == (
+            "${{ github.event.inputs.environment == 'development' && vars.MODULATE_API_KEY_VERSION != '' }}"
+        )
     else:
         assert {'MODULATE_API_KEY', 'POSTHOG_PROJECT_API_KEY'} <= set(backend['secrets'])
         assert 'GOOGLE_CALENDAR_API_KEY' not in backend['secrets']
