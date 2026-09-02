@@ -76,18 +76,29 @@ final class AuthTokenDecodingTests: XCTestCase {
     }
   }
 
-  func testSignInWithIdpLogsWellFormedMalformedTokenResponses() throws {
-    let source = try desktopSource(relativePath: "Sources/AuthService.swift")
+  func testOAuthCallbackDiagnosticExcludesCodeAndState() throws {
+    let url = try XCTUnwrap(URL(string: "heyintentive://auth/callback?code=secret-code&state=secret-state"))
 
-    XCTAssertTrue(source.contains("tokens = try Self.decodeFirebaseTokenResult(from: data)"))
-    XCTAssertTrue(source.contains("INTENTIVE AUTH: Failed to parse Firebase signInWithIdp response: %@"))
+    let diagnostic = AuthLogPrivacy.callbackReceived(url)
+
+    XCTAssertEqual(diagnostic, "INTENTIVE AUTH: Received OAuth callback")
+    XCTAssertFalse(diagnostic.contains("secret-code"))
+    XCTAssertFalse(diagnostic.contains("secret-state"))
   }
 
-  private func desktopSource(relativePath: String) throws -> String {
-    let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    let desktopURL = testsURL.deletingLastPathComponent()
-    let sourceURL = desktopURL.appendingPathComponent(relativePath)
-    return try String(contentsOf: sourceURL, encoding: .utf8)
+  func testFirebaseResponseDiagnosticExcludesTokensAndPII() throws {
+    let response = try JSONSerialization.data(withJSONObject: [
+      "idToken": "secret-id-token",
+      "refreshToken": "secret-refresh-token",
+      "email": "person@example.com",
+    ])
+
+    let diagnostic = AuthLogPrivacy.responseFailure("Firebase signInWithIdp", 400, response)
+
+    XCTAssertEqual(diagnostic, "INTENTIVE AUTH: Firebase signInWithIdp failed (HTTP 400)")
+    XCTAssertFalse(diagnostic.contains("secret-id-token"))
+    XCTAssertFalse(diagnostic.contains("secret-refresh-token"))
+    XCTAssertFalse(diagnostic.contains("person@example.com"))
   }
 
   private func firebaseTokenResponse(idToken: String, expiresIn: Any, localId: String?) throws -> Data {

@@ -343,7 +343,7 @@ class AuthService {
     let attempt = beginSessionAttempt()
     guard let email = DesktopLocalProfile.selectedEmail,
       let password = DesktopLocalProfile.selectedPassword,
-      let selectedUser = DesktopLocalProfile.selectedUser
+      DesktopLocalProfile.selectedUser != nil
     else {
       log("INTENTIVE AUTH LOCAL: missing selected local auth user env; staying signed out")
       return
@@ -356,7 +356,7 @@ class AuthService {
       _ = sessionAttemptFence.commitIfCurrent(attempt) {
         clearTokens()
       }
-      log("INTENTIVE AUTH LOCAL: cleared stale persisted auth for email=\(savedEmail)")
+      log("INTENTIVE AUTH LOCAL: cleared stale persisted auth")
     }
 
     do {
@@ -374,9 +374,9 @@ class AuthService {
         givenName = pieces.first ?? ""
         familyName = pieces.count > 1 ? pieces[1] : ""
       }
-      log("INTENTIVE AUTH LOCAL: signed in via emulator REST as \(email) uid=\(tokens.localId) user=\(selectedUser)")
+      log("INTENTIVE AUTH LOCAL: signed in via emulator REST")
     } catch {
-      logError("INTENTIVE AUTH LOCAL: sign-in failed for \(email)", error: error)
+      logError("INTENTIVE AUTH LOCAL: sign-in failed", error: error)
       self.error = "Local Auth emulator sign-in failed for \(email): \(error.localizedDescription)"
       AuthState.shared.transition(to: .recoveryRequired)
     }
@@ -410,8 +410,7 @@ class AuthService {
       throw AuthError.invalidResponse
     }
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      log("INTENTIVE AUTH LOCAL: emulator REST error \(httpResponse.statusCode): \(errorBody)")
+      log(AuthLogPrivacy.responseFailure("Local Firebase emulator sign-in", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
@@ -466,7 +465,7 @@ class AuthService {
       })
     guard committed else { return false }
     guard sessionAttemptFence.isCurrent(attempt) else { return false }
-    NSLog("INTENTIVE AUTH: Atomically saved signed-in session for user %@", tokens.localId)
+    NSLog("INTENTIVE AUTH: Atomically saved signed-in session")
     AuthState.shared.userEmail = email
     sessionCoordinator.resetAfterSuccessfulSignIn()
     return true
@@ -500,8 +499,8 @@ class AuthService {
     let savedEmail = UserDefaults.standard.string(forKey: .authUserEmail)
 
     NSLog(
-      "INTENTIVE AUTH: Checking saved auth state - savedSignedIn: %@, savedEmail: %@",
-      savedSignedIn ? "true" : "false", savedEmail ?? "nil")
+      "INTENTIVE AUTH: Checking saved auth state - savedSignedIn: %@",
+      savedSignedIn ? "true" : "false")
 
     // Set auth state synchronously (we're already on main thread from configure()).
     // Using DispatchQueue.main.async here would defer to the next run-loop tick,
@@ -517,7 +516,7 @@ class AuthService {
         if let payload = decodeJWT(storedToken),
           let userId = payload["user_id"] as? String ?? payload["sub"] as? String
         {
-          NSLog("INTENTIVE AUTH: Migrating empty userId - extracted from JWT: %@", userId)
+          NSLog("INTENTIVE AUTH: Migrating missing local user identity from validated JWT")
           guard await persistAuthenticatedOwner(userId, attempt: attempt) else { return }
         }
       }
@@ -613,9 +612,7 @@ class AuthService {
           // Firebase currentUser is cached identity, not proof that the
           // credential can refresh. Only enrich an already validated session;
           // launch restoration remains owned by validateRestoredSessionNow().
-          log(
-            "AUTH_LISTENER: Firebase user present (uid=\(user.uid)), phase=\(String(describing: self.sessionCoordinator.phase))"
-          )
+          log("AUTH_LISTENER: Firebase user present, phase=\(String(describing: self.sessionCoordinator.phase))")
           let ownerID = UserDefaults.standard.string(forKey: .authUserId)
           let tokenOwnerID = self.storedTokenUserId
           if self.sessionCoordinator.phase == .authenticated,
@@ -733,7 +730,7 @@ class AuthService {
       let family = fullName.familyName ?? ""
       if !given.isEmpty {
         incomingAppleName = .init(given: given, family: family)
-        NSLog("INTENTIVE AUTH: Captured name from Apple: %@ %@", given, family)
+        NSLog("INTENTIVE AUTH: Captured name from Apple")
       }
     }
     if let email = appleCredential.email {
@@ -998,7 +995,7 @@ class AuthService {
       var incomingName: AuthLocalNameProjection.IncomingName?
       if let extractedGivenName = tokenResult.givenName, !extractedGivenName.isEmpty {
         incomingName = .init(given: extractedGivenName, family: tokenResult.familyName ?? "")
-        NSLog("INTENTIVE AUTH: Captured name from OAuth: %@ %@", extractedGivenName, tokenResult.familyName ?? "")
+        NSLog("INTENTIVE AUTH: Captured name from OAuth")
       }
       if let extractedEmail = tokenResult.email {
         AuthState.shared.userEmail = extractedEmail
@@ -1046,12 +1043,12 @@ class AuthService {
             discardStaleFirebaseUserIfNeeded(authResult.user.uid)
             throw AuthError.cancelled
           }
-          NSLog("INTENTIVE AUTH: Firebase SDK sign-in SUCCESS - uid: %@", authResult.user.uid)
+          NSLog("INTENTIVE AUTH: Firebase SDK sign-in succeeded")
         } catch AuthError.cancelled {
           throw AuthError.cancelled
-        } catch let firebaseError as NSError {
+        } catch {
           // Keychain errors are expected on dev builds - we have REST API tokens as fallback
-          NSLog("INTENTIVE AUTH: Firebase SDK failed; using REST tokens: %@", firebaseError.localizedDescription)
+          NSLog("INTENTIVE AUTH: Firebase SDK unavailable; using validated REST tokens")
         }
       }
 
@@ -1364,7 +1361,7 @@ class AuthService {
   /// Called by AppDelegate when the app receives an OAuth callback URL
   @MainActor
   func handleOAuthCallback(url: URL) {
-    NSLog("INTENTIVE AUTH: Received OAuth callback: %@", url.absoluteString)
+    NSLog("%@", AuthLogPrivacy.callbackReceived(url))
 
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
       NSLog("INTENTIVE AUTH: Failed to parse callback URL")
@@ -1424,7 +1421,7 @@ class AuthService {
         )
         return
       }
-      NSLog("INTENTIVE AUTH: OAuth error: %@", error)
+      NSLog("INTENTIVE AUTH: OAuth provider returned an error")
       trackAuthFlowEvent(
         "Auth Callback Invalid",
         stage: "callback_provider_error",
@@ -1555,8 +1552,7 @@ class AuthService {
     NSLog("INTENTIVE AUTH: Token exchange response status: %d", httpResponse.statusCode)
 
     guard httpResponse.statusCode == 200 else {
-      let responseBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("INTENTIVE AUTH: Token exchange failed: %@", responseBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Token exchange", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
@@ -1672,7 +1668,7 @@ class AuthService {
     // Save locally
     givenName = newGivenName
     familyName = newFamilyName
-    NSLog("INTENTIVE AUTH: Updated name locally - given: %@, family: %@", newGivenName, newFamilyName)
+    NSLog("INTENTIVE AUTH: Updated name locally")
 
     // Try to update Firebase profile (best effort)
     // Skip during impersonation to avoid overwriting the target user's display name
@@ -1713,7 +1709,7 @@ class AuthService {
 
     givenName = newGivenName
     familyName = newFamilyName
-    NSLog("INTENTIVE AUTH: Updated owner-bound name locally - given: %@, family: %@", newGivenName, newFamilyName)
+    NSLog("INTENTIVE AUTH: Updated owner-bound name locally")
     postNameDidUpdate()
   }
 
@@ -1749,7 +1745,7 @@ class AuthService {
     let changeRequest = user.createProfileChangeRequest()
     changeRequest.displayName = name
     try await changeRequest.commitChanges()
-    NSLog("INTENTIVE AUTH: Updated Firebase displayName to: %@", name)
+    NSLog("INTENTIVE AUTH: Updated Firebase displayName")
   }
 
   /// Load a missing local name from the owner-current Firebase identity.
@@ -1775,7 +1771,7 @@ class AuthService {
     let nameParts = trimmedName.split(separator: " ", maxSplits: 1)
     givenName = nameParts.first.map(String.init) ?? trimmedName
     familyName = nameParts.count > 1 ? String(nameParts[1]) : ""
-    NSLog("INTENTIVE AUTH: Loaded owner-bound name from Firebase - given: %@, family: %@", givenName, familyName)
+    NSLog("INTENTIVE AUTH: Loaded owner-bound name from Firebase")
     postNameDidUpdate()
   }
 
@@ -1821,7 +1817,7 @@ class AuthService {
       cachedStoredTokens = tokens
       cachedStoredTokensLoaded = true
     }
-    NSLog("INTENTIVE AUTH: Saved tokens for user %@, expires at %@", userId, expiryTime.description)
+    NSLog("INTENTIVE AUTH: Saved owner-bound tokens")
   }
 
   func clearTokens() {
@@ -2137,19 +2133,18 @@ class AuthService {
     }
 
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("INTENTIVE AUTH: Firebase REST API error: %@", errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase custom-token exchange", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
     do {
       let tokens = try Self.decodeFirebaseTokenResult(from: data)
       if !tokens.localId.isEmpty, jsonLocalIdMissing(in: data) {
-        NSLog("INTENTIVE AUTH: Extracted user_id from JWT: %@", tokens.localId)
+        NSLog("INTENTIVE AUTH: Recovered missing local user identity from validated JWT")
       }
       return tokens
     } catch {
-      NSLog("INTENTIVE AUTH: Failed to parse Firebase response: %@", String(data: data, encoding: .utf8) ?? "nil")
+      NSLog("%@", AuthLogPrivacy.responseParsingFailure("Firebase custom-token exchange", data))
       throw error
     }
   }
@@ -2204,7 +2199,7 @@ class AuthService {
 
     guard httpResponse.statusCode == 200 else {
       let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("INTENTIVE AUTH: Token refresh error (HTTP %d): %@", httpResponse.statusCode, errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase token refresh", httpResponse.statusCode, data))
       // Only clear tokens for definitive auth failures (invalid/revoked refresh token).
       // Transient errors (network issues, 500s) should not destroy the session.
       let isDefinitiveAuthFailure = AuthDefinitiveDeathClassifier.isDefinitiveRefreshFailure(
@@ -2254,7 +2249,7 @@ class AuthService {
         return true
       } ?? false
     guard saved else { throw AuthError.notSignedIn }
-    NSLog("INTENTIVE AUTH: Refreshed ID token successfully for user %@", userId)
+    NSLog("INTENTIVE AUTH: Refreshed owner-bound ID token successfully")
 
     return newIdToken
   }
@@ -2274,7 +2269,7 @@ class AuthService {
         if expectedUserId == nil {
           // expectedUserId missing (migration gap, crash recovery) - trust the token
           // and backfill the userId so future calls don't hit this path
-          NSLog("INTENTIVE AUTH: expectedUserId is nil but token has userId %@ - backfilling", tokenUserId)
+          NSLog("INTENTIVE AUTH: Backfilling missing owner identity from validated token")
           guard await persistAuthenticatedOwner(tokenUserId, attempt: attempt) else {
             throw AuthError.notSignedIn
           }
@@ -2282,9 +2277,7 @@ class AuthService {
         } else if tokenUserId == expectedUserId {
           return token
         } else {
-          NSLog(
-            "INTENTIVE AUTH: Stored token user mismatch (token: %@, expected: %@) - clearing stale token",
-            tokenUserId, expectedUserId ?? "nil")
+          NSLog("INTENTIVE AUTH: Stored token owner mismatch - clearing stale token")
           _ = sessionAttemptFence.commitIfCurrent(attempt) {
             clearTokens()
           }
@@ -2323,7 +2316,7 @@ class AuthService {
       if expectedUserId == nil || user.uid == expectedUserId {
         if expectedUserId == nil {
           // Backfill the missing userId
-          NSLog("INTENTIVE AUTH: expectedUserId is nil, backfilling from Firebase SDK user %@", user.uid)
+          NSLog("INTENTIVE AUTH: Backfilling missing owner identity from Firebase SDK")
           guard await persistAuthenticatedOwner(user.uid, attempt: attempt) else {
             throw AuthError.notSignedIn
           }
@@ -2334,9 +2327,7 @@ class AuthService {
         }
         return tokenResult.token
       } else {
-        NSLog(
-          "INTENTIVE AUTH: Firebase SDK user mismatch (firebase: %@, expected: %@) - not using",
-          user.uid, expectedUserId ?? "nil")
+        NSLog("INTENTIVE AUTH: Firebase SDK owner mismatch - not using token")
       }
     }
 
@@ -2412,18 +2403,6 @@ class AuthService {
         let conversations = try await LocalAuthorityConversationDataSource().list(query: .all, offset: 0, limit: 10)
         log("Fetched \(conversations.count) conversations")
 
-        for (index, conversation) in conversations.prefix(5).enumerated() {
-          log(
-            "[\(index + 1)] \(conversation.structured.emoji) \(conversation.title) (\(conversation.formattedDuration))")
-          if !conversation.overview.isEmpty {
-            let preview = String(conversation.overview.prefix(100))
-            log("    Summary: \(preview)\(conversation.overview.count > 100 ? "..." : "")")
-          }
-        }
-
-        if conversations.count > 5 {
-          log("... and \(conversations.count - 5) more conversations")
-        }
       } catch {
         logError("Failed to fetch conversations", error: error)
       }
@@ -2653,8 +2632,7 @@ class AuthService {
     }
 
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("INTENTIVE AUTH: Firebase signInWithIdp error: %@", errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase signInWithIdp", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
@@ -2667,7 +2645,7 @@ class AuthService {
     do {
       tokens = try Self.decodeFirebaseTokenResult(from: data)
     } catch {
-      NSLog("INTENTIVE AUTH: Invalid signInWithIdp response: %@", String(data: data, encoding: .utf8) ?? "nil")
+      NSLog("%@", AuthLogPrivacy.responseParsingFailure("Firebase signInWithIdp", data))
       throw error
     }
 
