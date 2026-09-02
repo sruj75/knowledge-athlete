@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Omi Desktop Agent Coordinator Control Plane</title>
+  <title>Intentive Desktop Agent Coordinator Control Plane</title>
   <style>
     :root {
       --bg: #f6f7f9;
@@ -556,12 +556,12 @@
   <main class="shell">
     <section class="hero" id="top">
       <div>
-        <div class="eyebrow"><span class="dot"></span> Omi macOS desktop agent coordinator - code-grounded ramp doc</div>
+        <div class="eyebrow"><span class="dot"></span> Intentive macOS desktop agent coordinator - code-grounded ramp doc</div>
         <h1>What the new control plane does</h1>
         <p class="lead">
           This PR turns scattered desktop agent surfaces into a local coordinator control plane.
           The TypeScript runtime and <code>heyintentive-agent.sqlite3</code> are now the durable authority;
-          Swift, voice, task chat, Ask Omi, and automation read from and call into that authority.
+          Swift, voice, task chat, Ask Intentive, and automation read from and call into that authority.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="#old-new">Old vs new</a>
@@ -582,7 +582,7 @@
         <div class="mini-flow">
           <div class="mini-node">
             <strong>Surfaces ask</strong>
-            <span>Ask Omi, task chat, voice, automation, and future Agents & Attention send requests.</span>
+            <span>Ask Intentive, task chat, voice, automation, and future Agents & Attention send requests.</span>
           </div>
           <div class="mini-arrow">v</div>
           <div class="mini-node">
@@ -629,7 +629,7 @@
         </article>
         <article class="panel">
           <h3>Swift app</h3>
-          <p>Renders Ask Omi, task chat, voice, floating pill, and automation surfaces. It calls runtime tools and displays projections.</p>
+          <p>Renders Ask Intentive, task chat, voice, floating pill, and automation surfaces. It calls runtime tools and displays projections.</p>
           <div class="tag-row">
             <span class="tag">DesktopCoordinatorService</span>
             <span class="tag">AgentBridge</span>
@@ -682,7 +682,7 @@
           <p>Surfaces call control tools; the runtime persists the durable facts and derives the UI-facing views.</p>
           <div class="stack">
             <div class="stack-row">
-              <div class="label">Ask Omi</div>
+              <div class="label">Ask Intentive</div>
               <div class="box">Builds a <strong>DesktopContextPacket</strong> before calling the worker path.</div>
             </div>
             <div class="stack-row">
