@@ -97,9 +97,10 @@ build authority.
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
 The `(default)` Firestore database exists in `us-west1` with deny-all rules. Desktop app
 registration `com.heyintentive.intentive.dev` and its downloaded development plist are owned;
-Google and Apple providers are enabled for development. The Beta/Stable production-project boundary
-and the Apple Developer identifier/capability remain explicit provider steps. Never copy or edit
-inherited `based-hardware` credentials into an Intentive identity.
+Google and Apple providers are enabled for development. Stable and Beta registrations and plists
+are owned in the same approved MVP project. The Apple Developer identifier/capability remains an
+explicit provider step. Never copy or edit inherited `based-hardware` credentials into an Intentive
+identity.
 
 ## Module Layout (SwiftPM)
 
