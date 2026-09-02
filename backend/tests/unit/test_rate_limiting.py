@@ -56,13 +56,13 @@ def _rate_limit_stubs():
     redis_pkg.exceptions = redis_exceptions
 
     redis_db_stub = ModuleType("database.redis_db")
-    redis_db_stub._RATE_LIMIT_LUA = MagicMock(return_value=[1, 3600])
+    redis_db_stub._rate_limit_lua = MagicMock(return_value=[1, 3600])
     redis_db_stub.try_acquire_listen_lock = MagicMock(return_value=True)
 
     def _check_rate_limit(key, policy, max_requests, window):
         """Real Python logic from redis_db.check_rate_limit, with mockable Lua."""
         redis_key = f"rl:{policy}:{key}"
-        current, ttl = redis_db_stub._RATE_LIMIT_LUA(keys=[redis_key], args=[window])
+        current, ttl = redis_db_stub._rate_limit_lua(keys=[redis_key], args=[window])
         remaining = max(0, max_requests - current)
         allowed = current <= max_requests
         retry_after = max(0, ttl) if not allowed else 0
@@ -267,7 +267,7 @@ class TestCheckRateLimitBoundary(unittest.TestCase):
 
     def _call(self, current, ttl, max_requests=10, window=3600):
         """Call check_rate_limit with mocked Lua return."""
-        with patch.object(self.rdb, '_RATE_LIMIT_LUA', return_value=[current, ttl]):
+        with patch.object(self.rdb, '_rate_limit_lua', return_value=[current, ttl]):
             return self.rdb.check_rate_limit("uid1", "test:policy", max_requests, window)
 
     def test_under_limit_allowed(self):
@@ -302,7 +302,7 @@ class TestCheckRateLimitBoundary(unittest.TestCase):
 
     def test_key_namespacing(self):
         """Verify Redis key includes policy and key."""
-        with patch.object(self.rdb, '_RATE_LIMIT_LUA', return_value=[1, 3600]) as mock_lua:
+        with patch.object(self.rdb, '_rate_limit_lua', return_value=[1, 3600]) as mock_lua:
             self.rdb.check_rate_limit("user42", "chat:initial", 100, 3600)
             mock_lua.assert_called_once_with(keys=['rl:chat:initial:user42'], args=[3600])
 
@@ -475,7 +475,7 @@ class TestRealCheckRateLimit(unittest.TestCase):
     @classmethod
     def _rate_limit_lua_source(cls):
         # Matches by content rather than call order. These anchors are present in
-        # database/redis_db.py _RATE_LIMIT_LUA; update them if those Lua variables change.
+        # database/redis_db.py rate-limit Lua source; update these anchors if that source changes.
         for lua_source in cls.lua_sources:
             if 'local key = KEYS[1]' in lua_source and 'return {current, ttl}' in lua_source:
                 return lua_source

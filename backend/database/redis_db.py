@@ -124,14 +124,14 @@ if ttl < 0 then
 end
 return {current, ttl}
 """
-_RATE_LIMIT_LUA: Any | None = None
+_rate_limit_lua: Any | None = None
 
 
 def _rate_limit_script() -> Any:
-    global _RATE_LIMIT_LUA
-    if _RATE_LIMIT_LUA is None:
-        _RATE_LIMIT_LUA = get_redis_client().register_script(_RATE_LIMIT_LUA_SOURCE)
-    return _RATE_LIMIT_LUA
+    global _rate_limit_lua
+    if _rate_limit_lua is None:
+        _rate_limit_lua = get_redis_client().register_script(_RATE_LIMIT_LUA_SOURCE)
+    return _rate_limit_lua
 
 
 def check_rate_limit(key: str, policy: str, max_requests: int, window: int) -> tuple[bool, int, int]:
@@ -189,14 +189,14 @@ if new_daily == char_count then
 end
 return {0, 0}
 """
-_TTS_RATE_LIMIT_LUA: Any | None = None
+_tts_rate_limit_lua: Any | None = None
 
 
 def _tts_rate_limit_script() -> Any:
-    global _TTS_RATE_LIMIT_LUA
-    if _TTS_RATE_LIMIT_LUA is None:
-        _TTS_RATE_LIMIT_LUA = get_redis_client().register_script(_TTS_RATE_LIMIT_LUA_SOURCE)
-    return _TTS_RATE_LIMIT_LUA
+    global _tts_rate_limit_lua
+    if _tts_rate_limit_lua is None:
+        _tts_rate_limit_lua = get_redis_client().register_script(_TTS_RATE_LIMIT_LUA_SOURCE)
+    return _tts_rate_limit_lua
 
 
 def _seconds_until_midnight_utc() -> int:

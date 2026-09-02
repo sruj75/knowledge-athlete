@@ -6,7 +6,6 @@ import os
 import re
 from collections.abc import AsyncIterator, Mapping
 from datetime import datetime, timezone
-from typing import Any
 from uuid import uuid4
 
 import httpx
@@ -151,11 +150,20 @@ async def _resolve_runtime_system_prompt(payload: dict[str, object]) -> Resolved
 def _usage_values(usage: Mapping[str, object] | None) -> tuple[int, int, int, int]:
     if usage is None:
         return 0, 0, 0, 0
-    prompt_tokens = int(usage.get('promptTokenCount') or 0)
-    cached_tokens = int(usage.get('cachedContentTokenCount') or 0)
-    candidate_tokens = int(usage.get('candidatesTokenCount') or 0)
-    thought_tokens = int(usage.get('thoughtsTokenCount') or 0)
+    prompt_tokens = _usage_int(usage.get('promptTokenCount'))
+    cached_tokens = _usage_int(usage.get('cachedContentTokenCount'))
+    candidate_tokens = _usage_int(usage.get('candidatesTokenCount'))
+    thought_tokens = _usage_int(usage.get('thoughtsTokenCount'))
     return max(0, prompt_tokens - cached_tokens), candidate_tokens + thought_tokens, cached_tokens, 0
+
+
+def _usage_int(value: object) -> int:
+    if not isinstance(value, (int, float, str)):
+        return 0
+    try:
+        return int(value)
+    except ValueError:
+        return 0
 
 
 async def _record_usage(uid: str, usage: Mapping[str, object]) -> None:

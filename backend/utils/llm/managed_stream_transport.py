@@ -4,23 +4,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import suppress
+from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass
 import os
 import time
-from typing import Any, Protocol
+from typing import Any
 
 import httpx
 
 from utils.retrieval.safety import should_retry_provider_error
 
 MANAGED_STREAM_HEARTBEAT = object()
-
-
-class _ResponseStream(Protocol):
-    async def __aenter__(self) -> httpx.Response: ...
-
-    async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -49,7 +43,7 @@ class ManagedStreamPolicy:
 
 
 async def stream_managed_response_bytes(
-    open_stream: Callable[[], _ResponseStream],
+    open_stream: Callable[[], AbstractAsyncContextManager[httpx.Response]],
     *,
     policy: ManagedStreamPolicy | None = None,
     _monotonic: Callable[[], float] = time.monotonic,
@@ -65,7 +59,7 @@ async def stream_managed_response_bytes(
     while True:
         attempt += 1
         first_event_deadline = min(turn_deadline, _monotonic() + active_policy.first_event_timeout_seconds)
-        manager: _ResponseStream | None = None
+        manager: AbstractAsyncContextManager[httpx.Response] | None = None
         opened = False
         pending: asyncio.Task[Any] | None = None
         saw_bytes = False
@@ -84,8 +78,10 @@ async def stream_managed_response_bytes(
                 if remaining <= 0:
                     raise TimeoutError('managed provider stream exceeded its turn deadline')
                 if pending is None:
-                    pending = asyncio.create_task(iterator.__anext__())
-                silent_limit = active_policy.progress_heartbeat_seconds if saw_bytes else first_event_deadline - _monotonic()
+                    pending = asyncio.create_task(_next_chunk(iterator))
+                silent_limit = (
+                    active_policy.progress_heartbeat_seconds if saw_bytes else first_event_deadline - _monotonic()
+                )
                 if silent_limit <= 0:
                     raise TimeoutError('managed provider stream produced no first byte before its deadline')
                 done, _ = await _wait({pending}, timeout=min(silent_limit, remaining))
@@ -116,8 +112,10 @@ async def stream_managed_response_bytes(
             if opened and manager is not None:
                 opened = False
                 await _close_stream(manager, exc, active_policy.cancel_grace_seconds)
-            if isinstance(exc, Exception) and not saw_bytes and _can_retry(
-                exc, attempt, turn_deadline, active_policy, _monotonic
+            if (
+                isinstance(exc, Exception)
+                and not saw_bytes
+                and _can_retry(exc, attempt, turn_deadline, active_policy, _monotonic)
             ):
                 has_retry_headroom = await _sleep_before_retry(
                     active_policy.provider_retry_backoff_seconds,
@@ -176,7 +174,13 @@ async def _cancel_pending(pending: asyncio.Task[Any] | None) -> None:
         await pending
 
 
-async def _close_stream(manager: _ResponseStream, error: BaseException | None, grace_seconds: float) -> None:
+async def _next_chunk(iterator: AsyncIterator[bytes]) -> bytes:
+    return await anext(iterator)
+
+
+async def _close_stream(
+    manager: AbstractAsyncContextManager[httpx.Response], error: BaseException | None, grace_seconds: float
+) -> None:
     async def close() -> None:
         if error is None:
             await manager.__aexit__(None, None, None)

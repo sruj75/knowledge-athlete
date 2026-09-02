@@ -341,7 +341,10 @@ def stub_gemini_proxy_json(body_text: str) -> dict[str, object]:
 
 def _native_gemini_stub_body(body: Mapping[str, object]) -> dict[str, object]:
     messages: list[dict[str, object]] = []
-    for content in body.get('contents', []) if isinstance(body.get('contents'), list) else []:
+    contents = body.get('contents')
+    if not isinstance(contents, list):
+        contents = []
+    for content in contents:
         if not isinstance(content, Mapping):
             continue
         parts = content.get('parts')
@@ -377,18 +380,21 @@ def _native_gemini_stub_body(body: Mapping[str, object]) -> dict[str, object]:
                 name = function_response['name']
                 response = function_response.get('response')
                 if isinstance(response, Mapping):
-                    result = response.get('output', response.get('error', ''))
+                    tool_result = response.get('output', response.get('error', ''))
                 else:
-                    result = response
+                    tool_result = response
                 messages.append(
                     {
                         'role': 'tool',
                         'tool_call_id': f'call_omi_stub_{name}',
-                        'content': str(result or ''),
+                        'content': str(tool_result or ''),
                     }
                 )
     tools: list[dict[str, object]] = []
-    for group in body.get('tools', []) if isinstance(body.get('tools'), list) else []:
+    tool_groups = body.get('tools')
+    if not isinstance(tool_groups, list):
+        tool_groups = []
+    for group in tool_groups:
         declarations = group.get('functionDeclarations') if isinstance(group, Mapping) else None
         if not isinstance(declarations, list):
             continue
