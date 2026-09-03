@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../scripts/source-provenance.sh
 source "$SCRIPT_DIR/../scripts/source-provenance.sh"
 
+# Git exports repository-local environment variables to hooks. This fixture
+# creates an independent repository, so clear the complete Git-owned set before
+# its first command; otherwise `git -C` can still target the caller's worktree.
+while IFS= read -r variable; do
+  unset "$variable"
+done < <(git rev-parse --local-env-vars)
+
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/intentive-source-provenance.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
