@@ -412,6 +412,7 @@ def test_check_validates_the_owned_active_mode_instead_of_ambient_credentials(
         {"processes": [{"service": "backend", "pid": os.getpid(), "ownership_marker": marker}]},
     )
     monkeypatch.setattr(safety, "command_line_for_pid", lambda _pid: f"pytest {marker}")
+    monkeypatch.setattr(cli, "prerequisite_report", lambda _cfg, _report=None: ([], []))
 
     assert cli.cmd_check(SimpleNamespace()) == 0
     output = capsys.readouterr().out
