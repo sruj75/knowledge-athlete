@@ -65,11 +65,30 @@ def _process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
     return records if isinstance(records, list) else []
 
 
+def _owned_live_process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
+    owned: list[dict[str, object]] = []
+    for record in _process_records(cfg):
+        try:
+            service = str(record.get("service", ""))
+            pid = int(record.get("pid", -1))
+            marker = str(record.get("ownership_marker", ""))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        expected_marker = f"{OWNERSHIP_PREFIX}:{cfg.instance}:{service}"
+        if not service or (marker != expected_marker and not marker.startswith(f"{expected_marker}:")):
+            continue
+        try:
+            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+        except safety.SafetyError:
+            continue
+        owned.append(record)
+    return owned
+
+
 def active_runtime_config(
     requested: config.HarnessConfig,
 ) -> tuple[config.HarnessConfig, str | None]:
-    records = _process_records(requested)
-    if not any(safety.process_exists(int(record.get("pid", -1))) for record in records):
+    if not _owned_live_process_records(requested):
         return requested, None
     digest = _load_json(requested.layout.config_digest_path, {})
     active_mode = digest.get("provider_mode")

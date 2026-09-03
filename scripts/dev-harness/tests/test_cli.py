@@ -226,7 +226,7 @@ def test_status_reports_synthetic_profiles_and_summary_path(tmp_path: Path) -> N
     assert "PROVIDER_MODE=offline active" in result.stdout
 
 
-def test_status_prefers_live_stack_provider_mode_over_ambient_request(
+def test_status_ignores_foreign_live_pid_when_selecting_active_provider_mode(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("PROVIDER_MODE", "real")
@@ -237,6 +237,26 @@ def test_status_prefers_live_stack_provider_mode_over_ambient_request(
         requested.layout.process_manifest,
         {"processes": [{"service": "backend", "pid": os.getpid()}]},
     )
+
+    active, requested_provider_mode = cli.active_runtime_config(requested)
+
+    assert active.provider_mode == "real"
+    assert requested_provider_mode is None
+
+
+def test_status_prefers_owned_live_stack_provider_mode_over_ambient_request(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "real")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    marker = cli._marker(requested, "backend")
+    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "offline"})
+    cli._write_json(
+        requested.layout.process_manifest,
+        {"processes": [{"service": "backend", "pid": os.getpid(), "ownership_marker": marker}]},
+    )
+    monkeypatch.setattr(safety, "command_line_for_pid", lambda _pid: f"pytest {marker}")
 
     active, requested_provider_mode = cli.active_runtime_config(requested)
 
