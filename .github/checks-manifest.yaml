@@ -26,9 +26,19 @@ checks:
     reason: "a disposable source and authenticated capability fakes prove the real readiness orchestrator emits its exact-SHA receipt only after ordered cleanup"
   - id: gauntlet-evidence-at-head-tests
     command: ["bash", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh"]
-    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/omi-hardening-smoke.sh", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "PR #46 carried stale-SHA Tier-2 evidence; the bounded pre-push audience must reject missing, partial-suite, missing-row, short, stale, malformed, red, or secret-bearing gauntlet manifests"
+  - id: agent-continuity-gauntlet-self-check
+    command: ["python3", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "--self-check"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 final review found authenticated health returning a state envelope while the gauntlet expected public launch provenance; the live driver must exercise its parser and immutable-source contract in deterministic lanes"
+  - id: agent-continuity-gauntlet-source-provenance-test
+    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 final review found the gauntlet requesting authenticated state while asserting unauthenticated launch provenance; the production ensure-bridge path must select the public health contract"
   - id: verify-pre-tag-readiness-tests
     command: ["python3", ".github/scripts/test_verify_pre_tag_readiness.py"]
     triggers: [".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/checks-manifest.yaml"]
@@ -381,7 +391,7 @@ checks:
     reason: "PR #46 carried stale-SHA acceptance evidence; named app bundles must stamp the full source SHA and tracked-tree state before signing"
   - id: desktop-evidence-provenance
     command: ["bash", "desktop/macos/tests/test-fault-suite-launch-env.sh"]
-    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/desktop-core-harness.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", "desktop/macos/tests/test-fault-suite-launch-env.sh", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/desktop-core-harness.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", "desktop/macos/tests/test-fault-suite-launch-env.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     platforms: ["macos"]
     reason: "PR #46 carried stale-SHA acceptance evidence; green T1+ and fault manifests must prove the exact clean running bundle instead of relabelling repository HEAD"

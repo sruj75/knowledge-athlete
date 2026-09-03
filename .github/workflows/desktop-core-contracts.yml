@@ -5,10 +5,12 @@ on:
     paths:
       - ".github/workflows/desktop-core-contracts.yml"
       - "desktop/macos/scripts/desktop-core-harness.sh"
+      - "desktop/macos/scripts/agent-continuity-gauntlet-lib.py"
       - "desktop/macos/scripts/desktop-flow-lint.py"
       - "desktop/macos/scripts/desktop_flow_contract.py"
       - "desktop/macos/e2e/**"
       - "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift"
+      - "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift"
       - "desktop/macos/Desktop/Sources/DesktopAutomationOpenOmiShortcutQA.swift"
       - "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift"
       - "desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift"

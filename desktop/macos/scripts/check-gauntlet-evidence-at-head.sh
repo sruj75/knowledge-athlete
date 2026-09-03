@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DESKTOP_DIR/../.." && pwd)"
 HARNESS_ROOT="$DESKTOP_DIR/.harness/agent-continuity-gauntlet"
+EVIDENCE_SCANNER="$SCRIPT_DIR/omi-hardening-smoke.sh"
 
 cd "$REPO_ROOT"
 HEAD_SHA="$(git rev-parse HEAD)"
@@ -39,12 +40,16 @@ if [[ ! -d "$HARNESS_ROOT" ]]; then
   exit 0
 fi
 
+if [[ ! -x "$EVIDENCE_SCANNER" ]]; then
+  echo "WARN: gauntlet evidence scanner is missing or not executable: $EVIDENCE_SCANNER" >&2
+  exit 1
+fi
+
 FOUND=false
 for manifest in "$HARNESS_ROOT"/*/manifest.json; do
   [[ -f "$manifest" ]] || continue
   if python3 - "$manifest" "$HEAD_SHA" "$BRANCH" <<'PY'
 import json
-from pathlib import Path
 import re
 import sys
 
@@ -60,6 +65,10 @@ if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
     raise SystemExit(1)
 if data.get("git") != head_sha:
     raise SystemExit(1)
+if data.get("source_git_sha") != data.get("git"):
+    raise SystemExit(1)
+if data.get("source_tree_dirty") is not False:
+    raise SystemExit(1)
 if data.get("passed") is not True:
     raise SystemExit(1)
 if not isinstance(data.get("suites"), list) or not data["suites"]:
@@ -67,6 +76,9 @@ if not isinstance(data.get("suites"), list) or not data["suites"]:
 if not isinstance(data.get("steps"), list) or not data["steps"]:
     raise SystemExit(1)
 if not all(isinstance(step, dict) and step.get("id") and step.get("name") for step in data["steps"]):
+    raise SystemExit(1)
+forbidden_manifest_fields = {"user_text", "assistant_text", "identity", "trace_ids"}
+if any(forbidden_manifest_fields.intersection(step) for step in data["steps"] if isinstance(step, dict)):
     raise SystemExit(1)
 
 # S-31 is the final all-waves closure lane. A manifest from a smaller live
@@ -110,24 +122,12 @@ if data.get("failures") != []:
 if not isinstance(data.get("started_at"), str) or not isinstance(data.get("finished_at"), str):
     raise SystemExit(1)
 
-secret_patterns = (
-    r"(?i)authorization\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]{8,}",
-    r"\bAIza[0-9A-Za-z_-]{20,}\b",
-    r"\bsk-[0-9A-Za-z_-]{20,}\b",
-)
-for artifact in Path(manifest_path).parent.rglob("*"):
-    if not artifact.is_file():
-        continue
-    try:
-        artifact_text = artifact.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        continue
-    if any(re.search(pattern, artifact_text) for pattern in secret_patterns):
-        raise SystemExit(1)
 PY
   then
-    FOUND=true
-    break
+    if "$EVIDENCE_SCANNER" scan "$(dirname "$manifest")"; then
+      FOUND=true
+      break
+    fi
   fi
 done
 

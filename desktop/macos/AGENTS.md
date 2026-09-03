@@ -326,9 +326,10 @@ Fast path (skips web login and sidebar click-through):
 4. **QA, commit, and PR readiness:** run `./scripts/omi-macos-dev doctor`, exercise the real user-facing path, then run the appropriate full component/PR contract.
 
 Every `run.sh` package stamps its full source Git SHA and tracked-tree dirty
-state into the signed bundle. Desktop Core T1+ and fault evidence accepts a
-green manifest only when `/health` reports that the running named bundle came
-from the current clean full SHA; rebuilding is required after a source commit.
+state into the signed bundle. Desktop Core T1+, fault, and continuity evidence
+accept green only when public `/health` proves the running named bundle came
+from the current clean full SHA. A live local stack is reusable only when its
+recorded complete launch contract still matches; otherwise run `make dev-down`.
 
 `omi-macos-dev` defaults to bounded JSON summaries so an agent can safely inspect a busy machine. Pass `--verbose` to the specific command for path-level records (for example, `clean plan --verbose`); cleanup always requires the exact current plan hash. The normal 14-day retention window can be deliberately bypassed with `--older-than 0` only when the operator has explicitly approved immediate cleanup.
 

@@ -9,7 +9,10 @@ trap 'rm -rf "$TEST_ROOT"' EXIT
 REPO="$TEST_ROOT/repo"
 mkdir -p "$REPO/desktop/macos/scripts"
 cp "$CHECKER" "$REPO/desktop/macos/scripts/check-gauntlet-evidence-at-head.sh"
+cp "$SCRIPT_DIR/../scripts/omi-hardening-smoke.sh" "$REPO/desktop/macos/scripts/omi-hardening-smoke.sh"
+cp "$SCRIPT_DIR/../scripts/automation-token-path.sh" "$REPO/desktop/macos/scripts/automation-token-path.sh"
 chmod +x "$REPO/desktop/macos/scripts/check-gauntlet-evidence-at-head.sh"
+chmod +x "$REPO/desktop/macos/scripts/omi-hardening-smoke.sh"
 
 git -C "$REPO" init -q
 git -C "$REPO" config user.email test@example.com
@@ -26,14 +29,15 @@ write_manifest() {
   local passed="$2"
   local steps_json="$3"
   local failures_json="$4"
-  local assistant_text="${5:-safe synthetic marker}"
-  local suites_json="${6:-[\"agents\",\"continuity\",\"owner\",\"prompts\",\"resilience\"]}"
+  local suites_json="${5:-[\"agents\",\"continuity\",\"owner\",\"prompts\",\"resilience\"]}"
+  local source_sha="${6:-$sha}"
+  local source_dirty="${7:-false}"
   mkdir -p "$(dirname "$EVIDENCE")"
-  python3 - "$EVIDENCE" "$sha" "$passed" "$steps_json" "$failures_json" "$assistant_text" "$suites_json" <<'PY'
+  python3 - "$EVIDENCE" "$sha" "$passed" "$steps_json" "$failures_json" "$suites_json" "$source_sha" "$source_dirty" <<'PY'
 import json
 import sys
 
-path, sha, passed, steps, failures, assistant_text, suites = sys.argv[1:]
+path, sha, passed, steps, failures, suites, source_sha, source_dirty = sys.argv[1:]
 payload = {
     "run_id": "fixture",
     "started_at": "2026-09-03T00:00:00+00:00",
@@ -43,7 +47,8 @@ payload = {
     "steps": json.loads(steps),
     "failures": json.loads(failures),
     "passed": passed == "true",
-    "assistant_text": assistant_text,
+    "source_git_sha": source_sha,
+    "source_tree_dirty": source_dirty == "true",
 }
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(payload, handle)
@@ -106,8 +111,27 @@ VALID_STEPS='[
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
 expect_pass "green evidence at the full HEAD SHA" "$CHECK" block
 
-write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' 'safe synthetic marker' '["continuity"]'
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' '["continuity"]'
 expect_fail "partial suite evidence on S-31" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' '["agents","continuity","owner","prompts","resilience"]' "$(printf 'b%.0s' {1..40})"
+expect_fail "running bundle source differs from manifest git" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' '["agents","continuity","owner","prompts","resilience"]' "$FULL_SHA" true
+expect_fail "running bundle source is dirty" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+python3 - "$EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload.pop("source_git_sha")
+path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+expect_fail "missing running bundle source provenance" "$CHECK" block
 
 MISSING_ROW_STEPS="$(python3 -c 'import json,sys; rows=json.loads(sys.argv[1]); print(json.dumps(rows[:-1]))' "$VALID_STEPS")"
 write_manifest "$FULL_SHA" true "$MISSING_ROW_STEPS" '[]'
@@ -128,8 +152,30 @@ expect_fail "red evidence row" "$CHECK" block
 printf '{ malformed\n' >"$EVIDENCE"
 expect_fail "malformed evidence" "$CHECK" block
 
-write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' 'Authorization: Bearer secret-fixture'
-expect_fail "secret-bearing evidence" "$CHECK" block
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+python3 - "$EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["steps"][0]["assistant_text"] = "raw assistant content"
+path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+expect_fail "raw content or identity fields in manifest" "$CHECK" block
+
+for planted_secret in \
+  'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1Njc4OTAxMjM0NTY3ODkwIn0' \
+  'omi_mcp_abcdef12345678' \
+  'heyintentive_auto_abcdef1234567890abcd' \
+  'AMf-abcdefghijklmnopqrstuv' \
+  'refreshToken: abcdefghijklmnopqrstu/+123'; do
+  write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+  printf 'leaked %s end\n' "$planted_secret" >"$(dirname "$EVIDENCE")/response.txt"
+  expect_fail "shared detector rejects planted credential" "$CHECK" block
+  rm -f "$(dirname "$EVIDENCE")/response.txt"
+done
 
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
 printf 'Authorization: Bearer sibling-secret-fixture\n' >"$(dirname "$EVIDENCE")/response.txt"

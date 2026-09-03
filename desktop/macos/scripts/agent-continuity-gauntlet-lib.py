@@ -233,6 +233,11 @@ def bridge_source_provenance_error(health: dict[str, Any], expected_git_sha: str
     return None
 
 
+def bridge_launch_health(port: int) -> dict[str, Any]:
+    """Read immutable launch provenance from the bridge's public health shape."""
+    return bridge_request(port, "GET", "/health", authenticate=False)
+
+
 def resolve_active_log_path(port: int, explicit_path: str | None) -> str:
     if explicit_path:
         return explicit_path
@@ -1312,7 +1317,7 @@ class GauntletRunner:
         return terminal_reason
 
     def ensure_bridge(self) -> None:
-        health = bridge_request(self.port, "GET", "/health")
+        health = bridge_launch_health(self.port)
         if not health.get("ok"):
             raise SystemExit(f"automation bridge unavailable on port {self.port}: {health.get('error', health)}")
         expected_git_sha = git_sha()
@@ -3576,7 +3581,11 @@ class GauntletRunner:
         if "resilience" in self.suites:
             manifest["resilience_terminal_reason_counts"] = dict(sorted(self.resilience_terminal_reason_counts.items()))
             manifest["resilience_forbidden_terminal_reasons"] = sorted(RESILIENCE_FORBIDDEN_TERMINAL_REASONS)
-        manifest["steps"] = self.steps
+        # The final evidence index proves which rows ran without persisting
+        # prompts, replies, owner/conversation identities, or trace identifiers.
+        # Detailed synthetic diagnostics stay in the access-controlled run
+        # directory and are not part of the closure manifest contract.
+        manifest["steps"] = [{"id": step["id"], "name": step["name"]} for step in self.steps]
         manifest["failures"] = self.failures
         manifest["warnings"] = self.warnings
         manifest["passed"] = not self.failures
