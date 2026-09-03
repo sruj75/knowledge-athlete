@@ -136,26 +136,26 @@ final class PushToTalkStateMachineTests: XCTestCase {
   }
 
   @MainActor
-  func testHeadlessAutomationRunsRealLifecycleWithoutMicrophonePermission() {
+  func testHeadlessAutomationRunsRealLifecycleWithoutMicrophonePermission() async {
     let manager = PushToTalkManager.shared
-    let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
+    let hub = RealtimeHubController.shared
+    let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
     let previousAutomationOwner = UserDefaults.standard.object(forKey: .automationOwnerOverride)
     manager.cleanup()
-    UserDefaults.standard.set("ptt-headless-owner", forKey: .authUserId)
     UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
-    defer {
+    addTeardownBlock { @MainActor in
       manager.cleanup()
-      if let previousAuthOwner {
-        UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-      } else {
-        UserDefaults.standard.removeObject(forKey: .authUserId)
-      }
+      await self.transitionOwner(defaults: .standard, to: previousAuthOwner)
       if let previousAutomationOwner {
         UserDefaults.standard.set(previousAutomationOwner, forKey: .automationOwnerOverride)
       } else {
         UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
       }
+      XCTAssertFalse(
+        hub.ownerBoundarySnapshot.hasPendingOwnerWork,
+        "a hermetic PTT test must drain singleton transport work before returning")
     }
+    await transitionOwner(defaults: .standard, to: "ptt-headless-owner")
 
     let started = manager.beginPushToTalkForAutomation()
     XCTAssertEqual(started["listening"], "true")
@@ -187,22 +187,21 @@ final class PushToTalkStateMachineTests: XCTestCase {
     }
 
     @MainActor
-    func testLiveFailureWhileHoldingKeepsPreAndPostFailureAudioInOneBuffer() throws {
+    func testLiveFailureWhileHoldingKeepsPreAndPostFailureAudioInOneBuffer() async throws {
       let manager = PushToTalkManager.shared
       let hub = RealtimeHubController.shared
-      let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
+      let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
       manager.cleanup()
-      UserDefaults.standard.set("ptt-live-fallback-owner", forKey: .authUserId)
+      addTeardownBlock { @MainActor in
+        manager.cleanup()
+        await self.transitionOwner(defaults: .standard, to: previousAuthOwner)
+        XCTAssertFalse(
+          hub.ownerBoundarySnapshot.hasPendingOwnerWork,
+          "a hermetic PTT test must drain singleton transport work before returning")
+      }
+      await transitionOwner(defaults: .standard, to: "ptt-live-fallback-owner")
       hub.installOwnerBoundaryFixture(ownerID: "ptt-live-fallback-owner")
       hub.pendingSessionRefreshReason = nil
-      defer {
-        manager.cleanup()
-        if let previousAuthOwner {
-          UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-        } else {
-          UserDefaults.standard.removeObject(forKey: .authUserId)
-        }
-      }
 
       XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
       XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(Data(repeating: 1, count: 3_200)))
@@ -217,23 +216,22 @@ final class PushToTalkStateMachineTests: XCTestCase {
     }
 
     @MainActor
-    func testAcceptedHubCommitKeepsFullPCMAvailableForPostReleaseRecovery() throws {
+    func testAcceptedHubCommitKeepsFullPCMAvailableForPostReleaseRecovery() async throws {
       let manager = PushToTalkManager.shared
       let hub = RealtimeHubController.shared
-      let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
+      let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
       manager.cleanup()
-      UserDefaults.standard.set("ptt-post-release-fallback-owner", forKey: .authUserId)
-      hub.installOwnerBoundaryFixture(ownerID: "ptt-post-release-fallback-owner", readyForInput: true)
-      hub.pendingSessionRefreshReason = nil
-      defer {
+      addTeardownBlock { @MainActor in
         hub.testingLocalProfileTransportAuthorized = nil
         manager.cleanup()
-        if let previousAuthOwner {
-          UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-        } else {
-          UserDefaults.standard.removeObject(forKey: .authUserId)
-        }
+        await self.transitionOwner(defaults: .standard, to: previousAuthOwner)
+        XCTAssertFalse(
+          hub.ownerBoundarySnapshot.hasPendingOwnerWork,
+          "a hermetic PTT test must drain singleton transport work before returning")
       }
+      await transitionOwner(defaults: .standard, to: "ptt-post-release-fallback-owner")
+      hub.installOwnerBoundaryFixture(ownerID: "ptt-post-release-fallback-owner", readyForInput: true)
+      hub.pendingSessionRefreshReason = nil
 
       var samples: [Int16] = []
       samples.reserveCapacity(6_400)
@@ -427,7 +425,7 @@ final class PushToTalkStateMachineTests: XCTestCase {
     }
 
     @MainActor
-    private func transitionOwner(defaults: UserDefaults, to ownerID: String) async {
+    private func transitionOwner(defaults: UserDefaults, to ownerID: String?) async {
       // `UserDefaults` is non-Sendable and cannot cross from the main actor into
       // the nonisolated `performEffectiveOwnerTransition` boundary under Swift 6.
       // Box it (mirroring the production `RuntimeOwnerDefaultsReference`) and run
@@ -442,7 +440,7 @@ final class PushToTalkStateMachineTests: XCTestCase {
     }
 
     private static nonisolated func runOwnerTransition(
-      boxed: OwnerDefaultsBox, ownerID: String
+      boxed: OwnerDefaultsBox, ownerID: String?
     ) async throws {
       try await RuntimeOwnerIdentity.performEffectiveOwnerTransition(
         defaults: boxed.value,
@@ -452,7 +450,11 @@ final class PushToTalkStateMachineTests: XCTestCase {
         prepareLocalStorageTransition: { _, _ in },
         ownerDidChange: {}
       ) { defaults in
-        defaults.set(ownerID, forKey: .authUserId)
+        if let ownerID {
+          defaults.set(ownerID, forKey: .authUserId)
+        } else {
+          defaults.removeObject(forKey: .authUserId)
+        }
       }
     }
 
