@@ -68,7 +68,8 @@ runs:
           echo "has_desktop_auth_session_ratchet=$has_desktop_auth_session_ratchet"
         } >> "$GITHUB_OUTPUT"
 
-        if [ "$has_python" = "true" ]; then
+        has_formatter_contract=$(echo "$FILES" | grep -qE '^\.pre-commit-config\.yaml$|^backend/\.black-version$|^backend/scripts/black-wrapper\.sh$|^backend/test-preflight\.sh$|^scripts/(pre-commit|pre-push|install-git-hooks\.sh|test-pre-commit-formatters\.sh)$|^\.github/scripts/run-lint\.sh$|^\.github/workflows/repo-checks\.yml$|^\.github/actions/detect-changes/action\.yml$' && echo true || echo false)
+        if [ "$has_python" = "true" ] || [ "$has_formatter_contract" = "true" ]; then
           echo "has_format=true" >> "$GITHUB_OUTPUT"
         else
           echo "has_format=false" >> "$GITHUB_OUTPUT"

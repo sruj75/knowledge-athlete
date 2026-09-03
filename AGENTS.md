@@ -95,7 +95,7 @@ The pre-commit hook (installed by `make setup`) auto-formats staged files. Verif
 
 | Language | Manual command |
 |----------|----------------|
-| Python (`backend/`) | `black --line-length 120 --skip-string-normalization <files>` |
+| Python (`backend/`) | `backend/scripts/black-wrapper.sh --line-length 120 --skip-string-normalization <files>` |
 | Swift (`desktop/macos/Desktop/`) | `desktop/macos/scripts/swift-format-wrapper.sh format -i <files>` |
 
 Swift files under `Desktop/Sources/Generated/` are excluded from the formatter scope.

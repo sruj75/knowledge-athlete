@@ -43,6 +43,7 @@ HOOK
 }
 
 chmod +x \
+  "$ROOT/backend/scripts/black-wrapper.sh" \
   "$ROOT/scripts/changed-files" \
   "$ROOT/scripts/pre-commit" \
   "$ROOT/scripts/pre-push" \

@@ -9,6 +9,11 @@ checks:
     triggers: ["Makefile", "scripts/dev-harness/**", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the hermetic dev-harness stack backs release qualification; its reduced retained-service lifecycle must stay behaviorally covered"
+  - id: dev-init-setup-ownership
+    command: ["bash", "scripts/dev-harness/test-dev-init.sh"]
+    triggers: ["Makefile", "scripts/dev-harness/dev-init.sh", "scripts/dev-harness/_resolve_python.sh", "scripts/dev-harness/test-dev-init.sh", "backend/scripts/sync-python-deps.sh", "scripts/install-git-hooks.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 audit at d882065f found dev-init maintaining an unlocked Python environment and one incomplete Git hook beside make setup; the developer bootstrap must have one owner"
   - id: pre-tag-readiness-contract
     command: ["bash", "desktop/macos/tests/test-pre-tag-readiness-contract.sh"]
     triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test-pre-tag-readiness-contract.sh", "scripts/dev-harness/_resolve_python.sh", ".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/workflows/desktop_auto_release.yml", ".github/checks-manifest.yaml"]
@@ -44,9 +49,14 @@ checks:
     triggers: ["scripts/pre-push", ".github/scripts/check_pre_push_hatch_disclosure.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the retained workflow-lint gate can fail when actionlint and Go are unavailable; every missing-toolchain failure must name PRE_PUSH_SKIP_ACTIONLINT so contributors can distinguish an unprovisioned machine from a repository defect"
+  - id: pre-commit-formatter-ownership
+    command: ["bash", "scripts/test-pre-commit-formatters.sh"]
+    triggers: [".pre-commit-config.yaml", "backend/.black-version", "backend/scripts/black-wrapper.sh", "backend/test-preflight.sh", "scripts/pre-commit", "scripts/pre-push", "scripts/install-git-hooks.sh", "scripts/test-pre-commit-formatters.sh", ".github/scripts/run-lint.sh", ".github/workflows/repo-checks.yml", ".github/actions/detect-changes/action.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "S-31 commit b229d599 exposed local Black 24.8 formatting differently from CI Black 26.5.1 while pre-commit ignored formatter failures; every commit and CI must use one checked-in version owner"
   - id: setup-pre-push-prerequisites
     command: ["bash", "scripts/test-make-setup.sh"]
-    triggers: ["Makefile", "backend/scripts/sync-python-deps.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
+    triggers: ["Makefile", "backend/scripts/sync-python-deps.sh", "scripts/dev-harness/dev-init.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "make setup must provision the minimal, rerunnable backend environment required by selected pre-push checks"
   - id: desktop-release-process-guards

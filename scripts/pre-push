@@ -213,10 +213,9 @@ check_pr_preflight() {
   fi
 }
 
-check_optional_formatters() {
+check_python_formatting() {
   local -a python_files=()
   local file
-  local -a black_cmd=()
 
   for file in "${CHANGED_FILES[@]}"; do
     [ -f "$file" ] || continue
@@ -228,20 +227,9 @@ check_optional_formatters() {
   done
 
   if [ "${#python_files[@]}" -gt 0 ]; then
-    if command -v black >/dev/null 2>&1; then
-      black_cmd=(black)
-    elif "$PYTHON_BIN" -m black --version >/dev/null 2>&1; then
-      black_cmd=("$PYTHON_BIN" -m black)
-    fi
-
-    if [ "${#black_cmd[@]}" -gt 0 ]; then
-      echo "==> black --check (${#python_files[@]} file(s))"
-      "${black_cmd[@]}" --check --line-length 120 --skip-string-normalization "${python_files[@]}"
-    else
-      echo "Skipping Python format check; black is not installed."
-    fi
+    echo "==> repository-pinned Black --check (${#python_files[@]} file(s))"
+    backend/scripts/black-wrapper.sh --check --line-length 120 --skip-string-normalization "${python_files[@]}"
   fi
-
 }
 
 check_desktop_flow_lint_if_needed() {
@@ -619,7 +607,7 @@ run_step check_desktop_swift_if_needed
 run_step check_desktop_launcher_tests_if_needed
 run_step check_desktop_tool_surfaces_if_needed
 run_step check_gauntlet_evidence_if_needed
-run_step check_optional_formatters
+run_step check_python_formatting
 
 print_ci_prediction_summary
 echo "Bounded pre-push gate passed; CI remains the full test authority."

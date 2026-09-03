@@ -69,10 +69,10 @@ else
   bad "pyright not installed (${PYTHON_BIN:-python} -m pip install pyright)"
 fi
 
-if command -v black &>/dev/null; then
-  ok "black (formatter)"
+if scripts/black-wrapper.sh --version &>/dev/null; then
+  ok "repository-pinned black $(scripts/black-wrapper.sh --version 2>&1 | head -n 1 | awk '{print $2}')"
 else
-  skip "black not installed — pre-commit hook will fail (pip install black)"
+  bad "repository-pinned black unavailable (run make setup)"
 fi
 
 # ── Python packages ──
