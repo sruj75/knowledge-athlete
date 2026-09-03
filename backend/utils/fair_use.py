@@ -21,7 +21,6 @@ from models.users import PlanType
 from utils.subscription import has_transcription_credits, is_paid_plan
 from utils.executors import db_executor, run_blocking
 
-
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
