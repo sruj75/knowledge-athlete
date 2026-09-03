@@ -37,6 +37,13 @@ jobs:
         with:
           python-version-file: backend/.python-version
 
+      - name: Set up Node.js for manifest-selected agent checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/macos/agent/package-lock.json
+
       # The preflight can select uv-backed checks (e.g. backend-route-policy-baseline
       # runs the OpenAPI runner) whenever a PR touches backend routes, so this job
       # needs uv just like the sibling Hygiene job.
@@ -101,6 +108,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version-file: backend/.python-version
+
+      - name: Set up Node.js for manifest-selected agent checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: desktop/macos/agent/package-lock.json
 
       - name: Set up uv
         uses: astral-sh/setup-uv@ecd24dd710f2fb0dca1693a67af11fc4a5c5ec84

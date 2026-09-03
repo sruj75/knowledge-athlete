@@ -28,12 +28,12 @@ checks:
     command: ["bash", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh"]
     triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/omi-hardening-smoke.sh", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "PR #46 carried stale-SHA Tier-2 evidence; the bounded pre-push audience must reject missing, partial-suite, missing-row, short, stale, malformed, red, or secret-bearing gauntlet manifests"
+    reason: "PR #46 carried stale-SHA Tier-2 evidence and the S-31 final review found raw prompts, replies, identities, logs, screenshots, and audio beside its scrubbed manifest; the bounded pre-push audience must reject incomplete, stale, red, or non-private gauntlet bundles"
   - id: agent-continuity-gauntlet-self-check
-    command: ["python3", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "--self-check"]
-    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "the S-31 final review found authenticated health returning a state envelope while the gauntlet expected public launch provenance; the live driver must exercise its parser and immutable-source contract in deterministic lanes"
+    reason: "the S-31 final review found authenticated health returning a state envelope and the shared CI route lacking the gauntlet's locked Vitest dependency; the live driver must self-provision and exercise its parser and immutable-source contract in deterministic lanes"
   - id: agent-continuity-gauntlet-source-provenance-test
     command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh"]
     triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
