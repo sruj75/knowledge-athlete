@@ -325,7 +325,7 @@ def prune_aborted_bundles(root: Path, *, keep_dir: Path, max_age_days: int) -> N
 def git_sha() -> str:
     try:
         result = subprocess.run(
-            ["git", "-C", str(DESKTOP_DIR.parent.parent), "rev-parse", "--short", "HEAD"],
+            ["git", "-C", str(DESKTOP_DIR.parent.parent), "rev-parse", "HEAD"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

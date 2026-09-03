@@ -458,7 +458,9 @@ timeline identity/open, or pill projection is incomplete until:
   browsing claim, or source URL. **Continuity PRs / RC:** `--suite
   continuity` (typed + PTT + blind recall) after auth seed; `--suite all` for
   RC. Evidence under `.harness/agent-continuity-gauntlet/*/manifest.json` with
-  matching git SHA.
+  matching full git SHA. `check-gauntlet-evidence-at-head.sh` also gates S-31
+  closure branches and rejects incomplete, failed, malformed, or secret-bearing
+  manifests.
 - **Anti-flake:** clear owner/kernel surface before probes; per-run nonces;
   hard-fail on blind-recall / structural snapshot only; zero automatic retries
   on model wrongness.

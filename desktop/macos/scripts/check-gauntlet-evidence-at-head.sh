@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# Warn when pushing continuity-sensitive branches whose HEAD lacks green gauntlet evidence.
+# Warn when pushing continuity-sensitive or S-31 closure branches whose full
+# HEAD SHA lacks complete, green, privacy-safe gauntlet evidence.
 #
 # Usage:
 #   ./scripts/check-gauntlet-evidence-at-head.sh          # warn (default)
 #   ./scripts/check-gauntlet-evidence-at-head.sh block    # exit 1 when missing
 #
 # Looks for desktop/macos/.harness/agent-continuity-gauntlet/*/manifest.json with
-# matching git SHA and passed: true.
+# matching full git SHA, completed rows, and passed: true.
 #
 # Applies to branches matching:
 #   desktop-agent-* | *continuity* | *chat-timeline* | *floating-viewport*
-#   | *kernel-turn* | *agent-pill* | *floating-chat*
+#   | *kernel-turn* | *agent-pill* | *floating-chat* | *s31* | *s-31*
 # (INV-6 Continuity PR DoD — live suite is a PR/RC gate, not CI.)
 
 set -euo pipefail
@@ -22,10 +23,10 @@ REPO_ROOT="$(cd "$DESKTOP_DIR/../.." && pwd)"
 HARNESS_ROOT="$DESKTOP_DIR/.harness/agent-continuity-gauntlet"
 
 cd "$REPO_ROOT"
-HEAD_SHA="$(git rev-parse --short HEAD)"
+HEAD_SHA="$(git rev-parse HEAD)"
 BRANCH="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
 
-if [[ ! "$BRANCH" =~ (^desktop-agent-|continuity|chat-timeline|floating-viewport|kernel-turn|agent-pill|floating-chat) ]]; then
+if [[ ! "$BRANCH" =~ (^desktop-agent-|continuity|chat-timeline|floating-viewport|kernel-turn|agent-pill|floating-chat|(^|[-_/])s-?31($|[-_/])) ]]; then
   exit 0
 fi
 
@@ -43,14 +44,41 @@ for manifest in "$HARNESS_ROOT"/*/manifest.json; do
   [[ -f "$manifest" ]] || continue
   if python3 - "$manifest" "$HEAD_SHA" <<'PY'
 import json
+import re
 import sys
 
 manifest_path, head_sha = sys.argv[1], sys.argv[2]
-with open(manifest_path, encoding="utf-8") as handle:
-    data = json.load(handle)
-if data.get("git") == head_sha and data.get("passed") is True:
-    raise SystemExit(0)
-raise SystemExit(1)
+try:
+    with open(manifest_path, encoding="utf-8") as handle:
+        raw = handle.read()
+    data = json.loads(raw)
+except (OSError, json.JSONDecodeError):
+    raise SystemExit(1)
+
+if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
+    raise SystemExit(1)
+if data.get("git") != head_sha:
+    raise SystemExit(1)
+if data.get("passed") is not True:
+    raise SystemExit(1)
+if not isinstance(data.get("suites"), list) or not data["suites"]:
+    raise SystemExit(1)
+if not isinstance(data.get("steps"), list) or not data["steps"]:
+    raise SystemExit(1)
+if not all(isinstance(step, dict) and step.get("id") and step.get("name") for step in data["steps"]):
+    raise SystemExit(1)
+if data.get("failures") != []:
+    raise SystemExit(1)
+if not isinstance(data.get("started_at"), str) or not isinstance(data.get("finished_at"), str):
+    raise SystemExit(1)
+
+secret_patterns = (
+    r"(?i)authorization\s*[:=]\s*bearer\s+[a-z0-9._~+/=-]{8,}",
+    r"\bAIza[0-9A-Za-z_-]{20,}\b",
+    r"\bsk-[0-9A-Za-z_-]{20,}\b",
+)
+if any(re.search(pattern, raw) for pattern in secret_patterns):
+    raise SystemExit(1)
 PY
   then
     FOUND=true
