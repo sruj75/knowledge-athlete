@@ -361,6 +361,8 @@ class RunnerBehaviorTests(unittest.TestCase):
                     "ci",
                     "--changed-files",
                     changed.name,
+                    "--base",
+                    "refs/heads/missing-selection-base",
                     "--skip-pr-body-checks",
                     "--platform",
                     "macos",

@@ -443,7 +443,6 @@ def main() -> int:
         manifest_errors = validate_manifest(manifest, root)
         if manifest_errors:
             raise ValueError("; ".join(manifest_errors))
-        resolved_base = merge_base(root, args.base, args.head)
         files = (
             [line for line in args.changed_files.read_text(encoding="utf-8").splitlines() if line]
             if args.changed_files
@@ -491,6 +490,11 @@ def main() -> int:
             )
         )
         return 0
+    try:
+        resolved_base = merge_base(root, args.base, args.head)
+    except subprocess.CalledProcessError as exc:
+        print(f"FAIL: could not resolve manifest checks: {exc}", file=sys.stderr)
+        return 2
     print(
         f"Check manifest: lane={args.lane} platform={detected_platform} exclusive_platform={args.exclusive_platform} "
         f"base={resolved_base[:12]} head={args.head} files={len(files)}"
