@@ -63,6 +63,19 @@ private actor OwnerBoundaryExternalRunProbe {
     (closed, observedOwnerID, observedStatus)
   }
 }
+
+private actor PTTLanguageIdentifierLoadProbe {
+  private var attempts = 0
+
+  func recordAttempt() {
+    attempts += 1
+  }
+
+  func attemptCount() -> Int {
+    attempts
+  }
+}
+
 final class PushToTalkStateMachineTests: XCTestCase {
   func testRecordingProjectionComesDirectlyFromAuthoritativePhase() {
     XCTAssertTrue(VoiceTurnPhase.recording.isRecording)
@@ -103,6 +116,23 @@ final class PushToTalkStateMachineTests: XCTestCase {
         if case .terminal = effect { return true }
         return false
       }.count, 1)
+  }
+
+  func testUnconfiguredVoiceLanguagesDoNotLoadTheLocalSpeechModel() async {
+    let probe = PTTLanguageIdentifierLoadProbe()
+    let identifier = PTTLanguageIdentifier(managerLoader: {
+      await probe.recordAttempt()
+      return nil
+    })
+
+    let verdict = await identifier.identify(
+      pcm16k: Data(repeating: 0, count: 12_800),
+      candidates: [])
+    let attempts = await probe.attemptCount()
+
+    XCTAssertNil(verdict.languageCode)
+    XCTAssertNil(verdict.transcript)
+    XCTAssertEqual(attempts, 0, "default-config PTT must stay local-model inert")
   }
 
   @MainActor

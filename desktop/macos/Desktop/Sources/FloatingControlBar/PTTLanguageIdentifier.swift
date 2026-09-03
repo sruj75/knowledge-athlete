@@ -29,6 +29,15 @@ actor PTTLanguageIdentifier {
 
   private var manager: AsrManager?
   private var loadTask: Task<AsrManager?, Never>?
+  private let managerLoader: @Sendable () async -> AsrManager?
+
+  init(
+    managerLoader: @escaping @Sendable () async -> AsrManager? = {
+      await PTTLanguageIdentifier.loadDefaultManager()
+    }
+  ) {
+    self.managerLoader = managerLoader
+  }
 
   /// Load the multilingual model off the critical path (called when the hub warms up)
   /// so the first PTT turn doesn't pay the model-load latency.
@@ -39,20 +48,9 @@ actor PTTLanguageIdentifier {
   private func loadedManager() async -> AsrManager? {
     if let manager { return manager }
     if let loadTask { return await loadTask.value }
+    let loader = managerLoader
     let task = Task<AsrManager?, Never> {
-      do {
-        let started = Date()
-        let models = try await AsrModels.downloadAndLoad(version: .v3)
-        let m = AsrManager()
-        try await m.loadModels(models)
-        log(
-          "PTTLanguageIdentifier: Parakeet v3 ready in \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
-        )
-        return m
-      } catch {
-        logError("PTTLanguageIdentifier: model load failed", error: error)
-        return nil
-      }
+      await loader()
     }
     loadTask = task
     let m = await task.value
@@ -69,13 +67,17 @@ actor PTTLanguageIdentifier {
   ///     ("no match → let the provider decide"), while the transcript is still returned.
   ///   - clipSeconds: optionally decode only the first N seconds (early hint path).
   func identify(pcm16k: Data, candidates: [String], clipSeconds: Double? = nil) async -> Verdict {
-    guard let manager = await loadedManager() else { return Verdict(languageCode: nil, transcript: nil) }
+    // Empty means the user never configured Voice Assistant Languages. IR-071
+    // requires that default-config path to remain provider-auto-detect only;
+    // loading a local model here also turns a hermetic test into a network job.
+    guard !candidates.isEmpty else { return Verdict(languageCode: nil, transcript: nil) }
     var samples = Self.int16ToFloat32(pcm16k)
     if let clipSeconds {
       samples = Array(samples.prefix(Int(clipSeconds * 16_000)))
     }
     // Below ~0.4s there isn't enough speech for either the decoder or the detector.
     guard samples.count >= 6_400 else { return Verdict(languageCode: nil, transcript: nil) }
+    guard let manager = await loadedManager() else { return Verdict(languageCode: nil, transcript: nil) }
 
     do {
       var ds = try TdtDecoderState()
@@ -99,6 +101,22 @@ actor PTTLanguageIdentifier {
     } catch {
       logError("PTTLanguageIdentifier: decode failed", error: error)
       return Verdict(languageCode: nil, transcript: nil)
+    }
+  }
+
+  private nonisolated static func loadDefaultManager() async -> AsrManager? {
+    do {
+      let started = Date()
+      let models = try await AsrModels.downloadAndLoad(version: .v3)
+      let manager = AsrManager()
+      try await manager.loadModels(models)
+      log(
+        "PTTLanguageIdentifier: Parakeet v3 ready in \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
+      )
+      return manager
+    } catch {
+      logError("PTTLanguageIdentifier: model load failed", error: error)
+      return nil
     }
   }
 
