@@ -32,18 +32,26 @@ make_pkill_stub() {
 exit 0
 SH
   chmod +x "$bin_dir/pkill"
+
+  cat >"$bin_dir/defaults" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${OMI_FAULT_DEFAULTS_CAPTURE:?}"
+SH
+  chmod +x "$bin_dir/defaults"
 }
 
 exercise_fault_suite_launch_command() {
   local fixture="$TMP_ROOT/fault-suite"
   local bin_dir="$TMP_ROOT/fault-suite-bin"
-  local bridge_port fault_port fault_run_token capture ready_capture output
+  local bridge_port fault_port fault_run_token capture ready_capture defaults_capture output
   local qualification_fault_state
   bridge_port="47791"
   fault_port="19081"
   fault_run_token="faultsuitefixturetoken123456"
   capture="$fixture/fault-run.env"
   ready_capture="$fixture/fault-ready.env"
+  defaults_capture="$fixture/fault-defaults.log"
   output="$fixture/fault-suite.out"
   qualification_fault_state="$fixture/qualification-state/fault"
 
@@ -147,6 +155,7 @@ SH
     OMI_FAULT_TEST_PORT="$fault_port" \
     OMI_FAULT_ENV_CAPTURE="$capture" \
     OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
     "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1 \
     || {
       cat "$output" >&2
@@ -155,7 +164,7 @@ SH
   [[ -d "$qualification_fault_state" ]] \
     || fail "fault suite ignored the qualification-owned fault state directory"
 
-  python3 - "$capture" "$ready_capture" "$bridge_port" "$fault_port" "$fault_run_token" "$fixture" <<'PY'
+  python3 - "$capture" "$ready_capture" "$defaults_capture" "$bridge_port" "$fault_port" "$fault_run_token" "$fixture" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -165,11 +174,11 @@ for line in open(sys.argv[1], encoding="utf-8"):
     key, value = line.rstrip("\n").split("=", 1)
     captured[key] = value
 
-fault_url = f"http://127.0.0.1:{sys.argv[4]}"
-fault_bundle = f"omi-fault-{sys.argv[5]}"
+fault_url = f"http://127.0.0.1:{sys.argv[5]}"
+fault_bundle = f"omi-fault-{sys.argv[6]}"
 expected = {
     "OMI_APP_NAME": fault_bundle,
-    "OMI_AUTOMATION_PORT": sys.argv[3],
+    "OMI_AUTOMATION_PORT": sys.argv[4],
     "OMI_DESKTOP_LOCAL_PROFILE": "1",
     "OMI_HARNESS_INSTANCE": "fault-suite",
     "OMI_SEED_FROM_CANONICAL_DEV": "0",
@@ -189,21 +198,33 @@ expected = {
     "OMI_PYTHON_API_URL": fault_url,
     "OMI_AUTH_API_URL": fault_url,
     "OMI_FAULT_MODEL_AUTH_TOKEN": "omi-fault-model-token",
-    "OMI_DESKTOP_LAUNCH_TOKEN": sys.argv[5],
+    "OMI_DESKTOP_LAUNCH_TOKEN": sys.argv[6],
 }
 for key, value in expected.items():
     assert captured.get(key) == value, (key, captured.get(key), value)
 
 ready = dict(line.rstrip("\n").split("=", 1) for line in open(sys.argv[2], encoding="utf-8"))
-assert ready.get("OMI_AUTOMATION_PORT") == sys.argv[3], ready
+assert ready.get("OMI_AUTOMATION_PORT") == sys.argv[4], ready
 
-records = list(Path(sys.argv[6]).glob(".harness/desktop-core/*-fault/fault-app.json"))
+defaults_writes = Path(sys.argv[3]).read_text(encoding="utf-8").splitlines()
+bundle_id = f"com.heyintentive.intentive.dev.{fault_bundle}"
+assert defaults_writes == [
+    f"write {bundle_id} hasCompletedOnboarding -bool true",
+    f"write {bundle_id} devLazyPermissionsEnabled -bool true",
+    f"write {bundle_id} screenAnalysisEnabled -bool false",
+    f"write {bundle_id} transcriptionEnabled -bool false",
+    f"write {bundle_id} systemAudioCaptureMode -string never",
+    f"write {bundle_id} screenAnalysisAutoStartFixed_v2 -bool true",
+    f"write {bundle_id} shortcut_floatingBarTypedQuestionVoiceAnswersEnabled -bool false",
+], defaults_writes
+
+records = list(Path(sys.argv[7]).glob(".harness/desktop-core/*-fault/fault-app.json"))
 assert len(records) == 1, records
 record = json.loads(records[0].read_text(encoding="utf-8"))
-assert record["run_token"] == sys.argv[5], record
+assert record["run_token"] == sys.argv[6], record
 assert record["bundle"] == fault_bundle, record
 assert record["bundle_id"] == f"com.heyintentive.intentive.dev.{fault_bundle}", record
-assert record["automation_port"] == int(sys.argv[3]), record
+assert record["automation_port"] == int(sys.argv[4]), record
 assert record["launch_transport"] == "open", record
 PY
 
@@ -221,6 +242,7 @@ PY
     OMI_FAULT_TEST_PORT="$fault_port" \
     OMI_FAULT_ENV_CAPTURE="$capture" \
     OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
     OMI_FAULT_BRIDGE_READY_ATTEMPTS=not-a-number \
     "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
   status=$?
@@ -237,6 +259,7 @@ PY
     OMI_FAULT_TEST_PORT="$fault_port" \
     OMI_FAULT_ENV_CAPTURE="$capture" \
     OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
     OMI_FAULT_READY_FAIL=1 \
     "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
   status=$?

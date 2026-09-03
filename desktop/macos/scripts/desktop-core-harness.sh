@@ -711,6 +711,29 @@ print(config.load_config(repo_root).auth_host)
 PY
 }
 
+prepare_fault_profile() {
+  local expected_bundle_id
+  # shellcheck source=app-config.sh
+  source "$SCRIPT_DIR/app-config.sh"
+  derive_omi_app_config "$FAULT_BUNDLE"
+  expected_bundle_id="com.heyintentive.intentive.dev.${FAULT_BUNDLE}"
+  if [[ "$BUNDLE_ID" != "$expected_bundle_id" || "$FAULT_BUNDLE" != omi-fault-* ]]; then
+    echo "desktop-core-harness: refusing to prepare non-fault profile: $FAULT_BUNDLE ($BUNDLE_ID)" >&2
+    return 1
+  fi
+
+  # The fault lane tests backend failure behavior, not onboarding. Its synthetic
+  # Auth-emulator owner must therefore start past onboarding with capture and
+  # permissions side effects disabled, matching the isolated qualification lane.
+  defaults write "$BUNDLE_ID" hasCompletedOnboarding -bool true
+  defaults write "$BUNDLE_ID" devLazyPermissionsEnabled -bool true
+  defaults write "$BUNDLE_ID" screenAnalysisEnabled -bool false
+  defaults write "$BUNDLE_ID" transcriptionEnabled -bool false
+  defaults write "$BUNDLE_ID" systemAudioCaptureMode -string never
+  defaults write "$BUNDLE_ID" screenAnalysisAutoStartFixed_v2 -bool true
+  defaults write "$BUNDLE_ID" shortcut_floatingBarTypedQuestionVoiceAnswersEnabled -bool false
+}
+
 stop_fault_stack() {
   local status=0
   if [[ -n "$FAULT_FLOW_PID" ]]; then
@@ -793,6 +816,7 @@ start_fault_stack() {
     exit 1
   fi
   refuse_prod_bundle "$FAULT_BUNDLE"
+  prepare_fault_profile
   OMI_FAULT_STATE_DIR="$FAULT_STATE_DIR" "$SCRIPT_DIR/omi-fault-inject.sh" stop >/dev/null 2>&1 || true
   eval "$(OMI_FAULT_STATE_DIR="$FAULT_STATE_DIR" OMI_FAULT_OWNERSHIP_TOKEN="$FAULT_RUN_TOKEN" "$SCRIPT_DIR/omi-fault-inject.sh" start error --port "$FAULT_PORT")"
   echo "desktop-core-harness: fault inject at $OMI_FAULT_URL"
