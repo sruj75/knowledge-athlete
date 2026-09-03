@@ -2,10 +2,13 @@
 
 set -euo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
 # shellcheck source=dev-harness/_resolve_python.sh
 source scripts/dev-harness/_resolve_python.sh
-PYTHON_BIN="$(dev_harness_python)"
-exec "$PYTHON_BIN" .github/scripts/pr_preflight.py "$@"
+PYTHON_EXECUTABLE="${OMI_PYTHON_EXECUTABLE:-}"
+if [[ -z "$PYTHON_EXECUTABLE" || ! -x "$PYTHON_EXECUTABLE" ]]; then
+  PYTHON_EXECUTABLE="$(dev_harness_python)"
+fi
+exec "$PYTHON_EXECUTABLE" .github/scripts/pr_preflight.py "$@"

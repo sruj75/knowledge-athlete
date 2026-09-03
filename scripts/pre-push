@@ -2,11 +2,22 @@
 
 set -eo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 # shellcheck source=dev-harness/_resolve_python.sh
 source scripts/dev-harness/_resolve_python.sh
-PYTHON_BIN="$(dev_harness_python)"
+PYTHON_EXECUTABLE="${OMI_PYTHON_EXECUTABLE:-}"
+if [[ -z "$PYTHON_EXECUTABLE" || ! -x "$PYTHON_EXECUTABLE" ]]; then
+  for candidate in "$PWD/backend/.venv/bin/python" "$PWD/backend/.venv/Scripts/python.exe"; do
+    if [[ -x "$candidate" ]]; then
+      PYTHON_EXECUTABLE="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -z "$PYTHON_EXECUTABLE" || ! -x "$PYTHON_EXECUTABLE" ]]; then
+  PYTHON_EXECUTABLE="$(dev_harness_python)"
+fi
 BACKEND_PYTHON="$(dev_harness_canonical_python || true)"
 
 PUSH_REMOTE="${1:-origin}"
@@ -166,7 +177,7 @@ changed_matches() {
   return 1
 }
 
-CI_PREDICTION_SELECTION=$("$PYTHON_BIN" scripts/pre_push_ci_prediction.py --changed-files "$CHANGED_FILES_LIST" --base "$BASE_REF")
+CI_PREDICTION_SELECTION=$("$PYTHON_EXECUTABLE" scripts/pre_push_ci_prediction.py --changed-files "$CHANGED_FILES_LIST" --base "$BASE_REF")
 if ci_prediction_selected "desktop-ci-only"; then
   ci_prediction_note_deferred "full desktop harness, release builds, and platform packaging"
 fi
@@ -188,7 +199,7 @@ check_pr_preflight() {
     fi
     echo "Skipping shared PR preflight because PRE_PUSH_SKIP_PR_PREFLIGHT=1."
     echo "==> failure-class guard-artifact ratchet (mandatory under preflight hatch)"
-    "$PYTHON_BIN" .github/scripts/check_failure_class_guard_ratchet.py \
+    "$PYTHON_EXECUTABLE" .github/scripts/check_failure_class_guard_ratchet.py \
       --pr-body-file "$OMI_PR_BODY_FILE"
     ci_prediction_note_verified "failure-class guard-artifact ratchet (mandatory under PRE_PUSH_SKIP_PR_PREFLIGHT=1)"
     ci_prediction_note_skipped "shared PR contract and hygiene (PRE_PUSH_SKIP_PR_PREFLIGHT=1)"
@@ -243,7 +254,7 @@ check_desktop_flow_lint_if_needed() {
     return
   fi
 
-  if ! "$PYTHON_BIN" -c "import yaml" >/dev/null 2>&1; then
+  if ! "$PYTHON_EXECUTABLE" -c "import yaml" >/dev/null 2>&1; then
     echo "FAIL: desktop E2E flow metadata checks require Python 3 and PyYAML." >&2
     echo "      Run make setup to create the locked backend environment." >&2
     echo "      Deliberate hatch: PRE_PUSH_SKIP_DESKTOP_FLOW_LINT=1 git push" >&2
@@ -251,7 +262,7 @@ check_desktop_flow_lint_if_needed() {
   fi
 
   echo "==> desktop E2E flow metadata lint"
-  "$PYTHON_BIN" desktop/macos/scripts/desktop-flow-lint.py
+  "$PYTHON_EXECUTABLE" desktop/macos/scripts/desktop-flow-lint.py
   ci_prediction_note_verified "desktop E2E flow metadata and bridge-action references"
 }
 
@@ -432,7 +443,7 @@ check_runtime_image_source_closure_if_needed() {
     return
   fi
 
-    "$PYTHON_BIN" backend/scripts/runtime_image_contracts.py check
+    "$PYTHON_EXECUTABLE" backend/scripts/runtime_image_contracts.py check
 }
 
 check_openapi_contract_if_needed() {
@@ -600,9 +611,9 @@ check_gauntlet_evidence_if_needed() {
 }
 
 run_step check_pr_preflight
-run_step "$PYTHON_BIN" .github/scripts/check-desktop-prod-promotion-policy.py
-run_step "$PYTHON_BIN" .github/scripts/check-deployment-concurrency.py --self-test
-run_step "$PYTHON_BIN" .github/scripts/check-deployment-concurrency.py
+run_step "$PYTHON_EXECUTABLE" .github/scripts/check-desktop-prod-promotion-policy.py
+run_step "$PYTHON_EXECUTABLE" .github/scripts/check-deployment-concurrency.py --self-test
+run_step "$PYTHON_EXECUTABLE" .github/scripts/check-deployment-concurrency.py
 run_step check_backend_runtime_env_if_needed
 run_step check_backend_typecheck_if_needed
 run_step check_runtime_image_source_closure_if_needed

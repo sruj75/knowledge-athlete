@@ -284,6 +284,69 @@ class ManifestContractTests(unittest.TestCase):
 
 
 class RunnerBehaviorTests(unittest.TestCase):
+    def test_windows_workflow_can_select_its_registered_checks_by_id(self) -> None:
+        workflow = (WORKFLOWS_DIR / "windows-preflight-portability.yml").read_text(encoding="utf-8")
+        requested_ids = re.findall(r"--check-id\s+([a-z0-9-]+)", workflow)
+        self.assertEqual(
+            requested_ids,
+            ["pre-push-worktree-fallback", "preflight-runner-portability", "check-manifest-contract"],
+        )
+
+        command = [
+            sys.executable,
+            str(SCRIPT_DIR / "run_checks.py"),
+            "--lane",
+            "ci",
+            "--base",
+            "HEAD",
+            "--head",
+            "HEAD",
+            "--platform",
+            "windows",
+            "--output",
+            "json",
+        ]
+        for check_id in requested_ids:
+            command.extend(("--check-id", check_id))
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        selected = [item["id"] for item in json.loads(completed.stdout)["checks"]]
+        self.assertEqual(selected, requested_ids)
+
+    def test_explicit_check_id_rejects_an_unregistered_check(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "run_checks.py"),
+                "--lane",
+                "ci",
+                "--base",
+                "HEAD",
+                "--head",
+                "HEAD",
+                "--platform",
+                "windows",
+                "--check-id",
+                "not-registered",
+                "--output",
+                "json",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("unknown check id: not-registered", completed.stderr)
+
     def test_cli_selects_present_macos_and_backend_checks_from_changed_file_fixtures(self) -> None:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as changed:
             changed.write("backend/routers/chat_sessions.py\n")

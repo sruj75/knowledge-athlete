@@ -84,6 +84,18 @@ checks:
     triggers: [".github/scripts/check-desktop-auto-beta-candidate.py", ".github/scripts/test_check_desktop_auto_beta_candidate.py", "desktop/macos/scripts/smoke-signed-desktop-artifact.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the candidate gate validates signed-smoke evidence; a stable-only flag change must not fail-close the first dual-identity release"
+  - id: pre-push-worktree-fallback
+    command: ["bash", "scripts/test-pre-push-worktree-fallback.sh"]
+    triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", "scripts/test-pre-push-worktree-fallback.sh", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
+    lanes: ["local", "ci"]
+    reason: "#10293 and Actions run 33792902192 require the installed Git hook path to retain a real worktree when Git Bash inherits a bare Git context"
+    platforms: ["windows"]
+  - id: preflight-runner-portability
+    command: ["python3", ".github/scripts/test_preflight_runner.py"]
+    triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/test_preflight_runner.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
+    lanes: ["local", "ci"]
+    reason: "Actions run 33792902192 showed the native Windows process and hook-launcher contracts were named by CI but absent from the canonical manifest"
+    platforms: ["windows"]
   - id: check-manifest-contract
     command: ["python3", ".github/scripts/test_run_checks.py"]
     triggers: ["all"]

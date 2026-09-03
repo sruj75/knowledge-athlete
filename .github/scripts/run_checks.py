@@ -264,6 +264,41 @@ def resolve_checks(
     ]
 
 
+def resolve_requested_check_selections(
+    manifest: Manifest,
+    check_ids: list[str],
+    lane: str,
+    *,
+    include_pr_body_checks: bool = True,
+    platform: str = "all",
+) -> list[CheckSelection]:
+    """Resolve explicit manifest IDs for a dedicated CI lane.
+
+    Explicit IDs intentionally bypass path triggers: dedicated workflows can
+    validate their fixed manifest-owned contracts even when they compare HEAD
+    to itself. Lane, platform, and PR-body eligibility still fail closed.
+    """
+    duplicates = sorted({check_id for check_id in check_ids if check_ids.count(check_id) > 1})
+    if duplicates:
+        raise ValueError(f"duplicate check id requested: {', '.join(duplicates)}")
+
+    checks_by_id = {check.id: check for check in manifest.checks}
+    selections: list[CheckSelection] = []
+    for check_id in check_ids:
+        check = checks_by_id.get(check_id)
+        if check is None:
+            raise ValueError(f"unknown check id: {check_id}")
+        if lane not in check.lanes:
+            raise ValueError(f"{check_id}: unavailable in {lane} lane")
+        if not include_pr_body_checks and check.requires_pr_body:
+            raise ValueError(f"{check_id}: requires pull-request metadata")
+        if not _platform_matches(check, platform):
+            required = ", ".join(check.platforms)
+            raise ValueError(f"{check_id}: requires platform {required}; running on {platform}")
+        selections.append(CheckSelection(check=check, matched_paths=("explicit",)))
+    return selections
+
+
 def skipped_platform_checks(manifest: Manifest, files: list[str], lane: str, platform: str) -> list[Check]:
     """Checks that match lane+triggers but are skipped due to platform."""
     return [
@@ -373,6 +408,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--root", type=Path)
     parser.add_argument(
+        "--check-id",
+        action="append",
+        default=[],
+        help="Run one registered check by ID; repeat for dedicated manifest-backed CI lanes.",
+    )
+    parser.add_argument(
         "--platform",
         choices=sorted(VALID_PLATFORMS),
         default=None,
@@ -396,6 +437,7 @@ def main() -> int:
     args = parse_args()
     root = (args.root or Path(run_git(Path.cwd(), "rev-parse", "--show-toplevel"))).resolve()
     manifest_path = (args.manifest or root / ".github/checks-manifest.yaml").resolve()
+    detected_platform = args.platform or detect_platform()
     try:
         manifest = load_manifest(manifest_path)
         manifest_errors = validate_manifest(manifest, root)
@@ -407,18 +449,27 @@ def main() -> int:
             if args.changed_files
             else changed_files(root, args.base, args.head, include_worktree=args.lane == "local")
         )
+        selections = (
+            resolve_requested_check_selections(
+                manifest,
+                args.check_id,
+                args.lane,
+                include_pr_body_checks=not args.skip_pr_body_checks,
+                platform=detected_platform,
+            )
+            if args.check_id
+            else resolve_check_selections(
+                manifest,
+                files,
+                args.lane,
+                include_pr_body_checks=not args.skip_pr_body_checks,
+                platform=detected_platform,
+                exclusive_platform=args.exclusive_platform,
+            )
+        )
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"FAIL: could not resolve manifest checks: {exc}", file=sys.stderr)
         return 2
-    detected_platform = args.platform or detect_platform()
-    selections = resolve_check_selections(
-        manifest,
-        files,
-        args.lane,
-        include_pr_body_checks=not args.skip_pr_body_checks,
-        platform=detected_platform,
-        exclusive_platform=args.exclusive_platform,
-    )
     checks = [selection.check for selection in selections]
     if args.output == "json":
         print(
@@ -446,10 +497,12 @@ def main() -> int:
     )
     for check in checks:
         print(f"  SELECTED {check.id}: {check.reason}")
-    for skip in skipped_platform_checks(manifest, files, args.lane, detected_platform):
-        print(
-            f"  SKIPPED {skip.id}: platform-only (requires {', '.join(skip.platforms)}, running on {detected_platform})"
-        )
+    if not args.check_id:
+        for skip in skipped_platform_checks(manifest, files, args.lane, detected_platform):
+            print(
+                f"  SKIPPED {skip.id}: platform-only "
+                f"(requires {', '.join(skip.platforms)}, running on {detected_platform})"
+            )
     if args.list:
         return 0
 
