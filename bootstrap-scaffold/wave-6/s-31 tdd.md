@@ -1677,6 +1677,12 @@ the requirements ledger remains the authority for the individual decision text.
 The graph does not collapse local, credentialed-provider, live-inventory, or
 release evidence into one generic pass.
 
+[`s-31-acceptance-matrix.md`](s-31-acceptance-matrix.md) expands these ranges
+into all 714 individual decisions. Each row links the exact detailed behavior
+and final `### Decision`, copies its ledger disposition, links every earlier
+owner record, and resolves the evidence codes below to exact commands or
+artifacts. The range table remains only the count/check summary.
+
 Evidence classes used below:
 
 - **REQ:** `validate-requirements-ledger.py`, the detailed decision, section
@@ -1735,11 +1741,11 @@ remains successor S-18 work after all six waves.
 ### 19.2 Cycle-time measurements and acceleration disposition
 
 These samples were taken on one Apple-silicon Mac in this worktree at clean
-`33041eb734a3152803309af7493aabfded3a58a1`, with build and Python caches on the
+`a70f42fb26ca16b87008f4e76680de63f2eb11fe`, with build and Python caches on the
 same external T9 volume. Commands did not change source during a sample set.
 Times are `/usr/bin/time -p` wall seconds; every listed observation passed.
 
-| Surviving loop | Cache / lane | Observations (s) | Rework/failure | Disposition |
+| Surviving loop | Cache / lane | Observations / elapsed | Rework/failure | Disposition |
 |---|---|---:|---:|---|
 | `make setup` | existing T9 venv, warm package cache, local | 1.33 / 0.98 / 1.09 | 0/3 | Already bounded; keep full fetch/hook/dependency ownership. |
 | formatter ownership behavior test | warm `uvx` cache, local | 1.01 / 0.88 / 0.84 | 0/3 | No acceleration; one checked-in Black owner now reaches pre-commit, pre-push, and CI. |
@@ -1751,6 +1757,7 @@ Times are `/usr/bin/time -p` wall seconds; every listed observation passed.
 | matching `make dev-down` | sentinel-owned processes only | 0.87 / 0.87 / 0.89 | 0/3 | Keep ownership validation and cleanup evidence. |
 | incremental named-bundle launch | `omi-wave6-s31`, reusable package, offline local profile | 57.18 / 45.72 / 12.25 | 0/3 | Variance is compile/sign work; no guard is removed and no cache-key change is justified by three samples. |
 | full named-bundle package/sign/install | `omi-wave6-s31`, warm dependencies | 112.65 (one complete low-frequency run) | 0/1 | Preserve full-package escape hatch; no acceleration proposal. |
+| manual exact-SHA gauntlet collation | merged closeout plus current independent review | PR #46 stale-SHA/open-row escape; S-31 initial partial-suite/no-blocking-audience escape | 2/2 material misses | Stable repeated correctness failure; extend the existing checker in Cycle 9 rather than optimize for speed. |
 
 The acceleration result is therefore **none**. The implementation changes in
 this slice repair false/fragmented developer feedback and evidence ownership;
@@ -1762,15 +1769,20 @@ without authorization in this execution. Their absence remains an open Cycle
 
 ### 19.3 Stable repeated step automated last
 
-PR #46 is the concrete merged instance: a broad closeout carried stale-SHA
-Tier-2 evidence while required provider/physical rows remained open. The
-existing `check-gauntlet-evidence-at-head.sh` primitive is extended instead of
-adding an orphan checker. On S-31 it now requires the full five-suite/23-row
-manifest, full current SHA, green outcome, timestamps, empty failures, and
-privacy-safe content. The bounded pre-push lane is its blocking audience;
-`PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1` remains the explicit break-glass hatch.
-Hermetic tests inject missing directory, partial suite, missing row, short/stale
-SHA, red row, malformed JSON, and secret-bearing evidence.
+Two material instances were observed before admitting automation. PR #46 is
+the merged instance: a broad closeout carried stale-SHA Tier-2 evidence while
+required provider/physical rows remained open. During S-31's first independent
+standards review, the existing checker also accepted partial-suite evidence and
+had no blocking audience. This is a measured 2/2 manual-collation escape rate,
+not a speed claim. The existing `check-gauntlet-evidence-at-head.sh` primitive
+is extended instead of adding an orphan checker. On S-31 it now requires the
+full five-suite/23-row manifest, full current SHA, green outcome, timestamps,
+empty failures, and privacy-safe content across every textual evidence
+artifact. The bounded pre-push lane is its blocking audience;
+`PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1` is the explicit break-glass hatch only with
+a tracking issue and reason. Hermetic tests inject missing directory, partial
+suite, missing row, short/stale SHA, red row, malformed JSON, and secret-bearing
+manifest and sibling evidence.
 
 Desktop Core evidence separately verifies the running bundle's signed
 `IntentiveSourceGitSHA` and `IntentiveSourceTreeDirty=false` health fields before
