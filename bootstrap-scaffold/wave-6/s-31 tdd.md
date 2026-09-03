@@ -17,12 +17,13 @@
 | Future named development bundle | **`omi-wave6-s31`**; use the post-S-28 bundle identifier reported by the built app rather than guessing an inherited `com.omi.*` identifier |
 | Planned implementation shape | **17 ordered TDD and acceptance cycles** |
 
-This is the one S-31 implementation plan. It does not implement a product
-feature, certify the current baseline, authorize a deployment or payment, or
-append an integrated closeout record. S-31 may integrate and prove the final
-system, remove only residue whose owner is already closed, improve only a
-measured surviving loop, and automate only a stable repeated action. It may not
-absorb unfinished S-01 through S-30 product work.
+This is the one S-31 implementation plan. Its planning body does not implement
+a product feature, certify the planning baseline, or authorize a deployment or
+payment. Section 19 records the later repository implementation evidence; it
+does not turn missing operational evidence into closure. S-31 may integrate and
+prove the final system, remove only residue whose owner is already closed,
+improve only a measured surviving loop, and automate only a stable repeated
+action. It may not absorb unfinished S-01 through S-30 product work.
 
 ## 2. Planning status and pinned baseline
 
@@ -1658,3 +1659,143 @@ Global stop conditions:
 - [ ] S-31 is marked closed only when every S-31-required row is green and no
   required unknown state, authorization, or code-decision fog remains; later
   Dodo test/live inputs remain owned by the successor S-18 handoff.
+
+## 19. Repository implementation evidence — 2026-09-03
+
+This section supersedes the planning-state description in section 2 without
+claiming operational closure. S-01 through S-30 are present on `origin/main` at
+`d882065ffa8a526a30259842a727ea467fe13b2e`; S-31 repository repairs are on the
+feature branch. Exact final-SHA local manifests and PR checks are recorded only
+after this evidence record is committed, so this section deliberately does not
+self-reference a commit that cannot contain its own hash.
+
+### 19.1 Complete 714-decision acceptance graph
+
+The inclusive counts below total exactly 714. Every range binds to its named
+S-01 through S-30 owner plan/closeout and to a concrete final evidence class;
+the requirements ledger remains the authority for the individual decision text.
+The graph does not collapse local, credentialed-provider, live-inventory, or
+release evidence into one generic pass.
+
+Evidence classes used below:
+
+- **REQ:** `validate-requirements-ledger.py`, the detailed decision, section
+  4.1's route, and the named owner plan/closeout.
+- **REP:** residue classification, generated-contract freshness,
+  `git diff --check`, check-manifest selection, `make preflight`, and PR-body
+  preflight.
+- **BE:** focused/full backend tests, offline `dev-up`/`dev-check`, backend E2E,
+  route/OpenAPI/runtime-image/workflow contracts, and fault injection.
+- **MAC:** focused/full Swift tests, agent-logic, named `omi-wave6-s31`, semantic
+  flows, Tier-2, owner/restart/storage lifecycle, and bundle-source provenance.
+- **PROV:** natural physical PTT plus approved non-production Gemini Live,
+  reconnect/tool/continuity, mint, and retained Modulate recovery evidence.
+- **INV:** verified read-only S-27 resource inventory and separately authorized
+  development deploy/account-deletion/rollback evidence.
+- **BILL:** disabled-mode backend/Mac/network-recorder proof plus the permanent
+  [`dodo-integration.md`](../dodo-integration.md) successor handoff; test/live
+  activation is not run by S-31.
+- **REL:** exact-SHA signed/notarized artifact, intake, qualification, preview,
+  Beta/Stable/recovery/rollback, and public-link evidence under separate
+  authorization.
+
+| Ledger family | Count | Earlier owner route | Current authority / exact disposition | Admissible final evidence |
+|---|---:|---|---|---|
+| IR-001–IR-016 | 16 | S-01, S-04–S-06, S-25, S-26 | Managed Pi/local tools retained; Agent VM, alternate entrance, wearable sync, duplicate backend, and impossible controls deleted. | REQ + REP + BE + MAC |
+| IR-017–IR-023 | 7 | S-02, S-03, S-10, S-16 | Mac capture/local commit retained with transient listen, Modulate/Parakeet, language/vocabulary, and generic speakers; no server conversation owner. | REQ + BE + MAC + PROV |
+| IR-024–IR-038 | 15 | S-12–S-14 | Owner-local Memories, Tasks/Goals, Focus/Insights/profile/proactive state retained across restart/switch; cloud product authorities deleted. | REQ + REP + MAC |
+| IR-039–IR-053 | 15 | S-05–S-07, S-11, S-15, S-17, S-23 | One local Chat/Home/Rewind authority and scoped tools retained; hosted products, connectors, BYOK, and cloud copies deleted. | REQ + REP + MAC |
+| IR-054–IR-119 | 66 | S-03, S-05, S-07, S-09–S-16, S-19, S-20, S-22 | Physical PTT/realtime remains Gemini Live with same-provider recovery, local grounding, continuity, privacy, diagnostics, and rejected tools absent. | REQ + MAC + PROV; PROV remains an operational row |
+| IR-120–IR-124 | 5 | S-08, S-10, S-17, S-23, S-25 | Durable account deletion, narrowed account metadata, truthful export retained; cloud-product/account residue deleted. | REQ + BE + MAC + INV |
+| IR-125–IR-169 | 45 | S-17, S-30 | Narrow onboarding, permissions, literal Skip, completion, restart, and final copy retained; inherited product claims deleted. | REQ + REP + MAC |
+| IR-170–IR-211 | 42 | S-08, S-09, S-18, S-30 | Owned auth/telemetry/privacy and disabled free-MVP billing retained; no Dodo/Stripe activation or fabricated entitlement. | REQ + BE + MAC + BILL |
+| IR-212–IR-255 | 44 | S-05–S-07, S-09, S-15, S-18, S-21, S-29, S-30 | Settings/shell/notifications/PTT controls retained with owned update/public links; connector/provider/developer residue deleted. | REQ + REP + MAC + BILL + REL |
+| IR-256–IR-292 | 37 | S-06, S-10, S-12, S-23, S-24, S-30 | Full local Memory lifecycle/search/provenance retained; hosted Memory, server search, and vector authority deleted. | REQ + BE + MAC |
+| IR-293–IR-405 | 113 | S-02, S-03, S-10, S-16, S-23, S-24 | Full local Conversations/transcription behavior retained; server product authority and cloud conversation objects deleted. | REQ + BE + MAC + PROV |
+| IR-500–IR-530 | 31 | S-11–S-14, S-21, S-30 | Home/Chat shell and projections retained from one owner-local product mind; duplicate projections removed. | REQ + REP + MAC |
+| IR-600–IR-615 | 16 | S-05, S-07, S-09, S-19, S-20, S-22 | Fixed managed portfolio, fair-use split authority, typed workload ownership, and privacy-bounded observability retained; provider selection deleted. | REQ + BE + MAC + PROV |
+| IR-616–IR-658 | 43 | S-13, S-21 | Local task/goal CRUD, recurrence, order, Undo, reminders, and assistant integration retained; task-intelligence/productivity products deleted. | REQ + REP + MAC |
+| IR-659–IR-699 | 41 | S-14, S-15, S-21 | Exact local Focus/Insights/Rewind behaviors and accepted quirks retained; hosted authorities deleted. | REQ + REP + MAC |
+| IR-700–IR-735 | 36 | S-10, S-12, S-14, S-17, S-20, S-22, S-23 | Model-result ownership, fair use, onboarding lifecycle retained; hosted products and stale-result commits deleted. | REQ + BE + MAC |
+| IR-800–IR-837 | 38 | S-05, S-06, S-08, S-09, S-11, S-18, S-22–S-26 | Managed Pi, canonical backend, disabled billing, account/export, and retained telemetry remain; rejected product/backend topology deleted. | REQ + REP + BE + MAC + BILL |
+| IR-838–IR-891 | 54 | S-03, S-08, S-09, S-18, S-20, S-22, S-25–S-27 | Owned Cloud Run/WIF/IAM/Redis/Firestore/GCS/Tasks/registry contracts retained; inherited service identities and duplicate topology deleted. | REQ + REP + BE + INV |
+| IR-892–IR-897 | 6 | S-04, S-29, S-30 | Owned Mac build/sign/notarize/release/preview/public truth retained; impossible absent-tree and inherited release controls deleted. | REQ + REP + MAC + REL |
+| IR-898–IR-921 | 24 | S-02, S-15, S-16 | Three-way System Audio and every accepted Rewind behavior/quirk retained. | REQ + MAC |
+| IR-922–IR-937 | 16 | S-01, S-04, S-05, S-09, S-11, S-28–S-30 | Managed Pi and clean Intentive storage/update/brand identity retained; local HTTP agent API, orphan runtimes, and Omi takeover paths deleted. | REQ + REP + MAC + REL |
+| IR-938 | 1 | S-06 with S-13 protection | External task export deleted; owner-local task candidate acceptance retained. | REQ + REP + MAC |
+| IR-939 | 1 | S-29 with S-04 protection | Universal libwebp/libsharpyuv provenance, architecture, signing, minimum OS, and rebuild contract retained. | REQ + MAC + REL |
+| IR-940 | 1 | S-04 with S-29 protection | Nested undiscoverable installer workflow stays deleted; owned release qualification remains. | REQ + REP + REL |
+| IR-941 | 1 | S-04 | Unreferenced media stays deleted; live Notifications and Rewind remain protected. | REQ + REP + MAC |
+
+The graph has no `NOT_RUN`-as-green path. A row containing PROV, INV, or REL
+stays operationally open until that exact evidence exists on the frozen SHA.
+BILL means the disabled checkpoint and handoff only; Dodo test/live activation
+remains successor S-18 work after all six waves.
+
+### 19.2 Cycle-time measurements and acceleration disposition
+
+These samples were taken on one Apple-silicon Mac in this worktree at clean
+`33041eb734a3152803309af7493aabfded3a58a1`, with build and Python caches on the
+same external T9 volume. Commands did not change source during a sample set.
+Times are `/usr/bin/time -p` wall seconds; every listed observation passed.
+
+| Surviving loop | Cache / lane | Observations (s) | Rework/failure | Disposition |
+|---|---|---:|---:|---|
+| `make setup` | existing T9 venv, warm package cache, local | 1.33 / 0.98 / 1.09 | 0/3 | Already bounded; keep full fetch/hook/dependency ownership. |
+| formatter ownership behavior test | warm `uvx` cache, local | 1.01 / 0.88 / 0.84 | 0/3 | No acceleration; one checked-in Black owner now reaches pre-commit, pre-push, and CI. |
+| focused backend Redis-seam tests | existing venv, local | 0.62 / 0.43 / 0.44 | 0/3 | No acceleration needed. |
+| focused `AppBuildBetaIdentityTests` | existing Swift test build, local | 29.70 / 1.15 / 26.13 | 0/3 | SwiftPM planning variance dominates two samples; insufficient stable bottleneck for an optimization. |
+| dev-harness CLI tests | existing venv, local | 1.25 / 0.96 / 0.98 | 0/3 | No acceleration needed; active-mode ownership defect was correctness, not speed. |
+| active offline `make dev-check USER=alice` | running sentinel-owned stack, local | 0.25 / 0.19 / 0.18 | 0/3 | Correctness repair only: validate the active owned mode instead of ambient credentials. |
+| cold-ish offline `make dev-up` | retained state/cache, no live providers | 7.75 / 6.93 / 6.14 | 0/3 | No acceleration needed. |
+| matching `make dev-down` | sentinel-owned processes only | 0.87 / 0.87 / 0.89 | 0/3 | Keep ownership validation and cleanup evidence. |
+| incremental named-bundle launch | `omi-wave6-s31`, reusable package, offline local profile | 57.18 / 45.72 / 12.25 | 0/3 | Variance is compile/sign work; no guard is removed and no cache-key change is justified by three samples. |
+| full named-bundle package/sign/install | `omi-wave6-s31`, warm dependencies | 112.65 (one complete low-frequency run) | 0/1 | Preserve full-package escape hatch; no acceleration proposal. |
+
+The acceleration result is therefore **none**. The implementation changes in
+this slice repair false/fragmented developer feedback and evidence ownership;
+they do not weaken a correctness gate to improve a stopwatch number. Backend
+deploy/rollback, candidate intake, qualification, preview, promotion, recovery,
+and release timings were not rerun: those are credentialed or mutating lanes
+without authorization in this execution. Their absence remains an open Cycle
+7/14/16 evidence row, not a local timing estimate.
+
+### 19.3 Stable repeated step automated last
+
+PR #46 is the concrete merged instance: a broad closeout carried stale-SHA
+Tier-2 evidence while required provider/physical rows remained open. The
+existing `check-gauntlet-evidence-at-head.sh` primitive is extended instead of
+adding an orphan checker. On S-31 it now requires the full five-suite/23-row
+manifest, full current SHA, green outcome, timestamps, empty failures, and
+privacy-safe content. The bounded pre-push lane is its blocking audience;
+`PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1` remains the explicit break-glass hatch.
+Hermetic tests inject missing directory, partial suite, missing row, short/stale
+SHA, red row, malformed JSON, and secret-bearing evidence.
+
+Desktop Core evidence separately verifies the running bundle's signed
+`IntentiveSourceGitSHA` and `IntentiveSourceTreeDirty=false` health fields before
+it may emit a green T1+/fault manifest. It records the fault bundle rather than
+the default bundle and records `provider_mode=offline`; it never relabels a
+stale binary with repository HEAD.
+
+### 19.4 External and successor handoff status
+
+- **PROV / BL-001:** not closed by repository tests. Natural captured-audio PTT,
+  approved Gemini Live/reconnect/tools/continuity, deployed mint, and retained
+  Modulate recovery still require the named non-production credentials and
+  physical/deployed evidence in Cycle 13.
+- **INV / BL-002:** live inventory was not inferred from source. The attempted
+  GCP identity check requires operator reauthentication; no cloud mutation,
+  deployment, traffic change, account deletion, or cleanup occurred.
+- **BILL:** `BILLING_MODE=disabled` remains the free-MVP authority. The complete
+  post-Wave-6 S-18 owner, prerequisites, explicit test authorization, distinct
+  live authorization, evidence, cleanup, and rollback duties remain in
+  [`dodo-integration.md`](../dodo-integration.md). No Dodo resource, credential,
+  product, webhook, customer, transaction, or entitlement was created or used.
+- **REL:** signing/notarization/candidate/preview/Beta/Stable/public mutation was
+  not authorized or run. S-29 controls remain the owner; no push, PR, tag,
+  release, channel, feed, or public-site change is implied by this branch.
+
+Accordingly, this record supports repository implementation and final local
+verification but does not label S-31 closed. Section 16.4's labels remain
+separate and fail closed on every missing operational row.
