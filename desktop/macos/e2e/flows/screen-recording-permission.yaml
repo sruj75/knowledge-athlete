@@ -9,6 +9,7 @@ covers:
   - desktop/macos/Desktop/Sources/ScreenCaptureService.swift
   - desktop/macos/Desktop/Sources/ScreenRecordingPermissionPolicy.swift
   - desktop/macos/Desktop/Sources/Onboarding/PermissionDragGuidance.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/PermissionTutorialSlideshow.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/PermissionsPage.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift
