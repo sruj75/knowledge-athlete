@@ -1,6 +1,6 @@
 import Foundation
 
-enum BillingReconciliationOutcome<Value> {
+enum BillingReconciliationOutcome<Value: Sendable>: Sendable {
   case matched(Value)
   case timedOut(Value?)
   case failed
@@ -10,7 +10,7 @@ enum BillingReconciler {
   static let maximumReads = 8
 
   @MainActor
-  static func poll<Value>(
+  static func poll<Value: Sendable>(
     read: () async throws -> Value,
     matches: (Value) -> Bool,
     sleep: () async -> Void

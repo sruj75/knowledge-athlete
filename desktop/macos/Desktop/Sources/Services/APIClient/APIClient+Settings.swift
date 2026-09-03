@@ -68,13 +68,13 @@ struct SetUserLanguageResponse: Codable {
   let single_language_mode: Bool
 }
 
-enum SubscriptionPlanType: String, Codable {
+enum SubscriptionPlanType: String, Codable, Sendable {
   case free
   case bounded
   case unlimited
 }
 
-enum SubscriptionStatusType: String, Codable {
+enum SubscriptionStatusType: String, Codable, Sendable {
   case active
   case onHold = "on_hold"
   case cancelled
@@ -105,7 +105,7 @@ struct BillingAvailability: Codable, Equatable, Sendable {
   }
 }
 
-struct SubscriptionLimitsResponse: Codable {
+struct SubscriptionLimitsResponse: Codable, Sendable {
   let transcriptionSeconds: Int?
   let wordsTranscribed: Int?
   let insightsGained: Int?
@@ -121,7 +121,7 @@ struct SubscriptionLimitsResponse: Codable {
   }
 }
 
-struct UserSubscriptionInfo: Codable {
+struct UserSubscriptionInfo: Codable, Sendable {
   let plan: SubscriptionPlanType
   let planName: String
   let offerId: String?
@@ -156,7 +156,7 @@ struct UserSubscriptionInfo: Codable {
   }
 }
 
-struct SubscriptionPriceOption: Codable, Identifiable {
+struct SubscriptionPriceOption: Codable, Identifiable, Sendable {
   let id: String
   let title: String
   let description: String?
@@ -169,7 +169,7 @@ struct SubscriptionPriceOption: Codable, Identifiable {
   }
 }
 
-struct SubscriptionPlanOption: Codable, Identifiable {
+struct SubscriptionPlanOption: Codable, Identifiable, Sendable {
   let id: String
   let title: String
   let subtitle: String?
@@ -192,7 +192,7 @@ struct SubscriptionPlanOption: Codable, Identifiable {
   }
 }
 
-struct UserSubscriptionResponse: Codable {
+struct UserSubscriptionResponse: Codable, Sendable {
   let subscription: UserSubscriptionInfo
   let transcriptionSecondsUsed: Int
   let transcriptionSecondsLimit: Int
