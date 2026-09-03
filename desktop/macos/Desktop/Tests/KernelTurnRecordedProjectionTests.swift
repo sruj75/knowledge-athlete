@@ -1371,6 +1371,25 @@ import XCTest
       XCTAssertEqual(ChatResource.decodeResourcesFromPersistence(encodedResources).map(\.id), ["artifact:answer"])
     }
 
+    func testAutomationIdleWaitIncludesInitialChatLoading() {
+      let provider = ChatProvider()
+      provider.isLoading = true
+      provider.isLoadingSessions = true
+
+      var snapshot = provider.automationMainChatSnapshot(limit: 1)
+      XCTAssertFalse(provider.automationMainChatIsIdle)
+      XCTAssertEqual(snapshot["is_loading"], "true")
+      XCTAssertEqual(snapshot["is_loading_sessions"], "true")
+
+      provider.isLoading = false
+      provider.isLoadingSessions = false
+
+      snapshot = provider.automationMainChatSnapshot(limit: 1)
+      XCTAssertTrue(provider.automationMainChatIsIdle)
+      XCTAssertEqual(snapshot["is_loading"], "false")
+      XCTAssertEqual(snapshot["is_loading_sessions"], "false")
+    }
+
     func testFailedEmptyPlaceholderIsRemovedFromProjection() throws {
       let provider = ChatProvider()
       let surface = provider.mainChatSurfaceReference()

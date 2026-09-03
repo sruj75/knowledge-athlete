@@ -6157,6 +6157,11 @@ class ChatProvider: ObservableObject {
     automationChatSnapshot(limit: limit)
   }
 
+  var automationMainChatIsIdle: Bool {
+    !isLoading && !isLoadingSessions && !isSending
+      && !messages.contains(where: { $0.isStreaming })
+  }
+
   private func automationChatSnapshot(limit: Int) -> [String: String] {
     let boundedLimit = max(1, limit)
     let runtimeChatId = mainChatRuntimeChatId(sessionId: currentSessionId)
@@ -6182,6 +6187,8 @@ class ChatProvider: ObservableObject {
     var detail: [String: String] = [
       "chat_session_id": currentSessionId ?? "",
       "runtime_chat_id": runtimeChatId,
+      "is_loading": isLoading ? "true" : "false",
+      "is_loading_sessions": isLoadingSessions ? "true" : "false",
       "is_sending": isSending ? "true" : "false",
       "is_streaming": messages.contains(where: { $0.isStreaming }) ? "true" : "false",
       "message_count": "\(messages.count)",

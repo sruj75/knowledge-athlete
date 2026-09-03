@@ -1587,7 +1587,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "wait_main_chat_idle",
-      summary: "Block until main chat is not sending or streaming (continuity harness)",
+      summary: "Block until main chat has loaded and is not sending or streaming (continuity harness)",
       params: ["timeoutMs", "pollMs"]
     ) { params in
       let timeoutMs = max(1_000, intParam(params["timeoutMs"], default: 180_000))
@@ -1599,7 +1599,7 @@ final class DesktopAutomationActionRegistry {
       self.clearHarnessBusyLatch()
       let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000.0)
       while Date() < deadline {
-        if !provider.isSending && !provider.messages.contains(where: { $0.isStreaming }) {
+        if provider.automationMainChatIsIdle {
           var detail = provider.automationMainChatSnapshot(limit: 8)
           detail["idle"] = "true"
           detail["harness_busy_latch"] = "false"
