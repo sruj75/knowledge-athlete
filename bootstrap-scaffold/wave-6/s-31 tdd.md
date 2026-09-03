@@ -1740,24 +1740,29 @@ remains successor S-18 work after all six waves.
 
 ### 19.2 Cycle-time measurements and acceleration disposition
 
-These samples were taken on one Apple-silicon Mac in this worktree at clean
-`a70f42fb26ca16b87008f4e76680de63f2eb11fe`, with build and Python caches on the
-same external T9 volume. Commands did not change source during a sample set.
-Times are `/usr/bin/time -p` wall seconds; every listed observation passed.
+All samples used the same Apple-silicon Mac, local runner, and external T9
+build/Python cache. The focused-loop set used clean
+`a70f42fb26ca16b87008f4e76680de63f2eb11fe`; the complete-suite and PR-gate
+set used clean `80a0cef28e1cffa48b075de704b89e23453968b2`. Commands did not change
+source during a sample set. Times are `/usr/bin/time -p` wall seconds; every
+listed observation passed.
 
-| Surviving loop | Cache / lane | Observations / elapsed | Rework/failure | Disposition |
-|---|---|---:|---:|---|
-| `make setup` | existing T9 venv, warm package cache, local | 1.33 / 0.98 / 1.09 | 0/3 | Already bounded; keep full fetch/hook/dependency ownership. |
-| formatter ownership behavior test | warm `uvx` cache, local | 1.01 / 0.88 / 0.84 | 0/3 | No acceleration; one checked-in Black owner now reaches pre-commit, pre-push, and CI. |
-| focused backend Redis-seam tests | existing venv, local | 0.62 / 0.43 / 0.44 | 0/3 | No acceleration needed. |
-| focused `AppBuildBetaIdentityTests` | existing Swift test build, local | 29.70 / 1.15 / 26.13 | 0/3 | SwiftPM planning variance dominates two samples; insufficient stable bottleneck for an optimization. |
-| dev-harness CLI tests | existing venv, local | 1.25 / 0.96 / 0.98 | 0/3 | No acceleration needed; active-mode ownership defect was correctness, not speed. |
-| active offline `make dev-check USER=alice` | running sentinel-owned stack, local | 0.25 / 0.19 / 0.18 | 0/3 | Correctness repair only: validate the active owned mode instead of ambient credentials. |
-| cold-ish offline `make dev-up` | retained state/cache, no live providers | 7.75 / 6.93 / 6.14 | 0/3 | No acceleration needed. |
-| matching `make dev-down` | sentinel-owned processes only | 0.87 / 0.87 / 0.89 | 0/3 | Keep ownership validation and cleanup evidence. |
-| incremental named-bundle launch | `omi-wave6-s31`, reusable package, offline local profile | 57.18 / 45.72 / 12.25 | 0/3 | Variance is compile/sign work; no guard is removed and no cache-key change is justified by three samples. |
-| full named-bundle package/sign/install | `omi-wave6-s31`, warm dependencies | 112.65 (one complete low-frequency run) | 0/1 | Preserve full-package escape hatch; no acceleration proposal. |
-| manual exact-SHA gauntlet collation | merged closeout plus current independent review | PR #46 stale-SHA/open-row escape; S-31 initial partial-suite/no-blocking-audience escape | 2/2 material misses | Stable repeated correctness failure; extend the existing checker in Cycle 9 rather than optimize for speed. |
+| Surviving loop | Input SHA / runner | Cache state | Three elapsed observations | Failure rate | Phase breakdown | Disposition |
+|---|---|---|---:|---:|---|---|
+| `make setup` | `a70f42f` / local shell | existing T9 venv | 1.33 / 0.98 / 1.09 | 0/3 | fetch and ancestry -> hook install -> locked dependencies | Already bounded; retain full ownership. |
+| formatter ownership behavior test | `a70f42f` / shell test | warm `uvx` | 1.01 / 0.88 / 0.84 | 0/3 | hook fixture -> staged format -> diff/failure assertions | No acceleration; one Black owner now reaches pre-commit, pre-push, and CI. |
+| focused backend Redis-seam tests | `a70f42f` / pytest | existing venv | 0.62 / 0.43 / 0.44 | 0/3 | collection -> cache contract -> lock contract | No acceleration needed. |
+| focused `AppBuildBetaIdentityTests` | `a70f42f` / SwiftPM | existing Swift build | 29.70 / 1.15 / 26.13 | 0/3 | package plan -> compile/link if invalidated -> XCTest | Planning variance dominates; insufficient stable bottleneck. |
+| dev-harness CLI tests | `a70f42f` / pytest | existing venv | 1.25 / 0.96 / 0.98 | 0/3 | fixture roots -> process/config ownership -> command assertions | Correctness repair only. |
+| active offline `make dev-check USER=alice` | `a70f42f` / Make | live sentinel-owned stack | 0.25 / 0.19 / 0.18 | 0/3 | ownership -> health -> active provider contract | Retain active-state validation. |
+| cold-ish offline `make dev-up` | `a70f42f` / Make | retained cache, stopped services | 7.75 / 6.93 / 6.14 | 0/3 | launch contract -> service start -> health -> evidence publish | No stable speed defect. |
+| matching `make dev-down` | `a70f42f` / Make | live sentinel-owned stack | 0.87 / 0.87 / 0.89 | 0/3 | ownership -> targeted stop -> state cleanup | Retain ownership and cleanup evidence. |
+| incremental named-bundle launch | `a70f42f` / `run.sh` | reusable package, offline profile | 57.18 / 45.72 / 12.25 | 0/3 | build planning -> compile/sign -> install/launch -> health | Compile/sign variance is not a stable optimization target. |
+| backend component suite | `80a0cef` / `run-unit-ci.sh --all` | existing T9 venv | 56.33 / 57.23 / 85.90 | 0/3 | selection -> preflight/deps -> typecheck -> 226 isolated test files | Preserve full component authority. |
+| desktop component suite | `80a0cef` / `desktop/macos/test.sh` | existing T9 Swift build | 454.53 / 423.36 / 438.44 | 0/3 | shell contracts -> E2E coverage -> 51 Python tests -> prebuild -> 403 isolated Swift suites | Largest loop, but no stable subphase regression justified weakening or re-keying it. |
+| agent-logic suite | `80a0cef` / `agent-logic-harness.sh` | existing T9 package caches | 48.80 / 19.43 / 59.83 | 0/3 | failure self-check -> focused Swift -> agent runtime -> exact pi-mono package | Variance is insufficient for an acceleration change. |
+| backend hermetic E2E | `80a0cef` / `run-hermetic-e2e.sh` | existing venv/tokenizer cache | 3.93 / 2.54 / 2.56 | 0/3 | prewarm -> 14 account/network/storage/auth/profile tests | Already bounded. |
+| deterministic PR gate | `80a0cef` / `make preflight` | existing T9 caches | 162.33 / 150.51 / 156.84 | 0/3 | manifest load -> changed-path selection -> 91 local-lane checks -> PR/failure-class contracts | Stable enough to retain; the manifest is the required local/CI aggregation owner. |
 
 The acceleration result is therefore **none**. The implementation changes in
 this slice repair false/fragmented developer feedback and evidence ownership;
@@ -1769,16 +1774,26 @@ without authorization in this execution. Their absence remains an open Cycle
 
 ### 19.3 Stable repeated step automated last
 
-Two material instances were observed before admitting automation. PR #46 is
-the merged instance: a broad closeout carried stale-SHA Tier-2 evidence while
-required provider/physical rows remained open. During S-31's first independent
-standards review, the existing checker also accepted partial-suite evidence and
-had no blocking audience. This is a measured 2/2 manual-collation escape rate,
-not a speed claim. The existing `check-gauntlet-evidence-at-head.sh` primitive
-is extended instead of adding an orphan checker. On S-31 it now requires the
-full five-suite/23-row manifest, full current SHA, green outcome, timestamps,
+Three material instances were recorded before admitting and then completing
+automation. PR #46 (`22ad2f16ff8d63fd761c918b92f4c5d961814624`)
+carried stale-SHA Tier-2 evidence while required provider/physical rows remained
+open. S-31's first independent review of
+`61254178c00caeff083b663fd9f216bdc26e7bfb` found that the checker accepted a
+partial suite and had no blocking audience. The final standards review of
+`eb34847513f46cb30f567d78621b0fe76d38d282` found that producer provenance used
+the wrong authenticated health shape, privacy detection was weaker than the
+shared scanner, and the producer self-check lacked a durable CI route. These
+are three of three material retrospective correctness escapes; their elapsed
+review times were not retained, so they are explicitly excluded from the timed
+Cycle 8 acceleration analysis rather than presented as stopwatch data.
+
+The existing `check-gauntlet-evidence-at-head.sh` primitive is extended instead
+of adding an orphan checker. On S-31 it now requires the full five-suite/23-row
+manifest, full current SHA, clean running source, green outcome, timestamps,
 empty failures, and privacy-safe content across every textual evidence
-artifact. The bounded pre-push lane is its blocking audience;
+artifact. Its producer provenance and shared privacy paths have dedicated
+behavioral tests registered in both manifest lanes. The bounded pre-push lane
+is its blocking audience;
 `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1` is the explicit break-glass hatch only with
 a tracking issue and reason. Hermetic tests inject missing directory, partial
 suite, missing row, short/stale SHA, red row, malformed JSON, and secret-bearing
