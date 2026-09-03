@@ -19,7 +19,7 @@ git -C "$REPO" config user.email test@example.com
 git -C "$REPO" config user.name 'Gauntlet Evidence Test'
 printf 'fixture\n' >"$REPO/README.md"
 git -C "$REPO" add README.md desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
-git -C "$REPO" commit -qm fixture
+git -C "$REPO" -c core.hooksPath=/dev/null commit -qm fixture
 
 CHECK="$REPO/desktop/macos/scripts/check-gauntlet-evidence-at-head.sh"
 EVIDENCE="$REPO/desktop/macos/.harness/agent-continuity-gauntlet/run/manifest.json"
@@ -111,6 +111,10 @@ VALID_STEPS='[
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
 expect_pass "green evidence at the full HEAD SHA" "$CHECK" block
 
+printf '%s\n' '{"schema_version":1,"privacy_class":"hashed-summary","payload":{"kind":"object","entries":[{"key":{"kind":"string","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","utf8_bytes":6},"value":{"kind":"string","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","utf8_bytes":12}}]}}' >"$(dirname "$EVIDENCE")/detail.json"
+expect_pass "hash-only sibling evidence" "$CHECK" block
+rm -f "$(dirname "$EVIDENCE")/detail.json"
+
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' '["continuity"]'
 expect_fail "partial suite evidence on S-31" "$CHECK" block
 
@@ -164,6 +168,29 @@ payload["steps"][0]["assistant_text"] = "raw assistant content"
 path.write_text(json.dumps(payload), encoding="utf-8")
 PY
 expect_fail "raw content or identity fields in manifest" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+python3 - "$EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["app_log"] = "/Users/example/Library/Logs/Intentive/app.log"
+path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+expect_fail "absolute local evidence paths in manifest" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+printf '%s\n' '{"prompt":"raw user content"}' >"$(dirname "$EVIDENCE")/detail.json"
+expect_fail "raw JSON sibling evidence" "$CHECK" block
+rm -f "$(dirname "$EVIDENCE")/detail.json"
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+printf 'not-a-real-image\n' >"$(dirname "$EVIDENCE")/main-window.png"
+expect_fail "retained screenshot evidence" "$CHECK" block
+rm -f "$(dirname "$EVIDENCE")/main-window.png"
 
 for planted_secret in \
   'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1Njc4OTAxMjM0NTY3ODkwIn0' \

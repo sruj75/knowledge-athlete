@@ -447,8 +447,8 @@ timeline identity/open, or pill projection is incomplete until:
    ./scripts/agent-continuity-gauntlet.sh --suite continuity --bundle-id com.heyintentive.intentive.dev.omi-gauntlet
    ./scripts/check-gauntlet-evidence-at-head.sh
    ```
-   CI only runs gauntlet `--self-check` (wiring). Live suite is a PR/RC gate,
-   not PR CI. Do not assert exact assistant wording.
+   CI installs locked agent dependencies and runs gauntlet `--self-check`; live suite is a PR/RC gate, not PR CI.
+   Evidence is hash/size-only: never retain prompts, replies, identities, logs, screenshots, audio, or machine paths. Do not assert exact assistant wording.
 5. **Hermetic e2e** only if a bridge action/surface contract changed. Do not
    expand flow `covers:` lists as fake continuity coverage.
 6. **No second message store** / no new free-text identity format / no
@@ -463,9 +463,8 @@ timeline identity/open, or pill projection is incomplete until:
   P4 requires a current-fact answer with no synthetic public-web activity,
   browsing claim, or source URL. **Continuity PRs / RC:** `--suite
   continuity` (typed + PTT + blind recall) after auth seed; `--suite all` for
-  RC. Evidence has the clean running bundle's full SHA. The S-31 checker scans
-  all textual artifacts and rejects incomplete, failed, malformed, stale, or
-  secret-bearing evidence. Its pre-push hatch requires both
+  RC. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
+  The S-31 checker rejects incomplete, failed, malformed, stale, raw, media, or secret-bearing evidence. Its pre-push hatch requires both
   `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE` and `..._REASON`.
 - **Anti-flake:** clear owner/kernel surface before probes; per-run nonces;
   hard-fail on blind-recall / structural snapshot only; zero automatic retries

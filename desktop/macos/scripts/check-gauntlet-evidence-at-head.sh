@@ -52,10 +52,12 @@ for manifest in "$HARNESS_ROOT"/*/manifest.json; do
 import json
 import re
 import sys
+from pathlib import Path
 
 manifest_path, head_sha, branch = sys.argv[1:4]
+manifest_file = Path(manifest_path)
 try:
-    with open(manifest_path, encoding="utf-8") as handle:
+    with manifest_file.open(encoding="utf-8") as handle:
         raw = handle.read()
     data = json.loads(raw)
 except (OSError, json.JSONDecodeError):
@@ -77,9 +79,111 @@ if not isinstance(data.get("steps"), list) or not data["steps"]:
     raise SystemExit(1)
 if not all(isinstance(step, dict) and step.get("id") and step.get("name") for step in data["steps"]):
     raise SystemExit(1)
+forbidden_top_level_fields = {"markers", "trace_log", "app_log"}
+if forbidden_top_level_fields.intersection(data):
+    raise SystemExit(1)
+if re.search(r"/Users/|GAUNTLET-|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", raw):
+    raise SystemExit(1)
 forbidden_manifest_fields = {"user_text", "assistant_text", "identity", "trace_ids"}
 if any(forbidden_manifest_fields.intersection(step) for step in data["steps"] if isinstance(step, dict)):
     raise SystemExit(1)
+
+
+def valid_text_summary(value):
+    return (
+        isinstance(value, dict)
+        and set(value) == {"sha256", "utf8_bytes"}
+        and isinstance(value["sha256"], str)
+        and re.fullmatch(r"[0-9a-f]{64}", value["sha256"])
+        and isinstance(value["utf8_bytes"], int)
+        and value["utf8_bytes"] >= 0
+    )
+
+
+marker_digests = data.get("marker_digests", {})
+if not isinstance(marker_digests, dict) or not all(valid_text_summary(value) for value in marker_digests.values()):
+    raise SystemExit(1)
+for field in ("failures", "warnings"):
+    values = data.get(field, [])
+    if not isinstance(values, list) or not all(valid_text_summary(value) for value in values):
+        raise SystemExit(1)
+
+
+def valid_privacy_node(node):
+    if not isinstance(node, dict) or not isinstance(node.get("kind"), str):
+        return False
+    kind = node["kind"]
+    if kind == "null":
+        return set(node) == {"kind"}
+    if kind == "boolean":
+        return set(node) == {"kind", "value"} and isinstance(node["value"], bool)
+    if kind == "number":
+        if set(node) == {"kind", "value"}:
+            return isinstance(node["value"], (int, float)) and not isinstance(node["value"], bool)
+        return set(node) == {"kind", "sha256", "utf8_bytes"} and valid_text_summary(
+            {"sha256": node.get("sha256"), "utf8_bytes": node.get("utf8_bytes")}
+        )
+    if kind == "string":
+        return set(node) == {"kind", "sha256", "utf8_bytes"} and valid_text_summary(
+            {"sha256": node.get("sha256"), "utf8_bytes": node.get("utf8_bytes")}
+        )
+    if kind == "bytes":
+        return (
+            set(node) == {"kind", "sha256", "bytes"}
+            and isinstance(node["sha256"], str)
+            and re.fullmatch(r"[0-9a-f]{64}", node["sha256"])
+            and isinstance(node["bytes"], int)
+            and node["bytes"] >= 0
+        )
+    if kind == "array":
+        return set(node) == {"kind", "items"} and isinstance(node["items"], list) and all(
+            valid_privacy_node(item) for item in node["items"]
+        )
+    if kind == "object":
+        if set(node) != {"kind", "entries"} or not isinstance(node["entries"], list):
+            return False
+        return all(
+            isinstance(entry, dict)
+            and set(entry) == {"key", "value"}
+            and isinstance(entry["key"], dict)
+            and entry["key"].get("kind") == "string"
+            and valid_privacy_node(entry["key"])
+            and valid_privacy_node(entry["value"])
+            for entry in node["entries"]
+        )
+    return False
+
+
+def valid_privacy_envelope(value):
+    return (
+        isinstance(value, dict)
+        and set(value) == {"schema_version", "privacy_class", "payload"}
+        and value["schema_version"] == 1
+        and value["privacy_class"] == "hashed-summary"
+        and valid_privacy_node(value["payload"])
+    )
+
+
+for artifact in manifest_file.parent.rglob("*"):
+    if artifact.is_symlink():
+        raise SystemExit(1)
+    if not artifact.is_file() or artifact == manifest_file:
+        continue
+    if artifact.suffix not in {".json", ".jsonl"}:
+        raise SystemExit(1)
+    try:
+        artifact_raw = artifact.read_text(encoding="utf-8")
+        if artifact.suffix == ".json":
+            payloads = [json.loads(artifact_raw)]
+        else:
+            rows = [line for line in artifact_raw.splitlines() if line.strip()]
+            if not rows:
+                raise SystemExit(1)
+            payloads = [json.loads(line) for line in rows]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        raise SystemExit(1)
+    if not all(valid_privacy_envelope(payload) for payload in payloads):
+        raise SystemExit(1)
 
 # S-31 is the final all-waves closure lane. A manifest from a smaller live
 # suite is useful diagnostic evidence but cannot satisfy that contract. Bind
