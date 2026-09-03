@@ -3,6 +3,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Pre-push hooks export repository-local Git variables. This test creates an
+# independent repository and must not let its staged fixture paths resolve
+# against the caller's linked-worktree index.
+while IFS= read -r variable; do
+  unset "$variable"
+done < <(git -C "$ROOT" rev-parse --local-env-vars)
+
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/intentive-pre-commit.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
