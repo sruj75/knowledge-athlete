@@ -9,25 +9,36 @@ import Foundation
 extension Foundation.Bundle {
   static let resourceBundle: Bundle = {
     let bundleName = "Omi Computer_Omi Computer"
+    let bundleDirectoryName = "\(bundleName).bundle"
+    let loadedBundleURLs =
+      [Bundle.main.bundleURL]
+      + Bundle.allBundles.map(\.bundleURL)
+      + Bundle.allFrameworks.map(\.bundleURL)
+    var candidatePaths: [String] = []
+    var seen = Set<String>()
 
-    // For macOS app bundles, look in Contents/Resources/
-    let resourcesPath = Bundle.main.bundleURL
-      .appendingPathComponent("Contents/Resources")
-      .appendingPathComponent("\(bundleName).bundle")
-      .path
-
-    // Fallback: direct child of main bundle (for development builds)
-    let mainPath = Bundle.main.bundleURL
-      .appendingPathComponent("\(bundleName).bundle")
-      .path
-
-    if let bundle = Bundle(path: resourcesPath) {
-      return bundle
-    } else if let bundle = Bundle(path: mainPath) {
-      return bundle
+    for loadedBundleURL in loadedBundleURLs {
+      // Installed apps place target resources under Contents/Resources. SwiftPM
+      // test hosts place the target resource bundle beside the .xctest bundle.
+      let candidates = [
+        loadedBundleURL
+          .appendingPathComponent("Contents/Resources")
+          .appendingPathComponent(bundleDirectoryName),
+        loadedBundleURL.appendingPathComponent(bundleDirectoryName),
+        loadedBundleURL.deletingLastPathComponent()
+          .appendingPathComponent(bundleDirectoryName),
+      ]
+      for candidate in candidates {
+        let path = candidate.standardizedFileURL.path
+        guard seen.insert(path).inserted else { continue }
+        candidatePaths.append(path)
+        if let bundle = Bundle(path: path) {
+          return bundle
+        }
+      }
     }
 
     // If none found, crash with helpful message
-    Swift.fatalError("could not load resource bundle: tried \(resourcesPath), \(mainPath)")
+    Swift.fatalError("could not load resource bundle: tried \(candidatePaths.joined(separator: ", "))")
   }()
 }

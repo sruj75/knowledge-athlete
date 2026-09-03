@@ -12,7 +12,15 @@ enum DesktopBackendEnvironment {
   }
 
   static var shouldUseDevelopmentBackends: Bool {
-    shouldUseDevelopmentBackends(
+    #if DEBUG
+      // SwiftPM's XCTest host has no Intentive product identity or signed app
+      // metadata. Keep its deferred production code paths on the hermetic
+      // development boundary without weakening the pure bundle policy below.
+      if Bundle.main.bundleIdentifier == "com.apple.dt.xctest.tool" {
+        return true
+      }
+    #endif
+    return shouldUseDevelopmentBackends(
       bundleIdentifier: AppBuild.bundleIdentifier,
       updateChannel: AppBuild.currentUpdateChannel,
       externalPreviewBackend: AppBuild.externalPreviewBackend
