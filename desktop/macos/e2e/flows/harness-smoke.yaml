@@ -11,6 +11,7 @@ covers:
   - desktop/macos/Desktop/Sources/AppBuild.swift
   - desktop/macos/Desktop/Sources/Observability/DesktopSentryConfiguration.swift
   - desktop/macos/Desktop/Sources/BundleEnvironment.swift
+  - desktop/macos/Desktop/Sources/BundleExtension.swift
   - desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift
   - desktop/macos/Desktop/Sources/AuthService.swift
   - desktop/macos/Desktop/Sources/Auth/AuthLogPrivacy.swift
