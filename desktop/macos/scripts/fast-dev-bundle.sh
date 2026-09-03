@@ -78,7 +78,7 @@ for value in config:
 
 for path in [
     "run.sh",
-    "omi_icon.icns",
+    "intentive_icon.icns",
     "Desktop/Package.swift",
     "Desktop/Package.resolved",
     "Desktop/Info.plist",

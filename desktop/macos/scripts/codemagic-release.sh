@@ -434,7 +434,8 @@ build() {
   find "$packaged_resource_bundle" -type f -name 'GoogleService-Info.plist' -delete
   [[ -z "$(find "$packaged_resource_bundle" -type f -name 'GoogleService-Info.plist' -print -quit)" ]] ||
     fail "nested inherited Firebase plist remained in the packaged resource bundle"
-  [[ -f omi_icon.icns ]] && cp omi_icon.icns "$APP_BUNDLE/Contents/Resources/OmiIcon.icns"
+  [[ -f intentive_icon.icns ]] \
+    && cp intentive_icon.icns "$APP_BUNDLE/Contents/Resources/IntentiveIcon.icns"
 
   [[ -d agent/dist && -d .harness/agent-runtime/agent-node_modules ]] || fail "prepared agent runtime is missing"
   mkdir -p "$APP_BUNDLE/Contents/Resources/agent"

@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - Logo
 
-/// The 8-dot Intentive mark, tinted to the current ink. Spins ONLY while Intentive is
+/// The Intentive head-and-asterisk mark, tinted to the current ink. Spins ONLY while Intentive is
 /// actively working (listening / thinking) — never decoratively.
 struct SBLogo: View {
   @Environment(\.sbTheme) private var sb
@@ -18,7 +18,7 @@ struct SBLogo: View {
   @State private var angle: Double = 0
 
   private static let image: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+    guard let url = Bundle.resourceBundle.url(forResource: "intentive_mark", withExtension: "png"),
       let data = try? Data(contentsOf: url)
     else { return nil }
     let img = NSImage(data: data)

@@ -12,7 +12,8 @@ struct RewindOnlyView: View {
     Group {
       if authState.isRestoringAuth {
         VStack(spacing: OmiSpacing.lg) {
-          if let iconURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+          if let iconURL = Bundle.resourceBundle.url(
+            forResource: "intentive_mark", withExtension: "png"),
             let nsImage = NSImage(contentsOf: iconURL)
           {
             Image(nsImage: nsImage)

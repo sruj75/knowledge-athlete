@@ -23,7 +23,7 @@ struct SignInView: View {
   @State private var introRevealed = false
 
   private static let logoImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+    guard let url = Bundle.resourceBundle.url(forResource: "intentive_mark", withExtension: "png"),
       let data = try? Data(contentsOf: url)
     else { return nil }
     let img = NSImage(data: data)
@@ -32,7 +32,10 @@ struct SignInView: View {
   }()
 
   private static let backgroundImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "signin_bg", withExtension: "png") else { return nil }
+    guard
+      let url = Bundle.resourceBundle.url(
+        forResource: "intentive_signin_backdrop", withExtension: "png")
+    else { return nil }
     return NSImage(contentsOf: url)
   }()
 

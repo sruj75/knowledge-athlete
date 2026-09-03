@@ -351,7 +351,7 @@ extension SettingsContentView {
           // App info
           HStack(spacing: OmiSpacing.lg) {
             if let logoURL = Bundle.resourceBundle.url(
-              forResource: "herologo", withExtension: "png"),
+              forResource: "intentive_mark", withExtension: "png"),
               let logoImage = NSImage(contentsOf: logoURL)
             {
               Image(nsImage: logoImage)

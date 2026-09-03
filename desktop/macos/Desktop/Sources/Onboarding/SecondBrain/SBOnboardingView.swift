@@ -29,7 +29,10 @@ struct SBOnboardingView: View {
 
   /// Same dune background as sign-in, for a continuous entry experience.
   private static let backgroundImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "signin_bg", withExtension: "png") else { return nil }
+    guard
+      let url = Bundle.resourceBundle.url(
+        forResource: "intentive_signin_backdrop", withExtension: "png")
+    else { return nil }
     return NSImage(contentsOf: url)
   }()
 

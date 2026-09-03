@@ -136,7 +136,7 @@ private struct WhatsNewToastCard: View {
 
   private var logo: some View {
     Group {
-      if let url = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+      if let url = Bundle.resourceBundle.url(forResource: "intentive_mark", withExtension: "png"),
         let image = NSImage(contentsOf: url)
       {
         Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)

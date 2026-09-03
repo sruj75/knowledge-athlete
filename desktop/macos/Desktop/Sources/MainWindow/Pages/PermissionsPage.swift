@@ -384,7 +384,8 @@ struct MicrophonePermissionSection: View {
 
             // Screenshot showing the toggle
             if let image = NSImage(
-              contentsOfFile: Bundle.resourceBundle.path(forResource: "microphone-settings", ofType: "png") ?? "")
+              contentsOfFile: Bundle.resourceBundle.path(
+                forResource: "intentive_microphone_settings", ofType: "png") ?? "")
             {
               Image(nsImage: image)
                 .resizable()
@@ -680,27 +681,13 @@ struct ScreenRecordingPermissionSection: View {
 
   // Content for NORMAL state - first-time grant flow
   private var normalGrantContent: some View {
-    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Intentive"
     return VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       Text("How to grant screen recording access:")
         .scaledFont(size: OmiType.body, weight: .medium)
         .foregroundColor(OmiColors.textPrimary)
 
-      VStack(alignment: .leading, spacing: OmiSpacing.md) {
-        instructionStep(number: 1, text: "Click \"Open Settings\" below - this will make Intentive appear in the list")
-        instructionStep(number: 2, text: "Find \"\(appName)\" in the Screen Recording list")
-        instructionStep(number: 3, text: "Toggle the switch to enable screen recording")
-        instructionStep(number: 4, text: "Return to Intentive - permission will update automatically")
-      }
-
-      // Tutorial GIF
-      AnimatedGIFView(gifName: "permissions")
-        .frame(maxWidth: 400, maxHeight: 300)
-        .cornerRadius(OmiChrome.smallControlRadius)
-        .overlay(
-          RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-            .stroke(OmiColors.backgroundQuaternary, lineWidth: 1)
-        )
+      PermissionTutorialSlideshow()
+        .frame(maxWidth: 400)
 
       Button(action: {
         ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()

@@ -17,6 +17,7 @@ approval, or ownership of a live external destination.
 | [`deletion-map.md`](../deletion-map.md) | Predecessor slice ownership and retained internal compatibility boundaries. |
 | [`s-30 tdd.md`](s-30%20tdd.md) | Cycle ordering, search matrix, real-app acceptance, and closure rules. |
 | User direction, 2026-09-02 | Finish the code cycles with visual placeholders, do not alter inherited Omi assets, then request one consolidated Intentive asset pack. |
+| User asset handoff, 2026-09-03 | Canonical Intentive icon, moss-garden source, experimental grass-material Dock reference, and Claude-style DMG reference approved; generate clean slideshow frames, preserve the complete moss source, evaluate the Dock treatment at native size, and delete caller-free inherited assets. Native-size review rejected the grass treatment because it read as flat green; the Dock returned to canonical black-and-white. |
 
 The repository has no released Intentive client population. Current in-tree
 producers and consumers therefore move atomically to the owned external values;
@@ -98,40 +99,33 @@ packet do not prove it.
 | local Memory database filename `omi.db` | Existing local persistence | Protected storage identity | Renaming/importing risks old-state takeover or loss; S-30 must not redesign storage | Retain; PRODUCT local-authority fence |
 | old bundle/URL/service values inside rejection, migration, foreign-app, and safety tests | Test-only | Explicit old-value rejection/migration | Needed to prove inherited identity is rejected and no state is imported | Retain; tests assert the negative boundary |
 | `omi-wave6-s30` | Test bundle display slug | Assignment exception | Exact temporary name required by S-30; resolved bundle ID is `com.heyintentive.intentive.dev.omi-wave6-s30` | Retain for acceptance evidence only |
-| inherited asset filenames and `OmiIcon` plist/resource key | Shipping visual placeholder | User-held asset gate | User explicitly required all Omi visual bytes to remain unchanged until one consolidated asset handoff | Retain temporarily; hashes and changed-file proof below |
 | `/tmp/omi-*` qualification/runtime paths and POSIX/container user `omi` | Machine-local internals | Internal | No user-visible, protocol, service, metric, log, or external ownership meaning | Retain after caller/context review |
 | generated Windows/absent-web `OmiApi` tooling | Excluded generator output | Deferred/missing product | Its consumers are excluded Windows or absent upstream surfaces | Retain; do not regenerate nonexistent clients |
 | inherited hosts in routing/release guard deny-lists | Safety policy | Explicit rejection | The old value must remain recognizable so the build/deploy fails closed | Retain; guard tests assert rejection |
 
-## Visual and media placeholder ledger
+## Visual and media asset completion ledger
 
-No file in this table was modified by S-30. Third-party provider logos are not
-part of the product-brand replacement request and remain subject to their own
-provider trademark terms.
+The owner asset gate closed on 2026-09-03. Product-brand derivatives and their
+source hashes are recorded in `desktop/macos/ASSET-PROVENANCE.md`. Third-party
+provider logos are outside the product-brand replacement and remain subject to
+their own provider trademark terms.
 
-| Current file(s) | Runtime state | Current observation | Final disposition after owner handoff |
-|---|---|---|---|
-| `desktop/macos/omi_icon.icns`, `Desktop/Resources/AppIcon.icns`, `Desktop/Resources/OmiIcon.icns` | Active app icon resources | identical inherited Omi icon bytes | Replace from one approved 1024 px Intentive app-icon master; decide Stable/Beta/dev treatments |
-| `Desktop/Sources/Resources/herologo.png` | Active across sign-in, Home, What's New, About, onboarding/Rewind/Second Brain | inherited white dotted Omi mark | Replace with approved neutral Intentive brand mark variants |
-| `Desktop/Sources/Resources/signin_bg.png` | Active sign-in/onboarding backdrop | inherited pale-blue/black background; ownership not yet approved | Supply approved replacement or explicit provenance/license approval to retain |
-| `Desktop/Sources/Resources/omi_app_icon.png` | Active runtime dock/app representation | inherited Omi art | Derive approved runtime raster from canonical Intentive app icon |
-| `Desktop/Sources/Resources/omi_menu_bar_icon.png` | Active menu-bar art | inherited Omi art | Supply monochrome template Intentive menu mark |
-| `Desktop/Sources/Resources/permissions.gif` | Active permission guidance | contains visible `OMI-COMPUTER` system-prompt recording | Supply Intentive recording/source; preserve dimensions and interaction semantics |
-| `Desktop/Sources/Resources/microphone-settings.png` | Active microphone guidance | contains visible Omi identity | Supply Intentive replacement; preserve dimensions and guidance semantics |
-| `accessibility_permission.gif`, `enabling_token.gif`, `omi_text_logo.png`, `onboarding_mac_lineup.png`, `omi-with-rope-no-padding.webp`, `omi-demo.mp4`, `omi_notch_logo.svg`, `tray_icon.png` | Packaged but no current non-test caller found | inherited Omi/hardware/demo media, some purple or uncertain provenance | Owner chooses approved replacements or deletion after final caller/provenance review |
-| `Desktop/Sources/Resources/folder_access.png` | Packaged but no current caller found | contains visible `Omi Dev` identity | Owner chooses an Intentive replacement or approves deletion after provenance review |
-| `desktop/macos/docs/oauth-callback-success-preview.png` | Documentation preview only | contains visible `return to Omi` identity | Supply an Intentive documentation preview or approve deletion |
-| `backend/scripts/stt/modulate_repro/test_audio.wav` | Required local fixture is absent | old inherited remote download removed | Supply an owned/licensed 38 s mono PCM16 16 kHz fixture, or approve retirement of the repro |
-
-For each supplied asset, record owner, license/provenance, intended call sites,
-light/dark and Stable/Beta/dev treatment, source dimensions/vector format, and
-accessibility label. No purple variant is permitted.
+| Current file(s) | Runtime state | Completed disposition |
+|---|---|---|
+| `desktop/macos/intentive_icon.icns`, `Desktop/Sources/Resources/intentive_app_icon.png` | Finder, bundle, Dock, and runtime app identity | Exact owner-supplied black-and-white icon uniformly inset on the 1024 px canvas to match the standard Notes/Freeform/Discord Dock boundary; its original internal mark already matches the stronger Chrome/ChatGPT visual weight; `CFBundleIconFile` and every bundler now use `IntentiveIcon` |
+| `intentive_mark.png`, `intentive_menu_bar_icon.png` | Sign-in, Home, What's New, About, onboarding/Rewind/Second Brain, menu bar, and idle notch | Exact canonical mark geometry is reused; AppKit renders the menu asset as a 21 × 21 template image with an Intentive accessibility label |
+| `intentive_signin_backdrop.png` | Sign-in and onboarding backdrop | 4096 × 2304 side extension retains the complete source square, centered and uncropped; generated pixels fill only the left/right gap |
+| `intentive_permission_01_privacy.png` through `intentive_permission_04_return.png` | Active permission tutorial | Four clean 4:3 frames replace the inherited recording and loop as a timed SwiftUI slideshow with hover pause and Reduce Motion handling; corrected frames preserve the full canonical mark |
+| `intentive_microphone_settings.png` | Active microphone guidance | Intentive replacement preserves the system-settings guidance semantics |
+| `docs/oauth-callback-success-preview.png` | Documentation preview | Updated to the exact Intentive return identity |
+| `dmg-assets/background.png`, `background@2x.png` | Mounted installer background | Approved warm Claude-style composition; Finder supplies the live app and Applications icons so no duplicate bitmap icons are baked into the background |
+| Inherited Omi icon/GIF/logo/tray/onboarding/demo/folder and unused DMG-option assets | No retained caller | Deleted after owner approval and caller/provenance review; git history remains the recovery record |
+| `backend/scripts/stt/modulate_repro/test_audio.wav` | Required local fixture is absent | Still needs an owned/licensed 38 s mono PCM16 16 kHz fixture, or explicit retirement of the repro; this is not a product-brand asset |
 
 ## Open owner and operational rows
 
 | Missing input / resource | Current safe repository behavior | Closure owner |
 |---|---|---|
-| Final Intentive visual/media pack and provenance | Existing bytes remain untouched as explicit placeholders | Product/design owner |
 | Owned Figma file/page destination for any future onboarding sync | Destination-mutating local LaunchAgent scripts are absent. A manual GitHub workflow can still export and publish the repository onboarding bundle, including Figma's capture helper, but it does not select or mutate an external design file. | Product/design owner |
 | Owned PostHog project ID/token | Analytics fails closed with no network setup; inherited token is not used | Product/provider owner |
 | Published `heyintentive.com` product/download/preview/Terms/Privacy/support destinations | Website/Terms entries are absent unless an owned HTTPS URL is injected; Privacy & Data remains local; Help Center is absent | Product/legal/release owner |
@@ -148,12 +142,12 @@ accessibility label. No purple variant is permitted.
 | Named bundle | `/Applications/omi-wave6-s30.app`; bundle `com.heyintentive.intentive.dev.omi-wave6-s30`; automation port `47945`; production Omi apps were not touched. |
 | Required bridge flows | `.harness/runs/20260902-201046-navigation`, `20260902-201047-home-stage`, `20260902-201049-privacy-settings`, `20260902-201049-about-settings`: all passed. |
 | Tier 2 | `.harness/desktop-core/20260902T144126Z-t2`: 30/32 plus spatial overlay passed; the two chat reply checks failed because the offline local agent token is intentionally invalid, not because of S-30 identity behavior. |
-| Manual render | `/tmp/s30-onboarding.png`, `/tmp/s30-privacy.png`, `/tmp/s30-about.png`; inherited art remains visible by the explicit placeholder decision. |
+| Manual render | Initial identity pass: `/tmp/s30-onboarding.png`, `/tmp/s30-privacy.png`, `/tmp/s30-about.png`. Final asset pass: `/tmp/s30-assets-signin-clean.png`, `/tmp/s30-assets-exports/09-permissions.png`, `/tmp/s30-dmg-window.png`. `/tmp/s30-black-dock-final.png` verifies the final canonical black-and-white Dock icon: standard tile boundary, strong internal mark, and parity with Chrome, ChatGPT, Notes, Freeform, and Discord. Menu-bar/notch marks remain monochrome. |
 | Desktop tests | Final focused identity/truth suite: 43 passed; strict changed-source flow coverage passes 134/134. The component runner's launcher, packaging, release, E2E, and embedded-backend stages pass. Its isolated Swift lane reports 393/402 suites green; nine inherited suites fail in unchanged boundaries: seven abort when the XCTest host reaches the fail-closed production URL rule, and `RewindRetentionCleanupTests` / `RewindStorageVideoFrameExtractionTests` retain stale pre-S-28 storage expectations. The failed test files and routing/storage owners have no S-30 diff. |
 | Backend tests | S-30 identity/provider/release groups are recorded with the final command results; the full runner's unrelated stale Redis/Firestore/CPU-threshold failures remain assigned to their owning future deletion work. |
 | Agent runtime | build and focused runtime/manifests/context tests pass; Pi extension 11/11 passes. The agent-logic harness reaches its unchanged Swift lane and then hits the same inherited XCTest-host production-URL abort; both routing owners are byte-identical to `origin/main`. |
 | Requirements validator | The S-30 implementation does not alter the requirements packet; currently reopened Gemini rows are recorded as upstream ledger state rather than rewritten by this slice. |
-| Asset integrity | Final `git diff --name-only` and SHA-256 evidence must show no visual/media asset byte changes before handoff. |
+| Asset integrity | Focused final suite passes 25/25. `BrandAssetContractTests` verifies required packaged PNGs, renderer dimensions, the standard Dock tile/internal-mark bounds, the four-frame loop, and absence of retired inherited identity resources; the Retina DMG background contract passes; `ASSET-PROVENANCE.md` records canonical source hashes and transformations. |
 
 Final commit, post-commit preflight, review findings, and exact asset hashes are
 recorded in the local commit/hand-off evidence rather than predicting a SHA in

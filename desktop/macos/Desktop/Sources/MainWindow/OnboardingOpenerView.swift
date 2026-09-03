@@ -17,7 +17,8 @@ struct OnboardingOpenerView: View {
   var body: some View {
     VStack(spacing: OmiSpacing.xl) {
       VStack(spacing: OmiSpacing.md) {
-        if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+        if let logoURL = Bundle.resourceBundle.url(
+          forResource: "intentive_mark", withExtension: "png"),
           let logoImage = NSImage(contentsOf: logoURL)
         {
           Image(nsImage: logoImage)

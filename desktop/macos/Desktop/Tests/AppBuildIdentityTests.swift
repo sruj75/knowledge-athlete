@@ -12,6 +12,7 @@ final class AppBuildIdentityTests: XCTestCase {
       PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
 
     XCTAssertEqual(value["CFBundleDisplayName"] as? String, "Intentive")
+    XCTAssertEqual(value["CFBundleIconFile"] as? String, "IntentiveIcon")
     for key in [
       "NSScreenCaptureUsageDescription",
       "NSMicrophoneUsageDescription",

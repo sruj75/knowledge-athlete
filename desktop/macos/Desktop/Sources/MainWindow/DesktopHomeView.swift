@@ -71,7 +71,7 @@ struct DesktopHomeView: View {
 
   // Pre-loaded hero logo to avoid NSImage init crashes during SwiftUI body evaluation
   private static let heroLogoImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+    guard let url = Bundle.resourceBundle.url(forResource: "intentive_mark", withExtension: "png"),
       let data = try? Data(contentsOf: url)
     else { return nil }
     return NSImage(data: data)

@@ -326,32 +326,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
     // once (they can re-enable in Settings).
     NotificationService.migrateToOffByDefaultIfNeeded()
 
-    // Force macOS to use the correct app icon (bypasses icon cache).
-    // Apply squircle mask with proper margins because NSApp.applicationIconImage
-    // renders the raw image without macOS auto-masking.
+    // Force macOS to use the canonical, already-masked Intentive app icon
+    // (bypasses icon cache).
     // Do NOT call NSWorkspace.setIcon(forFile:) — it writes a resource fork onto
     // the .app bundle, which breaks the code signature and prevents Sparkle
     // auto-updates from working ("An error occurred while running the updater").
-    if let iconURL = Bundle.resourceBundle.url(forResource: "omi_app_icon", withExtension: "png"),
+    if let iconURL = Bundle.resourceBundle.url(
+      forResource: "intentive_app_icon", withExtension: "png"),
       let icon = NSImage(contentsOf: iconURL)
     {
-      let size = icon.size
-      let maskedIcon = NSImage(size: size)
-      maskedIcon.lockFocus()
-      // Scale content to ~88% with 6% margin on each side (matches macOS Dock icon sizing)
-      let margin = size.width * 0.06
-      let contentRect = NSRect(
-        x: margin, y: margin,
-        width: size.width - margin * 2,
-        height: size.height - margin * 2)
-      // Corner radius ≈ 22.37% of content size
-      let radius = contentRect.width * 0.2237
-      let path = NSBezierPath(roundedRect: contentRect, xRadius: radius, yRadius: radius)
-      path.addClip()
-      icon.draw(in: contentRect)
-      maskedIcon.unlockFocus()
-      NSApp.applicationIconImage = maskedIcon
-      log("AppDelegate: Set application icon with squircle mask")
+      NSApp.applicationIconImage = icon
+      log("AppDelegate: Set canonical Intentive application icon")
     }
 
     // Initialize NotificationService early to set up UNUserNotificationCenterDelegate
@@ -781,11 +766,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
           button.image = icon
         }
       } else if let iconURL = Bundle.resourceBundle.url(
-        forResource: "omi_menu_bar_icon", withExtension: "png"),
+        forResource: "intentive_menu_bar_icon", withExtension: "png"),
         let icon = NSImage(contentsOf: iconURL)
       {
         icon.isTemplate = true
-        icon.size = NSSize(width: 18, height: 18)
+        icon.size = NSSize(width: 21, height: 21)
+        icon.accessibilityDescription = "Intentive"
         button.image = icon
       }
     }
@@ -849,11 +835,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
           log("AppDelegate: [MENUBAR] Rewind icon set successfully")
         }
       } else if let iconURL = Bundle.resourceBundle.url(
-        forResource: "omi_menu_bar_icon", withExtension: "png"),
+        forResource: "intentive_menu_bar_icon", withExtension: "png"),
         let icon = NSImage(contentsOf: iconURL)
       {
         icon.isTemplate = true
-        icon.size = NSSize(width: 18, height: 18)
+        icon.size = NSSize(width: 21, height: 21)
+        icon.accessibilityDescription = "Intentive"
         button.image = icon
         button.imagePosition = .imageOnly
         log("AppDelegate: [MENUBAR] product icon set successfully (size: \(icon.size))")
