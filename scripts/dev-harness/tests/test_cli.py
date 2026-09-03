@@ -283,6 +283,42 @@ def test_status_rejects_owned_live_stack_without_complete_launch_evidence(
         cli.active_runtime_config(requested)
 
 
+def test_launch_contract_records_backend_source_and_dependency_fingerprint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    cfg = config.load_config(REPO_ROOT, create_layout=True)
+
+    digest = cli._config_digest(cfg, cli._current_provider_report(cfg))
+    runtime_source = digest["runtime_source"]
+
+    assert isinstance(runtime_source, dict)
+    assert (
+        runtime_source["repository_git_sha"]
+        == subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
+    )
+    assert len(str(runtime_source["fingerprint_sha256"])) == 64
+    assert runtime_source["pathspec"] == list(cli.RUNTIME_SOURCE_PATHS)
+
+
+def test_active_stack_rejects_stale_backend_source_or_dependency_fingerprint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    report = cli._current_provider_report(requested)
+    cli._write_json(requested.layout.config_digest_path, cli._config_digest(requested, report))
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
+    current_source = cli._runtime_source_contract(REPO_ROOT)
+    stale_source = {**current_source, "fingerprint_sha256": "f" * 64}
+    monkeypatch.setattr(cli, "_runtime_source_contract", lambda _repo_root: stale_source)
+
+    with pytest.raises(RuntimeError, match="source or dependency fingerprint is stale"):
+        cli.active_runtime_config(requested)
+
+
 def test_status_uses_the_complete_recorded_launch_contract_not_ambient_configuration(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

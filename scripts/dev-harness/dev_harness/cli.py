@@ -21,7 +21,14 @@ from typing import Iterable
 from . import config, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
-CONFIG_DIGEST_SCHEMA_VERSION = 2
+CONFIG_DIGEST_SCHEMA_VERSION = 3
+RUNTIME_SOURCE_PATHS = (
+    "backend",
+    "scripts/dev-harness",
+    "firebase.json",
+    "firestore.rules",
+    "firestore.indexes.json",
+)
 
 
 def _now() -> str:
@@ -59,6 +66,53 @@ def _write_json(path: Path, data: object) -> None:
 def _json_digest(data: object) -> str:
     payload = json.dumps(data, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _runtime_source_contract(repo_root: Path) -> dict[str, object]:
+    """Fingerprint every source/dependency input used by the owned backend."""
+
+    def run_git(args: list[str], *, binary: bool = False) -> str | bytes:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=not binary,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.decode(errors="replace") if binary else result.stderr
+            raise RuntimeError(f"cannot fingerprint harness runtime source: git {' '.join(args)}: {detail.strip()}")
+        return result.stdout
+
+    sha = str(run_git(["rev-parse", "HEAD"])).strip()
+    if len(sha) != 40 or any(character not in "0123456789abcdef" for character in sha):
+        raise RuntimeError("cannot fingerprint harness runtime source: HEAD is not a full Git SHA")
+    pathspec = ["--", *RUNTIME_SOURCE_PATHS]
+    status = bytes(run_git(["status", "--porcelain=v1", "-z", "--untracked-files=all", *pathspec], binary=True))
+    diff = bytes(run_git(["diff", "--binary", "HEAD", *pathspec], binary=True))
+    untracked = bytes(run_git(["ls-files", "--others", "--exclude-standard", "-z", *pathspec], binary=True))
+
+    digest = hashlib.sha256()
+    digest.update(sha.encode("ascii"))
+    digest.update(b"\0tracked-diff\0")
+    digest.update(diff)
+    digest.update(b"\0untracked-files\0")
+    for raw_path in sorted(path for path in untracked.split(b"\0") if path):
+        relative = raw_path.decode("utf-8", errors="surrogateescape")
+        source_path = repo_root / relative
+        if not source_path.is_file():
+            raise RuntimeError(f"cannot fingerprint harness runtime source: untracked input is not a file: {relative}")
+        digest.update(raw_path)
+        digest.update(b"\0")
+        digest.update(source_path.read_bytes())
+        digest.update(b"\0")
+    return {
+        "repository_git_sha": sha,
+        "tree_dirty": bool(status),
+        "fingerprint_sha256": digest.hexdigest(),
+        "pathspec": list(RUNTIME_SOURCE_PATHS),
+    }
 
 
 def _process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
@@ -115,6 +169,7 @@ def _launch_contract(
         "credential_fingerprints": dict(provider_report.fingerprints),
         "offline_fake_sources": dict(provider_report.offline_fake_sources),
         "provider_budgets": _provider_budgets(),
+        "runtime_source": _runtime_source_contract(cfg.repo_root),
         "instance": cfg.instance,
         "state_root": str(cfg.layout.state_root),
         "ports": {
@@ -156,6 +211,7 @@ def _launch_contract_keys() -> tuple[str, ...]:
         "credential_fingerprints",
         "offline_fake_sources",
         "provider_budgets",
+        "runtime_source",
         "instance",
         "state_root",
         "ports",
@@ -214,10 +270,33 @@ def _validated_active_digest(requested: config.HarnessConfig) -> dict[str, objec
             raise ValueError("offline_fake_sources")
         if digest["provider_budgets"] != _provider_budgets():
             raise ValueError("provider_budgets")
+        runtime_source = digest["runtime_source"]
+        if not isinstance(runtime_source, dict) or set(runtime_source) != {
+            "repository_git_sha",
+            "tree_dirty",
+            "fingerprint_sha256",
+            "pathspec",
+        }:
+            raise ValueError("runtime_source")
+        source_sha = runtime_source["repository_git_sha"]
+        source_fingerprint = runtime_source["fingerprint_sha256"]
+        if not isinstance(source_sha, str) or len(source_sha) != 40:
+            raise ValueError("runtime_source")
+        if not isinstance(source_fingerprint, str) or len(source_fingerprint) != 64:
+            raise ValueError("runtime_source")
+        if not isinstance(runtime_source["tree_dirty"], bool):
+            raise ValueError("runtime_source")
+        if runtime_source["pathspec"] != list(RUNTIME_SOURCE_PATHS):
+            raise ValueError("runtime_source")
     except (KeyError, TypeError, ValueError):
         raise RuntimeError(
             "owned services are live but their complete launch evidence is missing or invalid; run make dev-down"
         ) from None
+    if digest["runtime_source"] != _runtime_source_contract(requested.repo_root):
+        raise RuntimeError(
+            "owned services are live but their backend/harness source or dependency fingerprint is stale; "
+            "run make dev-down"
+        )
     return digest
 
 

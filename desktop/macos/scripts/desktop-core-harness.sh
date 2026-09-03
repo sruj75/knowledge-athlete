@@ -309,7 +309,7 @@ from pathlib import Path
 
 repo_root = Path(sys.argv[1])
 sys.path.insert(0, str(repo_root / "scripts" / "dev-harness"))
-from dev_harness import config, safety
+from dev_harness import cli, config, safety
 
 # Services with process records in the dev-harness manifest. The Firebase Auth
 # emulator has no record of its own — it runs inside the "firestore" process
@@ -430,6 +430,30 @@ if str(digest.get("state_root", "")) != expected_state_root:
         details={"expected": expected_state_root, "got": digest.get("state_root")},
     )
 
+try:
+    current_runtime_source = cli._runtime_source_contract(repo_root)
+except RuntimeError as exc:
+    ownership_failure(
+        "runtime_source_unavailable",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+        details=str(exc),
+    )
+recorded_runtime_source = digest.get("runtime_source")
+if recorded_runtime_source != current_runtime_source:
+    ownership_failure(
+        "runtime_source_mismatch",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+        details={"recorded": recorded_runtime_source, "current": current_runtime_source},
+    )
+if current_runtime_source.get("tree_dirty") is not False:
+    ownership_failure(
+        "runtime_source_dirty",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+    )
+
 if provider_mode and provider_mode != "offline":
     print(
         json.dumps(
@@ -513,6 +537,7 @@ print(
             "config_digest_path": str(digest_path),
             "instance": cfg.instance,
             "state_root": expected_state_root,
+            "runtime_source": current_runtime_source,
         }
     )
 )

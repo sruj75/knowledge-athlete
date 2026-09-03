@@ -65,6 +65,10 @@ scenario="${OMI_TEST_SCENARIO:?}"
 if [[ "${1:-}" == "-" ]]; then
   script="$(cat)"
   if [[ "$script" == *"REQUIRED_SERVICES"* ]]; then
+    if [[ "$scenario" == "stale_source" ]]; then
+      printf '%s\n' '{"healthy":false,"reason":"runtime_source_mismatch"}'
+      exit 1
+    fi
     if [[ "$scenario" == "ensure_dev_stack_fail" && -f "${OMI_TEST_DEV_UP_MARKER:-}" ]]; then
       printf '%s\n' '{"healthy":false,"reason":"injected_probe_failure"}'
       exit 1
@@ -170,6 +174,16 @@ assert_ensure_dev_stack_failure_triggers_dev_down() {
   [[ "$(count_make_target "$make_log" dev-down)" -eq 1 ]] || fail "ensure_dev_stack failure must run dev-down once (got: $(cat "$make_log"))"
 }
 
+assert_stale_source_never_reaches_a_tier_2_run() {
+  local parsed status make_log
+  parsed="$(run_readiness_case stale_source)"
+  status="$(printf '%s\n' "$parsed" | sed -n '1p')"
+  make_log="$(printf '%s\n' "$parsed" | sed -n '2p')"
+  [[ "$status" -ne 0 ]] || fail "stale backend source should exit non-zero"
+  [[ "$(count_make_target "$make_log" dev-up)" -eq 1 ]] || fail "stale source must attempt a clean dev-up"
+  [[ "$(count_make_target "$make_log" dev-down)" -eq 1 ]] || fail "stale source failure must clean up"
+}
+
 assert_keep_stack_skips_dev_down_on_failure() {
   local parsed status make_log
   parsed="$(run_readiness_case keep_stack_fail 1)"
@@ -190,6 +204,7 @@ assert_success_teardowns_once() {
 
 assert_self_check_failure_triggers_dev_down
 assert_ensure_dev_stack_failure_triggers_dev_down
+assert_stale_source_never_reaches_a_tier_2_run
 assert_keep_stack_skips_dev_down_on_failure
 assert_success_teardowns_once
 
