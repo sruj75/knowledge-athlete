@@ -526,7 +526,7 @@ class RunnerBehaviorTests(unittest.TestCase):
 case "$1" in
   -p) echo 22 ;;
   *emulator_config.mjs) printf '45678 45679\\n' ;;
-  *supervise.mjs) printf '%s\\n' "$@" > "{capture}" ;;
+  *supervise.mjs) printf '%s\\n' '---' "$@" >> "{capture}" ;;
 esac
 """,
                 "java": "#!/bin/sh\necho '    java.version = 21.0.1' >&2\n",
@@ -543,6 +543,11 @@ esac
             captured = capture.read_text(encoding="utf-8")
             self.assertIn("uv run --no-project", captured)
             self.assertIn("--cleanup-path", captured)
+            self.assertEqual(captured.count("---\n"), 2, "provisioning and behavioral execution need separate budgets")
+            self.assertIn("--timeout-seconds\n600\n--\nnpx", captured)
+            self.assertIn("setup:emulators:firestore", captured)
+            self.assertIn("--timeout-seconds\n180\n--cleanup-path", captured)
+            self.assertLess(captured.index("setup:emulators:firestore"), captured.index("emulators:exec"))
 
     def test_trigger_matching_selects_only_relevant_checks(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)

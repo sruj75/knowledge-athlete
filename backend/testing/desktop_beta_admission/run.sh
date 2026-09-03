@@ -62,7 +62,15 @@ printf -v quoted_python_command ' %q' "${python_command[@]}"
 printf -v quoted_test_path '%q' "$repo_root/backend/testing/desktop_beta_admission/firestore_contention_test.py"
 printf -v quoted_python_path '%q' "$repo_root/backend"
 runner_command="FIRESTORE_EMULATOR_HOST=127.0.0.1:${emulator_port} GOOGLE_CLOUD_PROJECT=demo-desktop-beta GCLOUD_PROJECT=demo-desktop-beta PYTHONPATH=${quoted_python_path}${quoted_python_command} ${quoted_test_path}"
-firebase_command=(npx --prefix "$repo_root" --yes "firebase-tools@${firebase_tools_version}" emulators:exec --only firestore --project demo-desktop-beta --config "$emulator_config" "$runner_command")
+firebase_cli=(npx --prefix "$repo_root" --yes "firebase-tools@${firebase_tools_version}")
+
+# A clean hosted runner must fetch both the pinned npm CLI and the ~130 MiB
+# Firestore emulator before it can execute the behavioral proof. Provisioning
+# is network-bound setup, so give it its own bounded budget instead of charging
+# it to the three-minute transaction/contention deadline below.
+"$node_bin" "$supervisor" --timeout-seconds 600 -- "${firebase_cli[@]}" setup:emulators:firestore
+
+firebase_command=("${firebase_cli[@]}" emulators:exec --only firestore --project demo-desktop-beta --config "$emulator_config" "$runner_command")
 
 # Firebase writes its debug logs to the current directory, so never launch it
 # from the checkout. The supervisor owns and drains the Firebase process group,
