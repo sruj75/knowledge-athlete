@@ -304,7 +304,7 @@ def test_start_rejects_relabelling_a_live_owned_provider_mode(
     monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
 
     with pytest.raises(RuntimeError, match=f"already running in provider mode {active_mode}"):
-        cli.active_provider_mode_for_start(requested)
+        cli.prepare_provider_mode_for_start(requested)
 
 
 def test_start_rejects_live_owned_services_without_a_proven_mode(
@@ -316,7 +316,18 @@ def test_start_rejects_live_owned_services_without_a_proven_mode(
     monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
 
     with pytest.raises(RuntimeError, match="provider mode is missing or invalid"):
-        cli.active_provider_mode_for_start(requested)
+        cli.prepare_provider_mode_for_start(requested)
+
+
+def test_fresh_start_clears_stale_provider_mode_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "real"})
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [])
+
+    assert cli.prepare_provider_mode_for_start(requested) is None
+    assert not requested.layout.config_digest_path.exists()
 
 
 def test_session_summary_is_local_emulator_non_activation(tmp_path: Path) -> None:

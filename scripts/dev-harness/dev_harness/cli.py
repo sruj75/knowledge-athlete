@@ -99,9 +99,10 @@ def active_runtime_config(
     return replace(requested, provider_mode=active_mode), requested.provider_mode
 
 
-def active_provider_mode_for_start(requested: config.HarnessConfig) -> str | None:
-    """Return the proven live mode, rejecting a request that would relabel it."""
+def prepare_provider_mode_for_start(requested: config.HarnessConfig) -> str | None:
+    """Return the proven live mode or clear stale evidence before a fresh start."""
     if not _owned_live_process_records(requested):
+        requested.layout.config_digest_path.unlink(missing_ok=True)
         return None
     digest = _load_json(requested.layout.config_digest_path, {})
     active_mode = digest.get("provider_mode")
@@ -657,7 +658,7 @@ def _wait_health(
 def cmd_up(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
     try:
-        active_provider_mode_for_start(cfg)
+        prepare_provider_mode_for_start(cfg)
     except RuntimeError as exc:
         print(f"dev-up failed: {exc}")
         return 1
