@@ -99,6 +99,22 @@ def active_runtime_config(
     return replace(requested, provider_mode=active_mode), requested.provider_mode
 
 
+def active_provider_mode_for_start(requested: config.HarnessConfig) -> str | None:
+    """Return the proven live mode, rejecting a request that would relabel it."""
+    if not _owned_live_process_records(requested):
+        return None
+    digest = _load_json(requested.layout.config_digest_path, {})
+    active_mode = digest.get("provider_mode")
+    if not isinstance(active_mode, str) or active_mode not in config.PROVIDER_MODES:
+        raise RuntimeError("owned services are live but their provider mode is missing or invalid; run make dev-down")
+    if active_mode != requested.provider_mode:
+        raise RuntimeError(
+            f"owned services are already running in provider mode {active_mode}; "
+            f"run make dev-down before starting mode {requested.provider_mode}"
+        )
+    return active_mode
+
+
 def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
     records = _load_json(cfg.layout.port_manifest, {"ports": []}).get("ports", [])
     return records if isinstance(records, list) else []
@@ -640,6 +656,11 @@ def _wait_health(
 
 def cmd_up(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
+    try:
+        active_provider_mode_for_start(cfg)
+    except RuntimeError as exc:
+        print(f"dev-up failed: {exc}")
+        return 1
     missing, warnings = prerequisite_report(cfg)
     print("Intentive local dev harness startup")
     print_config(cfg)
@@ -651,35 +672,32 @@ def cmd_up(args: argparse.Namespace) -> int:
         for item in missing:
             print(f"  - {item}")
         return 1
-    _write_json(
-        cfg.layout.config_digest_path,
-        {
-            "schema_version": 1,
-            "updated_at": _now(),
-            "project_id": cfg.project_id,
-            "database_id": cfg.database_id,
-            "provider_mode": cfg.provider_mode,
-            "enabled_external_providers": list(provider_report.enabled_external_providers),
-            "credential_fingerprints": dict(provider_report.fingerprints),
-            "offline_fake_sources": dict(provider_report.offline_fake_sources),
-            "provider_budgets": {
-                "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
-                "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
-                "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
-                "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
-                "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
-                "automatic_replay_after_restart": False,
-            },
-            "instance": cfg.instance,
-            "state_root": str(cfg.layout.state_root),
-            "endpoints": {
-                "firestore": cfg.firestore_host,
-                "auth": cfg.auth_host,
-                "redis": f"{cfg.redis_host}:{cfg.redis_port}",
-                "backend": cfg.backend_url,
-            },
+    config_digest = {
+        "schema_version": 1,
+        "updated_at": _now(),
+        "project_id": cfg.project_id,
+        "database_id": cfg.database_id,
+        "provider_mode": cfg.provider_mode,
+        "enabled_external_providers": list(provider_report.enabled_external_providers),
+        "credential_fingerprints": dict(provider_report.fingerprints),
+        "offline_fake_sources": dict(provider_report.offline_fake_sources),
+        "provider_budgets": {
+            "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
+            "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
+            "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
+            "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
+            "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
+            "automatic_replay_after_restart": False,
         },
-    )
+        "instance": cfg.instance,
+        "state_root": str(cfg.layout.state_root),
+        "endpoints": {
+            "firestore": cfg.firestore_host,
+            "auth": cfg.auth_host,
+            "redis": f"{cfg.redis_host}:{cfg.redis_port}",
+            "backend": cfg.backend_url,
+        },
+    }
     try:
         _start_services(cfg)
         failures = _wait_health(cfg)
@@ -692,6 +710,7 @@ def cmd_up(args: argparse.Namespace) -> int:
             print(f"  - {failure}")
         print(f"Inspect logs with: make dev-logs OMI_LOCAL_STATE_ROOT={cfg.layout.state_root.parent}")
         return 1
+    _write_json(cfg.layout.config_digest_path, config_digest)
     try:
         synthetic_profiles.seed_profiles(cfg)
         print("synthetic desktop profiles: ready")
