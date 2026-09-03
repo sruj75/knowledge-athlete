@@ -21,6 +21,24 @@ final class ScreenPrivacyExclusionTests: XCTestCase {
     }
   }
 
+  func testVisibleDefaultExclusionsUseIntentiveIdentityOnly() {
+    let retiredProductNames = ["Omi", "Omi Beta", "omi", "Omi Dev", "Omi Computer"]
+
+    for app in retiredProductNames {
+      XCTAssertFalse(
+        RewindSettings.defaultExcludedApps.contains(app),
+        "Rewind defaults must not render the retired product name '\(app)'")
+      XCTAssertFalse(
+        TaskAssistantSettings.builtInExcludedApps.contains(app),
+        "Assistant defaults must not render the retired product name '\(app)'")
+    }
+
+    for app in ["Intentive", "Intentive Beta", "Intentive Dev"] {
+      XCTAssertTrue(RewindSettings.defaultExcludedApps.contains(app))
+      XCTAssertTrue(TaskAssistantSettings.builtInExcludedApps.contains(app))
+    }
+  }
+
   // MARK: - Each assistant's isAppExcluded respects Rewind exclusions
 
   @MainActor
