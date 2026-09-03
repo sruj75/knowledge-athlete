@@ -276,9 +276,14 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
             self.assertIn("Package.swift", key, "cache key must include Package.swift hashFiles")
             self.assertIn("Package.resolved", key, "cache key must include Package.resolved hashFiles")
             self.assertIn(
+                "desktop/macos/Desktop/Sources/Resources/**",
+                key,
+                "cache keys must hash the package's real processed-resource root",
+            )
+            self.assertNotIn(
                 "desktop/macos/Desktop/Resources/**",
                 key,
-                "cached resource bundles must be invalidated when shipping resources change",
+                "a nonexistent resource glob hashes nothing and cannot invalidate stale bundles",
             )
         restore = job[job.index("id: swiftpm-cache") : job.index("Install Swift system dependencies")]
         self.assertNotIn(
@@ -365,7 +370,7 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
         """A cache key without the lockfile, resources, or toolchain identity is caught."""
         wf_text = WORKFLOW_PATH.read_text(encoding="utf-8")
         tampered = wf_text.replace(
-            "desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Resources/**') }}",
+            "desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Sources/Resources/**') }}",
             "desktop-swift-${{ hashFiles('desktop/macos/Desktop/Package.swift') }}",
         )
         job = _job_text(tampered, "desktop-swift-verify")

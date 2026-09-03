@@ -156,7 +156,7 @@ jobs:
           # SwiftPM persists the processed resource bundle under .build. A
           # cache from a different resource tree can therefore resurrect
           # deleted assets even when the current checkout is clean.
-          key: ${{ runner.os }}-desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Resources/**') }}
+          key: ${{ runner.os }}-desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Sources/Resources/**') }}
 
       - name: Install Swift system dependencies
         if: ${{ always() && !cancelled() && needs.changes.outputs.should_run_tests == 'true' }}
@@ -209,7 +209,7 @@ jobs:
           path: |
             ~/Library/Caches/org.swift.swiftpm
             desktop/macos/Desktop/.build
-          key: ${{ runner.os }}-desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Resources/**') }}
+          key: ${{ runner.os }}-desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Sources/Resources/**') }}
 
       - name: Require independent macOS phase verdicts
         if: ${{ always() && !cancelled() }}
