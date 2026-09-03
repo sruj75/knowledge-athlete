@@ -1,6 +1,11 @@
 import Foundation
 
 extension ChatProvider {
+  var automationMainChatIsIdle: Bool {
+    !isLoading && !isLoadingSessions && !isSending
+      && !messages.contains(where: { $0.isStreaming })
+  }
+
   /// Harness-only chat reset that awaits backend deletion before returning.
   /// Returns an error message when backend deletion fails so E2E flows don't
   /// proceed against stale persisted messages.

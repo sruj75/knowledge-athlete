@@ -6145,21 +6145,14 @@ class ChatProvider: ObservableObject {
     ]
   }
 
-  /// Snapshot for `main_chat_snapshot` / `wait_main_chat_idle` harness actions.
+  /// Snapshot for main-chat harness actions.
   func automationMainChatSnapshot(limit: Int) -> [String: String] {
     automationChatSnapshot(limit: limit)
   }
 
-  /// Snapshot for the floating-bar chat. It intentionally returns the same
-  /// canonical Intentive chat timeline as main chat so typed notch, PTT, and
-  /// spawned-agent links can be verified from either surface.
+  /// Floating-bar snapshot over the same canonical timeline.
   func automationFloatingChatSnapshot(limit: Int) -> [String: String] {
     automationChatSnapshot(limit: limit)
-  }
-
-  var automationMainChatIsIdle: Bool {
-    !isLoading && !isLoadingSessions && !isSending
-      && !messages.contains(where: { $0.isStreaming })
   }
 
   private func automationChatSnapshot(limit: Int) -> [String: String] {

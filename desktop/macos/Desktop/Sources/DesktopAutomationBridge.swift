@@ -312,25 +312,6 @@ struct DesktopAutomationCapabilities: Codable {
   let actions: [DesktopAutomationActionDescriptor]
 }
 
-private struct DesktopAutomationHealth: Codable {
-  let ok: Bool
-  let name: String
-  let bundleIdentifier: String
-  let processID: Int32
-  let logFilePath: String
-  let logLaunchID: String
-  let bridgePort: UInt16
-  let requiresAuth: Bool
-  let backendEnvironment: String
-  let backendURL: String
-  let sourceGitSHA: String?
-  let sourceTreeDirty: Bool?
-  let agentRuntimeRunning: Bool
-  let agentRuntimeExpectedProtocolVersion: Int
-  let agentRuntimeProtocolVersion: Int?
-  let agentRuntimeVersion: String?
-}
-
 struct DesktopAutomationRouteTrace: Codable {
   let method: String
   let path: String
