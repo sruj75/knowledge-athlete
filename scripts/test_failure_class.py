@@ -79,13 +79,16 @@ class FailureClassCliTests(unittest.TestCase):
         path.write_text(content, encoding="utf-8")
         return path
 
-    def commit(self, subject: str) -> None:
+    def commit(self, subject: str, body: str | None = None) -> None:
         self.git("add", ".")
-        self.git("commit", "-qm", subject)
+        arguments = ["commit", "-qm", subject]
+        if body is not None:
+            arguments.extend(["-m", body])
+        self.git(*arguments)
 
-    def add_fix_commit(self) -> None:
+    def add_fix_commit(self, declaration: str = "FC-malformed-doc-read") -> None:
         self.write("src/example.txt", "fixed\n")
-        self.commit("fix(backend): protect read boundary")
+        self.commit("fix(backend): protect read boundary", f"Failure-Class: {declaration}")
 
     def body(self, content: str) -> Path:
         return self.write("pr-body.md", content)
@@ -156,6 +159,27 @@ class FailureClassCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("missing_declaration", [item["code"] for item in payload["errors"]])
 
+    def test_fix_commit_without_own_declaration_fails(self) -> None:
+        self.write("src/example.txt", "fixed without metadata\n")
+        self.commit("fix(backend): omit commit metadata")
+
+        result = self.validate(self.body("Failure-Class: FC-malformed-doc-read\n"))
+        payload = self.payload(result)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("commit_missing_declaration", [item["code"] for item in payload["errors"]])
+
+    def test_literal_escaped_newlines_do_not_fake_a_commit_declaration(self) -> None:
+        self.write("src/example.txt", "fixed with malformed metadata\n")
+        self.commit(
+            "fix(backend): malformed commit metadata",
+            r"summary\n\nFailure-Class: none",
+        )
+
+        result = self.validate(self.body("Failure-Class: none\n"))
+        payload = self.payload(result)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("commit_missing_declaration", [item["code"] for item in payload["errors"]])
+
     def test_unknown_declaration_fails(self) -> None:
         self.add_fix_commit()
         result = self.validate(self.body("Failure-Class: FC-not-in-registry\n"))
@@ -225,7 +249,7 @@ class FailureClassCliTests(unittest.TestCase):
             json.dumps(definition, indent=2) + "\n",
         )
         self.write("src/example.txt", "new class\n")
-        self.commit("fix: register a newly observed class")
+        self.commit("fix: register a newly observed class", "Failure-Class: new")
         result = self.validate(self.body("Failure-Class: new\n"))
         payload = self.payload(result)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -237,6 +261,13 @@ class FailureClassCliTests(unittest.TestCase):
         payload = self.payload(result)
         self.assertEqual(result.returncode, 1)
         self.assertIn("new_definition_required", [item["code"] for item in payload["errors"]])
+
+    def test_commit_new_declaration_without_added_definition_fails(self) -> None:
+        self.add_fix_commit("new")
+        result = self.validate(self.body("Failure-Class: none\n"))
+        payload = self.payload(result)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("commit_new_definition_required", [item["code"] for item in payload["errors"]])
 
     def test_prepare_emits_append_patch_and_registry_only_candidates(self) -> None:
         self.add_fix_commit()

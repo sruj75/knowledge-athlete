@@ -44,6 +44,15 @@ class Definition:
         return self.data["id"]
 
 
+@dataclass(frozen=True)
+class CommitRecord:
+    """Commit metadata needed to enforce per-fix declarations."""
+
+    sha: str
+    subject: str
+    body: str
+
+
 class CliError(Exception):
     """A deterministic input or repository error intended for CLI output."""
 
@@ -358,6 +367,19 @@ def commit_subjects(root: Path, base: str, head: str) -> tuple[str, list[str]]:
     return common, [subject for subject in subjects.splitlines() if subject]
 
 
+def commits_in_range(root: Path, common: str, head: str) -> list[CommitRecord]:
+    hashes = run_git(root, "rev-list", "--reverse", f"{common}..{head}").splitlines()
+    return [
+        CommitRecord(
+            sha=sha,
+            subject=run_git(root, "show", "-s", "--format=%s", sha),
+            body=run_git(root, "show", "-s", "--format=%b", sha),
+        )
+        for sha in hashes
+        if sha
+    ]
+
+
 def added_definition_paths(root: Path, common: str, head: str) -> list[Path]:
     output = run_git(
         root,
@@ -380,6 +402,21 @@ def changed_definition_paths(root: Path, common: str, head: str) -> list[Path]:
         "--diff-filter=ACMRD",
         common,
         head,
+        "--",
+        str(DEFINITIONS_RELATIVE_PATH),
+    )
+    return [Path(line) for line in output.splitlines() if line]
+
+
+def commit_definition_paths(root: Path, sha: str, *, diff_filter: str) -> list[Path]:
+    output = run_git(
+        root,
+        "diff-tree",
+        "--no-commit-id",
+        "--name-only",
+        f"--diff-filter={diff_filter}",
+        "-r",
+        sha,
         "--",
         str(DEFINITIONS_RELATIVE_PATH),
     )
@@ -439,14 +476,117 @@ def public_definition(definition: Definition, root: Path) -> dict[str, Any]:
     return {**definition.data, "path": str(definition.path.relative_to(root))}
 
 
+def validate_fix_commit_declarations(
+    root: Path,
+    commits: list[CommitRecord],
+    definitions: list[Definition],
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Require every fix commit to carry one valid declaration in its own body."""
+    errors: list[dict[str, Any]] = []
+    records: list[dict[str, str]] = []
+    by_id = {definition.id: definition for definition in definitions}
+    for commit in commits:
+        if not FIX_SUBJECT_RE.match(commit.subject):
+            continue
+        declarations = declarations_in_body(commit.body)
+        declaration = declarations[0] if len(declarations) == 1 else ""
+        records.append(
+            {
+                "sha": commit.sha,
+                "subject": commit.subject,
+                "declaration": declaration,
+            }
+        )
+        context = {"commit": commit.sha, "subject": commit.subject}
+        if not declarations:
+            errors.append(
+                error(
+                    "commit_missing_declaration",
+                    "each fix commit requires one parseable 'Failure-Class: FC-<slug> | new | none' body line",
+                    **context,
+                )
+            )
+            continue
+        if len(declarations) > 1:
+            errors.append(
+                error(
+                    "commit_multiple_declarations",
+                    "a fix commit body may contain exactly one Failure-Class declaration",
+                    **context,
+                )
+            )
+            continue
+        if declaration == "none":
+            continue
+        if declaration == "new":
+            try:
+                added_paths = commit_definition_paths(root, commit.sha, diff_filter="A")
+                changed_paths = commit_definition_paths(root, commit.sha, diff_filter="ACMRD")
+            except CliError as exc:
+                errors.append(error("commit_new_definition_check_failed", str(exc), **context))
+                continue
+            added_definitions = [
+                definition for definition in definitions if definition.path.relative_to(root) in added_paths
+            ]
+            if len(added_definitions) != 1:
+                errors.append(
+                    error(
+                        "commit_new_definition_required",
+                        "'Failure-Class: new' requires exactly one added, valid class definition in that fix commit",
+                        added_paths=[str(path) for path in added_paths],
+                        **context,
+                    )
+                )
+            elif set(changed_paths) != set(added_paths):
+                errors.append(
+                    error(
+                        "commit_new_definition_must_be_only_registry_change",
+                        "a new-class fix commit may add one definition but must not modify or remove other definitions",
+                        changed_paths=[str(path) for path in changed_paths],
+                        **context,
+                    )
+                )
+            continue
+        if not FAILURE_CLASS_ID_RE.fullmatch(declaration):
+            errors.append(
+                error(
+                    "commit_invalid_declaration",
+                    "Failure-Class must be an existing FC-<lower-kebab-slug>, 'new', or 'none'",
+                    declaration=declaration,
+                    **context,
+                )
+            )
+        elif declaration not in by_id:
+            errors.append(
+                error(
+                    "commit_unknown_failure_class",
+                    f"no definition exists for '{declaration}'",
+                    declaration=declaration,
+                    **context,
+                )
+            )
+        elif by_id[declaration].data["status"] == "dormant":
+            errors.append(
+                error(
+                    "commit_dormant_failure_class_requires_reopen",
+                    f"'{declaration}' is dormant; explicitly reopen it before classifying the commit",
+                    declaration=declaration,
+                    **context,
+                )
+            )
+    return errors, records
+
+
 def validate_command(args: argparse.Namespace, root: Path) -> tuple[dict[str, Any], int]:
     definitions, errors = load_definitions(root)
     body = read_pr_body(args.pr_body_file)
     try:
-        common, subjects = commit_subjects(root, args.base, args.head)
+        common = merge_base(root, args.base, args.head)
+        commits = commits_in_range(root, common, args.head)
+        subjects = [commit.subject for commit in commits]
     except CliError as exc:
         errors.append(error("invalid_git_range", str(exc), base=args.base, head=args.head))
-        common, subjects = "", []
+        common, commits, subjects = "", [], []
 
     declarations = declarations_in_body(body)
     declaration: str | None = None
@@ -462,6 +602,8 @@ def validate_command(args: argparse.Namespace, root: Path) -> tuple[dict[str, An
 
     has_fix_commit = any(FIX_SUBJECT_RE.match(subject) for subject in subjects)
     by_id = {definition.id: definition for definition in definitions}
+    commit_errors, commit_declarations = validate_fix_commit_declarations(root, commits, definitions)
+    errors.extend(commit_errors)
     changed_definition_paths_in_range: list[Path] = []
     if common:
         try:
@@ -562,6 +704,7 @@ def validate_command(args: argparse.Namespace, root: Path) -> tuple[dict[str, An
             "has_fix_commit": has_fix_commit,
             "declaration": declaration,
             "definition_count": len(definitions),
+            "fix_commit_declarations": commit_declarations,
         },
     }
     return payload, 0 if not errors else 1

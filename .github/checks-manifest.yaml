@@ -181,7 +181,7 @@ checks:
     command: ["python3", "scripts/test_failure_class.py"]
     triggers: ["scripts/failure-class", "scripts/test_failure_class.py", ".github/failure-classes/**", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "the failure-class CLI is the registry's only schema authority; its hermetic tests had no blocking lane and had silently gone stale"
+    reason: "the failure-class CLI is the registry's only schema authority; the S-31 developer-layer audit found fix commits with literal escaped newlines and unbacked new declarations that the PR-only validator accepted"
   - id: desktop-changelog-data
     command: ["python3", ".github/scripts/desktop-changelog.py", "validate"]
     triggers: ["all"]
