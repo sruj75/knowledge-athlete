@@ -6,6 +6,11 @@ import SwiftUI
 /// journal timeline, composer, local task/Focus/Insight rows, and daily local
 /// suggestions through the single shared `ChatProvider` instance.
 struct DashboardPage: View {
+  private enum HomeComposerFocus: Hashable {
+    case hub
+    case chat
+  }
+
   @ObservedObject var tasksStore: TasksStore
   @ObservedObject var appState: AppState
   @ObservedObject var chatProvider: ChatProvider
@@ -19,7 +24,7 @@ struct DashboardPage: View {
   @State private var homeMode: HomeStageMode = .hub
   @State private var dismissedKnowsTaskIDs: Set<String> = []
   @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
-  @FocusState private var homeAskFieldFocused: Bool
+  @FocusState private var homeComposerFocus: HomeComposerFocus?
   @State private var citedConversation: LocalConversation?
   @State private var isLoadingCitation = false
   @State private var isChatCatalogPresented = false
@@ -73,20 +78,20 @@ struct DashboardPage: View {
       syncHomeState()
     }
     .onReceive(NotificationCenter.default.publisher(for: .navigateToChat)) { _ in
-      openHomeChat()
+      openHomeChat(source: "navigateToChat")
     }
     .onReceive(NotificationCenter.default.publisher(for: .openMainChatRequested)) { _ in
       consumePendingMainChatOpenRequest()
     }
     .onReceive(NotificationCenter.default.publisher(for: .homeStageOpenChat)) { _ in
-      openHomeChat()
+      openHomeChat(source: "homeStageOpenChat")
     }
     .onReceive(NotificationCenter.default.publisher(for: .homeStageClose)) { _ in
       collapseHomeStagePanel()
     }
     .onReceive(NotificationCenter.default.publisher(for: .homeChatCatalogOpen)) { _ in
       guard chatProvider.multiChatEnabled else { return }
-      openHomeChat(focusInput: false)
+      openHomeChat(focusInput: false, source: "homeChatCatalogOpen")
       isChatCatalogPresented = true
     }
     .onReceive(NotificationCenter.default.publisher(for: .homeChatCatalogClose)) { _ in
@@ -100,7 +105,7 @@ struct DashboardPage: View {
       guard let path = note.userInfo?["path"] as? String,
         let attachment = ChatAttachment.from(url: URL(fileURLWithPath: path))
       else { return }
-      openHomeChat(focusInput: false)
+      openHomeChat(focusInput: false, source: "homeStageAttach")
       chatProvider.addAttachments([attachment])
     }
     .onChange(of: chatProvider.messages.count) { _, _ in
@@ -109,8 +114,18 @@ struct DashboardPage: View {
     .onChange(of: chatProvider.isLoading) { _, _ in
       autoOpenChatForExistingHistoryIfNeeded()
     }
-    .onChange(of: homeAskFieldFocused) { _, focused in
-      if focused && homeMode != .chat { openHomeChat(focusInput: false) }
+    .onChange(of: homeComposerFocus) { _, focus in
+      if homeAskFocusPolicy.admitsHubFocusOpen(
+        isHubFocused: focus == .hub,
+        isChatVisible: homeMode == .chat,
+        isAppActive: NSApp.isActive
+      ) {
+        openHomeChat(focusInput: false, source: "homeAskFieldFocused")
+      } else if focus == .hub && !NSApp.isActive {
+        // Reject focus SwiftUI transferred while the app was in the
+        // background, so the next real click can establish fresh focus.
+        homeComposerFocus = nil
+      }
     }
     .onChange(of: isChatCatalogPresented) { _, isPresented in
       reportHomeAutomationMode()
@@ -152,7 +167,7 @@ struct DashboardPage: View {
         .frame(maxWidth: 560)
 
       Spacer(minLength: 12)
-      homeComposer
+      homeComposer(focus: .hub)
         .frame(width: width)
       chatErrors
         .frame(width: width)
@@ -224,7 +239,7 @@ struct DashboardPage: View {
       if chatProvider.messages.isEmpty && chatProvider.onboardingOpener == nil {
         homeQuestionChips
       }
-      homeComposer
+      homeComposer(focus: .chat)
       chatErrors
     }
     .frame(maxWidth: Self.contentMaxWidth)
@@ -295,7 +310,7 @@ struct DashboardPage: View {
     }
   }
 
-  private var homeComposer: some View {
+  private func homeComposer(focus: HomeComposerFocus) -> some View {
     ChatInputView(
       onSend: sendFromHomeAskBar,
       onStop: { chatProvider.stopAgent(owner: .mainChat) },
@@ -312,7 +327,7 @@ struct DashboardPage: View {
       },
       onAttachmentRemoved: chatProvider.removePendingAttachment(id:)
     )
-    .focused($homeAskFieldFocused)
+    .focused($homeComposerFocus, equals: focus)
   }
 
   @ViewBuilder
@@ -403,7 +418,7 @@ struct DashboardPage: View {
       ForEach(homeSuggestedQuestions, id: \.self) { question in
         Button(question) {
           chatProvider.draftText = question
-          homeAskFieldFocused = true
+          homeComposerFocus = .chat
         }
         .buttonStyle(.plain)
         .scaledFont(size: OmiType.caption, weight: .medium)
@@ -500,7 +515,7 @@ struct DashboardPage: View {
       navigate(to: .insights)
     case .question:
       chatProvider.draftText = row.text
-      openHomeChat()
+      openHomeChat(source: "homeKnowsQuestion")
     }
   }
 
@@ -515,7 +530,7 @@ struct DashboardPage: View {
   private func sendFromHomeAskBar(_ draft: String) {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty, !chatProvider.isSending else { return }
-    openHomeChat(focusInput: false)
+    openHomeChat(focusInput: false, source: "sendFromHomeAskBar")
     AnalyticsManager.shared.chatMessageSent(messageLength: text.count, source: "home_ask_bar")
     Task { await chatProvider.sendMainDraft(draft) }
   }
@@ -523,10 +538,13 @@ struct DashboardPage: View {
   private func askHomeSuggestion(_ suggestion: String) {
     guard case .prefill(let text) = HomeSuggestionSelection.resolve(suggestion) else { return }
     chatProvider.draftText = text
-    openHomeChat()
+    openHomeChat(source: "askHomeSuggestion")
   }
 
-  private func openHomeChat(focusInput: Bool = true) {
+  private func openHomeChat(focusInput: Bool = true, source: String) {
+    if DesktopAutomationLaunchOptions.isEnabled {
+      log("Home stage opening chat from \(source)")
+    }
     if homeMode != .chat {
       OmiMotion.withGated(Self.stageAnimation) { homeMode = .chat }
     }
@@ -539,7 +557,7 @@ struct DashboardPage: View {
     Task { @MainActor in
       await Task.yield()
       guard homeAskFocusPolicy.isCurrent(token), homeMode == .chat else { return }
-      homeAskFieldFocused = true
+      homeComposerFocus = .chat
     }
   }
 
@@ -552,20 +570,20 @@ struct DashboardPage: View {
 
   private func collapseHomeStagePanel() {
     isChatCatalogPresented = false
-    homeAskFieldFocused = false
     homeAskFocusPolicy.invalidate()
+    homeComposerFocus = nil
     OmiMotion.withGated(Self.stageAnimation) { homeMode = homeRestingMode }
     reportHomeAutomationMode()
   }
 
   private func autoOpenChatForExistingHistoryIfNeeded() {
     guard homeRestingMode == .chat, homeMode == .hub, chatProvider.onboardingOpener == nil else { return }
-    openHomeChat(focusInput: false)
+    openHomeChat(focusInput: false, source: "existingHistory")
   }
 
   private func consumePendingMainChatOpenRequest() {
     guard MainChatNavigationRequestStore.shared.consume() else { return }
-    openHomeChat()
+    openHomeChat(source: "pendingMainChatRequest")
   }
 
   private func syncHomeState() {

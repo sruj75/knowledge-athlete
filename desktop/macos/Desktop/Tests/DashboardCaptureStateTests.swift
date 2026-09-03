@@ -53,9 +53,10 @@ final class DashboardCaptureStateTests: XCTestCase {
     let source = try dashboardSource()
     let openChat = try methodBody(named: "openHomeChat", in: source)
 
-    XCTAssertTrue(source.contains("private func openHomeChat(focusInput: Bool = true)"))
+    XCTAssertTrue(source.contains("private func openHomeChat(focusInput: Bool = true, source: String)"))
     XCTAssertTrue(source.contains("focusHomeAskFieldAfterStageTransition()"))
     XCTAssertTrue(source.contains("await Task.yield()"))
+    XCTAssertTrue(source.contains("homeComposerFocus = .chat"))
     XCTAssertTrue(openChat.contains("if homeMode != .chat {"))
     XCTAssertFalse(openChat.contains("guard homeMode != .chat else { return }"))
   }

@@ -81,6 +81,29 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
     XCTAssertEqual(invalidateCount, 1, "collapseHomeStagePanel must invalidate deferred focus")
   }
 
+  /// Both Home stages render a composer. A shared Bool FocusState lets SwiftUI
+  /// transfer focus from the outgoing chat composer to the incoming hub
+  /// composer, whose focus observer immediately reopens chat. Distinct focus
+  /// identities let the foreground-admission policy reject that transfer and
+  /// clear it without suppressing the user's next real interaction.
+  func testHubAndChatComposersHaveDistinctFocusIdentity() throws {
+    let source = try dashboardSource()
+    let collapse = try methodBody(named: "collapseHomeStagePanel", in: source)
+
+    XCTAssertTrue(collapse.contains("homeAskFocusPolicy.invalidate()"))
+    XCTAssertTrue(collapse.contains("homeComposerFocus = nil"))
+    XCTAssertTrue(
+      source.contains("homeComposer(focus: .hub)"),
+      "The resting hub must own a distinct composer focus identity")
+    XCTAssertTrue(
+      source.contains("homeComposer(focus: .chat)"),
+      "The chat stage must own a distinct composer focus identity")
+    XCTAssertTrue(source.contains(".focused($homeComposerFocus, equals: focus)"))
+    XCTAssertTrue(
+      source.contains("homeAskFocusPolicy.admitsHubFocusOpen("),
+      "Hub focus must pass through the foreground-interaction admission policy")
+  }
+
   /// Asking (via the ask bar) opens chat. After history restoration, the
   /// resting surface follows the shared history-presentation policy.
   func testHomeRestingModeFollowsLoadedHistoryPolicy() throws {
@@ -93,7 +116,7 @@ final class HomeStageCloseSemanticsTests: XCTestCase {
 
     let ask = try methodBody(named: "sendFromHomeAskBar", in: source)
     XCTAssertTrue(
-      ask.contains("openHomeChat(focusInput: false)"),
+      ask.contains("openHomeChat(focusInput: false, source: \"sendFromHomeAskBar\")"),
       "Sending from the ask bar must open the chat surface, where it rests")
   }
 

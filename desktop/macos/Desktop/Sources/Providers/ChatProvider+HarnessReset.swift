@@ -6,9 +6,9 @@ extension ChatProvider {
       && !messages.contains(where: { $0.isStreaming })
   }
 
-  /// Harness-only chat reset that awaits backend deletion before returning.
-  /// Returns an error message when backend deletion fails so E2E flows don't
-  /// proceed against stale persisted messages.
+  /// Harness-only chat reset that awaits backend deletion before returning and
+  /// leaves any replacement session empty. Returns an error message when
+  /// backend deletion fails so E2E flows don't proceed against stale state.
   func automationResetChatForHarness() async -> String? {
     guard AppBuild.isNonProduction else { return nil }
     return await resetChatForAuthorizedHarness()
@@ -99,7 +99,7 @@ extension ChatProvider {
       if let createReplacementSession {
         _ = await createReplacementSession()
       } else {
-        guard await createNewSession(allowWhileClearing: true) != nil else {
+        guard await createNewSession(skipGreeting: true, allowWhileClearing: true) != nil else {
           return "failed to create replacement chat session"
         }
       }

@@ -78,4 +78,22 @@ final class HomeAskFocusPolicyTests: XCTestCase {
     let reopenedToken = policy.currentToken()
     XCTAssertTrue(policy.isCurrent(reopenedToken))
   }
+
+  func testHubFocusOpensOnlyForForegroundUserInteraction() {
+    let policy = HomeAskFocusPolicy()
+
+    XCTAssertTrue(
+      policy.admitsHubFocusOpen(
+        isHubFocused: true, isChatVisible: false, isAppActive: true))
+    XCTAssertFalse(
+      policy.admitsHubFocusOpen(
+        isHubFocused: true, isChatVisible: false, isAppActive: false),
+      "Background responder transfer must not reopen a collapsed Home stage")
+    XCTAssertFalse(
+      policy.admitsHubFocusOpen(
+        isHubFocused: false, isChatVisible: false, isAppActive: true))
+    XCTAssertFalse(
+      policy.admitsHubFocusOpen(
+        isHubFocused: true, isChatVisible: true, isAppActive: true))
+  }
 }
