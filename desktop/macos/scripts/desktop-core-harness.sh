@@ -841,11 +841,19 @@ start_fault_stack() {
     echo "desktop-core-harness: OMI_FAULT_BRIDGE_READY_ATTEMPTS must be a positive integer" >&2
     return 1
   }
+  local owner_ready_timeout_seconds="${OMI_FAULT_OWNER_READY_TIMEOUT_SECONDS:-90}"
+  [[ "$owner_ready_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
+    echo "desktop-core-harness: OMI_FAULT_OWNER_READY_TIMEOUT_SECONDS must be a positive integer" >&2
+    return 1
+  }
   local attempt
   for attempt in $(seq 1 "$bridge_ready_attempts"); do
     if verify_fault_bundle_health "$PORT" "$expected_bundle" 2>/dev/null; then
-      OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/omi-ctl" wait-ready 90
       record_owned_fault_app
+      if ! OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/omi-ctl" wait-ready "$owner_ready_timeout_seconds"; then
+        echo "desktop-core-harness: $FAULT_BUNDLE did not reach signed-in owner-ready state within ${owner_ready_timeout_seconds}s" >&2
+        return 1
+      fi
       echo "desktop-core-harness: $FAULT_BUNDLE bridge ready on port $PORT (bundle: $expected_bundle)"
       return 0
     fi

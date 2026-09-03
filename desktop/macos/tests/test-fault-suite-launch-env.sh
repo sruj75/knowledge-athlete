@@ -92,6 +92,7 @@ SH
 set -euo pipefail
 
 [[ "${1:-}" == "wait-ready" && "${2:-}" == "90" ]]
+[[ "${OMI_FAULT_READY_FAIL:-0}" != "1" ]] || exit 42
 printf '%s\n' "OMI_AUTOMATION_PORT=${OMI_AUTOMATION_PORT:?}" >"${OMI_FAULT_READY_CAPTURE:?}"
 SH
   chmod +x "$fixture/scripts/omi-ctl"
@@ -227,6 +228,26 @@ PY
   [[ "$status" -ne 0 ]] || fail "fault suite accepted a non-numeric bridge readiness attempt budget"
   grep -Fq 'OMI_FAULT_BRIDGE_READY_ATTEMPTS must be a positive integer' "$output" \
     || fail "fault suite did not report the invalid bridge readiness attempt budget"
+
+  set +e
+  PATH="$bin_dir:$PATH" \
+    OMI_FAULT_RUN_TOKEN="$fault_run_token" \
+    OMI_FAULT_STATE_DIR="$qualification_fault_state" \
+    OMI_FAULT_APP_PID_FILE="$fixture/fault-app.pid" \
+    OMI_FAULT_TEST_PORT="$fault_port" \
+    OMI_FAULT_ENV_CAPTURE="$capture" \
+    OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_READY_FAIL=1 \
+    "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "fault suite ignored an owner-ready probe failure"
+  grep -Fq 'did not reach signed-in owner-ready state within 90s' "$output" \
+    || fail "fault suite did not report its owner-ready probe failure"
+  app_pid="$(cat "$fixture/fault-app.pid")"
+  if kill -0 "$app_pid" 2>/dev/null; then
+    fail "fault suite readiness failure left its owned detached app running"
+  fi
 }
 
 exercise_fault_launcher_without_backend_env() {
