@@ -3,7 +3,6 @@
 #
 # Usage:
 #   ./scripts/desktop-core-harness.sh --self-check
-#   ./scripts/desktop-core-harness.sh --self-check --skip-backend-contracts
 #   ./scripts/desktop-core-harness.sh --tier 0
 #   ./scripts/desktop-core-harness.sh --tier 1 --bundle omi-core-e2e
 #   ./scripts/desktop-core-harness.sh --tier 2 --bundle omi-core-e2e --keep-stack
@@ -22,7 +21,6 @@ FAULT_BUNDLE="omi-fault"
 KEEP_STACK=0
 SELF_CHECK=0
 READINESS=0
-SKIP_BACKEND_CONTRACTS=0
 PORT="${OMI_AUTOMATION_PORT:-47777}"
 FAULT_PORT="${OMI_FAULT_PORT:-47790}"
 DEV_STACK_PROVIDER_MODE=""
@@ -37,9 +35,8 @@ Options:
   --port PORT                 Automation bridge port (default: OMI_AUTOMATION_PORT or 47777)
   --keep-stack                On T2+, leave dev-up running after the run
   --fault-suite               Start omi-fault-inject + omi-fault bundle; run chat-fault-5xx flow
-  --self-check                Static checks (flow lint + gauntlet self-check; backend contracts locally)
+  --self-check                Desktop static checks (flow lint + gauntlet self-check)
   --readiness                 Pre-tag readiness: self-check + offline dev-stack probe (no app launch, no E2E flows)
-  --skip-backend-contracts    With --self-check, skip backend preflight + pytest contracts (CI desktop gate)
   --help                      Show this help
 USAGE
 }
@@ -69,9 +66,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --readiness)
       READINESS=1
-      ;;
-    --skip-backend-contracts)
-      SKIP_BACKEND_CONTRACTS=1
       ;;
     --help|-h)
       usage
@@ -145,17 +139,7 @@ run_self_check() {
   echo "=== desktop-core-harness self-check ==="
   python3 "$SCRIPT_DIR/desktop-flow-lint.py"
   python3 "$SCRIPT_DIR/agent-continuity-gauntlet-lib.py" --self-check
-  if [[ "$SKIP_BACKEND_CONTRACTS" -eq 1 ]]; then
-    echo "desktop-core-harness: skipping backend preflight + pytest contracts (--skip-backend-contracts; CI desktop gate)"
-    echo "desktop-core-harness self-check passed (desktop static checks only)"
-    return 0
-  fi
-  if [[ -x "$REPO_ROOT/backend/test-preflight.sh" ]]; then
-    bash "$REPO_ROOT/backend/test-preflight.sh" >/dev/null
-  fi
-  python3 -m pytest "$REPO_ROOT/backend/testing/contracts" -q --maxfail=1 -k "desktop" 2>/dev/null \
-    || python3 -m pytest "$REPO_ROOT/backend/testing/contracts" -q --maxfail=1
-  echo "desktop-core-harness self-check passed"
+  echo "desktop-core-harness self-check passed (desktop static checks only)"
 }
 
 flows_for_max_tier() {

@@ -91,7 +91,8 @@ case "$(basename "$script_path")" in
   ;;
 esac
 if [[ "$script_path" == *"/backend/testing/contracts"* ]]; then
-  exit 0
+  echo "retired backend/testing/contracts path invoked" >&2
+  exit 92
 fi
 if [[ "$script_path" == *"-c"* ]]; then
   exit 0
@@ -104,15 +105,10 @@ SH
 
 prepare_fixture_repo() {
   local fixture="$1"
-  mkdir -p "$fixture/desktop/macos/scripts" "$fixture/backend/testing/contracts"
+  mkdir -p "$fixture/desktop/macos/scripts"
   ln -s "$CORE_HARNESS" "$fixture/desktop/macos/scripts/desktop-core-harness.sh"
   printf '# stub\n' >"$fixture/desktop/macos/scripts/desktop-flow-lint.py"
   printf '# stub\n' >"$fixture/desktop/macos/scripts/agent-continuity-gauntlet-lib.py"
-  cat >"$fixture/backend/test-preflight.sh" <<'SH'
-#!/usr/bin/env bash
-exit 0
-SH
-  chmod +x "$fixture/backend/test-preflight.sh"
 }
 
 run_readiness_case() {

@@ -117,7 +117,7 @@ require_text "--format='%(refname:strip=2)' 'refs/tags/v*-macos'"
 # (must not fence a green T2+fault solely on lease-lineage cleanup).
 require_text 'non-gating after behavioral pass'
 require_text 'python3 "$KEYVALUE_PY" preflight-release'
-require_text './scripts/desktop-core-harness.sh --self-check --skip-backend-contracts'
+require_text './scripts/desktop-core-harness.sh --self-check'
 require_text './scripts/desktop-core-harness.sh --tier 2 --bundle "$BUNDLE" --port "$AUTOMATION_PORT" --keep-stack'
 require_text 'python3 "$KEYVALUE_PY" check-manifest "$EVIDENCE/manifest.json"'
 require_text './scripts/desktop-core-harness.sh --fault-suite --port "$((AUTOMATION_PORT + 1))"'

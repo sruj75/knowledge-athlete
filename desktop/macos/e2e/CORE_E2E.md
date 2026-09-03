@@ -38,23 +38,22 @@ cd desktop/macos
 
 Do **not** mix `omi-auth-seed.sh` (Omi Dev prod session) with `make desktop-run-local` (Auth emulator) — the app will boot unsigned-in.
 
-Linux / CI static gate (desktop checks only — backend contracts run in the sibling `contracts` job):
-
-```bash
-./desktop/macos/scripts/desktop-core-harness.sh --self-check --skip-backend-contracts
-```
-
-Local full T0 (includes backend preflight + pytest desktop contracts):
+Linux / CI / local static gate:
 
 ```bash
 ./desktop/macos/scripts/desktop-core-harness.sh --self-check
 ```
 
+This command owns only desktop flow and gauntlet contracts. Backend setup,
+unit contracts, and hermetic E2E remain owned by `backend/test.sh`, the
+repository check manifest, and `make dev-check`; the retired
+`backend/testing/contracts` parity suite is not an aggregate dependency.
+
 ## Tier ladder
 
 | Tier | Where | Time | Contents | Command |
 | --- | --- | --- | --- | --- |
-| **T0** | Linux + macOS, CI | <2 min | flow lint, gauntlet `--self-check`; backend contracts locally or in CI `contracts` job | `--tier 0` / `--self-check` |
+| **T0** | Linux + macOS, CI | <2 min | desktop flow lint and gauntlet `--self-check` | `--tier 0` / `--self-check` |
 | **T1** | macOS agent-local | ~5 min | all flows with `tier: 1` metadata on bridge lane | `--tier 1` |
 | **T2** | macOS agent-local; **qualification tier** | ~15 min | dev-up offline (enforced); all flows with `tier <= 2` + spatial overlay swift tests | `--tier 2` |
 | **Fault** | macOS agent-local | ~5 min | `omi-fault-inject` + `omi-fault` bundle; `chat-fault-5xx.yaml` (backend 5xx → surfaced chat error) | `--fault-suite` |
@@ -158,7 +157,7 @@ Evidence contract: `.harness/desktop-core/<run-id>/{manifest.json, flows/, summa
 
 - **Harness gate:** `desktop-core-harness.sh --tier 2` blocked on `dev-up` port 8085 conflict (foreign Firestore emulator); see playbook item 5.
 - **Manual T2 qualification:** 32/32 tier-2 flows green via `omi-harness` bridge lane against `omi-core-e2e` on port 47877 (`make desktop-run-local` + seeded `happy_path` scenario).
-- **Static gate:** `desktop-core-harness.sh --self-check --skip-backend-contracts` passed; `DesktopAutomationSecondaryActionTests` (17 tests) passed.
+- **Static gate:** the then-current desktop self-check passed; `DesktopAutomationSecondaryActionTests` (17 tests) passed. The retired backend-parity skip flag was invocation plumbing, not part of that evidence.
 
 ## Hermetic vs live
 
