@@ -444,6 +444,32 @@ describe("PiMonoAdapter prompt correlation", () => {
     );
   });
 
+  it("normalizes JSON provider HTTP status errors before surfacing them", async () => {
+    const { adapter, events } = createAdapter();
+    seedSessions(adapter, "session-1");
+
+    const prompt = adapter.sendPrompt(
+      "session-1",
+      [{ type: "text", text: "fail with JSON backend 5xx" }],
+      [],
+      "act",
+      (event) => events.push(event),
+      async () => ""
+    );
+    const providerError = '{"error":"omi-fault-inject","mode":"error","code":500}';
+
+    (adapter as any).handleEvent(JSON.stringify(makeErrorTurnEndEvent(providerError)));
+
+    await expect(prompt).rejects.toThrow(`HTTP 500: ${providerError}`);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        message: `HTTP 500: ${providerError}`,
+        adapterSessionId: "session-1",
+      })
+    );
+  });
+
   it("does not report success after a required agent-control operation fails", async () => {
     const { adapter, events } = createAdapter();
     seedSessions(adapter, "session-1");
