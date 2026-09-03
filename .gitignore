@@ -40,6 +40,11 @@ dist/
 .build/
 .swiftpm/
 
+# Worktree-local dependency/build cache symlinks are generated artifacts too.
+/backend/.openapi-venv
+/desktop/macos/Desktop/.build
+/desktop/macos/build
+
 # VS Code
 .vscode/*
 

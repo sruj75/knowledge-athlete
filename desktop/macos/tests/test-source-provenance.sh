@@ -31,6 +31,19 @@ intentive_stamp_source_provenance "$repo" "$bundle"
 actual_dirty="$(/usr/libexec/PlistBuddy -c 'Print :IntentiveSourceTreeDirty' "$bundle/Contents/Info.plist")"
 [[ "$actual_dirty" == true ]] || { echo "dirty source was stamped clean" >&2; exit 1; }
 
+git -C "$repo" restore source.txt
+printf 'untracked compiled input\n' >"$repo/Untracked.swift"
+intentive_stamp_source_provenance "$repo" "$bundle"
+actual_dirty="$(/usr/libexec/PlistBuddy -c 'Print :IntentiveSourceTreeDirty' "$bundle/Contents/Info.plist")"
+[[ "$actual_dirty" == true ]] || { echo "untracked source was stamped clean" >&2; exit 1; }
+
+printf 'Untracked.swift\n' >"$repo/.gitignore"
+git -C "$repo" add .gitignore
+git -C "$repo" commit -qm 'ignore generated fixture'
+intentive_stamp_source_provenance "$repo" "$bundle"
+actual_dirty="$(/usr/libexec/PlistBuddy -c 'Print :IntentiveSourceTreeDirty' "$bundle/Contents/Info.plist")"
+[[ "$actual_dirty" == false ]] || { echo "ignored generated input was stamped dirty" >&2; exit 1; }
+
 if intentive_stamp_source_provenance "$TMP_ROOT/not-a-repository" "$bundle" 2>/dev/null; then
   echo "non-repository source unexpectedly produced provenance" >&2
   exit 1

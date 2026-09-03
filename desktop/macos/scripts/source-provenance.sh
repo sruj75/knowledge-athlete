@@ -3,13 +3,17 @@
 
 intentive_source_provenance() {
   local repo_root="$1"
-  local git_sha source_tree_dirty
+  local git_sha source_tree_dirty untracked_inputs
 
   git_sha="$(git -C "$repo_root" rev-parse HEAD 2>/dev/null)" || return 1
   [[ "$git_sha" =~ ^[0-9a-f]{40}$ ]] || return 1
   source_tree_dirty=false
   if ! git -C "$repo_root" diff --quiet --ignore-submodules -- \
     || ! git -C "$repo_root" diff --cached --quiet --ignore-submodules --; then
+    source_tree_dirty=true
+  fi
+  untracked_inputs="$(git -C "$repo_root" ls-files --others --exclude-standard)" || return 1
+  if [[ -n "$untracked_inputs" ]]; then
     source_tree_dirty=true
   fi
   printf '%s\t%s\n' "$git_sha" "$source_tree_dirty"
