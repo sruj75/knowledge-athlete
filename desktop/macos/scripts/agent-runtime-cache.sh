@@ -34,6 +34,16 @@ arc_restore_verified_cache_file() {
   arc_file_matches_sha256 "$destination" "$expected"
 }
 
+# Keep large preparation trees beside the packaged runtime they populate. This
+# lets worktrees place the generated runtime on an external build volume without
+# silently filling the machine's system temporary directory.
+arc_make_work_dir() {
+  local runtime_root="$1"
+  local purpose="$2"
+  mkdir -p "$runtime_root"
+  mktemp -d "$runtime_root/${purpose}.XXXXXX"
+}
+
 # Hash names, kinds, permission modes, symlink destinations, and file contents
 # deterministically. Input callers exclude working node_modules; output callers
 # intentionally include the complete prepared trees copied into the app bundle.
@@ -120,6 +130,42 @@ for name in os.listdir(directory):
     path = os.path.join(directory, name)
     if os.path.islink(path) and not os.path.exists(path):
         os.unlink(path)
+PY
+}
+
+arc_validate_packaged_symlinks() {
+  python3 - "$1" "$2" <<'PY'
+import os
+import sys
+
+# The packaged-runtime root may itself be a worktree-local symlink to external
+# build storage. Compare resolved roots so valid internal npm links do not look
+# like escapes merely because their caller used the worktree path.
+agent_modules, pi_modules = map(os.path.realpath, sys.argv[1:])
+for root in (agent_modules, pi_modules):
+    if not os.path.isdir(root):
+        raise SystemExit(1)
+    for current, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs + files:
+            link = os.path.join(current, name)
+            if not os.path.islink(link):
+                continue
+            target = os.readlink(link)
+            resolved = os.path.realpath(os.path.join(current, target))
+            if os.path.exists(resolved):
+                try:
+                    if os.path.commonpath((resolved, root)) == root:
+                        continue
+                except ValueError:
+                    pass
+                raise SystemExit(1)
+            marker = "agent/node_modules/"
+            normalized = target.replace("\\", "/")
+            if marker not in normalized:
+                raise SystemExit(1)
+            package_path = normalized.split(marker, 1)[1]
+            if not os.path.exists(os.path.join(agent_modules, package_path)):
+                raise SystemExit(1)
 PY
 }
 
