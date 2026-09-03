@@ -24,6 +24,8 @@ READINESS=0
 PORT="${OMI_AUTOMATION_PORT:-47777}"
 FAULT_PORT="${OMI_FAULT_PORT:-47790}"
 DEV_STACK_PROVIDER_MODE=""
+VERIFIED_APP_GIT_SHA=""
+VERIFIED_APP_BUNDLE=""
 
 usage() {
   cat <<'USAGE'
@@ -95,24 +97,72 @@ finalize_run() {
   local started_at="$4"
   local duration_s="$5"
   local flows_json="$6"
-  python3 - "$run_dir/manifest.json" "$passed" "$tier_value" "$started_at" "$duration_s" "$flows_json" "$BUNDLE" "$(git_sha)" "$DEV_STACK_PROVIDER_MODE" <<'PY'
+  local repository_git_sha evidence_git_sha evidence_bundle source_provenance source_tree_dirty
+  local requires_bundle_provenance=0
+  repository_git_sha="$(git_sha)"
+  evidence_git_sha="$repository_git_sha"
+  evidence_bundle="$BUNDLE"
+  source_provenance="repository-unverified"
+  source_tree_dirty=""
+  case "$tier_value" in
+    1|2|3)
+      requires_bundle_provenance=1
+      ;;
+    fault)
+      requires_bundle_provenance=1
+      evidence_bundle="$FAULT_BUNDLE"
+      ;;
+    *)
+      source_provenance="repository"
+      ;;
+  esac
+  if [[ -n "$VERIFIED_APP_GIT_SHA" ]]; then
+    evidence_git_sha="$VERIFIED_APP_GIT_SHA"
+    evidence_bundle="$VERIFIED_APP_BUNDLE"
+    source_provenance="bundle-health"
+    source_tree_dirty="false"
+  fi
+  if [[ "$passed" == true && "$requires_bundle_provenance" -eq 1 ]]; then
+    if [[ -z "$VERIFIED_APP_GIT_SHA" || "$VERIFIED_APP_GIT_SHA" != "$repository_git_sha" ]]; then
+      echo "desktop-core-harness: refusing green manifest without current clean-bundle source provenance" >&2
+      return 1
+    fi
+  fi
+  python3 - "$run_dir/manifest.json" "$passed" "$tier_value" "$started_at" "$duration_s" "$flows_json" "$evidence_bundle" "$evidence_git_sha" "$repository_git_sha" "$DEV_STACK_PROVIDER_MODE" "$source_provenance" "$source_tree_dirty" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
-path, passed, tier_value, started_at, duration_s, flows_json, bundle, git_sha, provider_mode = sys.argv[1:10]
+(
+    path,
+    passed,
+    tier_value,
+    started_at,
+    duration_s,
+    flows_json,
+    bundle,
+    git_sha,
+    repository_git_sha,
+    provider_mode,
+    source_provenance,
+    source_tree_dirty,
+) = sys.argv[1:13]
 manifest = {
     "passed": passed == "true",
     "tier": int(tier_value) if tier_value.isdigit() else tier_value,
     "git_sha": git_sha,
+    "repository_git_sha": repository_git_sha,
     "bundle": bundle,
+    "source_provenance": source_provenance,
     "started_at": started_at,
     "duration_s": float(duration_s),
     "flows": json.loads(flows_json or "[]"),
 }
 if provider_mode:
     manifest["provider_mode"] = provider_mode
+if source_tree_dirty:
+    manifest["source_tree_dirty"] = source_tree_dirty == "true"
 lane = os.environ.get("OMI_READINESS_LANE")
 if lane:
     manifest["lane"] = lane
@@ -125,7 +175,9 @@ PY
     echo "# Desktop Core E2E"
     echo ""
     echo "- tier: ${tier_value}"
-    echo "- bundle: ${BUNDLE}"
+    echo "- bundle: ${evidence_bundle}"
+    echo "- git_sha: ${evidence_git_sha}"
+    echo "- source_provenance: ${source_provenance}"
     if [[ -n "$DEV_STACK_PROVIDER_MODE" ]]; then
       echo "- provider_mode: ${DEV_STACK_PROVIDER_MODE}"
     fi
@@ -195,20 +247,43 @@ bridge_health() {
   source "$SCRIPT_DIR/app-config.sh"
   derive_omi_app_config "$BUNDLE"
   expected_bundle_id="$BUNDLE_ID"
-  python3 - "$PORT" "$expected_bundle_id" <<'PY'
+  verify_bridge_health_provenance "$PORT" "$expected_bundle_id" "$BUNDLE"
+}
+
+verify_bridge_health_provenance() {
+  local port="$1"
+  local expected_bundle_id="$2"
+  local evidence_bundle="$3"
+  local expected_git_sha verified_git_sha
+  expected_git_sha="$(git_sha)"
+  verified_git_sha="$(python3 - "$port" "$expected_bundle_id" "$expected_git_sha" <<'PY'
 import json
+import re
 import sys
 import urllib.request
 
-port, expected = sys.argv[1:3]
+port, expected_bundle, expected_git_sha = sys.argv[1:4]
 with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
     payload = json.loads(response.read().decode("utf-8"))
 if not payload.get("ok"):
     raise SystemExit(f"bridge unhealthy: {payload}")
 actual = payload.get("bundleIdentifier")
-if actual != expected:
-    raise SystemExit(f"wrong bundle on port {port}: expected {expected}, got {actual}")
+if actual != expected_bundle:
+    raise SystemExit(f"wrong bundle on port {port}: expected {expected_bundle}, got {actual}")
+source_git_sha = payload.get("sourceGitSHA")
+if not isinstance(source_git_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_git_sha):
+    raise SystemExit(f"bundle on port {port} has no full source Git SHA")
+if source_git_sha != expected_git_sha:
+    raise SystemExit(
+        f"stale bundle on port {port}: expected source {expected_git_sha}, got {source_git_sha}"
+    )
+if payload.get("sourceTreeDirty") is not False:
+    raise SystemExit(f"bundle on port {port} was built from a dirty or unproven source tree")
+print(source_git_sha)
 PY
+  )" || return 1
+  VERIFIED_APP_GIT_SHA="$verified_git_sha"
+  VERIFIED_APP_BUNDLE="$evidence_bundle"
 }
 
 # Like bridge_health, but also requires the /health bundleIdentifier to match the
@@ -217,20 +292,7 @@ PY
 verify_fault_bundle_health() {
   local port="$1"
   local expected_bundle="$2"
-  python3 - "$port" "$expected_bundle" <<'PY'
-import json
-import sys
-import urllib.request
-
-port, expected = sys.argv[1], sys.argv[2]
-with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
-    payload = json.loads(response.read().decode("utf-8"))
-if not payload.get("ok"):
-    raise SystemExit(f"bridge unhealthy: {payload}")
-actual = payload.get("bundleIdentifier")
-if actual != expected:
-    raise SystemExit(f"wrong bundle on port {port}: expected {expected}, got {actual}")
-PY
+  verify_bridge_health_provenance "$port" "$expected_bundle" "$FAULT_BUNDLE"
 }
 
 # Probe dev-harness stack health + provider_mode from config-digest.json.
@@ -881,6 +943,12 @@ start_fault_stack() {
       echo "desktop-core-harness: $FAULT_BUNDLE bridge ready on port $PORT (bundle: $expected_bundle)"
       return 0
     fi
+    # A bridge can be the exact process launched by this run yet still fail the
+    # source-provenance check. Capture its token-bound ownership as soon as the
+    # launch signal exists so the rejection path can reclaim that process.
+    if [[ ! -f "$FAULT_APP_RECORD" && -f "$FAULT_LAUNCH_SIGNAL_FILE" ]]; then
+      record_owned_fault_app || return 1
+    fi
     # `open` returns after dispatching the app. Once the signed owner-only
     # launch signal exists, run.sh is allowed to exit while its app remains
     # detached; the token-bound process record below is the lifecycle owner.
@@ -888,7 +956,9 @@ start_fault_stack() {
       echo "desktop-core-harness: $FAULT_BUNDLE launch exited before bridge was ready" >&2
       return 1
     fi
-    sleep 2
+    if [[ "$attempt" -lt "$bridge_ready_attempts" ]]; then
+      sleep 2
+    fi
   done
   echo "desktop-core-harness: timed out waiting for $FAULT_BUNDLE bridge on port $PORT" >&2
   return 1
@@ -959,6 +1029,7 @@ if [[ "$SELF_CHECK" -eq 1 ]]; then
 fi
 
 if [[ "$FAULT_SUITE" -eq 1 ]]; then
+  DEV_STACK_PROVIDER_MODE="offline"
   RUN_DIR="$HARNESS_ROOT/$(run_id)-fault"
   mkdir -p "$RUN_DIR"
   chmod 700 "$RUN_DIR"

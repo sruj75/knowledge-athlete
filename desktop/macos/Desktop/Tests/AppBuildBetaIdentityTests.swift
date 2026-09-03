@@ -43,6 +43,28 @@ final class AppBuildBetaIdentityTests: XCTestCase {
     XCTAssertTrue(config.allowsLocalAutomation)
   }
 
+  func testSourceProvenanceAcceptsOnlyAFullSHAAndExplicitTreeState() throws {
+    let sha = String(repeating: "a", count: 40)
+    let provenance = try XCTUnwrap(
+      AppBuild.sourceProvenance(
+        infoDictionary: [
+          AppBuild.sourceGitSHAInfoKey: sha,
+          AppBuild.sourceTreeDirtyInfoKey: false,
+        ]))
+
+    XCTAssertEqual(provenance.gitSHA, sha)
+    XCTAssertFalse(provenance.sourceTreeDirty)
+    XCTAssertNil(
+      AppBuild.sourceProvenance(
+        infoDictionary: [
+          AppBuild.sourceGitSHAInfoKey: String(repeating: "a", count: 12),
+          AppBuild.sourceTreeDirtyInfoKey: false,
+        ]))
+    XCTAssertNil(
+      AppBuild.sourceProvenance(
+        infoDictionary: [AppBuild.sourceGitSHAInfoKey: sha]))
+  }
+
   func testProductionFamilyMembership() {
     XCTAssertEqual(
       AppBuild.productionFamilyBundleIdentifiers,

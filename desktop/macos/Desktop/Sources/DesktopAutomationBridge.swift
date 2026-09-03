@@ -323,6 +323,8 @@ private struct DesktopAutomationHealth: Codable {
   let requiresAuth: Bool
   let backendEnvironment: String
   let backendURL: String
+  let sourceGitSHA: String?
+  let sourceTreeDirty: Bool?
   let agentRuntimeRunning: Bool
   let agentRuntimeExpectedProtocolVersion: Int
   let agentRuntimeProtocolVersion: Int?
@@ -3025,6 +3027,8 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           requiresAuth: true,
           backendEnvironment: DesktopBackendEnvironment.shouldUseDevelopmentBackends ? "development" : "production",
           backendURL: DesktopBackendEnvironment.backendBaseURL(),
+          sourceGitSHA: AppBuild.sourceProvenance?.gitSHA,
+          sourceTreeDirty: AppBuild.sourceProvenance?.sourceTreeDirty,
           agentRuntimeRunning: runtime.running,
           agentRuntimeExpectedProtocolVersion: AgentRuntimeProcess.expectedProtocolVersion,
           agentRuntimeProtocolVersion: runtime.protocolVersion,

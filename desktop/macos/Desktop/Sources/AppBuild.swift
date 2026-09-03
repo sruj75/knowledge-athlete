@@ -23,6 +23,8 @@ enum AppBuild {
   static let supportInfoKey = "IntentiveSupportURL"
   static let sparkleFeedInfoKey = "SUFeedURL"
   static let sparklePublicKeyInfoKey = "SUPublicEDKey"
+  static let sourceGitSHAInfoKey = "IntentiveSourceGitSHA"
+  static let sourceTreeDirtyInfoKey = "IntentiveSourceTreeDirty"
   private static let updateChannelDefaultsKey = "update_channel"
   private static let betaOverwriteMigrationKey = "didMigrateBetaOverwrite_v1"
   /// How long the launch-time channel probe may hold the main thread. It runs before the
@@ -38,6 +40,23 @@ enum AppBuild {
       guard let rawValue = infoValue as? String else { return nil }
       self.init(rawValue: rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
+  }
+
+  struct SourceProvenance: Equatable {
+    let gitSHA: String
+    let sourceTreeDirty: Bool
+  }
+
+  static func sourceProvenance(infoDictionary: [String: Any]) -> SourceProvenance? {
+    guard
+      let gitSHA = infoDictionary[sourceGitSHAInfoKey] as? String,
+      gitSHA.utf8.count == 40,
+      gitSHA.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+      let sourceTreeDirty = infoDictionary[sourceTreeDirtyInfoKey] as? Bool
+    else {
+      return nil
+    }
+    return SourceProvenance(gitSHA: gitSHA, sourceTreeDirty: sourceTreeDirty)
   }
 
   /// Release-only destinations and Sparkle trust material stamped into the signed app.
@@ -198,6 +217,10 @@ enum AppBuild {
       fatalError("The desktop app bundle has no identifier")
     }
     return bundleIdentifier
+  }
+
+  static var sourceProvenance: SourceProvenance? {
+    sourceProvenance(infoDictionary: Bundle.main.infoDictionary ?? [:])
   }
 
   static var isNonProduction: Bool {

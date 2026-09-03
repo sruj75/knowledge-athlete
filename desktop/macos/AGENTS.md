@@ -325,6 +325,11 @@ Fast path (skips web login and sidebar click-through):
 3. **Package boundary:** use `./run.sh --full` only for the first named launch, resource/entitlement/package/runtime input changes, or when `--fast-only` reports an expected fingerprint mismatch.
 4. **QA, commit, and PR readiness:** run `./scripts/omi-macos-dev doctor`, exercise the real user-facing path, then run the appropriate full component/PR contract.
 
+Every `run.sh` package stamps its full source Git SHA and tracked-tree dirty
+state into the signed bundle. Desktop Core T1+ and fault evidence accepts a
+green manifest only when `/health` reports that the running named bundle came
+from the current clean full SHA; rebuilding is required after a source commit.
+
 `omi-macos-dev` defaults to bounded JSON summaries so an agent can safely inspect a busy machine. Pass `--verbose` to the specific command for path-level records (for example, `clean plan --verbose`); cleanup always requires the exact current plan hash. The normal 14-day retention window can be deliberately bypassed with `--older-than 0` only when the operator has explicitly approved immediate cleanup.
 
 Never ask a user to test an unexercised path. A fast named-bundle launch plus a semantic bridge assertion is valid inner-loop evidence; a clean full bundle is release/QA evidence.

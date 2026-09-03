@@ -373,6 +373,18 @@ checks:
     triggers: ["desktop/macos/run.sh", "desktop/macos/tests/test-launch-env-forwarding.sh"]
     lanes: ["local", "ci"]
     reason: "`open` launches from launchd, so retained automation token overrides must be passed explicitly with `open --env`"
+  - id: desktop-source-provenance
+    command: ["bash", "desktop/macos/tests/test-source-provenance.sh"]
+    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/tests/test-source-provenance.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    platforms: ["macos"]
+    reason: "PR #46 carried stale-SHA acceptance evidence; named app bundles must stamp the full source SHA and tracked-tree state before signing"
+  - id: desktop-evidence-provenance
+    command: ["bash", "desktop/macos/tests/test-fault-suite-launch-env.sh"]
+    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/desktop-core-harness.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", "desktop/macos/tests/test-fault-suite-launch-env.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    platforms: ["macos"]
+    reason: "PR #46 carried stale-SHA acceptance evidence; green T1+ and fault manifests must prove the exact clean running bundle instead of relabelling repository HEAD"
   - id: desktop-main-actor-xctest-hooks
     command: ["python3", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]
     triggers: ["desktop/macos/Desktop/Tests/**/*.swift", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]
