@@ -20,14 +20,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dev_harness import config, desktop_profile, safety, synthetic_profiles
+from dev_harness import cli, config, desktop_profile, safety, synthetic_profiles
 
 user = sys.argv[1]
 repo = Path.cwd()
-cfg = config.load_config(repo, create_layout=False)
+requested_cfg = config.load_config(repo, create_layout=False)
+cfg, requested_provider_mode = cli.active_runtime_config(requested_cfg)
 print("Intentive Dev local harness desktop launcher")
 print(f"instance: {cfg.instance}")
 print(f"provider_mode: {cfg.provider_mode}")
+if requested_provider_mode is not None:
+    print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
 print(f"state_root: {cfg.layout.state_root}")
 print(f"backend: {cfg.backend_url}")
 print(f"firebase_auth_emulator: {cfg.auth_host}")

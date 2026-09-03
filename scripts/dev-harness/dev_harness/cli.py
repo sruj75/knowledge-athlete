@@ -14,6 +14,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
@@ -62,6 +63,21 @@ def _json_digest(data: object) -> str:
 def _process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
     records = _load_json(cfg.layout.process_manifest, {"processes": []}).get("processes", [])
     return records if isinstance(records, list) else []
+
+
+def active_runtime_config(
+    requested: config.HarnessConfig,
+) -> tuple[config.HarnessConfig, str | None]:
+    records = _process_records(requested)
+    if not any(safety.process_exists(int(record.get("pid", -1))) for record in records):
+        return requested, None
+    digest = _load_json(requested.layout.config_digest_path, {})
+    active_mode = digest.get("provider_mode")
+    if not isinstance(active_mode, str) or active_mode not in config.PROVIDER_MODES:
+        return requested, None
+    if active_mode == requested.provider_mode:
+        return requested, None
+    return replace(requested, provider_mode=active_mode), requested.provider_mode
 
 
 def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
@@ -220,7 +236,9 @@ def print_config(cfg: config.HarnessConfig) -> None:
 
 def print_provider_status(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
     parsed = config.parse_secrets_file(cfg)
-    report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+    provider_env = config.preflight_env(cfg)
+    provider_env["PROVIDER_MODE"] = cfg.provider_mode
+    report = providers.provider_preflight(cfg.repo_root, env=provider_env)
     print("provider_status:")
     for line in providers.status_lines(report):
         print(f"  {line}")
@@ -661,9 +679,12 @@ def cmd_up(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
+    requested = config.load_config(_repo_root(), create_layout=False)
+    cfg, requested_provider_mode = active_runtime_config(requested)
     print("Intentive local dev harness status")
     print_config(cfg)
+    if requested_provider_mode is not None:
+        print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
     provider_report = print_provider_status(cfg)
     if cfg.provider_mode == "offline":
         print(
@@ -708,8 +729,11 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
-    provider_report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+    requested = config.load_config(_repo_root(), create_layout=False)
+    cfg, _ = active_runtime_config(requested)
+    provider_env = config.preflight_env(cfg)
+    provider_env["PROVIDER_MODE"] = cfg.provider_mode
+    provider_report = providers.provider_preflight(cfg.repo_root, env=provider_env)
     if not cfg.layout.sentinel_path.is_file():
         print("Cannot write session summary: harness sentinel is missing (run make dev-up or make dev-reset first)")
         return 1
