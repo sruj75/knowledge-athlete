@@ -74,6 +74,7 @@ jobs:
       diff_base: ${{ steps.changes.outputs.diff_base }}
       has_format: ${{ steps.changes.outputs.has_format }}
       has_python: ${{ steps.changes.outputs.has_python }}
+      has_formatter_contract: ${{ steps.changes.outputs.has_formatter_contract }}
       has_workflows: ${{ steps.changes.outputs.has_workflows }}
     steps:
       - name: Checkout code
@@ -174,7 +175,7 @@ jobs:
           cat /tmp/changed-files.txt
 
       - name: Check Python formatting
-        if: needs.changes.outputs.has_python == 'true'
+        if: needs.changes.outputs.has_python == 'true' || needs.changes.outputs.has_formatter_contract == 'true'
         run: |
           # Read the same checked-in version used by pre-commit and pre-push.
           pip install -q "black==$(tr -d '[:space:]' < backend/.black-version)"

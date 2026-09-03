@@ -6,6 +6,8 @@ outputs:
     value: ${{ steps.changed.outputs.diff_base }}
   has_python:
     value: ${{ steps.changed.outputs.has_python }}
+  has_formatter_contract:
+    value: ${{ steps.changed.outputs.has_formatter_contract }}
   has_workflows:
     value: ${{ steps.changed.outputs.has_workflows }}
   has_backend_runtime_env:
@@ -49,6 +51,7 @@ runs:
         has_backend_isolation_gate=$(echo "$FILES" | grep -qE '^backend/.*\.py$|^backend/tests/\.(import_time_side_effects_legacy|module_stub_legacy_allowlist)$|^\.github/workflows/(repo-checks|backend-checks)\.yml$|^\.github/actions/detect-changes/' && echo true || echo false)
         has_backend_workflow_contracts=$(echo "$FILES" | grep -qE '^\.gitignore$|^backend/testing/workflow_contracts\.json$|^backend/scripts/(check_workflow_contracts|select_backend_unit_tests)\.py$|^scripts/(changed-files|install-git-hooks\.sh|pre-push|pre-push-singleflight)$|^\.github/workflows/(backend-checks|backend-unit-tests|desktop-checks|desktop-swift-ci|repo-checks)\.yml$|^\.github/actions/detect-changes/' && echo true || echo false)
         has_desktop_auth_session_ratchet=$(echo "$FILES" | grep -qE '^desktop/macos/Desktop/Sources/(APIClient|AuthService|AuthSessionCoordinator|DesktopKeychainStore|OmiApp)\.swift$|^desktop/macos/Desktop/Sources/Auth/.*\.swift$|^desktop/macos/scripts/smoke-signed-desktop-artifact\.sh$|^\.github/scripts/check_desktop_auth_session\.py$|^\.github/workflows/(repo-checks|desktop-checks)\.yml$|^\.github/actions/detect-changes/' && echo true || echo false)
+        has_formatter_contract=$(echo "$FILES" | grep -qE '^\.pre-commit-config\.yaml$|^backend/\.black-version$|^backend/scripts/black-wrapper\.sh$|^backend/test-preflight\.sh$|^scripts/(pre-commit|pre-push|install-git-hooks\.sh|test-pre-commit-formatters\.sh)$|^\.github/scripts/run-lint\.sh$|^\.github/workflows/repo-checks\.yml$|^\.github/actions/detect-changes/action\.yml$' && echo true || echo false)
 
         IMPACT_FILES=$(mktemp)
         printf '%s\n' "$FILES" > "$IMPACT_FILES"
@@ -60,6 +63,7 @@ runs:
 
         {
           echo "has_python=$has_python"
+          echo "has_formatter_contract=$has_formatter_contract"
           echo "has_workflows=$has_workflows"
           echo "has_backend_runtime_env=$has_backend_runtime_env"
           echo "has_backend_async_gate=$has_backend_async_gate"
@@ -68,7 +72,6 @@ runs:
           echo "has_desktop_auth_session_ratchet=$has_desktop_auth_session_ratchet"
         } >> "$GITHUB_OUTPUT"
 
-        has_formatter_contract=$(echo "$FILES" | grep -qE '^\.pre-commit-config\.yaml$|^backend/\.black-version$|^backend/scripts/black-wrapper\.sh$|^backend/test-preflight\.sh$|^scripts/(pre-commit|pre-push|install-git-hooks\.sh|test-pre-commit-formatters\.sh)$|^\.github/scripts/run-lint\.sh$|^\.github/workflows/repo-checks\.yml$|^\.github/actions/detect-changes/action\.yml$' && echo true || echo false)
         if [ "$has_python" = "true" ] || [ "$has_formatter_contract" = "true" ]; then
           echo "has_format=true" >> "$GITHUB_OUTPUT"
         else

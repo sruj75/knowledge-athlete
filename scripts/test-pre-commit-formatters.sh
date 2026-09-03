@@ -82,5 +82,10 @@ if grep -Eq '(^|[[:space:]])black[[:space:]]+--' "$ROOT/.github/scripts/run-lint
 fi
 grep -Fq 'scripts/black-wrapper.sh --version' "$ROOT/backend/test-preflight.sh" \
   || fail "backend preflight still probes ambient Black instead of the repository wrapper"
+grep -Fq 'has_formatter_contract:' "$ROOT/.github/actions/detect-changes/action.yml" \
+  || fail "change detection does not expose formatter-contract changes to CI"
+grep -Fq "needs.changes.outputs.has_python == 'true' || needs.changes.outputs.has_formatter_contract == 'true'" \
+  "$ROOT/.github/workflows/repo-checks.yml" \
+  || fail "formatter-only changes can bypass the pinned Black install/version check"
 
 echo "pre-commit formatter ownership tests passed"
