@@ -348,10 +348,12 @@ class RunnerBehaviorTests(unittest.TestCase):
         self.assertIn("unknown check id: not-registered", completed.stderr)
 
     def test_cli_selects_present_macos_and_backend_checks_from_changed_file_fixtures(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as changed:
-            changed.write("backend/routers/chat_sessions.py\n")
-            changed.write("desktop/macos/Desktop/Sources/APIClient.swift\n")
-            changed.flush()
+        with tempfile.TemporaryDirectory() as tmp:
+            changed = Path(tmp) / "changed-files.txt"
+            changed.write_text(
+                "backend/routers/chat_sessions.py\n" "desktop/macos/Desktop/Sources/APIClient.swift\n",
+                encoding="utf-8",
+            )
 
             completed = subprocess.run(
                 [
@@ -360,7 +362,7 @@ class RunnerBehaviorTests(unittest.TestCase):
                     "--lane",
                     "ci",
                     "--changed-files",
-                    changed.name,
+                    str(changed),
                     "--base",
                     "refs/heads/missing-selection-base",
                     "--skip-pr-body-checks",
