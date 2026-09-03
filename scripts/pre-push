@@ -583,7 +583,16 @@ check_desktop_tool_surfaces_if_needed() {
 
 check_gauntlet_evidence_if_needed() {
   if [ "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE:-}" = "1" ]; then
-    echo "Skipping gauntlet evidence check because PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1."
+    if [ -z "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE:-}" ] || [ -z "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON:-}" ]; then
+      echo "FAIL: PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1 requires PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE and PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON." >&2
+      return 1
+    fi
+    if [[ ! "$PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE" =~ ^#[0-9]+$ \
+      && ! "$PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE" =~ ^https://github\.com/[^/]+/[^/]+/issues/[0-9]+$ ]]; then
+      echo "FAIL: PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE must be a GitHub issue number or URL." >&2
+      return 1
+    fi
+    echo "Skipping gauntlet evidence check under $PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE: $PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON"
     return
   fi
 

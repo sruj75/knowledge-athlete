@@ -131,4 +131,8 @@ expect_fail "malformed evidence" "$CHECK" block
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' 'Authorization: Bearer secret-fixture'
 expect_fail "secret-bearing evidence" "$CHECK" block
 
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
+printf 'Authorization: Bearer sibling-secret-fixture\n' >"$(dirname "$EVIDENCE")/response.txt"
+expect_fail "secret-bearing sibling evidence" "$CHECK" block
+
 echo "gauntlet evidence-at-HEAD tests passed"

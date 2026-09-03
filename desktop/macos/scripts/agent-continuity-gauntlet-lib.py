@@ -219,6 +219,20 @@ def health_log_path(health: dict[str, Any]) -> str | None:
     return raw_path if isinstance(raw_path, str) else None
 
 
+def bridge_source_provenance_error(health: dict[str, Any], expected_git_sha: str) -> str | None:
+    """Reject a bridge whose running bundle is not the exact clean source at HEAD."""
+    source_git_sha = health.get("sourceGitSHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", expected_git_sha):
+        return f"repository source Git SHA is not a full hash: {expected_git_sha!r}"
+    if not isinstance(source_git_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_git_sha):
+        return "running bundle has no full source Git SHA"
+    if source_git_sha != expected_git_sha:
+        return f"running bundle source is stale: expected {expected_git_sha}, got {source_git_sha}"
+    if health.get("sourceTreeDirty") is not False:
+        return "running bundle was built from a dirty or unproven source tree"
+    return None
+
+
 def resolve_active_log_path(port: int, explicit_path: str | None) -> str:
     if explicit_path:
         return explicit_path
@@ -1301,6 +1315,11 @@ class GauntletRunner:
         health = bridge_request(self.port, "GET", "/health")
         if not health.get("ok"):
             raise SystemExit(f"automation bridge unavailable on port {self.port}: {health.get('error', health)}")
+        expected_git_sha = git_sha()
+        if provenance_error := bridge_source_provenance_error(health, expected_git_sha):
+            raise SystemExit(f"automation bridge on port {self.port} has invalid source provenance: {provenance_error}")
+        self.manifest["source_git_sha"] = health["sourceGitSHA"]
+        self.manifest["source_tree_dirty"] = health["sourceTreeDirty"]
         state = bridge_state(self.port)
         classification, detail = classify_restarted_bundle_state(state, self.bundle_id, self.port)
         if classification != "ready":
@@ -3769,6 +3788,24 @@ def self_check() -> int:
     if health_log_path(legacy_health) != "/private/tmp/heyintentive-gauntlet.log":
         print("self-check failed: health log path must preserve legacy top-level compatibility", file=sys.stderr)
         return 1
+    expected_source_sha = "a" * 40
+    clean_source_health = {
+        "ok": True,
+        "sourceGitSHA": expected_source_sha,
+        "sourceTreeDirty": False,
+    }
+    if bridge_source_provenance_error(clean_source_health, expected_source_sha) is not None:
+        print("self-check failed: exact clean bridge source provenance was rejected", file=sys.stderr)
+        return 1
+    for invalid_health in (
+        {**clean_source_health, "sourceGitSHA": "b" * 40},
+        {**clean_source_health, "sourceGitSHA": "short"},
+        {**clean_source_health, "sourceTreeDirty": True},
+        {"ok": True},
+    ):
+        if bridge_source_provenance_error(invalid_health, expected_source_sha) is None:
+            print(f"self-check failed: invalid bridge source provenance was accepted: {invalid_health}", file=sys.stderr)
+            return 1
     trace_cursor_failures = trace_cursor_self_check_failures()
     if trace_cursor_failures:
         print(

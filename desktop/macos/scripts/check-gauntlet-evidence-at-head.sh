@@ -44,6 +44,7 @@ for manifest in "$HARNESS_ROOT"/*/manifest.json; do
   [[ -f "$manifest" ]] || continue
   if python3 - "$manifest" "$HEAD_SHA" "$BRANCH" <<'PY'
 import json
+from pathlib import Path
 import re
 import sys
 
@@ -114,8 +115,15 @@ secret_patterns = (
     r"\bAIza[0-9A-Za-z_-]{20,}\b",
     r"\bsk-[0-9A-Za-z_-]{20,}\b",
 )
-if any(re.search(pattern, raw) for pattern in secret_patterns):
-    raise SystemExit(1)
+for artifact in Path(manifest_path).parent.rglob("*"):
+    if not artifact.is_file():
+        continue
+    try:
+        artifact_text = artifact.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        continue
+    if any(re.search(pattern, artifact_text) for pattern in secret_patterns):
+        raise SystemExit(1)
 PY
   then
     FOUND=true
