@@ -267,6 +267,29 @@ def test_status_prefers_owned_live_stack_provider_mode_over_ambient_request(
     assert provider_report.mode == "offline"
 
 
+def test_check_validates_the_owned_active_mode_instead_of_ambient_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for key in ("OPENAI_API_KEY", "MODULATE_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("PROVIDER_MODE", "real")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    marker = cli._marker(requested, "backend")
+    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "offline"})
+    cli._write_json(
+        requested.layout.process_manifest,
+        {"processes": [{"service": "backend", "pid": os.getpid(), "ownership_marker": marker}]},
+    )
+    monkeypatch.setattr(safety, "command_line_for_pid", lambda _pid: f"pytest {marker}")
+
+    assert cli.cmd_check(SimpleNamespace()) == 0
+    output = capsys.readouterr().out
+    assert "provider_mode: offline" in output
+    assert "requested_provider_mode: real (active stack takes precedence)" in output
+    assert "All required prerequisites for this mode are present." in output
+
+
 def test_session_summary_is_local_emulator_non_activation(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PROVIDER_MODE"] = "offline"

@@ -231,7 +231,9 @@ def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]
         missing.append("backend/main.py")
     if not _python_importable("uvicorn"):
         missing.append("Python package uvicorn (install backend requirements before starting backend)")
-    provider_report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+    provider_env = config.preflight_env(cfg)
+    provider_env["PROVIDER_MODE"] = cfg.provider_mode
+    provider_report = providers.provider_preflight(cfg.repo_root, env=provider_env)
     missing.extend(provider_report.missing)
     warnings.extend(provider_report.warnings)
     if cfg.provider_mode == "offline":
@@ -352,10 +354,13 @@ def write_session_summary(cfg: config.HarnessConfig, provider_report: providers.
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
+    requested = config.load_config(_repo_root(), create_layout=False)
+    cfg, requested_provider_mode = active_runtime_config(requested)
     missing, warnings = prerequisite_report(cfg)
     print("Intentive local dev harness prerequisite check")
     print_config(cfg)
+    if requested_provider_mode is not None:
+        print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
     print_provider_status(cfg)
     if warnings:
         print("\nWarnings:")
