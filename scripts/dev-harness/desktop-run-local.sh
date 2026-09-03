@@ -25,7 +25,11 @@ from dev_harness import cli, config, desktop_profile, safety, synthetic_profiles
 user = sys.argv[1]
 repo = Path.cwd()
 requested_cfg = config.load_config(repo, create_layout=False)
-cfg, requested_provider_mode = cli.active_runtime_config(requested_cfg)
+try:
+    cfg, requested_provider_mode = cli.active_runtime_config(requested_cfg)
+except RuntimeError as exc:
+    print(f"Cannot launch desktop local profile: {exc}")
+    raise SystemExit(1) from None
 print("Intentive Dev local harness desktop launcher")
 print(f"instance: {cfg.instance}")
 print(f"provider_mode: {cfg.provider_mode}")

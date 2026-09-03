@@ -21,6 +21,7 @@ from typing import Iterable
 from . import config, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
+CONFIG_DIGEST_SCHEMA_VERSION = 2
 
 
 def _now() -> str:
@@ -85,18 +86,177 @@ def _owned_live_process_records(cfg: config.HarnessConfig) -> list[dict[str, obj
     return owned
 
 
+def _current_provider_report(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
+    provider_env = config.preflight_env(cfg)
+    provider_env["PROVIDER_MODE"] = cfg.provider_mode
+    return providers.provider_preflight(cfg.repo_root, env=provider_env)
+
+
+def _provider_budgets() -> dict[str, object]:
+    return {
+        "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
+        "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
+        "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
+        "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
+        "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
+        "automatic_replay_after_restart": False,
+    }
+
+
+def _launch_contract(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight,
+) -> dict[str, object]:
+    return {
+        "project_id": cfg.project_id,
+        "database_id": cfg.database_id,
+        "provider_mode": cfg.provider_mode,
+        "enabled_external_providers": list(provider_report.enabled_external_providers),
+        "credential_fingerprints": dict(provider_report.fingerprints),
+        "offline_fake_sources": dict(provider_report.offline_fake_sources),
+        "provider_budgets": _provider_budgets(),
+        "instance": cfg.instance,
+        "state_root": str(cfg.layout.state_root),
+        "ports": {
+            "firestore": cfg.firestore_port,
+            "auth": cfg.auth_port,
+            "redis": cfg.redis_port,
+            "backend": cfg.backend_port,
+        },
+        "endpoints": {
+            "firestore": cfg.firestore_host,
+            "auth": cfg.auth_host,
+            "redis": f"{cfg.redis_host}:{cfg.redis_port}",
+            "backend": cfg.backend_url,
+        },
+    }
+
+
+def _config_digest(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight,
+) -> dict[str, object]:
+    return {
+        "schema_version": CONFIG_DIGEST_SCHEMA_VERSION,
+        "updated_at": _now(),
+        **_launch_contract(cfg, provider_report),
+    }
+
+
+def _digest_launch_contract(digest: dict[str, object]) -> dict[str, object]:
+    return {key: digest.get(key) for key in _launch_contract_keys()}
+
+
+def _launch_contract_keys() -> tuple[str, ...]:
+    return (
+        "project_id",
+        "database_id",
+        "provider_mode",
+        "enabled_external_providers",
+        "credential_fingerprints",
+        "offline_fake_sources",
+        "provider_budgets",
+        "instance",
+        "state_root",
+        "ports",
+        "endpoints",
+    )
+
+
+def _validated_active_digest(requested: config.HarnessConfig) -> dict[str, object] | None:
+    if not _owned_live_process_records(requested):
+        return None
+    digest = _load_json(requested.layout.config_digest_path, {})
+    try:
+        if digest.get("schema_version") != CONFIG_DIGEST_SCHEMA_VERSION:
+            raise ValueError("schema")
+        if digest.get("instance") != requested.instance:
+            raise ValueError("instance")
+        if digest.get("state_root") != str(requested.layout.state_root):
+            raise ValueError("state_root")
+        provider_mode = digest["provider_mode"]
+        if provider_mode not in config.PROVIDER_MODES:
+            raise ValueError("provider_mode")
+        project_id = digest["project_id"]
+        database_id = digest["database_id"]
+        if not isinstance(project_id, str) or not project_id:
+            raise ValueError("project_id")
+        if not isinstance(database_id, str) or not database_id:
+            raise ValueError("database_id")
+        ports = digest["ports"]
+        if not isinstance(ports, dict) or set(ports) != {"firestore", "auth", "redis", "backend"}:
+            raise ValueError("ports")
+        if any(not isinstance(ports[name], int) or not 1 <= ports[name] <= 65535 for name in ports):
+            raise ValueError("ports")
+        if len(set(ports.values())) != len(ports):
+            raise ValueError("ports")
+        endpoints = digest["endpoints"]
+        expected_endpoints = {
+            "firestore": f"127.0.0.1:{ports['firestore']}",
+            "auth": f"127.0.0.1:{ports['auth']}",
+            "redis": f"127.0.0.1:{ports['redis']}",
+            "backend": f"http://127.0.0.1:{ports['backend']}",
+        }
+        if endpoints != expected_endpoints:
+            raise ValueError("endpoints")
+        enabled = digest["enabled_external_providers"]
+        fingerprints = digest["credential_fingerprints"]
+        fake_sources = digest["offline_fake_sources"]
+        if not isinstance(enabled, list) or any(not isinstance(item, str) for item in enabled):
+            raise ValueError("enabled_external_providers")
+        if not isinstance(fingerprints, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in fingerprints.items()
+        ):
+            raise ValueError("credential_fingerprints")
+        if not isinstance(fake_sources, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in fake_sources.items()
+        ):
+            raise ValueError("offline_fake_sources")
+        if digest["provider_budgets"] != _provider_budgets():
+            raise ValueError("provider_budgets")
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError(
+            "owned services are live but their complete launch evidence is missing or invalid; run make dev-down"
+        ) from None
+    return digest
+
+
+def _provider_report_from_digest(digest: dict[str, object]) -> providers.ProviderPreflight:
+    return providers.ProviderPreflight(
+        mode=str(digest["provider_mode"]),
+        enabled_external_providers=tuple(str(item) for item in digest["enabled_external_providers"]),
+        fingerprints=dict(digest["credential_fingerprints"]),
+        offline_fake_sources=dict(digest["offline_fake_sources"]),
+    )
+
+
 def active_runtime_config(
     requested: config.HarnessConfig,
 ) -> tuple[config.HarnessConfig, str | None]:
-    if not _owned_live_process_records(requested):
+    digest = _validated_active_digest(requested)
+    if digest is None:
         return requested, None
-    digest = _load_json(requested.layout.config_digest_path, {})
-    active_mode = digest.get("provider_mode")
-    if not isinstance(active_mode, str) or active_mode not in config.PROVIDER_MODES:
-        return requested, None
-    if active_mode == requested.provider_mode:
-        return requested, None
-    return replace(requested, provider_mode=active_mode), requested.provider_mode
+    ports = digest["ports"]
+    assert isinstance(ports, dict)
+    active_mode = str(digest["provider_mode"])
+    active = replace(
+        requested,
+        provider_mode=active_mode,
+        project_id=str(digest["project_id"]),
+        database_id=str(digest["database_id"]),
+        firestore_port=int(ports["firestore"]),
+        auth_port=int(ports["auth"]),
+        redis_host="127.0.0.1",
+        redis_port=int(ports["redis"]),
+        backend_port=int(ports["backend"]),
+    )
+    requested_mode = requested.provider_mode if active_mode != requested.provider_mode else None
+    return active, requested_mode
+
+
+def _runtime_provider_report(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
+    digest = _validated_active_digest(cfg)
+    return _provider_report_from_digest(digest) if digest is not None else _current_provider_report(cfg)
 
 
 def prepare_provider_mode_for_start(requested: config.HarnessConfig) -> str | None:
@@ -104,16 +264,25 @@ def prepare_provider_mode_for_start(requested: config.HarnessConfig) -> str | No
     if not _owned_live_process_records(requested):
         requested.layout.config_digest_path.unlink(missing_ok=True)
         return None
-    digest = _load_json(requested.layout.config_digest_path, {})
-    active_mode = digest.get("provider_mode")
+    raw_digest = _load_json(requested.layout.config_digest_path, {})
+    active_mode = raw_digest.get("provider_mode")
     if not isinstance(active_mode, str) or active_mode not in config.PROVIDER_MODES:
-        raise RuntimeError("owned services are live but their provider mode is missing or invalid; run make dev-down")
+        _validated_active_digest(requested)
+        raise AssertionError("validated active digest did not provide a provider mode")
     if active_mode != requested.provider_mode:
         raise RuntimeError(
             f"owned services are already running in provider mode {active_mode}; "
             f"run make dev-down before starting mode {requested.provider_mode}"
         )
-    return active_mode
+    digest = _validated_active_digest(requested)
+    assert digest is not None
+    expected = _launch_contract(requested, _current_provider_report(requested))
+    if _digest_launch_contract(digest) != expected:
+        raise RuntimeError(
+            "owned services are already running but their complete launch contract differs from the requested "
+            "configuration; run make dev-down before starting the new configuration"
+        )
+    return str(active_mode)
 
 
 def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
@@ -225,7 +394,10 @@ def _python_importable(module: str) -> bool:
     )
 
 
-def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]]:
+def prerequisite_report(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight | None = None,
+) -> tuple[list[str], list[str]]:
     missing: list[str] = []
     warnings: list[str] = []
     if not _which("node"):
@@ -248,9 +420,7 @@ def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]
         missing.append("backend/main.py")
     if not _python_importable("uvicorn"):
         missing.append("Python package uvicorn (install backend requirements before starting backend)")
-    provider_env = config.preflight_env(cfg)
-    provider_env["PROVIDER_MODE"] = cfg.provider_mode
-    provider_report = providers.provider_preflight(cfg.repo_root, env=provider_env)
+    provider_report = provider_report or _current_provider_report(cfg)
     missing.extend(provider_report.missing)
     warnings.extend(provider_report.warnings)
     if cfg.provider_mode == "offline":
@@ -272,19 +442,22 @@ def print_config(cfg: config.HarnessConfig) -> None:
     print(f"backend: {cfg.backend_url}")
 
 
-def print_provider_status(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
-    parsed = config.parse_secrets_file(cfg)
-    provider_env = config.preflight_env(cfg)
-    provider_env["PROVIDER_MODE"] = cfg.provider_mode
-    report = providers.provider_preflight(cfg.repo_root, env=provider_env)
+def print_provider_status(
+    cfg: config.HarnessConfig,
+    report: providers.ProviderPreflight | None = None,
+    *,
+    show_current_sources: bool = True,
+) -> providers.ProviderPreflight:
+    parsed = config.parse_secrets_file(cfg) if show_current_sources else None
+    report = report or _current_provider_report(cfg)
     print("provider_status:")
     for line in providers.status_lines(report):
         print(f"  {line}")
-    if parsed.ignored_keys:
+    if parsed is not None and parsed.ignored_keys:
         print("secrets_file_ignored_keys:")
         for key in parsed.ignored_keys:
             print(f"  - {key} (harness injects this; remove from backend/.env.local-dev)")
-    if parsed.sources:
+    if parsed is not None and parsed.sources:
         print("provider_credential_sources:")
         for key in sorted(parsed.sources):
             if key == "PROVIDER_MODE":
@@ -372,13 +545,18 @@ def write_session_summary(cfg: config.HarnessConfig, provider_report: providers.
 
 def cmd_check(args: argparse.Namespace) -> int:
     requested = config.load_config(_repo_root(), create_layout=False)
-    cfg, requested_provider_mode = active_runtime_config(requested)
-    missing, warnings = prerequisite_report(cfg)
+    try:
+        cfg, requested_provider_mode = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"dev-check failed: {exc}")
+        return 1
+    missing, warnings = prerequisite_report(cfg, provider_report)
     print("Intentive local dev harness prerequisite check")
     print_config(cfg)
     if requested_provider_mode is not None:
         print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
-    print_provider_status(cfg)
+    print_provider_status(cfg, provider_report, show_current_sources=False)
     if warnings:
         print("\nWarnings:")
         for item in warnings:
@@ -657,15 +835,16 @@ def _wait_health(
 
 def cmd_up(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
+    provider_report = _current_provider_report(cfg)
     try:
-        prepare_provider_mode_for_start(cfg)
+        active_mode = prepare_provider_mode_for_start(cfg)
     except RuntimeError as exc:
         print(f"dev-up failed: {exc}")
         return 1
-    missing, warnings = prerequisite_report(cfg)
+    missing, warnings = prerequisite_report(cfg, provider_report)
     print("Intentive local dev harness startup")
     print_config(cfg)
-    provider_report = print_provider_status(cfg)
+    print_provider_status(cfg, provider_report)
     for item in warnings:
         print(f"warning: {item}")
     if missing:
@@ -673,32 +852,7 @@ def cmd_up(args: argparse.Namespace) -> int:
         for item in missing:
             print(f"  - {item}")
         return 1
-    config_digest = {
-        "schema_version": 1,
-        "updated_at": _now(),
-        "project_id": cfg.project_id,
-        "database_id": cfg.database_id,
-        "provider_mode": cfg.provider_mode,
-        "enabled_external_providers": list(provider_report.enabled_external_providers),
-        "credential_fingerprints": dict(provider_report.fingerprints),
-        "offline_fake_sources": dict(provider_report.offline_fake_sources),
-        "provider_budgets": {
-            "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
-            "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
-            "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
-            "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
-            "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
-            "automatic_replay_after_restart": False,
-        },
-        "instance": cfg.instance,
-        "state_root": str(cfg.layout.state_root),
-        "endpoints": {
-            "firestore": cfg.firestore_host,
-            "auth": cfg.auth_host,
-            "redis": f"{cfg.redis_host}:{cfg.redis_port}",
-            "backend": cfg.backend_url,
-        },
-    }
+    config_digest = _config_digest(cfg, provider_report)
     try:
         _start_services(cfg)
         failures = _wait_health(cfg)
@@ -711,7 +865,8 @@ def cmd_up(args: argparse.Namespace) -> int:
             print(f"  - {failure}")
         print(f"Inspect logs with: make dev-logs OMI_LOCAL_STATE_ROOT={cfg.layout.state_root.parent}")
         return 1
-    _write_json(cfg.layout.config_digest_path, config_digest)
+    if active_mode is None:
+        _write_json(cfg.layout.config_digest_path, config_digest)
     try:
         synthetic_profiles.seed_profiles(cfg)
         print("synthetic desktop profiles: ready")
@@ -724,12 +879,17 @@ def cmd_up(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     requested = config.load_config(_repo_root(), create_layout=False)
-    cfg, requested_provider_mode = active_runtime_config(requested)
+    try:
+        cfg, requested_provider_mode = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"dev-status failed: {exc}")
+        return 1
     print("Intentive local dev harness status")
     print_config(cfg)
     if requested_provider_mode is not None:
         print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
-    provider_report = print_provider_status(cfg)
+    print_provider_status(cfg, provider_report, show_current_sources=False)
     if cfg.provider_mode == "offline":
         print(
             "offline_hint: PROVIDER_MODE=offline active; external provider credentials are stripped from child processes"
@@ -774,10 +934,12 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_summary(args: argparse.Namespace) -> int:
     requested = config.load_config(_repo_root(), create_layout=False)
-    cfg, _ = active_runtime_config(requested)
-    provider_env = config.preflight_env(cfg)
-    provider_env["PROVIDER_MODE"] = cfg.provider_mode
-    provider_report = providers.provider_preflight(cfg.repo_root, env=provider_env)
+    try:
+        cfg, _ = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"Cannot write session summary: {exc}")
+        return 1
     if not cfg.layout.sentinel_path.is_file():
         print("Cannot write session summary: harness sentinel is missing (run make dev-up or make dev-reset first)")
         return 1

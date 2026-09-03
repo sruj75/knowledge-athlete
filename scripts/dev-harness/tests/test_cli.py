@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dev_harness import config, safety
+from dev_harness import config, providers, safety
 from dev_harness import cli
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -251,7 +252,9 @@ def test_status_prefers_owned_live_stack_provider_mode_over_ambient_request(
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
     requested = config.load_config(REPO_ROOT, create_layout=True)
     marker = cli._marker(requested, "backend")
-    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "offline"})
+    offline = replace(requested, provider_mode="offline")
+    offline_report = providers.ProviderPreflight(mode="offline", enabled_external_providers=())
+    cli._write_json(requested.layout.config_digest_path, cli._config_digest(offline, offline_report))
     cli._write_json(
         requested.layout.process_manifest,
         {"processes": [{"service": "backend", "pid": os.getpid(), "ownership_marker": marker}]},
@@ -267,6 +270,95 @@ def test_status_prefers_owned_live_stack_provider_mode_over_ambient_request(
     assert provider_report.mode == "offline"
 
 
+def test_status_rejects_owned_live_stack_without_complete_launch_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "offline"})
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
+
+    with pytest.raises(RuntimeError, match="launch evidence is missing or invalid"):
+        cli.active_runtime_config(requested)
+
+
+def test_status_uses_the_complete_recorded_launch_contract_not_ambient_configuration(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "real")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    monkeypatch.setenv("OMI_HARNESS_PORT_OFFSET", "20")
+    launched = config.load_config(REPO_ROOT, create_layout=True)
+    launched_report = providers.ProviderPreflight(
+        mode="real",
+        enabled_external_providers=("gemini",),
+        fingerprints={"gemini": "launched-fingerprint"},
+    )
+    cli._write_json(launched.layout.config_digest_path, cli._config_digest(launched, launched_report))
+
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_HARNESS_PORT_OFFSET", "40")
+    requested = config.load_config(REPO_ROOT, create_layout=False)
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
+
+    active, requested_provider_mode = cli.active_runtime_config(requested)
+    active_report = cli._runtime_provider_report(active)
+
+    assert active.provider_mode == "real"
+    assert active.backend_port == launched.backend_port
+    assert active.firestore_port == launched.firestore_port
+    assert requested_provider_mode == "offline"
+    assert active_report.fingerprints == {"gemini": "launched-fingerprint"}
+
+
+def test_same_mode_start_rejects_a_changed_complete_launch_contract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "real")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    launched_report = providers.ProviderPreflight(
+        mode="real",
+        enabled_external_providers=("gemini",),
+        fingerprints={"gemini": "old-fingerprint"},
+    )
+    requested_report = providers.ProviderPreflight(
+        mode="real",
+        enabled_external_providers=("gemini",),
+        fingerprints={"gemini": "new-fingerprint"},
+    )
+    cli._write_json(requested.layout.config_digest_path, cli._config_digest(requested, launched_report))
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
+    monkeypatch.setattr(cli, "_current_provider_report", lambda _cfg: requested_report)
+
+    with pytest.raises(RuntimeError, match="complete launch contract differs"):
+        cli.prepare_provider_mode_for_start(requested)
+
+
+def test_same_contract_start_reuses_processes_without_rewriting_launch_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    cfg = config.load_config(REPO_ROOT, create_layout=True)
+    report = cli._current_provider_report(cfg)
+    digest = cli._config_digest(cfg, report)
+    digest["updated_at"] = "2026-09-03T00:00:00Z"
+    cli._write_json(cfg.layout.config_digest_path, digest)
+    original = cfg.layout.config_digest_path.read_bytes()
+
+    monkeypatch.setattr(cli, "_repo_root", lambda: REPO_ROOT)
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
+    monkeypatch.setattr(cli, "prerequisite_report", lambda _cfg, _report=None: ([], []))
+    monkeypatch.setattr(cli, "_start_services", lambda _cfg: None)
+    monkeypatch.setattr(cli, "_wait_health", lambda _cfg: [])
+    monkeypatch.setattr(cli.synthetic_profiles, "seed_profiles", lambda _cfg: None)
+
+    assert cli.cmd_up(SimpleNamespace()) == 0
+    assert cfg.layout.config_digest_path.read_bytes() == original
+
+
 def test_check_validates_the_owned_active_mode_instead_of_ambient_credentials(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -276,7 +368,9 @@ def test_check_validates_the_owned_active_mode_instead_of_ambient_credentials(
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
     requested = config.load_config(REPO_ROOT, create_layout=True)
     marker = cli._marker(requested, "backend")
-    cli._write_json(requested.layout.config_digest_path, {"provider_mode": "offline"})
+    offline = replace(requested, provider_mode="offline")
+    offline_report = providers.ProviderPreflight(mode="offline", enabled_external_providers=())
+    cli._write_json(requested.layout.config_digest_path, cli._config_digest(offline, offline_report))
     cli._write_json(
         requested.layout.process_manifest,
         {"processes": [{"service": "backend", "pid": os.getpid(), "ownership_marker": marker}]},
@@ -315,7 +409,7 @@ def test_start_rejects_live_owned_services_without_a_proven_mode(
     requested = config.load_config(REPO_ROOT, create_layout=True)
     monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend"}])
 
-    with pytest.raises(RuntimeError, match="provider mode is missing or invalid"):
+    with pytest.raises(RuntimeError, match="launch evidence is missing or invalid"):
         cli.prepare_provider_mode_for_start(requested)
 
 
