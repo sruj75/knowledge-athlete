@@ -1,4 +1,5 @@
 import Foundation
+import OmiSupport
 
 @testable import Omi_Computer
 
@@ -105,11 +106,7 @@ enum RewindStorageTestIsolation {
   }
 
   static func userDirectory(for testUserId: String) -> URL {
-    let appSupport = FileManager.default
-      .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    return
-      appSupport
-      .appendingPathComponent("Omi", isDirectory: true)
+    DesktopLocalProfile.applicationSupportURL()
       .appendingPathComponent("users", isDirectory: true)
       .appendingPathComponent(testUserId, isDirectory: true)
   }

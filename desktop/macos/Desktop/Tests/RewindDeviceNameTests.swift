@@ -15,14 +15,7 @@ final class RewindDeviceNameTests: XCTestCase {
     await RewindDatabase.shared.configure(userId: testUserId)
     try await RewindDatabase.shared.initialize()
 
-    let appSupport = try XCTUnwrap(
-      FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
-      "Application Support directory should be available")
-    userDir =
-      appSupport
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
+    userDir = RewindStorageTestIsolation.userDirectory(for: testUserId)
   }
 
   override func tearDown() async throws {

@@ -16,13 +16,7 @@ final class RewindStorageVideoFrameExtractionTests: XCTestCase {
     RewindDatabase.currentUserId = testUserId
     try await RewindStorage.shared.initialize()
 
-    let appSupport = FileManager.default
-      .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    userDir =
-      appSupport
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
+    userDir = RewindStorageTestIsolation.userDirectory(for: testUserId)
   }
 
   override func tearDown() async throws {
@@ -116,11 +110,7 @@ final class RewindStorageVideoFrameExtractionTests: XCTestCase {
     let maybeFirstVideosDir = await VideoChunkEncoder.shared.videosDirectoryForTesting()
     let firstVideosDir = try XCTUnwrap(maybeFirstVideosDir)
     let nextUserId = "video-frame-test-next-\(UUID().uuidString)"
-    let nextUserDir = FileManager.default
-      .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(nextUserId, isDirectory: true)
+    let nextUserDir = RewindStorageTestIsolation.userDirectory(for: nextUserId)
     defer { try? FileManager.default.removeItem(at: nextUserDir) }
 
     await RewindStorage.shared.reset()

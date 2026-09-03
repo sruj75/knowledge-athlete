@@ -16,13 +16,7 @@ final class ActionItemsFTSRepairTests: XCTestCase {
     await RewindDatabase.shared.configure(userId: testUserId)
     try await RewindDatabase.shared.initialize()
 
-    let appSupport = FileManager.default
-      .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    userDir =
-      appSupport
-      .appendingPathComponent("Omi", isDirectory: true)
-      .appendingPathComponent("users", isDirectory: true)
-      .appendingPathComponent(testUserId, isDirectory: true)
+    userDir = RewindStorageTestIsolation.userDirectory(for: testUserId)
   }
 
   override func tearDown() async throws {
