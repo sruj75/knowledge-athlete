@@ -130,7 +130,7 @@ class SignalChildTests(unittest.TestCase):
         child = FakeChild()
 
         with mock.patch.object(runner.os, "killpg", create=True) as killpg:
-            runner.signal_child(child, signal.SIGINT)
+            runner.signal_child(child, signal.SIGINT, platform_name="posix")
 
         killpg.assert_called_once_with(child.pid, signal.SIGINT)
         self.assertEqual(child.signals, [])
@@ -139,7 +139,7 @@ class SignalChildTests(unittest.TestCase):
         child = FakeChild()
 
         with mock.patch.object(runner.os, "killpg", None, create=True):
-            runner.signal_child(child, signal.SIGINT)
+            runner.signal_child(child, signal.SIGINT, platform_name="posix")
 
         self.assertEqual(child.signals, [signal.SIGINT])
 
