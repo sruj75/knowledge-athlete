@@ -587,7 +587,7 @@ check_gauntlet_evidence_if_needed() {
     return
   fi
 
-  desktop/macos/scripts/check-gauntlet-evidence-at-head.sh warn
+  desktop/macos/scripts/check-gauntlet-evidence-at-head.sh block
 }
 
 run_step check_pr_preflight

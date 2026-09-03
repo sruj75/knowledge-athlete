@@ -26,9 +26,9 @@ checks:
     reason: "a disposable source and authenticated capability fakes prove the real readiness orchestrator emits its exact-SHA receipt only after ordered cleanup"
   - id: gauntlet-evidence-at-head-tests
     command: ["bash", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh"]
-    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "PR #46 carried stale-SHA Tier-2 evidence; closure-sensitive branches must reject missing, short, stale, malformed, red, or secret-bearing gauntlet manifests"
+    reason: "PR #46 carried stale-SHA Tier-2 evidence; the bounded pre-push audience must reject missing, partial-suite, missing-row, short, stale, malformed, red, or secret-bearing gauntlet manifests"
   - id: verify-pre-tag-readiness-tests
     command: ["python3", ".github/scripts/test_verify_pre_tag_readiness.py"]
     triggers: [".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/checks-manifest.yaml"]

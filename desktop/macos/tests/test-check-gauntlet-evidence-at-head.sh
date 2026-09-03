@@ -27,18 +27,19 @@ write_manifest() {
   local steps_json="$3"
   local failures_json="$4"
   local assistant_text="${5:-safe synthetic marker}"
+  local suites_json="${6:-[\"agents\",\"continuity\",\"owner\",\"prompts\",\"resilience\"]}"
   mkdir -p "$(dirname "$EVIDENCE")"
-  python3 - "$EVIDENCE" "$sha" "$passed" "$steps_json" "$failures_json" "$assistant_text" <<'PY'
+  python3 - "$EVIDENCE" "$sha" "$passed" "$steps_json" "$failures_json" "$assistant_text" "$suites_json" <<'PY'
 import json
 import sys
 
-path, sha, passed, steps, failures, assistant_text = sys.argv[1:]
+path, sha, passed, steps, failures, assistant_text, suites = sys.argv[1:]
 payload = {
     "run_id": "fixture",
     "started_at": "2026-09-03T00:00:00+00:00",
     "finished_at": "2026-09-03T00:01:00+00:00",
     "git": sha,
-    "suites": ["continuity"],
+    "suites": json.loads(suites),
     "steps": json.loads(steps),
     "failures": json.loads(failures),
     "passed": passed == "true",
@@ -76,10 +77,41 @@ expect_fail "S-31 branch without evidence" "$CHECK" block
 
 FULL_SHA="$(git -C "$REPO" rev-parse HEAD)"
 SHORT_SHA="$(git -C "$REPO" rev-parse --short HEAD)"
-VALID_STEPS='[{"id":"continuity","name":"continuity"}]'
+VALID_STEPS='[
+  {"id":"01-typed-turn","name":"typed turn"},
+  {"id":"02-ptt-turn","name":"PTT turn"},
+  {"id":"02b-ptt-followup","name":"PTT follow-up"},
+  {"id":"03-typed-followup","name":"typed follow-up"},
+  {"id":"04-exact-voice-memory-agent","name":"exact voice memory agent"},
+  {"id":"04-spawn-agent","name":"spawn agent"},
+  {"id":"05-status-query","name":"status query"},
+  {"id":"06-owner-switch-isolation","name":"owner switch isolation"},
+  {"id":"07a-floating-casual","name":"floating casual"},
+  {"id":"07b-floating-spawn","name":"floating spawn"},
+  {"id":"07c-spawn-recall-ptt","name":"spawn recall PTT"},
+  {"id":"07d-spawn-recall-typed","name":"spawn recall typed"},
+  {"id":"p1-over-refusal","name":"prompt over-refusal"},
+  {"id":"p2-tool-selection","name":"prompt tool selection"},
+  {"id":"p3-register","name":"prompt register"},
+  {"id":"p4-no-public-web","name":"prompt public web truth"},
+  {"id":"r1-cold-bridge-launch","name":"cold bridge launch"},
+  {"id":"r2-warm-reuse-1","name":"warm reuse 1"},
+  {"id":"r2-warm-reuse-2","name":"warm reuse 2"},
+  {"id":"r2-warm-reuse-3","name":"warm reuse 3"},
+  {"id":"r3-already-running-race-policy","name":"already running race"},
+  {"id":"r4-subagent-launch","name":"subagent launch"},
+  {"id":"r4-subagent-status","name":"subagent status"}
+]'
 
 write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]'
 expect_pass "green evidence at the full HEAD SHA" "$CHECK" block
+
+write_manifest "$FULL_SHA" true "$VALID_STEPS" '[]' 'safe synthetic marker' '["continuity"]'
+expect_fail "partial suite evidence on S-31" "$CHECK" block
+
+MISSING_ROW_STEPS="$(python3 -c 'import json,sys; rows=json.loads(sys.argv[1]); print(json.dumps(rows[:-1]))' "$VALID_STEPS")"
+write_manifest "$FULL_SHA" true "$MISSING_ROW_STEPS" '[]'
+expect_fail "green manifest missing a canonical row" "$CHECK" block
 
 write_manifest "$SHORT_SHA" true "$VALID_STEPS" '[]'
 expect_fail "short SHA evidence" "$CHECK" block

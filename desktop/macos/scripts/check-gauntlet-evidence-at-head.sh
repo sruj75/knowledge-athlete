@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Warn when pushing continuity-sensitive or S-31 closure branches whose full
-# HEAD SHA lacks complete, green, privacy-safe gauntlet evidence.
+# Block continuity-sensitive or S-31 closure branches whose full HEAD SHA lacks
+# complete, green, privacy-safe gauntlet evidence.
 #
 # Usage:
-#   ./scripts/check-gauntlet-evidence-at-head.sh          # warn (default)
-#   ./scripts/check-gauntlet-evidence-at-head.sh block    # exit 1 when missing
+#   ./scripts/check-gauntlet-evidence-at-head.sh          # block (default)
+#   ./scripts/check-gauntlet-evidence-at-head.sh warn     # report without blocking
 #
 # Looks for desktop/macos/.harness/agent-continuity-gauntlet/*/manifest.json with
 # matching full git SHA, completed rows, and passed: true.
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-MODE="${1:-warn}"
+MODE="${1:-block}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$DESKTOP_DIR/../.." && pwd)"
@@ -42,12 +42,12 @@ fi
 FOUND=false
 for manifest in "$HARNESS_ROOT"/*/manifest.json; do
   [[ -f "$manifest" ]] || continue
-  if python3 - "$manifest" "$HEAD_SHA" <<'PY'
+  if python3 - "$manifest" "$HEAD_SHA" "$BRANCH" <<'PY'
 import json
 import re
 import sys
 
-manifest_path, head_sha = sys.argv[1], sys.argv[2]
+manifest_path, head_sha, branch = sys.argv[1:4]
 try:
     with open(manifest_path, encoding="utf-8") as handle:
         raw = handle.read()
@@ -67,6 +67,43 @@ if not isinstance(data.get("steps"), list) or not data["steps"]:
     raise SystemExit(1)
 if not all(isinstance(step, dict) and step.get("id") and step.get("name") for step in data["steps"]):
     raise SystemExit(1)
+
+# S-31 is the final all-waves closure lane. A manifest from a smaller live
+# suite is useful diagnostic evidence but cannot satisfy that contract. Bind
+# the gate to the canonical suite and row identities so a green partial run or
+# a producer regression that silently drops one row fails closed.
+if re.search(r"(^|[-_/])s-?31($|[-_/])", branch):
+    expected_suites = {"agents", "continuity", "owner", "prompts", "resilience"}
+    expected_step_ids = {
+        "01-typed-turn",
+        "02-ptt-turn",
+        "02b-ptt-followup",
+        "03-typed-followup",
+        "04-exact-voice-memory-agent",
+        "04-spawn-agent",
+        "05-status-query",
+        "06-owner-switch-isolation",
+        "07a-floating-casual",
+        "07b-floating-spawn",
+        "07c-spawn-recall-ptt",
+        "07d-spawn-recall-typed",
+        "p1-over-refusal",
+        "p2-tool-selection",
+        "p3-register",
+        "p4-no-public-web",
+        "r1-cold-bridge-launch",
+        "r2-warm-reuse-1",
+        "r2-warm-reuse-2",
+        "r2-warm-reuse-3",
+        "r3-already-running-race-policy",
+        "r4-subagent-launch",
+        "r4-subagent-status",
+    }
+    if set(data["suites"]) != expected_suites:
+        raise SystemExit(1)
+    actual_step_ids = {str(step["id"]) for step in data["steps"]}
+    if not expected_step_ids.issubset(actual_step_ids):
+        raise SystemExit(1)
 if data.get("failures") != []:
     raise SystemExit(1)
 if not isinstance(data.get("started_at"), str) or not isinstance(data.get("finished_at"), str):
