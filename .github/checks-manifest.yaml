@@ -321,8 +321,8 @@ checks:
     lanes: ["local", "ci"]
     reason: "backend production Python changes must retain import-time purity"
   - id: managed-model-callsite-inventory
-    command: ["bash", "-c", "cd backend && .venv/bin/python -m pytest -q -m slow tests/unit/test_managed_model_workloads.py::test_application_model_call_sites_cannot_bypass_the_typed_inventory"]
-    triggers: ["backend/**/*.py", ".github/checks-manifest.yaml"]
+    command: ["bash", "scripts/run-managed-model-callsite-inventory.sh"]
+    triggers: ["backend/**/*.py", "backend/.python-version", "backend/pylock*.toml", "backend/scripts/sync-python-deps.sh", "scripts/run-managed-model-callsite-inventory.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure

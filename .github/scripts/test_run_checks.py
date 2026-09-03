@@ -732,6 +732,73 @@ chmod +x "{python}"
                 r'(?ms)^\[\[packages\]\]\nname = "pyyaml"\nversion = "6\.0\.1"$',
             )
 
+    def test_managed_model_inventory_bootstraps_its_locked_backend_interpreter(self) -> None:
+        """Actions run 33629144935: post-merge checks start without backend/.venv."""
+        manifest = load_manifest(MANIFEST_PATH)
+        check = next(check for check in manifest.checks if check.id == "managed-model-callsite-inventory")
+        self.assertEqual(check.command, ("bash", "scripts/run-managed-model-callsite-inventory.sh"))
+        for lane in ("local", "ci"):
+            self.assertIn(check, resolve_checks(manifest, list(check.triggers), lane))
+
+        runner = REPO_ROOT / check.command[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copied_runner = root / check.command[1]
+            copied_runner.parent.mkdir(parents=True)
+            shutil.copy2(runner, copied_runner)
+            resolver = root / "scripts/dev-harness/_resolve_python.sh"
+            resolver.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(REPO_ROOT / "scripts/dev-harness/_resolve_python.sh", resolver)
+
+            sync = root / "backend/scripts/sync-python-deps.sh"
+            sync.parent.mkdir(parents=True)
+            python = root / "backend/.venv/bin/python"
+            sync.write_text(
+                f'''#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "{python.parent}"
+cat > "{python}" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "-c" ]]; then
+  [[ "$2" == "import pytest" ]]
+  exit
+fi
+printf '%s\n' "$@" > "{root / 'inventory-args.txt'}"
+PYTHON
+chmod +x "{python}"
+''',
+                encoding="utf-8",
+            )
+            sync.chmod(0o755)
+
+            try:
+                bash = bash_executable()
+            except FileNotFoundError as exc:
+                self.skipTest(str(exc))
+            env = os.environ.copy()
+            env["PYTHON"] = "ambient-python-must-not-run"
+            result = subprocess.run(
+                [bash, str(copied_runner)],
+                text=True,
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                (root / "inventory-args.txt").read_text(encoding="utf-8").splitlines(),
+                [
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-m",
+                    "slow",
+                    "tests/unit/test_managed_model_workloads.py::test_application_model_call_sites_cannot_bypass_the_typed_inventory",
+                ],
+            )
+
 
 class PlatformTests(unittest.TestCase):
     """Tests for the platform-aware manifest model (#9843 Ticket 02)."""
