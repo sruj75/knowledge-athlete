@@ -414,7 +414,7 @@ final class ScreenContextTelemetryTests: XCTestCase {
       imageAttached: false
     )
     let guidance = payload["guidance"] as? String ?? ""
-    XCTAssertTrue(guidance.contains("quit and reopen Omi"))
+    XCTAssertTrue(guidance.contains("quit and reopen Intentive"))
   }
 
   func testAmbientPermissionUnavailablePayloadIsConditionalOnScreenDependence() {

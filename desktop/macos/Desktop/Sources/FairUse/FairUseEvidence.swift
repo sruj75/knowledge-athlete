@@ -43,8 +43,8 @@ struct FairUseManagedCloudPresentation: Equatable, Sendable {
       message:
         "Today's 30-minute managed cloud transcription allowance has been used. "
         + "On-device transcription is unavailable on this Mac, so transcription is paused until \(resetsAt). "
-        + "Contact support@heyintentive.com to discuss your usage. "
-        + "Quote your case reference when contacting support.\(refSuffix)")
+        + "Save your case reference for the support channel when it is published."
+        + refSuffix)
   }
 }
 

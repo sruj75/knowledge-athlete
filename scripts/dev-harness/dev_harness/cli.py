@@ -317,7 +317,7 @@ def write_session_summary(cfg: config.HarnessConfig, provider_report: providers.
 def cmd_check(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=False)
     missing, warnings = prerequisite_report(cfg)
-    print("Omi local dev harness prerequisite check")
+    print("Intentive local dev harness prerequisite check")
     print_config(cfg)
     print_provider_status(cfg)
     if warnings:
@@ -599,7 +599,7 @@ def _wait_health(
 def cmd_up(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
     missing, warnings = prerequisite_report(cfg)
-    print("Omi local dev harness startup")
+    print("Intentive local dev harness startup")
     print_config(cfg)
     provider_report = print_provider_status(cfg)
     for item in warnings:
@@ -662,7 +662,7 @@ def cmd_up(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=False)
-    print("Omi local dev harness status")
+    print("Intentive local dev harness status")
     print_config(cfg)
     provider_report = print_provider_status(cfg)
     if cfg.provider_mode == "offline":

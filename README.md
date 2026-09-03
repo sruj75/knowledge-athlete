@@ -1,184 +1,75 @@
-<div align="center">
+# Intentive
 
-# **omi**
+Intentive is a macOS second brain for conversations and activity you choose to
+capture. The Mac owns durable product data such as conversations, Memories,
+tasks, Chat history, Focus, Insights, and Rewind. Features that need managed AI
+or transcription send selected inputs to the configured providers for transient
+processing; they do not make the backend a second product-data authority.
 
-### A 2nd brain you trust more than your 1st
+This repository is under active development. Intentive for macOS is not
+published, and production website, legal, support, backend, and update
+destinations intentionally remain unconfigured until their owners approve them.
+The inherited Omi icon, logo, and backdrop files are development placeholders,
+not shippable Intentive assets.
 
-Omi captures your screen and conversations, transcribes in real-time, generates summaries and action items, and gives you an AI chat that remembers everything you've seen and heard. Works on desktop, phone and wearables. Fully open source.
+## Repository scope
 
-Trusted by 300,000+ professionals.
+| Component | Path | Current role |
+|---|---|---|
+| macOS app | [`desktop/macos/`](desktop/macos/) | SwiftUI app, local product stores, bundled TypeScript agent runtime |
+| Backend | [`backend/`](backend/) | FastAPI authentication and transient managed-compute boundary |
+| Windows snapshot | [`desktop/windows/`](desktop/windows/) | Retained upstream code; outside the Intentive macOS rebrand and release scope |
 
+The retained managed-provider map is Gemini for text, embeddings, and realtime
+voice; Modulate for live and prerecorded speech-to-text; OpenAI for text-to-speech
+only; Langfuse for prompt management and model tracing; PostHog for optional
+product analytics; and Sentry for diagnostics. Billing is disabled, so the app
+makes no Dodo checkout or portal calls.
 
-[![Discord](https://img.shields.io/discord/1192313062041067520?label=Discord&logo=discord&logoColor=white&style=for-the-badge)](http://discord.omi.me)&ensp;
-[![GitHub Repo stars](https://img.shields.io/github/stars/BasedHardware/Omi?style=for-the-badge)](https://github.com/BasedHardware/Omi)&ensp;
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+## Local development
 
-[Website](https://omi.me/) · [Docs](https://docs.omi.me/) · [Discord](http://discord.omi.me) · [Twitter](https://x.com/kodjima33) · [DeepWiki](https://deepwiki.com/BasedHardware/omi)
-
-</div>
-
-## Quick Start
-
-### macOS
-
-```sh
-git clone https://github.com/BasedHardware/omi.git && cd omi/desktop/macos && ./run.sh --yolo
-```
-
-Builds the macOS app, connects to the cloud backend, and launches. No env files, no credentials, no local backend.
-
-> **Requirements:** macOS 14+, [Xcode](https://developer.apple.com/xcode/) (includes Swift & code signing), [Node.js](https://nodejs.org/)
-
-### Windows
-
-```powershell
-git clone https://github.com/BasedHardware/omi.git
-cd omi\desktop\windows
-npm install
-copy .env.example .env
-npm run dev
-```
-
-Starts the Windows desktop app from source using the public config in `.env.example`.
-
-> **Requirements:** [Node.js](https://nodejs.org/)
-
-For development worktrees, run the baseline local setup once. It installs the Git hooks and syncs the pinned backend Python environment used by selected pre-push checks; mobile and desktop runtime environments remain opt-in.
+Requirements include macOS 14+, Xcode, Python 3.11 with `uv`, Node 22, JDK 21,
+ffmpeg, opus, and webp.
 
 ```bash
 make setup
+PROVIDER_MODE=offline make dev-up
+make desktop-run-local DESKTOP_APP_NAME=omi-local
 ```
 
-<details>
-  <summary>Full Installation</summary>
-  
-For local development with the full backend stack:
-
-1. Install prerequisites
+The offline lane uses hermetic provider fakes and an isolated named development
+bundle. Managed development is an explicit alternative:
 
 ```bash
-xcode-select --install
-uv --version
+cd desktop/macos
+OMI_APP_NAME=omi-local ./run.sh --yolo
 ```
 
-2. Clone and configure
+`--yolo` targets the owned development backend; protected routes still require
+the owned development Firebase identity. It is not an offline data sandbox and
+must never be treated as production.
+
+## Verification
 
 ```bash
-git clone https://github.com/BasedHardware/omi.git
-cd omi/desktop/macos
-cp ../../backend/.env.example ../../backend/.env
+desktop/macos/test.sh
+backend/test.sh
+make preflight
 ```
 
-3. Build and run
-
-```bash
-./run.sh
-```
-
-See [desktop/macos/README.md](desktop/macos/README.md) for environment variables and credential setup.
-
-
-### Mobile App
-
-```bash
-cd app && bash setup.sh ios    # or: bash setup.sh android
-```
-
-</details>
-
-<p align="center">
-  <strong>Intentive for macOS is not published yet.</strong><br>
-  <a href="https://apps.apple.com/us/app/friend-ai-wearable/id6502156163"><img src="docs/assets/readme/download-appstore-badge.png" alt="Download on the App Store" height="50"></a>
-  <a href="https://play.google.com/store/apps/details?id=com.friend.ios"><img src="docs/assets/readme/download-gplay-badge.png" alt="Get it on Google Play" height="50"></a>
-</p>
-
-<p align="center">
-  <a href="https://app.omi.me">Try in Browser</a>
-</p>
-
-<details>
-  <summary>How it works</summary>
-
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      Your Devices                       │
-│                                                         │
-│  ┌──────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │ Omi      │  │ macOS App    │  │ Mobile App        │  │
-│  │ Wearable │  │ (Swift/Python) │  │ (Flutter)         │  │
-│  └────┬─────┘  └──────┬───────┘  └────────┬──────────┘  │
-│       │    BLE         │   HTTPS/WS        │             │
-└───────┼────────────────┼───────────────────┼─────────────┘
-        │                │                   │
-        ▼                ▼                   ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Omi Backend (Python)                  │
-│                                                         │
-│  ┌─────────┐  ┌──────────┐  ┌─────────┐  ┌──────────┐  │
-│  │ Listen  │  │ Pusher   │  │ VAD     │  │ Diarizer │  │
-│  │ (REST)  │  │ (WS)     │  │ (GPU)   │  │ (GPU)    │  │
-│  └─────────┘  └──────────┘  └─────────┘  └──────────┘  │
-│                                                         │
-│  ┌─────────┐  ┌──────────┐  ┌─────────┐  ┌──────────┐  │
-│  │ Modulate│  │ Firestore│  │ Redis   │  │ LLMs     │  │
-│  │ (STT)   │  │ (DB)     │  │ (Cache) │  │ (AI)     │  │
-│  └─────────┘  └──────────┘  └─────────┘  └──────────┘  │
-└─────────────────────────────────────────────────────────┘
-```
-
-| Component | Path | Stack |
-|-----------|------|-------|
-| **macOS app** | [`desktop/macos/`](desktop/macos/) | Swift, SwiftUI, Python desktop backend |
-| Mobile app | [`app/`](app/) | Flutter (iOS & Android) |
-| Backend API | [`backend/`](backend/) | Python, FastAPI, Firebase |
-| Firmware | [`omi/`](omi/) | nRF, Zephyr, C |
-| Omi Glass | [`omiGlass/`](omiGlass/) | ESP32-S3, C |
-| SDKs | [`sdks/`](sdks/) | React Native, Swift, Python |
-
-</details>
+Use focused commands from the component guides while editing. The complete
+component suites and repository preflight remain the acceptance boundary.
 
 ## Documentation
 
-### Getting Started
-- [Introduction](https://docs.omi.me/)
-- [Quick Start Guide](https://docs.omi.me/quickstart)
-- [macOS App Development](desktop/macos/README.md)
-- [Mobile App Setup](https://docs.omi.me/doc/developer/AppSetup)
-- [Backend Setup](https://docs.omi.me/doc/developer/backend/Backend_Setup)
-- [Contributing](https://docs.omi.me/doc/developer/Contribution) — also [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`PRODUCT.md`](PRODUCT.md)
-
-### API & SDKs
-- [API Reference](https://docs.omi.me/api-reference/introduction) — REST endpoints for memories, conversations, action items
-- [Python SDK](sdks/python/)
-- [Swift SDK](sdks/swift/)
-- [React Native SDK](sdks/react-native/)
-
-### Architecture
-- [Backend Deep Dive](https://docs.omi.me/doc/developer/backend/backend_deepdive)
-- [Transcription Pipeline](https://docs.omi.me/doc/developer/backend/transcription)
-- [Chat System](https://docs.omi.me/doc/developer/backend/chat_system)
-- [BLE Protocol](https://docs.omi.me/doc/developer/Protocol)
-
-## Omi Hardware
-![Omi](https://github.com/user-attachments/assets/7a658366-9e02-4057-bde5-a510e1f0217a)
-
-Open-source AI wearables that pair with the mobile app for 24h+ continuous capture.
-
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/834d3fdb-31b5-4f22-ae35-da3d2b9a8f59" alt="Omi Wearable" width="49%" />
-  <img src="https://github.com/user-attachments/assets/fdad4226-e5ce-4c55-b547-9101edfa3203" alt="Omi Glass" width="49%" />
-</p>
-
-- [Buy Omi](https://www.omi.me/pages/product)
-- [Buy Omi Glass Dev Kit](https://www.omi.me/glass) — ESP32-S3, camera + audio
-- [Open Source Hardware Designs](https://docs.omi.me/doc/hardware/consumer/electronics)
-- [Buying Guide](https://docs.omi.me/doc/assembly/Buying_Guide)
-- [Build the Device](https://docs.omi.me/doc/assembly/Build_the_device)
-- [Flash Firmware](https://docs.omi.me/doc/get_started/Flash_device)
-- [Integrate Your Wearable](https://docs.omi.me/doc/integrations)
-- [Hardware Specs](https://docs.omi.me/doc/hardware/DevKit2)
+- [`PRODUCT.md`](PRODUCT.md) — current product and data-authority boundaries
+- [`FORK.md`](FORK.md) — upstream provenance and current rebrand/release state
+- [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md) — approved owned identities and external blockers
+- [`AGENTS.md`](AGENTS.md) — repository engineering rules
+- [`desktop/macos/AGENTS.md`](desktop/macos/AGENTS.md) — macOS build, test, and named-bundle workflow
+- [`backend/AGENTS.md`](backend/AGENTS.md) — backend setup, provider, and service contracts
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT. See [`LICENSE`](LICENSE) and retain the attribution recorded in
+[`FORK.md`](FORK.md).

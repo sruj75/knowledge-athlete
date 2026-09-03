@@ -6,7 +6,7 @@ import VoiceTurnDomain
 
 /// The in-memory, single-turn source of truth for a PTT current-screen answer.
 ///
-/// Pixels are captured before Omi expands its overlay, keyed to the current voice turn,
+/// Pixels are captured before Intentive expands its overlay, keyed to the current voice turn,
 /// and never persisted into Rewind, the kernel context, or app logs. The provider only
 /// receives the JPEG through the kernel-authorized `screenshot` tool result.
 enum RealtimeScreenEvidenceTarget: String, Equatable, Sendable {

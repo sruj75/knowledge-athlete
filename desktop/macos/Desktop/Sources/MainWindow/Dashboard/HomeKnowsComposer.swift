@@ -37,7 +37,7 @@ struct HomeKnowsInsightCandidate: Equatable {
 
 /// Builds the hub rows under the greeting as a deliberately DIVERSE set — one
 /// pressing task, a tip (a real insight if there is one, otherwise a composed,
-/// high-agency nudge you can hand Omi), a second task, and a prefilled ask.
+/// high-agency nudge you can hand Intentive), a second task, and a prefilled ask.
 /// Fixed typed slots keep it from collapsing into an all-tasks list when one
 /// source (usually insights) is thin.
 enum HomeKnowsListComposer {
@@ -94,7 +94,7 @@ enum HomeKnowsListComposer {
       rows.append(HomeKnowsRow(kind: .task(id: task.id), text: task.text))
     }
 
-    // 4) A prefilled ask, so there's always a distinct thing to hand Omi.
+    // 4) A prefilled ask, so there's always a distinct thing to hand Intentive.
     if let ask, rows.count < maxRows {
       rows.append(HomeKnowsRow(kind: .question, text: ask))
     }

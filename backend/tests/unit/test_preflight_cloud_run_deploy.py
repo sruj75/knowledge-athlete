@@ -50,7 +50,7 @@ def test_check_rendered_secrets_reports_missing(monkeypatch: pytest.MonkeyPatch)
     missing = preflight.check_rendered_secrets(
         env='prod',
         manifest_path=BACKEND_ROOT / 'deploy/runtime_env.yaml',
-        project='based-hardware',
+        project='intentive-production-test',
     )
 
     secret_names = {item.secret_name for item in missing}
@@ -67,7 +67,7 @@ def test_check_rendered_secrets_passes_when_secrets_exist(monkeypatch: pytest.Mo
     missing = preflight.check_rendered_secrets(
         env='prod',
         manifest_path=BACKEND_ROOT / 'deploy/runtime_env.yaml',
-        project='based-hardware',
+        project='intentive-production-test',
     )
 
     assert missing == []
@@ -110,7 +110,7 @@ def test_runtime_binding_check_accepts_manifest_literal_and_secret_bindings_read
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -154,7 +154,7 @@ environments:
     drift = preflight.check_runtime_bindings(
         services=('backend',),
         env='dev',
-        project='based-hardware-dev',
+        project='knowledge-athlete',
         region='us-central1',
         manifest_path=manifest,
         runner=runner,
@@ -168,7 +168,7 @@ environments:
             'services',
             'describe',
             'knowledge-athlete-dev',
-            '--project=based-hardware-dev',
+            '--project=knowledge-athlete',
             '--region=us-central1',
             '--format=json',
         ]
@@ -183,7 +183,7 @@ def test_runtime_binding_check_reports_manifest_declared_secret_missing_from_liv
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -201,7 +201,7 @@ environments:
     drift = preflight.check_runtime_bindings(
         services=('backend',),
         env='dev',
-        project='based-hardware-dev',
+        project='knowledge-athlete',
         region='us-central1',
         manifest_path=manifest,
         runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),
@@ -219,7 +219,7 @@ def test_runtime_binding_check_rejects_missing_deployment_name_without_querying_
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -234,7 +234,7 @@ environments:
         preflight.check_runtime_bindings(
             services=('backend',),
             env='dev',
-            project='based-hardware-dev',
+            project='knowledge-athlete',
             region='us-central1',
             manifest_path=manifest,
             runner=lambda command, **_kwargs: commands.append(command),
@@ -250,7 +250,7 @@ def test_runtime_binding_check_rejects_multi_container_live_service_shape(tmp_pa
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -279,7 +279,7 @@ environments:
         preflight.check_runtime_bindings(
             services=('backend',),
             env='dev',
-            project='based-hardware-dev',
+            project='knowledge-athlete',
             region='us-central1',
             manifest_path=manifest,
             runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),
@@ -293,7 +293,7 @@ def test_runtime_binding_check_propagates_gcloud_describe_failure(tmp_path: Path
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -314,7 +314,7 @@ environments:
         preflight.check_runtime_bindings(
             services=('backend',),
             env='dev',
-            project='based-hardware-dev',
+            project='knowledge-athlete',
             region='us-central1',
             manifest_path=manifest,
             runner=failing_runner,
@@ -328,7 +328,7 @@ def test_runtime_binding_check_ignores_undeclared_live_bindings(tmp_path: Path) 
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -385,7 +385,7 @@ environments:
     drift = preflight.check_runtime_bindings(
         services=('backend-beta',),
         env='dev',
-        project='based-hardware-dev',
+        project='knowledge-athlete',
         region='us-central1',
         manifest_path=manifest,
         runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),
@@ -401,7 +401,7 @@ def test_runtime_binding_check_reports_declared_type_mismatches_only(tmp_path: P
         '''\
 environments:
   dev:
-    gcp_project: based-hardware-dev
+    gcp_project: knowledge-athlete
     cloud_run:
       services:
         backend:
@@ -444,7 +444,7 @@ environments:
     drift = preflight.check_runtime_bindings(
         services=('backend',),
         env='dev',
-        project='based-hardware-dev',
+        project='knowledge-athlete',
         region='us-central1',
         manifest_path=manifest,
         runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),

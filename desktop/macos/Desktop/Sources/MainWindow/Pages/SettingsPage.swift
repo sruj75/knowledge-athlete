@@ -67,6 +67,7 @@ struct SettingsContentView: View {
   @ObservedObject var appState: AppState
 
   @StateObject var viewModel = SettingsViewModel()
+  @StateObject var productAnalyticsConsent = ProductAnalyticsConsentController.shared
 
   // Updater view model
   @ObservedObject var updaterViewModel = UpdaterViewModel.shared
@@ -78,7 +79,7 @@ struct SettingsContentView: View {
   @State var isToggling: Bool = false
   @State var permissionError: String?
 
-  // Ask Omi floating bar state
+  // Ask Intentive floating bar state
   @State var showAskOmiBar: Bool = false
 
   // Grant for chat screenshot tools (capture_screen / get_screenshot);

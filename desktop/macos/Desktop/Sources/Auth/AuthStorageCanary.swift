@@ -40,7 +40,7 @@ enum AuthStorageCanary {
 
   static func execute(hooks: Hooks = .live) -> Result {
     let service = DesktopKeychainStore.scopedService(DesktopKeychainStore.authTokenServiceBase)
-    let sentinel = "omi-auth-canary-\(UUID().uuidString)"
+    let sentinel = "intentive-auth-canary-\(UUID().uuidString)"
 
     hooks.delete(service, account)
     guard hooks.set(sentinel, service, account) else {
@@ -65,9 +65,9 @@ enum AuthStorageCanary {
       let data = try JSONEncoder().encode(result)
       try data.write(to: URL(fileURLWithPath: resultPath), options: .atomic)
     } catch {
-      NSLog("OMI AUTH CANARY: failed to write result: %@", error.localizedDescription)
+      NSLog("INTENTIVE AUTH CANARY: failed to write result: %@", error.localizedDescription)
     }
-    NSLog("OMI AUTH CANARY: stage=%@ success=%@", result.stage, result.success ? "true" : "false")
+    NSLog("INTENTIVE AUTH CANARY: stage=%@ success=%@", result.stage, result.success ? "true" : "false")
     DispatchQueue.main.async {
       NSApplication.shared.terminate(nil)
     }

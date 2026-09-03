@@ -30,7 +30,7 @@ describe("SqliteAgentStore", () => {
     store.migrate();
     store.migrate();
 
-    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(32);
+    expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations").count).toBe(33);
     expect(tableNames(store)).toEqual([
       "adapter_bindings",
       "artifacts",
@@ -464,7 +464,7 @@ describe("SqliteAgentStore", () => {
       sourceRunId: run.runId,
       sourceAttemptId: attempt.attemptId,
       intendedSurface: "main_chat",
-      targetKind: "ask_omi",
+      targetKind: "ask_intentive",
       contentHash: "sha256:artifact",
     });
     const memory = store.insertDesktopMemoryCandidate({
@@ -1074,7 +1074,7 @@ describe("SqliteAgentStore", () => {
       sourceSessionId: session.sessionId,
       sourceRunId: childRun.runId,
       intendedSurface: "main_chat",
-      targetKind: "ask_omi",
+      targetKind: "ask_intentive",
       deliveryStatus: "retrying",
       errorJson: "{}",
     });
@@ -1307,6 +1307,80 @@ describe("SqliteAgentStore", () => {
 
     expect(() => store.migrate()).not.toThrow();
     expect(store.getRow("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?", [2]).count).toBe(1);
+    store.close();
+  });
+
+  it("upgrades prior-v5 artifact delivery targets to Ask Intentive without losing rows", () => {
+    const databasePath = newDatabasePath();
+    let store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false });
+    const session = store.insertSession({
+      ownerId: "owner",
+      surfaceKind: "main_chat",
+      defaultAdapterId: "pi-mono",
+    });
+    const run = store.insertRun({
+      sessionId: session.sessionId,
+      clientId: "migration-test",
+      requestId: "prior-v5",
+      status: "succeeded",
+      mode: "ask",
+    });
+    const artifact = store.insertArtifact({
+      sessionId: session.sessionId,
+      runId: run.runId,
+      kind: "markdown",
+      role: "result",
+      uri: "intentive-artifact://prior-v5",
+    });
+    const delivery = store.insertDesktopArtifactDelivery({
+      artifactId: artifact.artifactId,
+      ownerId: "owner",
+      sourceSessionId: session.sessionId,
+      sourceRunId: run.runId,
+      intendedSurface: "main_chat",
+      targetKind: "ask_intentive",
+    });
+    store.close();
+
+    const legacyDb = new DatabaseSync(databasePath);
+    const createSql = String(legacyDb.prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'desktop_artifact_deliveries'",
+    ).get()?.sql);
+    legacyDb.exec("PRAGMA foreign_keys = OFF");
+    legacyDb.exec("BEGIN IMMEDIATE");
+    legacyDb.exec(
+      createSql
+        .replace("desktop_artifact_deliveries", "desktop_artifact_deliveries_prior_v5")
+        .replace("'ask_intentive'", "'ask_omi'"),
+    );
+    legacyDb.exec(`
+      INSERT INTO desktop_artifact_deliveries_prior_v5
+      SELECT delivery_id, artifact_id, owner_id, source_session_id, source_run_id,
+             source_attempt_id, intended_surface,
+             CASE target_kind WHEN 'ask_intentive' THEN 'ask_omi' ELSE target_kind END,
+             target_ref, content_hash, review_status, delivery_status, attempt_count,
+             receipt_json, error_json, created_at_ms, updated_at_ms, delivered_at_ms
+      FROM desktop_artifact_deliveries
+    `);
+    legacyDb.exec("DROP TABLE desktop_artifact_deliveries");
+    legacyDb.exec("ALTER TABLE desktop_artifact_deliveries_prior_v5 RENAME TO desktop_artifact_deliveries");
+    legacyDb.prepare("DELETE FROM schema_migrations WHERE version = ?").run(34);
+    legacyDb.exec("COMMIT");
+    legacyDb.close();
+
+    store = new SqliteAgentStore({ databasePath, reconcileOnOpen: false });
+    expect(store.getRow(
+      "SELECT target_kind FROM desktop_artifact_deliveries WHERE delivery_id = ?",
+      [delivery.deliveryId],
+    ).target_kind).toBe("ask_intentive");
+    expect(() => store.insertDesktopArtifactDelivery({
+      artifactId: artifact.artifactId,
+      ownerId: "owner",
+      sourceSessionId: session.sessionId,
+      sourceRunId: run.runId,
+      intendedSurface: "main_chat",
+      targetKind: "ask_intentive",
+    })).not.toThrow();
     store.close();
   });
 

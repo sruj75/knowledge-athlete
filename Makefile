@@ -40,7 +40,7 @@ runtime-image-source-closure:
 
 runtime-image-smoke:
 	@test -n "$(SERVICE)" || (echo "SERVICE is required (for example: make runtime-image-smoke SERVICE=backend)" >&2; exit 2)
-	$(PYTHON_RUNNER) backend/scripts/runtime_image_contracts.py build-smoke --service "$(SERVICE)" --image "$(or $(IMAGE),omi-$(SERVICE):dev)"
+	$(PYTHON_RUNNER) backend/scripts/runtime_image_contracts.py build-smoke --service "$(SERVICE)" --image "$(or $(IMAGE),$(SERVICE):dev)"
 
 dev-check:
 	$(BASH) scripts/dev-harness/dev-check.sh

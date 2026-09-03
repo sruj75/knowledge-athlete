@@ -19,7 +19,7 @@ BACKEND_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$BACKEND_DIR/.." && pwd)"
 cd "$BACKEND_DIR"
 
-echo "=== Omi Hermetic E2E Harness ==="
+echo "=== Intentive Hermetic E2E Harness ==="
 echo "Working dir: $(pwd)"
 
 # ─── Detect / activate virtual environment ──────────────────────────────

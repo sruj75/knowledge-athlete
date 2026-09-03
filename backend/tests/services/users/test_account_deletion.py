@@ -489,7 +489,7 @@ def test_background_wipe_emits_bounded_completion_telemetry(monkeypatch):
     assert account_deletion.background_wipe_user_data('uid1') is True
 
     emit.assert_called_once_with(
-        'omi-service:account-deletion',
+        'intentive-service:account-deletion',
         'Account Deletion Wipe Completed',
         {
             'duration_seconds': 2.346,
@@ -517,7 +517,7 @@ def test_deletion_telemetry_never_uses_deleted_uid_as_distinct_id(monkeypatch):
     assert account_deletion.background_wipe_user_data(deleted_uid) is True
 
     distinct_id, event, properties = emit.call_args.args
-    assert distinct_id == 'omi-service:account-deletion'
+    assert distinct_id == 'intentive-service:account-deletion'
     assert distinct_id != deleted_uid
     assert event == 'Account Deletion Wipe Completed'
     assert properties.get('$process_person_profile') is False
@@ -542,7 +542,7 @@ def test_background_wipe_emits_failed_operations_and_attempt_context(monkeypatch
     assert account_deletion.background_wipe_user_data('uid1', retry_count=2, terminal=True) is False
 
     emit.assert_called_once_with(
-        'omi-service:account-deletion',
+        'intentive-service:account-deletion',
         'Account Deletion Wipe Failed',
         {
             'failed_operations': ['firestore_user_data'],
@@ -589,7 +589,7 @@ def test_reconcile_emits_failure_when_stale_running_wipe_is_reclaimed(monkeypatc
     assert account_deletion.reconcile_pending_deletion_wipes() == {'requeued': 1, 'skipped': 0}
 
     emit.assert_called_once_with(
-        'omi-service:account-deletion',
+        'intentive-service:account-deletion',
         'Account Deletion Wipe Failed',
         {
             'failed_operations': ['stale_running_wipe'],

@@ -144,13 +144,11 @@ class TranscriptionService: @unchecked Sendable {
     let type: String
     let resetsAt: String
     let caseRef: String
-    let supportEmail: String
 
     enum CodingKeys: String, CodingKey {
       case type
       case resetsAt = "resets_at"
       case caseRef = "case_ref"
-      case supportEmail = "support_email"
     }
   }
 
@@ -261,7 +259,7 @@ class TranscriptionService: @unchecked Sendable {
     ]
     var seen = Set<String>()
     var result: [String] = []
-    for keyword in ["Omi", "OMI"] + keywords {
+    for keyword in ["Intentive"] + keywords {
       let normalized =
         keyword
         .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
@@ -911,14 +909,13 @@ class TranscriptionService: @unchecked Sendable {
                 classifierContract: wire.classifierContract, requestedAt: requestedAt, expiresAt: expiresAt)))
         case "fair_use_managed_cloud_exhausted":
           guard
-            Set(dict.keys) == ["type", "resets_at", "case_ref", "support_email"]
+            Set(dict.keys) == ["type", "resets_at", "case_ref"]
           else { return }
           let wire = try JSONDecoder().decode(ListenFairUseManagedCloudExhaustedWire.self, from: data)
           let formatter = ISO8601DateFormatter()
           guard wire.type == "fair_use_managed_cloud_exhausted",
             formatter.date(from: wire.resetsAt) != nil,
-            wire.caseRef.isEmpty || wire.caseRef.range(of: #"^FU-[A-F0-9]{12}$"#, options: .regularExpression) != nil,
-            wire.supportEmail == "support@heyintentive.com"
+            wire.caseRef.isEmpty || wire.caseRef.range(of: #"^FU-[A-F0-9]{12}$"#, options: .regularExpression) != nil
           else { return }
           onListenEvent?(
             .fairUseManagedCloudExhausted(

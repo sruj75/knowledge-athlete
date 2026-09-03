@@ -529,7 +529,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
     // SoundAnalysis ships a file analyzer and a stream analyzer; the file analyzer's synchronous
     // analyze() blocks until the observer has all results, so we write the window to a temp WAV.
     let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("omi_music_\(UUID().uuidString).wav")
+      .appendingPathComponent("intentive_music_\(UUID().uuidString).wav")
     defer { try? FileManager.default.removeItem(at: url) }
 
     do {

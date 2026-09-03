@@ -51,7 +51,7 @@ if e2e_str not in sys.path:
 from testing.hermetic_network import block_outbound_network
 
 
-# ─── Environment variables (set BEFORE any omi imports) ────────────────
+# ─── Environment variables (set BEFORE any Intentive imports) ────────────────
 
 
 def _set_e2e_env():
@@ -228,7 +228,7 @@ def _create_backend_app(fake_firestore_instance, fake_redis_instance, fake_stora
 @pytest.fixture()
 def client(fake_firestore, fake_redis, fake_storage):
     """
-    Build a FastAPI TestClient wrapping the REAL omi backend.
+    Build a FastAPI TestClient wrapping the real Intentive backend.
 
     This is the core fixture — it patches Firestore/Redis at the network
     boundary, sets env vars, then imports and wraps the actual app.

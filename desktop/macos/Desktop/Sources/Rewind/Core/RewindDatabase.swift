@@ -780,14 +780,14 @@ actor RewindDatabase {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyyMMdd_HHmmss"
     let timestamp = formatter.string(from: Date())
-    let backupPath = backupDir.appendingPathComponent("omi_corrupted_\(timestamp).db")
+    let backupPath = backupDir.appendingPathComponent("intentive_corrupted_\(timestamp).db")
 
     // Backup the corrupted database (for potential manual recovery)
     log("RewindDatabase: Backing up corrupted database to \(backupPath.path)")
     try fileManager.copyItem(atPath: dbPath, toPath: backupPath.path)
 
     // Attempt to recover data from corrupted database
-    let recoveredPath = omiDir.appendingPathComponent("omi_recovered.db").path
+    let recoveredPath = omiDir.appendingPathComponent("intentive_recovered.db").path
     let recoveredCount = await attemptDataRecovery(from: dbPath, to: recoveredPath)
     recoveredRecordCount = recoveredCount
 
@@ -2538,7 +2538,6 @@ actor RewindDatabase {
         t.add(column: "clientDeviceId", .text)
       }
     }
-
     Self.registerExternalSurfaceRetirementMigration(on: &migrator)
     Self.registerConversationsLocalAuthoritativeMigration(on: &migrator)
     Self.registerMemoryLocalAuthorityMigration(on: &migrator)
@@ -2550,6 +2549,7 @@ actor RewindDatabase {
     }
     Self.registerProactiveAuthorityRetirementMigration(on: &migrator)
     RewindAbandonedVideoChunkQuarantine.registerMigration(on: &migrator)
+    Self.registerTaskSourceIdentityMigration(on: &migrator)
     try migrator.migrate(queue)
   }
 

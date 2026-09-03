@@ -24,7 +24,7 @@ jobs:
             const comment = [
               "Hey @" + prAuthor + " 👋",
               "",
-              "Thank you so much for taking the time to contribute to Omi! We truly appreciate you putting in the effort to submit this pull request.",
+              "Thank you so much for taking the time to contribute to Intentive! We truly appreciate you putting in the effort to submit this pull request.",
               "",
               "After careful review, we've decided not to merge this particular PR. Please don't take this personally — we genuinely try to merge as many contributions as possible, but sometimes we have to make tough calls based on:",
               "",
@@ -34,13 +34,13 @@ jobs:
               "- **Project direction** — Keeping aligned with our product principles and guarded behavior",
               "",
               "Before your next PR, please skim:",
-              "- [PRODUCT.md](https://github.com/BasedHardware/Omi/blob/main/PRODUCT.md) — product north star",
+              "- [PRODUCT.md](https://github.com/sruj75/knowledge-athlete/blob/main/PRODUCT.md) — product north star",
               "",
               "If this was declined for direction or taste, maintainers should cite the applicable PRODUCT.md principle or concrete repository guard.",
               "",
               "Your contribution is still valuable to us, and we'd love to see you contribute again in the future! If you'd like feedback on how to improve this PR or want to discuss alternative approaches, please don't hesitate to reach out.",
               "",
-              "Thank you for being part of the Omi community!"
+              "Thank you for being part of the Intentive community!"
             ].join("\n");
 
             await github.rest.issues.createComment({

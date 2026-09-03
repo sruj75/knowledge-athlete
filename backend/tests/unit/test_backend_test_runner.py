@@ -48,8 +48,8 @@ def test_file_isolation_failure_prints_exact_rerun_guidance(tmp_path):
     assert "Backend unit test file failed: tests/unit/test_example_failure.py (status 1)" in result.stdout
     assert "Backend unit suite failed." in result.stdout
     assert "Reproduce only the failed file(s) with the same test.sh runner and timing guard:" in result.stdout
-    assert "echo tests/unit/test_example_failure.py >> /tmp/omi-backend-unit-failures.txt" in result.stdout
-    assert "BACKEND_UNIT_TEST_FILE_LIST=/tmp/omi-backend-unit-failures.txt bash test.sh" in result.stdout
+    assert "echo tests/unit/test_example_failure.py >> /tmp/intentive-backend-unit-failures.txt" in result.stdout
+    assert "BACKEND_UNIT_TEST_FILE_LIST=/tmp/intentive-backend-unit-failures.txt bash test.sh" in result.stdout
     assert "Do not use bare pytest for fast-unit timing failures" in result.stdout
 
 

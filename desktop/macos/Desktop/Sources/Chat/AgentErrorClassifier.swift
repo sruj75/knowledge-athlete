@@ -71,7 +71,7 @@ enum AgentErrorClassifier {
       return ClassifiedAgentError(
         code: .providerBillingExhausted,
         userMessage:
-          "The managed AI service is unavailable because its provider balance is exhausted. Please contact support.",
+          "The managed AI service is unavailable because its provider balance is exhausted. Service configuration must be restored before requests can continue.",
         retryable: false)
     }
     if lower.contains("oauth callback timed out") {
@@ -158,7 +158,8 @@ enum AgentErrorClassifier {
     {
       return ClassifiedAgentError(
         code: .localDataError,
-        userMessage: "Omi hit a local data error. Restarting the app usually fixes this — your data is safe.",
+        userMessage:
+          "Intentive hit a local data error. Restarting the app usually fixes this — your data is safe.",
         retryable: false)
     }
 

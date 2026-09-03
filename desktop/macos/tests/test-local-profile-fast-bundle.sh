@@ -11,6 +11,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+unset OMI_LOCAL_PROFILE_STORAGE_NAME
+default_env_file="$TMP_ROOT/default.env"
+omi_write_local_profile_env "$default_env_file"
+grep -qx 'OMI_LOCAL_PROFILE_STORAGE_NAME=Intentive' "$default_env_file"
+
 export OMI_PYTHON_API_URL="http://127.0.0.1:8080"
 export OMI_LOCAL_PROFILE_STORAGE_NAME="omi-local-fast-contract"
 export OMI_LOCAL_AUTH_USER="alice"

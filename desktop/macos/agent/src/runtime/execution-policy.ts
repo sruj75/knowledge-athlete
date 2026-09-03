@@ -45,7 +45,7 @@ export function resolveAdapterWithinBoundary(input: {
   }
   if (input.providerBoundary === "managed_cloud") {
     if (adapterCredentialScopeFor(requestedAdapterId) !== "managed_cloud") {
-      throw new Error("Managed Omi agents can only use Omi cloud routing.");
+      throw new Error("Managed Intentive agents can only use Intentive cloud routing.");
     }
     return requestedAdapterId;
   }

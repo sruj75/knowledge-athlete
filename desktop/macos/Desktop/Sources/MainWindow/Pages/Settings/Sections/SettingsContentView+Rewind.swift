@@ -132,7 +132,7 @@ extension SettingsContentView {
                 .foregroundColor(OmiColors.textPrimary)
 
               Text(
-                "On battery, Omi captures your screen less often to save power while keeping text recognition accurate."
+                DesktopLifecycleIdentityCopy.rewindBatteryDetail
               )
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textTertiary)

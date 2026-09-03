@@ -160,7 +160,7 @@ final class MemoryLocalAuthorityTests: XCTestCase {
   }
 
   func testMemoriesPageCopyDescribesLocalDurabilityExactly() {
-    XCTAssertEqual(MemoryPageCopy.subtitle, "Memories and insights saved on this Mac")
+    XCTAssertEqual(MemoryPageCopy.subtitle, "Memories and insights saved on this Mac.")
   }
 
   func testLegacyTipsMigrationPreservesInsightAndSchedulesExpiryAndEmbedding() throws {

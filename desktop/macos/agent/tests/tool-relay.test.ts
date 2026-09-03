@@ -14,7 +14,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
  * 4. agent's resolveToolCall() resolves the pending promise, writing back to the socket client
  *
  * These tests verify that the relay mechanism correctly routes tool_result
- * messages back to the original socket client for ALL 13 Omi tools.
+ * messages back to the original socket client for all Intentive tools.
  */
 
 // Minimal implementation of the relay components extracted from index.ts
@@ -214,7 +214,7 @@ describe("Tool relay: Unix socket end-to-end", () => {
     });
   }
 
-  // Test all 14 Omi tools through the relay
+  // Test all 14 Intentive tools through the relay
   const OMI_TOOLS = [
     { name: "execute_sql", input: { query: "SELECT COUNT(*) FROM screenshots" } },
     { name: "semantic_search", input: { query: "terminal", days: 7 } },

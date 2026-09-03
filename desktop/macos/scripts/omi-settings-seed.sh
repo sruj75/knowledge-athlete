@@ -35,10 +35,10 @@ import tempfile
 src, target = sys.argv[1], sys.argv[2]
 
 KEYS = [
-    # Floating bar, Ask Omi, push-to-talk, and voice choices.
-    "shortcut_askOmiKey",
+    # Floating bar, Intentive chat, push-to-talk, and voice choices.
+    "shortcut_askIntentiveKey",
     "shortcut_pttKey",
-    "shortcut_askOmiEnabled",
+    "shortcut_askIntentiveEnabled",
     "shortcut_pttEnabled",
     "shortcut_doubleTapForLock",
     "shortcut_solidBackground",
@@ -50,7 +50,7 @@ KEYS = [
     "shortcut_voicePlaybackSpeed",
     "shortcut_selectedVoiceID",
 
-    # Common desktop settings that make throwaway bundles feel like Omi Dev.
+    # Common desktop settings that make throwaway bundles feel like Intentive Dev.
     "fontScale",
     "multiChatEnabled",
     "conversationsCompactView",

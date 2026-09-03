@@ -38,10 +38,10 @@ struct ShortcutsSettingsSection: View {
   private var askOmiKeyCard: some View {
     VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Open Omi Shortcut")
+        Text("Open Intentive Shortcut")
           .scaledFont(size: OmiType.subheading, weight: .semibold)
           .foregroundColor(OmiColors.textPrimary)
-        Text("Global shortcut to open the Omi app from anywhere.")
+        Text("Global shortcut to open the Intentive app from anywhere.")
           .scaledFont(size: OmiType.body)
           .foregroundColor(OmiColors.textSecondary)
       }
@@ -65,7 +65,7 @@ struct ShortcutsSettingsSection: View {
       {
         shortcutRecorderCard(
           title: recordingTarget == .askOmi
-            ? "Press your custom Open Omi shortcut now" : "Custom Open Omi shortcut",
+            ? "Press your custom Open Intentive shortcut now" : "Custom Open Intentive shortcut",
           shortcut: settings.askOmiShortcut,
           isRecording: recordingTarget == .askOmi,
           action: { startShortcutCapture(.askOmi) },
@@ -281,7 +281,7 @@ struct ShortcutsSettingsSection: View {
         .foregroundColor(OmiColors.textPrimary)
 
       shortcutRow(
-        label: "Open Omi",
+        label: "Open Intentive",
         keys: settings.askOmiEnabled ? settings.askOmiShortcut.displayLabel : "Disabled")
       shortcutRow(label: "Toggle floating bar", keys: "\u{2318}\\")
       shortcutRow(
@@ -471,7 +471,7 @@ struct ShortcutsSettingsSection: View {
     switch target {
     case .askOmi:
       if event.type == .flagsChanged {
-        captureError = "Open Omi needs a non-modifier key."
+        captureError = "Open Intentive needs a non-modifier key."
         return true
       }
       guard

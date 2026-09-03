@@ -50,12 +50,14 @@ APP_CLIENT_PREFIXES = (
 
 HTTP_METHODS = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}
 
-OPENAPI_TITLE = 'Omi App Client API'
+OPENAPI_TITLE = 'Intentive App Client API'
 OPENAPI_VERSION = '1.0.0'
-OPENAPI_DESCRIPTION = 'First-party Omi app access to transient conversation and Memory compute and product services.'
-OPENAPI_CONTACT = {'name': 'Omi', 'url': 'https://omi.me'}
-OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/BasedHardware/omi/blob/main/LICENSE'}
-OPENAPI_SERVERS = [{'url': 'https://api.omi.me', 'description': 'Production'}]
+OPENAPI_DESCRIPTION = (
+    'First-party Intentive app access to transient conversation and Memory compute and product services.'
+)
+OPENAPI_CONTACT = {'name': 'Intentive'}
+OPENAPI_LICENSE = {'name': 'MIT', 'url': 'https://github.com/sruj75/knowledge-athlete/blob/main/LICENSE'}
+OPENAPI_SERVERS: list[dict[str, str]] = []
 OPENAPI_TAGS = [
     {'name': 'Memory Compute', 'description': 'Compute bounded Memory proposals without backend persistence.'},
     {
@@ -522,7 +524,7 @@ def check_spec(path: Path, generated: str) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Export or verify an Omi OpenAPI contract.')
+    parser = argparse.ArgumentParser(description='Export or verify an Intentive OpenAPI contract.')
     parser.add_argument(
         '--surface',
         choices=('app-client',),

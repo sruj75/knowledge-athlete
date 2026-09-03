@@ -32,7 +32,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/prepare-agent-runtime.sh [--universal-node|--unsafe-local-node] [--skip-npm]
 
-Prepares the desktop Ask Omi agent runtime:
+Prepares the desktop Intentive agent runtime:
   - installs agent npm dependencies with npm ci
   - compiles agent/dist
   - stages production-only node_modules for app packaging

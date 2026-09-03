@@ -43,6 +43,14 @@ function fixture(surfaceKind = "main_chat", maxWorkers = 1) {
 }
 
 describe("kernel ContextSnapshot", () => {
+  it("presents the approved Intentive identity to managed agents", () => {
+    for (const role of ["primary", "leaf"] as const) {
+      const policy = kernelSystemPolicy("main_chat", role);
+      expect(policy).toContain("You are Intentive, the desktop agent.");
+      expect(policy).not.toMatch(/\bOmi\b/);
+    }
+  });
+
   it("declares 63/64/65-turn retention and keeps the stable cache boundary independent of history", () => {
     const { store } = fixture();
     const surface = resolveSurfaceSession(store, {

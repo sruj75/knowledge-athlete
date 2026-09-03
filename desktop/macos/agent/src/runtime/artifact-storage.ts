@@ -63,7 +63,7 @@ export class OmiArtifactStorage {
     if (isInside(sourcePath, this.rootDir)) {
       const normalizedMetadata = {
         ...(artifact.metadata ?? {}),
-        omiManaged: true,
+        intentiveManaged: true,
         managedPath: sourcePath,
       };
       return {
@@ -85,7 +85,7 @@ export class OmiArtifactStorage {
     const copiedStat = statSync(destinationPath);
     const metadata = {
       ...(artifact.metadata ?? {}),
-      omiManaged: true,
+      intentiveManaged: true,
       originalUri: artifact.uri,
       managedPath: destinationPath,
     };
@@ -153,7 +153,7 @@ export class OmiArtifactStorage {
         contentHash: entry.isDirectory() ? null : fileHash(path),
         sizeBytes: entry.isDirectory() ? null : stat.size,
         metadata: {
-          omiManaged: true,
+          intentiveManaged: true,
           managedPath: path,
           discoveredFromRunDirectory: true,
         },
@@ -168,9 +168,9 @@ export class OmiArtifactStorage {
    * adapter path. Recover that narrow, user-visible case without treating every
    * pathname mentioned in model text as an artifact.
    *
-   * Absolute paths are eligible under a temporary directory or Omi's managed
+   * Absolute paths are eligible under a temporary directory or Intentive's managed
    * artifact root. The latter covers nested agents that report a file from
-   * their assigned Omi workspace rather than emitting the structured event.
+   * their assigned Intentive workspace rather than emitting the structured event.
    * Desktop uses its own stricter delivery grammar ("I built file.html on your
    * Desktop" or "file.html was built on the Desktop"), which resolves only a
    * simple filename beneath the signed-in user's Desktop.
@@ -288,7 +288,7 @@ function shouldKeepExternalLocation(artifact: AdapterArtifactReference): boolean
   const metadata = artifact.metadata ?? {};
   return metadata.userSpecifiedPath === true
     || metadata.keepExternalLocation === true
-    || metadata.omiManaged === false;
+    || metadata.intentiveManaged === false;
 }
 
 const MAX_REPORTED_TERMINAL_TEXT_CHARS = 64 * 1024;

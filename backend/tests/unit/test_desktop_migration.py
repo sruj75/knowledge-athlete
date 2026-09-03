@@ -194,7 +194,7 @@ class RecordLlmUsageBucketRequest(BaseModel):
     cache_write_tokens: int = Field(0, ge=0)
     total_tokens: int = Field(0, ge=0)
     cost_usd: float = Field(0.0, ge=0.0)
-    account: str = Field('omi', max_length=100)
+    account: str = Field('intentive', max_length=100)
 
 
 # ===========================================================================
@@ -214,10 +214,10 @@ class TestRecordDesktopLlmUsageValidation:
             RecordLlmUsageBucketRequest(output_tokens=-5)
         assert 'output_tokens' in str(exc_info.value)
 
-    def test_default_account_is_omi(self):
-        """RecordLlmUsageBucketRequest default account is 'omi'."""
+    def test_default_account_is_intentive(self):
+        """RecordLlmUsageBucketRequest default account is 'intentive'."""
         r = RecordLlmUsageBucketRequest()
-        assert r.account == 'omi'
+        assert r.account == 'intentive'
 
     def test_all_defaults_zero(self):
         """All token fields default to 0."""
@@ -338,8 +338,8 @@ class TestLlmUsage:
         assert 'desktop_chat.input_tokens' in update_data
         assert 'desktop_chat_anthropic.input_tokens' in update_data
 
-    def test_record_default_account_omi(self):
-        """Default account produces desktop_chat_omi keys."""
+    def test_record_default_account_intentive(self):
+        """Default account produces desktop_chat_intentive keys."""
         mock_ref = MagicMock()
         with patch.object(llm_usage_db, 'db') as patched_db:
             patched_db.collection.return_value.document.return_value.collection.return_value.document.return_value = (
@@ -348,7 +348,7 @@ class TestLlmUsage:
             llm_usage_db.record_llm_usage_bucket('test-uid', input_tokens=10, output_tokens=5)
 
         update_data = mock_ref.set.call_args[0][0]
-        assert 'desktop_chat_omi.input_tokens' in update_data
+        assert 'desktop_chat_intentive.input_tokens' in update_data
 
     def test_get_total_cost_only_sums_desktop_chat_bucket(self):
         """get_total_llm_cost only sums the desktop_chat bucket, not desktop_chat_{account}."""
@@ -360,7 +360,7 @@ class TestLlmUsage:
         doc2 = MagicMock()
         doc2.to_dict.return_value = {
             'desktop_chat': {'cost_usd': 0.03, 'call_count': 5},
-            'desktop_chat_omi': {'cost_usd': 0.03, 'call_count': 5},
+            'desktop_chat_intentive': {'cost_usd': 0.03, 'call_count': 5},
         }
 
         mock_col = MagicMock()
@@ -394,7 +394,7 @@ class TestLlmDualWritePayloadParity:
     """Verify all fields are written to both primary and per-account buckets."""
 
     def test_all_fields_written_to_both_buckets(self):
-        """record_llm_usage_bucket writes all fields to both desktop_chat and desktop_chat_omi in single set()."""
+        """record_llm_usage_bucket writes all fields to both desktop_chat and desktop_chat_intentive in single set()."""
         mock_ref = MagicMock()
         with patch.object(llm_usage_db, 'db') as patched_db:
             patched_db.collection.return_value.document.return_value.collection.return_value.document.return_value = (
@@ -409,7 +409,7 @@ class TestLlmDualWritePayloadParity:
                 total_tokens=180,
                 cost_usd=0.05,
                 bucket='desktop_chat',
-                account='omi',
+                account='intentive',
             )
 
         # Single set(merge=True) call containing both bucket prefixes
@@ -428,7 +428,7 @@ class TestLlmDualWritePayloadParity:
         ]
         for field in expected_fields:
             assert f'desktop_chat.{field}' in data, f"Missing desktop_chat.{field}"
-            assert f'desktop_chat_omi.{field}' in data, f"Missing desktop_chat_omi.{field}"
+            assert f'desktop_chat_intentive.{field}' in data, f"Missing desktop_chat_intentive.{field}"
 
         # Verify shared metadata fields
         assert 'date' in data

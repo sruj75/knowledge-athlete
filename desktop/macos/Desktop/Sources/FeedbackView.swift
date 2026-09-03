@@ -195,7 +195,7 @@ struct FeedbackView: View {
     let panel = NSSavePanel()
     panel.title = "Save Diagnostics"
     panel.message = "Save a redacted diagnostics report you can share manually."
-    panel.nameFieldStringValue = "omi-diagnostics-\(Self.exportTimestamp()).txt"
+    panel.nameFieldStringValue = "intentive-diagnostics-\(Self.exportTimestamp()).txt"
     panel.allowedContentTypes = [.plainText]
     panel.canCreateDirectories = true
 

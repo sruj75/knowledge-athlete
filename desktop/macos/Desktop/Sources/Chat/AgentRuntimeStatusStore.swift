@@ -36,7 +36,7 @@ struct AgentSurfaceReference: Hashable, Sendable {
     )
   }
 
-  /// Notch / floating "Omi Chat" text conversation. Used as an independent
+  /// Notch / floating "Intentive Chat" text conversation. Used as an independent
   /// completed-agent-delta consumer so a finished sub-agent's artifacts can be
   /// delivered to the floating bar separately from the main chat.
   static func floatingChat(chatId: String? = nil) -> AgentSurfaceReference {

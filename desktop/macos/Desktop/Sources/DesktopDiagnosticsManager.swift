@@ -819,11 +819,11 @@ final class DesktopDiagnosticsManager {
       "privacy": "safe_operational_fields_only",
       "snapshots": currentSnapshotsForSentry(),
     ]
-    return writeDiagnosticsPayload(payload, prefix: "omi-desktop-diagnostics")
+    return writeDiagnosticsPayload(payload, prefix: "intentive-desktop-diagnostics")
   }
 
   /// Creates a bounded, redacted local-context attachment for a cloud incident.
-  /// This intentionally replaces raw `omi.log` uploads: the attachment includes
+  /// This intentionally replaces raw app-log uploads: the attachment includes
   /// safe health snapshots and a scrubbed tail only, never the entire log file.
   func writeIncidentDiagnosticsAttachment(
     incidentID: String = UUID().uuidString,
@@ -853,7 +853,7 @@ final class DesktopDiagnosticsManager {
         maxLines: maxLogLines,
         strictCloudRedaction: true)
     }
-    return writeDiagnosticsPayload(payload, prefix: "omi-desktop-incident")
+    return writeDiagnosticsPayload(payload, prefix: "intentive-desktop-incident")
   }
 
   // MARK: - Local (offline) diagnostics export
@@ -889,7 +889,7 @@ final class DesktopDiagnosticsManager {
     var sections: [String] = []
 
     let meta = commonProperties()
-    var header = ["# Omi Desktop Diagnostics"]
+    var header = ["# Intentive Desktop Diagnostics"]
     header.append("generated_at: \(ISO8601DateFormatter.desktopDiagnostics.string(from: Date()))")
     header.append("privacy: redacted_local_export")
     for key in ["build", "build_number", "os_version", "device_model", "system_audio_mode"] {

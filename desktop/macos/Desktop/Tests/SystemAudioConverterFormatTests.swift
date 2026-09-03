@@ -12,6 +12,13 @@ import XCTest
 /// attenuating all system audio fed to transcription by ~6 dB. This test pins the mono
 /// contract at the production format factory, independent of any source channel count.
 final class SystemAudioConverterFormatTests: XCTestCase {
+  func testCoreAudioIdentityUsesTheShippingProductNameAndNamespace() {
+    XCTAssertEqual(SystemAudioCaptureIdentity.tapName, "Intentive System Audio Tap")
+    XCTAssertEqual(SystemAudioCaptureIdentity.permissionPrimeTapName, "Intentive System Audio Tap (permission prime)")
+    XCTAssertEqual(SystemAudioCaptureIdentity.aggregateDeviceName, "Intentive System Audio Tap Device")
+    XCTAssertEqual(SystemAudioCaptureIdentity.aggregateDeviceUIDPrefix, "com.heyintentive.intentive.systemaudio.")
+  }
+
   @available(macOS 14.4, *)
   func testConverterInputFormatIsAlwaysMono() {
     for sampleRate in [16000.0, 44100.0, 48000.0] {

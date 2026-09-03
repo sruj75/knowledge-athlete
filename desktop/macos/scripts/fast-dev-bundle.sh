@@ -78,14 +78,13 @@ for value in config:
 
 for path in [
     "run.sh",
-    "omi_icon.icns",
+    "intentive_icon.icns",
     "Desktop/Package.swift",
     "Desktop/Package.resolved",
     "Desktop/Info.plist",
     "Desktop/Omi.entitlements",
     "Desktop/Node.entitlements",
     "Desktop/Omi-Release.entitlements",
-    "Desktop/Sources/GoogleService-Info.plist",
     "Desktop/Sources/GoogleService-Info-Dev.plist",
     "Desktop/Sources/GoogleService-Info-Local.plist",
     "scripts/app-config.sh",

@@ -196,7 +196,7 @@ extension SettingsContentView {
                   .scaledFont(size: OmiType.subheading, weight: .semibold)
                   .foregroundColor(OmiColors.textPrimary)
 
-                Text("Choose when Omi records audio from other apps (calls, videos, music).")
+                Text("Choose when Intentive records audio from other apps (calls, videos, music).")
                   .scaledFont(size: OmiType.body)
                   .foregroundColor(OmiColors.textTertiary)
               }
@@ -221,7 +221,7 @@ extension SettingsContentView {
 
             if systemAudioCaptureMode == .onlyDuringMeetings {
               Text(
-                "Omi captures other apps' audio only while you're in a call (e.g. Zoom, Teams, FaceTime). Detecting browser-based calls like Google Meet requires Screen Recording permission."
+                DesktopLifecycleIdentityCopy.systemAudioMeetingDetail
               )
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)

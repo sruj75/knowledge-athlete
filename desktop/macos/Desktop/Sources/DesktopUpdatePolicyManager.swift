@@ -109,7 +109,7 @@ struct DesktopUpdatePolicyBanner: View {
         .frame(width: 22)
 
       VStack(alignment: .leading, spacing: OmiSpacing.hairline) {
-        Text(policy.title ?? "Update Omi")
+        Text(policy.title ?? DesktopLifecycleIdentityCopy.updateTitle)
           .scaledFont(size: OmiType.body, weight: .semibold)
           .foregroundColor(.white)
           .lineLimit(1)
@@ -177,7 +177,7 @@ struct DesktopRequiredUpdatePrompt: View {
         Text(policy.title ?? "Update Required")
           .scaledFont(size: OmiType.heading, weight: .semibold)
           .foregroundColor(.white)
-        Text(policy.message ?? "Please install the latest Omi desktop app to continue.")
+        Text(policy.message ?? DesktopLifecycleIdentityCopy.updateMessage)
           .scaledFont(size: OmiType.body)
           .foregroundColor(.white.opacity(0.72))
           .multilineTextAlignment(.center)

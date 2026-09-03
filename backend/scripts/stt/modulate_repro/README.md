@@ -15,10 +15,8 @@ Sending the **same audio** to Modulate's Velma-2 streaming API with **identical 
 | 3 | "After early nightfall the yellow lamps would light up..." | LibriSpeech test-clean/1089/134686/0002 |
 | 4 | "Hello Bertie, any good in your mind?" | LibriSpeech test-clean/1089/134686/0003 |
 
-**Download:** If the WAV is not included in your copy, download from GCS:
-```bash
-curl -o test_audio.wav "https://storage.googleapis.com/omi-pr-assets/modulate-repro/test_audio.wav"
-```
+The inherited remote fixture is not an approved Intentive asset. Keep the file local and untracked until an
+owner-approved copy with provenance is supplied as `test_audio.wav`; otherwise this optional repro remains unavailable.
 
 ## Reproduce
 

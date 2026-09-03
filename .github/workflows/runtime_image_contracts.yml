@@ -37,4 +37,4 @@ jobs:
         run: >-
           make runtime-image-smoke
           SERVICE=${{ matrix.service }}
-          IMAGE=omi-runtime-contract-${{ matrix.service }}:${{ github.sha }}
+          IMAGE=intentive-runtime-contract-${{ matrix.service }}:${{ github.sha }}

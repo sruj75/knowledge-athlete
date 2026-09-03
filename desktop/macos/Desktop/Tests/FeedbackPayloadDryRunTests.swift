@@ -118,6 +118,7 @@ import XCTest
 
       let url = try XCTUnwrap(DesktopDiagnosticsManager.shared.writeDiagnosticsAttachment())
       defer { try? FileManager.default.removeItem(at: url) }
+      XCTAssertTrue(url.lastPathComponent.hasPrefix("intentive-desktop-diagnostics-"))
       let data = try Data(contentsOf: url)
       let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 

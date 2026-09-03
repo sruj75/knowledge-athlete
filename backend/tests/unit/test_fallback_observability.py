@@ -48,7 +48,7 @@ def test_record_fallback_increments_metric_and_logs_same_fields(monkeypatch, cap
         )
     ]
     assert any(
-        'omi_fallback_event' in record.message
+        'intentive_fallback_event' in record.message
         and 'component=account_deletion' in record.message
         and 'from=cloud_tasks' in record.message
         and 'to=inline' in record.message

@@ -1,7 +1,7 @@
 import Foundation
 
 /// One-shot "open the main chat" request raised by surfaces outside the main
-/// window (the floating bar's "Continue in Omi" affordances). Revealing the
+/// window (the floating bar's "Continue in Intentive" affordances). Revealing the
 /// window alone is not enough: the main window may be resting on any tab, so
 /// the conversation the user asked to continue would be nowhere in sight.
 ///

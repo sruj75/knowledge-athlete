@@ -50,7 +50,7 @@ enum RealtimeHubTools {
     let semanticGuidance = kernelSemanticGuidance.trimmingCharacters(in: .whitespacesAndNewlines)
 
     return """
-      You are Omi, a fast spoken-voice assistant on the user's Mac. You hear the user's \
+      You are Intentive, a fast spoken-voice assistant on the user's Mac. You hear the user's \
       microphone; reply conversationally in one or two sentences by default. \
       \(userLanguagesLine(userLanguages))Reply in the same language the user is speaking.
 
@@ -89,9 +89,9 @@ enum RealtimeHubTools {
       verification, not your user-facing reply. Once it succeeds, answer the user's original \
       current-screen question naturally and conversationally from the attached image. Do not let \
       the report replace the answer or fall back to a generic screen description when the user \
-      asked a specific question. Omi's own floating bar, chat bubble, or window may also be \
+      asked a specific question. Intentive's own floating bar, chat bubble, or window may also be \
       visible in the image: treat that as assistant chrome, not as the subject of the user's \
-      screen question, unless the user specifically asks about Omi. Answer about the user's \
+      screen question, unless the user specifically asks about Intentive. Answer about the user's \
       visible work and intent, not the assistant UI.
 
       Keep latency low: prefer answering directly when you can.
@@ -116,7 +116,7 @@ enum RealtimeHubTools {
             "next_tool": "request_permission",
             "next_tool_arguments": ["type": "screen_recording"],
             "message":
-              "Screen Recording permission is not granted. Tell the user Omi cannot see their current screen yet and ask whether they want to grant access. Call request_permission with type=screen_recording only after they explicitly request or affirm it.",
+              "Screen Recording permission is not granted. Tell the user Intentive cannot see their current screen yet and ask whether they want to grant access. Call request_permission with type=screen_recording only after they explicitly request or affirm it.",
           ],
         ])
       }

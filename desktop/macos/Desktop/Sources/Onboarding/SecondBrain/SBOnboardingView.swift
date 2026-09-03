@@ -3,7 +3,7 @@ import OmiTheme
 import SwiftUI
 
 enum SBOnboardingRepository {
-  static let url = URL(string: "https://github.com/BasedHardware/omi")!
+  static let url = URL(string: "https://github.com/sruj75/knowledge-athlete")!
 }
 
 enum SBOnboardingPanelLayout {
@@ -19,7 +19,7 @@ enum SBOnboardingPanelLayout {
   }
 }
 
-/// The Second Brain conversational onboarding — a chat with Omi that streams
+/// The Second Brain conversational onboarding — a chat with Intentive that streams
 /// word-by-word and performs real side-effects. Replaces the legacy wizard.
 struct SBOnboardingView: View {
   @Environment(\.sbTheme) private var sb
@@ -29,7 +29,10 @@ struct SBOnboardingView: View {
 
   /// Same dune background as sign-in, for a continuous entry experience.
   private static let backgroundImage: NSImage? = {
-    guard let url = Bundle.resourceBundle.url(forResource: "signin_bg", withExtension: "png") else { return nil }
+    guard
+      let url = Bundle.resourceBundle.url(
+        forResource: "intentive_signin_backdrop", withExtension: "png")
+    else { return nil }
     return NSImage(contentsOf: url)
   }()
 
@@ -105,7 +108,7 @@ struct SBOnboardingView: View {
             if model.typing {
               HStack(spacing: 10) {
                 SBLogo(size: 16, spinning: true)
-                Text("omi is typing…").geist(size: 12.5).foregroundStyle(sb.ink(.w4))
+                Text(SBOnboardingIdentityCopy.typingStatus).geist(size: 12.5).foregroundStyle(sb.ink(.w4))
               }
             }
             if model.showWidget {
@@ -226,19 +229,19 @@ struct SBOnboardingView: View {
       VStack(spacing: 0) {
         trustRow("OPEN") {
           HStack(spacing: 0) {
-            Text("Every line of me is on ")
+            Text(SBOnboardingIdentityCopy.openSourcePrefix)
             Link("GitHub", destination: SBOnboardingRepository.url)
               .underline()
             Text(".")
           }
         }
         Divider().overlay(sb.ink(.w08))
-        trustRow("PRIVATE") { Text("Your data is encrypted, and only yours.") }
+        trustRow("PRIVATE") { Text(SBOnboardingIdentityCopy.privateDataDetail) }
         Divider().overlay(sb.ink(.w08))
-        trustRow("YOURS") { Text("Pause me anytime. Delete anything, forever.") }
+        trustRow("YOURS") { Text(SBOnboardingIdentityCopy.userControlDetail) }
       }
       .overlay(RoundedRectangle(cornerRadius: 13).stroke(sb.ink(.w1), lineWidth: 1))
-      SBInkButton(title: "Set up Omi →", isDefaultAction: true) { model.answerPromise() }
+      SBInkButton(title: SBOnboardingIdentityCopy.setupAction, isDefaultAction: true) { model.answerPromise() }
     }
   }
 
@@ -519,7 +522,7 @@ struct SBOnboardingView: View {
           Text("Preparing voice…").geist(size: 14).foregroundStyle(sb.ink(.w6))
         }
       }
-      // Continue appears once Omi has actually answered — before that, an always-
+      // Continue appears once Intentive has actually answered — before that, an always-
       // tappable, clearly-visible "Skip for now" so the user is never stuck if the
       // demo doesn't fire (it used to be a tiny, easily-missed text link).
       Group {

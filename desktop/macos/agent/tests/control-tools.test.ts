@@ -2373,7 +2373,7 @@ describe("agent control tools", () => {
 
     expect(delegated.ok).toBe(false);
     expect(delegated.error.code).toBe("control_tool_failed");
-    expect(delegated.error.message).toContain("parentRunId must be a canonical Omi run_id");
+    expect(delegated.error.message).toContain("parentRunId must be a canonical Intentive run_id");
     store.close();
   });
 
@@ -2714,7 +2714,7 @@ function trustedOwnerContext(kernel: AgentControlToolContext["kernel"]): AgentCo
 }
 
 function startControlRelay(context: AgentControlToolContext): Promise<string> {
-  const sockPath = join(tmpdir(), `omi-control-tools-${process.pid}-${Date.now()}.sock`);
+  const sockPath = join(tmpdir(), `intentive-control-tools-${process.pid}-${Date.now()}.sock`);
   rmSync(sockPath, { force: true });
   return new Promise((resolve) => {
     const server = createServer((client: Socket) => {

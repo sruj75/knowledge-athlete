@@ -7,7 +7,7 @@ BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$BACKEND_DIR/.." && pwd)"
 
 TARGET_REF="HEAD"
-REPO="BasedHardware/omi"
+REPO="sruj75/knowledge-athlete"
 KEEP_EVIDENCE=0
 
 usage() {

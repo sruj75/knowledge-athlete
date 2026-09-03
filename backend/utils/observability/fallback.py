@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 FallbackOutcome = Literal['recovered', 'degraded', 'exhausted']
 
-FALLBACK_EVENT = 'omi_fallback_event'
+FALLBACK_EVENT = 'intentive_fallback_event'
 
 _LABEL_MAX_LENGTH = 64
 _SAFE_LABEL_CHARS = frozenset('._:-')
@@ -77,7 +77,7 @@ def record_fallback(
     outcome: str,
     log: logging.Logger | None = None,
 ) -> None:
-    """Increment ``omi_fallback_total`` and emit a matching warning log.
+    """Increment ``intentive_fallback_total`` and emit a matching warning log.
 
     Never raises. Unknown reasons/components are bucketed to ``other``.
     Invalid outcomes are bucketed to ``degraded`` so the counter still fires.

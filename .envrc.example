@@ -1,10 +1,10 @@
-# Optional direnv setup for Omi backend env stages.
+# Optional direnv setup for Intentive backend environment stages.
 #   cp .envrc.example .envrc && direnv allow
 #
 # Stages (OMI_ENV_STAGE):
 #   local   — Firebase emulators + optional real dev provider keys (default harness)
 #   offline — emulators + hermetic fake providers (no API keys)
-#   dev     — remote dev GCP / Firebase project (based-hardware-dev)
+#   dev     — remote development GCP / Firebase project (knowledge-athlete)
 #   prod    — production reference only; do not use locally
 #
 # Pick a stage, copy the matching template, fill secrets, then symlink:

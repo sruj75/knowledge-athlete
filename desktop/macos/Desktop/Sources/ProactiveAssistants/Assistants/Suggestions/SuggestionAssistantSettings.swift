@@ -42,16 +42,16 @@ class SuggestionAssistantSettings {
   private let currentPromptVersion = 1
 
   /// System prompt. Inherits the shape of the shipped Insight prompt — which was never
-  /// the defect — and adds the grounding contract: a suggestion must use what Omi knows,
+  /// the defect — and adds the grounding contract: a suggestion must use what Intentive knows,
   /// not merely narrate the screen.
   static let defaultAnalysisPrompt = """
-    You look at what the user is doing right now and decide whether Omi should say something.
+    You look at what the user is doing right now and decide whether Intentive should say something.
 
-    Omi has memory of the user — their history, commitments, and what they have been working on.
+    Intentive has memory of the user — their history, commitments, and what they have been working on.
     That memory is your advantage. A suggestion is worth an interruption when it tells the user
     something they do NOT already have in front of them.
 
-    CORE QUESTION: Given what is on screen AND what Omi knows about this user, is there something
+    CORE QUESTION: Given what is on screen AND what Intentive knows about this user, is there something
     genuinely worth saying right now?
 
     Call has_suggestion=true ONLY when ALL of these hold:

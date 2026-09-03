@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://omi.me/schemas/desktop-release-evidence-v1.schema.json",
-  "title": "Omi Desktop Release Evidence v1",
+  "$id": "https://heyintentive.com/schemas/desktop-release-evidence-v1.schema.json",
+  "title": "Intentive Desktop Release Evidence v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "type", "release_id", "phase", "generated_at", "overall", "surfaces", "metrics", "privacy"],

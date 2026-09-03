@@ -43,7 +43,7 @@ def _urlopen_responses(*responses):
     return _urlopen, calls
 
 
-def _fixture_paths(tmp_path, *, audio=b'fixture-audio-secret', expected_phrase='Hello Omi', language='en'):
+def _fixture_paths(tmp_path, *, audio=b'fixture-audio-secret', expected_phrase='Hello Intentive', language='en'):
     fixture_path = tmp_path / 'transcription-release-probe.wav'
     fixture_path.write_bytes(audio)
     manifest_path = tmp_path / 'transcription-release-probe.json'
@@ -95,13 +95,14 @@ def _unexpected_network(*_args, **_kwargs):
 def test_full_route_posts_versioned_fixture_and_validates_exact_candidate_contract(monkeypatch, tmp_path):
     module = _load_module()
     fake_urlopen, calls = _urlopen_responses(
-        _Response(200, json.dumps({'outcome': 'success', 'transcript': '  HELLO, omi! '}).encode())
+        _Response(200, json.dumps({'outcome': 'success', 'transcript': '  HELLO, Intentive! '}).encode())
     )
     monkeypatch.setattr(module.urllib.request, 'urlopen', fake_urlopen)
 
     report = module.build_report(_config(module, tmp_path))
 
     assert report['status'] == 'PASS'
+    assert report['suite'] == 'intentive_transcription_capability_probe'
     full_route = report['checks'][0]
     assert full_route['status'] == 'PASS'
     assert full_route['details'] == {
@@ -127,13 +128,13 @@ def test_full_route_posts_versioned_fixture_and_validates_exact_candidate_contra
     assert b'fixture-audio-secret' in request.data
 
     encoded = json.dumps(report)
-    for sensitive in ('fixture-audio-secret', 'probe-token-that-must-not-leak', 'Hello Omi', 'candidate.invalid'):
+    for sensitive in ('fixture-audio-secret', 'probe-token-that-must-not-leak', 'Hello Intentive', 'candidate.invalid'):
         assert sensitive not in encoded
 
 
 def test_full_route_uses_cloud_run_identity_and_firebase_auth_together(monkeypatch, tmp_path):
     module = _load_module()
-    fake_urlopen, calls = _urlopen_responses(_Response(200, b'{"outcome":"success","transcript":"hello omi"}'))
+    fake_urlopen, calls = _urlopen_responses(_Response(200, b'{"outcome":"success","transcript":"hello intentive"}'))
     monkeypatch.setattr(module.urllib.request, 'urlopen', fake_urlopen)
 
     report = module.build_report(_config(module, tmp_path, cloud_run_identity_token='serverless-token'))
@@ -147,7 +148,7 @@ def test_full_route_uses_cloud_run_identity_and_firebase_auth_together(monkeypat
 
 def test_full_route_rejects_success_with_incorrect_transcript(monkeypatch, tmp_path):
     module = _load_module()
-    fake_urlopen, _ = _urlopen_responses(_Response(200, b'{"outcome":"success","transcript":"hello omi extra"}'))
+    fake_urlopen, _ = _urlopen_responses(_Response(200, b'{"outcome":"success","transcript":"hello intentive extra"}'))
     monkeypatch.setattr(module.urllib.request, 'urlopen', fake_urlopen)
 
     report = module.build_report(_config(module, tmp_path))
@@ -157,7 +158,7 @@ def test_full_route_rejects_success_with_incorrect_transcript(monkeypatch, tmp_p
     assert full_route['status'] == 'FAIL'
     assert full_route['details']['outcome_success'] is True
     assert full_route['details']['phrase_match'] is False
-    assert 'hello omi extra' not in json.dumps(report)
+    assert 'hello intentive extra' not in json.dumps(report)
 
 
 def test_fixture_digest_mismatch_fails_closed_without_calling_candidate(monkeypatch, tmp_path):

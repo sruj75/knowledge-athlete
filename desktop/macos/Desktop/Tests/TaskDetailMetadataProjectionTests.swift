@@ -38,4 +38,21 @@ final class TaskDetailMetadataProjectionTests: XCTestCase {
     )
     XCTAssertFalse(task.hasDetailMetadata)
   }
+
+  func testRetiredOmiTranscriptionSourceRendersAsGenericTaskProvenance() {
+    let task = TaskActionItem(
+      id: "local_9",
+      description: "Review notes",
+      completed: false,
+      createdAt: Date(),
+      source: "transcription:omi"
+    )
+
+    XCTAssertEqual(task.sourceLabel, "Task")
+    XCTAssertEqual(task.sourceIcon, "list.bullet")
+    XCTAssertEqual(task.externalSource, "task")
+    XCTAssertEqual(task.sourceDetail, "Task (task)")
+    XCTAssertTrue(task.chatContext.contains("Source: Task (task)"))
+    XCTAssertFalse(task.chatContext.lowercased().contains("omi"))
+  }
 }

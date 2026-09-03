@@ -65,7 +65,7 @@ struct PermissionsPage: View {
               .foregroundColor(OmiColors.textPrimary)
           }
 
-          Text("omi needs the following permissions to work properly.")
+          Text("Intentive needs the following permissions to work properly.")
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textSecondary)
         }
@@ -98,7 +98,7 @@ struct PermissionsPage: View {
               .scaledFont(size: OmiType.heading)
               .foregroundColor(.green)
 
-            Text("All permissions granted! omi is ready to use.")
+            Text("All permissions granted! Intentive is ready to use.")
               .scaledFont(size: OmiType.subheading, weight: .medium)
               .foregroundColor(OmiColors.textPrimary)
           }
@@ -371,20 +371,21 @@ struct MicrophonePermissionSection: View {
           }
         }
 
-        // Step 2: Find Omi and toggle ON
+        // Step 2: Find Intentive and toggle ON
         HStack(alignment: .top, spacing: OmiSpacing.sm) {
           Text("2.")
             .scaledFont(size: OmiType.body, weight: .semibold)
             .foregroundColor(OmiColors.textSecondary)
 
           VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-            Text("Find \"omi\" and toggle it ON")
+            Text("Find \"Intentive\" and toggle it ON")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textSecondary)
 
             // Screenshot showing the toggle
             if let image = NSImage(
-              contentsOfFile: Bundle.resourceBundle.path(forResource: "microphone-settings", ofType: "png") ?? "")
+              contentsOfFile: Bundle.resourceBundle.path(
+                forResource: "intentive_microphone_settings", ofType: "png") ?? "")
             {
               Image(nsImage: image)
                 .resizable()
@@ -415,7 +416,7 @@ struct MicrophonePermissionSection: View {
         instructionStep(
           number: 3,
           text:
-            "If no dialog appears, find \"\(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "omi")\" in Settings and enable it"
+            "If no dialog appears, find \"\(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Intentive")\" in Settings and enable it"
         )
       }
 
@@ -594,7 +595,7 @@ struct ScreenRecordingPermissionSection: View {
 
   // Content for STALE state - developer signing changed, user must remove and re-add
   private var stalePermissionContent: some View {
-    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "omi"
+    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Intentive"
     return VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       Text("Screen recording needs to be re-enabled after an app update.")
         .scaledFont(size: OmiType.body, weight: .medium)
@@ -647,7 +648,7 @@ struct ScreenRecordingPermissionSection: View {
             .background(Circle().fill(OmiColors.accent))
 
           VStack(alignment: .leading, spacing: OmiSpacing.xs) {
-            Text("Come back to omi and grant the permission")
+            Text("Come back to Intentive and grant the permission")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textSecondary)
 
@@ -680,27 +681,13 @@ struct ScreenRecordingPermissionSection: View {
 
   // Content for NORMAL state - first-time grant flow
   private var normalGrantContent: some View {
-    let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "omi"
     return VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       Text("How to grant screen recording access:")
         .scaledFont(size: OmiType.body, weight: .medium)
         .foregroundColor(OmiColors.textPrimary)
 
-      VStack(alignment: .leading, spacing: OmiSpacing.md) {
-        instructionStep(number: 1, text: "Click \"Open Settings\" below - this will make omi appear in the list")
-        instructionStep(number: 2, text: "Find \"\(appName)\" in the Screen Recording list")
-        instructionStep(number: 3, text: "Toggle the switch to enable screen recording")
-        instructionStep(number: 4, text: "Return to omi - permission will update automatically")
-      }
-
-      // Tutorial GIF
-      AnimatedGIFView(gifName: "permissions")
-        .frame(maxWidth: 400, maxHeight: 300)
-        .cornerRadius(OmiChrome.smallControlRadius)
-        .overlay(
-          RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-            .stroke(OmiColors.backgroundQuaternary, lineWidth: 1)
-        )
+      PermissionTutorialSlideshow()
+        .frame(maxWidth: 400)
 
       Button(action: {
         ScreenCaptureService.requestScreenRecordingAccessAndOpenSettings()
@@ -857,7 +844,7 @@ struct SystemAudioPermissionSection: View {
     case .unsupported:
       return "Requires macOS 14.4 or later"
     case .unknown:
-      return "Test access to confirm Omi can capture audio from other apps"
+      return "Test access to confirm Intentive can capture audio from other apps"
     }
   }
 
@@ -931,8 +918,8 @@ struct SystemAudioPermissionSection: View {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           neutralInstructionStep(number: 1, text: "Click Test Access below")
           neutralInstructionStep(
-            number: 2, text: "If System Settings opens, enable Omi under Screen & System Audio Recording")
-          neutralInstructionStep(number: 3, text: "Return to Omi and click Test Access again")
+            number: 2, text: "If System Settings opens, enable Intentive under Screen & System Audio Recording")
+          neutralInstructionStep(number: 3, text: "Return to Intentive and click Test Access again")
         }
       }
 
@@ -1149,7 +1136,7 @@ struct NotificationPermissionSection: View {
       VStack(alignment: .leading, spacing: OmiSpacing.md) {
         instructionStep(number: 1, text: "Click \"Open Notification Settings\" below")
         instructionStep(number: 2, text: "Choose \"Banners\" or \"Alerts\" as the alert style")
-        instructionStep(number: 3, text: "Return to omi; the status refreshes automatically")
+        instructionStep(number: 3, text: "Return to Intentive; the status refreshes automatically")
       }
 
       Button("Open Notification Settings") {
@@ -1206,7 +1193,7 @@ struct NotificationPermissionSection: View {
         instructionStep(number: 2, text: "Click \"Allow\" to enable notifications")
         instructionStep(
           number: 3,
-          text: "Tip: In System Settings > Notifications > omi, set style to \"Banners\" to see visual alerts")
+          text: "Tip: In System Settings > Notifications > Intentive, set style to \"Banners\" to see visual alerts")
       }
 
       Button(action: {
@@ -1288,7 +1275,7 @@ struct AccessibilityPermissionSection: View {
 
             Text(
               recoveryMode == .broken
-                ? "Permission is listed as granted, but omi cannot use it"
+                ? "Permission is listed as granted, but Intentive cannot use it"
                 : "Required for global shortcuts and assisted interaction"
             )
             .scaledFont(size: OmiType.body)
@@ -1311,7 +1298,7 @@ struct AccessibilityPermissionSection: View {
           Divider().background(OmiColors.backgroundQuaternary)
 
           if recoveryMode == .broken {
-            Text("Reset the stale Accessibility grant, then restart omi and grant access again.")
+            Text("Reset the stale Accessibility grant, then restart Intentive and grant access again.")
               .scaledFont(size: OmiType.body, weight: .medium)
               .foregroundColor(OmiColors.textPrimary)
 
@@ -1323,8 +1310,8 @@ struct AccessibilityPermissionSection: View {
           } else {
             VStack(alignment: .leading, spacing: OmiSpacing.md) {
               instructionStep(number: 1, text: "Click \"Grant Access\" below")
-              instructionStep(number: 2, text: "Enable omi in Privacy & Security > Accessibility")
-              instructionStep(number: 3, text: "Return to omi; the status refreshes automatically")
+              instructionStep(number: 2, text: "Enable Intentive in Privacy & Security > Accessibility")
+              instructionStep(number: 3, text: "Return to Intentive; the status refreshes automatically")
             }
 
             Button("Grant Access") {

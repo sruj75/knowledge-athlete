@@ -109,7 +109,7 @@ from pathlib import Path
 
 out_path, passed, source_sha, lane, duration_s, started_at, harness_ev, hygiene_ev, err = sys.argv[1:10]
 evidence = {
-    "kind": "omi-desktop-pre-tag-readiness-v1",
+    "kind": "intentive-desktop-pre-tag-readiness-v1",
     "passed": passed == "true",
     "source_sha": source_sha,
     "lane": lane,

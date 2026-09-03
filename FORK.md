@@ -48,9 +48,10 @@ make dev-up          # Firebase Auth + Firestore emulators + local Redis
 make dev-desktop     # the above, then launch the macOS app against it
 ```
 
-The emulators replace Google, not the AI vendors. For a hermetic local stack,
+The emulators replace Google, not the managed providers. For a hermetic local stack,
 run `PROVIDER_MODE=offline make dev-up` without provider credentials. Real mode
-requires OpenAI, Modulate, Gemini, and Anthropic keys in
+uses Gemini for model compute, Modulate for speech-to-text, OpenAI for TTS only,
+and Langfuse for tracing/prompt management. Their credentials belong in
 `backend/.env.local-dev`; `make dev-init` creates that untracked file.
 
 `desktop/macos/run.sh --yolo` skips the local backend and targets the owned
@@ -64,8 +65,9 @@ ffmpeg, opus.
 
 ## Rebrand checklist — before shipping your own build
 
-Every item below is omi's identity baked into the source. The build succeeds without
-changing them, which is exactly why they are easy to ship by accident.
+The historical inventory later in this file records Omi identity that was baked into
+the source. The build could succeed without changing those values, which is exactly
+why each current successor or protected exception needs explicit ownership.
 
 ### Owner-approved successor identity
 
@@ -84,9 +86,11 @@ and the current external-resource handoff are recorded in
 | Named development / preview prefixes | `com.heyintentive.intentive.dev.`, `com.heyintentive.intentive.preview.` |
 | Google Cloud project | existing Firebase/GCP project `knowledge-athlete`; billing active, with a permanent-Free-Tier operating constraint |
 | Development Cloud Run service | public-ingress `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; protected routes enforce Firebase authentication and development desktop defaults target its discovered URL |
-| Container repository | not provisioned in `knowledge-athlete`; Cloud Run imported the immutable recovery image and all temporary cross-project reader bindings were removed |
+| Container repository | `knowledge-athlete/us-west1/intentive/backend`; the active development revision uses an owned immutable digest and no longer reads a cross-project recovery image |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
+| PostHog | unconfigured; the Mac fails closed until an owned project token and HTTPS host are supplied through the Intentive configuration keys |
+| Langfuse | owned US Cloud project `Intentive`; tracing and Prompt Management remain fail-open observability, not product-data authority |
 
 `intentive.life` and `intuitive.life` are not product domains. They must not be
 used for product URLs, support/privacy addresses, bundle identity, or public copy.
@@ -107,20 +111,27 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   coordination. Development desktop defaults target it; it is not production authority.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
+- PostHog has no approved project token. Product analytics therefore stays off;
+  the inherited Omi token is neither embedded nor used as a fallback.
+- Existing Omi icon, logo, and backdrop bytes remain unchanged placeholders until
+  the owner supplies and approves an Intentive asset pack. They are not shippable assets.
 
 ### Remaining release blockers
 
-- The inherited Firebase plists and provisioning profiles are evidence of upstream
-  configuration, not shippable Intentive credentials. Real Firebase app registrations
-  and Apple/provider identifiers must replace them; agents must never cosmetically edit
-  inherited credentials.
+- The inherited provisioning profiles are evidence of upstream configuration, not
+  shippable Intentive credentials. Owned profiles and Apple capability/provider
+  identifiers must replace them; agents must never cosmetically edit inherited
+  credentials.
 - Apple Team `24D6NXS6H7` has an installed Developer ID Application identity valid
   through 2030-11-18. Codemagic still needs the supplied `.p12` password, active Apple
-  membership, notarization credentials, and the owned Sparkle private key.
+  membership, and notarization credentials.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
-  `intentive-macos-release` / `intentive-macos-preview`. Protected provider groups, the GitHub
-  release app/token boundary, trusted Intentive M1 runner, production backend/feed, public site,
-  and approved legal/support destinations are not configured.
+  `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, Sparkle
+  keypair, and Sentry token are protected; the remaining provider-group fields, GitHub release
+  app/token boundary, trusted Intentive M1 runner, production backend/feed, public site, and
+  approved legal/support destinations are not configured.
+- An approved Intentive app icon, mark, wordmark, and any replacement sign-in backdrop
+  are still required before a candidate can be called visually rebranded.
 - The complete beginner-facing checklist and account map are tracked in
   [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md).
 
@@ -141,11 +152,19 @@ copyright notice and license text (`LICENSE`). The license covers the *code* —
 does not grant rights to the "omi" name or logo, so the rename is not optional if
 you are shipping this as your own product.
 
+### Current Firebase packaging boundary
+
+S-30 removed the inherited committed production plist. Development packages the
+owned `knowledge-athlete` registration, local harnesses use the synthetic
+`demo-heyintentive-local` registration, and release builds inject an owned
+protected plist or fail closed. Both local and release bundlers remove any nested
+Firebase plist left in SwiftPM output.
+
 ## Inherited snapshot architecture and as-is rebrand audit (historical)
 
 This historical upstream audit is anchored to baseline commit
 `81b5b889cad9eabe7477c9ff6a167a46f56912b6` and the upstream source snapshot
-listed above. The inventory below records what owns each identity today. It
+listed above. The inventory below records what owned each identity at that baseline. It
 deliberately does not choose replacements or prescribe migration order.
 
 **Coupling legend:** **visible brand** is user-facing copy or imagery;
@@ -157,16 +176,16 @@ name with no direct user-visible identity.
 
 ### macOS identity and persistence
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | Product and bundle names | `omi`, `Omi`, `Omi Beta`, `Omi Dev`, Swift package/executable `Omi Computer` | Historical upstream plist/package/run configuration and the predecessor of `desktop/macos/scripts/create-intentive-beta-variant.sh` | Finder, menus, onboarding, permission copy, and signed bundle names continued to show Omi in the inherited snapshot. | Omi/BasedHardware | visible brand |
 | Brand assets | `OmiIcon`, `omi_app_icon.png`, `omi_text_logo.png`, `omi_menu_bar_icon.png`, `omi_notch_logo.svg`, Omi demo media, and related source names | `desktop/macos/Desktop/Sources/Resources/`, `desktop/macos/omi_icon.icns` | Packaged app, menu bar, onboarding, chat, and installer artwork remain Omi artwork. | Omi/BasedHardware | visible brand |
 | Stable/beta identity | `com.omi.computer-macos`, `com.omi.computer-macos.beta` | `desktop/macos/Desktop/Sources/AppBuild.swift`, `desktop/macos/Desktop/Sources/OmiSupport/DesktopLocalProfile.swift`, `desktop/macos/scripts/smoke-signed-desktop-artifact.sh` | Selects production-family routing and partitions TCC, UserDefaults, Keychain ACLs, login items, single-instance locks, updates, and beta storage. | Omi/BasedHardware | external identifier; persistent identity |
 | Development/preview identity | `com.omi.desktop-dev`, `com.omi.omi-<slug>`, `com.omi.preview.<id>` | `desktop/macos/scripts/app-config.sh`, `desktop/macos/Desktop/Sources/AppBuild.swift`, `backend/database/desktop_previews.py` | Controls local automation, dev backend defaults, isolated state, and whether Sparkle is allowed. | Omi/BasedHardware | persistent identity |
 | OAuth callback schemes | Production `omi-computer`; dev `omi-computer-dev`; named bundles `omi-<slug>`; previews `omi-preview-<id>` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/scripts/app-config.sh`, `desktop/macos/scripts/smoke-signed-desktop-artifact.sh`, `backend/routers/auth.py`, `backend/database/desktop_previews.py` | OAuth providers and macOS route callbacks only to registered schemes; unchanged callbacks remain in the Omi namespace. | Omi/BasedHardware plus provider registration | external identifier |
-| Google OAuth/Firebase app registrations | Inherited production client/app remain in `GoogleService-Info.plist`; owned development app `1:674306938907:ios:befed665f1aa0cd09b40be` is registered for `com.heyintentive.intentive.dev`; Google sign-in is enabled and its generated OAuth client is tracked in the refreshed development plist; the local emulator app remains synthetic. | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Development selects the owned Firebase app and hosted Google provider. Production-family builds remain fail-closed work and must not consume the inherited plist. | Intentive development; Omi/BasedHardware production residue; local harness; Google | external identifier |
-| Firebase apps | Owned development project `knowledge-athlete`, app `com.heyintentive.intentive.dev`; inherited production project `based-hardware` remains only as removal evidence; local project `demo-heyintentive-local` is emulator-only. | `desktop/macos/Desktop/Sources/GoogleService-Info.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Dev.plist`, `desktop/macos/Desktop/Sources/GoogleService-Info-Local.plist` | Canonical development builds receive the owned project configuration; local profiles stay on emulators. Beta/Stable require separately approved production registrations and may not inherit the Omi app. | Intentive development; Omi/BasedHardware production residue; local harness | service endpoint; external identifier |
-| API routing | Production unconfigured; owned development `knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`; inherited share host `h.omi.me` remains separate residue | `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift`, `desktop/macos/Desktop/Sources/APIClient.swift`, `desktop/macos/run.sh` | Production-family builds use one fail-closed backend data-plane URL; named/dev bundles default to the owned development service and may explicitly override `OMI_PYTHON_API_URL`. Auth callback routing remains an explicit separate rule. | Intentive development; Omi/BasedHardware share-host residue | service endpoint |
+| Google OAuth/Firebase app registrations | `GoogleService-Info.plist` contained the inherited production client/app for `com.omi.computer-macos`. | Baseline `desktop/macos/Desktop/Sources/GoogleService-Info.plist` | The inherited app supplied Google/Firebase identifiers to packaged macOS builds. | Omi/BasedHardware; Google | external identifier |
+| Firebase apps | Production project `based-hardware`, app `com.omi.computer-macos`, plus its storage bucket and API key. | Baseline `desktop/macos/Desktop/Sources/GoogleService-Info.plist` | The inherited plist selected the Firebase project and app embedded by SwiftPM. | Omi/BasedHardware; Firebase | service endpoint; external identifier |
+| API routing | Production Python `https://api.omi.me/`, development Python `https://api.omiapi.com/`, production Rust desktop backend `desktop-backend-hhibjajaja-uc.a.run.app`, development Rust desktop backend `desktop-backend-dt5lrfkkoa-uc.a.run.app` | Baseline `desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift` and `APIClient.swift` | Production and development bundle families selected separate inherited Python and Rust service endpoints. | Omi/BasedHardware | service endpoint |
 | PostHog | Hardcoded publishable token `phc_z3qU…v3sez3Y` at `us.i.posthog.com` | `desktop/macos/Desktop/Sources/PostHogManager.swift` | Product analytics and feature flags report to the existing Omi PostHog project. | Omi/BasedHardware; PostHog | service endpoint |
 | Sentry | Organization/project `o4511085999816704 / 4511086024851456` | `desktop/macos/Desktop/Sources/OmiApp.swift` | Production crashes, hangs, feedback, and diagnostics report to the existing Sentry project. | Omi/BasedHardware; Sentry | service endpoint |
 | Sparkle feed and trust key | `https://api.omi.me/v2/desktop/appcast.xml`; EdDSA public key `vWleho4gIOl932wM4v9Gz+FTCt90+vUVdPHsRReFX40=` | `desktop/macos/Desktop/Info.plist`, `desktop/macos/Desktop/Sources/AppBuild.swift` | Stable/beta clients poll Omi's feed and accept only update archives signed by the matching private key. | Omi/BasedHardware | service endpoint; release infrastructure |
@@ -178,7 +197,7 @@ name with no direct user-visible identity.
 
 ### Windows and shared desktop identity
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
 | Windows package | App ID `com.omiwindows.app`, product `Omi for Windows`, executable `omi-windows`, installer `Omi-for-Windows-Setup-*` | `desktop/windows/electron-builder.config.mjs`, `desktop/windows/package.json` | Windows install, shortcuts, uninstall entry, process, and artifact names remain Omi-branded. | Omi/BasedHardware | visible brand; external identifier |
 | Windows assets/copy | Committed Omi icons plus Omi website, help, terms, pricing, referral, device, and source links | `desktop/windows/resources/`, renderer settings/home components | Packaged UI and external navigation continue to present or open Omi properties. | Omi/BasedHardware | visible brand; service endpoint |
@@ -191,18 +210,18 @@ name with no direct user-visible identity.
 
 ### Backend, cloud, and release ownership
 
-| Surface | Current identity | Authority | Role | Ownership | Coupling |
+| Surface | Baseline identity | Authority | Role | Ownership | Coupling |
 |---|---|---|---|---|---|
-| GitHub source/releases | `BasedHardware/omi`; this fork's remote is `sruj75/knowledge-athlete` | Backend update routes, `desktop/macos/Desktop/Sources/AppBuild.swift`, Electron builder/updater, desktop workflows | Changelogs, update assets, preview admission, release evidence, and allowlists still resolve or require the upstream repository. | Omi/BasedHardware; local fork | service endpoint; release infrastructure |
-| GCP/Firebase projects | Externally supplied development/production project IDs, project numbers, Firebase projects, networks, service accounts, and resource names | `backend/deploy/runtime_env.yaml`, `.github/workflows/gcp_backend*.yml`, `.github/workflows/gcp_firestore_indexes.yml` | The tracked contract rejects inherited defaults and requires environment-scoped owned inputs. This snapshot does not claim those resources exist, match the declaration, or that inherited live resources are safe to remove; that needs verified read-only inventory and separately authorized mutation. | Product cloud operator; Google Cloud | external identifier; release infrastructure |
-| Canonical backend deployment identity | One `backend` Cloud Run service per environment in `us-west1`, built in regional Artifact Registry with a full commit-SHA tag and deployed by captured digest | `backend/deploy/runtime_env.yaml`, `backend/runtime_images.json`, `.github/workflows/gcp_backend.yml`, `.github/workflows/gcp_backend_auto_dev.yml` | One manifest/renderer owns capacity, probes, networking, runtime identity, exact secret versions, stable discovered `run.app` URL, candidate acceptance, traffic, rollback, and evidence. Short SHA is revision-display-only; no custom backend domain or floating image tag is declared. | Repository contract; product cloud operator; Google Cloud | external identifier; release infrastructure |
-| CI control-plane credentials | Backend and Firestore workflows use environment-scoped WIF provider plus distinct deploy, read-only index, and create-only index-writer service accounts; desktop/Codemagic/Azure release credentials remain separately inventoried | `.github/workflows/gcp_*.yml`, `.github/workflows/desktop_*.yml`, `.github/AGENTS.md`, `desktop/macos/AGENTS.md`, `desktop/windows/docs/release-pipeline.md` | Backend cloud workflows no longer accept long-lived Google JSON keys. Exact numeric GitHub claims, provider/IAM existence, GitHub environment population, and negative cross-environment proof are external operational evidence, not facts implied by this checkout. | Product cloud operator; Google Cloud; Codemagic; Azure | external identifier; release infrastructure |
-| Public domains | Desktop consumers still contain `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and retained service-specific Omi hosts; backend deployment acceptance uses its owned stable `run.app` URL | Desktop clients and release workflows; backend deploy workflows | S-27 removes inherited DNS from backend deployment authority without absorbing S-29's desktop routing, feeds, downloads, signing, or channel migration. | Omi/BasedHardware for retained desktop endpoints; product cloud operator for backend `run.app` | service endpoint |
+| GitHub source/releases | `BasedHardware/omi` | Baseline backend update routes, `desktop/macos/Desktop/Sources/AppBuild.swift`, Electron builder/updater, and desktop workflows | Changelogs, update assets, preview admission, release evidence, and allowlists resolved to the upstream repository. | Omi/BasedHardware | service endpoint; release infrastructure |
+| GCP/Firebase projects | Development project `based-hardware-dev`, runtime project `based-hardware`, `us-central1`, and Omi-namespaced GKE/Helm resources | Baseline `backend/deploy/runtime_env.yaml` and `.github/workflows/gcp_*.yml` | The inherited manifest selected Omi's development/production cloud projects, networks, services, and secret/config-map names. | Omi/BasedHardware; Google Cloud | external identifier; release infrastructure |
+| Backend deployment identity | Cloud Run `backend`, `backend-sync`, `backend-sync-backfill`, and `backend-integration` services plus separately deployed GKE workloads; GCR images used `latest` and short-SHA tags | Baseline `.github/workflows/gcp_backend*.yml`, Helm charts, and deploy scripts | Multiple workflows owned overlapping Cloud Run/GKE build, deploy, traffic, and recovery behavior in `us-central1`. | Omi/BasedHardware; Google Cloud | external identifier; release infrastructure |
+| CI control-plane credentials | Long-lived Google JSON secrets including `GCP_CREDENTIALS` and dedicated Firestore credential JSON | Baseline `.github/workflows/gcp_*.yml` | GitHub Actions authenticated the inherited cloud deploy and index lanes with repository/environment secrets. | Omi/BasedHardware; Google Cloud; GitHub | external identifier; release infrastructure |
+| Public domains | `api.omi.me`, `api.omiapi.com`, `h.omi.me`, `macos.omi.me`, `windows.omi.me`, and service-specific Omi hosts | Baseline desktop clients, backend sources, and release/deploy workflows | Product APIs, sharing, update/download routing, and service discovery resolved to inherited Omi domains or generated Google service URLs. | Omi/BasedHardware; cloud providers | service endpoint |
 | Update asset origin | `https://github.com/BasedHardware/omi/releases/download/` | `backend/routers/updates.py` | Generated macOS appcasts and Windows feed directories hand clients Omi-hosted binaries. | Omi/BasedHardware | service endpoint; release infrastructure |
-| Backend data plane | Externally named Firestore plus environment-isolated private Redis, one retained update/preview GCS bucket, the account-deletion queue, and canonical Cloud Run, all in `us-west1` | `backend/database/`, `backend/config/desktop_storage.py`, `backend/deploy/runtime_env.yaml`, backend workflows | The manifest owns the redacted shape: ADC/exact secrets, Redis AUTH and verified TLS, survivor-only create-safe indexes, update/preview prefixes, queue signer/audience, logging/alerts/budgets, and dry-run-only registry cleanup. Mac conversations and Memories remain excluded; live conformance remains unverified. | Repository contract; product cloud operator; cloud providers | service endpoint; persistent identity |
-| Provider credentials | OpenAI, Anthropic, Gemini, Modulate, Dodo Payments, email, connector, and related environment-backed accounts | Backend env templates, runtime env contract, and workflow secrets | Values are not selected by a visual rebrand. Billing is disabled by default; an operator must explicitly select Dodo test or live mode and supply its API key, webhook key, and normalized server-owned offer catalog. | Third-party accounts configured by operator | service endpoint |
-| macOS build lane | Codemagic app `6a8ff0296fc70d39540cb56a`, workflows `intentive-macos-release` / `intentive-macos-preview`, `CODEMAGIC_API_TOKEN`, trusted runner labels `intentive-desktop-qualification` / `intentive-qual-m1-studio`, then GitHub promotion workflows | `codemagic.yaml`, `desktop/macos/scripts/codemagic-release.sh`, `desktop/macos/AGENTS.md`, release docs, `.github/workflows/desktop_*.yml` | The tracked provider definition binds exact tag/SHA, build, signing, notarization, Sparkle, symbols, smoke, and immutable publication. It is deliberately non-executable until protected provider groups, production inputs, and the trusted runner are configured. | Intentive operator; Codemagic; GitHub; trusted self-hosted runner | release infrastructure |
-| Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus repository-local `OMI_*` variables and `omi-*` development scripts/test conventions | Retained source and tests; macOS development controls are inventoried above | These symbols can remain without contacting Omi and do not by themselves preserve an upstream account, endpoint, shipped bundle identity, or deployment resource. Blind renames would still require coordinated in-tree caller and test changes. | Local repository | internal-only symbol |
+| Backend data plane | Omi-owned Firestore, Redis/config-map/secret bindings, GCS/update resources, Cloud Run services, and GKE workloads across development and production manifests | Baseline `backend/database/`, `backend/deploy/runtime_env.yaml`, charts, and backend workflows | The inherited deployment graph selected Omi's persistent data, coordination, update, and service infrastructure. | Omi/BasedHardware; cloud providers | service endpoint; persistent identity |
+| Provider credentials | OpenAI and Anthropic model credentials, Gemini/Vertex inference, Modulate and Parakeet speech-to-text, plus other service-specific inherited bindings | Baseline backend env templates, `backend/deploy/runtime_env.yaml`, charts, and agent runtime | Multiple provider paths supplied chat, embeddings, translation, realtime/agent behavior, and transcription; provider ownership was not isolated to the later Intentive selection. | Omi/BasedHardware; third-party providers | service endpoint |
+| macOS build lane | GitHub candidate/promotion workflows, Codemagic workflow `omi-desktop-swift-release`, Omi-named trusted-runner labels, and Omi Bot tag publication | Baseline `.github/workflows/desktop_*.yml` and release scripts | The inherited lane planned and tagged GitHub releases, delegated Mac builds to the Omi Codemagic workflow, and qualified/promoted artifacts through Omi-owned automation. | Omi/BasedHardware; Codemagic; GitHub; trusted self-hosted runner | release infrastructure |
+| Internal source naming | `Omi*` Swift/Python/TypeScript symbols plus `OMI_*` variables and `omi-*` development scripts/test conventions | Baseline source and tests | These names formed in-repository compiler, process, and operator contracts in addition to the separately inventoried external identities. | Omi/BasedHardware repository | internal-only symbol |
 | Legal provenance | MIT copyright and license from the upstream snapshot | [LICENSE](LICENSE), this file's provenance section | Redistribution must retain the license notice; the code license does not transfer Omi trademark or service ownership. | Upstream authors | external identifier |
 
 ### Current retained boundaries
@@ -217,7 +236,7 @@ name with no direct user-visible identity.
 - GitHub retains candidate tagging and intake observation plus qualification,
   preview, promotion, retry, recovery, and rollback controls. The new Mac provider
   definition owns build/sign/notarize/package/smoke/publish but stays fail-closed until
-  protected provider groups and the production/public inputs are configured.
+  the remaining protected provider-group fields and production/public inputs are configured.
 - The universal dylibs in `desktop/macos/vendor/libwebp/` now have checked-in
   checksum/architecture/install-name/deployment-target/dependency verification,
   a pinned source-rebuild fallback, and nested-signing preparation scripts.
@@ -287,9 +306,9 @@ maintenance jobs, parity fixtures, and generated hosted DTOs are absent.
 
 The backend retains exactly three authenticated stateless proposal routes:
 `/v1/memory/compute/extract`, `/normalize`, and `/consolidate`. They use pinned
-OpenAI GPT-4.1-mini compute and cannot assign a durable Memory identity or
-persist input/output. Gemini embedding remains a transient shared proxy; the
-Mac owns the resulting vectors. S-22 may replace provider routing, S-23 owns
+Gemini 3.7 Flash compute and cannot assign a durable Memory identity or persist
+input/output. Gemini embedding remains a transient shared proxy; the Mac owns
+the resulting vectors. S-23 owns
 remaining hosted conversation internals, and S-24/S-25 own their separately
 listed cloud-state and operational teardown boundaries.
 

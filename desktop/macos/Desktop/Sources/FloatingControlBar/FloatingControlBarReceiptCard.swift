@@ -3,7 +3,7 @@ import SwiftUI
 
 extension FloatingControlBarView {
   /// Durable receipt — "✓ Saved to Tasks — <task>" with Review and Undo, shown
-  /// only after Omi can read the task through the durable local task authority.
+  /// only after Intentive can read the task through the durable local task authority.
   /// Monochrome, on the pill's black glass. Auto-collapses.
   @ViewBuilder
   func notchReceiptCard(_ notification: FloatingBarNotification) -> some View {

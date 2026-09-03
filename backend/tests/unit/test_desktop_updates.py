@@ -224,6 +224,13 @@ class TestGenerateAppcastXml:
         xml = _generate_appcast_xml([self._make_item(channel="stable")], "macos")
         assert "<sparkle:channel>" not in xml
 
+    def test_appcast_uses_intentive_identity(self):
+        xml = _generate_appcast_xml([self._make_item(version="1.0.0")], "macos")
+        assert "<title>Intentive Desktop Updates</title>" in xml
+        assert "<description>Intentive Desktop Application</description>" in xml
+        assert "<title>Intentive 1.0.0</title>" in xml
+        assert "<title>Omi" not in xml
+
     def test_mandatory_gets_critical_update(self):
         item = self._make_item()
         item["mandatory"] = True

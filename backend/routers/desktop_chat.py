@@ -375,9 +375,9 @@ async def stream_generate_content(
     alt: str | None = Query(None),
     uid: str = Depends(auth.get_current_user_uid),
     x_app_platform: str | None = Header(None, alias='X-App-Platform'),
-    x_omi_chat_contract_version: str | None = Header(None, alias='X-Omi-Chat-Contract-Version'),
-    x_omi_request_id: str | None = Header(None, alias='X-Omi-Request-Id'),
-    x_omi_session_id: str | None = Header(None, alias='X-Omi-Session-Id'),
+    x_omi_chat_contract_version: str | None = Header(None, alias='X-Intentive-Chat-Contract-Version'),
+    x_omi_request_id: str | None = Header(None, alias='X-Intentive-Request-Id'),
+    x_omi_session_id: str | None = Header(None, alias='X-Intentive-Session-Id'),
     x_goog_api_key: str | None = Header(None, alias='X-Goog-Api-Key'),
 ) -> StreamingResponse:
     if isinstance(x_goog_api_key, str):
@@ -392,7 +392,7 @@ async def stream_generate_content(
     request_id = x_omi_request_id or str(uuid4())
     response_headers = {
         'Cache-Control': 'no-cache',
-        'X-Omi-Chat-Contract-Version': _CHAT_CONTRACT_VERSION,
+        'X-Intentive-Chat-Contract-Version': _CHAT_CONTRACT_VERSION,
         'X-Request-Id': request_id,
     }
     if llm_stub_enabled():

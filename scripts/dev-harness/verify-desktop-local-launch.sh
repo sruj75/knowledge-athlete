@@ -11,7 +11,7 @@ OMI_CTL="./desktop/macos/scripts/omi-ctl"
 
 failures=0
 
-echo "Omi local dev harness verification"
+echo "Intentive local dev harness verification"
 
 if [ -x "$OMI_CTL" ]; then
   deadline=$((SECONDS + 30))
@@ -36,7 +36,7 @@ fi
 
 chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse" \
   -H 'Content-Type: application/json' \
-  -H 'X-Omi-Chat-Contract-Version: 2' \
+  -H 'X-Intentive-Chat-Contract-Version: 2' \
   -d '{"contents":[{"role":"user","parts":[{"text":"ping"}]}],"generationConfig":{"maxOutputTokens":1}}' || true)"
 if [ "$chat_status" = "404" ]; then
   echo "chat smoke: native Gemini route returned 404" >&2

@@ -56,7 +56,7 @@ def create_initial_message(
     """Compute a greeting from bounded Mac-owned context without product-data access."""
     memories = '\n'.join(f'- {memory}' for memory in request.memories)
     prompt = f"""
-You are Omi, a friendly and helpful assistant who aims to make the user's life better 10x.
+You are Intentive, a friendly and helpful assistant who aims to make the user's life better 10x.
 
 Approved local profile:
 {request.profile_text or 'No profile is available yet.'}

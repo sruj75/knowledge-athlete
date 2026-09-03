@@ -71,7 +71,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "list_agent_sessions",
-    "description": "List canonical Omi-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
+    "description": "List canonical Intentive-managed agents and subagents, including their sessions/runs, across chat, PTT/realtime, floating-bar pills, and migrated general-agent surfaces. For a prior child agent's final answer, omit status filters: session archive state is not run completion. List recent sessions, then answer from latestRun.finalText or inspect the returned run with get_agent_run. Keep internal ids out of the user-visible response.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -98,7 +98,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "get_agent_run",
-    "description": "Inspect one canonical Omi-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
+    "description": "Inspect one canonical Intentive-managed agent run. Prefer an agentRef or runId from list_agent_sessions. For a completed child, answer from run.finalText and do not expose the internal id.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -108,7 +108,7 @@ enum GeneratedRealtimeTools {
         },
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run id."
+          "description": "Canonical Intentive run id."
         },
         "includeEvents": {
           "type": "boolean",
@@ -125,7 +125,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "cancel_agent_run",
-    "description": "Request cancellation for one canonical Omi-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
+    "description": "Request cancellation for one canonical Intentive-managed agent run. Use when the user asks to stop or kill a running canonical agent/subagent.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -135,7 +135,7 @@ enum GeneratedRealtimeTools {
         },
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run id to cancel."
+          "description": "Canonical Intentive run id to cancel."
         }
       },
       "required": []
@@ -144,7 +144,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "inspect_agent_artifacts",
-    "description": "Inspect metadata and references for canonical Omi-managed agent artifacts. Does not read arbitrary artifact contents.",
+    "description": "Inspect metadata and references for canonical Intentive-managed agent artifacts. Does not read arbitrary artifact contents.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -158,19 +158,19 @@ enum GeneratedRealtimeTools {
         },
         "artifactId": {
           "type": "string",
-          "description": "Canonical Omi artifact id."
+          "description": "Canonical Intentive artifact id."
         },
         "sessionId": {
           "type": "string",
-          "description": "Canonical Omi session id."
+          "description": "Canonical Intentive session id."
         },
         "runId": {
           "type": "string",
-          "description": "Canonical Omi run id."
+          "description": "Canonical Intentive run id."
         },
         "attemptId": {
           "type": "string",
-          "description": "Canonical Omi attempt id."
+          "description": "Canonical Intentive attempt id."
         },
         "role": {
           "type": "string",
@@ -195,7 +195,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "update_agent_artifact_lifecycle",
-    "description": "Update metadata-only lifecycle state for one canonical Omi-managed agent artifact. Does not open, delete, retain, or read files.",
+    "description": "Update metadata-only lifecycle state for one canonical Intentive-managed agent artifact. Does not open, delete, retain, or read files.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -205,7 +205,7 @@ enum GeneratedRealtimeTools {
         },
         "artifactId": {
           "type": "string",
-          "description": "Canonical Omi artifact id."
+          "description": "Canonical Intentive artifact id."
         },
         "state": {
           "type": "string",
@@ -218,15 +218,15 @@ enum GeneratedRealtimeTools {
         },
         "sessionId": {
           "type": "string",
-          "description": "Optional canonical Omi session id scope guard."
+          "description": "Optional canonical Intentive session id scope guard."
         },
         "runId": {
           "type": "string",
-          "description": "Optional canonical Omi run id scope guard."
+          "description": "Optional canonical Intentive run id scope guard."
         },
         "attemptId": {
           "type": "string",
-          "description": "Optional canonical Omi attempt id scope guard."
+          "description": "Optional canonical Intentive attempt id scope guard."
         },
         "reason": {
           "type": "string",
@@ -241,7 +241,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "spawn_agent",
-    "description": "Start canonical Omi background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
+    "description": "Start canonical Intentive background work. Visible runs appear as floating-bar pills. Use for multi-step work in the user's apps/browser/files that you cannot do directly.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -365,7 +365,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "get_memories",
-    "description": "Read what Omi knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns.",
+    "description": "Read what Intentive knows about the user — their memories and facts (preferences, background, people, habits). Fast synchronous read with NO query. Use this for 'who am I', 'what do you know about me', 'what are my preferences'. Speak what it returns.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -493,7 +493,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "check_permission_status",
-    "description": "Check whether Omi has the requested macOS permission through the kernel-authorized native executor.",
+    "description": "Check whether Intentive has the requested macOS permission through the kernel-authorized native executor.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -514,7 +514,7 @@ enum GeneratedRealtimeTools {
   {
     "type": "function",
     "name": "request_permission",
-    "description": "Request Omi's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
+    "description": "Request Intentive's macOS permission through the kernel-authorized native executor by opening the native prompt or relevant System Settings pane. Screen share, screen sharing, and screen-share mean Screen Recording. Supports Screen Recording, microphone, notifications, and Accessibility.",
     "parameters": {
       "type": "object",
       "properties": {

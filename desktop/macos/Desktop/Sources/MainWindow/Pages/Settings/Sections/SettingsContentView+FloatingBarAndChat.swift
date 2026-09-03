@@ -92,7 +92,7 @@ extension SettingsContentView {
             Text("Screen Sharing in Chat")
               .scaledFont(size: OmiType.subheading, weight: .semibold)
               .foregroundColor(OmiColors.textPrimary)
-            Text("Let Ask Omi capture your screen when you ask about what's on it.")
+            Text("Let Intentive capture your screen when you ask about what's on it.")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textSecondary)
           }

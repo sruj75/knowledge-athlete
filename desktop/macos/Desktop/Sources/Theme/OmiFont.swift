@@ -186,7 +186,8 @@ extension View {
 
 @MainActor package func resetWindowToDefaultSize() {
   guard
-    let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.title.contains("omi") || $0.title.contains("Omi") })
+    let window = NSApp.keyWindow
+      ?? NSApp.windows.first(where: { $0.title.localizedCaseInsensitiveContains("Intentive") })
   else { return }
   let defaultSize = NSSize(width: 1200, height: 800)
   let frame = window.frame

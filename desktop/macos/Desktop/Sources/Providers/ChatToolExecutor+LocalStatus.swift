@@ -5,7 +5,7 @@ extension ChatToolExecutor {
     "Rewind screen history and OCR search",
     "raw screenshot image retrieval by screenshot_id",
     "local transcription and conversation tables",
-    "read-only SQL over the local Omi Desktop database",
+    "read-only SQL over the local Intentive Desktop database",
     "daily activity recaps",
     "indexed files and app/window activity",
     "local goals and progress data",
@@ -38,12 +38,12 @@ extension ChatToolExecutor {
       guard isExpectedOwnerCurrent(expectedOwnerID) else { return authorizedOwnerChangedResult() }
       if stats.total == 0 {
         return """
-          No screen history is available yet. Omi Desktop has not captured screenshots on this Mac, so there are no results for "\(query)".
+          No screen history is available yet. Intentive Desktop has not captured screenshots on this Mac, so there are no results for "\(query)".
           """
       }
       if stats.indexed == 0 {
         return """
-          Omi has \(stats.total) screenshot(s), but they are not ready to search yet. Keep Omi Desktop running and try again in a bit, or use SQL for exact local checks.
+          Intentive has \(stats.total) screenshot(s), but they are not ready to search yet. Keep Intentive Desktop running and try again in a bit, or use SQL for exact local checks.
           """
       }
       let appText = appFilter.map { " with app filter \"\($0)\"" } ?? ""

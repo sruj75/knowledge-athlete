@@ -3,9 +3,11 @@
 No Intentive release lane is executable yet. Root `codemagic.yaml` now owns Codemagic app
 `6a8ff0296fc70d39540cb56a`, workflow `intentive-macos-release`, and workflow
 `intentive-macos-preview`; it delegates the ordered release boundary to the checked-in driver and
-fails before building when a required protected input is missing. Candidate creation remains
-blocked until Apple/notarization/Sparkle/Firebase-production secrets, protected publication
-credentials, trusted runner, website destinations, and production backend/feed are configured.
+fails before building when a required protected input is missing. The owned Stable/Beta Firebase
+plists, Sparkle keypair, and Sentry upload token are already stored in their protected groups.
+Candidate creation remains blocked until Apple signing/notarization and preview inputs, remaining
+protected publication credentials, the trusted runner, website destinations, and the production
+backend/feed are configured.
 See the complete checklist in
 [`../../../OWNER-PROVIDER-DECISIONS.md`](../../../OWNER-PROVIDER-DECISIONS.md).
 

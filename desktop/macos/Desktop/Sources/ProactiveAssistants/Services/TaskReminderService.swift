@@ -44,7 +44,7 @@ final class LiveTaskReminderNotificationBoundary: TaskReminderNotificationBounda
 final class TaskReminderService {
   static let shared = TaskReminderService()
 
-  private static let namespace = "omi.task-reminder."
+  private static let namespace = "com.heyintentive.intentive.task-reminder."
   private let notifications: TaskReminderNotificationBoundary
   private let now: () -> Date
 

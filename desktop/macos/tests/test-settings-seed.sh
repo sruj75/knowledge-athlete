@@ -46,7 +46,7 @@ cleanup_domains+=("$source_domain" "$quiet_target" "$eager_target" "$missing_tar
 
 defaults write "$source_domain" screenAnalysisEnabled -bool true
 defaults write "$source_domain" transcriptionEnabled -bool true
-defaults write "$source_domain" shortcut_askOmiEnabled -bool true
+defaults write "$source_domain" shortcut_askIntentiveEnabled -bool true
 # Set the hidden kill switch in the source to verify it is NOT copied to targets.
 defaults write "$source_domain" disableSystemAudioCapture -bool true
 
@@ -58,7 +58,7 @@ assert_defaults "$quiet_target" devLazyPermissionsEnabled 1
 assert_unset "$quiet_target" screenAnalysisAutoStartFixed_v2
 assert_unset "$quiet_target" screenAnalysisAutoStartFixed_v3
 assert_unset "$quiet_target" disableSystemAudioCapture
-assert_defaults "$quiet_target" shortcut_askOmiEnabled 1
+assert_defaults "$quiet_target" shortcut_askIntentiveEnabled 1
 assert_unset "$quiet_target" hasCompletedFileIndexing
 
 OMI_DEV_EAGER_PERMISSIONS=1 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$eager_target" "$source_domain" >"$prefs_home/omi-settings-seed-eager.out"
@@ -82,7 +82,7 @@ cleanup_domains+=("$quiet_then_eager_target")
 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$quiet_then_eager_target" "$source_domain" >/dev/null
 # Source without capture flags to verify eager defaults kick in.
 defaults delete "$source_domain" >/dev/null 2>&1 || true
-defaults write "$source_domain" shortcut_askOmiEnabled -bool true
+defaults write "$source_domain" shortcut_askIntentiveEnabled -bool true
 OMI_DEV_EAGER_PERMISSIONS=1 "$MACOS_DIR/scripts/omi-settings-seed.sh" "$quiet_then_eager_target" "$source_domain" >/dev/null
 assert_defaults "$quiet_then_eager_target" screenAnalysisEnabled 1
 assert_defaults "$quiet_then_eager_target" transcriptionEnabled 1

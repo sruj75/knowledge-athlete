@@ -2406,15 +2406,14 @@
   },
   "info": {
     "contact": {
-      "name": "Omi",
-      "url": "https://omi.me/"
+      "name": "Intentive"
     },
-    "description": "First-party Omi app access to transient conversation and Memory compute and product services.",
+    "description": "First-party Intentive app access to transient conversation and Memory compute and product services.",
     "license": {
       "name": "MIT",
-      "url": "https://github.com/BasedHardware/omi/blob/main/LICENSE"
+      "url": "https://github.com/sruj75/knowledge-athlete/blob/main/LICENSE"
     },
-    "title": "Omi App Client API",
+    "title": "Intentive App Client API",
     "version": "1.0.0"
   },
   "openapi": "3.1.0",
@@ -4443,12 +4442,6 @@
       }
     }
   },
-  "servers": [
-    {
-      "description": "Production",
-      "url": "https://api.omi.me"
-    }
-  ],
   "tags": [
     {
       "description": "Compute bounded Memory proposals without backend persistence.",

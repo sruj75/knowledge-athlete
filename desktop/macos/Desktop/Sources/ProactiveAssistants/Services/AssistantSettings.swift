@@ -282,10 +282,10 @@ class AssistantSettings {
     }
   }
 
-  /// Returns vocabulary with "Omi" always included.
+  /// Returns vocabulary with the product name always included.
   var effectiveVocabulary: [String] {
     var seen = Set<String>()
-    return (["Omi"] + transcriptionVocabulary).filter {
+    return (["Intentive"] + transcriptionVocabulary).filter {
       seen.insert($0.lowercased()).inserted
     }
   }

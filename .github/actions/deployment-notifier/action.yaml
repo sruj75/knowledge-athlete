@@ -56,7 +56,7 @@ runs:
         [[ -n "${{ inputs.release_version }}" ]] && RELEASE_VERSION="${{ inputs.release_version }}" || RELEASE_VERSION="release-$(date +'%Y%m%d')-${{ github.run_number }}"
         ACTOR="${{ github.actor }}"
         FINISH_TIME="$(date -u '+%Y-%m-%d %H:%M UTC')"
-        GITHUB_URL="https://github.com/BasedHardware/omi"
+        GITHUB_URL="${{ github.server_url }}/${{ github.repository }}"
         DEPLOY_SUMMARY_URL="${GITHUB_URL}/actions/runs/${{ github.run_id }}"
         MESSAGE="🚀 <b>$WORKFLOW_NAME</b>: $ICON $STATUS
 

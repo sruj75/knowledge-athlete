@@ -33,8 +33,8 @@ if [ -z "$PYTHON_BIN" ]; then
   fi
 fi
 
-selected_tests="$(mktemp "${TMPDIR:-/tmp}/omi-backend-unit-tests.XXXXXX")"
-selection_reason="$(mktemp "${TMPDIR:-/tmp}/omi-backend-unit-tests-reason.XXXXXX")"
+selected_tests="$(mktemp "${TMPDIR:-/tmp}/intentive-backend-unit-tests.XXXXXX")"
+selection_reason="$(mktemp "${TMPDIR:-/tmp}/intentive-backend-unit-tests-reason.XXXXXX")"
 trap 'rm -f "$selected_tests" "$selection_reason"' EXIT
 
 selector_args=(--output "$selected_tests" --reason-output "$selection_reason")

@@ -227,7 +227,7 @@ export type DesktopDispatchKind =
   | "external_draft"
   | "screen_context";
 export type DesktopDispatchStatus = "pending" | "resolved" | "expired" | "cancelled";
-export type DesktopArtifactDeliveryTargetKind = "ask_omi" | "local_file" | "external_draft";
+export type DesktopArtifactDeliveryTargetKind = "ask_intentive" | "local_file" | "external_draft";
 export type DesktopArtifactDeliveryReviewStatus = "not_required" | "pending" | "approved" | "rejected";
 export type DesktopArtifactDeliveryStatus = "pending" | "delivered" | "failed" | "retrying" | "cancelled";
 export type DesktopCandidateStatus = "pending" | "accepted" | "rejected" | "expired";

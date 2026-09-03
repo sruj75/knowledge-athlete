@@ -131,7 +131,7 @@ extension AuthService {
         })
     else { return false }
     guard committed, sessionAttemptFence.isCurrent(attempt) else { return false }
-    NSLog("OMI AUTH: Saved auth state - signedIn: %@, email: %@", isSignedIn ? "true" : "false", email ?? "nil")
+    NSLog("INTENTIVE AUTH: Saved auth state - signedIn: %@, email: %@", isSignedIn ? "true" : "false", email ?? "nil")
     return true
   }
 

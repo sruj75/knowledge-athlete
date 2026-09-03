@@ -609,7 +609,7 @@ function writeFinalizedRelayToolResult(client: Socket, callId: string, result: s
 
 /** Start the private Unix socket server used by the owned Pi extension. */
 function startOmiToolsRelay(): Promise<string> {
-  const pipePath = join(tmpdir(), `omi-tools-${process.pid}.sock`);
+  const pipePath = join(tmpdir(), `intentive-tools-${process.pid}.sock`);
 
   // Clean up any stale socket
   try {
@@ -836,24 +836,24 @@ function startOmiToolsRelay(): Promise<string> {
               });
             }
           } catch {
-            logErr(`Failed to parse omi-tools message: ${line.slice(0, 200)}`);
+            logErr(`Failed to parse intentive-tools message: ${line.slice(0, 200)}`);
           }
         }
       });
 
       client.on("close", () => {
         omiToolsClients = omiToolsClients.filter((c) => c !== client);
-        resolveClientToolCalls(client, "Error: omi-tools relay client disconnected");
+        resolveClientToolCalls(client, "Error: intentive-tools relay client disconnected");
       });
 
       client.on("error", (err) => {
-        logErr(`omi-tools client error: ${err.message}`);
-        resolveClientToolCalls(client, "Error: omi-tools relay client error");
+        logErr(`intentive-tools client error: ${err.message}`);
+        resolveClientToolCalls(client, "Error: intentive-tools relay client error");
       });
     });
 
     server.listen(pipePath, () => {
-      logErr(`omi-tools relay socket: ${pipePath}`);
+      logErr(`intentive-tools relay socket: ${pipePath}`);
       resolve(pipePath);
     });
 
@@ -973,9 +973,9 @@ async function main(): Promise<void> {
   const defaultAdapterId = adapterIdForHarnessMode(defaultHarnessMode);
   logErr(`Default harness mode: ${defaultHarnessMode}`);
 
-  // 1. Start Unix socket for omi-tools relay
+  // 1. Start Unix socket for the Intentive tools relay
   omiToolsPipePath = await startOmiToolsRelay();
-  logErr("omi-tools relay started");
+  logErr("intentive-tools relay started");
   process.env.OMI_BRIDGE_PIPE = omiToolsPipePath;
 
   const store = new SqliteAgentStore({
@@ -988,7 +988,7 @@ async function main(): Promise<void> {
   });
   const registry = new AdapterRegistry();
   const artifactStorage = new OmiArtifactStorage({ rootDir: agentArtifactsDir() });
-  logErr(`Omi artifact root: ${artifactStorage.rootDir}`);
+  logErr(`Intentive artifact root: ${artifactStorage.rootDir}`);
   const kernel = new AgentRuntimeKernel({
     store,
     registry,

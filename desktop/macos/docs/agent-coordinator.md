@@ -12,7 +12,7 @@ The coordinator uses the existing TypeScript desktop runtime kernel as the execu
 
 - **TypeScript runtime kernel:** owns `AgentSession`, `AgentRun`, `RunAttempt`, `AdapterBinding`, events, artifacts, delegations, grants, terminal state, and future coordinator tables in `heyintentive-agent.sqlite3`.
 - **Desktop Coordinator:** owns deterministic routing, scoped context packets, dispatch decisions, lifecycle monitoring, approval/artifact/memory/task candidate projection, and the derived action queue.
-- **Swift app:** renders Ask Omi, task chat, voice, floating-pill, and future Agents & Attention surfaces; sends control/query requests; displays projections from kernel/coordinator state.
+- **Swift app:** renders Ask Intentive, task chat, voice, floating-pill, and future Agents & Attention surfaces; sends control/query requests; displays projections from kernel/coordinator state.
 - **Adapters:** execute attempts and request capabilities. They never approve grants or establish product lifecycle truth.
 
 ## Core Invariants
@@ -25,7 +25,7 @@ The coordinator uses the existing TypeScript desktop runtime kernel as the execu
 6. Policy owns grants and approvals. Adapters describe capability requests; only local policy may approve, deny, create grants, consume grants, or write approval events.
 7. Screenshots, screen history, and broad local context are sensitive. Screenshot image bytes or broad screen access require explicit policy allow or dispatch.
 8. Agents create memory/task candidates unless the user made an explicit unambiguous command and policy allows direct mutation.
-9. Surface state is not execution state: Ask Omi, task chat, floating pills, voice refs, and adapter-native session IDs are views or transport details.
+9. Surface state is not execution state: Ask Intentive, task chat, floating pills, voice refs, and adapter-native session IDs are views or transport details.
 10. Desktop first: backend/mobile/public MCP coordinator work stays out of this wave.
 
 ## Phase 0 Decisions

@@ -47,6 +47,6 @@ struct LocalUserDataExportAction {
     formatter.calendar = Calendar(identifier: .gregorian)
     formatter.timeZone = .current
     formatter.dateFormat = "yyyy-MM-dd"
-    return "omi-data-export-\(formatter.string(from: now)).json"
+    return "intentive-data-export-\(formatter.string(from: now)).json"
   }
 }

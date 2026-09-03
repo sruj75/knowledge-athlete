@@ -114,10 +114,10 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
   static let shared = NotificationService(registerWithSystemNotificationCenter: true)
 
   /// Category ID for notifications that track dismissal
-  private static let trackableCategoryId = "omi.trackable"
+  private static let trackableCategoryId = "com.heyintentive.intentive.notification.trackable"
 
   /// Category ID for screen capture reset notifications with action button
-  private static let screenCaptureResetCategoryId = "omi.screen_capture_reset"
+  private static let screenCaptureResetCategoryId = "com.heyintentive.intentive.notification.screen-capture-reset"
 
   /// Action ID for the "Reset Now" button
   private static let resetNowActionId = "RESET_SCREEN_CAPTURE_NOW"

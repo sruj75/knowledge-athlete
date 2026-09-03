@@ -402,7 +402,7 @@ private struct VoiceAssistantLanguagesCard: View {
             .foregroundColor(OmiColors.textPrimary)
 
           Text(
-            "Languages you speak to Omi over push-to-talk — the first is your primary. Omi identifies which one you're speaking each turn."
+            DesktopLifecycleIdentityCopy.transcriptionLanguageDetail
           )
           .scaledFont(size: OmiType.body)
           .foregroundColor(OmiColors.textTertiary)

@@ -873,7 +873,7 @@ run_chat_probe() {
   local payload status
   payload='{"contents":[{"role":"user","parts":[{"text":"Reply with ok."}]}],"generationConfig":{"maxOutputTokens":16384,"thinkingConfig":{"thinkingLevel":"LOW"}}}'
   status="$(curl -sS -o /tmp/heyintentive-smoke-chat.out -w "%{http_code}" --max-time "$TIMEOUT_SECONDS" \
-    -H "Authorization: $auth_header" -H "Content-Type: application/json" -H "X-Omi-Chat-Contract-Version: 2" \
+    -H "Authorization: $auth_header" -H "Content-Type: application/json" -H "X-Intentive-Chat-Contract-Version: 2" \
     -d "$payload" "$chat_url")" || fail "chat probe request failed"
   [[ "$status" == 2* ]] || fail "chat probe returned HTTP $status"
 

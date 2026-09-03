@@ -201,7 +201,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     let errorCode: String?
     let task: Task<ExternalRunTerminalizationResult, Never>
   }
-  static let externalRunClientID = "omi-realtime-voice"
+  static let externalRunClientID = "intentive-realtime-voice"
   static let externalRunHarnessMode = "piMono"
   var externalRunAuthorityState: ExternalRunAuthorityState?
   var externalRunTerminalizations: [UUID: TrackedExternalRunTerminalization] = [:]

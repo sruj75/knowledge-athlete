@@ -18,7 +18,7 @@ import re
 from typing import Any
 
 ARTIFACTS = ("Intentive.zip", "intentive.dmg")
-# INV-BETA-1: releases that ship the side-by-side Omi Beta identity carry two
+# INV-BETA-1: releases that ship the side-by-side Intentive Beta identity carry two
 # additional qualified artifacts; older single-identity releases remain valid.
 BETA_ARTIFACTS = ("Intentive.Beta.zip", "intentive-beta.dmg")
 ZIP_SIGNATURES = {"Intentive.zip": "edSignature", "Intentive.Beta.zip": "betaEdSignature"}
@@ -58,7 +58,11 @@ def file_sha256(path: Path) -> str:
 
 
 def build_evidence(
-    release: dict[str, Any], release_tag: str, source_sha: str, files: dict[str, Path], qualification_run_id: int | None = None
+    release: dict[str, Any],
+    release_tag: str,
+    source_sha: str,
+    files: dict[str, Path],
+    qualification_run_id: int | None = None,
 ) -> dict[str, Any]:
     if release.get("tagName") != release_tag:
         _fail("release ID does not match requested tag")
@@ -77,7 +81,9 @@ def build_evidence(
     required = {"Intentive.zip", "intentive.dmg"}
     with_beta = required | set(BETA_ARTIFACTS)
     if set(files) not in (required, with_beta):
-        _fail("does not contain the exact qualified Intentive.zip and intentive.dmg (plus both beta artifacts when present)")
+        _fail(
+            "does not contain the exact qualified Intentive.zip and intentive.dmg (plus both beta artifacts when present)"
+        )
     for name, path in files.items():
         if not path.is_file():
             _fail(f"is missing downloaded {name}")

@@ -465,7 +465,7 @@ describe("PiMonoAdapter prompt correlation", () => {
           type: "text",
           text: JSON.stringify({
             ok: false,
-            error: { code: "missing_request_context", message: "missing active Omi request context" },
+            error: { code: "missing_request_context", message: "missing active Intentive request context" },
           }),
         }],
       },
@@ -476,7 +476,7 @@ describe("PiMonoAdapter prompt correlation", () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         type: "error",
-        message: expect.stringContaining("missing active Omi request context"),
+        message: expect.stringContaining("missing active Intentive request context"),
       })
     );
   });
@@ -700,7 +700,7 @@ describe("PiMonoAdapter spawn args (behavioral)", () => {
     expect(args).toEqual(expect.arrayContaining([
       "--mode", "rpc",
       "-e", "/fake/ext.ts",
-      "--provider", "omi",
+      "--provider", "intentive",
       "--model", "gemini-3.7-flash",
     ]));
 

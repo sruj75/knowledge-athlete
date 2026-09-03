@@ -1,5 +1,5 @@
 """
-Fair-use engine for Omi.
+Fair-use engine for Intentive.
 
 Tracks per-user rolling speech hours via Redis minute buckets,
 detects soft-cap violations, triggers LLM classification,

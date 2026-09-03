@@ -80,7 +80,7 @@ import XCTest
       let result = try driveRegistration(status: noErr, reference: nil)
 
       assertRegistrationIncident(result.incidents, failureClass: "unknown", osStatus: 0)
-      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Omi") })
+      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Intentive") })
     }
 
     func testCarbonConflictRecordsOneConflictIncidentAndNeverLogsSuccess() throws {
@@ -89,7 +89,7 @@ import XCTest
       let result = try driveRegistration(status: OSStatus(-9878), reference: nil)
 
       assertRegistrationIncident(result.incidents, failureClass: "hotkey_conflict", osStatus: -9878)
-      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Omi") })
+      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Intentive") })
     }
 
     func testOtherCarbonFailureRecordsGenericIncidentAndNeverLogsSuccess() throws {
@@ -98,7 +98,7 @@ import XCTest
       let result = try driveRegistration(status: OSStatus(-50), reference: nil)
 
       assertRegistrationIncident(result.incidents, failureClass: "unknown", osStatus: -50)
-      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Omi") })
+      XCTAssertFalse(result.successLogs.contains { $0.contains("Registered Ask Intentive") })
     }
 
     func testSuccessfulCarbonRegistrationLogsSuccessAndRecordsNoFailure() throws {
@@ -107,7 +107,7 @@ import XCTest
       let result = try driveRegistration(status: noErr, reference: .init("success"))
 
       XCTAssertTrue(result.incidents.isEmpty)
-      XCTAssertEqual(result.successLogs, ["GlobalShortcutManager: Registered Ask Omi shortcut: ⌘ O"])
+      XCTAssertEqual(result.successLogs, ["GlobalShortcutManager: Registered Ask Intentive shortcut: ⌘ O"])
     }
 
     func testSuccessfulRegistrationRetainsReturnedReferenceThenReplacementAndDisableUnregisterItOnce() {

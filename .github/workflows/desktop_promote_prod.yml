@@ -67,7 +67,7 @@ jobs:
             > /tmp/backend-compatibility.json
           jq -e '
             .status == "healthy"
-            and .service == "omi-backend"
+            and .service == "backend"
             and .chat_contract_version == "1"
           ' /tmp/backend-compatibility.json >/dev/null
           rm -f /tmp/backend-process-health.json /tmp/backend-compatibility.json

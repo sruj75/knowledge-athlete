@@ -30,7 +30,7 @@ enum HubAuth {
     switch self {
     case .managedEphemeral(let token): return token
     #if DEBUG
-      case .hermeticStub: return "omi-hermetic-realtime-stub"
+      case .hermeticStub: return "intentive-hermetic-realtime-stub"
     #endif
     }
   }
@@ -75,7 +75,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   var requiredInputSampleRate: Int { 16000 }
   // All socket + state access is serialized here (audio arrives on the capture
   // thread; receives on the URLSession/NW queue). Delegate calls hop to main.
-  let q = DispatchQueue(label: "omi.realtime-hub.session")
+  let q = DispatchQueue(label: "com.heyintentive.intentive.realtime-hub.session")
 
   // Gemini's Live endpoint uses the existing hand-rolled RFC 6455 client.
   var rawWS: RealtimeRawWebSocketTransport?

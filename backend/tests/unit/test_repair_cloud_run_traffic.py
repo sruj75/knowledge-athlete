@@ -30,7 +30,7 @@ def test_analyze_service_traffic_detects_spec_status_mismatch() -> None:
 def test_repair_from_state_reports_mismatch_without_repair_flag() -> None:
     state = json.loads((FIXTURES / 'cloud_run_spec_status_mismatch.json').read_text(encoding='utf-8'))
 
-    results = repair_from_state(state, services=('backend',), repair=False, project='based-hardware')
+    results = repair_from_state(state, services=('backend',), repair=False, project='knowledge-athlete')
 
     assert len(results) == 1
     assert results[0].action == 'failed'
@@ -50,7 +50,7 @@ def test_analyze_service_traffic_resolves_latest_revision_target() -> None:
 
 def test_repair_command_format() -> None:
     command = repair_command(
-        project='based-hardware',
+        project='knowledge-athlete',
         region='us-central1',
         service='backend',
         revision='backend-good-1',
@@ -58,7 +58,7 @@ def test_repair_command_format() -> None:
 
     assert command == (
         'gcloud run services update-traffic backend '
-        '--project=based-hardware --region=us-central1 --to-revisions=backend-good-1=100 --quiet'
+        '--project=knowledge-athlete --region=us-central1 --to-revisions=backend-good-1=100 --quiet'
     )
 
 
@@ -74,7 +74,7 @@ def test_repair_from_state_accepts_top_level_service_list(tmp_path: Path) -> Non
         loaded,
         services=('backend',),
         repair=False,
-        project='based-hardware',
+        project='knowledge-athlete',
         region='us-central1',
     )
 

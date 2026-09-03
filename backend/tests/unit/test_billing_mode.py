@@ -14,6 +14,7 @@ def test_missing_mode_defaults_to_disabled_without_credentials(monkeypatch: pyte
         'DODO_PAYMENTS_API_KEY',
         'DODO_PAYMENTS_WEBHOOK_KEY',
         'DODO_BILLING_CATALOG_JSON',
+        'BASE_URL',
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -41,8 +42,9 @@ def test_active_modes_fail_closed_when_any_required_value_is_missing(
     monkeypatch.setenv('DODO_PAYMENTS_WEBHOOK_KEY', 'synthetic-webhook-key')
     monkeypatch.delenv('DODO_BILLING_CATALOG_JSON', raising=False)
 
-    with pytest.raises(BillingConfigurationError, match='DODO_BILLING_CATALOG_JSON'):
+    with pytest.raises(BillingConfigurationError, match='DODO_BILLING_CATALOG_JSON') as error:
         load_billing_config()
+    assert 'BASE_URL' in str(error.value)
 
 
 @pytest.mark.asyncio

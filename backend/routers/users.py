@@ -407,7 +407,7 @@ def export_all_user_data(uid: str = Depends(auth.get_current_user_uid)):
     return StreamingResponse(
         iter_user_data_export(uid),
         media_type='application/json',
-        headers={'Content-Disposition': 'attachment; filename="omi-account-metadata.json"'},
+        headers={'Content-Disposition': 'attachment; filename="intentive-account-metadata.json"'},
     )
 
 

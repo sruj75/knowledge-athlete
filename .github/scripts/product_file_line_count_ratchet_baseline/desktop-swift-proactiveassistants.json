@@ -1,6 +1,6 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift": 1705
+    "desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift": 1704
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift": "Rewind capture policy adds per-app heartbeat and preview skip logic inline; also registers SuggestionAssistant (event-driven) with logic in Assistants/Suggestions/."

@@ -1589,7 +1589,7 @@ class PushToTalkManager: ObservableObject {
     }
   }
 
-  /// Captures one in-memory visual evidence object before Omi expands its PTT overlay.
+  /// Captures one in-memory visual evidence object before Intentive expands its PTT overlay.
   /// The realtime hub may later deliver these exact pixels only through the authorized
   /// screenshot tool; it must never take a second, pointer-selected screen capture.
   private func captureTurnScreenEvidence() -> CGImage? {

@@ -1,4 +1,4 @@
-# Omi Desktop Experience Harness
+# Intentive Desktop Experience Harness
 
 `scripts/omi-harness` runs cursor-free desktop experience checks against the local
 automation bridge. Use it to collect behavior, latency, logs, traces, and screenshots
@@ -47,7 +47,7 @@ For process CPU/RSS sampling, pass a unique command-line match for the named
 bundle process:
 
 ```bash
-python3 scripts/omi-harness run e2e/flows/ask-omi-chat-power-benchmark.yaml \
+python3 scripts/omi-harness run e2e/flows/ask-intentive-chat-power-benchmark.yaml \
   --allow-legacy-flow-version \
   --process-match "/Applications/omi-harness-test.app/Contents/MacOS/Omi Computer"
 ```
@@ -99,9 +99,9 @@ captures frames concurrently, which avoids missing transitions that finish befor
 a normal action response returns:
 
 ```yaml
-- name: Capture Ask Omi Open Animation
+- name: Capture Ask Intentive Open Animation
   visual.action_sequence:
-    action: open_ask_omi
+    action: open_ask_intentive
     params:
       wait: false
     target: floating

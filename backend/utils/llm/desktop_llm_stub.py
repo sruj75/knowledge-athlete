@@ -365,7 +365,7 @@ def _native_gemini_stub_body(body: Mapping[str, object]) -> dict[str, object]:
                 name = function_call['name']
                 tool_calls.append(
                     {
-                        'id': f'call_omi_stub_{name}',
+                        'id': f'call_intentive_stub_{name}',
                         'type': 'function',
                         'function': {'name': name, 'arguments': function_call.get('args', {})},
                     }
@@ -386,7 +386,7 @@ def _native_gemini_stub_body(body: Mapping[str, object]) -> dict[str, object]:
                 messages.append(
                     {
                         'role': 'tool',
-                        'tool_call_id': f'call_omi_stub_{name}',
+                        'tool_call_id': f'call_intentive_stub_{name}',
                         'content': str(tool_result or ''),
                     }
                 )

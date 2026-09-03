@@ -308,7 +308,7 @@ final class SuggestionGroundingTests: XCTestCase {
     let rendered = grounding.promptSections()
     XCTAssertTrue(rendered.contains("OPEN COMMITMENTS"))
     XCTAssertTrue(rendered.contains("Send Sarah the deck"))
-    XCTAssertFalse(rendered.contains("WHAT OMI KNOWS"))
+    XCTAssertFalse(rendered.contains("WHAT INTENTIVE KNOWS"))
     XCTAssertFalse(rendered.contains("RELATED THINGS"))
     XCTAssertFalse(grounding.isEmpty)
   }
@@ -320,7 +320,7 @@ final class SuggestionGroundingTests: XCTestCase {
     grounding.relatedScreens = ["Jul 24 09:12 · Slack — Sarah Chen: deck?"]
 
     let rendered = grounding.promptSections()
-    XCTAssertTrue(rendered.contains("WHAT OMI KNOWS ABOUT THE USER"))
+    XCTAssertTrue(rendered.contains("WHAT INTENTIVE KNOWS ABOUT THE USER"))
     XCTAssertTrue(rendered.contains("OPEN COMMITMENTS"))
     XCTAssertTrue(rendered.contains("RELATED THINGS THE USER SAW RECENTLY"))
   }

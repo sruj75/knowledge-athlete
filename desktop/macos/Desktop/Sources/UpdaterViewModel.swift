@@ -23,7 +23,7 @@ enum UpdateChannel: String, CaseIterable {
 
   /// App display name based on update channel: "Intentive" for stable or Beta.
   /// Local hot-swap builds (self-beta.sh) stamp `OMISelfBuild=true` into Info.plist, so
-  /// they show "Omi Beta (dev)" — a clear signal you're on a locally-rebuilt bundle, not a
+  /// they show "Intentive Beta (dev)" — a clear signal you're on a locally-rebuilt bundle, not a
   /// Codemagic-distributed one. A real Codemagic build never sets the key, and when it later
   /// replaces the hot-swap bundle via Sparkle the suffix disappears.
   static var appDisplayName: String {
@@ -474,7 +474,7 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
 
   /// Tells Sparkle which non-default channels this client wants to see.
   /// Channels are additive: the default (stable) channel is always included.
-  /// Reads `AppBuild.currentUpdateChannel` so the Omi Beta identity stays pinned
+  /// Reads `AppBuild.currentUpdateChannel` so the Intentive Beta identity stays pinned
   /// to the beta channel no matter what the defaults key says.
   func allowedChannels(for updater: SPUUpdater) -> Set<String> {
     if AppBuild.currentUpdateChannel == "beta" {

@@ -170,7 +170,7 @@ async def main() -> None:
     wav_path = Path(args.wav)
     if not wav_path.exists():
         print(f'ERROR: WAV file not found: {wav_path}')
-        print(f'Download from: https://storage.googleapis.com/omi-pr-assets/modulate-repro/test_audio.wav')
+        print('Provide the approved local LibriSpeech-derived fixture described in README.md.')
         sys.exit(1)
 
     sample_rate, pcm_data = read_wav_pcm(wav_path)

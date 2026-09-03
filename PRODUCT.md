@@ -1,4 +1,4 @@
-# Omi Product Principles
+# Intentive Product Principles
 
 Short north star for humans and agents. Read this before proposing features or
 landing PRs that change product behavior. Engineering standards live in
@@ -9,7 +9,7 @@ source and tests.
 
 1. **Memory-first.** Protect the core loop:
    **Capture → Understand → Remember → Retrieve → Act**.
-   If Omi fails to capture or preserve memory, nothing else matters.
+   If Intentive fails to capture or preserve memory, nothing else matters.
 
 2. **Trust over cleverness.** Prefer reliable capture, sync, and retrieval over
    flashy features. Silent data loss and dual sources of truth are product bugs.

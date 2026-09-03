@@ -5,6 +5,8 @@ description: Hermetic retained local privacy snapshot with retired cloud recordi
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView+NotificationsPrivacy.swift
+  - desktop/macos/Desktop/Sources/Privacy/PrivacyTruthPresentation.swift
+  - desktop/macos/Desktop/Sources/Privacy/ProductAnalyticsConsentController.swift
 preconditions:
   - automation_bridge_ready
 

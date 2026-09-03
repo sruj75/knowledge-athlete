@@ -88,7 +88,7 @@ def main() -> int:
     args = parse_args()
     if not args.base_ref:
         return run_inventory(BACKEND / 'route_policy_legacy_missing_routes.txt')
-    with tempfile.TemporaryDirectory(prefix='omi-route-policy-') as temp_dir:
+    with tempfile.TemporaryDirectory(prefix='intentive-route-policy-') as temp_dir:
         try:
             baseline = base_baseline(args.base_ref, Path(temp_dir) / 'base-missing-routes.txt')
         except RuntimeError as exc:

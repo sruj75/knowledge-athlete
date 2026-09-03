@@ -28,6 +28,9 @@ def valid_receipt() -> dict[str, object]:
 
 
 class PreTagReadinessReceiptTests(unittest.TestCase):
+    def test_receipt_kind_uses_current_product_identity(self) -> None:
+        self.assertEqual(verifier.KIND, "intentive-desktop-pre-tag-readiness-v1")
+
     def test_valid_exact_sha_offline_receipt_passes(self) -> None:
         self.assertEqual(verifier.verify(valid_receipt(), SOURCE_SHA)["source_sha"], SOURCE_SHA)
 

@@ -2,7 +2,7 @@ import AppKit
 import OmiTheme
 import SwiftUI
 
-/// The first beat after onboarding: Omi greets the user by name (and today's
+/// The first beat after onboarding: Intentive greets the user by name (and today's
 /// calendar, when connected) and offers tappable starters that fire real queries.
 /// Rendered in the empty-chat slot of both the Home chat and the Chat tab, so it
 /// shows wherever the user lands post-onboarding and never pollutes history.
@@ -17,7 +17,8 @@ struct OnboardingOpenerView: View {
   var body: some View {
     VStack(spacing: OmiSpacing.xl) {
       VStack(spacing: OmiSpacing.md) {
-        if let logoURL = Bundle.resourceBundle.url(forResource: "herologo", withExtension: "png"),
+        if let logoURL = Bundle.resourceBundle.url(
+          forResource: "intentive_mark", withExtension: "png"),
           let logoImage = NSImage(contentsOf: logoURL)
         {
           Image(nsImage: logoImage)

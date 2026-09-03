@@ -70,7 +70,7 @@ final class DesktopUpdatePolicyManagerTests: XCTestCase {
       maximumBuildNumber: 11507,
       latestBuildNumber: 12070,
       title: "Update required",
-      message: "Install the latest Omi desktop app.",
+      message: "Install the latest Intentive desktop app.",
       ctaText: "Download latest",
       downloadURL: DesktopUpdatePolicyResponse.stableManualDownloadURL.absoluteString,
       canDismiss: false

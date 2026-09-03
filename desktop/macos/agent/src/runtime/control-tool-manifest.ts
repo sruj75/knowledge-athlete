@@ -116,21 +116,21 @@ export const agentControlCapabilityManifest = [
   {
     name: "list_agent_sessions",
     label: "List Agent Sessions",
-    description: `List Omi-managed agent sessions from the local runtime kernel.
+    description: `List Intentive-managed agent sessions from the local runtime kernel.
 
-Use when the user asks what Omi agents/subagents are active, recent, failed, or attached to a surface.
+Use when the user asks what Intentive agents/subagents are active, recent, failed, or attached to a surface.
 Returns canonical session/run summaries plus floating_agent_pills projections.`,
-    promptSnippet: "list_agent_sessions - List Omi-managed agent sessions and active runs",
+    promptSnippet: "list_agent_sessions - List Intentive-managed agent sessions and active runs",
     promptGuidelines: [
-      "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+      "Use for current or recent kernel-backed Intentive agents/subagents across chat, PTT/realtime, and floating-bar pills.",
       "Returns floating_agent_pills alongside canonical session summaries.",
       "For a prior child agent's final answer, do not infer run completion from session status or restrict discovery to status='open'. List recent sessions, then call get_agent_run with the returned runId and answer from run.finalText without exposing the internal id.",
     ],
     capabilityDoc: controlDoc(
       "List Agent Sessions",
-      "List Omi-managed agent sessions from the local runtime kernel.",
+      "List Intentive-managed agent sessions from the local runtime kernel.",
       [
-        "Use for current or recent kernel-backed Omi agents/subagents across chat, PTT/realtime, and floating-bar pills.",
+        "Use for current or recent kernel-backed Intentive agents/subagents across chat, PTT/realtime, and floating-bar pills.",
         "Returns floating_agent_pills alongside canonical session summaries.",
       ],
     ),
@@ -155,20 +155,20 @@ Returns canonical session/run summaries plus floating_agent_pills projections.`,
   {
     name: "get_agent_run",
     label: "Get Agent Run",
-    description: `Inspect one canonical Omi agent run.
+    description: `Inspect one canonical Intentive agent run.
 
-Use a runId returned by list_agent_sessions or a correlated Omi response. Returns the run, session, attempts, adapter bindings, artifact metadata, and optionally events.`,
-    promptSnippet: "get_agent_run - Inspect one Omi agent run",
+Use a runId returned by list_agent_sessions or a correlated Intentive response. Returns the run, session, attempts, adapter bindings, artifact metadata, and optionally events.`,
+    promptSnippet: "get_agent_run - Inspect one Intentive agent run",
     promptGuidelines: [
-      "Use a runId from list_agent_sessions or a correlated Omi result.",
+      "Use a runId from list_agent_sessions or a correlated Intentive result.",
       "Returns the run, attempts, adapter bindings, events, and artifact metadata.",
       "For a completed child, use run.finalText to answer the user and keep the internal runId out of the user-visible response.",
     ],
     capabilityDoc: controlDoc(
       "Get Agent Run",
-      "Inspect one canonical Omi agent run.",
+      "Inspect one canonical Intentive agent run.",
       [
-        "Use a runId from list_agent_sessions or a correlated Omi result.",
+        "Use a runId from list_agent_sessions or a correlated Intentive result.",
         "Returns the run, attempts, adapter bindings, events, and artifact metadata.",
       ],
     ),
@@ -176,12 +176,12 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
     surfaces: ["desktopChat", "realtimeHub"],
     ...agentControlReadPolicy,
     runtimePreconditions: [
-      "Requires a canonical Omi run_id.",
+      "Requires a canonical Intentive run_id.",
       "Defaults ownerId to the active signed-in owner when omitted and rejects runs outside that owner.",
     ],
     timeoutClass: "normal",
     properties: {
-      runId: { type: "string", description: "Canonical Omi run_id." },
+      runId: { type: "string", description: "Canonical Intentive run_id." },
       ownerId: { type: "string", description: "Owner guard. Defaults to the active signed-in owner." },
       includeEvents: { type: "boolean", description: "Include ordered kernel events. Default true." },
       eventLimit: { type: "number", description: "Maximum events to return. Default 100, max 500." },
@@ -391,10 +391,10 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
       title: { type: "string", description: "Short title." },
       decisionPrompt: { type: "string", description: "Exact decision prompt." },
       recommendedDefault: { type: "string", description: "Optional recommended default decision label." },
-      sourceSessionId: { type: "string", description: "Optional source Omi session_id scope guard." },
-      sourceRunId: { type: "string", description: "Optional source Omi run_id scope guard." },
-      sourceAttemptId: { type: "string", description: "Optional source Omi attempt_id scope guard." },
-      sourceArtifactId: { type: "string", description: "Optional source Omi artifact_id scope guard." },
+      sourceSessionId: { type: "string", description: "Optional source Intentive session_id scope guard." },
+      sourceRunId: { type: "string", description: "Optional source Intentive run_id scope guard." },
+      sourceAttemptId: { type: "string", description: "Optional source Intentive attempt_id scope guard." },
+      sourceArtifactId: { type: "string", description: "Optional source Intentive artifact_id scope guard." },
       capability: { type: "string", description: "Capability being requested, e.g. desktop.context.screenshot_image." },
       operation: { type: "string", description: "Operation being requested, e.g. get_screenshot." },
       resourceRef: { type: "string", description: "Resource reference for scoped approval." },
@@ -435,19 +435,19 @@ Use a runId returned by list_agent_sessions or a correlated Omi response. Return
   {
     name: "cancel_agent_run",
     label: "Cancel Agent Run",
-    description: `Request cancellation for one canonical Omi agent run through the runtime kernel.
+    description: `Request cancellation for one canonical Intentive agent run through the runtime kernel.
 
-Use when the user asks to stop a running Omi agent/subagent. Returns whether cancellation was accepted, dispatched to the adapter, and acknowledged by the adapter.`,
-    promptSnippet: "cancel_agent_run - Stop a running Omi agent",
+Use when the user asks to stop a running Intentive agent/subagent. Returns whether cancellation was accepted, dispatched to the adapter, and acknowledged by the adapter.`,
+    promptSnippet: "cancel_agent_run - Stop a running Intentive agent",
     promptGuidelines: [
-      "Use when the user asks to stop a running Omi agent/subagent.",
+      "Use when the user asks to stop a running Intentive agent/subagent.",
       "Returns whether cancellation was accepted, dispatched, and acknowledged.",
     ],
     capabilityDoc: controlDoc(
       "Cancel Agent Run",
-      "Request cancellation for one canonical Omi agent run through the runtime kernel.",
+      "Request cancellation for one canonical Intentive agent run through the runtime kernel.",
       [
-        "Use when the user asks to stop a running Omi agent/subagent.",
+        "Use when the user asks to stop a running Intentive agent/subagent.",
         "Returns whether cancellation was accepted, dispatched, and acknowledged.",
       ],
     ),
@@ -455,12 +455,12 @@ Use when the user asks to stop a running Omi agent/subagent. Returns whether can
     surfaces: ["desktopChat", "realtimeHub"],
     ...agentControlManagePolicy,
     runtimePreconditions: [
-      "Requires a canonical Omi run_id.",
+      "Requires a canonical Intentive run_id.",
       "Defaults ownerId to the active signed-in owner when omitted and rejects runs outside that owner.",
     ],
     timeoutClass: "normal",
     properties: {
-      runId: { type: "string", description: "Canonical Omi run_id to cancel." },
+      runId: { type: "string", description: "Canonical Intentive run_id to cancel." },
       ownerId: { type: "string", description: "Owner guard. Defaults to the active signed-in owner." },
     },
     required: ["runId"],
@@ -468,17 +468,17 @@ Use when the user asks to stop a running Omi agent/subagent. Returns whether can
   {
     name: "inspect_agent_artifacts",
     label: "Inspect Agent Artifacts",
-    description: `Inspect canonical artifact metadata for an Omi agent artifact, session, run, or attempt.
+    description: `Inspect canonical artifact metadata for an Intentive agent artifact, session, run, or attempt.
 
 Returns metadata and references only. It does not read arbitrary artifact contents.`,
-    promptSnippet: "inspect_agent_artifacts - Inspect Omi agent artifact metadata",
+    promptSnippet: "inspect_agent_artifacts - Inspect Intentive agent artifact metadata",
     promptGuidelines: [
       "Returns artifact references and metadata only.",
       "Use after get_agent_run when the user asks what files or outputs an agent produced.",
     ],
     capabilityDoc: controlDoc(
       "Inspect Agent Artifacts",
-      "Inspect canonical artifact metadata for an Omi agent artifact, session, run, or attempt.",
+      "Inspect canonical artifact metadata for an Intentive agent artifact, session, run, or attempt.",
       [
         "Returns artifact references and metadata only.",
         "Use after get_agent_run when the user asks what files or outputs an agent produced.",
@@ -493,10 +493,10 @@ Returns metadata and references only. It does not read arbitrary artifact conten
     ],
     timeoutClass: "normal",
     properties: {
-      artifactId: { type: "string", description: "Canonical Omi artifact_id." },
-      sessionId: { type: "string", description: "Canonical Omi session_id." },
-      runId: { type: "string", description: "Canonical Omi run_id." },
-      attemptId: { type: "string", description: "Canonical Omi attempt_id." },
+      artifactId: { type: "string", description: "Canonical Intentive artifact_id." },
+      sessionId: { type: "string", description: "Canonical Intentive session_id." },
+      runId: { type: "string", description: "Canonical Intentive run_id." },
+      attemptId: { type: "string", description: "Canonical Intentive attempt_id." },
       ownerId: { type: "string", description: "Owner guard. Defaults to the active signed-in owner." },
       role: { type: "string", enum: ["input", "result", "checkpoint", "tool_output", "log", "other"] },
       limit: { type: "number", description: "Maximum artifacts to return. Default 50, max 200." },
@@ -506,15 +506,15 @@ Returns metadata and references only. It does not read arbitrary artifact conten
   {
     name: "read_tool_output",
     label: "Read Tool Output",
-    description: "Read a bounded excerpt from a canonical Omi tool-output artifact.",
-    promptSnippet: "read_tool_output - Read a bounded excerpt from a saved Omi tool result",
+    description: "Read a bounded excerpt from a canonical Intentive tool-output artifact.",
+    promptSnippet: "read_tool_output - Read a bounded excerpt from a saved Intentive tool result",
     promptGuidelines: [
       "Use an artifactId returned by a toolResultEnvelope fullOutputRef or inspect_agent_artifacts.",
       "The response is bounded; use search_tool_output for targeted retrieval.",
     ],
     capabilityDoc: controlDoc(
       "Read Tool Output",
-      "Read a bounded excerpt from a canonical Omi tool-output artifact.",
+      "Read a bounded excerpt from a canonical Intentive tool-output artifact.",
       ["Requires a canonical artifact id and keeps provider payloads bounded."],
     ),
     latency: "fast local",
@@ -532,12 +532,12 @@ Returns metadata and references only. It does not read arbitrary artifact conten
   {
     name: "search_tool_output",
     label: "Search Tool Output",
-    description: "Search a canonical Omi tool-output artifact without sending the complete artifact to a provider.",
-    promptSnippet: "search_tool_output - Search a saved Omi tool result",
+    description: "Search a canonical Intentive tool-output artifact without sending the complete artifact to a provider.",
+    promptSnippet: "search_tool_output - Search a saved Intentive tool result",
     promptGuidelines: ["Use after a truncated toolResultEnvelope to find the relevant local output."],
     capabilityDoc: controlDoc(
       "Search Tool Output",
-      "Search a canonical Omi tool-output artifact without returning the complete artifact.",
+      "Search a canonical Intentive tool-output artifact without returning the complete artifact.",
       ["Requires a canonical artifact id and returns bounded matching lines."],
     ),
     latency: "fast local",
@@ -556,10 +556,10 @@ Returns metadata and references only. It does not read arbitrary artifact conten
   {
     name: "update_agent_artifact_lifecycle",
     label: "Update Agent Artifact Lifecycle",
-    description: `Update metadata-only lifecycle state for one canonical Omi agent artifact.
+    description: `Update metadata-only lifecycle state for one canonical Intentive agent artifact.
 
 This only records artifact metadata state and ordered kernel events. It does not open files, delete files, retain blobs, or read artifact contents.`,
-    promptSnippet: "update_agent_artifact_lifecycle - Mark an Omi agent artifact retained, dismissed, or opened",
+    promptSnippet: "update_agent_artifact_lifecycle - Mark an Intentive agent artifact retained, dismissed, or opened",
     promptGuidelines: [
       "Use to mark artifact metadata as retained, dismissed, or opened after a user-visible artifact decision.",
       "Pass sessionId, runId, or attemptId when available as a scope guard.",
@@ -567,7 +567,7 @@ This only records artifact metadata state and ordered kernel events. It does not
     ],
     capabilityDoc: controlDoc(
       "Update Agent Artifact Lifecycle",
-      "Update metadata-only lifecycle state for one canonical Omi agent artifact.",
+      "Update metadata-only lifecycle state for one canonical Intentive agent artifact.",
       [
         "Use to mark artifact metadata as retained, dismissed, or opened after a user-visible artifact decision.",
         "Pass sessionId, runId, or attemptId when available as a scope guard.",
@@ -584,11 +584,11 @@ This only records artifact metadata state and ordered kernel events. It does not
     ],
     timeoutClass: "normal",
     properties: {
-      artifactId: { type: "string", description: "Canonical Omi artifact_id." },
+      artifactId: { type: "string", description: "Canonical Intentive artifact_id." },
       state: { type: "string", enum: ["retained", "dismissed", "opened"], description: "Target metadata lifecycle state." },
-      sessionId: { type: "string", description: "Optional canonical Omi session_id scope guard." },
-      runId: { type: "string", description: "Optional canonical Omi run_id scope guard." },
-      attemptId: { type: "string", description: "Optional canonical Omi attempt_id scope guard." },
+      sessionId: { type: "string", description: "Optional canonical Intentive session_id scope guard." },
+      runId: { type: "string", description: "Optional canonical Intentive run_id scope guard." },
+      attemptId: { type: "string", description: "Optional canonical Intentive attempt_id scope guard." },
       ownerId: { type: "string", description: "Owner guard. Defaults to the active signed-in owner." },
       reason: { type: "string", description: "Optional short reason for the lifecycle event." },
       metadata: { type: "object", description: "Small structured metadata for the lifecycle event.", additionalProperties: true },
@@ -598,19 +598,19 @@ This only records artifact metadata state and ordered kernel events. It does not
   {
     name: "send_agent_message",
     label: "Send Agent Message",
-    description: `Send a follow-up message to an existing canonical Omi agent session.
+    description: `Send a follow-up message to an existing canonical Intentive agent session.
 
 Creates a new run in that session through the runtime kernel.`,
-    promptSnippet: "send_agent_message - Continue an Omi-managed agent session",
+    promptSnippet: "send_agent_message - Continue an Intentive-managed agent session",
     promptGuidelines: [
-      "Use when continuing a multi-turn conversation with an Omi-managed agent by sessionId.",
+      "Use when continuing a multi-turn conversation with an Intentive-managed agent by sessionId.",
       "Creates a new run in the existing session.",
     ],
     capabilityDoc: controlDoc(
       "Send Agent Message",
-      "Send a follow-up message to an existing canonical Omi agent session.",
+      "Send a follow-up message to an existing canonical Intentive agent session.",
       [
-        "Use when continuing a multi-turn conversation with an Omi-managed agent by sessionId.",
+        "Use when continuing a multi-turn conversation with an Intentive-managed agent by sessionId.",
         "Creates a new run in the existing session.",
       ],
     ),
@@ -628,13 +628,13 @@ Creates a new run in that session through the runtime kernel.`,
     ],
     timeoutClass: "long",
     properties: {
-      sessionId: { type: "string", description: "Canonical Omi session_id to continue." },
+      sessionId: { type: "string", description: "Canonical Intentive session_id to continue." },
       originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "agent_control"], description: "Surface that originated the continuation request. Persisted caller session authority overrides this routing fact." },
       ownerId: { type: "string", description: "Owner id. Defaults to the active signed-in owner." },
       prompt: { type: "string", description: "The follow-up message." },
       mode: { type: "string", enum: ["ask", "act"], description: "Run mode. Default ask." },
       requestId: { type: "string", description: "Optional caller-provided request correlation id." },
-      clientId: { type: "string", description: "Logical caller id. Defaults to omi-control-tools." },
+      clientId: { type: "string", description: "Logical caller id. Defaults to intentive-control-tools." },
       metadata: { type: "object", description: "Small structured metadata for this run.", additionalProperties: true },
     },
     required: ["sessionId", "originSurfaceKind", "prompt"],
@@ -671,29 +671,29 @@ Not exposed to agent-facing surfaces.`,
       ownerId: { type: "string", description: "Owner id. Defaults to the active signed-in owner." },
       mode: { type: "string", enum: ["ask", "act"], description: "Run mode. Default act." },
       requestId: { type: "string", description: "Optional caller-provided request correlation id." },
-      clientId: { type: "string", description: "Logical caller id. Defaults to omi-control-tools." },
+      clientId: { type: "string", description: "Logical caller id. Defaults to intentive-control-tools." },
       metadata: { type: "object", description: "Small structured metadata for this run.", additionalProperties: true },
-      toolPolicy: { type: "object", description: "Optional child tool restriction: { allowedToolNames: string[] } of canonical Omi tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.", additionalProperties: true },
+      toolPolicy: { type: "object", description: "Optional child tool restriction: { allowedToolNames: string[] } of canonical Intentive tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.", additionalProperties: true },
     },
     required: ["prompt", "originSurfaceKind"],
   },
   {
     name: "spawn_agent",
     label: "Spawn Agent",
-    description: `Start canonical Omi background work. Visible runs project into floating-bar pills; invisible runs stay kernel-only child work.
+    description: `Start canonical Intentive background work. Visible runs project into floating-bar pills; invisible runs stay kernel-only child work.
 
 Pass parentRunId to link the new run to a parent.`,
-    promptSnippet: "spawn_agent - Start canonical Omi background work",
+    promptSnippet: "spawn_agent - Start canonical Intentive background work",
     promptGuidelines: [
       "Calling spawn_agent is the only way to start a visible floating-bar background agent; saying you will start one does not start it.",
       "Use visible=false for parent-linked background work that should not appear as a pill.",
       "The primary coordinator decides in its model loop whether to call spawn_agent.",
-      "Pass toolPolicy.allowedToolNames to restrict which Omi tools the child agent may call; it can only narrow, never widen, the child's tool set.",
+      "Pass toolPolicy.allowedToolNames to restrict which Intentive tools the child agent may call; it can only narrow, never widen, the child's tool set.",
       "Inspect progress with list_agent_sessions or get_agent_run.",
     ],
     capabilityDoc: controlDoc(
       "Spawn Agent",
-      "Start canonical Omi background work and optionally project it into floating-bar pills.",
+      "Start canonical Intentive background work and optionally project it into floating-bar pills.",
       ["Creates a canonical kernel session/run; visible runs project into floating-bar pills."],
     ),
     latency: "async background",
@@ -714,9 +714,9 @@ Pass parentRunId to link the new run to a parent.`,
       externalRefId: { type: "string", description: "Optional stable pill id for UI projection." },
       ownerId: { type: "string", description: "Owner id. Defaults to the active signed-in owner." },
       requestId: { type: "string", description: "Optional caller-provided request correlation id." },
-      clientId: { type: "string", description: "Logical caller id. Defaults to omi-control-tools." },
+      clientId: { type: "string", description: "Logical caller id. Defaults to intentive-control-tools." },
       metadata: { type: "object", description: "Small structured metadata for this run.", additionalProperties: true },
-      toolPolicy: { type: "object", description: "Optional child tool restriction: { allowedToolNames: string[] } of canonical Omi tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.", additionalProperties: true },
+      toolPolicy: { type: "object", description: "Optional child tool restriction: { allowedToolNames: string[] } of canonical Intentive tool names. The child's tools become the intersection with its default set; an empty intersection leaves the child with no tools.", additionalProperties: true },
     },
     required: ["objective"],
   },
@@ -743,13 +743,13 @@ Pass parentRunId to link the new run to a parent.`,
     timeoutClass: "long",
     properties: {
       objective: { type: "string", description: "Delegated objective for the child agent." },
-      parentRunId: { type: "string", description: "Canonical parent Omi run_id." },
+      parentRunId: { type: "string", description: "Canonical parent Intentive run_id." },
       originSurfaceKind: { type: "string", enum: ["main_chat", "floating_bar", "realtime", "agent_control"], description: "Surface that originated the synchronous delegation request. Persisted caller session authority overrides this routing fact." },
       context: { type: "string", description: "Optional concise context, not a full transcript." },
       ownerId: { type: "string", description: "Optional owner guard for the parent run." },
       runMode: { type: "string", enum: ["ask", "act"], description: "Child run mode. Default ask." },
       requestId: { type: "string", description: "Optional caller-provided request correlation id." },
-      clientId: { type: "string", description: "Logical caller id. Defaults to omi-control-tools." },
+      clientId: { type: "string", description: "Logical caller id. Defaults to intentive-control-tools." },
       maxDepth: { type: "number", description: "Maximum delegation depth for this call. Default 3, hard max 5." },
       maxBudgetUsd: { type: "number", description: "Per-delegation budget guard. Default 5, hard max 10." },
       metadata: { type: "object", description: "Small structured metadata for the child run.", additionalProperties: true },

@@ -96,7 +96,7 @@ final class ListenProtocolTests: XCTestCase {
       """)
     service.parseBackendResponse(
       """
-      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"support@heyintentive.com"}
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456"}
       """)
     service.parseBackendResponse("{\"type\":\"conversation_session\",\"conversation_id\":\"forbidden\"}")
     service.parseBackendResponse("{\"type\":\"speaker_label_suggestion\",\"speaker_id\":0}")
@@ -110,18 +110,18 @@ final class ListenProtocolTests: XCTestCase {
       ])
   }
 
-  func testManagedCloudExhaustionParserRejectsExtraContentAndWrongSupportDestination() throws {
+  func testManagedCloudExhaustionParserRejectsExtraContentAndMalformedCaseReference() throws {
     var eventCalls = 0
     let service = try wiredConversationService(onEvent: { _ in eventCalls += 1 })
     let base =
       """
-      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"support@heyintentive.com"
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456"
       """
 
     service.parseBackendResponse(base + ",\"title\":\"must not cross\"}")
     service.parseBackendResponse(
       """
-      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"FU-ABC123DEF456","support_email":"wrong@example.com"}
+      {"type":"fair_use_managed_cloud_exhausted","resets_at":"2026-08-22T00:00:00Z","case_ref":"wrong"}
       """)
 
     XCTAssertEqual(eventCalls, 0)

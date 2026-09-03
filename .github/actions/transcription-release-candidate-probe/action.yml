@@ -29,7 +29,7 @@ runs:
       run: |
         set -euo pipefail
         DEPLOY_CONTROL_SCRIPT_DIR="${DEPLOY_CONTROL_SCRIPTS:-backend/scripts}"
-        token_file="$(mktemp "$RUNNER_TEMP/omi-transcription-probe.XXXXXX")"
+        token_file="$(mktemp "$RUNNER_TEMP/intentive-transcription-probe.XXXXXX")"
         trap 'rm -f "$token_file"' EXIT
         python3 "$DEPLOY_CONTROL_SCRIPT_DIR/firebase_release_probe_token.py" \
           --secret-project "$PROBE_SECRET_PROJECT" \

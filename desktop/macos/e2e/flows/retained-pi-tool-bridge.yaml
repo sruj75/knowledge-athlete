@@ -20,7 +20,7 @@ preconditions:
 steps:
   - id: S1
     name: Start the named managed-Pi chat
-    do: "Launch a named Omi bundle with its packaged Pi extension and OMI_BRIDGE_PIPE enabled. Open Home chat and confirm the runtime is using the managed Pi adapter."
+    do: "Launch a named Intentive bundle with its packaged Pi extension and OMI_BRIDGE_PIPE enabled. Open Home chat and confirm the runtime is using the managed Pi adapter."
     expect:
       interactive_count: { min: 2 }
 

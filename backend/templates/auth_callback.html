@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentication Successful - Omi</title>
+    <title>Authentication Successful - Intentive</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -100,7 +100,7 @@
         const code = {{ code | tojson }};
         const state = {{ state | tojson }};
         const error = {{ (error if error is defined else '') | tojson }};
-        const baseRedirect = {{ redirect_uri | default('omi://auth/callback') | tojson }};
+        const baseRedirect = {{ redirect_uri | default('heyintentive://auth/callback') | tojson }};
 
         const errorElement = document.getElementById('error');
         const messageElement = document.getElementById('message');
@@ -110,8 +110,8 @@
         function isAllowedRedirect(uri) {
             // Mirrors the server-side allowlist in backend/routers/auth.py
             // (see _validate_redirect_uri / _FORBIDDEN_REDIRECT_SCHEMES).
-            // Must accept ALL native app schemes the Omi family registers
-            // (omi://, omi-computer://, omi-computer-dev://, com.omi.app://, ...)
+            // Must accept ALL native app schemes the Intentive family registers
+            // (heyintentive://, heyintentive-beta://, heyintentive-dev://, ...)
             // plus http loopback for the CLI; reject https and any
             // browser-executable scheme.
             if (!uri) return false;
@@ -137,7 +137,7 @@
                 }
             }
 
-            // Native-app custom scheme (omi://, omi-computer://, etc.)
+            // Native-app custom scheme (heyintentive://, heyintentive-dev://, etc.)
             return true;
         }
 

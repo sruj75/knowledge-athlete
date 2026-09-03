@@ -98,6 +98,8 @@ final class RealtimeManagedAuthenticationTests: XCTestCase {
     XCTAssertTrue(controller.minting)
     XCTAssertTrue(HubAuth.managedEphemeral("fixture-token").reportsUsage)
     XCTAssertFalse(HubAuth.hermeticStub.reportsUsage)
+    XCTAssertEqual(HubAuth.hermeticStub.value, "intentive-hermetic-realtime-stub")
+    XCTAssertEqual(RealtimeHubController.externalRunClientID, "intentive-realtime-voice")
 
     // Invalidate the unstructured mint before this hermetic test releases the
     // MainActor; the task will then fail its owner fence before any request.

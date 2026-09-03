@@ -84,6 +84,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     XCTAssertEqual(deliveries.count, 1)
     XCTAssertEqual(deliveries[0].title, "Fair Use Notice")
     XCTAssertTrue(deliveries[0].message.contains("FU-ABC123"))
+    XCTAssertFalse(deliveries[0].message.contains("@"))
   }
 
   func testUnknownActionAndStaleOwnerNeverPresent() async throws {

@@ -662,7 +662,7 @@ extension Notification.Name {
   static let expandRewindTranscript = Notification.Name("expandRewindTranscript")
   /// Posted to navigate to Task Assistant settings (Developer Settings)
   static let navigateToTaskSettings = Notification.Name("navigateToTaskSettings")
-  /// Posted to navigate to Ask Omi Floating Bar settings
+  /// Posted to navigate to Ask Intentive Floating Bar settings
   static let navigateToFloatingBarSettings = Notification.Name("navigateToFloatingBarSettings")
   /// Posted to navigate to the retained advanced AI settings.
   static let navigateToAdvancedAISettings = Notification.Name("navigateToAdvancedAISettings")

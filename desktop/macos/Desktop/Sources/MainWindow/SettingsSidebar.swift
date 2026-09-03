@@ -203,7 +203,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "waveform", destination: .languageMode),
     SettingsSearchItem(
       name: "Voice Assistant Languages",
-      subtitle: "Languages you speak to Omi over push-to-talk",
+      subtitle: "Languages you speak to Intentive over push-to-talk",
       keywords: ["voice", "push to talk", "ptt", "language", "russian", "multilingual"],
       section: .transcription, icon: "person.wave.2",
       destination: .voiceLanguages),
@@ -292,7 +292,7 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["version", "build", "app version", "build number"], section: .about,
       icon: "info.circle", destination: .version),
     SettingsSearchItem(
-      name: "Report an Issue", subtitle: "Help us improve omi",
+      name: "Report an Issue", subtitle: "Help us improve Intentive",
       keywords: ["bug", "feedback", "report", "issue"], section: .about, icon: "info.circle",
       destination: .aboutReportIssue),
 
@@ -314,9 +314,9 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["ask", "act", "read only", "chat"], section: .advanced,
       icon: "cpu", destination: .askMode),
     SettingsSearchItem(
-      name: "Ask omi Floating Bar",
+      name: "Ask Intentive Floating Bar",
       subtitle: "Configure the floating bar appearance and visibility",
-      keywords: ["floating bar", "ask omi", "show bar"], section: .floatingBar, icon: "sparkles",
+      keywords: ["floating bar", "ask intentive", "show bar"], section: .floatingBar, icon: "sparkles",
       destination: .floatingBar),
     SettingsSearchItem(
       name: "Background Style", subtitle: "Toggle between solid and transparent background",
@@ -333,7 +333,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "sparkles", destination: .typedVoiceAnswers),
     SettingsSearchItem(
       name: "Screen Sharing in Chat",
-      subtitle: "Let Ask Omi capture your screen when you ask about it",
+      subtitle: "Let Intentive capture your screen when you ask about it",
       keywords: ["screenshot", "screen", "capture", "share screen", "vision", "see my screen"],
       section: .floatingBar, icon: "camera.viewfinder", destination: .screenSharing),
     SettingsSearchItem(
@@ -341,11 +341,11 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["voice speed", "speech speed", "playback speed", "tts speed"],
       section: .floatingBar, icon: "sparkles", destination: .voiceSpeed),
     SettingsSearchItem(
-      name: "Shortcuts", subtitle: "Configure Open Omi and push-to-talk keyboard shortcuts",
+      name: "Shortcuts", subtitle: "Configure Open Intentive and push-to-talk keyboard shortcuts",
       keywords: ["shortcuts", "keyboard", "hotkeys", "push to talk"], section: .shortcuts,
       icon: "keyboard", destination: .openOmiShortcut),
     SettingsSearchItem(
-      name: "Open Omi Shortcut", subtitle: "Global shortcut to open the Omi app from anywhere",
+      name: "Open Intentive Shortcut", subtitle: "Global shortcut to open the Intentive app from anywhere",
       keywords: ["shortcut", "hotkey", "keyboard", "global shortcut"], section: .shortcuts,
       icon: "keyboard", destination: .openOmiShortcut),
     SettingsSearchItem(
@@ -367,7 +367,7 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["multi chat", "threads"], section: .advanced, icon: "slider.horizontal.3",
       destination: .multipleChats),
     SettingsSearchItem(
-      name: "Launch at Login", subtitle: "Start omi automatically when you log in",
+      name: "Launch at Login", subtitle: "Start Intentive automatically when you log in",
       keywords: ["startup", "login", "boot"], section: .advanced, icon: "slider.horizontal.3",
       destination: .launchAtLogin),
     SettingsSearchItem(

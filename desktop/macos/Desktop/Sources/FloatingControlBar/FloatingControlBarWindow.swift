@@ -64,8 +64,8 @@ extension Duration {
 
 /// NSPanel subclass for the floating control bar.
 ///
-/// Using a non-activating panel lets the Ask Omi shortcut focus the floating bar
-/// without surfacing the main Omi window when the app is already running.
+/// Using a non-activating panel lets the Ask Intentive shortcut focus the floating bar
+/// without surfacing the main Intentive window when the app is already running.
 class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   private static let positionKey = "FloatingControlBarPosition"
   private static let sizeKey = "FloatingControlBarSize"
@@ -81,7 +81,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   static let notchCompactSideWidth: CGFloat = 30
   static let notchActiveSideWidth: CGFloat = 42
   /// Thinking keeps the compact active lobe width: the visible state is the
-  /// spinning Omi mark only, without a right-side text label.
+  /// spinning Intentive mark only, without a right-side text label.
   static let notchThinkingSideWidth: CGFloat = notchActiveSideWidth
   static let defaultNotchChromeHeight: CGFloat = 34
   static var notchChromeHeight: CGFloat { defaultNotchChromeHeight }
@@ -92,7 +92,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   static let notchInputPanelVerticalPadding: CGFloat = 46
   static let notchInputPanelMinimumContentHeight: CGFloat = 40
   /// Extra vertical budget added on top of the input editor when notch mode
-  /// renders the "Back / Omi Chat" header above the input (agent pills present).
+  /// renders the "Back / Intentive Chat" header above the input (agent pills present).
   /// Header row (32pt) + VStack top padding (8) + spacing (8) = 48pt.
   static let notchChatHeaderVerticalBudget: CGFloat = 48
   static let notchAgentListMaxVisibleAgents = 8
@@ -137,7 +137,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
   /// Slim top inset that replaces the notch chrome band on the pill's
   /// expanded surfaces (agent list, chat).
   static let pillSurfaceTopPadding: CGFloat = 10
-  /// Pill-mode Ask Omi input panel height (top inset + editor + padding).
+  /// Pill-mode Ask Intentive input panel height (top inset + editor + padding).
   static var pillInputPanelHeight: CGFloat {
     pillSurfaceTopPadding + notchInputPanelMinimumContentHeight + notchInputPanelVerticalPadding
   }
@@ -406,7 +406,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
       ? notchInputPanelHeightForCurrentScreen
       : Self.pillInputPanelHeight
     let statusBanner = state.pttHintText.isEmpty ? 0 : Self.pttStatusBannerBudget
-    // When notch mode renders the "Back / Omi Chat" header (agent pills
+    // When notch mode renders the "Back / Intentive Chat" header (agent pills
     // present), the input panel needs additional vertical room so the
     // header + editor + padding all fit. (Codex P2 — input/send clipping.)
     if !AgentPillsManager.shared.pills.isEmpty {
@@ -1293,7 +1293,7 @@ class FloatingControlBarWindow: NSPanel, NSWindowDelegate {
       state.activeAgentChatPillID = nil
       // Also clear conversationSurface so a stale .agent(id) doesn't keep
       // hasVisibleConversation true. Without this, canRestoreVisibleConversation
-      // treats the dead agent surface as restorable and the next Ask Omi open
+      // treats the dead agent surface as restorable and the next Ask Intentive open
       // restores into a blank response panel instead of a fresh input.
       state.conversationSurface = .closed
       state.isAILoading = false
@@ -2475,7 +2475,7 @@ enum VoiceOwnerBoundDispatch<Value: Sendable>: Sendable {
 class FloatingControlBarManager {
   static let shared = FloatingControlBarManager()
 
-  private static let kAskOmiEnabled = "askOmiBarEnabled"
+  private static let kAskOmiEnabled = "askIntentiveBarEnabled"
   private static let kSnoozedUntil = "floatingBar_snoozedUntil"
   private static let recentNotificationReuseInterval: TimeInterval = 60
   static let snoozeTwoHoursDuration: TimeInterval = 2 * 60 * 60
@@ -2620,7 +2620,7 @@ class FloatingControlBarManager {
     }
   }
 
-  /// Called when a pill is dismissed while it is the one shown in the Ask Omi
+  /// Called when a pill is dismissed while it is the one shown in the Ask Intentive
   /// surface. Leaves the agent surface so conversationSurface resets instead
   /// of dangling as .agent(id) for a removed pill. (Codex P2 — clear active
   /// chat when dismissing a pill.)
@@ -2641,7 +2641,7 @@ class FloatingControlBarManager {
   private var activeQueryGeneration: Int = 0
   private var pendingFollowUpQuery: PendingFollowUpQuery?
 
-  /// Whether the user has enabled the Ask Omi bar (persisted across launches).
+  /// Whether the user has enabled the Ask Intentive bar (persisted across launches).
   /// Defaults to true for new users.
   var isEnabled: Bool {
     get {
@@ -2945,11 +2945,11 @@ class FloatingControlBarManager {
     ]
   }
 
-  // MARK: - Reach error (actionable "Couldn't reach Omi" card)
+  // MARK: - Reach error (actionable "Couldn't reach Intentive" card)
 
   private var reachRetryAction: (() -> Void)?
 
-  /// Show an actionable "Couldn't reach Omi" card on the bar once transient
+  /// Show an actionable "Couldn't reach Intentive" card on the bar once transient
   /// retries are exhausted. Retry re-runs `onRetry` (restarting the backoff);
   /// Skip abandons the turn and returns the bar to idle. Unlike passive hints
   /// it persists until the user chooses, since it needs a decision.
@@ -2966,7 +2966,7 @@ class FloatingControlBarManager {
     window?.showNotification(
       FloatingBarNotification(
         ownerID: RuntimeOwnerIdentity.currentOwnerId() ?? "",
-        title: "Couldn't reach Omi",
+        title: DesktopLifecycleIdentityCopy.reachErrorTitle,
         message: message,
         assistantId: "reach_error"
       )
@@ -2997,7 +2997,7 @@ class FloatingControlBarManager {
       return [
         "triggered": "true",
         "visible": window.isVisible ? "true" : "false",
-        "askOmiOpen": window.state.showingAIConversation ? "true" : "false",
+        "askIntentiveOpen": window.state.showingAIConversation ? "true" : "false",
         "frame": NSStringFromRect(window.frame),
       ]
     }
@@ -3007,7 +3007,7 @@ class FloatingControlBarManager {
       "closeMs": closeMs ?? "timeout",
       "elapsedMs": elapsedMs,
       "visible": window.isVisible ? "true" : "false",
-      "askOmiOpen": window.state.showingAIConversation ? "true" : "false",
+      "askIntentiveOpen": window.state.showingAIConversation ? "true" : "false",
       "frame": NSStringFromRect(window.frame),
     ]
   }
@@ -3396,7 +3396,7 @@ class FloatingControlBarManager {
     guard let window = window else { return }
 
     // The bar is a non-activating panel, so it can become key for text input
-    // without surfacing the main Omi window.
+    // without surfacing the main Intentive window.
 
     // If a conversation is already showing, just focus the follow-up input
     if window.state.showingAIConversation && window.state.showingAIResponse {
@@ -3630,7 +3630,7 @@ class FloatingControlBarManager {
   }
 
   private func showSharedProviderBusy(in barWindow: FloatingControlBarWindow, presentation: QueryPresentation) {
-    let message = ChatMessage(text: "Omi is already responding in the app.", sender: .ai)
+    let message = ChatMessage(text: DesktopLifecycleIdentityCopy.alreadyResponding, sender: .ai)
     switch presentation {
     case .visible:
       chatCancellable?.cancel()
@@ -4803,7 +4803,7 @@ extension FloatingControlBarWindow {
     setupResponseHeightObserver(for: surface, maxHeight: responseHeight.maxHeight)
   }
 
-  /// Switch from the Ask Omi input panel to the response-sized surface before
+  /// Switch from the Ask Intentive input panel to the response-sized surface before
   /// routing a visible query. Keeping this transition in the window preserves
   /// the invariant that conversation state and NSPanel sizing move together.
   func beginVisibleMainQuery(_ message: String, fromVoice: Bool, animated: Bool = true) {
@@ -4820,10 +4820,10 @@ extension FloatingControlBarWindow {
     orderFrontRegardless()
   }
 
-  /// Resize the window to the normal Ask Omi input height after exiting an
+  /// Resize the window to the normal Ask Intentive input height after exiting an
   /// agent surface to `.mainInput`. Cancels the response-height observer and
   /// installs the input-height observer so non-Notch displays preserve the
-  /// pill-mode "back to Omi chat" behavior instead of using Notch row navigation.
+  /// pill-mode "back to Intentive chat" behavior instead of using Notch row navigation.
   func resizeForMainInputAfterAgentExit() {
     responseHeightCancellable?.cancel()
     responseHeightCancellable = nil

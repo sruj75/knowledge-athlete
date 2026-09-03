@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "$0")/_resolve_python.sh"
 cd "$(dirname "$0")/../.."
 
-echo "Omi local dev harness — one-time setup"
+echo "Intentive local dev harness — one-time setup"
 
 secrets_file="backend/.env.local-dev"
 template="backend/.env.local-dev.template"

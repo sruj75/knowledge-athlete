@@ -685,7 +685,7 @@ fi
 cd "$BACKEND_DIR"
 
 if [ "$LOCAL_PROFILE" = true ]; then
-    substep "Omi Dev local harness: skipping backend/.env copy/source and google-credentials bootstrap"
+    substep "Intentive local harness: skipping backend/.env copy/source and google-credentials bootstrap"
 else
 if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" != true ] \
     && { [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ -z "${OMI_PYTHON_API_URL:-}" ]; }; then
@@ -701,7 +701,7 @@ if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BA
     echo ""
     echo "Minimal .env for local dev:"
     echo "  PORT=8080"
-    echo "  FIREBASE_PROJECT_ID=based-hardware-dev"
+    echo "  FIREBASE_PROJECT_ID=knowledge-athlete"
     echo "  FIREBASE_API_KEY=<from GCP console>"
     echo "  GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json"
     echo ""
@@ -750,8 +750,7 @@ if [ -z "$FIREBASE_PROJECT_ID" ] && [ "${OMI_SKIP_BACKEND:-0}" != "1" ]; then
     echo "ERROR: FIREBASE_PROJECT_ID is not set."
     echo ""
     echo "  Add to $BACKEND_DIR/.env:"
-    echo "    FIREBASE_PROJECT_ID=based-hardware       # prod Firestore"
-    echo "    FIREBASE_PROJECT_ID=based-hardware-dev   # dev Firestore"
+    echo "    FIREBASE_PROJECT_ID=knowledge-athlete   # owned MVP Firebase/Firestore project"
     exit 1
 fi
 if [ -n "$FIREBASE_AUTH_PROJECT_ID" ]; then
@@ -1025,15 +1024,24 @@ if [ "$LOCAL_PROFILE" = true ] && [ -f "Desktop/Sources/GoogleService-Info-Local
 elif [ -f "Desktop/Sources/GoogleService-Info-Dev.plist" ]; then
     cp -f Desktop/Sources/GoogleService-Info-Dev.plist "$APP_BUNDLE/Contents/Resources/GoogleService-Info.plist"
 else
-    cp -f Desktop/Sources/GoogleService-Info.plist "$APP_BUNDLE/Contents/Resources/"
+    echo "ERROR: No owned Firebase configuration is available for this development bundle."
+    exit 1
 fi
 /usr/libexec/PlistBuddy -c "Set :BUNDLE_ID $BUNDLE_ID" "$APP_BUNDLE/Contents/Resources/GoogleService-Info.plist" 2>/dev/null || true
 
-# Copy resource bundle (contains app assets like permissions.gif, herologo.png, etc.)
+# Copy resource bundle (contains the Intentive brand and permission-guidance assets).
 RESOURCE_BUNDLE="Desktop/.build/arm64-apple-macosx/debug/Omi Computer_Omi Computer.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
     substep "Copying resource bundle ($(du -sh "$RESOURCE_BUNDLE" 2>/dev/null | cut -f1))"
-    macos_copy_tree "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/$(basename "$RESOURCE_BUNDLE")"
+    PACKAGED_RESOURCE_BUNDLE="$APP_BUNDLE/Contents/Resources/$(basename "$RESOURCE_BUNDLE")"
+    macos_copy_tree "$RESOURCE_BUNDLE" "$PACKAGED_RESOURCE_BUNDLE"
+    # SwiftPM can retain removed resources in an incremental build product.
+    # The main-bundle plist above is the only Firebase authority allowed to ship.
+    find "$PACKAGED_RESOURCE_BUNDLE" -type f -name 'GoogleService-Info.plist' -delete
+    if [ -n "$(find "$PACKAGED_RESOURCE_BUNDLE" -type f -name 'GoogleService-Info.plist' -print -quit)" ]; then
+        echo "ERROR: nested Firebase configuration remained in the packaged resource bundle"
+        exit 1
+    fi
 fi
 
 substep "Copying agent"
@@ -1077,7 +1085,7 @@ substep "Copying .env.app"
 if [ "$LOCAL_PROFILE" = true ]; then
     EFFECTIVE_API_URL="$OMI_PYTHON_API_URL"
     omi_write_local_profile_env "$APP_BUNDLE/Contents/Resources/.env"
-    substep "Omi Dev local harness .env contains localhost endpoints/Auth emulator bootstrap only"
+    substep "Intentive local harness .env contains localhost endpoints/Auth emulator bootstrap only"
 else
 if [ -f ".env.app.dev" ]; then
     cp -f .env.app.dev "$APP_BUNDLE/Contents/Resources/.env"
@@ -1117,7 +1125,7 @@ substep "Set OMI_PYTHON_API_URL=$PYTHON_API_URL"
 fi # end non-local .env.app merge
 
 substep "Copying app icon"
-cp -f omi_icon.icns "$APP_BUNDLE/Contents/Resources/OmiIcon.icns" 2>/dev/null || true
+cp -f intentive_icon.icns "$APP_BUNDLE/Contents/Resources/IntentiveIcon.icns" 2>/dev/null || true
 
 substep "Creating PkgInfo"
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
@@ -1207,7 +1215,7 @@ if intentive_should_seed_named_profile "$IS_NAMED_BUNDLE" "${OMI_SEED_FROM_CANON
     fi
     step "Seeding shortcuts/settings from canonical Intentive Dev..."
     if ./scripts/omi-settings-seed.sh "$BUNDLE_ID" com.heyintentive.intentive.dev; then
-        auth_debug "AFTER settings seed: shortcut_askOmiEnabled=$(defaults read "$BUNDLE_ID" shortcut_askOmiEnabled 2>&1 || true)"
+        auth_debug "AFTER settings seed: shortcut_askIntentiveEnabled=$(defaults read "$BUNDLE_ID" shortcut_askIntentiveEnabled 2>&1 || true)"
         auth_debug "AFTER settings seed: devLazyPermissionsEnabled=$(defaults read "$BUNDLE_ID" devLazyPermissionsEnabled 2>&1 || true)"
     else
         echo "Warning: could not seed shortcuts/settings from Intentive Dev. Continuing with bundle defaults."

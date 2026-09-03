@@ -105,9 +105,9 @@ final class AuthSessionCoordinator {
   /// Light session invalidation: clears credentials and signed-in UI state without
   /// the nuclear teardown performed by `AuthService.signOut()`.
   func invalidateSession(reason: InvalidateReason, auth: AuthService) async {
-    NSLog("OMI AUTH: invalidateSession reason=%@", reason.rawValue)
+    NSLog("INTENTIVE AUTH: invalidateSession reason=%@", reason.rawValue)
     guard await auth.performLightSessionInvalidation() else {
-      NSLog("OMI AUTH: invalidateSession failed or was superseded; existing session remains authoritative")
+      NSLog("INTENTIVE AUTH: invalidateSession failed or was superseded; existing session remains authoritative")
       return
     }
     NotificationCenter.default.post(
@@ -157,14 +157,14 @@ final class AuthSessionCoordinator {
       return true
     } catch AuthError.notSignedIn {
       guard auth.isSessionAttemptCurrent(attempt) else { return false }
-      NSLog("OMI AUTH: ensureValidSession(%@) session not signed in", trigger.rawValue)
+      NSLog("INTENTIVE AUTH: ensureValidSession(%@) session not signed in", trigger.rawValue)
       if phase != .needsReauth {
         AuthState.shared.transition(to: .recoveryRequired)
       }
       return false
     } catch {
       guard auth.isSessionAttemptCurrent(attempt) else { return false }
-      NSLog("OMI AUTH: ensureValidSession(%@) deferred: %@", trigger.rawValue, error.localizedDescription)
+      NSLog("INTENTIVE AUTH: ensureValidSession(%@) deferred: %@", trigger.rawValue, error.localizedDescription)
       AuthState.shared.transition(to: .recoveryRequired)
       return false
     }

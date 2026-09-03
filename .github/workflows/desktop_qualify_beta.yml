@@ -142,7 +142,7 @@ jobs:
             > "$QUALIFICATION_STAGE/backend-compatibility-source.json"
           jq -e '
             .status == "healthy"
-            and .service == "omi-backend"
+            and .service == "backend"
             and .chat_contract_version == "1"
           ' "$QUALIFICATION_STAGE/backend-compatibility-source.json" >/dev/null
           jq --slurp '{

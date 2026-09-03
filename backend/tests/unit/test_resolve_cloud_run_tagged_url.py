@@ -22,7 +22,7 @@ class FakeCloudRunner:
 
 def _config() -> resolver.TaggedUrlConfig:
     return resolver.TaggedUrlConfig(
-        project='omi-prod',
+        project='intentive-production-test',
         region='us-central1',
         service='backend',
         revision='backend-candidate',
@@ -65,7 +65,7 @@ def test_resolves_exact_https_url_for_requested_tag_and_revision() -> None:
             'services',
             'describe',
             'backend',
-            '--project=omi-prod',
+            '--project=intentive-production-test',
             '--region=us-central1',
             '--format=json',
         ]

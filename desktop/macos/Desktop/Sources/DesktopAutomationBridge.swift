@@ -36,7 +36,7 @@ enum DesktopAutomationLaunchOptions {
     if environment["OMI_DISABLE_LOCAL_AUTOMATION"] == "1" {
       return false
     }
-    // Auto-enable on local bundles (Omi Dev + every `omi-*` named test bundle) so agents
+    // Auto-enable on local bundles (Intentive Dev + every `omi-*` named test bundle) so agents
     // can drive the app without remembering a launch flag. Published previews are excluded
     // by `allowsLocalAutomation` above even if their process environment is contaminated.
     return arguments.contains(enableFlag)
@@ -130,8 +130,8 @@ struct DesktopAutomationSnapshot: Codable, Sendable {
   var isAppActive: Bool
   var mainWindowTitle: String?
   var floatingBarVisible: Bool
-  var askOmiOpen: Bool
-  var askOmiFocused: Bool
+  var askIntentiveOpen: Bool
+  var askIntentiveFocused: Bool
   var floatingBarFrame: String?
   var floatingBarVoiceListening: Bool
   var floatingBarVoiceResponseActive: Bool
@@ -238,8 +238,8 @@ struct DesktopAutomationActionDescriptor: Codable {
     if name.contains("main_chat") {
       return ["main_chat"]
     }
-    if name.contains("ask_omi") || name == "ask" || name.contains("floating") || name.contains("subagent") {
-      return ["floating_bar", "ask_omi"]
+    if name.contains("ask_intentive") || name == "ask" || name.contains("floating") || name.contains("subagent") {
+      return ["floating_bar", "ask_intentive"]
     }
     if name.contains("coordinator") {
       return ["coordinator"]
@@ -396,8 +396,8 @@ final class DesktopAutomationStateStore {
     isAppActive: false,
     mainWindowTitle: nil,
     floatingBarVisible: false,
-    askOmiOpen: false,
-    askOmiFocused: false,
+    askIntentiveOpen: false,
+    askIntentiveFocused: false,
     floatingBarFrame: nil,
     floatingBarVoiceListening: false,
     floatingBarVoiceResponseActive: false,
@@ -505,8 +505,8 @@ private func liveAutomationSnapshotFromMainActor() async -> DesktopAutomationSna
   }
   return DesktopAutomationStateStore.shared.updateLiveFields { snapshot in
     snapshot.floatingBarVisible = floating.isVisible
-    snapshot.askOmiOpen = floating.isAskOmiOpen
-    snapshot.askOmiFocused = floating.isAskOmiFocused
+    snapshot.askIntentiveOpen = floating.isAskOmiOpen
+    snapshot.askIntentiveFocused = floating.isAskOmiFocused
     snapshot.floatingBarFrame = floating.frame
     snapshot.floatingBarVoiceListening = floating.isVoiceListening
     snapshot.floatingBarVoiceResponseActive = floating.isVoiceResponseActive
@@ -1040,7 +1040,7 @@ final class DesktopAutomationActionRegistry {
       summary: "Sign out via AuthService (local Auth emulator harness only)"
     ) { _ in
       guard DesktopLocalProfile.isEnabled else {
-        return ["error": "sign_out is only available with OMI_DESKTOP_LOCAL_PROFILE=1 (local Auth emulator)"]
+        return ["error": "sign_out is only available in the local Auth emulator profile"]
       }
       guard AuthState.shared.isSignedIn else {
         return ["signed_out": "true", "was_signed_in": "false"]
@@ -1057,8 +1057,8 @@ final class DesktopAutomationActionRegistry {
     // (openAIInputWithQuery → routeQuery → sendAIQuery → ChatProvider → bridge).
     // Used to drive cache/latency benchmarks without a mic or the cursor.
     register(
-      name: "open_ask_omi",
-      summary: "Open the Ask Omi input panel and return app-side open/focus timing",
+      name: "open_ask_intentive",
+      summary: "Open the Ask Intentive input panel and return app-side open/focus timing",
       params: ["reset", "wait"]
     ) { params in
       let reset = boolParam(params["reset"], default: false)
@@ -1068,8 +1068,8 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "close_ask_omi",
-      summary: "Close the Ask Omi input panel if it is open",
+      name: "close_ask_intentive",
+      summary: "Close the Ask Intentive input panel if it is open",
       params: ["wait"]
     ) { params in
       let wait = boolParam(params["wait"], default: true)
@@ -1239,7 +1239,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "debug_reach_error",
-      summary: "Show the actionable 'Couldn't reach Omi' card on the bar (Retry/Skip) for visual verification",
+      summary: "Show the actionable 'Couldn't reach Intentive' card on the bar (Retry/Skip) for visual verification",
       params: []
     ) { _ in
       let mgr = FloatingControlBarManager.shared
@@ -1428,7 +1428,7 @@ final class DesktopAutomationActionRegistry {
       summary: "Set main and floating composer drafts without sending (non-prod persistence harness)",
       params: ["main", "floating"],
       category: "chat",
-      surfaces: ["main_chat", "ask_omi"],
+      surfaces: ["main_chat", "ask_intentive"],
       safety: "local",
       sideEffects: ["local_storage"],
       examples: ["./scripts/omi-ctl action set_chat_drafts main=main-draft floating=notch-draft"]
@@ -1440,7 +1440,7 @@ final class DesktopAutomationActionRegistry {
         if let provider = ChatProvider.mainInstance {
           provider.draftText = main
         } else {
-          ChatDraftStore.shared.setText(main, for: .mainChat(contextID: "omi:default"))
+          ChatDraftStore.shared.setText(main, for: .mainChat(contextID: "intentive:default"))
         }
       }
       if let floating = params["floating"] {
@@ -1454,7 +1454,7 @@ final class DesktopAutomationActionRegistry {
       ChatDraftStore.shared.flush()
       return [
         "main": ChatProvider.mainInstance?.draftText
-          ?? ChatDraftStore.shared.text(for: .mainChat(contextID: "omi:default")),
+          ?? ChatDraftStore.shared.text(for: .mainChat(contextID: "intentive:default")),
         "floating": FloatingControlBarManager.shared.barState?.aiInputText
           ?? ChatDraftStore.shared.text(for: .floatingMain),
       ]
@@ -1464,7 +1464,7 @@ final class DesktopAutomationActionRegistry {
       name: "chat_drafts_snapshot",
       summary: "Read current main and floating composer drafts (non-prod persistence harness)",
       category: "chat",
-      surfaces: ["main_chat", "ask_omi"],
+      surfaces: ["main_chat", "ask_intentive"],
       safety: "read_only"
     ) { _ in
       guard AppBuild.isNonProduction else {
@@ -1472,7 +1472,7 @@ final class DesktopAutomationActionRegistry {
       }
       return [
         "main": ChatProvider.mainInstance?.draftText
-          ?? ChatDraftStore.shared.text(for: .mainChat(contextID: "omi:default")),
+          ?? ChatDraftStore.shared.text(for: .mainChat(contextID: "intentive:default")),
         "floating": FloatingControlBarManager.shared.barState?.aiInputText
           ?? ChatDraftStore.shared.text(for: .floatingMain),
       ]
@@ -1688,7 +1688,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "capture_main_window_png",
-      summary: "Write PNG of the frontmost Omi window (in-process capture)",
+      summary: "Write PNG of the frontmost Intentive window (in-process capture)",
       params: ["path", "surface"]
     ) { params in
       guard let path = params["path"], !path.isEmpty else {
@@ -1697,7 +1697,7 @@ final class DesktopAutomationActionRegistry {
       return await MainActor.run { () -> [String: String] in
         guard
           let window = NSApp.windows.first(where: {
-            $0.isVisible && $0.title.range(of: "omi", options: .caseInsensitive) != nil
+            $0.isVisible && DesktopShellIdentityCopy.isProductWindowTitle($0.title)
           })
         else {
           return ["error": "no_visible_window"]
@@ -1801,7 +1801,7 @@ final class DesktopAutomationActionRegistry {
 
     register(
       name: "back_from_subagent",
-      summary: "Return from the selected subagent to the main Ask Omi chat",
+      summary: "Return from the selected subagent to the main Ask Intentive chat",
       params: ["wait"]
     ) { params in
       let wait = boolParam(params["wait"], default: true)
@@ -1956,10 +1956,10 @@ final class DesktopAutomationActionRegistry {
       name: "spatial_overlay_present_instruction",
       summary: "Present the Screen Recording fallback instruction card (dogfood/visual)"
     ) { params in
-      let title = params["title"] ?? "Allow Screen Recording for Omi"
+      let title = params["title"] ?? "Allow Screen Recording for Intentive"
       let subtitle =
         params["subtitle"]
-        ?? "Turn on Omi under Screen & System Audio Recording, then return to Omi."
+        ?? "Turn on Intentive under Screen & System Audio Recording, then return to Intentive."
       let anchor = PermissionGuidanceOverlay.anchorRect(fromParam: params["anchor"])
       PermissionGuidanceOverlay.shared.presentInstructionCard(
         title: title, subtitle: subtitle, near: anchor)
@@ -2275,9 +2275,10 @@ final class DesktopAutomationActionRegistry {
       name: "settings_privacy_snapshot",
       summary: "Return retained local privacy settings"
     ) { _ in
-      let trackingEnabled = PostHogManager.shared.hasOptedOut
+      let analyticsConsent = ProductAnalyticsConsentController.shared
       return [
-        "tracking_enabled": trackingEnabled ? "true" : "false",
+        "tracking_enabled": analyticsConsent.isSharingEnabled ? "true" : "false",
+        "tracking_status": analyticsConsent.status.rawValue,
         "conversation_location": AssistantSettings.shared.conversationLocationEnabled ? "true" : "false",
         "retired_cloud_controls_visible": "false",
       ]
@@ -2792,7 +2793,7 @@ private func intParam(_ raw: String?, default fallback: Int) -> Int {
 final class DesktopAutomationBridge: @unchecked Sendable {
   static let shared = DesktopAutomationBridge()
 
-  private let queue = DispatchQueue(label: "com.omi.desktop.automation-bridge")
+  private let queue = DispatchQueue(label: "com.heyintentive.intentive.desktop.automation-bridge")
   private var listener: NWListener?
   private var bindAttempts = 0
   private let maxBindAttempts = 3
@@ -3015,7 +3016,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
       return jsonResponse(
         DesktopAutomationHealth(
           ok: true,
-          name: "omi-desktop-automation",
+          name: "intentive-desktop-automation",
           bundleIdentifier: Bundle.main.bundleIdentifier ?? "unknown",
           processID: getpid(),
           logFilePath: omiLogFilePath(),
@@ -3190,7 +3191,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
     guard activateApp else { return }
     await MainActor.run {
       NSApp.activate(ignoringOtherApps: true)
-      if let window = NSApp.windows.first(where: { $0.title.lowercased().hasPrefix("omi") }) {
+      if let window = NSApp.windows.first(where: { DesktopShellIdentityCopy.isProductWindowTitle($0.title) }) {
         window.makeKeyAndOrderFront(nil)
       }
     }
@@ -3237,11 +3238,9 @@ final class DesktopAutomationBridge: @unchecked Sendable {
       } else if payload.target == "overlay" {
         window = PermissionGuidanceOverlay.shared.automationWindow
       } else if payload.target == "task_thread" {
-        window = NSApp.windows.first(where: { $0.title == "Omi — Task thread scenario" && $0.isVisible })
+        window = NSApp.windows.first(where: { $0.title == "Intentive — Task thread scenario" && $0.isVisible })
       } else {
-        window = NSApp.windows.first(where: { window in
-          window.title.lowercased().hasPrefix("omi") || window.isMainWindow || window.isKeyWindow
-        })
+        window = NSApp.windows.first(where: DesktopShellIdentityCopy.isProductOrActiveWindow)
       }
 
       guard

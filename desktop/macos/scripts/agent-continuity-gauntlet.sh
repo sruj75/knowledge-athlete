@@ -32,7 +32,7 @@
 #   - macOS with a running named test bundle, e.g.:
 #       cd desktop/macos && OMI_APP_NAME=omi-gauntlet OMI_SKIP_TUNNEL=1 ./run.sh
 #   - Signed-in session (./run.sh seeds auth; or omi-auth-seed.sh … "/Applications/omi-gauntlet.app")
-#   - LLM / realtime credentials available through Omi account quota
+#   - LLM / realtime credentials available through the Intentive account quota
 #   - Optional: brew install beastoin/tap/agent-swift (screenshots; gauntlet still runs without it)
 #
 # Usage:

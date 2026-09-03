@@ -1,6 +1,7 @@
-# OMI Desktop
+# Intentive Desktop
 
-macOS app for OMI — always-on AI companion. Swift/SwiftUI frontend, Python backend.
+macOS app for Intentive. The Swift/SwiftUI client owns durable local product data
+and uses the Python backend only for authenticated transient compute.
 
 ## Structure
 
@@ -37,7 +38,10 @@ OMI_SKIP_BACKEND=1 OMI_APP_NAME="omi-subagent-test" ./run.sh --yolo --fast-only 
 ./run.sh --full
 ```
 
-`--yolo` targets the deployed development services. Those services currently use production Firebase identities and data stores, so use a named `omi-*` bundle for isolated desktop state and avoid treating it as an offline data sandbox.
+`--yolo` targets the owned deployed development services. Use a named `omi-*`
+bundle for isolated desktop state and avoid treating managed development as an
+offline data sandbox. Production Firebase, backend, feed, and release inputs are
+not approved in this checkout and fail closed.
 
 `run.sh` auto-detects an `Apple Development` or `Developer ID Application` signing identity from your login keychain. Override with `OMI_SIGN_IDENTITY="..." ./run.sh`.
 

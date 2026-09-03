@@ -13,7 +13,7 @@ final class ChatPromptsTests: XCTestCase {
     XCTAssertTrue(DesktopCapabilityRegistry.realtimeSelfModelPrompt.contains("screen_recording"))
     XCTAssertTrue(
       DesktopCapabilityRegistry.realtimeSelfModelPrompt.contains(
-        "explicitly say that Omi needs Screen Recording permission"
+        "explicitly say that Intentive needs Screen Recording permission"
       )
     )
     XCTAssertTrue(

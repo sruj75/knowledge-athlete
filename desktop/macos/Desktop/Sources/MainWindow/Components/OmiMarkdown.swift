@@ -3,12 +3,12 @@ import AppKit
 import OmiTheme
 @preconcurrency import SwiftUI
 
-/// Omi's stable Markdown renderer for chat and other live-updating text surfaces.
+/// Intentive's stable Markdown renderer for chat and other live-updating text surfaces.
 ///
 /// Parses content once into text, code, and table blocks:
 /// - Text segments render as a single `Text(AttributedString)`.
 /// - Code blocks render with proper monospace font and background box.
-/// - Tables use an Omi-owned `Grid` with fixed decoration. They deliberately
+/// - Tables use an Intentive-owned `Grid` with fixed decoration. They deliberately
 ///   avoid geometry preferences.
 ///
 /// Text selection is opt-in. On macOS, `textSelection(.enabled)` installs
@@ -539,7 +539,7 @@ private struct OmiMarkdownTableView: View {
     // live transcript. Copy remains available only on fenced code blocks.
     .textSelection(.disabled)
     .accessibilityElement(children: .contain)
-    .accessibilityIdentifier("omi-markdown-table")
+    .accessibilityIdentifier("intentive-markdown-table")
   }
 
   @ViewBuilder

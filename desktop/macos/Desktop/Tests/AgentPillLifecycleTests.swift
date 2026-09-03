@@ -76,7 +76,9 @@ import XCTest
     XCTAssertTrue(providerSource.contains("struct SpawnedAgentPillProjection: Equatable, Sendable"))
     XCTAssertTrue(pillSource.contains("guard !pill.status.isFinished else { return }"))
     XCTAssertTrue(viewSource.contains("private func mainConversationBackAction()"))
-    XCTAssertTrue(viewSource.contains(".help(agentPills.pills.isEmpty ? \"Close Omi Chat\" : \"Back to subagents\")"))
+    XCTAssertTrue(
+      viewSource.contains(
+        ".help(agentPills.pills.isEmpty ? DesktopShellIdentityCopy.closeChat : \"Back to subagents\")"))
   }
 
   func testFloatingPillProjectionMergeRequiresCanonicalKernelIds() throws {

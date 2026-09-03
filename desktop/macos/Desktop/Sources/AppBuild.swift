@@ -210,7 +210,7 @@ enum AppBuild {
     buildConfiguration.identity?.isProductionFamily == true
   }
 
-  /// The separately-installable "Omi Beta" app. Its update channel is pinned to beta
+  /// The separately-installable "Intentive Beta" app. Its update channel is pinned to beta
   /// and it keeps its own isolated on-disk state, so it can run beside stable.
   static var isBetaProductionBundle: Bool {
     buildConfiguration.identity?.family == .beta
@@ -348,9 +348,7 @@ enum AppBuild {
   ) -> [SettingsExternalDestination] {
     [
       ("Visit Website", productWebsiteInfoKey),
-      ("Privacy Policy", privacyInfoKey),
       ("Terms of Service", termsInfoKey),
-      ("Support", supportInfoKey),
     ].compactMap { title, infoKey in
       guard let url = publicDestinationURL(infoDictionary: infoDictionary, infoKey: infoKey)
       else { return nil }

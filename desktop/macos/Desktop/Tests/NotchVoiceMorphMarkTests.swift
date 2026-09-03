@@ -48,7 +48,7 @@ final class NotchVoiceMorphMarkTests: XCTestCase {
     )
   }
 
-  func testRingAndWaveformShareTheNormalOmiMarkCenter() {
+  func testRingAndWaveformShareTheNormalIdentityMarkCenter() {
     let size = NotchVoiceMorphGeometry.markSize
     XCTAssertEqual(NotchVoiceMorphGeometry.center(in: size).x, 10.5, accuracy: 0.001)
     XCTAssertEqual(NotchVoiceMorphGeometry.center(in: size).y, 10.5, accuracy: 0.001)
@@ -60,6 +60,31 @@ final class NotchVoiceMorphMarkTests: XCTestCase {
       progress: 1
     )
     XCTAssertEqual((first.x + last.x) / 2, size.width / 2, accuracy: 0.001)
+  }
+
+  func testIdleNotchUsesTheCanonicalIdentityMarkUntilActivityNeedsTheMorph() {
+    XCTAssertTrue(
+      NotchVoiceMorphPresentation.showsIdentityMark(
+        agentStatusCount: 0,
+        isListening: false,
+        isThinking: false,
+        isSpeaking: false
+      ))
+
+    for activeState in [
+      (1, false, false, false),
+      (0, true, false, false),
+      (0, false, true, false),
+      (0, false, false, true),
+    ] {
+      XCTAssertFalse(
+        NotchVoiceMorphPresentation.showsIdentityMark(
+          agentStatusCount: activeState.0,
+          isListening: activeState.1,
+          isThinking: activeState.2,
+          isSpeaking: activeState.3
+        ))
+    }
   }
 
   func testWaveformDotsStayInsideTheVisibleIdentitySlot() {

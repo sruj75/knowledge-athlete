@@ -2,7 +2,7 @@ import Foundation
 
 /// Tracks AI chat/query usage and enforces limits using the server-side quota.
 ///
-/// Shared between the floating bar (Ask omi / PTT queries) and the main chat page
+/// Shared between the floating bar (Intentive / PTT queries) and the main chat page.
 /// (ChatProvider.sendMessage). The server endpoint `/v1/users/me/usage-quota` is
 /// the single source of truth for the current month's usage and plan limit.
 @MainActor

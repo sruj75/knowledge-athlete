@@ -74,7 +74,7 @@ final class OnboardingFlowTests: XCTestCase {
 
   func testSecondBrainProceedActionsUseDefaultActionKeyboardShortcut() throws {
     let source = try desktopSourceFile("Onboarding/SecondBrain/SBOnboardingView.swift")
-    XCTAssertTrue(source.contains("SBInkButton(title: \"Set up Omi →\", isDefaultAction: true)"))
+    XCTAssertTrue(source.contains("SBInkButton(title: SBOnboardingIdentityCopy.setupAction, isDefaultAction: true)"))
     XCTAssertTrue(source.contains("Text(\"Continue →\")"))
     XCTAssertTrue(source.contains(".keyboardShortcut(.defaultAction)"))
   }

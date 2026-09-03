@@ -96,7 +96,7 @@ final class ChatDraftStore {
   private let fileManager: FileManager
   private let writeDelay: TimeInterval
   private let ownerIDProvider: () -> String?
-  private let persistenceQueue = DispatchQueue(label: "com.omi.desktop.chat-drafts", qos: .utility)
+  private let persistenceQueue = DispatchQueue(label: "com.heyintentive.intentive.desktop.chat-drafts", qos: .utility)
 
   private var cache: [StorageID: ChatDraftSnapshot] = [:]
   private var loaded: Set<StorageID> = []

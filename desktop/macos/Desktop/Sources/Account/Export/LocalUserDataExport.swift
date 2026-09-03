@@ -271,7 +271,7 @@ struct LocalUserDataAtomicFileWriter: LocalUserDataExportFileWriting {
   func writeAtomically(_ data: Data, to destination: URL) throws {
     let fileManager = FileManager.default
     let temporary = destination.deletingLastPathComponent()
-      .appendingPathComponent(".omi-export-\(UUID().uuidString).tmp")
+      .appendingPathComponent(".intentive-export-\(UUID().uuidString).tmp")
     do {
       try data.write(to: temporary, options: .atomic)
       if fileManager.fileExists(atPath: destination.path) {

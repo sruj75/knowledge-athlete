@@ -191,7 +191,7 @@ extension AppState {
         debugForceCloud: debugForceCloud
       )
       if sttSession.useLocalSTT {
-        log("Transcription: ON-DEVICE Parakeet mode (OMI_LOCAL_STT) — no cloud STT")
+        log("Transcription: ON-DEVICE Parakeet override — no cloud STT")
         // Segments are delivered on the main actor by the service, so no Task hop here.
         let onLocalSegments: LocalTranscriptionService.SegmentsHandler = { [weak self] segments in
           await self?.handleBackendSegments(segments, expectedSessionId: producerSessionId)
@@ -714,7 +714,7 @@ extension AppState {
       showAlert(
         title: "Microphone Isn't Capturing Audio",
         message:
-          "Omi stopped recording because your microphone returned no audio. Check your input device and try again.")
+          DesktopLifecycleIdentityCopy.microphoneStopped)
     }
   }
 

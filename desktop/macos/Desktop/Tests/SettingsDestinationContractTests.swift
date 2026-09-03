@@ -71,9 +71,9 @@ final class SettingsDestinationContractTests: XCTestCase {
     XCTAssertFalse(rawValues.contains("planusage.purchase"))
   }
 
-  /// Source-inspection tripwire: S-21 keeps local privacy controls while S-29 adds
-  /// separately hosted Privacy and Support destinations.
-  func testAboutKeepsLocalPrivacyAndAddsHostedPrivacyAndSupport() throws {
+  /// Source-inspection tripwire: About keeps the local privacy route and consumes
+  /// only the separately validated external-destination projection.
+  func testAboutKeepsLocalPrivacyAndValidatedExternalDestinations() throws {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent().deletingLastPathComponent()
       .appendingPathComponent(

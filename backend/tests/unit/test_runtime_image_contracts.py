@@ -111,7 +111,7 @@ def test_image_smoke_is_network_isolated_and_uses_registered_entrypoint(contract
     monkeypatch.setattr(contracts_module, 'third_party_dependency_modules', lambda _: ('jsonschema',))
     monkeypatch.setattr(contracts_module.subprocess, 'run', lambda command, check: calls.append(command) or Result())
 
-    assert contracts_module.smoke_image('omi-backend:test', [_contract(contracts_module, 'backend')]) == 0
+    assert contracts_module.smoke_image('backend:test', [_contract(contracts_module, 'backend')]) == 0
 
     assert len(calls) == 1
     for call in calls:
@@ -135,9 +135,9 @@ def test_build_smoke_uses_the_registered_dockerfile_and_context(contracts_module
     monkeypatch.setattr(contracts_module, 'third_party_dependency_modules', lambda _: ('jsonschema',))
     monkeypatch.setattr(contracts_module.subprocess, 'run', lambda command, check: calls.append(command) or Result())
 
-    assert contracts_module.build_and_smoke_image('omi-backend:test', _contract(contracts_module, 'backend')) == 0
+    assert contracts_module.build_and_smoke_image('backend:test', _contract(contracts_module, 'backend')) == 0
 
-    assert calls[0] == ['docker', 'build', '--file', 'backend/Dockerfile', '--tag', 'omi-backend:test', '.']
+    assert calls[0] == ['docker', 'build', '--file', 'backend/Dockerfile', '--tag', 'backend:test', '.']
     assert calls[1][0:7] == [
         'docker',
         'run',
@@ -145,5 +145,5 @@ def test_build_smoke_uses_the_registered_dockerfile_and_context(contracts_module
         '--network=none',
         '--entrypoint',
         'python',
-        'omi-backend:test',
+        'backend:test',
     ]

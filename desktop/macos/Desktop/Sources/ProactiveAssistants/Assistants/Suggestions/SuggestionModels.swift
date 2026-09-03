@@ -15,7 +15,7 @@ enum SuggestionCategory: String, Codable {
 
 // MARK: - Grounding Bundle
 
-/// What Omi already knows, assembled before judgment so the model can produce a
+/// What Intentive already knows, assembled before judgment so the model can produce a
 /// suggestion carrying information the user does not already have on screen.
 ///
 /// Every field is optional and best-effort: grounding must never delay a card past the
@@ -47,7 +47,7 @@ struct SuggestionGrounding: Sendable {
     guard !isEmpty else { return "" }
     var sections: [String] = [Self.untrustedPreamble]
     if !memories.isEmpty {
-      sections.append("== WHAT OMI KNOWS ABOUT THE USER ==\n" + memories.joined(separator: "\n"))
+      sections.append("== WHAT INTENTIVE KNOWS ABOUT THE USER ==\n" + memories.joined(separator: "\n"))
     }
     if !openCommitments.isEmpty {
       sections.append("== OPEN COMMITMENTS ==\n" + openCommitments.joined(separator: "\n"))
@@ -132,7 +132,7 @@ enum SuggestionGateDecision: Equatable, Sendable {
   case skippedDwell
   /// Today's evaluation budget is spent.
   case skippedDailyBudget
-  /// Omi knows nothing about this context, so it could only state the obvious.
+  /// Intentive knows nothing about this context, so it could only state the obvious.
   case skippedNoGrounding
 
   var allowsEvaluation: Bool { self == .evaluate }

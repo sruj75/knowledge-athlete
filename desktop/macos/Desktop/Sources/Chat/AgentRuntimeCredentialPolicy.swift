@@ -7,14 +7,19 @@ import Foundation
 /// can reach the local 5xx endpoint without contacting Firebase.
 enum AgentRuntimeCredentialPolicy {
   static let hermeticFaultModelTokenEnvironmentKey = "OMI_FAULT_MODEL_AUTH_TOKEN"
-  static let hermeticFaultBundleIdentifier = "com.omi.omi-fault"
+  static let hermeticFaultBundleIdentifierPrefix = "com.heyintentive.intentive.dev.omi-fault-"
 
   static func hermeticFaultModelToken(
     isNonProduction: Bool,
     bundleIdentifier: String,
     environment: [String: String] = ProcessInfo.processInfo.environment
   ) -> String? {
-    guard isNonProduction, bundleIdentifier == hermeticFaultBundleIdentifier else { return nil }
+    let suffix = String(bundleIdentifier.dropFirst(hermeticFaultBundleIdentifierPrefix.count))
+    let isOwnedFaultBundle =
+      bundleIdentifier.hasPrefix(hermeticFaultBundleIdentifierPrefix)
+      && (16...48).contains(suffix.count)
+      && suffix.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" }
+    guard isNonProduction, isOwnedFaultBundle else { return nil }
     let token =
       environment[hermeticFaultModelTokenEnvironmentKey]?
       .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

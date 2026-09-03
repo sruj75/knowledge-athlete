@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The control cluster revealed on the trailing side of the notch hover surface.
 ///
-/// Shows what Omi is looking at right now and lets the user cut its two inputs — screen
+/// Shows what Intentive is looking at right now and lets the user cut its two inputs — screen
 /// and audio — without going to the menu bar. Those are the same two toggles the status
 /// item owns; both surfaces route through `SystemCaptureControls` so the paywall and
 /// permission gates cannot drift between them.
@@ -57,7 +57,7 @@ struct NotchSystemControlsView: View {
     }
   }
 
-  /// What Omi is currently looking at. This is the same frontmost-app signal the capture
+  /// What Intentive is currently looking at. This is the same frontmost-app signal the capture
   /// loop uses, so the notch and the assistants can never disagree about the active app.
   private func currentAppRow(_ name: String) -> some View {
     HStack(spacing: OmiSpacing.xxs) {
@@ -71,7 +71,8 @@ struct NotchSystemControlsView: View {
         .truncationMode(.tail)
     }
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(screenCaptureOn ? "Omi is watching \(name)" : "Omi is not watching \(name)")
+    .accessibilityLabel(
+      screenCaptureOn ? "Intentive is watching \(name)" : "Intentive is not watching \(name)")
   }
 
   // MARK: - Shortcut legend
@@ -81,7 +82,7 @@ struct NotchSystemControlsView: View {
   /// used to live here were removed for exactly that reason (FC-split-mutation-authority).
   private var shortcutLegend: some View {
     // One row per configurable shortcut, named the way Settings advertises it
-    // ("Open Omi Shortcut"). The fixed window-summon chord is deliberately not
+    // ("Open Intentive Shortcut"). The fixed window-summon chord is deliberately not
     // listed: two near-identical "open" rows read as a bug, not a feature.
     VStack(alignment: .trailing, spacing: 3) {
       if shortcuts.pttEnabled {
@@ -140,7 +141,7 @@ struct NotchSystemControlsView: View {
     .buttonStyle(.plain)
     .accessibilityLabel("\(label) capture")
     .accessibilityValue(isOn ? "On" : "Off")
-    .accessibilityHint("Toggles whether Omi captures \(label.lowercased())")
+    .accessibilityHint("Toggles whether Intentive captures \(label.lowercased())")
     .help("\(label) capture is \(isOn ? "on" : "off")")
   }
 

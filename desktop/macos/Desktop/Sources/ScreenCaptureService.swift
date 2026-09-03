@@ -87,7 +87,7 @@ final class ScreenCaptureService: Sendable {
   /// Check whether macOS TCC says this app has Screen Recording permission.
   ///
   /// Do not spawn `/usr/sbin/screencapture` here. That helper process can fail
-  /// for reasons unrelated to this app's TCC grant, which made Omi show a red
+  /// for reasons unrelated to this app's TCC grant, which made Intentive show a red
   /// "Screen Recording disabled" state while System Settings correctly showed
   /// the app as allowed.
   static func checkPermission(forceActualTestIfPreflightDenied: Bool = false) -> Bool {
@@ -228,7 +228,7 @@ final class ScreenCaptureService: Sendable {
     ensureLaunchServicesRegistration()
 
     // 1. Request traditional Screen Recording TCC permission.
-    // Activate first so the request fires while Omi is frontmost. A
+    // Activate first so the request fires while Intentive is frontmost. A
     // screen-capture access request from a backgrounded app does not reliably
     // register the kTCCServiceScreenCapture row, so the app never appears in the
     // Screen Recording list (PERM-02). This mirrors requestMicrophonePermission,
@@ -262,10 +262,10 @@ final class ScreenCaptureService: Sendable {
   }
 
   /// Guided grant flow (PERM-02 / BL-050): register the screen-recording TCC row
-  /// **while Omi is frontmost**, then open System Settings so the user lands on a
-  /// list that already contains Omi. Opening Settings first backgrounded the app
+  /// **while Intentive is frontmost**, then open System Settings so the user lands on a
+  /// list that already contains Intentive. Opening Settings first backgrounded the app
   /// before the registering call, so a screen-capture request from the
-  /// backgrounded app never created the `kTCCServiceScreenCapture` row and Omi
+  /// backgrounded app never created the `kTCCServiceScreenCapture` row and Intentive
   /// never appeared in the list. Uses the existing register-while-frontmost path.
   @MainActor
   static func requestScreenRecordingAccessAndOpenSettings() {
@@ -1034,7 +1034,7 @@ final class ScreenCaptureService: Sendable {
 
   /// Capture window using screencapture CLI
   private func captureWithScreencapture(windowID: CGWindowID) -> Data? {
-    let tempPath = NSTemporaryDirectory() + "omi_capture_\(UUID().uuidString).jpg"
+    let tempPath = NSTemporaryDirectory() + "intentive_capture_\(UUID().uuidString).jpg"
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")

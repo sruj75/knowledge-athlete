@@ -133,7 +133,7 @@ enum ChatTelemetryDimension {
 
   /// Convert adapter display labels into a closed, content-free tool dimension.
   /// Examples such as `WebSearch: "private query"`, `Read: /private/path`, and
-  /// `mcp__omi-tools__search_memories` become `websearch`, `read`, and
+  /// `mcp__intentive-tools__search_memories` become `websearch`, `read`, and
   /// `search_memories`. Unknown tools collapse to `other`.
   static func toolName(_ rawValue: String) -> String {
     let withoutMCPPrefix: String

@@ -55,7 +55,7 @@ struct DesktopCoordinatorAutomationProjection: Codable {
   let bundleIdentifier: String
   let appState: String
   let selectedTab: String?
-  let askOmiOpen: Bool
+  let askIntentiveOpen: Bool
   let floatingBarVisible: Bool
 }
 
@@ -1084,7 +1084,7 @@ extension DesktopCoordinatorAutomationProjection {
       bundleIdentifier: snapshot.bundleIdentifier,
       appState: snapshot.appState,
       selectedTab: snapshot.selectedTab,
-      askOmiOpen: snapshot.askOmiOpen,
+      askIntentiveOpen: snapshot.askIntentiveOpen,
       floatingBarVisible: snapshot.floatingBarVisible
     )
   }

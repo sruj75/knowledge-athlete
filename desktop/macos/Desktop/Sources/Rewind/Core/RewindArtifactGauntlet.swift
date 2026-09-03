@@ -36,8 +36,8 @@ enum RewindArtifactGauntlet {
       throw RewindError.storageError("Rewind artifact gauntlet found an active video encoder after initialization")
     }
 
-    let normalApp = "Omi Rewind Gauntlet \(nonce)"
-    let protectedApp = "Omi Rewind Gauntlet Protected \(nonce)"
+    let normalApp = "Intentive Rewind Gauntlet \(nonce)"
+    let protectedApp = "Intentive Rewind Gauntlet Protected \(nonce)"
     let windowTitle = "synthetic artifact \(nonce)"
     let settings = RewindSettings.shared
     let originalExcludedApps = settings.excludedApps

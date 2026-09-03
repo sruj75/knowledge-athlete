@@ -139,6 +139,17 @@ enum NotchVoiceMorphGeometry {
   }
 }
 
+enum NotchVoiceMorphPresentation {
+  static func showsIdentityMark(
+    agentStatusCount: Int,
+    isListening: Bool,
+    isThinking: Bool,
+    isSpeaking: Bool
+  ) -> Bool {
+    agentStatusCount == 0 && !isListening && !isThinking && !isSpeaking
+  }
+}
+
 /// Turns raw audio levels into full-range display levels at frame rate:
 /// gate (true silence stays zero) → auto-gain (normalize against a slowly
 /// decaying running peak, so normal speech uses the whole visual range no
@@ -248,11 +259,28 @@ struct NotchVoiceMorphMark: View {
     minPeak: 0.1, attackTau: 0.012, releaseTau: 0.09)
 
   var body: some View {
-    TimelineView(.animation(paused: !isListening && !isThinking && !isSpeaking)) { timeline in
-      Canvas { context, size in
-        draw(into: &context, size: size, date: timeline.date)
+    ZStack {
+      if NotchVoiceMorphPresentation.showsIdentityMark(
+        agentStatusCount: dotColors.count,
+        isListening: isListening,
+        isThinking: isThinking,
+        isSpeaking: isSpeaking
+      ) {
+        SBLogo(size: NotchVoiceMorphGeometry.markSize.width, tint: .white, opacity: 0.96)
+          .transition(.opacity)
+      } else {
+        TimelineView(.animation(paused: !isListening && !isThinking && !isSpeaking)) { timeline in
+          Canvas { context, size in
+            draw(into: &context, size: size, date: timeline.date)
+          }
+        }
+        .transition(.opacity)
       }
     }
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: dotColors.count)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isListening)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isThinking)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isSpeaking)
     .onAppear {
       setMorphProgress(NotchVoiceMorphGeometry.targetProgress(isListening: isListening))
     }
@@ -261,7 +289,7 @@ struct NotchVoiceMorphMark: View {
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(
-      isListening ? "Listening" : isSpeaking ? "Speaking" : isThinking ? "Thinking" : "Omi")
+      isListening ? "Listening" : isSpeaking ? "Speaking" : isThinking ? "Thinking" : "Intentive")
   }
 
   private func setMorphProgress(_ progress: CGFloat) {
@@ -330,7 +358,7 @@ struct NotchVoiceMorphMark: View {
           y: center.y + CGFloat(sin(angle)) * ringRadius
         )
       }
-      // PTT capture is one Omi-owned state, not an agent-status legend. White
+      // PTT capture is one Intentive-owned state, not an agent-status legend. White
       // keeps every waveform dot legible against the notch's black chrome.
       // Color follows the presentation, not the pulse magnitude, so a pause
       // in the reply can't flicker the ring between white and status colors.

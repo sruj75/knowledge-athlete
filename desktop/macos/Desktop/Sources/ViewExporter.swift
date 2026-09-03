@@ -155,7 +155,7 @@ enum ViewExporter {
             .fill(Color.white.opacity(0.9))
             .frame(width: 28, height: 28)
             .overlay(Text("O").font(.system(size: 14, weight: .bold)).foregroundColor(.black))
-          Text("Omi")
+          Text("Intentive")
             .font(.system(size: 18, weight: .semibold))
             .foregroundColor(.white)
           Spacer()
@@ -327,7 +327,7 @@ enum ViewExporter {
       ),
       (
         "Design system cleanup",
-        "We aligned search fields, filter pills, radii, and loading states around the existing Omi neutral palette.",
+        "We aligned search fields, filter pills, radii, and loading states around the existing Intentive neutral palette.",
         "◐"
       ),
     ]
@@ -410,7 +410,7 @@ enum ViewExporter {
         manuallyAdded: true,
         source: .manual,
         confidence: 0.98,
-        sourceApp: "Omi Desktop",
+        sourceApp: "Intentive Desktop",
         contextSummary: "Founder preferences captured from direct instruction.",
         isRead: false,
         isDismissed: false,
@@ -464,7 +464,7 @@ enum ViewExporter {
         manuallyAdded: false,
         source: .insight,
         confidence: 0.89,
-        sourceApp: "Omi Assistant",
+        sourceApp: "Intentive Assistant",
         contextSummary: "Extracted from the desktop UI polish pass.",
         isRead: false,
         isDismissed: false,

@@ -4,10 +4,12 @@ tier: manual
 description: Screen Recording permission flow — verify Rewind permission state, grant flow, toggle monitoring, and Settings integration
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/ConferencingApps.swift
   - desktop/macos/Desktop/Sources/Rewind/UI/RewindPage.swift
   - desktop/macos/Desktop/Sources/ScreenCaptureService.swift
   - desktop/macos/Desktop/Sources/ScreenRecordingPermissionPolicy.swift
   - desktop/macos/Desktop/Sources/Onboarding/PermissionDragGuidance.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/PermissionTutorialSlideshow.swift
   - desktop/macos/Desktop/Sources/MainWindow/Pages/PermissionsPage.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+SystemActions.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift
@@ -51,7 +53,7 @@ steps:
 
   - id: S3
     name: Interact with Grant Permission button
-    do: "If the 'Grant Permission' button is visible, click it. This should open System Settings to the Screen Recording privacy pane. Verify the system preferences window opens (or note if it does). After 3 seconds, return focus to the Omi app and re-snapshot to check if permission state changed."
+    do: "If the 'Grant Permission' button is visible, click it. This should open System Settings to the Screen Recording privacy pane. Verify the system preferences window opens (or note if it does). After 3 seconds, return focus to Intentive and re-snapshot to check if permission state changed."
     expect:
       interactive_count: { min: 1 }
 

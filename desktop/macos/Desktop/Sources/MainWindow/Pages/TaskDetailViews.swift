@@ -58,7 +58,7 @@ private struct TaskDetailTooltip: View {
         if let dueAt = task.dueAt { detail("Due", Self.date(dueAt)) }
         if let recurrence = task.recurrenceRule { detail("Repeats", Self.recurrence(recurrence)) }
         detail("Created", Self.date(task.createdAt))
-        if let source = task.source { detail("Source", task.sourceLabel + " (" + source + ")") }
+        if let sourceDetail = task.sourceDetail { detail("Source", sourceDetail) }
         if let sourceApp = task.sourceApp { detail("App", sourceApp) }
         if let windowTitle = task.windowTitle { detail("Window", windowTitle) }
         if let context = task.contextSummary, !context.isEmpty { block("Context", context) }
@@ -152,7 +152,7 @@ struct TaskDetailView: View {
 
           if task.source != nil || task.sourceApp != nil || task.windowTitle != nil || task.confidence != nil {
             section("Source") {
-              if let source = task.source { detail("Type", task.sourceLabel + " (" + source + ")") }
+              if let sourceDetail = task.sourceDetail { detail("Type", sourceDetail) }
               if let sourceApp = task.sourceApp { detail("App", sourceApp) }
               if let windowTitle = task.windowTitle { detail("Window", windowTitle) }
               if let confidence = task.confidence { detail("Confidence", "\(Int(confidence * 100))%") }

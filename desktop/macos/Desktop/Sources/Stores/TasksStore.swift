@@ -589,7 +589,7 @@ final class TasksStore: ObservableObject {
         incompleteTasks.removeAll { $0.id == task.id }
         completedTasks.insert(result.task, at: 0)
         if let next = result.next { incompleteTasks.insert(next, at: 0) }
-        AnalyticsManager.shared.taskCompleted(source: task.source)
+        AnalyticsManager.shared.taskCompleted(source: task.externalSource)
       } else {
         completedTasks.removeAll { $0.id == task.id }
         incompleteTasks.insert(result.task, at: 0)
@@ -629,7 +629,7 @@ final class TasksStore: ObservableObject {
       guard isCurrent(lease) else { return false }
       incompleteTasks.removeAll { $0.id == task.id }
       completedTasks.removeAll { $0.id == task.id }
-      AnalyticsManager.shared.taskDeleted(source: task.source)
+      AnalyticsManager.shared.taskDeleted(source: task.externalSource)
       await refreshSummaryProjections(lease: lease)
       await reconcileReminders(lease: lease)
       return true

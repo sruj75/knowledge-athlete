@@ -33,7 +33,7 @@ final class UserNotificationCallbackBridgeTests: XCTestCase {
   }
 
   func testSelectorRegistrationCopiesPayloadAndHopsToMainActor() async {
-    let notificationName = Notification.Name("com.omi.test.insight.\(UUID().uuidString)")
+    let notificationName = Notification.Name("com.heyintentive.intentive.test.insight.\(UUID().uuidString)")
     let events = AsyncStream<(isMainThread: Bool, hours: String?, unsupported: String?)>.makeStream()
     let observer = ProactiveTestNotificationObserver(name: notificationName) { payload in
       events.continuation.yield(

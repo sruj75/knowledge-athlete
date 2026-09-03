@@ -56,44 +56,44 @@ class NoopTranslationMetrics:
 class PrometheusTranslationMetrics:
     def __init__(self) -> None:
         self._requests = _counter(
-            'omi_translation_requests_total',
+            'intentive_translation_requests_total',
             'Total translation requests',
             ['provider', 'target_lang', 'method'],
         )
         self._latency = _histogram(
-            'omi_translation_latency_seconds',
+            'intentive_translation_latency_seconds',
             'End-to-end translation latency',
             ['provider', 'target_lang'],
             [0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
         )
         self._characters = _counter(
-            'omi_translation_chars_total',
+            'intentive_translation_chars_total',
             'Characters translated',
             ['provider', 'target_lang'],
         )
         self._sentences = _counter(
-            'omi_translation_sentences_total',
+            'intentive_translation_sentences_total',
             'Sentences translated',
             ['provider', 'target_lang'],
         )
         self._cache_ops = _counter(
-            'omi_translation_cache_ops_total',
+            'intentive_translation_cache_ops_total',
             'Translation cache operations',
             ['layer', 'result'],
         )
         self._errors = _counter(
-            'omi_translation_errors_total',
+            'intentive_translation_errors_total',
             'Translation errors',
             ['provider', 'error_type'],
         )
         self._batch_size = _histogram(
-            'omi_translation_batch_size',
+            'intentive_translation_batch_size',
             'Sentences per translation provider call',
             ['provider'],
             [1, 2, 5, 10, 20, 50, 100, 200],
         )
         self._skips = _counter(
-            'omi_translation_skip_total',
+            'intentive_translation_skip_total',
             'Translations skipped',
             ['target_lang', 'reason'],
         )

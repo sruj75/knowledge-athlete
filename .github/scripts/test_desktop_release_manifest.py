@@ -30,7 +30,7 @@ class ManifestValidationTests(unittest.TestCase):
     def test_schema_is_strict_and_lists_the_runtime_contract(self) -> None:
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         self.assertFalse(schema["additionalProperties"])
-        self.assertEqual(schema["x-omi-executable-contract"], ".github/scripts/desktop_release_manifest.py")
+        self.assertEqual(schema["x-intentive-executable-contract"], ".github/scripts/desktop_release_manifest.py")
         self.assertEqual(set(schema["properties"]), manifest_contract.TOP_LEVEL_FIELDS)
         self.assertEqual(set(schema["required"]), manifest_contract.REQUIRED_FIELDS)
 
@@ -101,9 +101,15 @@ class ManifestValidationTests(unittest.TestCase):
     def test_artifact_urls_are_bound_to_repository_release_and_asset(self) -> None:
         invalid_urls = {
             "arbitrary host": "https://example.com/Intentive.zip",
-            "other release": ("https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.70%2B12070-macos/Intentive.zip"),
-            "other repository": ("https://github.com/attacker/omi/releases/download/v0.12.71%2B12071-macos/Intentive.zip"),
-            "wrong asset": ("https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.71%2B12071-macos/other.zip"),
+            "other release": (
+                "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.70%2B12070-macos/Intentive.zip"
+            ),
+            "other repository": (
+                "https://github.com/attacker/omi/releases/download/v0.12.71%2B12071-macos/Intentive.zip"
+            ),
+            "wrong asset": (
+                "https://github.com/sruj75/knowledge-athlete/releases/download/v0.12.71%2B12071-macos/other.zip"
+            ),
         }
         for label, value in invalid_urls.items():
             with self.subTest(label=label):

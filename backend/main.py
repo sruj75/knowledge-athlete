@@ -101,7 +101,7 @@ app.include_router(other.router)
 
 app.include_router(updates.router)
 
-app.include_router(auth.router)  # Added auth router (for the main Omi App, this is the core auth router)
+app.include_router(auth.router)  # Core auth router for the main Intentive app.
 
 
 app.include_router(payment.router)

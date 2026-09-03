@@ -351,7 +351,7 @@ extension SettingsContentView {
           // App info
           HStack(spacing: OmiSpacing.lg) {
             if let logoURL = Bundle.resourceBundle.url(
-              forResource: "herologo", withExtension: "png"),
+              forResource: "intentive_mark", withExtension: "png"),
               let logoImage = NSImage(contentsOf: logoURL)
             {
               Image(nsImage: logoImage)
@@ -362,7 +362,7 @@ extension SettingsContentView {
 
             VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
               HStack(spacing: OmiSpacing.xs) {
-                Text("omi")
+                Text("Intentive")
                   .scaledFont(size: OmiType.heading, weight: .bold)
                   .foregroundColor(OmiColors.textPrimary)
 
@@ -522,7 +522,7 @@ extension SettingsContentView {
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
           } else if AppBuild.isNamedDevelopmentBundle {
-            Text("Named developer bundles do not use shared Sparkle updates. Run omi-dev update instead.")
+            Text("Named developer bundles do not use shared Sparkle updates. Use the named-bundle updater instead.")
               .scaledFont(size: OmiType.caption)
               .foregroundColor(OmiColors.textTertiary)
           } else if AnalyticsManager.isDevBuild {
@@ -541,7 +541,7 @@ extension SettingsContentView {
             destination: .updateChannel
           ) {
             if AppBuild.isBetaProductionBundle {
-              // Omi Beta is permanently a beta-channel client; switching it to stable
+              // Intentive Beta is permanently a beta-channel client; switching it to stable
               // would make Sparkle replace it with the stable-identity app in place.
               Text(UpdateChannel.beta.displayName)
                 .scaledFont(size: OmiType.body)
@@ -596,7 +596,7 @@ extension SettingsContentView {
               .scaledFont(size: OmiType.subheading, weight: .medium)
               .foregroundColor(OmiColors.textPrimary)
 
-            Text("Help us improve omi")
+            Text("Help us improve Intentive")
               .scaledFont(size: OmiType.body)
               .foregroundColor(OmiColors.textTertiary)
           }

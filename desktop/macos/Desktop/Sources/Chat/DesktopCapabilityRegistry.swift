@@ -1,6 +1,6 @@
 import Foundation
 
-/// Model-visible capability docs for Omi desktop surfaces.
+/// Model-visible capability docs for Intentive desktop surfaces.
 /// Capability data is generated from the canonical TypeScript tool manifest.
 enum DesktopCapabilityRegistry {
   typealias Surface = GeneratedToolCapabilities.Surface
@@ -27,7 +27,7 @@ enum DesktopCapabilityRegistry {
     let proactiveGuidance = proactiveGuidancePrompt(availableToolNames: availableToolNames)
     let usageGuidance = usageGuidancePrompt(availableToolNames: availableToolNames)
     return """
-      These Omi data/status tools are documented for desktop chat. Use them before answering when the question depends on the user's personal data, tasks, conversations, memories, app/screen activity, or background-agent state. Do not guess when you can look it up. Do not call tools for simple chit-chat or general knowledge that does not depend on the user's data.
+      These Intentive data/status tools are documented for desktop chat. Use them before answering when the question depends on the user's personal data, tasks, conversations, memories, app/screen activity, or background-agent state. Do not guess when you can look it up. Do not call tools for simple chit-chat or general knowledge that does not depend on the user's data.
 
       \(docs)
 
@@ -45,11 +45,11 @@ enum DesktopCapabilityRegistry {
 
   static var realtimeSelfModelPrompt: String {
     """
-    Omi capability model:
-    - You can read Omi data quickly with fast tools: tasks, memories, conversations, daily recaps, and screen history.
+    Intentive capability model:
+    - You can read Intentive data quickly with fast tools: tasks, memories, conversations, daily recaps, and screen history.
     - You can propose macOS permission checks or requests with check_permission_status and request_permission; the kernel authorizes the native action. Treat "screen share", "screen sharing", and "screen-share" as the Screen Recording permission type, screen_recording.
-    - When screen access is unavailable, explicitly say that Omi needs Screen Recording permission so a next-turn request such as "request it" has one unambiguous permission referent. If the user then asks to request it, propose request_permission with type screen_recording immediately.
-    - You can inspect floating-bar pills and canonical Omi-managed agent sessions/runs with list_agent_sessions, get_agent_run, and cancel_agent_run.
+    - When screen access is unavailable, explicitly say that Intentive needs Screen Recording permission so a next-turn request such as "request it" has one unambiguous permission referent. If the user then asks to request it, propose request_permission with type screen_recording immediately.
+    - You can inspect floating-bar pills and canonical Intentive-managed agent sessions/runs with list_agent_sessions, get_agent_run, and cancel_agent_run.
     - You can inspect canonical agent output references with inspect_agent_artifacts and mark artifact metadata with update_agent_artifact_lifecycle.
     - You can dismiss floating-bar pills with set_desktop_attention_override after checking list_agent_sessions.
     - spawn_agent submits a background-work proposal; only an accepted kernel result creates a canonical agent session/run.
@@ -115,7 +115,7 @@ enum DesktopCapabilityRegistry {
     }
     return """
       **Background-Agent Awareness:**
-      - Omi can run local subagents and floating-bar background agents.
+      - Intentive can run local subagents and floating-bar background agents.
       - If the user says "your subagents", "running agents", "background agents", or mentions agent errors/timeouts, do NOT deny that you have subagents.
       - Call list_agent_sessions before answering those questions.
       """
@@ -150,7 +150,7 @@ enum DesktopCapabilityRegistry {
       when: has("get_work_context")
     )
     append(
-      "If a screen tool reports permission_required, tell the user Omi cannot access that capability yet and ask whether they want to grant it. Call request_permission with the returned permission type only after explicit current-turn consent.",
+      "If a screen tool reports permission_required, tell the user Intentive cannot access that capability yet and ask whether they want to grant it. Call request_permission with the returned permission type only after explicit current-turn consent.",
       when: has("request_permission")
     )
     let permissionTools = ["check_permission_status", "request_permission"]
@@ -183,13 +183,14 @@ enum DesktopCapabilityRegistry {
     append("Subagent/floating-pill status -> list_agent_sessions.", when: has("list_agent_sessions"))
     let agentSessionTools = ["list_agent_sessions", "get_agent_run"]
     append(
-      "Canonical Omi-managed agent sessions/runs -> \(toolList(agentSessionTools)).",
+      "Canonical Intentive-managed agent sessions/runs -> \(toolList(agentSessionTools)).",
       when: !available(agentSessionTools).isEmpty
     )
-    append("Continue an existing canonical Omi agent session -> send_agent_message.", when: has("send_agent_message"))
+    append(
+      "Continue an existing canonical Intentive agent session -> send_agent_message.", when: has("send_agent_message"))
     append("Start background work -> spawn_agent.", when: has("spawn_agent"))
     append("Synchronous parent-linked child result -> run_agent_and_wait.", when: has("run_agent_and_wait"))
-    append("Stop a canonical Omi agent run -> cancel_agent_run.", when: has("cancel_agent_run"))
+    append("Stop a canonical Intentive agent run -> cancel_agent_run.", when: has("cancel_agent_run"))
     append("Agent output references/artifacts -> inspect_agent_artifacts.", when: has("inspect_agent_artifacts"))
     let dismissalTools = ["set_desktop_attention_override", "update_agent_artifact_lifecycle"]
     append(

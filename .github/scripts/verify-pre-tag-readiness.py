@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-KIND = "omi-desktop-pre-tag-readiness-v1"
+KIND = "intentive-desktop-pre-tag-readiness-v1"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 LANES = frozenset({"local", "ci"})
 REQUIRED_CHECKS = (

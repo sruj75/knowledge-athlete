@@ -16,7 +16,7 @@ backend dir).
 
 ## Credentials
 
-Any account with **prod Firestore write** on the Omi GCP project:
+Any account with **prod Firestore write** on the Intentive `knowledge-athlete` GCP project:
 
 - Service account JSON:
   `GOOGLE_APPLICATION_CREDENTIALS=/path/svc.json`
@@ -73,7 +73,7 @@ python -m scripts.admin.reset_transcription_usage reset-month --uid <UID> \
   lookup. A raw manual `throttle` or `restrict` has no timer and remains until
   support changes or resets it; setting `none` clears both timers. Customer
   status and public case-status endpoints do not exist; use the protected case
-  lookup and `support@heyintentive.com` workflow.
+  lookup through an authorized operator. No public support mailbox is approved.
 - **Automatic goodwill credits / billing policy** — product decision, out of scope.
 - **Prod runs** are operator-initiated; this repo's CI only unit-tests the pure
   logic. Never run `--apply` in CI / automated pipelines against real users

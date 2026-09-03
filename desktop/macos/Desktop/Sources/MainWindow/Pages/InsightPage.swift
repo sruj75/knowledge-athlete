@@ -408,7 +408,7 @@ struct InsightPage: View {
         .foregroundStyle(sb.ink(.w85))
 
       Text(
-        "Proactive insights from Omi will appear here as you work.\nEnable the Insight Assistant to start seeing them."
+        DesktopLifecycleIdentityCopy.insightsEmptyState
       )
       .geist(size: 13.5)
       .foregroundStyle(sb.ink(.w45))
@@ -574,7 +574,7 @@ struct InsightPage: View {
 
 /// One realization on the Insights stream: a connector dot on a vertical rail,
 /// a category tag + timestamp, and the insight itself as a pull-quote — so the
-/// page reads like a running log of what Omi has learned about you.
+/// page reads like a running log of what Intentive has learned about you.
 struct InsightTimelineRow: View {
   let insight: StoredInsight
   let isFirst: Bool

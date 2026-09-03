@@ -333,7 +333,7 @@ class AuthService {
     DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
       guard let self, self.isSessionAttemptCurrent(attempt) else { return }
       if AuthState.shared.isRestoringAuth {
-        NSLog("OMI AUTH: Auth restore timed out after 5s, entering recoverable state")
+        NSLog("INTENTIVE AUTH: Auth restore timed out after 5s, entering recoverable state")
         AuthState.shared.transition(to: .recoveryRequired)
       }
     }
@@ -343,9 +343,9 @@ class AuthService {
     let attempt = beginSessionAttempt()
     guard let email = DesktopLocalProfile.selectedEmail,
       let password = DesktopLocalProfile.selectedPassword,
-      let selectedUser = DesktopLocalProfile.selectedUser
+      DesktopLocalProfile.selectedUser != nil
     else {
-      log("OMI AUTH LOCAL: missing selected local auth user env; staying signed out")
+      log("INTENTIVE AUTH LOCAL: missing selected local auth user env; staying signed out")
       return
     }
 
@@ -356,7 +356,7 @@ class AuthService {
       _ = sessionAttemptFence.commitIfCurrent(attempt) {
         clearTokens()
       }
-      log("OMI AUTH LOCAL: cleared stale persisted auth for email=\(savedEmail)")
+      log("INTENTIVE AUTH LOCAL: cleared stale persisted auth")
     }
 
     do {
@@ -374,9 +374,9 @@ class AuthService {
         givenName = pieces.first ?? ""
         familyName = pieces.count > 1 ? pieces[1] : ""
       }
-      log("OMI AUTH LOCAL: signed in via emulator REST as \(email) uid=\(tokens.localId) user=\(selectedUser)")
+      log("INTENTIVE AUTH LOCAL: signed in via emulator REST")
     } catch {
-      logError("OMI AUTH LOCAL: sign-in failed for \(email)", error: error)
+      logError("INTENTIVE AUTH LOCAL: sign-in failed", error: error)
       self.error = "Local Auth emulator sign-in failed for \(email): \(error.localizedDescription)"
       AuthState.shared.transition(to: .recoveryRequired)
     }
@@ -410,8 +410,7 @@ class AuthService {
       throw AuthError.invalidResponse
     }
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      log("OMI AUTH LOCAL: emulator REST error \(httpResponse.statusCode): \(errorBody)")
+      log(AuthLogPrivacy.responseFailure("Local Firebase emulator sign-in", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
@@ -466,7 +465,7 @@ class AuthService {
       })
     guard committed else { return false }
     guard sessionAttemptFence.isCurrent(attempt) else { return false }
-    NSLog("OMI AUTH: Atomically saved signed-in session for user %@", tokens.localId)
+    NSLog("INTENTIVE AUTH: Atomically saved signed-in session")
     AuthState.shared.userEmail = email
     sessionCoordinator.resetAfterSuccessfulSignIn()
     return true
@@ -500,8 +499,8 @@ class AuthService {
     let savedEmail = UserDefaults.standard.string(forKey: .authUserEmail)
 
     NSLog(
-      "OMI AUTH: Checking saved auth state - savedSignedIn: %@, savedEmail: %@",
-      savedSignedIn ? "true" : "false", savedEmail ?? "nil")
+      "INTENTIVE AUTH: Checking saved auth state - savedSignedIn: %@",
+      savedSignedIn ? "true" : "false")
 
     // Set auth state synchronously (we're already on main thread from configure()).
     // Using DispatchQueue.main.async here would defer to the next run-loop tick,
@@ -517,7 +516,7 @@ class AuthService {
         if let payload = decodeJWT(storedToken),
           let userId = payload["user_id"] as? String ?? payload["sub"] as? String
         {
-          NSLog("OMI AUTH: Migrating empty userId - extracted from JWT: %@", userId)
+          NSLog("INTENTIVE AUTH: Migrating missing local user identity from validated JWT")
           guard await persistAuthenticatedOwner(userId, attempt: attempt) else { return }
         }
       }
@@ -527,7 +526,7 @@ class AuthService {
       // until a forced refresh succeeds.
       validateRestoredSession(attempt: attempt)
     } else {
-      NSLog("OMI AUTH: No saved auth state found")
+      NSLog("INTENTIVE AUTH: No saved auth state found")
       guard
         await saveAuthState(
           isSignedIn: false,
@@ -563,7 +562,7 @@ class AuthService {
     let hasFirebaseUser = !DesktopLocalProfile.isEnabled && configuredFirebaseAuth()?.currentUser != nil
 
     guard storedRefreshToken != nil || storedIdToken != nil || hasFirebaseUser else {
-      NSLog("OMI AUTH: Restored session has no credentials — invalidating")
+      NSLog("INTENTIVE AUTH: Restored session has no credentials — invalidating")
       await invalidateSession(reason: .restoredSessionInvalid)
       return
     }
@@ -571,7 +570,7 @@ class AuthService {
     do {
       _ = try await sessionCoordinator.refreshSingleFlight(auth: self)
       guard sessionAttemptFence.isCurrent(attempt) else { return }
-      NSLog("OMI AUTH: Restored session validated via forced refresh")
+      NSLog("INTENTIVE AUTH: Restored session validated via forced refresh")
       let userId = storedTokenUserId ?? configuredFirebaseAuth()?.currentUser?.uid
       guard
         await commitRestoredSession(
@@ -589,15 +588,15 @@ class AuthService {
       if sessionCoordinator.phase == .needsReauth
         || (storedIdToken == nil && storedRefreshToken == nil && !hasFirebaseUser)
       {
-        NSLog("OMI AUTH: Restored session validation proved credentials absent")
+        NSLog("INTENTIVE AUTH: Restored session validation proved credentials absent")
         await invalidateSession(reason: .restoredSessionInvalid)
       } else {
-        NSLog("OMI AUTH: Restored session validation deferred - preserving credentials for retry")
+        NSLog("INTENTIVE AUTH: Restored session validation deferred - preserving credentials for retry")
         AuthState.shared.transition(to: .recoveryRequired)
       }
     } catch {
       guard sessionAttemptFence.isCurrent(attempt) else { return }
-      NSLog("OMI AUTH: Restored session validation deferred (transient): %@", error.localizedDescription)
+      NSLog("INTENTIVE AUTH: Restored session validation deferred (transient): %@", error.localizedDescription)
       AuthState.shared.transition(to: .recoveryRequired)
     }
   }
@@ -613,9 +612,7 @@ class AuthService {
           // Firebase currentUser is cached identity, not proof that the
           // credential can refresh. Only enrich an already validated session;
           // launch restoration remains owned by validateRestoredSessionNow().
-          log(
-            "AUTH_LISTENER: Firebase user present (uid=\(user.uid)), phase=\(String(describing: self.sessionCoordinator.phase))"
-          )
+          log("AUTH_LISTENER: Firebase user present, phase=\(String(describing: self.sessionCoordinator.phase))")
           let ownerID = UserDefaults.standard.string(forKey: .authUserId)
           let tokenOwnerID = self.storedTokenUserId
           if self.sessionCoordinator.phase == .authenticated,
@@ -700,7 +697,7 @@ class AuthService {
   @MainActor
   private func signInWithAppleNative() async throws {
     let sessionAttempt = beginSessionAttempt()
-    NSLog("OMI AUTH: Starting native Apple Sign In")
+    NSLog("INTENTIVE AUTH: Starting native Apple Sign In")
     isLoading = true
     error = nil
     AnalyticsManager.shared.signInStarted(provider: "apple")
@@ -724,7 +721,7 @@ class AuthService {
     else {
       throw AuthError.missingToken
     }
-    NSLog("OMI AUTH: Got Apple identity token")
+    NSLog("INTENTIVE AUTH: Got Apple identity token")
 
     // Save user name if provided (Apple only sends name on first sign-in)
     var incomingAppleName: AuthLocalNameProjection.IncomingName?
@@ -733,7 +730,7 @@ class AuthService {
       let family = fullName.familyName ?? ""
       if !given.isEmpty {
         incomingAppleName = .init(given: given, family: family)
-        NSLog("OMI AUTH: Captured name from Apple: %@ %@", given, family)
+        NSLog("INTENTIVE AUTH: Captured name from Apple")
       }
     }
     if let email = appleCredential.email {
@@ -743,7 +740,7 @@ class AuthService {
     // Step 4: Sign in with Firebase using Apple credential
     // Use Firebase SDK first (handles native bundle ID audience correctly),
     // fall back to the Firebase REST exchange when the native SDK is unavailable
-    NSLog("OMI AUTH: Signing in with Firebase using Apple identity token...")
+    NSLog("INTENTIVE AUTH: Signing in with Firebase using Apple identity token...")
 
     let nativeSignIn = try await FirebaseAuthAvailability.signInWithNativeApple(
       auth: configuredFirebaseAuth(),
@@ -806,7 +803,7 @@ class AuthService {
       SentrySDK.setUser(User(userId: nativeSignIn.tokens.localId))
     }
 
-    NSLog("OMI AUTH: Apple Sign in complete!")
+    NSLog("INTENTIVE AUTH: Apple Sign in complete!")
     fetchConversations()
   }
 
@@ -823,12 +820,12 @@ class AuthService {
   private func signIn(provider: String) async throws {
     // Guard against double sign-in (e.g., rapid button clicks before UI updates)
     guard !isLoading else {
-      NSLog("OMI AUTH: Sign in already in progress, ignoring duplicate request")
+      NSLog("INTENTIVE AUTH: Sign in already in progress, ignoring duplicate request")
       return
     }
     let sessionAttempt = beginSessionAttempt()
 
-    NSLog("OMI AUTH: Starting Sign in with %@ (Web OAuth)", provider)
+    NSLog("INTENTIVE AUTH: Starting Sign in with %@ (Web OAuth)", provider)
     isLoading = true
     error = nil
 
@@ -909,7 +906,7 @@ class AuthService {
           ]
         )
       }
-      NSLog("OMI AUTH: Generated OAuth state")
+      NSLog("INTENTIVE AUTH: Generated OAuth state")
 
       // Step 2: Build authorization URL
       let authURL = buildAuthorizationURL(
@@ -918,7 +915,7 @@ class AuthService {
         codeChallenge: codeChallenge,
         redirectURI: selectedRedirectURI
       )
-      NSLog("OMI AUTH: Opening browser for authentication")
+      NSLog("INTENTIVE AUTH: Opening browser for authentication")
 
       // Step 3: Open browser for authentication
       guard let url = URL(string: authURL) else {
@@ -931,7 +928,7 @@ class AuthService {
       trackAuthFlowEvent("Auth Browser Opened", stage: "browser_opened", provider: provider, authFlowId: flowId)
 
       // Step 4: Wait for callback with authorization code
-      NSLog("OMI AUTH: Waiting for OAuth callback...")
+      NSLog("INTENTIVE AUTH: Waiting for OAuth callback...")
       let (code, returnedState) = try await waitForOAuthCallback(callbackServer: callbackServer)
       clearLoopbackCallbackServerIfCurrent(callbackServer, flowId: flowId)
       bringAppToFrontAfterAuthCallback()
@@ -946,7 +943,7 @@ class AuthService {
 
       // Step 5: Verify state matches
       guard returnedState == state else {
-        NSLog("OMI AUTH: State mismatch - potential CSRF attack")
+        NSLog("INTENTIVE AUTH: State mismatch - potential CSRF attack")
         trackAuthFlowEvent(
           "Auth Callback Invalid",
           stage: "state_verified",
@@ -964,10 +961,10 @@ class AuthService {
           authFlowId: flowId
         )
       }
-      NSLog("OMI AUTH: Received valid authorization code")
+      NSLog("INTENTIVE AUTH: Received valid authorization code")
 
       // Step 6: Exchange code for custom token and user info
-      NSLog("OMI AUTH: Exchanging code for Firebase token...")
+      NSLog("INTENTIVE AUTH: Exchanging code for Firebase token...")
       trackAuthFlowEvent("Auth Token Exchange Started", stage: "token_exchange", provider: provider, authFlowId: flowId)
       let tokenResult: TokenExchangeResult
       do {
@@ -989,7 +986,7 @@ class AuthService {
       }
       trackAuthFlowEvent(
         "Auth Token Exchange Completed", stage: "token_exchange", provider: provider, authFlowId: flowId)
-      NSLog("OMI AUTH: Got Firebase custom token")
+      NSLog("INTENTIVE AUTH: Got Firebase custom token")
 
       guard sessionAttemptFence.isCurrent(sessionAttempt) else {
         throw AuthError.cancelled
@@ -998,7 +995,7 @@ class AuthService {
       var incomingName: AuthLocalNameProjection.IncomingName?
       if let extractedGivenName = tokenResult.givenName, !extractedGivenName.isEmpty {
         incomingName = .init(given: extractedGivenName, family: tokenResult.familyName ?? "")
-        NSLog("OMI AUTH: Captured name from OAuth: %@ %@", extractedGivenName, tokenResult.familyName ?? "")
+        NSLog("INTENTIVE AUTH: Captured name from OAuth")
       }
       if let extractedEmail = tokenResult.email {
         AuthState.shared.userEmail = extractedEmail
@@ -1006,7 +1003,7 @@ class AuthService {
 
       // Step 7: Exchange custom token for ID token via REST API
       // This bypasses keychain issues with Firebase SDK on dev builds
-      NSLog("OMI AUTH: Exchanging custom token for ID token via REST API...")
+      NSLog("INTENTIVE AUTH: Exchanging custom token for ID token via REST API...")
       trackAuthFlowEvent(
         "Firebase Custom Token Exchange Started",
         stage: "firebase_custom_token_exchange",
@@ -1033,7 +1030,7 @@ class AuthService {
         provider: provider,
         authFlowId: flowId
       )
-      NSLog("OMI AUTH: Got Firebase ID token via REST API")
+      NSLog("INTENTIVE AUTH: Got Firebase ID token via REST API")
 
       // Also try Firebase SDK sign-in (best effort for other Firebase features)
       guard sessionAttemptFence.isCurrent(sessionAttempt) else {
@@ -1046,12 +1043,12 @@ class AuthService {
             discardStaleFirebaseUserIfNeeded(authResult.user.uid)
             throw AuthError.cancelled
           }
-          NSLog("OMI AUTH: Firebase SDK sign-in SUCCESS - uid: %@", authResult.user.uid)
+          NSLog("INTENTIVE AUTH: Firebase SDK sign-in succeeded")
         } catch AuthError.cancelled {
           throw AuthError.cancelled
-        } catch let firebaseError as NSError {
+        } catch {
           // Keychain errors are expected on dev builds - we have REST API tokens as fallback
-          NSLog("OMI AUTH: Firebase SDK sign-in failed (using REST API tokens): %@", firebaseError.localizedDescription)
+          NSLog("INTENTIVE AUTH: Firebase SDK unavailable; using validated REST tokens")
         }
       }
 
@@ -1104,14 +1101,14 @@ class AuthService {
         SentrySDK.setUser(User(userId: userId))
       }
 
-      NSLog("OMI AUTH: Sign in complete!")
+      NSLog("INTENTIVE AUTH: Sign in complete!")
 
       // Fetch conversations after successful sign-in
       fetchConversations()
 
     } catch AuthError.cancelled {
       // User-initiated cancel: clear any stale error and stay silent.
-      NSLog("OMI AUTH: %@ web OAuth sign-in cancelled by user", provider)
+      NSLog("INTENTIVE AUTH: %@ web OAuth sign-in cancelled by user", provider)
       trackAuthFlowEvent(
         "Auth Flow Cancelled",
         stage: "cancelled",
@@ -1127,7 +1124,7 @@ class AuthService {
       self.error = nil
       throw AuthError.cancelled
     } catch AuthError.timeout {
-      NSLog("OMI AUTH: %@ web OAuth sign-in timed out", provider)
+      NSLog("INTENTIVE AUTH: %@ web OAuth sign-in timed out", provider)
       trackAuthFlowEvent(
         "Auth Flow Timed Out",
         stage: "timed_out",
@@ -1150,7 +1147,7 @@ class AuthService {
       throw AuthError.timeout
     } catch {
       let nsError = error as NSError
-      NSLog("OMI AUTH: Error during sign in: %@", error.localizedDescription)
+      NSLog("INTENTIVE AUTH: Error during sign in: %@", error.localizedDescription)
       logError(
         "AUTH: \(provider) web OAuth sign-in failed (domain=\(nsError.domain) code=\(nsError.code))", error: error)
       trackAuthFlowEvent(
@@ -1364,10 +1361,10 @@ class AuthService {
   /// Called by AppDelegate when the app receives an OAuth callback URL
   @MainActor
   func handleOAuthCallback(url: URL) {
-    NSLog("OMI AUTH: Received OAuth callback: %@", url.absoluteString)
+    NSLog("%@", AuthLogPrivacy.callbackReceived(url))
 
     guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-      NSLog("OMI AUTH: Failed to parse callback URL")
+      NSLog("INTENTIVE AUTH: Failed to parse callback URL")
       trackCurrentAuthFlowEvent(
         "Auth Callback Invalid",
         stage: "callback_parse",
@@ -1379,7 +1376,7 @@ class AuthService {
 
     // Check if this is our auth callback
     guard url.scheme == urlScheme && url.host == "auth" && url.path == "/callback" else {
-      NSLog("OMI AUTH: Not an auth callback URL")
+      NSLog("INTENTIVE AUTH: Not an auth callback URL")
       return
     }
 
@@ -1397,7 +1394,7 @@ class AuthService {
 
     if let state, let targetBundleId = targetBundleIdentifier(from: state), targetBundleId != currentBundleIdentifier {
       NSLog(
-        "OMI AUTH: Callback is for bundle %@, current bundle is %@. Forwarding...",
+        "INTENTIVE AUTH: Callback is for bundle %@, current bundle is %@. Forwarding...",
         targetBundleId,
         currentBundleIdentifier
       )
@@ -1414,7 +1411,7 @@ class AuthService {
 
     if let error = error {
       guard let state, state == pendingOAuthState else {
-        NSLog("OMI AUTH: Ignoring OAuth error callback with missing or mismatched state")
+        NSLog("INTENTIVE AUTH: Ignoring OAuth error callback with missing or mismatched state")
         trackAuthFlowEvent(
           "Auth Callback Invalid",
           stage: "callback_provider_error_state",
@@ -1424,7 +1421,7 @@ class AuthService {
         )
         return
       }
-      NSLog("OMI AUTH: OAuth error: %@", error)
+      NSLog("INTENTIVE AUTH: OAuth provider returned an error")
       trackAuthFlowEvent(
         "Auth Callback Invalid",
         stage: "callback_provider_error",
@@ -1438,7 +1435,7 @@ class AuthService {
     }
 
     guard let code = code, let state = state else {
-      NSLog("OMI AUTH: Missing code or state in callback")
+      NSLog("INTENTIVE AUTH: Missing code or state in callback")
       trackAuthFlowEvent(
         "Auth Callback Invalid",
         stage: "callback_params",
@@ -1450,7 +1447,7 @@ class AuthService {
       return
     }
 
-    NSLog("OMI AUTH: Successfully extracted code and state from callback")
+    NSLog("INTENTIVE AUTH: Successfully extracted code and state from callback")
     trackAuthFlowEvent(
       "Auth Callback Valid",
       stage: "callback_validated",
@@ -1462,7 +1459,7 @@ class AuthService {
     resumeOAuthContinuation(returning: (code: code, state: state))
   }
 
-  /// Focus the main Omi window after the browser finishes the OAuth handoff.
+  /// Focus the main Intentive window after the browser finishes the OAuth handoff.
   /// Reuses the app's primary summon path, which requests LaunchServices
   /// activation when AppKit alone cannot take focus from the browser.
   @MainActor
@@ -1473,7 +1470,7 @@ class AuthService {
     }
 
     NSApp.activate(ignoringOtherApps: true)
-    for window in NSApp.windows where window.title.lowercased().hasPrefix("omi") {
+    for window in NSApp.windows where window.title.lowercased().hasPrefix("intentive") {
       if window.isMiniaturized {
         window.deminiaturize(nil)
       }
@@ -1490,7 +1487,7 @@ class AuthService {
   func cancelSignIn() {
     if let loopbackCallbackServer {
       _ = beginSessionAttempt()
-      NSLog("OMI AUTH: User cancelled in-flight loopback web OAuth sign-in")
+      NSLog("INTENTIVE AUTH: User cancelled in-flight loopback web OAuth sign-in")
       pendingOAuthState = nil
       loopbackCallbackServer.cancel()
       self.loopbackCallbackServer = nil
@@ -1504,7 +1501,7 @@ class AuthService {
       return
     }
     _ = beginSessionAttempt()
-    NSLog("OMI AUTH: User cancelled in-flight web OAuth sign-in")
+    NSLog("INTENTIVE AUTH: User cancelled in-flight web OAuth sign-in")
     pendingOAuthState = nil
     resumeOAuthContinuation(throwing: AuthError.cancelled)
   }
@@ -1545,18 +1542,17 @@ class AuthService {
 
     request.httpBody = bodyString.data(using: .utf8)
 
-    NSLog("OMI AUTH: Sending token exchange request...")
+    NSLog("INTENTIVE AUTH: Sending token exchange request...")
     let (data, response) = try await URLSession.shared.data(for: request)
 
     guard let httpResponse = response as? HTTPURLResponse else {
       throw AuthError.invalidResponse
     }
 
-    NSLog("OMI AUTH: Token exchange response status: %d", httpResponse.statusCode)
+    NSLog("INTENTIVE AUTH: Token exchange response status: %d", httpResponse.statusCode)
 
     guard httpResponse.statusCode == 200 else {
-      let responseBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("OMI AUTH: Token exchange failed: %@", responseBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Token exchange", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
@@ -1567,7 +1563,7 @@ class AuthService {
 
     // Get custom token
     guard let customToken = json["custom_token"] as? String else {
-      NSLog("OMI AUTH: No custom_token in response")
+      NSLog("INTENTIVE AUTH: No custom_token in response")
       throw AuthError.missingCustomToken
     }
 
@@ -1589,11 +1585,7 @@ class AuthService {
           extractedFamilyName = parts.count > 1 ? String(parts[1]) : nil
         }
 
-        NSLog(
-          "OMI AUTH: Extracted from id_token - name: %@ %@, email: %@",
-          extractedGivenName ?? "(none)",
-          extractedFamilyName ?? "",
-          extractedEmail ?? "(none)")
+        NSLog("%@", AuthLogPrivacy.idTokenProfileClaimsExtracted(userInfo))
       }
     }
 
@@ -1672,18 +1664,18 @@ class AuthService {
     // Save locally
     givenName = newGivenName
     familyName = newFamilyName
-    NSLog("OMI AUTH: Updated name locally - given: %@, family: %@", newGivenName, newFamilyName)
+    NSLog("INTENTIVE AUTH: Updated name locally")
 
     // Try to update Firebase profile (best effort)
     // Skip during impersonation to avoid overwriting the target user's display name
     let isImpersonating = UserDefaults.standard.bool(forKey: .authIsImpersonating)
     if isImpersonating {
-      NSLog("OMI AUTH: Skipping Firebase displayName update (impersonation mode)")
+      NSLog("INTENTIVE AUTH: Skipping Firebase displayName update (impersonation mode)")
     } else {
       do {
         try await updateFirebaseDisplayName(trimmedName, expectedOwnerID: nil)
       } catch {
-        NSLog("OMI AUTH: Failed to update Firebase displayName (non-fatal): %@", error.localizedDescription)
+        NSLog("INTENTIVE AUTH: Failed to update Firebase displayName (non-fatal): %@", error.localizedDescription)
       }
     }
     postNameDidUpdate()
@@ -1704,7 +1696,7 @@ class AuthService {
         try await updateFirebaseDisplayName(trimmedName, expectedOwnerID: expectedOwnerID)
       } catch {
         NSLog(
-          "OMI AUTH: Failed to update Firebase displayName (non-fatal): %@",
+          "INTENTIVE AUTH: Failed to update Firebase displayName (non-fatal): %@",
           error.localizedDescription
         )
       }
@@ -1713,7 +1705,7 @@ class AuthService {
 
     givenName = newGivenName
     familyName = newFamilyName
-    NSLog("OMI AUTH: Updated owner-bound name locally - given: %@, family: %@", newGivenName, newFamilyName)
+    NSLog("INTENTIVE AUTH: Updated owner-bound name locally")
     postNameDidUpdate()
   }
 
@@ -1749,7 +1741,7 @@ class AuthService {
     let changeRequest = user.createProfileChangeRequest()
     changeRequest.displayName = name
     try await changeRequest.commitChanges()
-    NSLog("OMI AUTH: Updated Firebase displayName to: %@", name)
+    NSLog("INTENTIVE AUTH: Updated Firebase displayName")
   }
 
   /// Load a missing local name from the owner-current Firebase identity.
@@ -1775,7 +1767,7 @@ class AuthService {
     let nameParts = trimmedName.split(separator: " ", maxSplits: 1)
     givenName = nameParts.first.map(String.init) ?? trimmedName
     familyName = nameParts.count > 1 ? String(nameParts[1]) : ""
-    NSLog("OMI AUTH: Loaded owner-bound name from Firebase - given: %@, family: %@", givenName, familyName)
+    NSLog("INTENTIVE AUTH: Loaded owner-bound name from Firebase")
     postNameDidUpdate()
   }
 
@@ -1821,14 +1813,14 @@ class AuthService {
       cachedStoredTokens = tokens
       cachedStoredTokensLoaded = true
     }
-    NSLog("OMI AUTH: Saved tokens for user %@, expires at %@", userId, expiryTime.description)
+    NSLog("INTENTIVE AUTH: Saved owner-bound tokens")
   }
 
   func clearTokens() {
     tokenStorageHooks.deleteKeychainString(authTokenKeychainService, authTokenKeychainAccount)
     clearUserDefaultsTokens()
     invalidateStoredTokensCache()
-    NSLog("OMI AUTH: Cleared all tokens")
+    NSLog("INTENTIVE AUTH: Cleared all tokens")
   }
 
   private func saveUserDefaultsTokens(idToken: String, refreshToken: String, expiryTime: Date, userId: String) {
@@ -2137,19 +2129,18 @@ class AuthService {
     }
 
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("OMI AUTH: Firebase REST API error: %@", errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase custom-token exchange", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
     do {
       let tokens = try Self.decodeFirebaseTokenResult(from: data)
       if !tokens.localId.isEmpty, jsonLocalIdMissing(in: data) {
-        NSLog("OMI AUTH: Extracted user_id from JWT: %@", tokens.localId)
+        NSLog("INTENTIVE AUTH: Recovered missing local user identity from validated JWT")
       }
       return tokens
     } catch {
-      NSLog("OMI AUTH: Failed to parse Firebase response: %@", String(data: data, encoding: .utf8) ?? "nil")
+      NSLog("%@", AuthLogPrivacy.responseParsingFailure("Firebase custom-token exchange", data))
       throw error
     }
   }
@@ -2204,7 +2195,7 @@ class AuthService {
 
     guard httpResponse.statusCode == 200 else {
       let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("OMI AUTH: Token refresh error (HTTP %d): %@", httpResponse.statusCode, errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase token refresh", httpResponse.statusCode, data))
       // Only clear tokens for definitive auth failures (invalid/revoked refresh token).
       // Transient errors (network issues, 500s) should not destroy the session.
       let isDefinitiveAuthFailure = AuthDefinitiveDeathClassifier.isDefinitiveRefreshFailure(
@@ -2213,7 +2204,7 @@ class AuthService {
       )
       if isDefinitiveAuthFailure {
         if DesktopLocalProfile.isEnabled {
-          NSLog("OMI AUTH LOCAL: refresh failed — re-bootstrapping emulator session")
+          NSLog("INTENTIVE AUTH LOCAL: refresh failed — re-bootstrapping emulator session")
           await bootstrapLocalHarnessAuthIfNeeded()
           if let token = storedIdToken, !isTokenExpired {
             return token
@@ -2223,7 +2214,7 @@ class AuthService {
           reason: "refresh_token_rejected",
           httpStatusCode: httpResponse.statusCode
         )
-        NSLog("OMI AUTH: Definitive auth failure — invalidating session")
+        NSLog("INTENTIVE AUTH: Definitive auth failure — invalidating session")
         await invalidateSession(reason: .definitiveRefreshFailure)
         throw AuthError.notSignedIn
       }
@@ -2254,7 +2245,7 @@ class AuthService {
         return true
       } ?? false
     guard saved else { throw AuthError.notSignedIn }
-    NSLog("OMI AUTH: Refreshed ID token successfully for user %@", userId)
+    NSLog("INTENTIVE AUTH: Refreshed owner-bound ID token successfully")
 
     return newIdToken
   }
@@ -2274,7 +2265,7 @@ class AuthService {
         if expectedUserId == nil {
           // expectedUserId missing (migration gap, crash recovery) - trust the token
           // and backfill the userId so future calls don't hit this path
-          NSLog("OMI AUTH: expectedUserId is nil but token has userId %@ - backfilling", tokenUserId)
+          NSLog("INTENTIVE AUTH: Backfilling missing owner identity from validated token")
           guard await persistAuthenticatedOwner(tokenUserId, attempt: attempt) else {
             throw AuthError.notSignedIn
           }
@@ -2282,16 +2273,14 @@ class AuthService {
         } else if tokenUserId == expectedUserId {
           return token
         } else {
-          NSLog(
-            "OMI AUTH: Stored token user mismatch (token: %@, expected: %@) - clearing stale token",
-            tokenUserId, expectedUserId ?? "nil")
+          NSLog("INTENTIVE AUTH: Stored token owner mismatch - clearing stale token")
           _ = sessionAttemptFence.commitIfCurrent(attempt) {
             clearTokens()
           }
         }
       } else {
         // Old token without userId - allow it (backward compatibility)
-        NSLog("OMI AUTH: Using legacy token without userId")
+        NSLog("INTENTIVE AUTH: Using legacy token without userId")
         return token
       }
     }
@@ -2307,7 +2296,7 @@ class AuthService {
           return try await refreshIdToken(attempt: attempt)
         } catch {
           refreshFailure = error
-          NSLog("OMI AUTH: Token refresh failed: %@", error.localizedDescription)
+          NSLog("INTENTIVE AUTH: Token refresh failed: %@", error.localizedDescription)
           // Definitive refresh failures already cleared local tokens — do not
           // fall through to Firebase SDK (which traps when FirebaseApp is absent).
           if case AuthError.notSignedIn = error {
@@ -2323,7 +2312,7 @@ class AuthService {
       if expectedUserId == nil || user.uid == expectedUserId {
         if expectedUserId == nil {
           // Backfill the missing userId
-          NSLog("OMI AUTH: expectedUserId is nil, backfilling from Firebase SDK user %@", user.uid)
+          NSLog("INTENTIVE AUTH: Backfilling missing owner identity from Firebase SDK")
           guard await persistAuthenticatedOwner(user.uid, attempt: attempt) else {
             throw AuthError.notSignedIn
           }
@@ -2334,9 +2323,7 @@ class AuthService {
         }
         return tokenResult.token
       } else {
-        NSLog(
-          "OMI AUTH: Firebase SDK user mismatch (firebase: %@, expected: %@) - not using",
-          user.uid, expectedUserId ?? "nil")
+        NSLog("INTENTIVE AUTH: Firebase SDK owner mismatch - not using token")
       }
     }
 
@@ -2412,18 +2399,6 @@ class AuthService {
         let conversations = try await LocalAuthorityConversationDataSource().list(query: .all, offset: 0, limit: 10)
         log("Fetched \(conversations.count) conversations")
 
-        for (index, conversation) in conversations.prefix(5).enumerated() {
-          log(
-            "[\(index + 1)] \(conversation.structured.emoji) \(conversation.title) (\(conversation.formattedDuration))")
-          if !conversation.overview.isEmpty {
-            let preview = String(conversation.overview.prefix(100))
-            log("    Summary: \(preview)\(conversation.overview.count > 100 ? "..." : "")")
-          }
-        }
-
-        if conversations.count > 5 {
-          log("... and \(conversations.count - 5) more conversations")
-        }
       } catch {
         logError("Failed to fetch conversations", error: error)
       }
@@ -2511,7 +2486,7 @@ class AuthService {
     // Notify observers to release the remaining account-scoped UI projections.
     NotificationCenter.default.post(name: .userDidSignOut, object: nil)
 
-    NSLog("OMI AUTH: Signed out and cleared saved state + onboarding")
+    NSLog("INTENTIVE AUTH: Signed out and cleared saved state + onboarding")
   }
 
   // MARK: - Helper Methods
@@ -2561,7 +2536,7 @@ class AuthService {
 
   private func forwardOAuthCallback(url: URL, toBundleId bundleId: String, authFlowId: String?) {
     guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) else {
-      NSLog("OMI AUTH: Unable to forward callback. Bundle %@ not found.", bundleId)
+      NSLog("INTENTIVE AUTH: Unable to forward callback. Bundle %@ not found.", bundleId)
       trackAuthFlowEvent(
         "Auth Callback Forward Failed",
         stage: "callback_forwarded",
@@ -2578,7 +2553,7 @@ class AuthService {
 
     NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config) { _, error in
       if let error {
-        NSLog("OMI AUTH: Failed to forward callback to %@: %@", bundleId, error.localizedDescription)
+        NSLog("INTENTIVE AUTH: Failed to forward callback to %@: %@", bundleId, error.localizedDescription)
         Task { @MainActor in
           self.trackAuthFlowEvent(
             "Auth Callback Forward Failed",
@@ -2591,7 +2566,7 @@ class AuthService {
           )
         }
       } else {
-        NSLog("OMI AUTH: Forwarded callback to %@", bundleId)
+        NSLog("INTENTIVE AUTH: Forwarded callback to %@", bundleId)
         Task { @MainActor in
           self.trackAuthFlowEvent(
             "Auth Callback Forwarded",
@@ -2653,13 +2628,12 @@ class AuthService {
     }
 
     guard httpResponse.statusCode == 200 else {
-      let errorBody = String(data: data, encoding: .utf8) ?? "unknown"
-      NSLog("OMI AUTH: Firebase signInWithIdp error: %@", errorBody)
+      NSLog("%@", AuthLogPrivacy.responseFailure("Firebase signInWithIdp", httpResponse.statusCode, data))
       throw AuthError.tokenExchangeFailed(httpResponse.statusCode)
     }
 
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-      NSLog("OMI AUTH: Failed to parse Firebase signInWithIdp response")
+      NSLog("INTENTIVE AUTH: Failed to parse Firebase signInWithIdp response")
       throw AuthError.invalidResponse
     }
 
@@ -2667,8 +2641,7 @@ class AuthService {
     do {
       tokens = try Self.decodeFirebaseTokenResult(from: data)
     } catch {
-      NSLog(
-        "OMI AUTH: Failed to parse Firebase signInWithIdp response: %@", String(data: data, encoding: .utf8) ?? "nil")
+      NSLog("%@", AuthLogPrivacy.responseParsingFailure("Firebase signInWithIdp", data))
       throw error
     }
 

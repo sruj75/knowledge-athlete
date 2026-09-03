@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://omi.me/schemas/desktop-release-manifest-v1.schema.json",
+  "$id": "https://heyintentive.com/schemas/desktop-release-manifest-v1.schema.json",
   "$comment": "Structural projection of the authoritative executable contract in .github/scripts/desktop_release_manifest.py. Schema-only validation is insufficient for cross-field identity and provenance rules.",
-  "x-omi-executable-contract": ".github/scripts/desktop_release_manifest.py",
+  "x-intentive-executable-contract": ".github/scripts/desktop_release_manifest.py",
   "title": "Intentive Desktop Release Manifest v1",
   "description": "Immutable identity for one qualified macOS app release.",
   "type": "object",

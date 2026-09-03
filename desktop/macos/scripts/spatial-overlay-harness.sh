@@ -147,7 +147,7 @@ run_swift_focus() {
 
 total_start="$(now_seconds)"
 
-echo "Omi desktop spatial overlay harness"
+echo "Intentive desktop spatial overlay harness"
 echo "repo: $REPO_ROOT"
 echo "desktop: $DESKTOP_DIR"
 echo "git: $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"

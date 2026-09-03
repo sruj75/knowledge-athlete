@@ -52,10 +52,10 @@ test("managed provider headers retain correlation and the bounded reasoning cont
   );
   assert.deepEqual(headers, {
     "authorization": "Bearer firebase-token",
-    "x-omi-chat-contract-version": OMI_CHAT_CONTRACT_VERSION,
-    "x-omi-request-id": "req_1",
-    "x-omi-session-id": "session_1",
-    "x-omi-reasoning-effort": "adaptive",
+    "x-intentive-chat-contract-version": OMI_CHAT_CONTRACT_VERSION,
+    "x-intentive-request-id": "req_1",
+    "x-intentive-session-id": "session_1",
+    "x-intentive-reasoning-effort": "adaptive",
   });
 });
 
@@ -90,7 +90,7 @@ test("the bundled Gemini adapter replays exact thought signatures and merges par
   const signature = "ZXhhY3QtdGhvdWdodC1zaWduYXR1cmU=";
   const model = {
     id: "gemini-3.7-flash",
-    provider: "omi",
+    provider: "intentive",
     api: "google-generative-ai",
     input: ["text", "image"],
   } as never;
@@ -101,7 +101,7 @@ test("the bundled Gemini adapter replays exact thought signatures and merges par
       { role: "user", content: "Use both tools", timestamp: 1 },
       {
         role: "assistant",
-        provider: "omi",
+        provider: "intentive",
         model: "gemini-3.7-flash",
         api: "google-generative-ai",
         timestamp: 2,
@@ -130,17 +130,24 @@ test("the bundled Gemini adapter replays exact thought signatures and merges par
 test("the extension registers only the native managed Gemini provider", () => {
   const providers: Array<{ name: string; config: Record<string, unknown> }> = [];
   const handlers: string[] = [];
-  managedPiExtension({
-    registerProvider(name: string, config: Record<string, unknown>) {
-      providers.push({ name, config });
-    },
-    on(name: string) {
-      handlers.push(name);
-    },
-  } as never);
+  const priorBase = process.env.OMI_API_BASE_URL;
+  process.env.OMI_API_BASE_URL = "https://managed.example/v2";
+  try {
+    managedPiExtension({
+      registerProvider(name: string, config: Record<string, unknown>) {
+        providers.push({ name, config });
+      },
+      on(name: string) {
+        handlers.push(name);
+      },
+    } as never);
+  } finally {
+    if (priorBase === undefined) delete process.env.OMI_API_BASE_URL;
+    else process.env.OMI_API_BASE_URL = priorBase;
+  }
 
   assert.equal(providers.length, 1);
-  assert.equal(providers[0]?.name, "omi");
+  assert.equal(providers[0]?.name, "intentive");
   assert.deepEqual(
     (providers[0]?.config.models as Array<Record<string, unknown>>).map((model) => model.id),
     ["gemini-3.7-flash"],
@@ -171,7 +178,7 @@ test("managed provider registration ignores inherited legacy customer keys", () 
   try {
     managedPiExtension({
       registerProvider(name: string, config: Record<string, unknown>) {
-        assert.equal(name, "omi");
+        assert.equal(name, "intentive");
         registration = config;
       },
       on() {},
@@ -277,7 +284,7 @@ test("tool registration writes the canonical availability snapshot", async () =>
 
 test("tool relay requires a live private socket and a kernel-issued capability", async () => {
   __resetOmiPipeForTest();
-  assert.equal(await __callSwiftToolForTest("execute_sql", { query: "select 1" }), "Error: not connected to Omi bridge");
+  assert.equal(await __callSwiftToolForTest("execute_sql", { query: "select 1" }), "Error: not connected to Intentive bridge");
 
   const temp = await mkdtemp(join(tmpdir(), "omi-pi-extension-relay-"));
   const socketPath = join(temp, "bridge.sock");
@@ -301,7 +308,7 @@ test("tool relay requires a live private socket and a kernel-issued capability",
   try {
     await __connectOmiPipeForTest(socketPath);
     await writeFile(contextPath, "{}", "utf8");
-    assert.equal(await __callSwiftToolForTest("execute_sql", { query: "select 1" }), "Error: missing active Omi run capability for tool relay");
+    assert.equal(await __callSwiftToolForTest("execute_sql", { query: "select 1" }), "Error: missing active Intentive run capability for tool relay");
 
     await writeFile(contextPath, JSON.stringify({ capabilityRef: "cap-issued", requestId: "forged" }), "utf8");
     assert.equal(await __callSwiftToolForTest("execute_sql", { query: "select 1" }), "ok");

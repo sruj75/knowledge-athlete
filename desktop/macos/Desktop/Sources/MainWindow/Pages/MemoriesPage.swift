@@ -12,7 +12,9 @@ extension Notification.Name {
 }
 
 enum MemoryPageCopy {
-  static let subtitle = "Memories and insights saved on this Mac"
+  static let subtitle = "Memories and insights saved on this Mac."
+  static let emptyStateDetail =
+    "Memories you add and insights learned from your conversations and activity will appear here."
 }
 
 /// Memory categories for filtering. Categories are stored in the effective
@@ -753,12 +755,10 @@ struct MemoriesPage: View {
         .scaledFont(size: OmiType.heading, weight: .semibold)
         .foregroundColor(OmiColors.textPrimary)
 
-      Text(
-        "Memories you add and insights learned from your conversations and activity will appear here."
-      )
-      .scaledFont(size: OmiType.body)
-      .foregroundColor(OmiColors.textTertiary)
-      .multilineTextAlignment(.center)
+      Text(MemoryPageCopy.emptyStateDetail)
+        .scaledFont(size: OmiType.body)
+        .foregroundColor(OmiColors.textTertiary)
+        .multilineTextAlignment(.center)
 
       Button {
         viewModel.showingAddMemory = true

@@ -32,17 +32,17 @@ class BackendCandidateProbeTests(unittest.TestCase):
             PROBE.validate_process_health({"status": "healthy"})
 
         summary = PROBE.validate_compatibility(
-            {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"},
+            {"status": "healthy", "service": "backend", "chat_contract_version": "2"},
             expected_contract_version="2",
         )
-        self.assertEqual(summary, {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"})
+        self.assertEqual(summary, {"status": "healthy", "service": "backend", "chat_contract_version": "2"})
 
         for mutation in ({"service": "omi-desktop-backend"}, {"chat_contract_version": "1"}):
             with self.assertRaises(PROBE.ProbeError):
                 PROBE.validate_compatibility(
                     {
                         "status": "healthy",
-                        "service": "omi-backend",
+                        "service": "backend",
                         "chat_contract_version": "2",
                         **mutation,
                     },
@@ -56,7 +56,7 @@ class BackendCandidateProbeTests(unittest.TestCase):
             requests.append(url)
             if url.endswith("/v1/health"):
                 return {"status": "ok"}
-            return {"status": "healthy", "service": "omi-backend", "chat_contract_version": "2"}
+            return {"status": "healthy", "service": "backend", "chat_contract_version": "2"}
 
         chat_results = [
             PROBE.ChatResult("first", 0.1, 0.01, True),
@@ -109,7 +109,7 @@ class BackendCandidateProbeTests(unittest.TestCase):
         requests = []
 
         class Response:
-            headers = {"x-omi-chat-contract-version": "2"}
+            headers = {"x-intentive-chat-contract-version": "2"}
 
             def __enter__(self):
                 return self

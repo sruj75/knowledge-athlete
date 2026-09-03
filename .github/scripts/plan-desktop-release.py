@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decide whether the desktop auto-release workflow should create a new tag."""
+"""Decide whether the desktop candidate workflow should create a new tag."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-CODEMAGIC_CHECK_NAME = "Release OMI Desktop (Swift)"
+CODEMAGIC_CHECK_NAME = "Build Intentive macOS candidate"
 RELEASE_ELIGIBILITY_CHECK_NAME = "Release Eligibility"
 REQUIRED_SOURCE_CHECK_NAMES = (
     RELEASE_ELIGIBILITY_CHECK_NAME,

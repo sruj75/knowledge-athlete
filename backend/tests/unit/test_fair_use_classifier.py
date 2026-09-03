@@ -89,9 +89,13 @@ class TestClassifyFairUseEvidenceContract:
 
         result = await classifier_mod.classify_fair_use_evidence('user1', evidence)
 
+        # S-30's owner-approved identity packet makes Intentive the exact
+        # product name while preserving the rest of this classifier contract.
         assert hashlib.sha256(classifier_mod.SYSTEM_PROMPT.encode()).hexdigest() == (
-            'b2ca34ef4cb6f3461f42d617385178e79bd2f50b8ab8efcdfca0eee552278d05'
+            '623560804bf75352c65fa4142078639956710e2f72e82b85ec9e4c9026fbcca0'
         )
+        assert 'for Intentive' in classifier_mod.SYSTEM_PROMPT
+        assert 'for Omi' not in classifier_mod.SYSTEM_PROMPT
         assert classifier_mod.CLASSIFIER_ROUTE == 'gemini/gemini-3.7-flash'
         assert classifier_llm.ainvoke.await_args.args[0] == [
             {'role': 'system', 'content': classifier_mod.SYSTEM_PROMPT},

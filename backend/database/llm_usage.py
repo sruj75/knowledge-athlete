@@ -173,7 +173,7 @@ def record_llm_usage_bucket(
     total_tokens: int = 0,
     cost_usd: float = 0.0,
     bucket: str = 'desktop_chat',
-    account: str = 'omi',
+    account: str = 'intentive',
 ) -> None:
     """Record LLM token usage into a flat bucket with atomic increments.
 

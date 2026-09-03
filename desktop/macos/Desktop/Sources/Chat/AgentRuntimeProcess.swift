@@ -2594,7 +2594,7 @@ actor AgentRuntimeProcess {
     if !backendBase.isEmpty {
       env["OMI_API_BASE_URL"] = backendBase.hasSuffix("/") ? "\(backendBase)v2" : "\(backendBase)/v2"
     } else if preferredAdapterId == .piMono {
-      log("AgentRuntimeProcess: pi-mono start refused, OMI_PYTHON_API_URL is not configured")
+      log("AgentRuntimeProcess: pi-mono start refused, backend URL is not configured")
       throw BridgeError.bridgeScriptNotFound
     }
 

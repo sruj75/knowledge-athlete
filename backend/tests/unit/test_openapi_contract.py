@@ -34,6 +34,10 @@ def _make_app() -> FastAPI:
 def test_app_client_openapi_filters_to_first_party_contract():
     schema = export_openapi.build_app_client_openapi(_make_app())
 
+    assert schema['info']['title'] == 'Intentive App Client API'
+    assert schema['info']['contact'] == {'name': 'Intentive'}
+    assert schema['info']['license']['url'] == 'https://github.com/sruj75/knowledge-athlete/blob/main/LICENSE'
+    assert 'servers' not in schema
     assert list(schema['paths']) == ['/v1/conversation-compute/structure', '/v2/messages']
     operation = schema['paths']['/v1/conversation-compute/structure']['post']
     assert operation['operationId'] == 'postConversationStructure'

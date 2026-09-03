@@ -5,7 +5,7 @@ import VoiceTurnDomain
 /// Keeping it separate makes its capture → attach → delivery → validation trace independently
 /// reviewable, while the controller remains the sole owner of the voice-turn state machine.
 extension RealtimeHubController {
-  /// Called by PTT-down before Omi expands its overlay. This is the sole visual evidence
+  /// Called by PTT-down before Intentive expands its overlay. This is the sole visual evidence
   /// candidate for the logical turn; a later provider screenshot request may only transmit
   /// these pixels, never trigger another physical capture.
   func installScreenEvidence(_ evidence: RealtimeScreenEvidence) {

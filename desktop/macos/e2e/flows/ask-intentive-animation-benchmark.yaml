@@ -1,0 +1,52 @@
+version: 1
+name: ask-intentive-animation-benchmark
+tier: 3
+description: Capture short frame sequences for Ask Intentive open and close transitions.
+app: non-prod
+preconditions:
+  - automation_bridge_ready
+
+steps:
+  - id: S1
+    name: Reset Ask Intentive
+    bridge.action:
+      name: close_ask_intentive
+
+  - id: S2
+    name: Capture Open Animation
+    visual.action_sequence:
+      action: open_ask_intentive
+      params:
+        reset: false
+        wait: false
+      target: floating
+      frames: 8
+      interval_ms: 16
+
+  - id: S3
+    name: Assert Open State
+    state.expect:
+      state.askIntentiveOpen: true
+      state.askIntentiveFocused: true
+
+  - id: S4
+    name: Capture Close Animation
+    visual.action_sequence:
+      action: close_ask_intentive
+      params:
+        wait: false
+      target: floating
+      frames: 8
+      interval_ms: 16
+
+  - id: S5
+    name: Assert Closed State
+    state.expect:
+      state.askIntentiveOpen: false
+
+  - id: S6
+    name: Assert Logs Are Clean
+    log.expect:
+      absent:
+        - "DesktopAutomationBridge: failed"
+        - "unsupported_route"

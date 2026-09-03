@@ -110,7 +110,7 @@ fi
             **os.environ,
             'OMI_TEST_FAKE_BIN': bash_path(fake_bin, cwd=ROOT),
             'GH_TOKEN': 'test-token',
-            'GITHUB_REPOSITORY': 'BasedHardware/omi',
+            'GITHUB_REPOSITORY': 'sruj75/knowledge-athlete',
             'RELEASE_SHA': sha,
             'MOCK_MAIN_SHA': main_sha or sha,
             'GITHUB_OUTPUT': str(output),

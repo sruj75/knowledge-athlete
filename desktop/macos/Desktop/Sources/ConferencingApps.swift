@@ -183,7 +183,7 @@ enum ConferencingApps {
   /// presenting in Zoom/Teams/Meet/etc.). Window titles require Screen Recording permission;
   /// without it only windows with readable names are considered.
   ///
-  /// Used to pause Omi's periodic capture: a one-shot ScreenCaptureKit capture while another
+  /// Used to pause Intentive's periodic capture: a one-shot ScreenCaptureKit capture while another
   /// app streams the screen contends in WindowServer capture arbitration and has been observed
   /// to stop the other app's share (issue #10143).
   static func activeScreenSharePresent() -> Bool {

@@ -3,7 +3,7 @@ import Combine
 import Foundation
 
 enum SBOnboardingLanguageCopy {
-  static let question = "What language should Omi listen and reply in?"
+  static let question = "What language should Intentive listen and reply in?"
   static let detectedLanguageDetail = "· detected from your Mac"
   static let changeSpokenLanguageAction = "Change spoken language"
 
@@ -12,7 +12,30 @@ enum SBOnboardingLanguageCopy {
   }
 }
 
-/// Drives the Second Brain conversational onboarding: a real chat with Omi that
+enum SBOnboardingIdentityCopy {
+  static let promise =
+    "Hey, I'm Intentive, your second brain. I help with conversations and activity you choose to capture. Three quick things:"
+  static let howHeardQuestion = "Quick one. How did you hear about Intentive?"
+  static let typingStatus = "Intentive is typing…"
+  static let setupAction = "Set up Intentive →"
+  static let openSourcePrefix = "View the project repository on "
+  static let openSourceDetail = "\(openSourcePrefix)GitHub."
+  static let privateDataDetail = "Conversations and memories you keep are saved on this Mac."
+  static let userControlDetail = "Choose when Intentive listens and what you keep."
+
+  static let allText = [
+    promise,
+    howHeardQuestion,
+    SBOnboardingLanguageCopy.question,
+    typingStatus,
+    setupAction,
+    openSourceDetail,
+    privateDataDetail,
+    userControlDetail,
+  ]
+}
+
+/// Drives the Second Brain conversational onboarding: a real chat with Intentive that
 /// streams word-by-word, collects answers, and performs the SAME live side-effects
 /// as the legacy wizard (name/language, retained permissions, the summon
 /// shortcut, a live screen+voice demo, capture,
@@ -75,7 +98,7 @@ final class SBOnboardingModel: ObservableObject {
     }
   }
 
-  /// "How did you hear about Omi?" options (mirrors the legacy step).
+  /// Acquisition-source options retained from the legacy step.
   static let howHeardSources = [
     "Social media", "YouTube", "Friend", "Search engine", "AI chat", "Podcast", "Colleague", "Product Hunt", "Other",
   ]
@@ -98,7 +121,7 @@ final class SBOnboardingModel: ObservableObject {
 
   @Published var step: Step = .promise
   @Published var thread: [Msg] = []
-  /// The current Omi message streaming in (nil once committed).
+  /// The current assistant message streaming in (nil once committed).
   @Published var streamingText: String?
   @Published var typing = false
   @Published var showWidget = false
@@ -142,7 +165,7 @@ final class SBOnboardingModel: ObservableObject {
   @Published var screenDemoLoading = false
   @Published var voiceHeard = false
   @Published var voiceAnswer: String?
-  /// True once Omi has actually answered the demo question (the notch shows a
+  /// True once Intentive has actually answered the demo question (the notch shows a
   /// response). The screen-demo Continue button stays hidden until then, so the
   /// user can't skip past before seeing the "fun part" work.
   @Published var screenDemoDone = false
@@ -269,10 +292,9 @@ final class SBOnboardingModel: ObservableObject {
     let name = displayName
     switch step {
     case .promise:
-      return
-        "Hey, I'm Omi, your second brain. I hear your conversations, remember everything, and handle the follow-ups. Three quick things:"
+      return SBOnboardingIdentityCopy.promise
     case .name: return "What should I call you?"
-    case .howHeard: return "Quick one. How did you hear about Omi?"
+    case .howHeard: return SBOnboardingIdentityCopy.howHeardQuestion
     case .language:
       return SBOnboardingLanguageCopy.question
     case .mic:

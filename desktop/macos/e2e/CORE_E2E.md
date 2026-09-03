@@ -87,7 +87,7 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `capture-lifecycle` | v2 | typed bridge | 2 | STT seam via `capture_test_transcript` |
 | `rewind-artifact-recovery` | v2 | typed bridge | 2 | Synthetic Rewind → HEVC → SQLite → finalized-video readback, privacy admission, and database reopen |
 | `chat-hermetic` | v2 | typed bridge | 2 | Rust `OMI_LLM_STUB=1` |
-| `floating-bar-functional` | v2 | typed bridge | 2 | Ask Omi open + stubbed turn |
+| `floating-bar-functional` | v2 | typed bridge | 2 | Ask Intentive open + stubbed turn |
 | `memories` | v2 | typed bridge | 2 | Navigate + snapshot + search step |
 | `tasks` | v2 | typed bridge | 2 | Navigate + snapshot |
 | `settings-basic` | v2 | typed bridge | 2 | Settings sections + Advanced snapshot |
@@ -110,11 +110,10 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | `privacy-settings` | v2 | typed bridge | 2 | Privacy toggle snapshot |
 | `conversation-folders` | v2 | typed bridge | 2 | Folder create + starred + extended list snapshot |
 | `speaker-naming` | v2 | typed bridge | 2 | Multi-speaker inject + assign fixture |
-| `ask-omi-*-benchmark` | v1 | typed bridge | 3 | Perf benchmarks |
+| `ask-intentive-*-benchmark` | v1 | typed bridge | 3 | Perf benchmarks |
 | `desktop-responsiveness-benchmark` | v1 | typed bridge | 3 | Perf |
 | `subagent-row-benchmark` | v1 | typed bridge | 3 | Perf |
 | `audio-recording` | v2 | manual `do:` | manual | Needs mic permission |
-| `refer-external` | v2 | manual `do:` | manual | Profile menu → affiliate URL |
 | `delete-account` | v2 | manual `do:` | manual | Confirmation sheet only; never confirm |
 | `logout` | v2 | manual bridge | manual | `sign_out` bridge action; local Auth emulator only |
 | `onboarding-smoke` | v2 | manual `do:` + bridge | manual | Named-bundle reset/restart plus two retained-flow exits; destructive/TCC manual gate |
@@ -139,7 +138,6 @@ healthy enough to boot the hermetic T2 stack. Stable nomination and production p
 | Goals | T2 | bridge | create goal | ✅ `goals-dashboard.yaml` |
 | Privacy toggles | T2 | bridge | toggle snapshot | ✅ `privacy-settings.yaml` |
 | Plan / usage | T2 | bridge | read subscription | ✅ `plan-usage.yaml` |
-| Refer external | Live P2 | manual | opens browser | ⚠️ `refer-external.yaml` |
 | Delete account | Live P2 | manual | confirm sheet only | ⚠️ `delete-account.yaml` |
 | Logout | Live P2 | manual bridge | `sign_out` action | ⚠️ `logout.yaml` (local emulator; stays manual — destructive to session) |
 | Onboarding reset | Live P2 | manual + bridge | reset + restart + two exits | ⚠️ `onboarding-smoke.yaml` (named bundle only; destructive/TCC manual gate) |

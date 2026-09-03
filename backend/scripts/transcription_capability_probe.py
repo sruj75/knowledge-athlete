@@ -141,7 +141,7 @@ def request_bytes(request: urllib.request.Request, timeout_seconds: float, max_b
 
 def build_multipart(audio: bytes, language: str) -> tuple[str, bytes]:
     """Encode the real FastAPI UploadFile multipart shape for the WAV fixture."""
-    boundary = f'----omi-transcription-probe-{uuid.uuid4().hex}'
+    boundary = f'----intentive-transcription-probe-{uuid.uuid4().hex}'
     language_part = (
         f'--{boundary}\r\n' 'Content-Disposition: form-data; name="language"\r\n\r\n' f'{language}\r\n'
     ).encode('ascii')
@@ -302,7 +302,7 @@ def build_report(config: ProbeConfig) -> dict[str, Any]:
         if fixture is not None:
             del fixture
     return {
-        'suite': 'omi_transcription_capability_probe',
+        'suite': 'intentive_transcription_capability_probe',
         'status': full_route['status'],
         'full_route_authoritative': True,
         'checks': [full_route],
@@ -333,7 +333,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit('--timeout-seconds must be positive')
     report = build_report(config_from_args(args))
     if not args.json_only:
-        print(f"Omi transcription capability probe: {report['status']}")
+        print(f"Intentive transcription capability probe: {report['status']}")
         for check in report['checks']:
             print(f"- {check['status']} {check['name']}")
     print(json.dumps(report, sort_keys=True))

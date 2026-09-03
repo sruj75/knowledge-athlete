@@ -1,6 +1,6 @@
 # Hermetic Backend E2E Harness
 
-A manually runnable integration test suite that imports the **real omi FastAPI backend** and exercises selected routes against **faked or disabled external dependencies**. It is intended as a local dogfood harness and a required GitHub Actions check for backend PRs that touch `backend/**`.
+A manually runnable integration test suite that imports the **real Intentive FastAPI backend** and exercises selected routes against **faked or disabled external dependencies**. It is intended as a local dogfood harness and a required GitHub Actions check for backend PRs that touch `backend/**`.
 
 The run installs a local-only socket guard before importing backend code. Any non-local DNS/socket attempt raises an assertion, so real API calls fail the harness instead of silently leaking. The runner also wraps pytest in a process-level timeout (`E2E_PYTEST_TIMEOUT`, default `120s`) so websocket/provider-seam regressions fail instead of hanging indefinitely.
 
@@ -107,5 +107,5 @@ Prefer real retained public routes and durable worker paths. Product absence bel
 
 ## Dependencies
 
-- omi backend dependencies from `requirements.txt`
+- Intentive backend dependencies from `requirements.txt`
 - e2e-only dependencies from `testing/e2e/requirements.txt`
