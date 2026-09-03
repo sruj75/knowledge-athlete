@@ -809,7 +809,7 @@ start_fault_stack() {
       OMI_SEED_FROM_CANONICAL_DEV=0 \
       OMI_LOCAL_PROFILE_STORAGE_NAME="$FAULT_BUNDLE" \
       OMI_LOCAL_AUTH_USER=alice \
-      OMI_LOCAL_AUTH_EMAIL=alice@local.omi.invalid \
+      OMI_LOCAL_AUTH_EMAIL=alice@local.heyintentive.invalid \
       OMI_LOCAL_AUTH_PASSWORD=alice-local-password-030 \
       OMI_LOCAL_AUTH_DISPLAY_NAME='Synthetic Alice' \
       FIREBASE_AUTH_EMULATOR_HOST="$auth_host" \
