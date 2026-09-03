@@ -3,6 +3,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECKER="$SCRIPT_DIR/../scripts/check-gauntlet-evidence-at-head.sh"
+
+# Git hooks export repository-local variables so Git commands keep addressing
+# the caller's worktree after a hook changes directory. This test intentionally
+# creates and switches branches in a nested fixture, so sever that inherited
+# repository context before the first fixture command.
+while IFS= read -r variable; do
+  unset "$variable"
+done < <(git rev-parse --local-env-vars)
+
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TEST_ROOT"' EXIT
 
@@ -14,7 +23,7 @@ cp "$SCRIPT_DIR/../scripts/automation-token-path.sh" "$REPO/desktop/macos/script
 chmod +x "$REPO/desktop/macos/scripts/check-gauntlet-evidence-at-head.sh"
 chmod +x "$REPO/desktop/macos/scripts/omi-hardening-smoke.sh"
 
-git -C "$REPO" init -q
+git -C "$REPO" init -q -b fixture-main
 git -C "$REPO" config user.email test@example.com
 git -C "$REPO" config user.name 'Gauntlet Evidence Test'
 printf 'fixture\n' >"$REPO/README.md"
