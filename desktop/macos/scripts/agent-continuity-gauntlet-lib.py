@@ -194,13 +194,14 @@ def bridge_request(
         with urllib.request.urlopen(request, timeout=timeout_sec) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            parsed = {"ok": False, "error": raw}
-        parsed["http_status"] = exc.code
-        return parsed
+        raw = exc.read()
+        return {
+            "ok": False,
+            "error": "bridge_http_error",
+            "http_status": exc.code,
+            "response_body_sha256": hashlib.sha256(raw).hexdigest(),
+            "response_body_bytes": len(raw),
+        }
     except urllib.error.URLError as exc:
         return {"ok": False, "error": f"connection_failed: {exc.reason}"}
     except (TimeoutError, socket.timeout) as exc:
@@ -282,6 +283,21 @@ def private_text_summary(value: str) -> dict[str, Any]:
         "sha256": hashlib.sha256(encoded).hexdigest(),
         "utf8_bytes": len(encoded),
     }
+
+
+def bridge_failure_summary(response: Any) -> str:
+    """Describe a bridge failure without emitting provider/app response text."""
+    try:
+        serialized = json.dumps(response, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        serialized = repr(type(response))
+    private = private_text_summary(serialized)
+    status = response.get("http_status") if isinstance(response, dict) else None
+    status_detail = f" http_status={status}" if isinstance(status, int) else ""
+    return (
+        f"bridge_response_error{status_detail} "
+        f"sha256={private['sha256']} utf8_bytes={private['utf8_bytes']}"
+    )
 
 
 def privacy_safe_evidence(value: Any) -> dict[str, Any]:
@@ -1389,7 +1405,9 @@ class GauntletRunner:
     def ensure_bridge(self) -> None:
         health = bridge_launch_health(self.port)
         if not health.get("ok"):
-            raise SystemExit(f"automation bridge unavailable on port {self.port}: {health.get('error', health)}")
+            raise SystemExit(
+                f"automation bridge unavailable on port {self.port}: {bridge_failure_summary(health)}"
+            )
         expected_git_sha = git_sha()
         if provenance_error := bridge_source_provenance_error(health, expected_git_sha):
             raise SystemExit(f"automation bridge on port {self.port} has invalid source provenance: {provenance_error}")
@@ -1410,7 +1428,7 @@ class GauntletRunner:
             {"target": "chat", "activateApp": True, "settleMs": 300},
         )
         if navigate.get("ok") is False:
-            raise SystemExit(f"navigate chat failed: {navigate.get('error', navigate)}")
+            raise SystemExit(f"navigate chat failed: {bridge_failure_summary(navigate)}")
         ready = bridge_state(self.port)
         write_json(self.run_dir / "preflight-state.json", ready)
         classification, detail = classify_restarted_bundle_state(ready, self.bundle_id, self.port)
@@ -1516,10 +1534,10 @@ class GauntletRunner:
         trace_start = capture_trace_cursor()
         send = self.bridge_act("ask", {"query": query})
         if send.get("ok") is False:
-            raise SystemExit(f"ask (floating) failed: {send.get('error', send)}")
+            raise SystemExit(f"ask (floating) failed: {bridge_failure_summary(send)}")
         detail = send.get("result", {}).get("detail", {})
         if detail.get("error"):
-            raise SystemExit(f"ask (floating) error: {detail['error']}")
+            raise SystemExit(f"ask (floating) error: {bridge_failure_summary(send)}")
 
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         snapshot_detail: dict[str, str] = {}
@@ -2046,10 +2064,10 @@ class GauntletRunner:
         trace_start = capture_trace_cursor()
         send = self.bridge_act("ask_main_chat", {"query": query})
         if send.get("ok") is False:
-            raise SystemExit(f"ask_main_chat failed: {send.get('error', send)}")
+            raise SystemExit(f"ask_main_chat failed: {bridge_failure_summary(send)}")
         detail = send.get("result", {}).get("detail", {})
         if detail.get("error"):
-            raise SystemExit(f"ask_main_chat error: {detail['error']}")
+            raise SystemExit(f"ask_main_chat error: {bridge_failure_summary(send)}")
 
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         snapshot_detail: dict[str, str] = {}
