@@ -37,6 +37,12 @@ private actor ActionComputerStub: ConversationActionItemsComputing {
   func lastRequest() -> ConversationActionItemsComputeRequest? { requests.last }
 }
 
+private struct PersistedActionItemSnapshot: Sendable {
+  let description: String
+  let conversationId: String?
+  let dueAt: Date?
+}
+
 @MainActor
 final class ConversationActionItemEnrichmentTests: XCTestCase {
   private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
@@ -120,7 +126,12 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
     let result = await service.process(conversationId: handle.conversationId)
     let request = await computer.lastRequest()
     let rows = try await owner.pool.read { database in
-      try Row.fetchAll(database, sql: "SELECT * FROM action_items ORDER BY id")
+      try Row.fetchAll(database, sql: "SELECT * FROM action_items ORDER BY id").map { row in
+        PersistedActionItemSnapshot(
+          description: row["description"],
+          conversationId: row["conversationId"],
+          dueAt: row["dueAt"])
+      }
     }
     let work = try await owner.storage.enrichmentWork(conversationId: handle.conversationId)
 
@@ -128,12 +139,12 @@ final class ConversationActionItemEnrichmentTests: XCTestCase {
     XCTAssertEqual(request?.relatedTasks.map(\.token), ["t0"])
     XCTAssertEqual(request?.relatedTasks.map(\.description), ["original"])
     XCTAssertEqual(rows.count, 3)
-    XCTAssertEqual(rows[0]["description"] as String, "updated")
-    XCTAssertEqual(rows[1]["description"] as String, "recent past task")
-    XCTAssertEqual(rows[1]["conversationId"] as String?, handle.conversationId)
-    XCTAssertEqual(rows[1]["dueAt"] as Date?, now.addingTimeInterval(-10))
-    XCTAssertEqual(rows[2]["description"] as String, "stale past task")
-    XCTAssertNil(rows[2]["dueAt"] as Date?)
+    XCTAssertEqual(rows[0].description, "updated")
+    XCTAssertEqual(rows[1].description, "recent past task")
+    XCTAssertEqual(rows[1].conversationId, handle.conversationId)
+    XCTAssertEqual(rows[1].dueAt, now.addingTimeInterval(-10))
+    XCTAssertEqual(rows[2].description, "stale past task")
+    XCTAssertNil(rows[2].dueAt)
     XCTAssertEqual(work.first { $0.kind == .actionItems }?.state, .succeeded)
     XCTAssertEqual(work.first { $0.kind == .structure }?.state, .pending)
   }
