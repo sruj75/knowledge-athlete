@@ -218,8 +218,11 @@ export function applyOmiProviderHeaders(
   // request and adds it as x-goog-api-key. Intentive authenticates the desktop
   // with Firebase instead, so remove that SDK header before any bytes leave the
   // process; the backend owns the real Gemini key.
-  delete headers["x-goog-api-key"];
-  if (firebaseToken) headers.authorization = `Bearer ${firebaseToken}`;
+  for (const name of Object.keys(headers)) {
+    const lowerName = name.toLowerCase();
+    if (lowerName === "authorization" || lowerName === "x-goog-api-key") delete headers[name];
+  }
+  if (firebaseToken) headers.Authorization = `Bearer ${firebaseToken}`;
   headers["x-intentive-chat-contract-version"] = OMI_CHAT_CONTRACT_VERSION;
   if (relayContextRaw === undefined) return;
   const requestId = omiRequestIdFromRelayContext(relayContextRaw);
