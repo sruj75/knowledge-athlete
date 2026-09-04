@@ -393,6 +393,64 @@ final class PushToTalkHeadlessAutomationTests: XCTestCase {
       XCTAssertEqual(manager.ownerBoundarySnapshot.bufferedAudioBytes, 6_400)
       XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .recording)
     }
+
+    @MainActor
+    func testPhysicalCaptureFaultFallsBackWithNonzeroCaptureEvidence() async throws {
+      let manager = PushToTalkManager.shared
+      let hub = RealtimeHubController.shared
+      let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
+      manager.cleanup()
+      addTeardownBlock { @MainActor in
+        manager.cleanup()
+        await transitionOwner(defaults: .standard, to: previousAuthOwner)
+      }
+      await transitionOwner(defaults: .standard, to: "ptt-physical-fault-owner")
+
+      var samples = [Int16]()
+      samples.reserveCapacity(8_000)
+      for index in 0..<8_000 {
+        samples.append((index / 50).isMultiple(of: 2) ? 6_000 : -6_000)
+      }
+      let voicedPCM = samples.withUnsafeBytes { Data($0) }
+      manager.testingPhysicalMicrophoneCapture = { emit in emit(voicedPCM) }
+      manager.testingBatchTranscription = { _ in
+        TranscriptionService.BatchTranscriptionResult(
+          transcript: "physical fallback fixture",
+          provider: "modulate",
+          model: "velma-2")
+      }
+      let queryDispatched = expectation(description: "fallback transcript dispatched")
+      manager.testingQueryDispatch = { query in
+        XCTAssertEqual(query, "physical fallback fixture")
+        queryDispatched.fulfill()
+      }
+      XCTAssertEqual(
+        hub.configurePhysicalPTTTransportFault(
+          operation: "arm",
+          bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence")["armed"],
+        "true")
+
+      XCTAssertEqual(manager.beginPhysicalPushToTalkForTests()["listening"], "true")
+      let turnID = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
+      XCTAssertEqual(hub.automationPTTInputDiagnostics()["ptt_live_transport_fault_state"], "active")
+      XCTAssertEqual(manager.ownerBoundarySnapshot.bufferedAudioBytes, voicedPCM.count)
+      XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
+
+      VoiceTurnCoordinator.shared.publish(
+        .deadlineFired(turnID: turnID, deadline: .hubWarm))
+      await fulfillment(of: [queryDispatched], timeout: 1)
+
+      let evidence = manager.automationPTTCaptureEvidenceDiagnostics()
+      XCTAssertEqual(
+        evidence["capture_origin"],
+        "test_fixture",
+        "injected PCM must never masquerade as natural microphone evidence")
+      XCTAssertEqual(evidence["captured_audio_bytes"], "\(voicedPCM.count)")
+      XCTAssertEqual(evidence["captured_audio_seconds"], "0.5000")
+      XCTAssertEqual(evidence["capture_evidence_source"], "batch_stt")
+      VoiceTurnCoordinator.shared.publish(.cancel(turnID: turnID, reason: .cleanup))
+      XCTAssertEqual(hub.automationPTTInputDiagnostics()["ptt_live_transport_fault_state"], "idle")
+    }
   }
 
   final class PushToTalkRealtimeCommitTests: XCTestCase {

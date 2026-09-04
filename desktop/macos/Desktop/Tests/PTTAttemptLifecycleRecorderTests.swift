@@ -91,6 +91,77 @@ import XCTest
       XCTAssertNotEqual(snap.msToFirstUsableFrameBucket, .none)
     }
 
+    func testCommittedPhysicalHubTurnReportsExactCapturedShapeWithoutRetainingAudio() {
+      let recorder = makeRecorder()
+      recorder.beginAttempt(
+        mode: "hold",
+        hubActive: true,
+        micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
+      captureAccepted(recorder)
+      recorder.ingestAudioChunk(Self.audiblePCM(sampleCount: 160))
+      recorder.ingestAudioChunk(Self.audiblePCM(sampleCount: 160))
+
+      let snap = recorder.terminateCommittedCapture(source: "hub")
+
+      XCTAssertEqual(snap.turnDisposition, .committed)
+      XCTAssertEqual(snap.captureOrigin, .physicalMicrophone)
+      XCTAssertEqual(snap.capturedAudioBytes, 640)
+      XCTAssertEqual(snap.turnAudioSeconds, 0.02, accuracy: 0.000_001)
+      XCTAssertEqual(snap.properties["captured_audio_bytes"] as? Int, 640)
+      XCTAssertEqual(snap.properties["capture_origin"] as? String, "physical_microphone")
+      XCTAssertFalse(snap.properties.values.contains { $0 is Data })
+
+      let diagnostics = recorder.automationDiagnostics()
+      XCTAssertEqual(diagnostics["capture_evidence_available"], "true")
+      XCTAssertEqual(diagnostics["capture_origin"], "physical_microphone")
+      XCTAssertEqual(diagnostics["captured_audio_bytes"], "640")
+      XCTAssertEqual(diagnostics["captured_audio_seconds"], "0.0200")
+    }
+
+    func testAutomationCaptureCannotMasqueradeAsPhysicalMicrophoneEvidence() {
+      let recorder = makeRecorder()
+      recorder.beginAttempt(
+        mode: "hold",
+        hubActive: true,
+        micPermissionGranted: false,
+        captureOrigin: .automation)
+      captureAccepted(recorder)
+      recorder.ingestAudioChunk(Self.audiblePCM(sampleCount: 320))
+
+      let snap = recorder.terminateCommittedCapture(source: "hub")
+
+      XCTAssertEqual(snap.captureOrigin, .automation)
+      XCTAssertEqual(recorder.automationDiagnostics()["capture_origin"], "automation")
+      recorder.beginAttempt(
+        mode: "hold",
+        hubActive: true,
+        micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
+      XCTAssertEqual(
+        recorder.automationDiagnostics(),
+        ["capture_evidence_available": "false"],
+        "a new physical attempt must not expose the prior synthetic turn as current evidence")
+    }
+
+    func testCommittedPhysicalBatchRecoveryUsesTheSameCapturedMicrophoneShape() {
+      let recorder = makeRecorder()
+      recorder.beginAttempt(
+        mode: "hold",
+        hubActive: false,
+        micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
+      captureAccepted(recorder)
+      recorder.ingestAudioChunk(Self.audiblePCM(sampleCount: 320))
+
+      let snap = recorder.terminateCommittedCapture(source: "batch_stt")
+
+      XCTAssertEqual(snap.source, "batch_stt")
+      XCTAssertEqual(snap.captureOrigin, .physicalMicrophone)
+      XCTAssertEqual(snap.capturedAudioBytes, 640)
+      XCTAssertEqual(snap.turnAudioSeconds, 0.02, accuracy: 0.000_001)
+    }
+
     // MARK: - Failure classification 4: recovery attempt outcome
 
     func testRecoveryTriggeredEmitsCorrelationIdAndResolvedRecoveredOnNextTurn() {
@@ -324,7 +395,11 @@ import XCTest
     }
 
     private func begin(_ recorder: PTTAttemptLifecycleRecorder) {
-      recorder.beginAttempt(mode: "hold", hubActive: true, micPermissionGranted: true)
+      recorder.beginAttempt(
+        mode: "hold",
+        hubActive: true,
+        micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
     }
 
     private func captureAccepted(_ recorder: PTTAttemptLifecycleRecorder) {

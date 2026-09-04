@@ -16,6 +16,10 @@ extension RealtimeHubController {
       // token while the offline gauntlet is exercising the production reducer.
       if isAuthorizedLocalProfileTransport() { return }
     #endif
+    guard !physicalPTTTransportFault.blocksTransport else {
+      log("RealtimeHub: warm start deferred until physical PTT transport fault restores")
+      return
+    }
     guard !sessionReplacementGate.isPending else {
       log("RealtimeHub: warm start coalesced behind physical transport drain")
       return
@@ -243,6 +247,10 @@ extension RealtimeHubController {
       clearScreenGrounding(stage: "cancelled")
     }
     if pendingSessionRefreshReason != nil { applyPendingSessionRefreshIfIdle() }
+    if physicalPTTTransportFault.restoreAfterTerminal(turnID: turnID) {
+      log("RealtimeHub: restored physical PTT transport after terminal")
+      ensureWarm()
+    }
   }
 
   /// Managed users: fetch a short-lived ephemeral token from the backend (gated by
@@ -342,6 +350,10 @@ extension RealtimeHubController {
     auth: HubAuth,
     ownerScope: RealtimeHubOwnerScope
   ) {
+    guard !physicalPTTTransportFault.blocksTransport else {
+      log("RealtimeHub: physical session start deferred until PTT transport fault restores")
+      return
+    }
     guard !sessionReplacementGate.isPending else {
       log("RealtimeHub: physical session start rejected until previous transport acknowledges close")
       return

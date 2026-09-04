@@ -216,6 +216,14 @@ class PushToTalkManager: ObservableObject {
   /// opt-in lane exercises the same manager routing and controller admission as
   /// a physical hold, while injecting PCM rather than opening CoreAudio.
   private var automationExercisesRealtimePath = false
+  #if DEBUG
+    /// Controllable CoreAudio boundary for a behavioral test of the real
+    /// physical-manager route. The supplied callback enters the same production
+    /// chunk handler as `AudioCaptureService`; no provider or microphone opens.
+    var testingPhysicalMicrophoneCapture: (((Data) -> Void) -> Void)?
+    var testingBatchTranscription: ((Data) async throws -> TranscriptionService.BatchTranscriptionResult)?
+    var testingQueryDispatch: ((String) -> Void)?
+  #endif
 
   // Double-tap detection
   private var lastOptionDownTime: TimeInterval = 0
@@ -320,6 +328,11 @@ class PushToTalkManager: ObservableObject {
     stopListening()
     voiceTurnCoordinator.reset()
     audioCaptureService = nil
+    #if DEBUG
+      testingPhysicalMicrophoneCapture = nil
+      testingBatchTranscription = nil
+      testingQueryDispatch = nil
+    #endif
     resetModifierOnlyShortcutActivation()
     removeEventMonitors()
     log("PushToTalkManager: cleanup complete")
@@ -601,6 +614,11 @@ class PushToTalkManager: ObservableObject {
     }
     if isBlockedByUsageLimit() { return }
     _ = voiceTurnCoordinator.begin(intent: .hold)
+    if let turnID = currentVoiceTurnID {
+      RealtimeHubController.shared.activatePhysicalPTTTransportFaultIfArmed(
+        turnID: turnID,
+        isPhysicalMicrophone: !automationCaptureBypass)
+    }
     RealtimeHubController.shared.prefetchVoiceContextSnapshotIfNeeded()
     warmPTTInputRouting()
     // Reset the overflow flag under the buffer lock so it's atomic w.r.t. the
@@ -627,7 +645,8 @@ class PushToTalkManager: ObservableObject {
     pttLifecycle.beginAttempt(
       mode: mode,
       hubActive: RealtimeHubController.shared.isTransportReady,
-      micPermissionGranted: refreshedMicPermission())
+      micPermissionGranted: refreshedMicPermission(),
+      captureOrigin: currentCaptureOrigin)
     let preOverlayImage = captureTurnScreenEvidence()
     updateBarState()
 
@@ -660,7 +679,8 @@ class PushToTalkManager: ObservableObject {
     pttLifecycle.beginAttempt(
       mode: mode,
       hubActive: RealtimeHubController.shared.isTransportReady,
-      micPermissionGranted: refreshedMicPermission())
+      micPermissionGranted: refreshedMicPermission(),
+      captureOrigin: currentCaptureOrigin)
 
     // If we were already listening from the first tap, keep going.
     // Otherwise start fresh.
@@ -823,6 +843,24 @@ class PushToTalkManager: ObservableObject {
     ]
   }
 
+  #if DEBUG
+    /// Drives the ordinary physical-capture branch with a controllable capture
+    /// boundary. This is test-only and deliberately distinct from bridge
+    /// automation, so the semantic fault must treat it as physical input.
+    @discardableResult
+    func beginPhysicalPushToTalkForTests() -> [String: String] {
+      ensureAutomationBarConfigured()
+      automationCaptureBypass = false
+      automationExercisesRealtimePath = false
+      startListening()
+      let isRecording = voiceTurnCoordinator.activeTurn?.phase.isRecording == true
+      return [
+        "state": VoiceTurnCoordinator.phaseLabel(phase ?? .idle),
+        "listening": isRecording ? "true" : "false",
+      ]
+    }
+  #endif
+
   /// Injects raw 16kHz PCM into the active realtime manager route. This is the
   /// same hub/warm-buffer split as `AudioCaptureService`'s production callback,
   /// kept behind the non-production automation bridge so tests never depend on
@@ -870,6 +908,13 @@ class PushToTalkManager: ObservableObject {
   private func refreshedMicPermission() -> Bool {
     hasMicPermission = AudioCaptureService.checkPermission()
     return hasMicPermission
+  }
+
+  private var currentCaptureOrigin: PTTAttemptLifecycleRecorder.CaptureOrigin {
+    #if DEBUG
+      if testingPhysicalMicrophoneCapture != nil { return .testFixture }
+    #endif
+    return automationCaptureBypass ? .automation : .physicalMicrophone
   }
 
   // MARK: - QueryTracer
@@ -1077,6 +1122,12 @@ class PushToTalkManager: ObservableObject {
     audioData: Data,
     turnID: VoiceTurnID
   ) async throws -> TranscriptionService.BatchTranscriptionResult {
+    #if DEBUG
+      if let testingBatchTranscription {
+        guard voiceTurnCoordinator.activeTurnID == turnID else { throw CancellationError() }
+        return try await testingBatchTranscription(audioData)
+      }
+    #endif
     let settings = AssistantSettings.shared
     let voiceLanguages = settings.hasExplicitVoiceLanguages ? settings.voiceLanguages : []
     let candidates = voiceLanguages.map(AssistantSettings.baseLanguageCode)
@@ -1208,15 +1259,7 @@ class PushToTalkManager: ObservableObject {
       }
       recordSilentMicRecoveryOutcome(silentMicRecoveryPolicy.recordSuccessfulTurn())
       DesktopDiagnosticsManager.shared.recordPTTCommitted(mode: finalizedMode, hubActive: true)
-      pttLifecycle.terminate(
-        disposition: .committed,
-        source: "hub",
-        peak: 0,
-        rms: 0,
-        turnAudioSeconds: 0,
-        voicedAudioSeconds: nil,
-        isNearZero: false,
-        judgeable: true)
+      pttLifecycle.terminateCommittedCapture(source: "hub")
       log(
         "PushToTalkManager: hub turn "
           + "\(commitResult == .accepted ? "committed" : "deferred until its realtime session is ready")")
@@ -1475,30 +1518,11 @@ class PushToTalkManager: ObservableObject {
 
     if hasQuery {
       DesktopDiagnosticsManager.shared.recordPTTCommitted(mode: finalizedMode, hubActive: false)
-      pttLifecycle.terminate(
-        disposition: .committed,
-        source: "batch_stt",
-        peak: 0,
-        rms: 0,
-        turnAudioSeconds: 0,
-        voicedAudioSeconds: nil,
-        isNearZero: false,
-        judgeable: true)
-    } else {
-      // Empty transcript after the turn reached finalization (e.g. a managed-live
-      // turn that returned nothing). The recorder's tracked capture state
-      // (first-audio / first-usable-frame) classifies it; this resolves any pending
-      // recovery exactly once instead of skipping the lifecycle emit.
-      pttLifecycle.terminate(
-        disposition: .committed,
-        source: "batch_stt",
-        peak: 0,
-        rms: 0,
-        turnAudioSeconds: 0,
-        voicedAudioSeconds: nil,
-        isNearZero: false,
-        judgeable: true)
     }
+    // Both a successful transcript and an empty final response describe the
+    // same completed physical capture. Derive its safe shape from the recorder's
+    // callback count instead of replacing it with the historical zero placeholder.
+    pttLifecycle.terminateCommittedCapture(source: "batch_stt")
 
     isCurrentSessionFollowUp = false
 
@@ -1534,6 +1558,12 @@ class PushToTalkManager: ObservableObject {
     // openAIInputWithQuery / sendFollowUpQuery inherits the bound value.
     let tracer = activeTracer
     activeTracer = nil
+    #if DEBUG
+      if let testingQueryDispatch {
+        testingQueryDispatch(query)
+        return
+      }
+    #endif
     let dispatch = {
       if wasFollowUp {
         log("PushToTalkManager: sending follow-up query (\(query.count) chars)")
@@ -1620,6 +1650,13 @@ class PushToTalkManager: ObservableObject {
       }
       return
     }
+    #if DEBUG
+      if testingPhysicalMicrophoneCapture != nil {
+        hasMicPermission = true
+        startRealtimePTTRoute(startMicrophoneCapture: true)
+        return
+      }
+    #endif
     // Always re-check permission (it can be granted at any time via System Settings)
     hasMicPermission = AudioCaptureService.checkPermission()
 
@@ -1848,15 +1885,7 @@ class PushToTalkManager: ObservableObject {
     }
     recordSilentMicRecoveryOutcome(silentMicRecoveryPolicy.recordSuccessfulTurn())
     DesktopDiagnosticsManager.shared.recordPTTCommitted(mode: finalizedMode, hubActive: true)
-    pttLifecycle.terminate(
-      disposition: .committed,
-      source: "buffered_hub",
-      peak: 0,
-      rms: 0,
-      turnAudioSeconds: 0,
-      voicedAudioSeconds: nil,
-      isNearZero: false,
-      judgeable: true)
+    pttLifecycle.terminateCommittedCapture(source: "buffered_hub")
     log(
       "PushToTalkManager: buffered hub turn "
         + "\(commitResult == .accepted ? "committed" : "deferred until its realtime session is ready") after warm wait")
@@ -1983,6 +2012,23 @@ class PushToTalkManager: ObservableObject {
       return
     }
     let captureID = VoiceCaptureID(generation)
+    #if DEBUG
+      if let testingPhysicalMicrophoneCapture {
+        micCaptureStartInFlight = false
+        pttLifecycle.captureStartResolved(outcome: .accepted, statusClass: .ok)
+        pttLifecycle.noteInputRoute(class: .builtIn, source: .default)
+        voiceTurnCoordinator.publish(
+          .captureStarted(turnID: turnID, captureID: captureID))
+        testingPhysicalMicrophoneCapture { [weak self] audioData in
+          self?.ingestCapturedMicrophoneAudio(
+            audioData,
+            batchMode: batchMode,
+            generation: generation,
+            turnID: turnID)
+        }
+        return
+      }
+    #endif
     let capture = overrideDeviceID.map(AudioCaptureService.init(overrideDeviceID:)) ?? AudioCaptureService()
     audioCaptureService = capture
 
@@ -2013,25 +2059,11 @@ class PushToTalkManager: ObservableObject {
         try await capture.startCapture(
           onAudioChunk: { [weak self] audioData in
             Task { @MainActor [weak self] in
-              guard let self else { return }
-              guard self.micCaptureGeneration == generation,
-                self.voiceTurnCoordinator.activeTurnID == turnID,
-                self.shouldKeepMicCaptureAlive
-              else { return }
-              self.pttLifecycle.ingestAudioChunk(audioData)
-              if self.isHubMode {
-                // Lifecycle admission and provider commit are serialized on the
-                // main actor. A chunk queued behind finalization observes the
-                // closed capture token and cannot leak into the next turn.
-                RealtimeHubController.shared.feedAudio(audioData, turnID: turnID)
-                self.appendBatchAudioBounded(audioData, turn: generation)
-                return
-              }
-              if batchMode || self.activeVoiceRoute == .managedBatch {
-                self.appendBatchAudioBounded(audioData, turn: generation)
-              } else {
-                self.transcriptionService?.sendAudio(audioData)
-              }
+              self?.ingestCapturedMicrophoneAudio(
+                audioData,
+                batchMode: batchMode,
+                generation: generation,
+                turnID: turnID)
             }
           },
           onAudioLevel: { [weak self] level in
@@ -2115,6 +2147,35 @@ class PushToTalkManager: ObservableObject {
     }
   }
 
+  /// Sole post-CoreAudio chunk ingress for physical PTT. Lifecycle evidence
+  /// counts only byte shape here; provider/batch owners may retain PCM according
+  /// to their existing turn contract, but the evidence recorder never does.
+  private func ingestCapturedMicrophoneAudio(
+    _ audioData: Data,
+    batchMode: Bool,
+    generation: UInt64,
+    turnID: VoiceTurnID
+  ) {
+    guard micCaptureGeneration == generation,
+      voiceTurnCoordinator.activeTurnID == turnID,
+      shouldKeepMicCaptureAlive
+    else { return }
+    pttLifecycle.ingestAudioChunk(audioData)
+    if isHubMode {
+      // Lifecycle admission and provider commit are serialized on the main
+      // actor. A chunk queued behind finalization observes the closed capture
+      // token and cannot leak into the next turn.
+      RealtimeHubController.shared.feedAudio(audioData, turnID: turnID)
+      appendBatchAudioBounded(audioData, turn: generation)
+      return
+    }
+    if batchMode || activeVoiceRoute == .managedBatch {
+      appendBatchAudioBounded(audioData, turn: generation)
+    } else {
+      transcriptionService?.sendAudio(audioData)
+    }
+  }
+
   /// Recover when the silent-mic watchdog detects a capture that is running but
   /// returning zeros. Bluetooth profile conflicts can usually be fixed by pinning
   /// to the built-in mic. Non-Bluetooth silence points to a stale CoreAudio route,
@@ -2189,6 +2250,10 @@ class PushToTalkManager: ObservableObject {
     batchAudioLock.lock()
     batchAudioBuffer = Data()
     batchAudioLock.unlock()
+  }
+
+  func automationPTTCaptureEvidenceDiagnostics() -> [String: String] {
+    pttLifecycle.automationDiagnostics()
   }
 
   private var shouldKeepMicCaptureAlive: Bool {

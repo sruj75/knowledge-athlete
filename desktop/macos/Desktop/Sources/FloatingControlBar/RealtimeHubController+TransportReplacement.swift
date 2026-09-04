@@ -1,8 +1,10 @@
 import Foundation
+import VoiceTurnDomain
 
 @MainActor
 extension RealtimeHubController {
   var isTransportReady: Bool {
+    guard !physicalPTTTransportFault.blocksTransport else { return false }
     guard
       RealtimeHubOwnerFence.canReuseWarmSession(
         sessionOwner: sessionOwnerScope,
@@ -23,6 +25,77 @@ extension RealtimeHubController {
     #else
       return hubConnected && physicalProviderMatchesSelection
     #endif
+  }
+
+  /// Arms or clears the next-physical-turn transport fault. Identity validation
+  /// lives in the gate as defense in depth: the production bridge is absent from
+  /// release bundles, but Stable, Beta, preview, and canonical Dev are rejected
+  /// even if this method is invoked directly.
+  func configurePhysicalPTTTransportFault(
+    operation: String,
+    bundleIdentifier: String
+  ) -> [String: String] {
+    let result: RealtimePhysicalPTTTransportFaultGate.CommandResult
+    switch operation {
+    case "arm":
+      result = physicalPTTTransportFault.arm(bundleIdentifier: bundleIdentifier)
+    case "clear":
+      result = physicalPTTTransportFault.clear(bundleIdentifier: bundleIdentifier)
+    default:
+      return [
+        "error": "unsupported operation; expected arm or clear",
+        "fault_state": physicalPTTTransportFault.diagnosticsState,
+      ]
+    }
+
+    switch result {
+    case .armed:
+      return [
+        "armed": "true",
+        "auto_restore": "terminal",
+        "fault_state": physicalPTTTransportFault.diagnosticsState,
+        "scope": "next_physical_ptt_turn",
+      ]
+    case .cleared:
+      return [
+        "cleared": "true",
+        "fault_state": physicalPTTTransportFault.diagnosticsState,
+      ]
+    case .rejectedIdentity:
+      return [
+        "error": "physical PTT transport fault requires a named development bundle",
+        "fault_state": physicalPTTTransportFault.diagnosticsState,
+      ]
+    case .rejectedActive:
+      return [
+        "error": "physical PTT transport fault is active until its turn terminates",
+        "fault_state": physicalPTTTransportFault.diagnosticsState,
+      ]
+    }
+  }
+
+  /// Consumes the armed fault only for the real microphone path, detaching the
+  /// active Gemini socket before admission is selected. The manager continues
+  /// capturing while the existing warm-wait deadline chooses batch recovery.
+  @discardableResult
+  func activatePhysicalPTTTransportFaultIfArmed(
+    turnID: VoiceTurnID,
+    isPhysicalMicrophone: Bool
+  ) -> Bool {
+    guard
+      physicalPTTTransportFault.activateIfArmed(
+        turnID: turnID,
+        isPhysicalMicrophone: isPhysicalMicrophone)
+    else { return false }
+
+    invalidatePendingMint()
+    // Use the sole physical replacement owner. Its start closure retries warm-up
+    // only after `stopAndWait` acknowledges the old transport closed; while the
+    // fault is active that retry is safely deferred, and an early terminal restore
+    // is likewise coalesced behind the same drain.
+    replaceSessionAfterDrain(rewarmAfterDrain: true)
+    log("RealtimeHub: activated one-turn physical PTT transport fault")
+    return true
   }
 
   func replaceSessionAfterDrain(

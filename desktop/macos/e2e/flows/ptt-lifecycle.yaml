@@ -85,6 +85,50 @@ steps:
       result.detail.invalid_transition_count: "0"
 
   - id: S5
+    name: Arm the next physical-turn Gemini transport fault
+    bridge.action:
+      name: ptt_live_transport_fault
+      params:
+        operation: arm
+    expect:
+      result.detail.armed: "true"
+      result.detail.fault_state: armed
+      result.detail.scope: next_physical_ptt_turn
+      result.detail.auto_restore: terminal
+
+  - id: S6
+    name: Synthetic PTT must not consume the physical-only fault
+    bridge.action:
+      name: ptt_start
+    expect:
+      result.detail.listening: "true"
+
+  - id: S7
+    name: Armed fault remains pending after synthetic capture starts
+    bridge.action:
+      name: ptt_turn_snapshot
+    expect:
+      result.detail.phase: recording
+      result.detail.ptt_live_transport_fault_state: armed
+
+  - id: S8
+    name: Release the synthetic capture
+    bridge.action:
+      name: ptt_stop
+    expect:
+      result.detail.finalized: "true"
+
+  - id: S9
+    name: Clear the unconsumed fault after the synthetic turn
+    bridge.action:
+      name: ptt_live_transport_fault
+      params:
+        operation: clear
+    expect:
+      result.detail.cleared: "true"
+      result.detail.fault_state: idle
+
+  - id: S10
     name: Logs contain no bridge failures or invalid voice transitions
     log.expect:
       absent:

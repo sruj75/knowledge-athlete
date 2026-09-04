@@ -1,6 +1,6 @@
 # macOS Release-Health Metric Specification
 
-**Status:** active · **Schema version:** 3 · **Owner:** desktop/macos · **Tracking:** [#10425](https://github.com/BasedHardware/omi/issues/10425)
+**Status:** active · **Schema version:** 4 · **Owner:** desktop/macos · **Tracking:** [#10425](https://github.com/BasedHardware/omi/issues/10425)
 
 This is the **authoritative query contract** for macOS release-health telemetry. It
 defines, per signal, the exact numerator, denominator, time window, minimum cohort,
@@ -51,10 +51,17 @@ the release-evidence layer (`#9523`) will consume.
 ### PTT terminal-outcome funnel — `ptt_audio_capture_lifecycle`
 
 - **Source event:** `desktop_health_event` with `event = ptt_audio_capture_lifecycle`
-  (`telemetry_schema_version >= 2`).
+  (`telemetry_schema_version >= 3`).
 - **Denominator (attempts):** all `ptt_audio_capture_lifecycle` events in the window,
   grouped by `failure_class`. Every terminal disposition — including success — is
   emitted remotely, so the denominator is queryable.
+- **Physical-capture evidence:** `capture_origin = physical_microphone` identifies
+  the real `AudioCaptureService` callback path; `captured_audio_bytes` and
+  `turn_audio_seconds` are content-free shape measurements derived from the PCM byte
+  count (`16 kHz`, mono, signed 16-bit) without retaining audio. Synthetic manager
+  injection is explicitly labeled `capture_origin = automation`; DEBUG capture-driver
+  input is labeled `capture_origin = test_fixture`. Neither is evidence for a
+  natural-microphone qualification.
 - **Numerator (capture failure):** `failure_class IN
   (capture_never_operational)`. Recovery outcomes
   (`recovery_outcome_recovered`/`_still_silent`/`_not_judgeable`) are joined on
@@ -247,6 +254,10 @@ outcome semantics above so the doctor's `feature_path_success` numerator is neve
 intermediate event.
 
 ## Versioning
+
+Schema 4 introduces PTT lifecycle event version 3: the closed `capture_origin`
+enum and content-free `captured_audio_bytes` field distinguish real microphone,
+bridge automation, and DEBUG fixture provenance.
 
 Bump `Schema version` and call out the change here when any numerator/denominator
 definition, closed enum, or field name changes. `telemetry_schema_version` on the

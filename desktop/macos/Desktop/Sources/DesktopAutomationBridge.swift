@@ -1006,6 +1006,22 @@ final class DesktopAutomationActionRegistry {
       RealtimeHubController.shared.automationPTTDiagnostics()
     }
 
+    register(
+      name: "ptt_live_transport_fault",
+      summary:
+        "Arm or clear a named-development-only Gemini outage for the next physical microphone PTT turn",
+      params: ["operation"],
+      category: "voice",
+      surfaces: ["floating_bar"],
+      safety: "non_production_fault",
+      sideEffects: ["temporarily detaches Gemini transport for one physical PTT turn"],
+      examples: ["./scripts/omi-ctl action ptt_live_transport_fault operation=arm"]
+    ) { params in
+      RealtimeHubController.shared.configurePhysicalPTTTransportFault(
+        operation: params["operation"] ?? "arm",
+        bundleIdentifier: AppBuild.bundleIdentifier)
+    }
+
     if OnboardingResetAutomationPolicy.isAvailable(isProductionBundle: AppBuild.isProductionBundle) {
       register(
         name: "reset_onboarding",

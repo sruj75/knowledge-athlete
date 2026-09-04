@@ -529,7 +529,9 @@ import XCTest
       // manager, so the lifecycle event must land in the Sentry attachment with
       // its bounded causal keys and no raw device identity.
       let recorder = PTTAttemptLifecycleRecorder()
-      recorder.beginAttempt(mode: "hold", hubActive: true, micPermissionGranted: true)
+      recorder.beginAttempt(
+        mode: "hold", hubActive: true, micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
       recorder.captureStartRequested()
       recorder.captureStartResolved(outcome: .failed, statusClass: .engineStartFailed)
       recorder.noteInputRoute(class: .bluetooth, source: .override)
@@ -559,6 +561,8 @@ import XCTest
       XCTAssertEqual(snapshot["input_route_class"] as? String, "bluetooth")
       XCTAssertEqual(snapshot["input_route_source"] as? String, "override")
       XCTAssertEqual(snapshot["turn_disposition"] as? String, "silent_rejected")
+      XCTAssertEqual(snapshot["capture_origin"] as? String, "physical_microphone")
+      XCTAssertEqual(snapshot["captured_audio_bytes"] as? Int, 0)
       XCTAssertNotNil(snapshot["attempt_id"])
       // Privacy: no raw device identity, hardware id, or error string leaks.
       XCTAssertFalse(json.contains("engineStartFailed") || json.contains("OSStatus"))
@@ -578,13 +582,14 @@ import XCTest
         turnDisposition: .committed, inputRouteClass: .builtIn, inputRouteSource: .default,
         routeChangedDuringAttempt: false, recoveryTriggered: false, recoveryAction: .none,
         recoveryAttemptId: nil, recoveryOutcomeOfNextTurn: .none, mode: "hold", source: "hub",
-        hubActive: true, micPermissionGranted: true, turnAudioSeconds: 2.0,
+        hubActive: true, micPermissionGranted: true, captureOrigin: .physicalMicrophone,
+        capturedAudioBytes: 64_000, turnAudioSeconds: 2.0,
         voicedAudioSeconds: 1.5, peak: 1200, rms: 300, isNearZero: false, judgeable: true,
-        telemetrySchemaVersion: 2)
+        telemetrySchemaVersion: 3)
       DesktopDiagnosticsManager.shared.recordPTTAttemptLifecycle(snapshot)
       try assertLatestHealthSnapshot(
         event: .pttAudioCaptureLifecycle,
-        contains: ["failure_class": "committed", "turn_disposition": "committed", "telemetry_schema_version": 2])
+        contains: ["failure_class": "committed", "turn_disposition": "committed", "telemetry_schema_version": 3])
     }
 
     @MainActor
@@ -598,20 +603,13 @@ import XCTest
       }
 
       let recorder = PTTAttemptLifecycleRecorder()
-      recorder.beginAttempt(mode: "hold", hubActive: true, micPermissionGranted: true)
+      recorder.beginAttempt(
+        mode: "hold", hubActive: true, micPermissionGranted: true,
+        captureOrigin: .physicalMicrophone)
       recorder.captureStartRequested()
       recorder.captureStartResolved(outcome: .accepted, statusClass: .ok)
       recorder.ingestAudioChunk(Data(repeating: 1, count: 640))
-      recorder.terminate(
-        disposition: .committed,
-        source: "hub",
-        peak: 1200,
-        rms: 300,
-        turnAudioSeconds: 2,
-        voicedAudioSeconds: 1.5,
-        isNearZero: false,
-        judgeable: true
-      )
+      recorder.terminateCommittedCapture(source: "hub")
 
       for _ in 0..<10 where captures.isEmpty {
         await Task.yield()
@@ -619,6 +617,10 @@ import XCTest
 
       XCTAssertEqual(captures.map(\.name), ["ptt_audio_capture_lifecycle"])
       XCTAssertEqual(captures.first?.properties["health_event"] as? String, "ptt_audio_capture_lifecycle")
+      XCTAssertEqual(captures.first?.properties["capture_origin"] as? String, "physical_microphone")
+      XCTAssertEqual(captures.first?.properties["captured_audio_bytes"] as? Int, 640)
+      XCTAssertEqual(captures.first?.properties["turn_audio_seconds"] as? Double, 0.02)
+      XCTAssertEqual(captures.first?.properties["telemetry_schema_version"] as? Int, 3)
       XCTAssertFalse(captures.contains { $0.name == "floating_bar_ptt_started" })
       XCTAssertFalse(captures.contains { $0.name == "floating_bar_ptt_ended" })
     }

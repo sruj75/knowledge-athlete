@@ -339,7 +339,7 @@ Never ask a user to test an unexercised path. A fast named-bundle launch plus a 
 ### After Implementing Changes
 
 - `xcrun swift build` is for **compile checks only** — it does NOT start the backend
-- Voice-path verification means a natural authenticated PTT turn on a named bundle — signed-out, forced-transcript, or reducer-only runs do not count; provider mint or payload changes must also show the deploy-inline provider probe.
+- Voice-path verification means a natural authenticated PTT turn on a named bundle; `ptt_turn_snapshot` must prove physical origin and nonzero capture shape. Use named-dev-only `ptt_live_transport_fault` for recovery evidence; see `e2e/SKILL.md` §2b.1. Provider mint or payload changes must also show the deploy-inline provider probe.
 - **When the user says "test it"**, use the `test-local` skill to build, run, and verify via macOS automation
 
 ### macOS Version Compatibility
