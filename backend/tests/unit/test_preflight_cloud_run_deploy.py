@@ -176,7 +176,7 @@ environments:
     assert not any('update' in command or 'remove' in command for command in commands)
 
 
-def test_runtime_binding_check_reports_manifest_declared_secret_missing_from_live_service(tmp_path: Path) -> None:
+def test_runtime_binding_check_allows_manifest_declared_secret_missing_before_candidate_deploy(tmp_path: Path) -> None:
     preflight = load_preflight()
     manifest = tmp_path / 'runtime_env.yaml'
     manifest.write_text(
@@ -207,8 +207,60 @@ environments:
         runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),
     )
 
+    assert drift == []
+
+
+def test_runtime_binding_check_reports_wrong_existing_secret_reference(tmp_path: Path) -> None:
+    preflight = load_preflight()
+    manifest = tmp_path / 'runtime_env.yaml'
+    manifest.write_text(
+        '''\
+environments:
+  dev:
+    gcp_project: knowledge-athlete
+    cloud_run:
+      services:
+        backend:
+          deployment_name:
+            value: knowledge-athlete-dev
+          secrets:
+            PRIVATE_SETTING:
+              secret: expected-secret
+              version: '7'
+''',
+        encoding='utf-8',
+    )
+    document = {
+        'spec': {
+            'template': {
+                'spec': {
+                    'containers': [
+                        {
+                            'env': [
+                                {
+                                    'name': 'PRIVATE_SETTING',
+                                    'valueFrom': {'secretKeyRef': {'name': 'wrong-secret', 'key': '3'}},
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+    drift = preflight.check_runtime_bindings(
+        services=('backend',),
+        env='dev',
+        project='knowledge-athlete',
+        region='us-central1',
+        manifest_path=manifest,
+        runner=lambda _command, **_kwargs: SimpleNamespace(stdout=json.dumps(document)),
+    )
+
     assert drift == [
-        'runtime-binding/backend/PRIVATE_SETTING: expected Secret Manager reference expected-secret:7, binding is missing'
+        'runtime-binding/backend/PRIVATE_SETTING: expected Secret Manager reference expected-secret:7, '
+        'observed Secret Manager reference wrong-secret:3'
     ]
 
 

@@ -133,11 +133,13 @@ def check_runtime_bindings(
     """Check only manifest-declared development bindings before candidate deploy.
 
     The workflow removes legacy Secret Manager bindings for public values before
-    it deploys the candidate revision.  At this point a declared public value
-    is therefore valid when it is literal or absent; a Secret Manager or other
-    value source is still drift.  Declared secrets must already match exactly.
-    This is deliberately not a full live-service inventory: normal retained
-    Cloud Run bindings absent from runtime_env.yaml are outside this check.
+    it deploys the candidate revision. At this point any declared binding may be
+    absent because the candidate deploy owns adding the rendered public and
+    secret bindings. An existing declared binding must already have the expected
+    type and, for a secret, the expected Secret Manager reference. The exact
+    post-deploy inventory is enforced by validate-backend-runtime-env.py. This is
+    deliberately not a full live-service inventory: normal retained Cloud Run
+    bindings absent from runtime_env.yaml are outside this check.
     """
     _require_manifest_scope(env=env, project=project, manifest_path=manifest_path, check_name='Runtime binding check')
     service_configs = _cloud_run_service_configs(env=env, manifest_path=manifest_path)
@@ -171,9 +173,7 @@ def check_runtime_bindings(
         for env_name in sorted(expected.secret_references):
             expected_binding = expected.secret_references[env_name]
             observed_binding = actual.get(env_name)
-            if observed_binding is None:
-                drift.append(f'runtime-binding/{service}/{env_name}: expected {expected_binding}, binding is missing')
-            elif observed_binding != expected_binding:
+            if observed_binding is not None and observed_binding != expected_binding:
                 drift.append(
                     f'runtime-binding/{service}/{env_name}: expected {expected_binding}, observed {observed_binding}'
                 )
