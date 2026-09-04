@@ -567,9 +567,10 @@ def _validate_cloud_run_workflows(
         )
         service_flags = _substitute_values(service_state.get('flags', {}), variables=workflow_vars)
         errors.extend(
-            _validate_forbidden_workflow_removals(
+            _validate_forbidden_workflow_env_update(
                 scope=f'cloud_run_workflow/{service}',
                 forbidden=service_config.get('forbidden_env'),
+                update_strategy=service_state.get('env_vars_update_strategy'),
                 flags=service_flags,
             )
         )
@@ -613,7 +614,7 @@ def _validate_cloud_run_workflows(
         )
         job_flags = _substitute_values(job_state.get('flags', {}), variables=workflow_vars)
         errors.extend(
-            _validate_forbidden_workflow_removals(
+            _validate_forbidden_workflow_env_update(
                 scope=f'cloud_run_workflow/{job}',
                 forbidden=job_config.get('forbidden_env'),
                 flags=job_flags,
@@ -894,9 +895,6 @@ def _service_flags(env_config: ConfigDict, service_config: ConfigDict) -> Config
     service_account = _as_config_dict(service_config.get('service_account'))
     if service_account is not None:
         flags['--service-account'] = service_account
-    forbidden = _as_config_list(service_config.get('forbidden_env'))
-    if forbidden is not None:
-        flags['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
     return flags
 
 
@@ -966,16 +964,25 @@ def _validate_forbidden_env_entries(
     ]
 
 
-def _validate_forbidden_workflow_removals(
+def _validate_forbidden_workflow_env_update(
     *,
     scope: str,
     forbidden: object,
     flags: StringMap,
+    update_strategy: object | None = None,
 ) -> list[ValidationError]:
     if forbidden is None:
         return []
     forbidden_names = _as_config_list(forbidden)
     if forbidden_names is None or any(not isinstance(name, str) or not name for name in forbidden_names):
+        return []
+    if update_strategy is not None:
+        if update_strategy != 'overwrite':
+            return [ValidationError(scope, 'forbidden service env requires env_vars_update_strategy=overwrite')]
+        if '--remove-env-vars' in flags:
+            return [
+                ValidationError(scope, 'env_vars_update_strategy=overwrite must not be combined with --remove-env-vars')
+            ]
         return []
     removed = {name.strip() for name in flags.get('--remove-env-vars', '').split(',') if name.strip()}
     return [
@@ -1103,7 +1110,8 @@ def _extract_workflow_cloud_run_targets(
                     continue
                 service = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('service'), job_env)
                 job_name = cloud_run_deployment_identity.resolve_workflow_string(step_with.get('job'), job_env)
-                payload = {'env_vars': env_vars, 'secrets': secrets, 'flags': flags}
+                payload: ConfigDict = {'env_vars': env_vars, 'secrets': secrets, 'flags': flags}
+                payload['env_vars_update_strategy'] = str(step_with.get('env_vars_update_strategy', ''))
                 if service is not None:
                     services[cloud_run_deployment_identity.logical_service_name(service, expected_services)] = payload
                 if job_name is not None:
@@ -1413,9 +1421,6 @@ def _rendered_service_flags(service_config: ConfigDict) -> StringMap:
     service_account = _as_config_dict(service_config.get('service_account'))
     if service_account is not None:
         rendered['--service-account'] = '__rendered_service_account__'
-    forbidden = _as_config_list(service_config.get('forbidden_env'))
-    if forbidden is not None:
-        rendered['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
     return rendered
 
 
@@ -1503,8 +1508,6 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
                 annotations=annotations,
                 template_spec=template_spec,
                 container=first_container,
-                service_config=service_config,
-                env_entries=env_entries,
             ),
         }
     return {'services': services}
@@ -1541,8 +1544,6 @@ def _cloud_run_service_flags_from_state(
     annotations: ConfigDict,
     template_spec: ConfigDict,
     container: ConfigDict,
-    service_config: ConfigDict,
-    env_entries: object,
 ) -> StringMap:
     flags = _cloud_run_network_flags_from_annotations(annotations)
     resources = _as_config_dict(container.get('resources')) or {}
@@ -1582,10 +1583,6 @@ def _cloud_run_service_flags_from_state(
         probe = _as_config_dict(container.get(key))
         if probe is not None:
             flags[flag] = _render_described_probe(probe)
-    forbidden = _as_config_list(service_config.get('forbidden_env')) or []
-    actual_env = _env_entries_by_name(env_entries)
-    if not set(str(name) for name in forbidden).intersection(actual_env):
-        flags['--remove-env-vars'] = ','.join(str(name) for name in forbidden)
     return flags
 
 
