@@ -1494,6 +1494,19 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
         result = subprocess.run(command, check=True, capture_output=True, text=True)
         raw_service_state = json.loads(result.stdout)
         service_state = _as_config_dict(raw_service_state) or {}
+        iam_command = [
+            'gcloud',
+            'run',
+            'services',
+            'get-iam-policy',
+            deployment_name,
+            f'--project={project}',
+            f'--region={region}',
+            '--format=json',
+        ]
+        iam_result = subprocess.run(iam_command, check=True, capture_output=True, text=True)
+        raw_iam_policy = json.loads(iam_result.stdout)
+        iam_policy = _as_config_dict(raw_iam_policy) or {}
         spec = _as_config_dict(service_state.get('spec')) or {}
         template = _as_config_dict(spec.get('template')) or {}
         metadata = _as_config_dict(template.get('metadata')) or {}
@@ -1508,6 +1521,7 @@ def _fetch_live_cloud_run_state(env_config: ConfigDict) -> ConfigDict:
                 annotations=annotations,
                 template_spec=template_spec,
                 container=first_container,
+                iam_policy=iam_policy,
             ),
         }
     return {'services': services}
@@ -1544,6 +1558,7 @@ def _cloud_run_service_flags_from_state(
     annotations: ConfigDict,
     template_spec: ConfigDict,
     container: ConfigDict,
+    iam_policy: ConfigDict | None = None,
 ) -> StringMap:
     flags = _cloud_run_network_flags_from_annotations(annotations)
     resources = _as_config_dict(container.get('resources')) or {}
@@ -1570,8 +1585,14 @@ def _cloud_run_service_flags_from_state(
         value = annotations.get(key)
         if value is not None:
             flags[flag] = str(value)
-    if annotations.get('run.googleapis.com/sessionAffinity') == 'false':
+    # Cloud Run omits revision annotations whose values match these defaults.
+    if '--min-instances' not in flags:
+        flags['--min-instances'] = '0'
+    if annotations.get('run.googleapis.com/sessionAffinity') != 'true':
         flags['--no-session-affinity'] = 'true'
+    # Public invocation is IAM state, not part of the described revision.
+    if _cloud_run_allows_unauthenticated(iam_policy):
+        flags['--allow-unauthenticated'] = 'true'
     cpu_throttling = annotations.get('run.googleapis.com/cpu-throttling')
     if cpu_throttling == 'false':
         flags['--no-cpu-throttling'] = 'true'
@@ -1584,6 +1605,19 @@ def _cloud_run_service_flags_from_state(
         if probe is not None:
             flags[flag] = _render_described_probe(probe)
     return flags
+
+
+def _cloud_run_allows_unauthenticated(iam_policy: object) -> bool:
+    policy = _as_config_dict(iam_policy)
+    if policy is None:
+        return False
+    for raw_binding in _as_config_list(policy.get('bindings')) or []:
+        binding = _as_config_dict(raw_binding)
+        if binding is None or binding.get('role') != 'roles/run.invoker' or binding.get('condition') is not None:
+            continue
+        if 'allUsers' in (_as_config_list(binding.get('members')) or []):
+            return True
+    return False
 
 
 def _render_described_probe(probe: ConfigDict) -> str:
