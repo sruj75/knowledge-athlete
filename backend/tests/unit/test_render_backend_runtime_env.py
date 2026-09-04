@@ -186,6 +186,7 @@ def test_render_dev_emits_free_tier_cloud_run_without_private_network(capsys, mo
     assert '--max-instances=1' in service_flags
     assert '--cpu-throttling' in service_flags
     assert '--no-cpu-throttling' not in service_flags
+    assert '--remove-env-vars' not in service_flags
 
 
 def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(capsys, monkeypatch):

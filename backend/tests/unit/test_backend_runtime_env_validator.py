@@ -806,6 +806,44 @@ def test_cloud_run_workflow_forbidden_env_requires_remove_env_vars(tmp_path):
     assert not any('HOSTED_PUSHER_API_URL must be listed' in error.message for error in errors)
 
 
+def test_cloud_run_service_forbidden_env_requires_overwrite_without_remove_flag():
+    validator = load_validator()
+    scope = 'cloud_run_workflow/backend'
+    forbidden = ['SERVICE_ACCOUNT_JSON', 'GOOGLE_APPLICATION_CREDENTIALS']
+
+    assert validator._validate_forbidden_workflow_env_update(
+        scope=scope,
+        forbidden=forbidden,
+        update_strategy='merge',
+        flags={},
+    ) == [
+        validator.ValidationError(
+            scope,
+            'forbidden service env requires env_vars_update_strategy=overwrite',
+        )
+    ]
+    assert validator._validate_forbidden_workflow_env_update(
+        scope=scope,
+        forbidden=forbidden,
+        update_strategy='overwrite',
+        flags={'--remove-env-vars': ','.join(forbidden)},
+    ) == [
+        validator.ValidationError(
+            scope,
+            'env_vars_update_strategy=overwrite must not be combined with --remove-env-vars',
+        )
+    ]
+    assert (
+        validator._validate_forbidden_workflow_env_update(
+            scope=scope,
+            forbidden=forbidden,
+            update_strategy='overwrite',
+            flags={},
+        )
+        == []
+    )
+
+
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
 def test_hosted_managed_stt_surface_requires_modulate_binding(env_name):
     validator = load_validator()
@@ -1090,8 +1128,6 @@ def test_live_cloud_run_describe_normalizes_request_based_cpu() -> None:
         annotations={'run.googleapis.com/cpu-throttling': 'true'},
         template_spec={},
         container={},
-        service_config={'forbidden_env': []},
-        env_entries=[],
     )
 
     assert flags['--cpu-throttling'] == 'true'

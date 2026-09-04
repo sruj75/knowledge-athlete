@@ -185,7 +185,6 @@ def _render_service_flags(service_config: ConfigDict) -> str:
     forbidden = service_config.get('forbidden_env')
     if not isinstance(forbidden, list) or any(not isinstance(name, str) or not name for name in forbidden):
         raise ValueError('Cloud Run service must define non-empty forbidden_env names')
-    flag_entries['--remove-env-vars'] = ','.join(forbidden)
     return _render_flags(flag_entries)
 
 
