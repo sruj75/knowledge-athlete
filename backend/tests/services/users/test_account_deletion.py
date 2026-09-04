@@ -420,6 +420,30 @@ def test_background_wipe_retries_when_billing_cancellation_is_uncertain(monkeypa
     account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid-1')
 
 
+def test_disabled_billing_fails_closed_for_a_legacy_paid_record(monkeypatch):
+    subscription = types.SimpleNamespace(billing_subscription_id='subscription-synthetic')
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', lambda uid: subscription)
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_billing_failed', MagicMock())
+    monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_failed', MagicMock())
+    monkeypatch.setattr(
+        account_deletion,
+        'cancel_subscription_for_account_deletion',
+        MagicMock(side_effect=RuntimeError('billing is disabled')),
+    )
+    delete_auth = MagicMock()
+    delete_firestore = MagicMock()
+    monkeypatch.setattr(account_deletion.auth, 'delete_account', delete_auth)
+    monkeypatch.setattr(account_deletion.users_db, 'delete_user_data', delete_firestore)
+
+    assert account_deletion.background_wipe_user_data('uid-1') is False
+
+    delete_auth.assert_not_called()
+    delete_firestore.assert_not_called()
+    account_deletion.users_db.mark_user_deletion_billing_failed.assert_called_once()
+    account_deletion.users_db.mark_user_deletion_wipe_failed.assert_called_once_with('uid-1')
+
+
 def test_background_wipe_fails_closed_when_completed_tombstone_cannot_persist(monkeypatch):
     monkeypatch.setattr(account_deletion.users_db, 'mark_user_deletion_wipe_running', MagicMock())
     monkeypatch.setattr(account_deletion.users_db, 'get_user_subscription', MagicMock(return_value=None))

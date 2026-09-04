@@ -119,6 +119,7 @@ async def dodo_webhook_endpoint(
     billing: BillingService = Depends(get_billing_service),
 ):
     try:
+        billing.ensure_active()
         raw_body = (await request.body()).decode('utf-8')
         outcome = await billing.process_webhook(raw_body, request.headers)
     except Exception as exc:
@@ -128,8 +129,7 @@ async def dodo_webhook_endpoint(
 
 @router.get('/v1/payments/success', response_class=HTMLResponse)
 def payment_success():
-    return HTMLResponse(
-        content='''
+    return HTMLResponse(content='''
         <html>
             <head><title>Success</title></head>
             <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; flex-direction: column;">
@@ -137,14 +137,12 @@ def payment_success():
                 <p>Your subscription is being confirmed. You can close this window and return to the app.</p>
             </body>
         </html>
-        '''
-    )
+        ''')
 
 
 @router.get('/v1/payments/cancel', response_class=HTMLResponse)
 def payment_cancel():
-    return HTMLResponse(
-        content='''
+    return HTMLResponse(content='''
         <html>
             <head><title>Cancelled</title></head>
             <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; flex-direction: column;">
@@ -152,14 +150,12 @@ def payment_cancel():
                 <p>No billing change was made. You can return to the app.</p>
             </body>
         </html>
-        '''
-    )
+        ''')
 
 
 @router.get('/v1/payments/portal-return', response_class=HTMLResponse)
 def portal_return():
-    return HTMLResponse(
-        content='''
+    return HTMLResponse(content='''
         <html>
             <head><title>Portal Complete</title></head>
             <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; flex-direction: column;">
@@ -167,5 +163,4 @@ def portal_return():
                 <p>Your billing settings have been updated. You can close this window and return to the app.</p>
             </body>
         </html>
-        '''
-    )
+        ''')

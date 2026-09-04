@@ -13,7 +13,7 @@ source .venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default and ignores billing credentials. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
+**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default, ignores billing credentials, and does not load the Dodo SDK or construct its client. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
 
 Parity-pack capture is a dev-only, allowlisted, local persistence path. `OMI_PARITY_PACK_CAPTURE`, `OMI_PARITY_PACK_ALLOWED_PRINCIPALS`, and an absolute external `OMI_PARITY_PACK_ROOT` are its complete runtime configuration; it never exports cassettes or constructs a cloud-storage client.
 
@@ -142,7 +142,10 @@ Keep this map up to date. When adding, removing, or changing inter-service calls
 
 ## Import Rules
 
-All imports at module top level — never inside functions. Strict hierarchy:
+All static imports stay at module top level — never inside functions. The sole
+runtime-loader exception is `utils/billing/factory.py`: it imports the concrete
+Dodo adapter module only after the service's active-mode guard; the adapter
+keeps a normal top-level SDK import for static checking. Strict hierarchy:
 
 ```
 database/  →  utils/  →  routers/  →  main.py

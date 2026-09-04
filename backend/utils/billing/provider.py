@@ -1,46 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping
 
 from dodopayments import DodoPayments
 
 from utils.billing.config import BillingConfig, BillingMode
+from utils.billing.contracts import BillingProvider, CheckoutSession
 from utils.billing.values import as_mapping, format_recurring_price
 from utils.executors import billing_executor, run_blocking
 
 
-@dataclass(frozen=True)
-class CheckoutSession:
-    session_id: str
-    url: str
-
-
-class BillingProvider(Protocol):
-    async def create_checkout(
-        self, *, product_id: str, uid: str, offer_id: str, return_url: str, cancel_url: str
-    ) -> CheckoutSession: ...
-
-    async def create_portal(self, *, customer_id: str, return_url: str) -> str: ...
-
-    async def cancel_subscription(self, subscription_id: str) -> bool: ...
-
-    async def retrieve_subscription(self, subscription_id: str) -> Any: ...
-
-    async def retrieve_payment(self, payment_id: str) -> Any: ...
-
-    async def retrieve_product_price(self, product_id: str, expected_interval: str) -> str: ...
-
-    def unwrap_webhook(self, raw_body: str, headers: Mapping[str, str]) -> Any: ...
-
-    async def close(self) -> None: ...
-
-
-class DodoBillingProvider:
+class DodoBillingProvider(BillingProvider):
     """Narrow async adapter around the Dodo SDK.
 
-    Import and client construction are intentionally delayed until an active
-    operation crosses the service guard.
+    Loading the SDK module and constructing its client are both delayed until
+    an active operation crosses the service guard.
     """
 
     def __init__(self, config: BillingConfig):
