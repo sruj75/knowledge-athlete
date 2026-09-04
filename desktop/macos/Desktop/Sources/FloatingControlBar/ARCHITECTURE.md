@@ -27,6 +27,11 @@ journal operations, but it must not reach directly into `ChatProvider` or make
 agent-routing decisions. Provider tools remain untrusted until the kernel
 returns an authorized command.
 
+`PushToTalkManager` owns mutable microphone and transcription effects.
+`PushToTalkPolicies` owns the pure silent-microphone recovery and modifier-only
+shortcut gates, while `Automation/DesktopAutomationPTTActions` only registers
+the external test/control surface that drives those production owners.
+
 ## Notifications
 
 `FloatingControlBarManager` owns notification queueing and physical card
