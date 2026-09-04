@@ -19,6 +19,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/desktop-swift-ci.yml"
 RUNNER_PATH = REPO_ROOT / "desktop/macos/scripts/run-swift-ci.sh"
+SUITE_RUNNER_PATH = REPO_ROOT / "desktop/macos/scripts/swift-test-suites.sh"
 PRE_PUSH_PATH = REPO_ROOT / "scripts/pre-push"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -37,6 +38,10 @@ def _workflow_text() -> str:
 
 def _runner_text() -> str:
     return RUNNER_PATH.read_text(encoding="utf-8")
+
+
+def _suite_runner_text() -> str:
+    return SUITE_RUNNER_PATH.read_text(encoding="utf-8")
 
 
 def _job_text(workflow_text: str, job_id: str) -> str:
@@ -356,6 +361,12 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
 
         self.assertNotIn("xcodebuild -version | head -1", runner)
         self.assertIn("sed -n '1p'", runner)
+
+    def test_optional_prebuild_arguments_are_safe_under_macos_bash_nounset(self):
+        """An empty optional array must not crash the supported no-prebuild diagnostic path."""
+        runner = _suite_runner_text()
+
+        self.assertIn('${build_args[@]+"${build_args[@]}"}', runner)
 
     # --- adversarial: removing any guard must fail -------------------------
 
