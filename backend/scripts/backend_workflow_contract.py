@@ -85,9 +85,12 @@ def validate_immutable_deploy_contract(workflow_file: str, workflow: Mapping[str
     if (
         url_index <= deploy_index
         or 'gcloud run services describe' not in url_run
-        or 'test "$discovered" = "$EXPECTED_BACKEND_URL"' not in url_run
+        or '--format=json' not in url_run
+        or 'python3 backend/scripts/cloud_run_deployment_identity.py' not in url_run
+        or '--service="${{ env.CLOUD_RUN_SERVICE }}"' not in url_run
+        or '--expected-url="$EXPECTED_BACKEND_URL"' not in url_run
     ):
-        errors.append('the deployed service URL must be discovered and matched after service creation')
+        errors.append('the configured URL must be proven among the deployed service assigned URLs')
     return errors
 
 

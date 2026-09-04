@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 import os
 from pathlib import Path
 import sys
@@ -14,7 +15,11 @@ ROOT = BACKEND_ROOT.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from scripts.backend_workflow_contract import validate_immutable_deploy_contract  # noqa: E402
-from scripts.cloud_run_deployment_identity import resolve_external_value  # noqa: E402
+from scripts.cloud_run_deployment_identity import (  # noqa: E402
+    CloudRunServiceUrlError,
+    resolve_external_value,
+    validate_assigned_service_url,
+)
 
 
 @pytest.mark.parametrize('filename', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
@@ -94,6 +99,57 @@ def test_tag_smoke_or_predeploy_service_discovery_mutations_fail_closed(filename
     assert 'fresh service bootstrap must take its canonical URL from an explicit environment input' in (
         validate_immutable_deploy_contract(str(path), stale_bootstrap)
     )
+
+    status_url_only = deepcopy(workflow)
+    url_check = next(
+        step
+        for step in status_url_only['jobs']['deploy']['steps']
+        if step.get('name') == 'Validate discovered canonical service URL'
+    )
+    url_check['run'] = '''
+discovered="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --format='value(status.url)')"
+test "$discovered" = "$EXPECTED_BACKEND_URL"
+'''
+    assert 'the configured URL must be proven among the deployed service assigned URLs' in (
+        validate_immutable_deploy_contract(str(path), status_url_only)
+    )
+
+
+def _service_document(*, assigned_urls: list[str], status_url: str) -> dict[str, object]:
+    return {
+        'metadata': {
+            'name': 'knowledge-athlete-dev',
+            'annotations': {'run.googleapis.com/urls': json.dumps(assigned_urls)},
+        },
+        'status': {'url': status_url},
+    }
+
+
+def test_configured_deterministic_url_accepts_cloud_run_hash_status_alias() -> None:
+    deterministic_url = 'https://knowledge-athlete-dev-674306938907.us-west1.run.app'
+    hash_alias = 'https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app'
+    service_document = _service_document(
+        assigned_urls=[deterministic_url, hash_alias],
+        status_url=hash_alias,
+    )
+
+    assert validate_assigned_service_url(
+        service_document,
+        expected_service='knowledge-athlete-dev',
+        expected_url=deterministic_url,
+    ) == (deterministic_url, hash_alias)
+
+
+def test_unassigned_configured_url_fails_closed() -> None:
+    hash_alias = 'https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app'
+    service_document = _service_document(assigned_urls=[hash_alias], status_url=hash_alias)
+
+    with pytest.raises(CloudRunServiceUrlError, match='configured canonical URL is not assigned'):
+        validate_assigned_service_url(
+            service_document,
+            expected_service='knowledge-athlete-dev',
+            expected_url='https://wrong-service-674306938907.us-west1.run.app',
+        )
 
 
 def test_workflow_contract_does_not_apply_to_unrelated_workflows() -> None:
