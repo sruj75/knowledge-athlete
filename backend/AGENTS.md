@@ -178,6 +178,7 @@ Never log raw sensitive data. Use `sanitize()` and `sanitize_pii()` from `utils.
 - `sanitize()` for `response.text`, API responses, error bodies.
 - `sanitize_pii()` for names, emails, user text.
 - Keep UIDs, IPs, status codes visible for debugging.
+- Access logs must omit query strings; OAuth callback codes and state values must never reach Uvicorn or Cloud Run log output.
 - Never put raw `response.text` in exception messages.
 
 ## Resource Management
