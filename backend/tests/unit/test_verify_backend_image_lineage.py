@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
 
 import pytest
+import yaml
 
 from scripts import verify_backend_image_lineage as lineage
-
 
 ROOT = Path(__file__).resolve().parents[3]
 REPOSITORY = 'gcr.io/example/backend'
@@ -54,6 +56,41 @@ def test_accepts_direct_manifest_only_at_the_same_digest() -> None:
     )
 
     assert evidence['lineage']['kind'] == 'direct-image-manifest'
+
+
+@pytest.mark.parametrize('workflow_name', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
+def test_capture_step_emits_an_untagged_immutable_reference_accepted_by_lineage_validator(
+    workflow_name: str, tmp_path: Path
+) -> None:
+    workflow = yaml.safe_load((ROOT / '.github/workflows' / workflow_name).read_text(encoding='utf-8'))
+    capture = next(
+        step for step in workflow['jobs']['deploy']['steps'] if step.get('name') == 'Capture immutable runtime image'
+    )
+    tagged_image = f'{REPOSITORY}:abc1234'
+    script = (
+        capture['run']
+        .replace('${{ steps.image-tag.outputs.image_ref }}', tagged_image)
+        .replace('${{ steps.image-tag.outputs.repository }}', REPOSITORY)
+        .replace('${{ steps.build-runtime-image.outputs.digest }}', INDEX_DIGEST)
+    )
+    output = tmp_path / 'github-output'
+
+    result = subprocess.run(
+        ['bash', '-c', script],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, 'GITHUB_OUTPUT': str(output)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    values = dict(line.split('=', 1) for line in output.read_text(encoding='utf-8').splitlines())
+    evidence = lineage.verify_lineage(
+        build_image_reference=values['immutable_ref'],
+        runtime_image_reference=values['immutable_ref'],
+        manifest={'schemaVersion': 2, 'mediaType': 'application/vnd.oci.image.manifest.v1+json'},
+    )
+    assert evidence['build_image']['reference'] == f'{REPOSITORY}@{INDEX_DIGEST}'
 
 
 @pytest.mark.parametrize(

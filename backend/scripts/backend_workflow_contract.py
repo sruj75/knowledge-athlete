@@ -57,8 +57,9 @@ def validate_immutable_deploy_contract(workflow_file: str, workflow: Mapping[str
     if (
         capture.get('id') != 'push-runtime-image'
         or '${{ steps.build-runtime-image.outputs.digest }}' not in capture_run
+        or 'repository="${{ steps.image-tag.outputs.repository }}"' not in capture_run
         or 'sha256:[0-9a-f]{64}' not in capture_run
-        or 'immutable_ref=${image}@${digest}' not in capture_run
+        or 'immutable_ref=${repository}@${digest}' not in capture_run
     ):
         errors.append('backend image identity must come from the build action sha256 digest output')
     if (

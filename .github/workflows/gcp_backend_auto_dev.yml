@@ -372,14 +372,14 @@ jobs:
         id: push-runtime-image
         run: |
           set -euo pipefail
-          image="${{ steps.image-tag.outputs.image_ref }}"
+          repository="${{ steps.image-tag.outputs.repository }}"
           digest="${{ steps.build-runtime-image.outputs.digest }}"
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "ERROR: published backend image returned invalid digest $digest" >&2
             exit 1
           fi
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "immutable_ref=${image}@${digest}" >> "$GITHUB_OUTPUT"
+          echo "immutable_ref=${repository}@${digest}" >> "$GITHUB_OUTPUT"
 
       - name: Verify published runtime image by digest
         run: |
