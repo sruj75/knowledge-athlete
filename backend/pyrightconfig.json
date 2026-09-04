@@ -17,7 +17,6 @@
         "scripts/scan_async_blockers.py",
         "scripts/scan_import_time_side_effects.py",
         "scripts/select_backend_unit_tests.py",
-        "scripts/stt/modulate_repro/repro_utterance_order.py",
         "scripts/stt/q_modulate_debug.py",
         "scripts/stt/r_modulate_stability.py",
         "scripts/stt/r_silence_compression_test.py",
