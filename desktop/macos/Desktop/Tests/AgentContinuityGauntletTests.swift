@@ -14,17 +14,15 @@ final class AgentContinuityGauntletTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: driver.path), driver.path)
   }
 
+  @MainActor
   func testGauntletAutomationHooksRegistered() throws {
     let desktopDir = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-    let bridgeSource = try String(
-      contentsOf:
-        desktopDir
-        .appendingPathComponent("Desktop/Sources/DesktopAutomationBridge.swift"),
-      encoding: .utf8
-    )
+    let registry = DesktopAutomationActionRegistry.shared
+    registry.registerBuiltins()
+    let registeredActions = Set(registry.descriptors().map(\.name))
     let required = [
       "ask",
       "main_chat_snapshot",
@@ -44,7 +42,7 @@ final class AgentContinuityGauntletTests: XCTestCase {
     ]
     for name in required {
       XCTAssertTrue(
-        bridgeSource.contains("name: \"\(name)\""),
+        registeredActions.contains(name),
         "missing automation action \(name)"
       )
     }
