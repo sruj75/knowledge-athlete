@@ -29,6 +29,9 @@ from typing import Iterable
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = REPOSITORY_ROOT / "backend" / "runtime_images.json"
+PULL_REQUEST_WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "runtime_image_contracts.yml"
+CHECKS_MANIFEST_PATH = REPOSITORY_ROOT / ".github" / "checks-manifest.yaml"
+SOURCE_CLOSURE_CHECK_ID = "backend-runtime-image-source-closure"
 IGNORED_SOURCE_DIRECTORIES = {
     ".git",
     ".mypy_cache",
@@ -111,6 +114,13 @@ class ContractError(ValueError):
 
 def _repository_relative(path: Path) -> str:
     return path.relative_to(REPOSITORY_ROOT).as_posix()
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return _repository_relative(path)
+    except ValueError:
+        return path.as_posix()
 
 
 def load_contracts(registry_path: Path = REGISTRY_PATH) -> list[ImageContract]:
@@ -326,6 +336,131 @@ def _required_context_includes(contract: ImageContract) -> set[str]:
         else:
             includes.add(f"!{path.as_posix()}")
     return includes
+
+
+def _required_pull_request_trigger_patterns(contract: ImageContract) -> set[str]:
+    """Return the narrowest path patterns covering every host-side COPY input."""
+
+    sources: list[tuple[PurePosixPath, bool]] = []
+    for instruction in build_context_copy_instructions(contract.dockerfile):
+        for source in instruction.sources:
+            if "$" in source:
+                raise ContractError(
+                    f"{contract.name}: variable COPY source cannot define pull-request routing: {source}"
+                )
+            normalized = source.removeprefix("./").rstrip("/")
+            if (
+                not normalized
+                or normalized == "."
+                or normalized.startswith("/")
+                or ".." in PurePosixPath(normalized).parts
+            ):
+                raise ContractError(f"{contract.name}: broad or escaping COPY source is forbidden: {source}")
+            context_relative_path = PurePosixPath(normalized)
+            host_path = contract.build_context / context_relative_path.as_posix()
+            try:
+                repository_relative_path = PurePosixPath(_repository_relative(host_path))
+            except ValueError as exc:
+                raise ContractError(f"{contract.name}: COPY source is outside the repository: {source}") from exc
+            sources.append((repository_relative_path, source.endswith("/") or host_path.is_dir()))
+
+    directory_roots = {path for path, is_directory in sources if is_directory}
+    patterns: set[str] = set()
+    for path, is_directory in sources:
+        if not is_directory and any(path.is_relative_to(root) for root in directory_roots):
+            continue
+        patterns.add(f"{path.as_posix()}/**" if is_directory else path.as_posix())
+    return patterns
+
+
+def _workflow_pull_request_paths(path: Path) -> set[str]:
+    in_pull_request = False
+    in_paths = False
+    found_paths = False
+    paths: set[str] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indentation = len(raw_line) - len(raw_line.lstrip())
+        if stripped == "pull_request:" and indentation == 2:
+            in_pull_request = True
+            in_paths = False
+            continue
+        if in_pull_request and indentation <= 2:
+            break
+        if in_pull_request and stripped == "paths:" and indentation == 4:
+            in_paths = True
+            found_paths = True
+            continue
+        if in_paths:
+            if indentation <= 4:
+                break
+            if not stripped.startswith("-"):
+                continue
+            values = shlex.split(stripped[1:].strip())
+            if len(values) != 1:
+                raise ContractError(f"cannot parse pull_request path in {_display_path(path)}: {raw_line}")
+            paths.add(values[0])
+    if not found_paths:
+        raise ContractError(f"{_display_path(path)} has no pull_request.paths list")
+    return paths
+
+
+def _manifest_check_triggers(path: Path, check_id: str) -> set[str]:
+    in_check = False
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("- id: "):
+            in_check = stripped == f"- id: {check_id}"
+            continue
+        if not in_check or not stripped.startswith("triggers:"):
+            continue
+        try:
+            triggers = json.loads(stripped.partition(":")[2].strip())
+        except json.JSONDecodeError as exc:
+            raise ContractError(f"cannot parse {check_id} triggers in {_display_path(path)}: {exc}") from exc
+        if not isinstance(triggers, list) or any(not isinstance(trigger, str) for trigger in triggers):
+            raise ContractError(f"{check_id} triggers in {_display_path(path)} must be a string list")
+        return set(triggers)
+    raise ContractError(f"{_display_path(path)} has no triggers for check {check_id}")
+
+
+def pull_request_trigger_contract_errors(
+    contracts: Iterable[ImageContract],
+    workflow_path: Path = PULL_REQUEST_WORKFLOW_PATH,
+    manifest_path: Path = CHECKS_MANIFEST_PATH,
+) -> list[str]:
+    """Route every registered image input to both hosted and deterministic checks."""
+
+    required_patterns: set[str] = set()
+    for contract in contracts:
+        required_patterns.update(_required_pull_request_trigger_patterns(contract))
+
+    workflow_paths = _workflow_pull_request_paths(workflow_path)
+    manifest_triggers = _manifest_check_triggers(manifest_path, SOURCE_CLOSURE_CHECK_ID)
+    required_workflow_patterns = required_patterns | {
+        ".dockerignore",
+        "Makefile",
+        _repository_relative(PULL_REQUEST_WORKFLOW_PATH),
+    }
+    required_manifest_patterns = required_patterns | {
+        ".dockerignore",
+        _repository_relative(CHECKS_MANIFEST_PATH),
+    }
+    errors: list[str] = []
+    missing_workflow = sorted(required_workflow_patterns - workflow_paths)
+    if missing_workflow:
+        errors.append(
+            f"{_display_path(workflow_path)} pull_request.paths omit runtime-image check inputs: {missing_workflow}"
+        )
+    missing_manifest = sorted(required_manifest_patterns - manifest_triggers)
+    if missing_manifest:
+        errors.append(
+            f"{_display_path(manifest_path)} {SOURCE_CLOSURE_CHECK_ID} triggers omit runtime-image check inputs: "
+            f"{missing_manifest}"
+        )
+    return errors
 
 
 def _dockerignore_patterns(path: Path) -> list[str]:
@@ -767,6 +902,7 @@ def main() -> int:
                 errors.extend(check_source_closures(contracts))
             if args.command in {"check", "check-workflows"}:
                 errors.extend(workflow_contract_errors(contracts))
+                errors.extend(pull_request_trigger_contract_errors(contracts))
             if errors:
                 print("FAIL: runtime-image contract is incomplete:", file=sys.stderr)
                 for error in errors:

@@ -327,7 +327,7 @@ checks:
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
-    triggers: [".dockerignore", "backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml"]
+    triggers: [".dockerignore", "backend/**", ".github/scripts/desktop_release_manifest.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/desktop_qualification_evidence.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#9857 plus the oversized-context incident: runtime images must retain source closure without admitting unrelated checkout paths"
   - id: backend-module-isolation

@@ -146,6 +146,79 @@ def test_dockerignore_changes_route_to_static_and_image_checks():
     assert "    '.dockerignore' \\" in pre_push
 
 
+def test_runtime_copy_inputs_route_to_pull_request_checks(contracts_module, tmp_path):
+    contracts = contracts_module.load_contracts()
+    assert contracts_module.pull_request_trigger_contract_errors(contracts) == []
+
+    backend = _contract(contracts_module, 'backend')
+    copied_patterns = contracts_module._required_pull_request_trigger_patterns(backend)
+    root_file = next(pattern for pattern in sorted(copied_patterns) if pattern.startswith('.github/scripts/'))
+
+    workflow = contracts_module.PULL_REQUEST_WORKFLOW_PATH.read_text(encoding='utf-8')
+    workflow_path = tmp_path / 'runtime_image_contracts.yml'
+    workflow_self = contracts_module._repository_relative(contracts_module.PULL_REQUEST_WORKFLOW_PATH)
+    for required_path in (root_file, '.dockerignore', 'Makefile', workflow_self):
+        mutated_workflow = workflow.replace(f"      - '{required_path}'\n", '')
+        assert mutated_workflow != workflow
+        workflow_path.write_text(mutated_workflow, encoding='utf-8')
+        workflow_errors = contracts_module.pull_request_trigger_contract_errors(
+            contracts,
+            workflow_path=workflow_path,
+        )
+        assert any(
+            required_path in error and 'pull_request.paths omit runtime-image check inputs' in error
+            for error in workflow_errors
+        )
+
+    manifest = contracts_module.CHECKS_MANIFEST_PATH.read_text(encoding='utf-8')
+    manifest_path = tmp_path / 'checks-manifest.yaml'
+    manifest_self = contracts_module._repository_relative(contracts_module.CHECKS_MANIFEST_PATH)
+    for required_path in (root_file, '.dockerignore', manifest_self):
+        mutated_manifest = manifest.replace(f'"{required_path}"', '"__removed_runtime_image_trigger__"')
+        assert mutated_manifest != manifest
+        manifest_path.write_text(mutated_manifest, encoding='utf-8')
+        manifest_errors = contracts_module.pull_request_trigger_contract_errors(
+            contracts,
+            manifest_path=manifest_path,
+        )
+        assert any(
+            required_path in error and 'triggers omit runtime-image check inputs' in error for error in manifest_errors
+        )
+
+
+def test_non_smoked_runtime_copy_inputs_still_route_to_source_closure_check(contracts_module, tmp_path):
+    backend = _contract(contracts_module, 'backend')
+    dockerfile = tmp_path / 'Dockerfile.non-smoke'
+    dockerfile.write_text('FROM scratch\nCOPY synthetic/non-smoke.txt /app/non-smoke.txt\n', encoding='utf-8')
+    non_smoked = replace(
+        backend,
+        name='non-smoked',
+        dockerfile=dockerfile,
+        build_context=contracts_module.REPOSITORY_ROOT,
+        pull_request_smoke=False,
+    )
+
+    errors = contracts_module.pull_request_trigger_contract_errors([backend, non_smoked])
+
+    assert any('synthetic/non-smoke.txt' in error for error in errors)
+
+
+def test_copy_trigger_patterns_are_repository_relative_for_non_root_context(contracts_module, monkeypatch, tmp_path):
+    build_context = tmp_path / 'backend'
+    build_context.mkdir()
+    (build_context / 'requirements.txt').write_text('fastapi\n', encoding='utf-8')
+    dockerfile = build_context / 'Dockerfile'
+    dockerfile.write_text('FROM scratch\nCOPY requirements.txt /app/requirements.txt\n', encoding='utf-8')
+    contract = replace(
+        _contract(contracts_module, 'backend'),
+        dockerfile=dockerfile,
+        build_context=build_context,
+    )
+    monkeypatch.setattr(contracts_module, 'REPOSITORY_ROOT', tmp_path)
+
+    assert contracts_module._required_pull_request_trigger_patterns(contract) == {'backend/requirements.txt'}
+
+
 def test_source_staging_excludes_generated_virtual_environments(contracts_module):
     names = ['database', '.venv', '.openapi-venv', '.pytest_cache', '__pycache__']
 
