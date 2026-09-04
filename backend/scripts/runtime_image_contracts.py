@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that deployable Python images contain their reachable first-party imports.
+"""Verify deployable Python images' source closure and bounded build contexts.
 
 The local checkout has every backend package on its import path; a Docker image does
 not.  This module treats the final runtime stage's COPY instructions as the source of
@@ -37,6 +37,42 @@ IGNORED_SOURCE_DIRECTORIES = {
     ".ruff_cache",
     ".venv",
     "__pycache__",
+}
+REQUIRED_CONTEXT_DENY_PATTERNS = {
+    "backend/.env*",
+    "backend/**/.env*",
+    "backend/*.env",
+    "backend/**/*.env",
+    "backend/google-credentials*.json",
+    "backend/**/google-credentials*.json",
+    "backend/.venv",
+    "backend/.openapi-venv",
+    "backend/**/.venv",
+    "backend/**/.openapi-venv",
+    "backend/**/__pycache__",
+    "backend/**/.pytest_cache",
+    "backend/**/.mypy_cache",
+    "backend/**/.ruff_cache",
+    "backend/**/.build",
+    "backend/**/*.pyc",
+    "backend/**/*.pem",
+    "backend/**/*.key",
+    "backend/**/*.p12",
+    "backend/.harness",
+    "backend/_speech_profiles",
+    "backend/_temp",
+    "backend/logs",
+    "backend/pretrained_models",
+    "backend/scripts/data",
+    "backend/scripts/rag/*.json",
+    "backend/scripts/rag/visualizations",
+    "backend/scripts/research",
+    "backend/scripts/stt/_temp",
+    "backend/scripts/stt/_temp2",
+    "backend/scripts/stt/diarization.json",
+    "backend/scripts/stt/pretrained_models",
+    "backend/scripts/stt/results",
+    "backend/syncing",
 }
 
 
@@ -216,6 +252,26 @@ def _logical_docker_lines(path: Path) -> list[str]:
     return logical_lines
 
 
+def _copy_instruction(line: str, dockerfile: Path) -> CopyInstruction | None:
+    if not line.upper().startswith("COPY "):
+        return None
+    tokens = shlex.split(line[5:])
+    if any(token.startswith("--from=") for token in tokens):
+        return None
+    tokens = [token for token in tokens if not token.startswith("--")]
+    if len(tokens) < 2:
+        raise ContractError(f"cannot parse COPY instruction in {_repository_relative(dockerfile)}: {line}")
+    return CopyInstruction(sources=tuple(tokens[:-1]), destination=tokens[-1])
+
+
+def build_context_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
+    return [
+        instruction
+        for line in _logical_docker_lines(dockerfile)
+        if (instruction := _copy_instruction(line, dockerfile)) is not None
+    ]
+
+
 def final_stage_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
     stages: list[list[str]] = []
     current_stage: list[str] | None = None
@@ -231,16 +287,109 @@ def final_stage_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
 
     copies: list[CopyInstruction] = []
     for line in stages[-1]:
-        if not line.upper().startswith("COPY "):
-            continue
-        tokens = shlex.split(line[5:])
-        if any(token.startswith("--from=") for token in tokens):
-            continue
-        tokens = [token for token in tokens if not token.startswith("--")]
-        if len(tokens) < 2:
-            raise ContractError(f"cannot parse COPY instruction in {_repository_relative(dockerfile)}: {line}")
-        copies.append(CopyInstruction(sources=tuple(tokens[:-1]), destination=tokens[-1]))
+        instruction = _copy_instruction(line, dockerfile)
+        if instruction is not None:
+            copies.append(instruction)
     return copies
+
+
+def _required_context_includes(contract: ImageContract) -> set[str]:
+    includes: set[str] = set()
+    sources: list[tuple[str, PurePosixPath, bool]] = []
+    for instruction in build_context_copy_instructions(contract.dockerfile):
+        for source in instruction.sources:
+            if "$" in source:
+                raise ContractError(
+                    f"{contract.name}: variable COPY source cannot define a fail-closed context: {source}"
+                )
+            normalized = source.removeprefix("./").rstrip("/")
+            if (
+                not normalized
+                or normalized == "."
+                or normalized.startswith("/")
+                or ".." in PurePosixPath(normalized).parts
+            ):
+                raise ContractError(f"{contract.name}: broad or escaping COPY source is forbidden: {source}")
+            path = PurePosixPath(normalized)
+            sources.append((source, path, source.endswith("/") or (contract.build_context / path.as_posix()).is_dir()))
+
+    directory_roots = {path for _, path, is_directory in sources if is_directory}
+    for _, path, is_directory in sources:
+        if not is_directory and any(path.is_relative_to(root) for root in directory_roots):
+            continue
+        parents = list(path.parents)[:-1]
+        for parent in reversed(parents):
+            includes.add(f"!{parent.as_posix()}/")
+        if is_directory:
+            includes.add(f"!{path.as_posix()}/")
+            includes.add(f"!{path.as_posix()}/**")
+        else:
+            includes.add(f"!{path.as_posix()}")
+    return includes
+
+
+def _dockerignore_patterns(path: Path) -> list[str]:
+    try:
+        return [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    except OSError as exc:
+        raise ContractError(f"cannot read Docker build-context policy {_repository_relative(path)}: {exc}") from exc
+
+
+def docker_context_contract_errors(contracts: Iterable[ImageContract]) -> list[str]:
+    """Keep host build contexts deny-by-default and limited to Dockerfile COPY inputs."""
+
+    errors: list[str] = []
+    policies: dict[Path, list[ImageContract]] = {}
+    checked_overrides: set[Path] = set()
+    for contract in contracts:
+        override = contract.dockerfile.with_name(f"{contract.dockerfile.name}.dockerignore")
+        if override not in checked_overrides and override.is_file():
+            errors.append(
+                f"{_repository_relative(override)}: Dockerfile-specific ignore policy is forbidden because it "
+                "would bypass the registered build-context policy"
+            )
+        checked_overrides.add(override)
+        policies.setdefault(contract.build_context / ".dockerignore", []).append(contract)
+    for ignore_path, policy_contracts in policies.items():
+        patterns = _dockerignore_patterns(ignore_path)
+        if not patterns or patterns[0] != "**":
+            errors.append(f"{_repository_relative(ignore_path)} must begin with ** to deny new paths by default")
+            continue
+        includes = {pattern for pattern in patterns if pattern.startswith("!")}
+        required_includes: set[str] = set()
+        for contract in policy_contracts:
+            required_includes.update(_required_context_includes(contract))
+        missing_includes = sorted(required_includes - includes)
+        extra_includes = sorted(includes - required_includes)
+        if missing_includes:
+            errors.append(f"{_repository_relative(ignore_path)} omits required COPY inputs: {missing_includes}")
+        if extra_includes:
+            errors.append(
+                f"{_repository_relative(ignore_path)} admits paths no registered image copies: {extra_includes}"
+            )
+        denies = {pattern for pattern in patterns[1:] if not pattern.startswith("!")}
+        missing_denies = sorted(REQUIRED_CONTEXT_DENY_PATTERNS - denies)
+        extra_denies = sorted(denies - REQUIRED_CONTEXT_DENY_PATTERNS)
+        if missing_denies:
+            errors.append(f"{_repository_relative(ignore_path)} omits cache or credential exclusions: {missing_denies}")
+        if extra_denies:
+            errors.append(
+                f"{_repository_relative(ignore_path)} has undeclared exclusions that can hide COPY inputs: {extra_denies}"
+            )
+        if len(patterns) != len(set(patterns)):
+            errors.append(f"{_repository_relative(ignore_path)} must not contain duplicate active patterns")
+        last_include = max((index for index, pattern in enumerate(patterns) if pattern.startswith("!")), default=0)
+        if any(
+            index <= last_include for index, pattern in enumerate(patterns) if pattern in REQUIRED_CONTEXT_DENY_PATTERNS
+        ):
+            errors.append(
+                f"{_repository_relative(ignore_path)} cache and credential exclusions must follow every include"
+            )
+    return errors
 
 
 def _ignore_source_directory(_: str, names: list[str]) -> set[str]:
@@ -614,6 +763,7 @@ def main() -> int:
         if args.command in {"check", "check-source", "check-workflows"}:
             errors = []
             if args.command in {"check", "check-source"}:
+                errors.extend(docker_context_contract_errors(contracts))
                 errors.extend(check_source_closures(contracts))
             if args.command in {"check", "check-workflows"}:
                 errors.extend(workflow_contract_errors(contracts))

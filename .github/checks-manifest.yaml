@@ -327,9 +327,9 @@ checks:
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
-    triggers: ["backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml"]
+    triggers: [".dockerignore", "backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml"]
     lanes: ["local", "ci"]
-    reason: "#9857: deployable Python images must contain the transitive first-party imports of their runtime entrypoints"
+    reason: "#9857 plus the oversized-context incident: runtime images must retain source closure without admitting unrelated checkout paths"
   - id: backend-module-isolation
     command: ["python3", "backend/scripts/check_module_stub_pollution.py", "--files", "{changed_files}", "--check-allowlist-monotonic", "{base}"]
     triggers: ["backend/tests/**/*.py", "backend/testing/**/*.py", "backend/tests/.module_stub_legacy_allowlist", "backend/scripts/check_module_stub_pollution.py"]

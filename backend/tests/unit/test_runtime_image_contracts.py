@@ -39,6 +39,113 @@ def test_registered_runtime_image_sources_are_closed(contracts_module):
     assert contracts_module.check_source_closures(contracts_module.load_contracts()) == []
 
 
+def test_registered_runtime_image_build_context_is_fail_closed(contracts_module):
+    assert contracts_module.docker_context_contract_errors(contracts_module.load_contracts()) == []
+
+
+@pytest.mark.parametrize(
+    ('mutate', 'expected_error'),
+    [
+        (
+            lambda patterns: [
+                pattern for pattern in patterns if pattern != '!.github/scripts/desktop_release_manifest.py'
+            ],
+            'omits required COPY inputs',
+        ),
+        (lambda patterns: [*patterns, '!desktop/**'], 'admits paths no registered image copies'),
+        (
+            lambda patterns: [pattern for pattern in patterns if pattern != 'backend/.env*'],
+            'omits cache or credential exclusions',
+        ),
+        (
+            lambda patterns: [pattern for pattern in patterns if pattern != 'backend/.venv'],
+            'omits cache or credential exclusions',
+        ),
+        (
+            lambda patterns: [
+                patterns[0],
+                'backend/.env*',
+                *(pattern for pattern in patterns[1:] if pattern != 'backend/.env*'),
+            ],
+            'cache and credential exclusions must follow every include',
+        ),
+    ],
+)
+def test_build_context_contract_rejects_missing_or_broadened_policy(
+    contracts_module,
+    monkeypatch,
+    mutate,
+    expected_error,
+):
+    patterns = contracts_module._dockerignore_patterns(contracts_module.REPOSITORY_ROOT / '.dockerignore')
+    monkeypatch.setattr(contracts_module, '_dockerignore_patterns', lambda _: mutate(patterns))
+
+    errors = contracts_module.docker_context_contract_errors(contracts_module.load_contracts())
+
+    assert any(expected_error in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    'excluded_pattern',
+    [
+        'backend/.harness',
+        'backend/*.env',
+        'backend/**/*.env',
+        'backend/_speech_profiles',
+        'backend/_temp',
+        'backend/logs',
+        'backend/pretrained_models',
+        'backend/scripts/data',
+        'backend/scripts/rag/*.json',
+        'backend/scripts/rag/visualizations',
+        'backend/scripts/research',
+        'backend/scripts/stt/_temp',
+        'backend/scripts/stt/_temp2',
+        'backend/scripts/stt/diarization.json',
+        'backend/scripts/stt/pretrained_models',
+        'backend/scripts/stt/results',
+        'backend/syncing',
+    ],
+)
+def test_build_context_contract_rejects_missing_local_artifact_exclusion(
+    contracts_module, monkeypatch, excluded_pattern
+):
+    patterns = contracts_module._dockerignore_patterns(contracts_module.REPOSITORY_ROOT / '.dockerignore')
+    monkeypatch.setattr(
+        contracts_module,
+        '_dockerignore_patterns',
+        lambda _: [pattern for pattern in patterns if pattern != excluded_pattern],
+    )
+
+    errors = contracts_module.docker_context_contract_errors(contracts_module.load_contracts())
+
+    assert any('omits cache or credential exclusions' in error for error in errors)
+
+
+def test_build_context_contract_rejects_dockerfile_specific_ignore_override(contracts_module, monkeypatch):
+    contracts = contracts_module.load_contracts()
+    override = contracts[0].dockerfile.with_name(f'{contracts[0].dockerfile.name}.dockerignore')
+    original_is_file = contracts_module.Path.is_file
+    monkeypatch.setattr(
+        contracts_module.Path,
+        'is_file',
+        lambda candidate: candidate == override or original_is_file(candidate),
+    )
+
+    errors = contracts_module.docker_context_contract_errors(contracts)
+
+    assert any('Dockerfile-specific ignore policy is forbidden' in error for error in errors)
+
+
+def test_dockerignore_changes_route_to_static_and_image_checks():
+    repository_root = BACKEND_DIR.parent
+    workflow = (repository_root / '.github' / 'workflows' / 'runtime_image_contracts.yml').read_text(encoding='utf-8')
+    pre_push = (repository_root / 'scripts' / 'pre-push').read_text(encoding='utf-8')
+
+    assert "      - '.dockerignore'" in workflow
+    assert "    '.dockerignore' \\" in pre_push
+
+
 def test_source_staging_excludes_generated_virtual_environments(contracts_module):
     names = ['database', '.venv', '.openapi-venv', '.pytest_cache', '__pycache__']
 

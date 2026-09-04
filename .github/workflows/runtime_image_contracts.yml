@@ -3,6 +3,7 @@ name: Runtime Image Contracts
 on:
   pull_request:
     paths:
+      - '.dockerignore'
       - 'backend/**'
       - 'Makefile'
       - '.github/workflows/runtime_image_contracts.yml'
