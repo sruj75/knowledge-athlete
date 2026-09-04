@@ -18,6 +18,7 @@ def _reuse_parsed_repo_manifest(monkeypatch):
     monkeypatch.setenv('GCP_PROJECT_ID', 'owned-project')
     monkeypatch.setenv('RUNTIME_GCP_PROJECT_ID', 'owned-runtime-project')
     monkeypatch.setenv('FIREBASE_AUTH_PROJECT_ID', 'owned-firebase-project')
+    monkeypatch.setenv('BACKEND_CANONICAL_URL', 'https://backend.example.com')
     monkeypatch.setenv('REDIS_DB_HOST', 'redis.internal.example')
     monkeypatch.setenv('REDIS_DB_PORT', '6378')
     monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', 'fake-ca')
@@ -151,6 +152,7 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'LANGFUSE_TRACING_ENVIRONMENT=production' in service_env
     assert 'LANGFUSE_PROMPT_NAME=intentive-chat-system' in service_env
     assert 'LANGFUSE_PROMPT_CACHE_TTL_SECONDS=300' in service_env
+    assert 'BASE_API_URL=https://backend.example.com' in service_env
     assert 'LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:7' in _job_secret_lines(output, 'backend')
     assert 'LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:7' in _job_secret_lines(output, 'backend')
     assert 'backend_sync_env_vars' not in output
@@ -187,6 +189,8 @@ def test_render_dev_emits_free_tier_cloud_run_without_private_network(capsys, mo
     assert '--cpu-throttling' in service_flags
     assert '--no-cpu-throttling' not in service_flags
     assert '--remove-env-vars' not in service_flags
+    service_env = _job_env_block(output, 'backend')
+    assert 'BASE_API_URL=https://backend.example.com' in service_env
 
 
 def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(capsys, monkeypatch):
