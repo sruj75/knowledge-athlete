@@ -102,9 +102,12 @@ def mint_cloud_run_identity_token(*, audience: str) -> str:
 def run_check(check: CandidateCheck, *, base_url: str, audience: str) -> CheckOutcome:
     identity_token = ''
     try:
-        identity_token = mint_cloud_run_identity_token(audience=audience)
         environment = dict(os.environ)
-        environment[IDENTITY_TOKEN_ENV] = identity_token
+        if IDENTITY_TOKEN_ENV in check.command:
+            identity_token = mint_cloud_run_identity_token(audience=audience)
+            environment[IDENTITY_TOKEN_ENV] = identity_token
+        else:
+            environment.pop(IDENTITY_TOKEN_ENV, None)
         command = [part.replace('{base_url}', base_url) for part in check.command]
         result = subprocess.run(
             command,

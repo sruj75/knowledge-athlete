@@ -7,9 +7,7 @@
         "python3",
         "backend/scripts/smoke_cloud_run_health.py",
         "--base-url",
-        "{base_url}",
-        "--cloud-run-identity-token-env",
-        "CLOUD_RUN_IDENTITY_TOKEN"
+        "{base_url}"
       ]
     }
   }

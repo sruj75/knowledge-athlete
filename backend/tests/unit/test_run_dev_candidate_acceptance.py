@@ -38,11 +38,41 @@ def test_candidate_urls_require_a_complete_unique_https_mapping():
             raise AssertionError(f'expected invalid candidate map: {values}')
 
 
-def test_candidate_check_passes_oidc_only_to_the_child_environment(monkeypatch):
+def test_checked_in_public_health_check_does_not_mint_cloud_run_identity(monkeypatch):
+    [check] = acceptance.load_manifest(acceptance.DEFAULT_MANIFEST)
+    captured = {}
+
+    def fake_run(command, **kwargs):
+        assert command[:3] != ['gcloud', 'auth', 'print-identity-token']
+        captured['command'] = command
+        captured['environment'] = kwargs['env']
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(acceptance.subprocess, 'run', fake_run)
+
+    outcome = acceptance.run_check(
+        check,
+        base_url='https://candidate.example',
+        audience='https://backend-service.example',
+    )
+
+    assert outcome == acceptance.CheckOutcome(service='backend', contract='health', status='PASS')
+    assert captured['command'][-1] == 'https://candidate.example'
+    assert acceptance.IDENTITY_TOKEN_ENV not in captured['environment']
+
+
+def test_private_candidate_check_passes_oidc_only_to_the_child_environment(monkeypatch):
     check = acceptance.CandidateCheck(
-        service='backend-beta',
+        service='private-backend',
         contract='health',
-        command=('python3', 'backend/scripts/smoke_cloud_run_health.py', '--base-url', '{base_url}'),
+        command=(
+            'python3',
+            'backend/scripts/smoke_cloud_run_health.py',
+            '--base-url',
+            '{base_url}',
+            '--cloud-run-identity-token-env',
+            acceptance.IDENTITY_TOKEN_ENV,
+        ),
     )
     captured = {}
     monkeypatch.setattr(acceptance, 'mint_cloud_run_identity_token', lambda *, audience: f'token-for:{audience}')
@@ -56,13 +86,12 @@ def test_candidate_check_passes_oidc_only_to_the_child_environment(monkeypatch):
 
     outcome = acceptance.run_check(
         check,
-        base_url='https://candidate.example',
-        audience='https://backend-service.example',
+        base_url='https://private-candidate.example',
+        audience='https://private-backend-service.example',
     )
 
-    assert outcome == acceptance.CheckOutcome(service='backend-beta', contract='health', status='PASS')
-    assert captured['command'][-1] == 'https://candidate.example'
-    assert captured['environment'][acceptance.IDENTITY_TOKEN_ENV] == 'token-for:https://backend-service.example'
+    assert outcome == acceptance.CheckOutcome(service='private-backend', contract='health', status='PASS')
+    assert captured['environment'][acceptance.IDENTITY_TOKEN_ENV] == 'token-for:https://private-backend-service.example'
     assert 'token-for:' not in json.dumps(acceptance.evidence_document([outcome]))
 
 
