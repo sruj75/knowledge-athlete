@@ -3,8 +3,10 @@ import logging
 import os
 
 from utils.env_loader import load_backend_env
+from utils.access_logging import install_uvicorn_access_log_sanitizer
 
 load_backend_env()  # No-op if no env files exist (production); stage + local overrides otherwise
+install_uvicorn_access_log_sanitizer()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
