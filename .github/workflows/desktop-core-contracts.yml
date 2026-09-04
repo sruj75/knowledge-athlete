@@ -11,6 +11,7 @@ on:
       - "desktop/macos/e2e/**"
       - "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift"
       - "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift"
+      - "desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift"
       - "desktop/macos/Desktop/Sources/DesktopAutomationOpenOmiShortcutQA.swift"
       - "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift"
       - "desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift"

@@ -42,6 +42,7 @@ from automation_token_lib import (  # noqa: E402
     automation_token as _shared_automation_token,
     automation_token_missing_message,
 )
+from desktop_flow_contract import ACTION_SOURCE_RELATIVE_PATHS  # noqa: E402
 
 RESILIENCE_FORBIDDEN_TERMINAL_REASONS = {
     "bridge_launch_error",
@@ -91,6 +92,35 @@ CONVERGENCE_FORBIDDEN_EVIDENCE_PATTERNS = {
     "agentdelegationresolver",
     "agentpillsmanager.classify",
 }
+
+
+def registered_automation_action_names(
+    *,
+    desktop_dir: Path = DESKTOP_DIR,
+    source_relative_paths: tuple[str, ...] = ACTION_SOURCE_RELATIVE_PATHS,
+) -> set[str]:
+    """Read action registrations from the source set shared with desktop flow lint."""
+    names: set[str] = set()
+    pattern = re.compile(r'name:\s*"([^"]+)"')
+    for relative_path in source_relative_paths:
+        source_path = desktop_dir / relative_path
+        if not source_path.is_file():
+            raise FileNotFoundError(f"missing automation action source: {source_path}")
+        names.update(pattern.findall(source_path.read_text(encoding="utf-8")))
+    return names
+
+
+def missing_required_automation_actions(
+    required_actions: set[str],
+    *,
+    desktop_dir: Path = DESKTOP_DIR,
+    source_relative_paths: tuple[str, ...] = ACTION_SOURCE_RELATIVE_PATHS,
+) -> list[str]:
+    registered = registered_automation_action_names(
+        desktop_dir=desktop_dir,
+        source_relative_paths=source_relative_paths,
+    )
+    return sorted(required_actions - registered)
 
 
 def now_iso() -> str:
@@ -3511,10 +3541,8 @@ class GauntletRunner:
         # rejects it (or reports busy) instead of overlapping turns.
         # Missing actions are a hard fail (skipped_missing_action is forbidden);
         # --self-check also requires these actions so CI catches drift before live.
-        bridge_source = (DESKTOP_DIR / "Desktop/Sources/DesktopAutomationBridge.swift").read_text(encoding="utf-8")
         race_actions = {"ask_main_chat_no_wait", "main_chat_busy_state"}
-        present = sorted(name for name in race_actions if f'name: "{name}"' in bridge_source)
-        missing = sorted(race_actions - set(present))
+        missing = missing_required_automation_actions(race_actions)
         if missing:
             # skipped_missing_action is forbidden → record_resilience_diagnostic fails the run.
             self.record_resilience_diagnostic(
@@ -3844,7 +3872,7 @@ def owner_trace_gate_self_check_failures(driver_source: str) -> list[str]:
 
 def self_check() -> int:
     script = SCRIPT_DIR / "agent-continuity-gauntlet.sh"
-    bridge_actions = {
+    required_actions = {
         "ask",
         "ask_main_chat",
         "ask_main_chat_no_wait",
@@ -3863,14 +3891,13 @@ def self_check() -> int:
         "kernel_turn_tail",
         "ptt_turn_snapshot",
         "ptt_manager_turn",
+        "ptt_test_turn",
     }
-    hub_actions = {"ptt_test_turn"}
-    bridge_source = (DESKTOP_DIR / "Desktop/Sources/DesktopAutomationBridge.swift").read_text(encoding="utf-8")
-    hub_source = (DESKTOP_DIR / "Desktop/Sources/FloatingControlBar/RealtimeHubController.swift").read_text(
-        encoding="utf-8"
-    )
-    missing = sorted(name for name in bridge_actions if f'name: "{name}"' not in bridge_source)
-    missing.extend(sorted(name for name in hub_actions if f'name: "{name}"' not in hub_source))
+    try:
+        missing = missing_required_automation_actions(required_actions)
+    except OSError as exc:
+        print(f"self-check failed: {exc}", file=sys.stderr)
+        return 1
     if missing:
         print(f"self-check failed: missing automation actions: {missing}", file=sys.stderr)
         return 1
