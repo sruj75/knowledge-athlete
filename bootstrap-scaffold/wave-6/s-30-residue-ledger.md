@@ -122,18 +122,29 @@ their own provider trademark terms.
 | Inherited Omi icon/GIF/logo/tray/onboarding/demo/folder and unused DMG-option assets | No retained caller | Deleted after owner approval and caller/provenance review; git history remains the recovery record |
 | `backend/scripts/stt/modulate_repro/test_audio.wav` | Required local fixture is absent | Still needs an owned/licensed 38 s mono PCM16 16 kHz fixture, or explicit retirement of the repro; this is not a product-brand asset |
 
-## Open owner and operational rows
+## Owner and operational rows
+
+The S-30 execution originally recorded PostHog ownership and the next full
+development deployment as open inputs. The dated reconciliation below preserves
+that historical fact while separating it from current status.
+
+### Currently open
 
 | Missing input / resource | Current safe repository behavior | Closure owner |
 |---|---|---|
 | Owned Figma file/page destination for any future onboarding sync | Destination-mutating local LaunchAgent scripts are absent. A manual GitHub workflow can still export and publish the repository onboarding bundle, including Figma's capture helper, but it does not select or mutate an external design file. | Product/design owner |
-| Owned PostHog project ID/token | Analytics fails closed with no network setup; inherited token is not used | Product/provider owner |
 | Published `heyintentive.com` product/download/preview/Terms/Privacy/support destinations | Website/Terms entries are absent unless an owned HTTPS URL is injected; Privacy & Data remains local; Help Center is absent | Product/legal/release owner |
 | Approved support/privacy contacts | No guessed `support@heyintentive.com` or `privacy@heyintentive.com` ships | Product/legal owner |
 | Approved Terms/Privacy text and legal operator name | No invented company or affirmative legal promise ships | Legal/product owner |
 | Production Cloud Run and public release endpoints | Production remains unconfigured/fail closed; development resource names remain accurate | Infrastructure/release owner with fresh authorization |
 | Complete Codemagic Apple signing/notarization/preview secrets and trusted runner | Repository dry-run fixtures only; no signing/publication/promotion performed | Release owner with fresh authorization |
-| Next full development deploy with prepared Gemini/OpenAI/Modulate/Langfuse bindings | Repository statements reflect selected configuration; no isolated live revision mutation or paid probe | S-31 / BL-001 owner |
+
+### Resolved after the historical S-30 execution — 2026-09-04
+
+| Former missing input / resource | Verified current status | Remaining boundary |
+|---|---|---|
+| Owned PostHog project ID/token | Owned `Intentive Desktop` project ID `397035` exists at `https://us.i.posthog.com`; its project token is stored outside Git in the Codemagic shared signing group and ignored local environment, and an ingestion probe was accepted and observed. | Final-SHA repository integration and telemetry qualification remain separate; no token value belongs in this ledger. |
+| Next full development deploy with prepared Gemini/OpenAI/Modulate/Langfuse bindings | `knowledge-athlete-dev-0ea29f5-33868830964-1` serves 100% of development traffic from exact source SHA `0ea29f5c30cdf93ae3a76ac70f21d7a8bb148977`; the prepared Gemini v2, OpenAI TTS v1, Modulate v1, and Langfuse v1 bindings are present and their development checks passed. | S-31/BL-001 still requires its one-final-SHA physical/provider continuity evidence; this does not authorize production or publication. |
 
 ## Verification evidence
 

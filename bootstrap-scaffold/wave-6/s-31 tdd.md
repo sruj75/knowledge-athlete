@@ -1807,13 +1807,32 @@ stale binary with repository HEAD.
 
 ### 19.4 External and successor handoff status
 
-- **PROV / BL-001:** not closed by repository tests. Natural captured-audio PTT,
-  approved Gemini Live/reconnect/tools/continuity, deployed mint, and retained
-  Modulate recovery still require the named non-production credentials and
-  physical/deployed evidence in Cycle 13.
-- **INV / BL-002:** live inventory was not inferred from source. The attempted
-  GCP identity check requires operator reauthentication; no cloud mutation,
-  deployment, traffic change, account deletion, or cleanup occurred.
+The original S-31 repository-evidence snapshot correctly recorded unavailable
+credentials and operator identity at that time. This 2026-09-04 reconciliation
+preserves that historical baseline while reporting the verified current state:
+
+- **PROV / BL-001:** remains open, but credentials and deployment identity are
+  no longer the blockers. Approved development Gemini, OpenAI TTS, Modulate,
+  and Langfuse credentials are bound to active revision
+  `knowledge-athlete-dev-0ea29f5-33868830964-1`, serving exact source SHA
+  `0ea29f5c30cdf93ae3a76ac70f21d7a8bb148977`, and their development checks
+  passed. Natural captured-audio PTT, Gemini Live/reconnect/tools/continuity,
+  buffered Modulate recovery, deployed mint, and direct-provider evidence still
+  require a one-final-SHA Cycle 13 run; provider availability alone is not
+  qualification.
+- **INV / BL-002:** remains open, but GCP reauthentication is no longer the
+  blocker. `srujan@heyintentive.com` is the verified operator for
+  `knowledge-athlete`, and the initial sanitized read-only inventory has
+  confirmed its development service, runtime identity, registry, buckets, and
+  account-deletion queue. Formal final classification and the separately
+  authorized development account-deletion, failure/recovery, restart, and
+  rollback evidence remain outstanding. This documentation reconciliation
+  performed no external mutation.
+- **REPO / BL-003:** remains open. The deployment-concurrency repair is present
+  on `main`, and `.github/scripts/check-deployment-concurrency.py` now passes for
+  all three persistent writers. The current host still lacks a healthy Docker
+  runtime, and the complete required broad command set has not been recorded on
+  one current clean SHA.
 - **BILL:** `BILLING_MODE=disabled` remains the free-MVP authority. The complete
   post-Wave-6 S-18 owner, prerequisites, explicit test authorization, distinct
   live authorization, evidence, cleanup, and rollback duties remain in

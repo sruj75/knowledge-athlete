@@ -6,7 +6,8 @@ at which the work becomes mandatory again and the evidence required to close it.
 
 ## BL-001: Final all-waves provider and continuity qualification
 
-**Status:** OPEN — deferred on 2026-08-26 by explicit product-owner decision
+**Status:** OPEN — provider/deployment inputs now exist; final real-provider and
+continuity qualification is not yet recorded
 
 **Run when:** every deletion-map wave has been implemented, before the final
 all-waves closeout or any release claim
@@ -14,18 +15,30 @@ all-waves closeout or any release claim
 **Next-wave effect:** does not block starting S-26 or S-28, provided they include
 the complete Waves 3–4 repair tree
 
-### Why this is deferred
+### Why this was deferred
 
-The Waves 3–4 repository repairs and local acceptance are strong enough to
-continue sweeping later vertical slices. The remaining rows require approved
-non-production provider credentials and a verified deployed development
-identity that were not available. The offline echo provider can prove lifecycle
-mechanics, but it cannot truthfully prove that a real provider remembers and
-recalls earlier context.
+At the 2026-08-26 deferral, the Waves 3–4 repository repairs and local
+acceptance were strong enough to continue sweeping later vertical slices. The
+remaining rows required approved non-production provider credentials and a
+verified deployed development identity that were not then available. The
+offline echo provider could prove lifecycle mechanics, but it could not
+truthfully prove that a real provider remembered and recalled earlier context.
 
 This scheduling decision does **not** close the combined Waves 3–4 closeout and
 does **not** relax its original acceptance contract. It moves the unavailable
 live qualification to one explicit gate at the end of all waves.
+
+### Current status — 2026-09-04
+
+The original availability blocker is resolved. The approved development
+Gemini, OpenAI TTS, Modulate, and Langfuse credentials are bound to the verified
+`knowledge-athlete-dev` deployment, whose active revision
+`knowledge-athlete-dev-0ea29f5-33868830964-1` serves exact source SHA
+`0ea29f5c30cdf93ae3a76ac70f21d7a8bb148977`. Their development checks passed.
+BL-001 remains open because the natural physical-PTT, real-provider continuity,
+same-provider reconnect/tools, buffered Modulate recovery, deploy-inline mint,
+and direct-provider rows have not all been rerun and recorded on one current
+final SHA. This update does not relabel the historical baseline below.
 
 ### Proven baseline before deferral
 
@@ -53,38 +66,49 @@ implemented:
 
 1. Rerun the component suites, hermetic E2E, agent-logic harness, full Tier-2
    matrix, and natural authenticated physical PTT.
-2. With approved non-production credentials, run the real
-   OpenAI/Gemini/Auto/failover, language, reconnect, and tool rows.
+2. With the approved non-production credentials, run the current retained
+   provider rows: Gemini Live language/reconnect/tools, OpenAI TTS, and buffered
+   Modulate recovery. The former Auto/provider-selection and Anthropic paths are
+   no longer part of the Intentive product contract.
 3. Run the live-provider continuity path from typed turn, through physical PTT,
    to blind recall. An echo/fake response is not a pass.
-4. With a verified development deployment identity, run the required
+4. Using the verified development deployment identity, run the required
    provider-mint/deploy-inline and direct-provider probe without exposing tokens
    or provider secrets.
 5. Record the exact SHA, commands, manifests, and outcomes in the final
    all-waves closeout and its PR record, while continuing to link every original
    per-slice acceptance record.
 
-If credentials or deployment identity are still unavailable, or any row is red,
-BL-001 and the combined Waves 3–4 closeout stay open. Later-wave implementation
-may continue, but the final all-waves closeout and release claim may not.
+Until every required current-contract row is green on one final SHA, BL-001 and
+the combined Waves 3–4 closeout stay open. The final all-waves closeout and
+release claim may not treat provider availability alone as qualification.
 
 ## BL-002: S-25 verified live-resource inventory and operational handoff
 
-**Status:** OPEN — repository inventory exists; live classifications remain
-`unknown`
+**Status:** OPEN — verified operator/project identity and an initial live
+inventory now exist; final classification and operational handoff remain
 
 **Run when:** after every deletion-map wave is implemented and before any live
 resource decommission or operational-closure claim
 
-**Next-wave effect:** does not block repository implementation of later slices
+**Current effect:** does not block repository work; blocks live-resource or
+operational-closure claims
 
-The sanitized S-25 inventory is recorded in
+The sanitized historical S-25 inventory is recorded in
 [`bootstrap-scaffold/wave-4/s-25 tdd.md`](bootstrap-scaffold/wave-4/s-25%20tdd.md#191-sanitized-live-resource-inventory-handoff--2026-08-26).
-Finish this entry by using a verified GCP operator, environment, and project
-identity to classify every retained, rejected, shared, already-absent, or
-unknown resource. Any deploy, drain, deletion, IAM, secret, image, network, data,
-or production mutation remains separately authorized work and must record
-before/after and rollback evidence.
+At that deferral, live classifications were not inferred from source because a
+verified operator identity was unavailable.
+
+As of 2026-09-04, `srujan@heyintentive.com` is the verified GCP operator for the
+`knowledge-athlete` project, and a sanitized read-only inventory has confirmed
+the development Cloud Run service, runtime identity, Artifact Registry,
+development update bucket, Cloud Build bucket, and account-deletion queue. This
+resolves the identity/availability blocker, not BL-002 itself. Finish this entry
+by formally classifying every retained, rejected, shared, already-absent, or
+unknown resource and recording the required development operational evidence.
+Any deploy, drain, deletion, IAM, secret, image, network, data, or production
+mutation remains separately authorized work and must record before/after and
+rollback evidence.
 
 Run S-27's manual `foundation-readiness` mode first and retain its sanitized
 read-only output. A matching inventory does not replace the separately
@@ -92,8 +116,8 @@ authorized behavioral and denial probes.
 
 ## BL-003: S-27 deferred broad verification
 
-**Status:** OPEN — focused repository checks passed; broad host-dependent gates
-were unavailable
+**Status:** OPEN — the deployment-concurrency guard now passes; remaining
+clean-SHA broad host and CI evidence is not yet recorded
 
 **Run when:** the local host has enough free disk and a healthy container
 runtime, and GitHub Actions can execute detector jobs; before the final
@@ -104,7 +128,12 @@ all-waves closeout
 At S-27 commit `2853357f`, focused tests and deterministic contracts passed, but
 the locked full backend/Pyright lane could not be completed, Colima could not
 run the backend image smoke, and PR #50 detector jobs failed before executing
-any steps. Close this entry by running `backend/test-preflight.sh`,
+any steps. That paragraph is the historical S-27 baseline. As of 2026-09-04,
+the deployment-concurrency repair is present on `main` and
+`.github/scripts/check-deployment-concurrency.py` passes for all three
+persistent writers. The current host still has no healthy Docker runtime, and
+the complete required command set has not been recorded on one current clean
+SHA. Close this entry by running `backend/test-preflight.sh`,
 `backend/test.sh`, `backend/scripts/typecheck.sh`, and
 `make runtime-image-smoke SERVICE=backend` on one clean SHA, then recording
 hosted checks that execute rather than fail at detection. Live GCP and
