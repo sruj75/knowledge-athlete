@@ -185,8 +185,7 @@ stage_production_node_modules() {
   require_file "$package_dir/package-lock.json"
   require_file "$package_dir/package.json"
 
-  mkdir -p "$PACKAGED_RUNTIME_DIR"
-  temp_dir="$(mktemp -d "$PACKAGED_RUNTIME_DIR/$(basename "$package_dir").XXXXXX")"
+  temp_dir="$(arc_make_work_dir "$PACKAGED_RUNTIME_DIR" "$(basename "$package_dir")")"
   cp -f "$package_dir/package.json" "$package_dir/package-lock.json" "$temp_dir/"
 
   log "Staging $(basename "$package_dir") production dependencies for packaging"
@@ -545,7 +544,7 @@ download_node_archive() {
 
 stage_universal_node() {
   local temp_dir
-  temp_dir="$(mktemp -d /tmp/heyintentive-node-universal-XXXXXX)"
+  temp_dir="$(arc_make_work_dir "$PACKAGED_RUNTIME_DIR" "node-universal")"
   PREP_TEMP_DIR="$temp_dir"
 
   download_node_archive "arm64" "$NODE_DARWIN_ARM64_SHA256" "$temp_dir/arm64.tar.gz"
@@ -602,36 +601,7 @@ validate_runtime_tree() {
 }
 
 validate_packaged_symlinks() {
-  python3 - "$AGENT_PACKAGED_NODE_MODULES" "$PI_MONO_PACKAGED_NODE_MODULES" <<'PY'
-import os
-import sys
-
-agent_modules, pi_modules = map(os.path.abspath, sys.argv[1:])
-for root in (agent_modules, pi_modules):
-    if not os.path.isdir(root):
-        raise SystemExit(1)
-    for current, dirs, files in os.walk(root, followlinks=False):
-        for name in dirs + files:
-            link = os.path.join(current, name)
-            if not os.path.islink(link):
-                continue
-            target = os.readlink(link)
-            resolved = os.path.realpath(os.path.join(current, target))
-            if os.path.exists(resolved):
-                try:
-                    if os.path.commonpath((resolved, root)) == root:
-                        continue
-                except ValueError:
-                    pass
-                raise SystemExit(1)
-            marker = "agent/node_modules/"
-            normalized = target.replace("\\", "/")
-            if marker not in normalized:
-                raise SystemExit(1)
-            package_path = normalized.split(marker, 1)[1]
-            if not os.path.exists(os.path.join(agent_modules, package_path)):
-                raise SystemExit(1)
-PY
+  arc_validate_packaged_symlinks "$AGENT_PACKAGED_NODE_MODULES" "$PI_MONO_PACKAGED_NODE_MODULES"
 }
 
 compute_cache_key() {

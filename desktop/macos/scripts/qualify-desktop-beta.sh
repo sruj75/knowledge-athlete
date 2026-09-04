@@ -897,7 +897,7 @@ if [[ "$AUTOMATIC" -eq 1 ]]; then
   phase_begin "static-self-check" "immutable-artifact-security"
   if ! (
     cd "$WORKTREE/desktop/macos"
-    ./scripts/desktop-core-harness.sh --self-check --skip-backend-contracts
+    ./scripts/desktop-core-harness.sh --self-check
   ); then
     phase_end failed
     exit 1

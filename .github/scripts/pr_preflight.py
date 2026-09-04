@@ -36,6 +36,13 @@ def run_git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _resolve_repo_root() -> Path:
+    try:
+        return Path(run_git(Path.cwd(), "rev-parse", "--show-toplevel")).resolve()
+    except subprocess.CalledProcessError:
+        return Path.cwd().resolve()
+
+
 def changed_files(root: Path, base: str, head: str) -> list[str]:
     output = run_git(
         root,
@@ -161,7 +168,7 @@ def main() -> int:
     if bool(args.repository) != bool(args.pr_number):
         print("FAIL: --repository and --pr-number must be supplied together", file=sys.stderr)
         return 2
-    root = (args.root or Path(run_git(Path.cwd(), "rev-parse", "--show-toplevel"))).resolve()
+    root = (args.root or _resolve_repo_root()).resolve()
     started = time.monotonic()
     try:
         merge_base = run_git(root, "merge-base", args.base, args.head)

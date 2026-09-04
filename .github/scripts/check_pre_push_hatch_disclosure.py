@@ -41,6 +41,12 @@ LOOKBACK = 10
 
 FUNC_RE = re.compile(r"^([a-z_][a-z0-9_]*)\(\)\s*\{")
 SKIP_RE = re.compile(r"PRE_PUSH_SKIP_[A-Z0-9_]+")
+TRACKED_HATCH_COMPANIONS = {
+    "PRE_PUSH_SKIP_GAUNTLET_EVIDENCE": {
+        "PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE",
+        "PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON",
+    }
+}
 
 
 def parse_functions(lines: list[str]) -> dict[str, tuple[int, int]]:
@@ -74,6 +80,14 @@ def check_source(text: str) -> list[str]:
             owned.add(HELPER_OWNERS[name])
         if not owned:
             continue
+
+        for hatch in owned & TRACKED_HATCH_COMPANIONS.keys():
+            for companion in sorted(TRACKED_HATCH_COMPANIONS[hatch]):
+                if companion not in body:
+                    errors.append(
+                        f"scripts/pre-push:{start + 1}: {name} honors tracked hatch {hatch} "
+                        f"without requiring companion {companion}"
+                    )
 
         for offset in range(end - start + 1):
             index = start + offset
@@ -132,6 +146,23 @@ def self_test() -> None:
         ]
     )
     assert len(check_source(far)) == 1, "a distant hatch must not satisfy a later failure"
+
+    tracked = "\n".join(
+        [
+            "check_gauntlet_evidence_if_needed() {",
+            '  if [ "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE:-}" = "1" ]; then',
+            '    echo "PRE_PUSH_SKIP_GAUNTLET_EVIDENCE requires PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE" >&2',
+            "    return 1",
+            '    echo "PRE_PUSH_SKIP_GAUNTLET_EVIDENCE requires PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON" >&2',
+            "    return 1",
+            "    return",
+            "  fi",
+            "}",
+        ]
+    )
+    assert check_source(tracked) == [], "a tracked hatch with issue and reason must pass"
+    missing_issue = tracked.replace("PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE", "UNTRACKED_ISSUE")
+    assert any("_ISSUE" in item for item in check_source(missing_issue)), "tracked hatch must require an issue"
 
     with tempfile.TemporaryDirectory() as tmp:
         missing = Path(tmp) / "absent"

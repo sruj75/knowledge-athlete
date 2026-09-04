@@ -179,6 +179,11 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertEqual(url, DesktopBackendEnvironment.developmentBackendURL)
   }
 
+  func testSwiftPMTestHostUsesDevelopmentBackend() {
+    XCTAssertEqual(Bundle.main.bundleIdentifier, "com.apple.dt.xctest.tool")
+    XCTAssertTrue(DesktopBackendEnvironment.shouldUseDevelopmentBackends)
+  }
+
   func testInheritedOmiBackendOverrideIsRejected() {
     let url = DesktopBackendEnvironment.resolvedBackendBaseURL(
       useDevelopmentBackends: true,

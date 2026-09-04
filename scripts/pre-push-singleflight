@@ -2,22 +2,38 @@
 
 set -euo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
-# shellcheck source=dev-harness/_resolve_python.sh
-source scripts/dev-harness/_resolve_python.sh
-PYTHON_BIN="$(dev_harness_python)"
-export PYTHON="$PYTHON_BIN"
-
-PREFLIGHT_COMMAND=(scripts/pre-push "$@")
-if dev_harness_python_uses_windows_paths "$PYTHON_BIN"; then
-  if ! command -v cygpath >/dev/null 2>&1; then
-    echo "FAIL: native Windows Python requires Git for Windows Bash (cygpath was not found)." >&2
-    exit 1
-  fi
-  GIT_BASH_NATIVE="$(cygpath -w "$(command -v bash)")"
-  PREFLIGHT_COMMAND=("$GIT_BASH_NATIVE" scripts/pre-push "$@")
+PREFLIGHT_PYTHON="${OMI_PYTHON_EXECUTABLE:-${BACKEND_PYTHON:-}}"
+if [[ -z "$PREFLIGHT_PYTHON" || ! -x "$PREFLIGHT_PYTHON" ]]; then
+  for candidate in "$ROOT/backend/.venv/bin/python" "$ROOT/backend/.venv/Scripts/python.exe"; do
+    if [[ -x "$candidate" ]]; then
+      PREFLIGHT_PYTHON="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -z "$PREFLIGHT_PYTHON" || ! -x "$PREFLIGHT_PYTHON" ]]; then
+  PREFLIGHT_PYTHON="$(command -v python3 || command -v python || true)"
+fi
+if [[ -z "$PREFLIGHT_PYTHON" || ! -x "$PREFLIGHT_PYTHON" ]]; then
+  echo "FAIL: pre-push requires Python; run make setup." >&2
+  exit 1
 fi
 
-exec "$PYTHON_BIN" .github/scripts/preflight_runner.py --name pre-push -- "${PREFLIGHT_COMMAND[@]}"
+BASH_EXECUTABLE="${OMI_BASH_EXECUTABLE:-$(command -v bash)}"
+case "$(printf '%s' "$PREFLIGHT_PYTHON" | tr '[:upper:]' '[:lower:]')" in
+  *.exe)
+    if ! command -v cygpath >/dev/null 2>&1; then
+      echo "FAIL: native Windows Python requires Git for Windows Bash (cygpath was not found)." >&2
+      exit 1
+    fi
+    BASH_EXECUTABLE="$(cygpath -w "$BASH_EXECUTABLE")"
+    ;;
+esac
+
+export PYTHONUTF8=1
+export OMI_BASH_EXECUTABLE="$BASH_EXECUTABLE"
+export OMI_PYTHON_EXECUTABLE="$PREFLIGHT_PYTHON"
+exec "$PREFLIGHT_PYTHON" .github/scripts/preflight_runner.py --name pre-push -- "$BASH_EXECUTABLE" scripts/pre-push "$@"

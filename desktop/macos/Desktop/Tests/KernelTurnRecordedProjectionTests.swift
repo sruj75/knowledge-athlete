@@ -825,6 +825,7 @@ import XCTest
       let session = ChatSession(id: "fault-old-session")
       var deletedChatIDs: [String] = []
       var createdChatIDs: [String] = []
+      var initialGreetingRequests = 0
       var replacementCurrentSessionID: String?
 
       let error: String? = await RuntimeOwnerIdentity.withAutomationOwnerIfMissing(
@@ -856,7 +857,8 @@ import XCTest
         provider.refreshMemoriesForPromptForTests = {}
         provider.loadAIProfileForTests = { "" }
         provider.initialMessageForTests = { _, _, _ in
-          InitialMessageResponse(message: "Fresh harness greeting")
+          initialGreetingRequests += 1
+          return InitialMessageResponse(message: "Fresh harness greeting")
         }
         provider.recordInitialGreetingForTests = { _, _, _ in true }
         provider.kernelTurnProjection = KernelTurnProjection(
@@ -885,6 +887,7 @@ import XCTest
       XCTAssertEqual(deletedChatIDs, [session.id])
       XCTAssertEqual(createdChatIDs.count, 1)
       XCTAssertNotEqual(createdChatIDs.first, session.id)
+      XCTAssertEqual(initialGreetingRequests, 0, "a harness reset must leave the replacement chat empty")
       XCTAssertFalse(provider.sessions.contains(where: { $0.id == session.id }))
       XCTAssertEqual(replacementCurrentSessionID, createdChatIDs.first)
     }
@@ -1369,6 +1372,25 @@ import XCTest
       let encodedResources = try XCTUnwrap(assistantRow["resources_json"])
       XCTAssertEqual(ChatContentBlockCodec.decode(encodedBlocks)?.count, 1)
       XCTAssertEqual(ChatResource.decodeResourcesFromPersistence(encodedResources).map(\.id), ["artifact:answer"])
+    }
+
+    func testAutomationIdleWaitIncludesInitialChatLoading() {
+      let provider = ChatProvider()
+      provider.isLoading = true
+      provider.isLoadingSessions = true
+
+      var snapshot = provider.automationMainChatSnapshot(limit: 1)
+      XCTAssertFalse(provider.automationMainChatIsIdle)
+      XCTAssertEqual(snapshot["is_loading"], "true")
+      XCTAssertEqual(snapshot["is_loading_sessions"], "true")
+
+      provider.isLoading = false
+      provider.isLoadingSessions = false
+
+      snapshot = provider.automationMainChatSnapshot(limit: 1)
+      XCTAssertTrue(provider.automationMainChatIsIdle)
+      XCTAssertEqual(snapshot["is_loading"], "false")
+      XCTAssertEqual(snapshot["is_loading_sessions"], "false")
     }
 
     func testFailedEmptyPlaceholderIsRemovedFromProjection() throws {

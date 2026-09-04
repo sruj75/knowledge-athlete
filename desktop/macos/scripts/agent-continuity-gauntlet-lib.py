@@ -27,7 +27,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 DESKTOP_DIR = SCRIPT_DIR.parent
 DEFAULT_PORT = int(os.environ.get("OMI_AUTOMATION_PORT", "47777"))
@@ -36,6 +35,7 @@ DEFAULT_BUNDLE_SUFFIX = "omi-gauntlet"
 GAUNTLET_ROOT = DESKTOP_DIR / ".harness/agent-continuity-gauntlet"
 PRUNE_ABORTED_BUNDLE_DAYS = 7
 RESILIENCE_DIAGNOSTIC_SCHEMA_VERSION = 1
+EVIDENCE_PRIVACY_SCHEMA_VERSION = 1
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 from automation_token_lib import (  # noqa: E402
@@ -194,13 +194,14 @@ def bridge_request(
         with urllib.request.urlopen(request, timeout=timeout_sec) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            parsed = {"ok": False, "error": raw}
-        parsed["http_status"] = exc.code
-        return parsed
+        raw = exc.read()
+        return {
+            "ok": False,
+            "error": "bridge_http_error",
+            "http_status": exc.code,
+            "response_body_sha256": hashlib.sha256(raw).hexdigest(),
+            "response_body_bytes": len(raw),
+        }
     except urllib.error.URLError as exc:
         return {"ok": False, "error": f"connection_failed: {exc.reason}"}
     except (TimeoutError, socket.timeout) as exc:
@@ -217,6 +218,25 @@ def health_log_path(health: dict[str, Any]) -> str | None:
     result = health.get("result")
     raw_path = result.get("logFilePath") if isinstance(result, dict) else health.get("logFilePath")
     return raw_path if isinstance(raw_path, str) else None
+
+
+def bridge_source_provenance_error(health: dict[str, Any], expected_git_sha: str) -> str | None:
+    """Reject a bridge whose running bundle is not the exact clean source at HEAD."""
+    source_git_sha = health.get("sourceGitSHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", expected_git_sha):
+        return f"repository source Git SHA is not a full hash: {expected_git_sha!r}"
+    if not isinstance(source_git_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_git_sha):
+        return "running bundle has no full source Git SHA"
+    if source_git_sha != expected_git_sha:
+        return f"running bundle source is stale: expected {expected_git_sha}, got {source_git_sha}"
+    if health.get("sourceTreeDirty") is not False:
+        return "running bundle was built from a dirty or unproven source tree"
+    return None
+
+
+def bridge_launch_health(port: int) -> dict[str, Any]:
+    """Read immutable launch provenance from the bridge's public health shape."""
+    return bridge_request(port, "GET", "/health", authenticate=False)
 
 
 def resolve_active_log_path(port: int, explicit_path: str | None) -> str:
@@ -257,15 +277,87 @@ def bridge_state(port: int) -> dict[str, Any]:
     return bridge_request(port, "GET", "/state")
 
 
-def write_json(path: Path, data: Any) -> None:
+def private_text_summary(value: str) -> dict[str, Any]:
+    encoded = value.encode("utf-8", errors="replace")
+    return {
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "utf8_bytes": len(encoded),
+    }
+
+
+def bridge_failure_summary(response: Any) -> str:
+    """Describe a bridge failure without emitting provider/app response text."""
+    try:
+        serialized = json.dumps(response, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        serialized = repr(type(response))
+    private = private_text_summary(serialized)
+    status = response.get("http_status") if isinstance(response, dict) else None
+    status_detail = f" http_status={status}" if isinstance(status, int) else ""
+    return (
+        f"bridge_response_error{status_detail} "
+        f"sha256={private['sha256']} utf8_bytes={private['utf8_bytes']}"
+    )
+
+
+def privacy_safe_evidence(value: Any) -> dict[str, Any]:
+    """Convert arbitrary live diagnostics to a typed tree with no raw strings."""
+    if value is None:
+        return {"kind": "null"}
+    if isinstance(value, bool):
+        return {"kind": "boolean", "value": value}
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return {"kind": "number", **private_text_summary(repr(value))}
+        return {"kind": "number", "value": value}
+    if isinstance(value, bytes):
+        return {
+            "kind": "bytes",
+            "sha256": hashlib.sha256(value).hexdigest(),
+            "bytes": len(value),
+        }
+    if isinstance(value, str):
+        return {"kind": "string", **private_text_summary(value)}
+    if isinstance(value, dict):
+        entries = [
+            {
+                "key": privacy_safe_evidence(str(key)),
+                "value": privacy_safe_evidence(item),
+            }
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        ]
+        return {"kind": "object", "entries": entries}
+    if isinstance(value, (list, tuple, set)):
+        items = list(value)
+        if isinstance(value, set):
+            items.sort(key=repr)
+        return {"kind": "array", "items": [privacy_safe_evidence(item) for item in items]}
+    return {"kind": "string", **private_text_summary(repr(value))}
+
+
+def privacy_safe_envelope(data: Any) -> dict[str, Any]:
+    return {
+        "schema_version": EVIDENCE_PRIVACY_SCHEMA_VERSION,
+        "privacy_class": "hashed-summary",
+        "payload": privacy_safe_evidence(data),
+    }
+
+
+def write_json(path: Path, data: Any, *, privacy_safe: bool = True) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = privacy_safe_envelope(data) if privacy_safe else data
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def append_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    stripped = text.strip()
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        payload = text
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(text)
+        handle.write(json.dumps(privacy_safe_envelope(payload), sort_keys=True) + "\n")
 
 
 def parse_manifest_timestamp(value: str | None) -> datetime | None:
@@ -325,7 +417,7 @@ def prune_aborted_bundles(root: Path, *, keep_dir: Path, max_age_days: int) -> N
 def git_sha() -> str:
     try:
         result = subprocess.run(
-            ["git", "-C", str(DESKTOP_DIR.parent.parent), "rev-parse", "--short", "HEAD"],
+            ["git", "-C", str(DESKTOP_DIR.parent.parent), "rev-parse", "HEAD"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -1128,11 +1220,11 @@ def identity_keys(detail: dict[str, str], runtime_detail: dict[str, str] | None 
 
 def capture_log_excerpt(log_path: Path, offset: int, dest: Path, max_bytes: int = 200_000) -> None:
     if not log_path.exists():
-        dest.write_text("(log missing)\n", encoding="utf-8")
+        write_json(dest, {"status": "missing"})
         return
     data = log_path.read_bytes()
     excerpt = data[offset : offset + max_bytes]
-    dest.write_bytes(excerpt)
+    write_json(dest, {"excerpt": excerpt, "truncated": len(data) - offset > max_bytes})
 
 
 def run_agent_swift_screenshot(bundle_id: str, dest: Path) -> dict[str, Any]:
@@ -1143,12 +1235,25 @@ def run_agent_swift_screenshot(bundle_id: str, dest: Path) -> dict[str, Any]:
         ["agent-swift", "screenshot", str(dest)],
     ]
     output: list[str] = []
-    for command in commands:
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-        output.append(result.stdout)
-        if result.returncode != 0:
-            return {"ok": False, "error": result.stdout, "command": command}
-    return {"ok": True, "path": str(dest), "output": "\n".join(output)}
+    try:
+        for command in commands:
+            result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            output.append(result.stdout)
+            if result.returncode != 0:
+                return {
+                    "ok": False,
+                    "returncode": result.returncode,
+                    "output": "\n".join(output),
+                }
+        image = dest.read_bytes() if dest.is_file() else b""
+        return {
+            "ok": bool(image),
+            "image_sha256": hashlib.sha256(image).hexdigest(),
+            "image_bytes": len(image),
+            "output": "\n".join(output),
+        }
+    finally:
+        dest.unlink(missing_ok=True)
 
 
 def classify_restarted_bundle_state(
@@ -1206,7 +1311,7 @@ class GauntletRunner:
         self.warnings: list[str] = []
         self.steps: list[dict[str, Any]] = []
         self.resilience_terminal_reason_counts: dict[str, int] = {}
-        self.pcm_path = self.run_dir / "fixtures" / "ptt-voice.pcm"
+        self.pcm_path = Path(tempfile.gettempdir()) / (f"intentive-gauntlet-{os.getpid()}-{secrets.token_hex(8)}.pcm")
 
     def bridge_act(self, name: str, params: dict[str, str] | None = None) -> dict[str, Any]:
         return bridge_action(self.port, name, params, turn_timeout_ms=self.args.turn_timeout_ms)
@@ -1298,9 +1403,16 @@ class GauntletRunner:
         return terminal_reason
 
     def ensure_bridge(self) -> None:
-        health = bridge_request(self.port, "GET", "/health")
+        health = bridge_launch_health(self.port)
         if not health.get("ok"):
-            raise SystemExit(f"automation bridge unavailable on port {self.port}: {health.get('error', health)}")
+            raise SystemExit(
+                f"automation bridge unavailable on port {self.port}: {bridge_failure_summary(health)}"
+            )
+        expected_git_sha = git_sha()
+        if provenance_error := bridge_source_provenance_error(health, expected_git_sha):
+            raise SystemExit(f"automation bridge on port {self.port} has invalid source provenance: {provenance_error}")
+        self.manifest["source_git_sha"] = health["sourceGitSHA"]
+        self.manifest["source_tree_dirty"] = health["sourceTreeDirty"]
         state = bridge_state(self.port)
         classification, detail = classify_restarted_bundle_state(state, self.bundle_id, self.port)
         if classification != "ready":
@@ -1316,7 +1428,7 @@ class GauntletRunner:
             {"target": "chat", "activateApp": True, "settleMs": 300},
         )
         if navigate.get("ok") is False:
-            raise SystemExit(f"navigate chat failed: {navigate.get('error', navigate)}")
+            raise SystemExit(f"navigate chat failed: {bridge_failure_summary(navigate)}")
         ready = bridge_state(self.port)
         write_json(self.run_dir / "preflight-state.json", ready)
         classification, detail = classify_restarted_bundle_state(ready, self.bundle_id, self.port)
@@ -1344,7 +1456,7 @@ class GauntletRunner:
             step_dir / "turn-text.json",
             {"user": user_text, "assistant": assistant_text},
         )
-        capture_log_excerpt(self.log_path, self.log_offset, step_dir / "app-log-excerpt.txt")
+        capture_log_excerpt(self.log_path, self.log_offset, step_dir / "app-log-summary.json")
         self.log_offset = self.log_path.stat().st_size if self.log_path.exists() else self.log_offset
 
         runtime = self.bridge_act("agent_runtime_evidence")
@@ -1422,10 +1534,10 @@ class GauntletRunner:
         trace_start = capture_trace_cursor()
         send = self.bridge_act("ask", {"query": query})
         if send.get("ok") is False:
-            raise SystemExit(f"ask (floating) failed: {send.get('error', send)}")
+            raise SystemExit(f"ask (floating) failed: {bridge_failure_summary(send)}")
         detail = send.get("result", {}).get("detail", {})
         if detail.get("error"):
-            raise SystemExit(f"ask (floating) error: {detail['error']}")
+            raise SystemExit(f"ask (floating) error: {bridge_failure_summary(send)}")
 
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         snapshot_detail: dict[str, str] = {}
@@ -1952,10 +2064,10 @@ class GauntletRunner:
         trace_start = capture_trace_cursor()
         send = self.bridge_act("ask_main_chat", {"query": query})
         if send.get("ok") is False:
-            raise SystemExit(f"ask_main_chat failed: {send.get('error', send)}")
+            raise SystemExit(f"ask_main_chat failed: {bridge_failure_summary(send)}")
         detail = send.get("result", {}).get("detail", {})
         if detail.get("error"):
-            raise SystemExit(f"ask_main_chat error: {detail['error']}")
+            raise SystemExit(f"ask_main_chat error: {bridge_failure_summary(send)}")
 
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         snapshot_detail: dict[str, str] = {}
@@ -2093,9 +2205,7 @@ class GauntletRunner:
             "git": git_sha(),
             "bundle_id": self.bundle_id,
             "port": self.port,
-            "markers": self.markers,
-            "trace_log": str(TRACE_LOG),
-            "app_log": str(self.log_path),
+            "marker_digests": {name: private_text_summary(marker) for name, marker in self.markers.items()},
             "ptt_config": {
                 "force_transcript_used": True,
                 "local_stt_note": (
@@ -2106,24 +2216,27 @@ class GauntletRunner:
         }
         manifest["suites"] = sorted(self.suites)
         self.manifest = manifest
-        write_json(self.run_dir / "manifest.json", manifest)
+        write_json(self.run_dir / "manifest.json", manifest, privacy_safe=False)
 
-        self.ensure_bridge()
-        self.navigate_chat()
-        self.clear_kernel_hygiene_if_available()
+        try:
+            self.ensure_bridge()
+            self.navigate_chat()
+            self.clear_kernel_hygiene_if_available()
 
-        if "continuity" in self.suites:
-            self.run_continuity_suite()
-        if "agents" in self.suites:
-            self.run_agents_suite()
-        if "prompts" in self.suites:
-            self.run_prompts_suite()
-        if "resilience" in self.suites:
-            self.run_resilience_suite()
-        if "owner" in self.suites:
-            self.run_owner_suite()
+            if "continuity" in self.suites:
+                self.run_continuity_suite()
+            if "agents" in self.suites:
+                self.run_agents_suite()
+            if "prompts" in self.suites:
+                self.run_prompts_suite()
+            if "resilience" in self.suites:
+                self.run_resilience_suite()
+            if "owner" in self.suites:
+                self.run_owner_suite()
 
-        return self.finalize()
+            return self.finalize()
+        finally:
+            self.pcm_path.unlink(missing_ok=True)
 
     def run_continuity_suite(self) -> None:
         # Step 1 — typed turn
@@ -2458,7 +2571,7 @@ class GauntletRunner:
                 "utf-8",
                 errors="replace",
             )
-        (step_dir / "acceptance-app-log-excerpt.txt").write_text(log_text, encoding="utf-8")
+        write_json(step_dir / "acceptance-app-log-summary.json", {"excerpt": log_text})
         structured_evidence = json.dumps(
             {
                 "ptt": ptt,
@@ -3557,20 +3670,23 @@ class GauntletRunner:
         if "resilience" in self.suites:
             manifest["resilience_terminal_reason_counts"] = dict(sorted(self.resilience_terminal_reason_counts.items()))
             manifest["resilience_forbidden_terminal_reasons"] = sorted(RESILIENCE_FORBIDDEN_TERMINAL_REASONS)
-        manifest["steps"] = self.steps
-        manifest["failures"] = self.failures
-        manifest["warnings"] = self.warnings
+        # The final evidence index proves which rows ran. Every sibling artifact
+        # stores only typed hashes, lengths, booleans, and numbers; prompts,
+        # replies, identities, traces, screenshots, audio, and logs are transient.
+        manifest["steps"] = [{"id": step["id"], "name": step["name"]} for step in self.steps]
+        manifest["failures"] = [private_text_summary(failure) for failure in self.failures]
+        manifest["warnings"] = [private_text_summary(warning) for warning in self.warnings]
         manifest["passed"] = not self.failures
-        write_json(self.run_dir / "manifest.json", manifest)
+        write_json(self.run_dir / "manifest.json", manifest, privacy_safe=False)
         finalize_evidence_hygiene(self.run_dir, passed=manifest["passed"], git_sha=manifest["git"])
 
         if self.warnings:
             for warning in self.warnings:
-                print(f"GAUNTLET WARN: {warning}", file=sys.stderr)
+                print(f"GAUNTLET WARN: {private_text_summary(warning)}", file=sys.stderr)
 
         if self.failures:
             for failure in self.failures:
-                print(f"GAUNTLET FAIL: {failure}", file=sys.stderr)
+                print(f"GAUNTLET FAIL: {private_text_summary(failure)}", file=sys.stderr)
             print(f"evidence: {self.run_dir}", file=sys.stderr)
             return 1
 
@@ -3761,6 +3877,20 @@ def self_check() -> int:
     if not script.is_file():
         print("self-check failed: agent-continuity-gauntlet.sh missing", file=sys.stderr)
         return 1
+    private_fixture = {
+        "prompt": "remember alice@example.com exactly",
+        "reply": "GAUNTLET-private-marker",
+        "audio": b"raw pcm fixture",
+    }
+    private_serialized = json.dumps(privacy_safe_envelope(private_fixture), sort_keys=True)
+    if any(
+        raw_value in private_serialized for raw_value in ("alice@example.com", "GAUNTLET-private-marker", "raw pcm")
+    ):
+        print("self-check failed: evidence privacy envelope retained raw content", file=sys.stderr)
+        return 1
+    if private_serialized.count('"sha256"') < 6 or '"privacy_class": "hashed-summary"' not in private_serialized:
+        print("self-check failed: evidence privacy envelope omitted hash-only structure", file=sys.stderr)
+        return 1
     enveloped_health = {"ok": True, "result": {"logFilePath": "/private/tmp/heyintentive-gauntlet.log"}}
     if health_log_path(enveloped_health) != "/private/tmp/heyintentive-gauntlet.log":
         print("self-check failed: health log path must read the standard result envelope", file=sys.stderr)
@@ -3769,6 +3899,26 @@ def self_check() -> int:
     if health_log_path(legacy_health) != "/private/tmp/heyintentive-gauntlet.log":
         print("self-check failed: health log path must preserve legacy top-level compatibility", file=sys.stderr)
         return 1
+    expected_source_sha = "a" * 40
+    clean_source_health = {
+        "ok": True,
+        "sourceGitSHA": expected_source_sha,
+        "sourceTreeDirty": False,
+    }
+    if bridge_source_provenance_error(clean_source_health, expected_source_sha) is not None:
+        print("self-check failed: exact clean bridge source provenance was rejected", file=sys.stderr)
+        return 1
+    for invalid_health in (
+        {**clean_source_health, "sourceGitSHA": "b" * 40},
+        {**clean_source_health, "sourceGitSHA": "short"},
+        {**clean_source_health, "sourceTreeDirty": True},
+        {"ok": True},
+    ):
+        if bridge_source_provenance_error(invalid_health, expected_source_sha) is None:
+            print(
+                f"self-check failed: invalid bridge source provenance was accepted: {invalid_health}", file=sys.stderr
+            )
+            return 1
     trace_cursor_failures = trace_cursor_self_check_failures()
     if trace_cursor_failures:
         print(

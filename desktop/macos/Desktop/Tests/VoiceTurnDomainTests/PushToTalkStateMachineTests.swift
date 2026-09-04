@@ -63,6 +63,19 @@ private actor OwnerBoundaryExternalRunProbe {
     (closed, observedOwnerID, observedStatus)
   }
 }
+
+private actor PTTLanguageIdentifierLoadProbe {
+  private var attempts = 0
+
+  func recordAttempt() {
+    attempts += 1
+  }
+
+  func attemptCount() -> Int {
+    attempts
+  }
+}
+
 final class PushToTalkStateMachineTests: XCTestCase {
   func testRecordingProjectionComesDirectlyFromAuthoritativePhase() {
     XCTAssertTrue(VoiceTurnPhase.recording.isRecording)
@@ -105,38 +118,21 @@ final class PushToTalkStateMachineTests: XCTestCase {
       }.count, 1)
   }
 
-  @MainActor
-  func testHeadlessAutomationRunsRealLifecycleWithoutMicrophonePermission() {
-    let manager = PushToTalkManager.shared
-    let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
-    let previousAutomationOwner = UserDefaults.standard.object(forKey: .automationOwnerOverride)
-    manager.cleanup()
-    UserDefaults.standard.set("ptt-headless-owner", forKey: .authUserId)
-    UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
-    defer {
-      manager.cleanup()
-      if let previousAuthOwner {
-        UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-      } else {
-        UserDefaults.standard.removeObject(forKey: .authUserId)
-      }
-      if let previousAutomationOwner {
-        UserDefaults.standard.set(previousAutomationOwner, forKey: .automationOwnerOverride)
-      } else {
-        UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
-      }
-    }
+  func testUnconfiguredVoiceLanguagesDoNotLoadTheLocalSpeechModel() async {
+    let probe = PTTLanguageIdentifierLoadProbe()
+    let identifier = PTTLanguageIdentifier(managerLoader: {
+      await probe.recordAttempt()
+      return nil
+    })
 
-    let started = manager.beginPushToTalkForAutomation()
-    XCTAssertEqual(started["listening"], "true")
-    XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .recording)
+    let verdict = await identifier.identify(
+      pcm16k: Data(repeating: 0, count: 12_800),
+      candidates: [])
+    let attempts = await probe.attemptCount()
 
-    let stopped = manager.endPushToTalkForAutomation()
-    XCTAssertEqual(stopped["finalized"], "true")
-    XCTAssertEqual(VoiceTurnCoordinator.shared.model.turn?.phase, .terminal(.tooShort))
-    XCTAssertEqual(VoiceTurnCoordinator.shared.model.turn?.projection.hint, "Hold longer to record")
-    XCTAssertEqual(VoiceTurnCoordinator.shared.model.staleEventCount, 0)
-    XCTAssertEqual(VoiceTurnCoordinator.shared.model.invalidTransitionCount, 0)
+    XCTAssertNil(verdict.languageCode)
+    XCTAssertNil(verdict.transcript)
+    XCTAssertEqual(attempts, 0, "default-config PTT must stay local-model inert")
   }
 
   // The owner-boundary suite drives DEBUG-only seams (ownerBoundarySnapshot,
@@ -154,73 +150,6 @@ final class PushToTalkStateMachineTests: XCTestCase {
       XCTAssertNil(manager.ownerBoundarySnapshot.activeTurnID)
       XCTAssertFalse(manager.ownerBoundarySnapshot.hasCaptureDriver)
       XCTAssertFalse(manager.ownerBoundarySnapshot.captureStartInFlight)
-    }
-
-    @MainActor
-    func testLiveFailureWhileHoldingKeepsPreAndPostFailureAudioInOneBuffer() throws {
-      let manager = PushToTalkManager.shared
-      let hub = RealtimeHubController.shared
-      let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
-      manager.cleanup()
-      UserDefaults.standard.set("ptt-live-fallback-owner", forKey: .authUserId)
-      hub.installOwnerBoundaryFixture(ownerID: "ptt-live-fallback-owner")
-      hub.pendingSessionRefreshReason = nil
-      defer {
-        manager.cleanup()
-        if let previousAuthOwner {
-          UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-        } else {
-          UserDefaults.standard.removeObject(forKey: .authUserId)
-        }
-      }
-
-      XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
-      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(Data(repeating: 1, count: 3_200)))
-      let turnID = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
-
-      // The reducer's provider-failure transition selects this same route; its
-      // reducer coverage proves capture is not stopped until release.
-      VoiceTurnCoordinator.shared.publish(.selectRoute(turnID: turnID, route: .managedBatch))
-      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(Data(repeating: 2, count: 3_200)))
-      XCTAssertEqual(manager.ownerBoundarySnapshot.bufferedAudioBytes, 6_400)
-      XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .recording)
-    }
-
-    @MainActor
-    func testAcceptedHubCommitKeepsFullPCMAvailableForPostReleaseRecovery() throws {
-      let manager = PushToTalkManager.shared
-      let hub = RealtimeHubController.shared
-      let previousAuthOwner = UserDefaults.standard.object(forKey: .authUserId)
-      manager.cleanup()
-      UserDefaults.standard.set("ptt-post-release-fallback-owner", forKey: .authUserId)
-      hub.installOwnerBoundaryFixture(ownerID: "ptt-post-release-fallback-owner", readyForInput: true)
-      hub.pendingSessionRefreshReason = nil
-      defer {
-        hub.testingLocalProfileTransportAuthorized = nil
-        manager.cleanup()
-        if let previousAuthOwner {
-          UserDefaults.standard.set(previousAuthOwner, forKey: .authUserId)
-        } else {
-          UserDefaults.standard.removeObject(forKey: .authUserId)
-        }
-      }
-
-      var samples: [Int16] = []
-      samples.reserveCapacity(6_400)
-      for index in 0..<6_400 {
-        samples.append((index / 50).isMultiple(of: 2) ? 6_000 : -6_000)
-      }
-      let voicedPCM = samples.withUnsafeBytes { Data($0) }
-
-      XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
-      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(voicedPCM))
-      XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
-      XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
-      XCTAssertEqual(
-        manager.ownerBoundarySnapshot.bufferedAudioBytes,
-        voicedPCM.count,
-        "the accepted Live commit must retain the full PCM until terminal cleanup so a later socket failure can batch-transcribe it"
-      )
     }
 
     @MainActor
@@ -339,7 +268,7 @@ final class PushToTalkStateMachineTests: XCTestCase {
       }
 
       let transition = Task { @MainActor in
-        await self.transitionOwner(defaults: defaults, to: "owner-b")
+        await transitionOwner(defaults: defaults, to: "owner-b")
       }
       await probe.waitUntilEntered()
 
@@ -396,64 +325,173 @@ final class PushToTalkStateMachineTests: XCTestCase {
       defaults.removePersistentDomain(forName: ownerBoundarySuiteName("unresolved-external-run"))
     }
 
-    @MainActor
-    private func transitionOwner(defaults: UserDefaults, to ownerID: String) async {
-      // `UserDefaults` is non-Sendable and cannot cross from the main actor into
-      // the nonisolated `performEffectiveOwnerTransition` boundary under Swift 6.
-      // Box it (mirroring the production `RuntimeOwnerDefaultsReference`) and run
-      // the transition from a nonisolated static helper so neither `defaults` nor
-      // `self` crosses an isolation boundary.
-      let boxed = OwnerDefaultsBox(value: defaults)
-      do {
-        try await Self.runOwnerTransition(boxed: boxed, ownerID: ownerID)
-      } catch {
-        XCTFail("owner transition failed: \(error)")
-      }
-    }
-
-    private static nonisolated func runOwnerTransition(
-      boxed: OwnerDefaultsBox, ownerID: String
-    ) async throws {
-      try await RuntimeOwnerIdentity.performEffectiveOwnerTransition(
-        defaults: boxed.value,
-        allowAutomationOverride: false,
-        plannedNextOwner: { _, _ in ownerID },
-        retargetLocalStorage: { _, _ in },
-        prepareLocalStorageTransition: { _, _ in },
-        ownerDidChange: {}
-      ) { defaults in
-        defaults.set(ownerID, forKey: .authUserId)
-      }
-    }
-
-    private func ownerBoundaryDefaults(_ suffix: String) -> UserDefaults {
-      let name = ownerBoundarySuiteName(suffix)
-      guard let defaults = UserDefaults(suiteName: name) else {
-        preconditionFailure("UserDefaults suite unavailable: \(name)")
-      }
-      defaults.removePersistentDomain(forName: name)
-      return defaults
-    }
-
-    private func ownerBoundarySuiteName(_ suffix: String) -> String {
-      "PushToTalkStateMachineTests.owner-boundary.\(suffix)"
-    }
-
-    private func assertHubOwnerBoundaryIsEmpty(
-      _ snapshot: RealtimeHubOwnerBoundarySnapshot,
-      file: StaticString = #filePath,
-      line: UInt = #line
-    ) {
-      XCTAssertFalse(snapshot.hasPhysicalSession, file: file, line: line)
-      XCTAssertNil(snapshot.physicalOwnerID, file: file, line: line)
-      XCTAssertNil(snapshot.prefetchedOwnerID, file: file, line: line)
-      XCTAssertTrue(snapshot.prefetchedContextIsEmpty, file: file, line: line)
-      XCTAssertFalse(snapshot.hasPendingOwnerWork, file: file, line: line)
-      XCTAssertFalse(snapshot.hubConnected, file: file, line: line)
-      XCTAssertEqual(snapshot.turnAudioByteCount, 0, file: file, line: line)
-    }
   #endif
 }
+
+/// The isolated-suite runner launches each XCTestCase in its own process.
+/// Keep real PTT lifecycle starts out of the owner-boundary suite so their
+/// process-global transport and storage work cannot delay the next fixture.
+final class PushToTalkHeadlessAutomationTests: XCTestCase {
+  @MainActor
+  func testHeadlessAutomationRunsRealLifecycleWithoutMicrophonePermission() async {
+    let manager = PushToTalkManager.shared
+    let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
+    let previousAutomationOwner = UserDefaults.standard.object(forKey: .automationOwnerOverride)
+    manager.cleanup()
+    UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
+    addTeardownBlock { @MainActor in
+      manager.cleanup()
+      await transitionOwner(defaults: .standard, to: previousAuthOwner)
+      if let previousAutomationOwner {
+        UserDefaults.standard.set(previousAutomationOwner, forKey: .automationOwnerOverride)
+      } else {
+        UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
+      }
+    }
+    await transitionOwner(defaults: .standard, to: "ptt-headless-owner")
+
+    let started = manager.beginPushToTalkForAutomation()
+    XCTAssertEqual(started["listening"], "true")
+    XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .recording)
+
+    let stopped = manager.endPushToTalkForAutomation()
+    XCTAssertEqual(stopped["finalized"], "true")
+    XCTAssertEqual(VoiceTurnCoordinator.shared.model.turn?.phase, .terminal(.tooShort))
+    XCTAssertEqual(VoiceTurnCoordinator.shared.model.turn?.projection.hint, "Hold longer to record")
+    XCTAssertEqual(VoiceTurnCoordinator.shared.model.staleEventCount, 0)
+    XCTAssertEqual(VoiceTurnCoordinator.shared.model.invalidTransitionCount, 0)
+  }
+}
+
+#if DEBUG
+  final class PushToTalkRealtimeFallbackTests: XCTestCase {
+    @MainActor
+    func testLiveFailureWhileHoldingKeepsPreAndPostFailureAudioInOneBuffer() async throws {
+      let manager = PushToTalkManager.shared
+      let hub = RealtimeHubController.shared
+      let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
+      manager.cleanup()
+      addTeardownBlock { @MainActor in
+        manager.cleanup()
+        await transitionOwner(defaults: .standard, to: previousAuthOwner)
+        XCTAssertFalse(
+          hub.ownerBoundarySnapshot.hasPendingOwnerWork,
+          "a hermetic PTT test must drain singleton transport work before returning")
+      }
+      await transitionOwner(defaults: .standard, to: "ptt-live-fallback-owner")
+      hub.installOwnerBoundaryFixture(ownerID: "ptt-live-fallback-owner")
+      hub.pendingSessionRefreshReason = nil
+
+      XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
+      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(Data(repeating: 1, count: 3_200)))
+      let turnID = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
+
+      // The reducer's provider-failure transition selects this same route; its
+      // reducer coverage proves capture is not stopped until release.
+      VoiceTurnCoordinator.shared.publish(.selectRoute(turnID: turnID, route: .managedBatch))
+      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(Data(repeating: 2, count: 3_200)))
+      XCTAssertEqual(manager.ownerBoundarySnapshot.bufferedAudioBytes, 6_400)
+      XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .recording)
+    }
+  }
+
+  final class PushToTalkRealtimeCommitTests: XCTestCase {
+    @MainActor
+    func testAcceptedHubCommitKeepsFullPCMAvailableForPostReleaseRecovery() async throws {
+      let manager = PushToTalkManager.shared
+      let hub = RealtimeHubController.shared
+      let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
+      manager.cleanup()
+      addTeardownBlock { @MainActor in
+        hub.testingLocalProfileTransportAuthorized = nil
+        manager.cleanup()
+        await transitionOwner(defaults: .standard, to: previousAuthOwner)
+        XCTAssertFalse(
+          hub.ownerBoundarySnapshot.hasPendingOwnerWork,
+          "a hermetic PTT test must drain singleton transport work before returning")
+      }
+      await transitionOwner(defaults: .standard, to: "ptt-post-release-fallback-owner")
+      hub.installOwnerBoundaryFixture(ownerID: "ptt-post-release-fallback-owner", readyForInput: true)
+      hub.pendingSessionRefreshReason = nil
+
+      var samples: [Int16] = []
+      samples.reserveCapacity(6_400)
+      for index in 0..<6_400 {
+        samples.append((index / 50).isMultiple(of: 2) ? 6_000 : -6_000)
+      }
+      let voicedPCM = samples.withUnsafeBytes { Data($0) }
+
+      XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
+      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(voicedPCM))
+      XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
+      XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
+      XCTAssertEqual(
+        manager.ownerBoundarySnapshot.bufferedAudioBytes,
+        voicedPCM.count,
+        "the accepted Live commit must retain the full PCM until terminal cleanup so a later socket failure can batch-transcribe it"
+      )
+    }
+  }
+#endif
+
+@MainActor
+private func transitionOwner(defaults: UserDefaults, to ownerID: String?) async {
+  // `UserDefaults` is non-Sendable and cannot cross from the main actor into
+  // the nonisolated `performEffectiveOwnerTransition` boundary under Swift 6.
+  let boxed = OwnerDefaultsBox(value: defaults)
+  do {
+    try await runOwnerTransition(boxed: boxed, ownerID: ownerID)
+  } catch {
+    XCTFail("owner transition failed: \(error)")
+  }
+}
+
+private func runOwnerTransition(boxed: OwnerDefaultsBox, ownerID: String?) async throws {
+  try await RuntimeOwnerIdentity.performEffectiveOwnerTransition(
+    defaults: boxed.value,
+    allowAutomationOverride: false,
+    plannedNextOwner: { _, _ in ownerID },
+    retargetLocalStorage: { _, _ in },
+    prepareLocalStorageTransition: { _, _ in },
+    ownerDidChange: {}
+  ) { defaults in
+    if let ownerID {
+      defaults.set(ownerID, forKey: .authUserId)
+    } else {
+      defaults.removeObject(forKey: .authUserId)
+    }
+  }
+}
+
+private func ownerBoundaryDefaults(_ suffix: String) -> UserDefaults {
+  let name = ownerBoundarySuiteName(suffix)
+  guard let defaults = UserDefaults(suiteName: name) else {
+    preconditionFailure("UserDefaults suite unavailable: \(name)")
+  }
+  defaults.removePersistentDomain(forName: name)
+  return defaults
+}
+
+private func ownerBoundarySuiteName(_ suffix: String) -> String {
+  "PushToTalkStateMachineTests.owner-boundary.\(suffix)"
+}
+
+#if DEBUG
+  @MainActor
+  private func assertHubOwnerBoundaryIsEmpty(
+    _ snapshot: RealtimeHubOwnerBoundarySnapshot,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertFalse(snapshot.hasPhysicalSession, file: file, line: line)
+    XCTAssertNil(snapshot.physicalOwnerID, file: file, line: line)
+    XCTAssertNil(snapshot.prefetchedOwnerID, file: file, line: line)
+    XCTAssertTrue(snapshot.prefetchedContextIsEmpty, file: file, line: line)
+    XCTAssertFalse(snapshot.hasPendingOwnerWork, file: file, line: line)
+    XCTAssertFalse(snapshot.hubConnected, file: file, line: line)
+    XCTAssertEqual(snapshot.turnAudioByteCount, 0, file: file, line: line)
+  }
+#endif
 
 /// Sendable carrier for a non-Sendable `UserDefaults` so it can cross the
 /// nonisolated owner-transition boundary under Swift 6 strict concurrency.

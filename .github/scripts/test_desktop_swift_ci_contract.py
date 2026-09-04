@@ -19,6 +19,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/desktop-swift-ci.yml"
 RUNNER_PATH = REPO_ROOT / "desktop/macos/scripts/run-swift-ci.sh"
+SUITE_RUNNER_PATH = REPO_ROOT / "desktop/macos/scripts/swift-test-suites.sh"
 PRE_PUSH_PATH = REPO_ROOT / "scripts/pre-push"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
@@ -37,6 +38,10 @@ def _workflow_text() -> str:
 
 def _runner_text() -> str:
     return RUNNER_PATH.read_text(encoding="utf-8")
+
+
+def _suite_runner_text() -> str:
+    return SUITE_RUNNER_PATH.read_text(encoding="utf-8")
 
 
 def _job_text(workflow_text: str, job_id: str) -> str:
@@ -259,32 +264,37 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
 
     # --- cache-key assertions ----------------------------------------------
 
-    def test_cache_key_includes_manifest_and_lockfile_and_toolchain(self):
-        """The SwiftPM cache key must include Package.swift, Package.resolved,
-        and a toolchain identity component."""
+    def test_cache_key_includes_manifest_lockfile_resources_and_toolchain(self):
+        """The SwiftPM cache key must include every input SwiftPM can persist."""
         job = self.jobs["desktop-swift-verify"]
         self.assertIn("uses: actions/cache", job, "desktop-swift-verify must have a cache step")
-        key_match = re.search(r"key:\s*([^\n]*desktop-swift-build[^\n]*)", job)
-        self.assertIsNotNone(key_match, "desktop-swift build cache step must declare a key")
-        key = key_match.group(1)
-        # Toolchain identity in the key prefix prevents a tool change from
-        # silently reusing a stale cache built with a different compiler.
-        self.assertIn(
-            f"xcode{EXPECTED_XCODE_VERSION.replace('.', '')}",
-            key,
-            "cache key must embed toolchain identity (xcode164)",
-        )
-        # Package.swift hash
-        self.assertIn(
-            "Package.swift",
-            key,
-            "cache key must include Package.swift hashFiles",
-        )
-        # Package.resolved hash
-        self.assertIn(
-            "Package.resolved",
-            key,
-            "cache key must include Package.resolved hashFiles",
+        keys = re.findall(r"key:\s*([^\n]*desktop-swift-build[^\n]*)", job)
+        self.assertEqual(len(keys), 2, "restore and save must use the same complete SwiftPM cache contract")
+        for key in keys:
+            # Toolchain identity in the key prefix prevents a tool change from
+            # silently reusing a stale cache built with a different compiler.
+            self.assertIn(
+                f"xcode{EXPECTED_XCODE_VERSION.replace('.', '')}",
+                key,
+                "cache key must embed toolchain identity (xcode164)",
+            )
+            self.assertIn("Package.swift", key, "cache key must include Package.swift hashFiles")
+            self.assertIn("Package.resolved", key, "cache key must include Package.resolved hashFiles")
+            self.assertIn(
+                "desktop/macos/Desktop/Sources/Resources/**",
+                key,
+                "cache keys must hash the package's real processed-resource root",
+            )
+            self.assertNotIn(
+                "desktop/macos/Desktop/Resources/**",
+                key,
+                "a nonexistent resource glob hashes nothing and cannot invalidate stale bundles",
+            )
+        restore = job[job.index("id: swiftpm-cache") : job.index("Install Swift system dependencies")]
+        self.assertNotIn(
+            "restore-keys:",
+            restore,
+            "a broad fallback can restore a resource bundle built from a different resource tree",
         )
         static_key = re.search(r"key:\s*([^\n]*desktop-swift-tools[^\n]*)", job).group(1)
         self.assertIn("swift-format-wrapper.sh", static_key)
@@ -352,6 +362,12 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
         self.assertNotIn("xcodebuild -version | head -1", runner)
         self.assertIn("sed -n '1p'", runner)
 
+    def test_optional_prebuild_arguments_are_safe_under_macos_bash_nounset(self):
+        """An empty optional array must not crash the supported no-prebuild diagnostic path."""
+        runner = _suite_runner_text()
+
+        self.assertIn('${build_args[@]+"${build_args[@]}"}', runner)
+
     # --- adversarial: removing any guard must fail -------------------------
 
     def test_adversarial_remove_runner_mode_detected(self):
@@ -362,10 +378,10 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
         self.assertNotIn("run-swift-ci.sh --test", combined)
 
     def test_adversarial_cache_key_weakening_detected(self):
-        """A cache key without Package.resolved or toolchain identity is caught."""
+        """A cache key without the lockfile, resources, or toolchain identity is caught."""
         wf_text = WORKFLOW_PATH.read_text(encoding="utf-8")
         tampered = wf_text.replace(
-            "desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved') }}",
+            "desktop-swift-build-xcode164-${{ hashFiles('desktop/macos/Desktop/Package.swift', 'desktop/macos/Desktop/Package.resolved', 'desktop/macos/Desktop/Sources/Resources/**') }}",
             "desktop-swift-${{ hashFiles('desktop/macos/Desktop/Package.swift') }}",
         )
         job = _job_text(tampered, "desktop-swift-verify")

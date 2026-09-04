@@ -16,6 +16,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Components/HomeChatCatalog.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeAskFocusPolicy.swift
   - desktop/macos/Desktop/Sources/Theme/OmiColors.swift
   - desktop/macos/Desktop/Sources/MainWindow/MainChatNavigationRequest.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+Settings.swift
@@ -40,7 +41,7 @@ steps:
       state.selectedTabIndex: 0
 
   - id: S2
-    name: Collapse to the empty-history resting hub
+    name: Collapse to the reset chat's empty-history resting hub
     bridge.action:
       name: home_close_panel
     wait:
@@ -54,7 +55,7 @@ steps:
       state.homeMode: chat
 
   - id: S4
-    name: Enable and open compact Chat catalog
+    name: Enable Multiple Chat Sessions
     bridge.action:
       name: home_set_multi_chat
       params:
@@ -72,7 +73,7 @@ steps:
       state.homeCatalogOpen: true
 
   - id: S6
-    name: Exercise local catalog CRUD through canonical Home provider
+    name: Exercise local catalog CRUD through the canonical Home provider
     bridge.action:
       name: home_catalog_round_trip
     expect:

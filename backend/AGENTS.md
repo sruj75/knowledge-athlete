@@ -219,7 +219,7 @@ A passing unit test is not the same as exercising the endpoint. Before putting a
 ## Formatting
 
 ```bash
-black --line-length 120 --skip-string-normalization <files>
+scripts/black-wrapper.sh --line-length 120 --skip-string-normalization <files>
 ```
 
 `--skip-string-normalization` is critical — without it, black flips all quotes and diffs explode.

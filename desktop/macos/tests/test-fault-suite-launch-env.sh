@@ -32,18 +32,38 @@ make_pkill_stub() {
 exit 0
 SH
   chmod +x "$bin_dir/pkill"
+
+  cat >"$bin_dir/defaults" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${OMI_FAULT_DEFAULTS_CAPTURE:?}"
+SH
+  chmod +x "$bin_dir/defaults"
+
+  cat >"$bin_dir/git" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ " $* " == *" rev-parse HEAD "* ]]; then
+  printf '%s\n' "${OMI_FAULT_TEST_GIT_SHA:?}"
+  exit 0
+fi
+exec /usr/bin/git "$@"
+SH
+  chmod +x "$bin_dir/git"
 }
 
 exercise_fault_suite_launch_command() {
   local fixture="$TMP_ROOT/fault-suite"
   local bin_dir="$TMP_ROOT/fault-suite-bin"
-  local bridge_port fault_port fault_run_token capture ready_capture output
+  local bridge_port fault_port fault_run_token capture ready_capture defaults_capture output git_sha
   local qualification_fault_state
   bridge_port="47791"
   fault_port="19081"
   fault_run_token="faultsuitefixturetoken123456"
+  git_sha="$(printf 'a%.0s' {1..40})"
   capture="$fixture/fault-run.env"
   ready_capture="$fixture/fault-ready.env"
+  defaults_capture="$fixture/fault-defaults.log"
   output="$fixture/fault-suite.out"
   qualification_fault_state="$fixture/qualification-state/fault"
 
@@ -92,6 +112,7 @@ SH
 set -euo pipefail
 
 [[ "${1:-}" == "wait-ready" && "${2:-}" == "90" ]]
+[[ "${OMI_FAULT_READY_FAIL:-0}" != "1" ]] || exit 42
 printf '%s\n' "OMI_AUTOMATION_PORT=${OMI_AUTOMATION_PORT:?}" >"${OMI_FAULT_READY_CAPTURE:?}"
 SH
   chmod +x "$fixture/scripts/omi-ctl"
@@ -112,13 +133,13 @@ executable_path="$app_path/Contents/MacOS/Omi Computer"
 # the same real ps-based ownership validation as it does for an app launched by
 # `open` rather than a fixture-only ps response.
 bundle_id="com.heyintentive.intentive.dev.${OMI_APP_NAME}"
-server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2];
+server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2]; sha=sys.argv[3]; dirty=sys.argv[4]=="true";
 class H(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
-  body=json.dumps({"ok":True,"bundleIdentifier":bundle}).encode(); self.send_response(200); self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
+  body=json.dumps({"ok":True,"bundleIdentifier":bundle,"sourceGitSHA":sha,"sourceTreeDirty":dirty}).encode(); self.send_response(200); self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
  def log_message(self,*args): pass
 http.server.ThreadingHTTPServer(("127.0.0.1",port),H).serve_forever()'
-python3 -c "$server" "$OMI_AUTOMATION_PORT" "$bundle_id" "$executable_path" "--omi-launch-token=${OMI_DESKTOP_LAUNCH_TOKEN}" &
+python3 -c "$server" "$OMI_AUTOMATION_PORT" "$bundle_id" "$OMI_FAULT_TEST_GIT_SHA" "${OMI_FAULT_TEST_SOURCE_DIRTY:-false}" "$executable_path" "--omi-launch-token=${OMI_DESKTOP_LAUNCH_TOKEN}" &
 printf '%s\n' "$!" >"$OMI_FAULT_APP_PID_FILE"
 {
   printf 'schema_version=1\n'
@@ -146,6 +167,8 @@ SH
     OMI_FAULT_TEST_PORT="$fault_port" \
     OMI_FAULT_ENV_CAPTURE="$capture" \
     OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
+    OMI_FAULT_TEST_GIT_SHA="$git_sha" \
     "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1 \
     || {
       cat "$output" >&2
@@ -154,7 +177,7 @@ SH
   [[ -d "$qualification_fault_state" ]] \
     || fail "fault suite ignored the qualification-owned fault state directory"
 
-  python3 - "$capture" "$ready_capture" "$bridge_port" "$fault_port" "$fault_run_token" "$fixture" <<'PY'
+  python3 - "$capture" "$ready_capture" "$defaults_capture" "$bridge_port" "$fault_port" "$fault_run_token" "$fixture" "$git_sha" <<'PY'
 import json
 from pathlib import Path
 import sys
@@ -164,17 +187,17 @@ for line in open(sys.argv[1], encoding="utf-8"):
     key, value = line.rstrip("\n").split("=", 1)
     captured[key] = value
 
-fault_url = f"http://127.0.0.1:{sys.argv[4]}"
-fault_bundle = f"omi-fault-{sys.argv[5]}"
+fault_url = f"http://127.0.0.1:{sys.argv[5]}"
+fault_bundle = f"omi-fault-{sys.argv[6]}"
 expected = {
     "OMI_APP_NAME": fault_bundle,
-    "OMI_AUTOMATION_PORT": sys.argv[3],
+    "OMI_AUTOMATION_PORT": sys.argv[4],
     "OMI_DESKTOP_LOCAL_PROFILE": "1",
     "OMI_HARNESS_INSTANCE": "fault-suite",
     "OMI_SEED_FROM_CANONICAL_DEV": "0",
     "OMI_LOCAL_PROFILE_STORAGE_NAME": fault_bundle,
     "OMI_LOCAL_AUTH_USER": "alice",
-    "OMI_LOCAL_AUTH_EMAIL": "alice@local.omi.invalid",
+    "OMI_LOCAL_AUTH_EMAIL": "alice@local.heyintentive.invalid",
     "OMI_LOCAL_AUTH_PASSWORD": "alice-local-password-030",
     "OMI_LOCAL_AUTH_DISPLAY_NAME": "Synthetic Alice",
     "FIREBASE_AUTH_EMULATOR_HOST": "127.0.0.1:9099",
@@ -188,22 +211,45 @@ expected = {
     "OMI_PYTHON_API_URL": fault_url,
     "OMI_AUTH_API_URL": fault_url,
     "OMI_FAULT_MODEL_AUTH_TOKEN": "omi-fault-model-token",
-    "OMI_DESKTOP_LAUNCH_TOKEN": sys.argv[5],
+    "OMI_DESKTOP_LAUNCH_TOKEN": sys.argv[6],
 }
 for key, value in expected.items():
     assert captured.get(key) == value, (key, captured.get(key), value)
 
 ready = dict(line.rstrip("\n").split("=", 1) for line in open(sys.argv[2], encoding="utf-8"))
-assert ready.get("OMI_AUTOMATION_PORT") == sys.argv[3], ready
+assert ready.get("OMI_AUTOMATION_PORT") == sys.argv[4], ready
 
-records = list(Path(sys.argv[6]).glob(".harness/desktop-core/*-fault/fault-app.json"))
+defaults_writes = Path(sys.argv[3]).read_text(encoding="utf-8").splitlines()
+bundle_id = f"com.heyintentive.intentive.dev.{fault_bundle}"
+assert defaults_writes == [
+    f"write {bundle_id} hasCompletedOnboarding -bool true",
+    f"write {bundle_id} devLazyPermissionsEnabled -bool true",
+    f"write {bundle_id} screenAnalysisEnabled -bool false",
+    f"write {bundle_id} transcriptionEnabled -bool false",
+    f"write {bundle_id} systemAudioCaptureMode -string never",
+    f"write {bundle_id} screenAnalysisAutoStartFixed_v2 -bool true",
+    f"write {bundle_id} shortcut_floatingBarTypedQuestionVoiceAnswersEnabled -bool false",
+], defaults_writes
+
+records = list(Path(sys.argv[7]).glob(".harness/desktop-core/*-fault/fault-app.json"))
 assert len(records) == 1, records
 record = json.loads(records[0].read_text(encoding="utf-8"))
-assert record["run_token"] == sys.argv[5], record
+assert record["run_token"] == sys.argv[6], record
 assert record["bundle"] == fault_bundle, record
 assert record["bundle_id"] == f"com.heyintentive.intentive.dev.{fault_bundle}", record
-assert record["automation_port"] == int(sys.argv[3]), record
+assert record["automation_port"] == int(sys.argv[4]), record
 assert record["launch_transport"] == "open", record
+
+manifests = list(Path(sys.argv[7]).glob(".harness/desktop-core/*-fault/manifest.json"))
+assert len(manifests) == 1, manifests
+manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+assert manifest["passed"] is True, manifest
+assert manifest["bundle"] == fault_bundle, manifest
+assert manifest["git_sha"] == sys.argv[8], manifest
+assert manifest["repository_git_sha"] == sys.argv[8], manifest
+assert manifest["provider_mode"] == "offline", manifest
+assert manifest["source_provenance"] == "bundle-health", manifest
+assert manifest["source_tree_dirty"] is False, manifest
 PY
 
   local app_pid
@@ -220,6 +266,25 @@ PY
     OMI_FAULT_TEST_PORT="$fault_port" \
     OMI_FAULT_ENV_CAPTURE="$capture" \
     OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
+    OMI_FAULT_TEST_GIT_SHA="$git_sha" \
+    OMI_FAULT_TEST_SOURCE_DIRTY=true \
+    OMI_FAULT_BRIDGE_READY_ATTEMPTS=1 \
+    "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "fault suite accepted a bundle built from a dirty source tree"
+
+  set +e
+  PATH="$bin_dir:$PATH" \
+    OMI_FAULT_RUN_TOKEN="$fault_run_token" \
+    OMI_FAULT_STATE_DIR="$qualification_fault_state" \
+    OMI_FAULT_APP_PID_FILE="$fixture/fault-app.pid" \
+    OMI_FAULT_TEST_PORT="$fault_port" \
+    OMI_FAULT_ENV_CAPTURE="$capture" \
+    OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
+    OMI_FAULT_TEST_GIT_SHA="$git_sha" \
     OMI_FAULT_BRIDGE_READY_ATTEMPTS=not-a-number \
     "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
   status=$?
@@ -227,6 +292,28 @@ PY
   [[ "$status" -ne 0 ]] || fail "fault suite accepted a non-numeric bridge readiness attempt budget"
   grep -Fq 'OMI_FAULT_BRIDGE_READY_ATTEMPTS must be a positive integer' "$output" \
     || fail "fault suite did not report the invalid bridge readiness attempt budget"
+
+  set +e
+  PATH="$bin_dir:$PATH" \
+    OMI_FAULT_RUN_TOKEN="$fault_run_token" \
+    OMI_FAULT_STATE_DIR="$qualification_fault_state" \
+    OMI_FAULT_APP_PID_FILE="$fixture/fault-app.pid" \
+    OMI_FAULT_TEST_PORT="$fault_port" \
+    OMI_FAULT_ENV_CAPTURE="$capture" \
+    OMI_FAULT_READY_CAPTURE="$ready_capture" \
+    OMI_FAULT_DEFAULTS_CAPTURE="$defaults_capture" \
+    OMI_FAULT_TEST_GIT_SHA="$git_sha" \
+    OMI_FAULT_READY_FAIL=1 \
+    "$fixture/scripts/desktop-core-harness.sh" --fault-suite --port "$bridge_port" >"$output" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "fault suite ignored an owner-ready probe failure"
+  grep -Fq 'did not reach signed-in owner-ready state within 90s' "$output" \
+    || fail "fault suite did not report its owner-ready probe failure"
+  app_pid="$(cat "$fixture/fault-app.pid")"
+  if kill -0 "$app_pid" 2>/dev/null; then
+    fail "fault suite readiness failure left its owned detached app running"
+  fi
 }
 
 exercise_fault_launcher_without_backend_env() {

@@ -36,7 +36,7 @@ class FakeRedis:
 
 def test_cache_disabled_fetches_every_time(monkeypatch):
     fake = FakeRedis()
-    monkeypatch.setattr(fc, 'r', fake)
+    monkeypatch.setattr(fc, 'get_redis_client', lambda: fake)
     monkeypatch.delenv('FIRESTORE_CACHE_ENABLED', raising=False)
     monkeypatch.delenv('FIRESTORE_CACHE_TEST_PROJECTION_ENABLED', raising=False)
 
@@ -56,7 +56,7 @@ def test_cache_disabled_fetches_every_time(monkeypatch):
 
 def test_cache_enabled_populates_and_hits(monkeypatch):
     fake = FakeRedis()
-    monkeypatch.setattr(fc, 'r', fake)
+    monkeypatch.setattr(fc, 'get_redis_client', lambda: fake)
     monkeypatch.setenv('FIRESTORE_CACHE_ENABLED', 'true')
     monkeypatch.delenv('FIRESTORE_CACHE_TEST_PROJECTION_ENABLED', raising=False)
 
@@ -83,7 +83,7 @@ def test_cache_enabled_populates_and_hits(monkeypatch):
 def test_redis_get_failure_falls_back_to_fetch(monkeypatch):
     fake = FakeRedis()
     fake.fail_get = True
-    monkeypatch.setattr(fc, 'r', fake)
+    monkeypatch.setattr(fc, 'get_redis_client', lambda: fake)
     monkeypatch.setenv('FIRESTORE_CACHE_ENABLED', 'true')
 
     policy = fc.CachePolicy(namespace='test_projection', ttl_seconds=60)

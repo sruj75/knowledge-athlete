@@ -284,11 +284,76 @@ class ManifestContractTests(unittest.TestCase):
 
 
 class RunnerBehaviorTests(unittest.TestCase):
+    def test_windows_workflow_can_select_its_registered_checks_by_id(self) -> None:
+        workflow = (WORKFLOWS_DIR / "windows-preflight-portability.yml").read_text(encoding="utf-8")
+        requested_ids = re.findall(r"--check-id\s+([a-z0-9-]+)", workflow)
+        self.assertEqual(
+            requested_ids,
+            ["pre-push-worktree-fallback", "preflight-runner-portability", "check-manifest-contract"],
+        )
+
+        command = [
+            sys.executable,
+            str(SCRIPT_DIR / "run_checks.py"),
+            "--lane",
+            "ci",
+            "--base",
+            "HEAD",
+            "--head",
+            "HEAD",
+            "--platform",
+            "windows",
+            "--output",
+            "json",
+        ]
+        for check_id in requested_ids:
+            command.extend(("--check-id", check_id))
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        selected = [item["id"] for item in json.loads(completed.stdout)["checks"]]
+        self.assertEqual(selected, requested_ids)
+
+    def test_explicit_check_id_rejects_an_unregistered_check(self) -> None:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "run_checks.py"),
+                "--lane",
+                "ci",
+                "--base",
+                "HEAD",
+                "--head",
+                "HEAD",
+                "--platform",
+                "windows",
+                "--check-id",
+                "not-registered",
+                "--output",
+                "json",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertIn("unknown check id: not-registered", completed.stderr)
+
     def test_cli_selects_present_macos_and_backend_checks_from_changed_file_fixtures(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as changed:
-            changed.write("backend/routers/chat_sessions.py\n")
-            changed.write("desktop/macos/Desktop/Sources/APIClient.swift\n")
-            changed.flush()
+        with tempfile.TemporaryDirectory() as tmp:
+            changed = Path(tmp) / "changed-files.txt"
+            changed.write_text(
+                "backend/routers/chat_sessions.py\n" "desktop/macos/Desktop/Sources/APIClient.swift\n",
+                encoding="utf-8",
+            )
 
             completed = subprocess.run(
                 [
@@ -297,7 +362,9 @@ class RunnerBehaviorTests(unittest.TestCase):
                     "--lane",
                     "ci",
                     "--changed-files",
-                    changed.name,
+                    str(changed),
+                    "--base",
+                    "refs/heads/missing-selection-base",
                     "--skip-pr-body-checks",
                     "--platform",
                     "macos",
@@ -459,7 +526,7 @@ class RunnerBehaviorTests(unittest.TestCase):
 case "$1" in
   -p) echo 22 ;;
   *emulator_config.mjs) printf '45678 45679\\n' ;;
-  *supervise.mjs) printf '%s\\n' "$@" > "{capture}" ;;
+  *supervise.mjs) printf '%s\\n' '---' "$@" >> "{capture}" ;;
 esac
 """,
                 "java": "#!/bin/sh\necho '    java.version = 21.0.1' >&2\n",
@@ -476,6 +543,11 @@ esac
             captured = capture.read_text(encoding="utf-8")
             self.assertIn("uv run --no-project", captured)
             self.assertIn("--cleanup-path", captured)
+            self.assertEqual(captured.count("---\n"), 2, "provisioning and behavioral execution need separate budgets")
+            self.assertIn("--timeout-seconds\n600\n--\nnpx", captured)
+            self.assertIn("setup:emulators:firestore", captured)
+            self.assertIn("--timeout-seconds\n180\n--cleanup-path", captured)
+            self.assertLess(captured.index("setup:emulators:firestore"), captured.index("emulators:exec"))
 
     def test_trigger_matching_selects_only_relevant_checks(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)
@@ -663,6 +735,73 @@ chmod +x "{python}"
             self.assertRegex(
                 lock.read_text(encoding="utf-8"),
                 r'(?ms)^\[\[packages\]\]\nname = "pyyaml"\nversion = "6\.0\.1"$',
+            )
+
+    def test_managed_model_inventory_bootstraps_its_locked_backend_interpreter(self) -> None:
+        """Actions run 33629144935: post-merge checks start without backend/.venv."""
+        manifest = load_manifest(MANIFEST_PATH)
+        check = next(check for check in manifest.checks if check.id == "managed-model-callsite-inventory")
+        self.assertEqual(check.command, ("bash", "scripts/run-managed-model-callsite-inventory.sh"))
+        for lane in ("local", "ci"):
+            self.assertIn(check, resolve_checks(manifest, list(check.triggers), lane))
+
+        runner = REPO_ROOT / check.command[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            copied_runner = root / check.command[1]
+            copied_runner.parent.mkdir(parents=True)
+            shutil.copy2(runner, copied_runner)
+            resolver = root / "scripts/dev-harness/_resolve_python.sh"
+            resolver.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(REPO_ROOT / "scripts/dev-harness/_resolve_python.sh", resolver)
+
+            sync = root / "backend/scripts/sync-python-deps.sh"
+            sync.parent.mkdir(parents=True)
+            python = root / "backend/.venv/bin/python"
+            sync.write_text(
+                f'''#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "{python.parent}"
+cat > "{python}" <<'PYTHON'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "-c" ]]; then
+  [[ "$2" == "import pytest" ]]
+  exit
+fi
+printf '%s\n' "$@" > "{root / 'inventory-args.txt'}"
+PYTHON
+chmod +x "{python}"
+''',
+                encoding="utf-8",
+            )
+            sync.chmod(0o755)
+
+            try:
+                bash = bash_executable()
+            except FileNotFoundError as exc:
+                self.skipTest(str(exc))
+            env = os.environ.copy()
+            env["PYTHON"] = "ambient-python-must-not-run"
+            result = subprocess.run(
+                [bash, str(copied_runner)],
+                text=True,
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                (root / "inventory-args.txt").read_text(encoding="utf-8").splitlines(),
+                [
+                    "-m",
+                    "pytest",
+                    "-q",
+                    "-m",
+                    "slow",
+                    "tests/unit/test_managed_model_workloads.py::test_application_model_call_sites_cannot_bypass_the_typed_inventory",
+                ],
             )
 
 

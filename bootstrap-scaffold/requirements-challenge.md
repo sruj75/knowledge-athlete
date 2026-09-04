@@ -97,13 +97,13 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-052 | Retained Rewind, Focus-glow, and global PTT behavior requires macOS Accessibility permission | Reviewed | Keep for global PTT and precise Rewind/Focus window detection; CGWindow is fallback only |
 | IR-053 | Local semantic search requires transient Gemini embedding computation through the authenticated Python desktop proxy | Reviewed | Keep transient proxy compute; vectors and similarity search remain local-only |
 | IR-054 | The first Mac release requires a push-to-talk spoken-assistant capability | Reviewed at parent only | Keep the parent capability; challenge every child behavior separately |
-| IR-055 | Push-to-talk requires a backend WebSocket relay as an intermediate STT fallback when the direct realtime hub fails | Reopened for Gemini-first simplification | Delete the omni relay; on Gemini Live failure retain the bounded PCM turn and use the existing batch-STT recovery after release |
+| IR-055 | Push-to-talk requires a backend WebSocket relay as an intermediate STT fallback when the direct realtime hub fails | Reviewed after Gemini-first simplification | Delete the omni relay; on Gemini Live failure retain the bounded PCM turn and use the existing batch-STT recovery after release |
 | IR-056 | Managed PTT sessions require client-reported token usage and server-side cost/quota accounting | Reviewed | Keep count-only per-user usage/cost/quota accounting |
 | IR-057 | Every minted realtime credential requires a hashed Firestore session-audit document | Reviewed | Delete unread audit documents and writer |
 | IR-058 | PTT must support user-supplied OpenAI/Gemini API keys in addition to managed subscriber access | Reviewed | Delete PTT BYOK access; product-wide BYOK is also deleted under IR-062 |
 | IR-059 | PTT requires completed-turn batch STT as the final recovery path when realtime voice and relay transcription fail | Reviewed | Keep final batch recovery |
 | IR-060 | Normal PTT must use a provider-native realtime speech-to-speech model instead of always using STT, the normal text agent, and TTS | Reviewed | Keep current realtime speech-to-speech primary path |
-| IR-061 | The primary realtime PTT path must support both OpenAI Realtime and Gemini Live with cross-provider failover | Reopened for Gemini-first simplification | Keep Gemini Live only; replace cross-provider failover with same-provider reconnect followed by buffered batch STT, Gemini Chat, and retained OpenAI TTS |
+| IR-061 | The primary realtime PTT path must support both OpenAI Realtime and Gemini Live with cross-provider failover | Reviewed after Gemini-first simplification | Keep Gemini Live only; replace cross-provider failover with same-provider reconnect followed by buffered batch STT, Gemini Chat, and retained OpenAI TTS |
 | IR-062 | The product requires a second free BYOK access plan in which a user supplies OpenAI, Anthropic, Gemini, and Deepgram keys | Reviewed | Delete all customer BYOK and retain only managed product credentials |
 | IR-063 | Retained PTT must use the current system-wide hold shortcut implemented through Accessibility-trusted global key monitoring | Reviewed | Keep existing global hold behavior and retain minimal Accessibility support |
 | IR-064 | PTT needs a double-tap locked mode that records hands-free until the shortcut is tapped again | Reviewed | Keep the existing local locked-recording behavior |
@@ -155,7 +155,7 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-110 | Realtime PTT must keep a provider session preconnected before the user presses the shortcut | Reviewed | Keep the existing preconnected realtime session for v1 |
 | IR-111 | Realtime PTT must attach local context-plan/cache identity hashes to backend usage reports | Reviewed | Delete the four unused identity/replacement fields; keep actual provider token counts, including cached input |
 | IR-112 | A retained warm PTT session must reconnect or be replaced when its transport, owner, or local context becomes stale | Reviewed after Gemini-first simplification | Keep Gemini same-provider correctness replacement; provider crossing is deleted by IR-061 |
-| IR-113 | Normal desktop Chat must run its local agent loop against managed Claude inference through Python `/v2/chat/completions` | Reopened for Gemini-first simplification | Keep the proven local Pi orchestration but use its bundled native Gemini adapter against authenticated `/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` |
+| IR-113 | Normal desktop Chat must run its local agent loop against managed Claude inference through Python `/v2/chat/completions` | Reviewed after Gemini-first simplification | Keep the proven local Pi orchestration but use its bundled native Gemini adapter against authenticated `/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` |
 | IR-114 | PTT must continue emitting the legacy `floating_bar_ptt_started` and `floating_bar_ptt_ended` PostHog events | Reviewed | Delete both deprecated events; this does not delete PostHog or the newer PTT lifecycle diagnostic |
 | IR-115 | The fork must retain Sentry and PostHog telemetry but send it to projects owned by this product | Reviewed | Keep both platforms and existing telemetry architecture; replace every Omi project identity with our own configuration |
 | IR-116 | PTT must retain its authoritative privacy-bounded lifecycle and incident diagnostics | Reviewed | Keep the accurate privacy-bounded diagnostics and route remote events to our Sentry/PostHog projects |
@@ -479,19 +479,19 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-528 | Top-bar “new since you were last here” counters | Reviewed | delete the top-bar aggregate new-item counters |
 | IR-529 | Global Escape navigation back to Home | Reviewed | keep the current shell-level Escape-to-Home behavior exactly |
 | IR-530 | Compact top navigation on narrow windows | Reviewed | keep the current responsive top-navigation substitution |
-| IR-600 | Realtime PTT must expose Auto, Gemini, and OpenAI selection and refresh Auto daily from Artificial Analysis proxy-model scores | Reopened for Gemini-first simplification | Delete Auto, OpenAI Realtime, the picker, saved provider state, and Artificial Analysis; the server pins Gemini Live |
+| IR-600 | Realtime PTT must expose Auto, Gemini, and OpenAI selection and refresh Auto daily from Artificial Analysis proxy-model scores | Reviewed after Gemini-first simplification | Delete Auto, OpenAI Realtime, the picker, saved provider state, and Artificial Analysis; the server pins Gemini Live |
 | IR-601 | Realtime PTT must be able to escalate a difficult or challenged answer to managed Claude through `ask_higher_model` | Reviewed after reopen | Delete the entire realtime `ask_higher_model` tool and its unique execution path |
 | IR-602 | A voice `ask_higher_model` escalation for current facts must perform a real live web lookup | Reviewed by dependency | Delete with IR-601; no voice escalation or live-web claim remains |
 | IR-603 | A background Agent Pill without a prefetched title must call Claude Haiku to improve its title and transient acknowledgement | Reviewed | Delete the cosmetic model call; keep deterministic local metadata and authoritative prefetched titles |
 | IR-604 | The shipped Advanced Settings screen must include a Chat Prompt Lab with direct Anthropic BYOK, AI grading, real personal context, git prompt history, and production ratings | Reviewed | Delete the entire shipped Chat Prompt Lab; keep prompt evaluation outside the customer app |
-| IR-605 | Sonnet-only normal Chat must retain dormant user-model-selection state and an internally routable Claude Opus alternative | Reopened for Gemini-first simplification | Pin normal Chat to the actual `gemini-3.7-flash` ID and delete every Claude identity and provider-selection remnant |
+| IR-605 | Sonnet-only normal Chat must retain dormant user-model-selection state and an internally routable Claude Opus alternative | Reviewed after Gemini-first simplification | Pin normal Chat to the actual `gemini-3.7-flash` ID and delete every Claude identity and provider-selection remnant |
 | IR-606 | Desktop model configuration must retain Claude Haiku synthesis and ChatLab identities after their only product callers are deleted | Reviewed by dependency | Delete the orphaned Haiku/ChatLab configuration with IR-047, IR-603, and IR-604 |
 | IR-607 | Every LLM-gateway provider attempt requires an immutable per-attempt Firestore cost/accounting document | Reviewed | Delete the unread attempt ledger; keep authoritative quota/usage counters and operational metrics |
 | IR-608 | Retained Python model workloads require a separately deployed GKE LLM gateway between the backend APIs and model providers | Reviewed | Delete the independent gateway service; retain direct managed-provider calls inside the owning Python backends |
 | IR-609 | Backend model workloads require three global model-quality profiles named `premium`, `max`, and `byok` | Reviewed | Delete the global profile system; keep one explicit managed provider/model route per surviving workload |
-| IR-610 | Cloud transcription fair-use enforcement requires GPT classification of recent hosted conversation summaries and a warning/throttle/restrict case system | Reopened for Gemini-first simplification | Keep the fair-use system and its failure policy, but run its bounded transient classification through Gemini 3.7 Flash |
+| IR-610 | Cloud transcription fair-use enforcement requires GPT classification of recent hosted conversation summaries and a warning/throttle/restrict case system | Reviewed after Gemini-first simplification | Keep the fair-use system and its failure policy, but run its bounded transient classification through Gemini 3.7 Flash |
 | IR-611 | The adapted fair-use classifier requires private conversation titles and overview text from the Mac's local-authoritative history | Reviewed at evidence-source boundary | Reuse the current recent-conversation evidence pattern, assembled from local GRDB; do not restore hosted conversation copies |
-| IR-612 | Local-authoritative fair-use evidence must preserve the existing GPT-5.1 classifier rather than introducing a different local model | Reopened for Gemini-first simplification | Replace GPT-5.1 with Gemini 3.7 Flash as transient managed compute over the same bounded local evidence; retain the existing parser and fail-open behavior |
+| IR-612 | Local-authoritative fair-use evidence must preserve the existing GPT-5.1 classifier rather than introducing a different local model | Reviewed after Gemini-first simplification | Replace GPT-5.1 with Gemini 3.7 Flash as transient managed compute over the same bounded local evidence; retain the existing parser and fail-open behavior |
 | IR-613 | Durable fair-use case records require the classifier's conversation titles, local IDs, and content-specific evidence reasons | Reviewed after Gemini-first simplification | Permit bounded evidence only in the transient Gemini request; persist only content-free verdict, usage, and enforcement facts in the backend |
 | IR-614 | The seven-day fair-use `throttle` stage must actually reduce transcription quality | Reviewed | Keep the three-strike pattern; present throttle as a notify-only final warning and make its seven-day reset real |
 | IR-615 | Exhausting the Free plan's ordinary transcription allowance must be recorded as a perfect-score fair-use violation | Reviewed | Keep the current combined quota and fair-use path unchanged, including synthetic `free_exhausted` escalation and upgrade cleanup |
@@ -589,29 +589,29 @@ Decisions are `keep`, `delete candidate`, or `unresolved`.
 | IR-707 | Every fair-use classifier review in the last seven and thirty days counts as a violation even when its score is below the misuse threshold | Reviewed | Count only verdicts at or above 0.7 created after the latest support reset; keep lower-score reviews as non-strike history |
 | IR-708 | Content-free fair-use event and support history must remain indefinitely until account deletion | Reviewed | Keep the current account-lifetime history exactly; no TTL or cleanup service, with deletion through account deletion |
 | IR-709 | The fair-use kill switch and exempt-UID list must bypass every enforcement effect, including existing restrict-stage cloud budgets | Reviewed after reversal | Keep the current partial kill-switch/exemption behavior exactly; do not repair existing restrict-stage live-cloud budget enforcement |
-| IR-710 | Explicitly added or corrected local memories require managed normalization before durable lifecycle admission | Reopened for Gemini-first simplification | Keep the bounded `memory_l2` pattern and local validation/commit, but route transient inference to Gemini 3.7 Flash |
+| IR-710 | Explicitly added or corrected local memories require managed normalization before durable lifecycle admission | Reviewed after Gemini-first simplification | Keep the bounded `memory_l2` pattern and local validation/commit, but route transient inference to Gemini 3.7 Flash |
 | IR-711 | Retained Mac Gemini workloads require an unreachable persisted Premium/Max model tier that changes Flash workloads to Pro | Reviewed after dead-path verification | Pin live callers to their current defaults and delete only the proven-dead Mac tier selector; preserve separately reachable Python-proxy Pro support for its own audit |
-| IR-712 | The retained authenticated Gemini proxy requires both Google Vertex AI and Gemini AI Studio upstream access paths | Reopened for Gemini-first simplification | Use the Gemini Developer API only; delete Vertex model selection and fallback while preserving Cloud Run ADC for non-model GCP infrastructure |
+| IR-712 | The retained authenticated Gemini proxy requires both Google Vertex AI and Gemini AI Studio upstream access paths | Reviewed after Gemini-first simplification | Use the Gemini Developer API only; delete Vertex model selection and fallback while preserving Cloud Run ADC for non-model GCP infrastructure |
 | IR-713 | The retained managed Gemini proxy requires shared per-user request limits and bounded request/output controls | Reviewed | Keep the exact authenticated, entitlement-gated, 30/minute, 1,500/day, fail-closed Redis and payload-shape guardrail pattern |
 | IR-714 | The canonical Python backend requires a second ElevenLabs `/v2/tts/synthesize` contract beside the retained OpenAI Mac TTS route | Reviewed | Delete the verified callerless ElevenLabs route and its exclusive support surface; preserve `/v1/tts/synthesize` and shared rate limiting |
 | IR-715 | Retained Chat web lookup requires a second Perplexity/Sonar search implementation beside any Claude-owned search behavior | Reviewed | Delete the verified callerless Perplexity/Sonar slice; do not use this deletion to add, retain, or remove Claude web search |
 | IR-716 | Normal typed Chat must search the live public web through Claude's server-side search tool | Reviewed | Delete public-web search completely across typed Chat, voice, hosted-agent residue, and provider configuration |
 | IR-717 | The authenticated Gemini proxy must accept `gemini-2.5-pro` for hand-crafted requests despite having no retained product caller | Reviewed | Delete Pro admission and its exclusive soft-limit downgrade/tier logic; keep live Flash, Flash-Lite, and embedding routes |
-| IR-718 | Retained Mac Gemini workloads require an authenticated streaming proxy and `streamGenerateContent` action | Reopened for Gemini-first simplification | Keep one authenticated native streaming action exclusively for normal Chat, preserving raw Gemini SSE and server-held credentials; keep non-stream generation and embeddings unchanged |
+| IR-718 | Retained Mac Gemini workloads require an authenticated streaming proxy and `streamGenerateContent` action | Reviewed after Gemini-first simplification | Keep one authenticated native streaming action exclusively for normal Chat, preserving raw Gemini SSE and server-held credentials; keep non-stream generation and embeddings unchanged |
 | IR-719 | The Gemini proxy must continue accepting the legacy `gemini-3-flash-preview` model name as an alias for current Flash | Reviewed after recommendation reversal | Keep the small battle-tested preview-to-Flash compatibility rewrite unchanged |
 | IR-720 | OpenRouter should be deleted when its current Wrapped workload is removed | Reviewed after Gemini-first simplification | Keep OpenRouter deleted; retained managed inference is direct Gemini plus the separate OpenAI TTS route |
 | IR-721 | The retained automatic six-word Chat title requires an explicit managed model route after localizing session authority | Reviewed | Keep the current Gemini 2.5 Flash-Lite title computation; return transiently and commit only to the local session catalog |
-| IR-722 | The retained automatic local Chat greeting requires an explicit managed model route after deleting cloud Chat and memory authority | Reopened for Gemini-first simplification | Preserve the bounded greeting contract and local journal commit while routing transient inference to Gemini 3.7 Flash |
+| IR-722 | The retained automatic local Chat greeting requires an explicit managed model route after deleting cloud Chat and memory authority | Reviewed after Gemini-first simplification | Preserve the bounded greeting contract and local journal commit while routing transient inference to Gemini 3.7 Flash |
 | IR-723 | Retained local proactive assistants require the backend Mentor/App `proactive_notification` model pipeline | Reviewed | Delete the dead cloud notification model workload; preserve local Mac proactive assistants and Gemini compute |
 | IR-724 | Subscription purchase and transcription-limit messaging require GPT-written personalized push copy built from cloud memories | Reviewed | Delete the notification model route, cloud-memory reads, and FCM callers; keep authoritative billing/quota state and deterministic local Mac presentation |
 | IR-725 | The retained Mac product requires OpenGlass/smart-glasses camera frames to be described by a dedicated backend vision-model pipeline | Reviewed | Delete both smart-glasses model routes and live-listener photo-processing ingress; preserve unrelated Mac image and historical-photo surfaces |
 | IR-726 | Retained cloud-STT live translation requires a separately deployed self-hosted NLLB GPU service plus Gemini fallback | Reviewed | Delete NLLB and use the existing Gemini 2.5 Flash-Lite translation path alone; preserve live translation behavior and local result authority |
-| IR-727 | Retained conversation enrichment requires separate structured-summary and action-item model calls after localizing result authority | Reopened for Gemini-first simplification | Keep both calls, prompts, validation, and local commit boundaries while routing transient inference to Gemini 3.7 Flash |
-| IR-728 | Retained conversation-derived Memories require an explicit managed model route for evidence-backed initial extraction | Reopened for Gemini-first simplification | Keep the `memory_l1` evidence and local admission pattern while routing transient inference to Gemini 3.7 Flash |
+| IR-727 | Retained conversation enrichment requires separate structured-summary and action-item model calls after localizing result authority | Reviewed after Gemini-first simplification | Keep both calls, prompts, validation, and local commit boundaries while routing transient inference to Gemini 3.7 Flash |
+| IR-728 | Retained conversation-derived Memories require an explicit managed model route for evidence-backed initial extraction | Reviewed after Gemini-first simplification | Keep the `memory_l1` evidence and local admission pattern while routing transient inference to Gemini 3.7 Flash |
 | IR-729 | The retained canonical Memory product requires the older conversation-memory, learning, and external-category model routes beside `memory_l1` | Reviewed | Delete the legacy `memories`, `learnings`, and `memory_category` routes and old-versus-canonical selector; keep `memory_l1`, `memory_l2`, and retained lifecycle conflict handling |
-| IR-730 | Evidence-backed Short-term memories require a separate managed consolidation judgment after initial extraction | Reopened for Gemini-first simplification | Keep bounded candidates, reference validation, and local commit while routing `memory_conflict` inference to Gemini 3.7 Flash |
+| IR-730 | Evidence-backed Short-term memories require a separate managed consolidation judgment after initial extraction | Reviewed after Gemini-first simplification | Keep bounded candidates, reference validation, and local commit while routing `memory_conflict` inference to Gemini 3.7 Flash |
 | IR-731 | Retained local Pi Chat requires the older Python `chat_extraction` classifier/RAG calls and `chat_graph` persona-answer route | Reviewed after Gemini-first simplification | Keep those old routes deleted; preserve local Pi, native managed Gemini streaming, local retrieval, attachments, greetings, and titles |
-| IR-732 | Automatic ambient capture requires a managed judgment for short transcripts that may be accidental or meaningless | Reopened for Gemini-first simplification | Keep the discard prompt, local ownership, validation, and keep-on-failure policy while routing transient inference to Gemini 3.7 Flash |
+| IR-732 | Automatic ambient capture requires a managed judgment for short transcripts that may be accidental or meaningless | Reviewed after Gemini-first simplification | Keep the discard prompt, local ownership, validation, and keep-on-failure policy while routing transient inference to Gemini 3.7 Flash |
 | IR-733 | A command-line `--skip-onboarding` argument may mark setup complete without running the retained Skip or completion lifecycle | Reviewed | Keep the argument and direct completion-flag behavior exactly as implemented, including availability in published builds |
 | IR-734 | Closing the last app window before onboarding completion terminates the entire menu-bar process | Reviewed | Keep the current pre-completion quit behavior; after completion, closing the window leaves the menu-bar app running |
 | IR-735 | Completion/resume/journal disagreement must emit onboarding state-authority diagnostics while the completion flag remains the UI gate | Reviewed | Keep the content-free disagreement diagnostics and let the completion flag remain the UI winner |
@@ -970,7 +970,7 @@ macOS product
 │   ├── global premium/max/BYOK model-QoS profiles             DELETE; ONE ROUTE PER WORKLOAD (IR-609)
 │   ├── GPT fair-use classifier + graduated restriction       KEEP + ADAPT; CHILDREN RESOLVED (IR-610)
 │   │   ├── classifier evidence from local conversations       KEEP SAME PATTERN; SOURCE FROM LOCAL GRDB (IR-611)
-│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GPT-5.1 (IR-612)
+│   │   ├── local authority versus cloud model inference       LOCAL GRDB + TRANSIENT GEMINI 3.7 FLASH (IR-612)
 │   │   ├── durable storage of classifier content evidence     DISCARD CONTENT; STORE FACTS ONLY (IR-613)
 │   │   ├── seven-day throttle-stage product effect             FINAL WARNING + REAL RESET (IR-614)
 │   │   ├── Free allowance exhaustion as fair-use abuse          KEEP CURRENT PATTERN (IR-615)
@@ -1347,13 +1347,23 @@ Should explicit local Add/Edit memories keep the current managed OpenAI GPT-4.1-
 
 ### Decision
 
-`keep the existing OpenAI GPT-4.1-mini memory_l2 normalization pattern and adapt its ownership boundary`
+`reopened and resolved - keep the bounded memory_l2 normalization pattern and route transient inference to Gemini 3.7 Flash`
 
-Confirmed after correcting the code-path description: pin explicit-memory normalization to managed OpenAI GPT-4.1-mini. Preserve the existing instruction to retain every material user-authored detail; bounded text/provenance/source packet; structured content, subject, predicate, argument, sensitivity and rationale output; subject and schema validation; auditable receipt; retryable provider/parse/validation failures; and no-mutation-on-failure behavior.
+Preserve the existing instruction to retain every material user-authored detail;
+bounded text/provenance/source packet; structured content, subject, predicate,
+argument, sensitivity and rationale output; subject and schema validation;
+auditable receipt; retryable provider/parse/validation failures; and
+no-mutation-on-failure behavior.
 
-Move pending-item selection, current-revision validation, retries, receipt storage and the normalized local write to the Mac's lifecycle runner and authoritative GRDB store. Send only the bounded explicit assertion packet through the authenticated canonical Python backend for transient inference. The backend calls OpenAI directly under IR-608, returns the proposal, stores no cloud memory copy, and keeps raw memory content out of logs and durable backend state. The separate evidence-backed promote/archive/review/reject and duplicate/replace/merge/keep-both decision is retained under IR-730. Do not place an OpenAI key on the Mac, introduce Gemini provider migration, add an on-device replacement model, or restore premium/max/BYOK switching.
-
-No product code has been changed.
+Pending-item selection, current-revision validation, retries, receipt storage,
+and the normalized write remain in the Mac lifecycle runner and authoritative
+GRDB store. Send only the bounded explicit assertion packet through the
+authenticated canonical Python backend. Its `memory_l2` workload calls Gemini
+3.7 Flash using the server-held Gemini credential, returns the proposal, stores
+no cloud Memory copy, and keeps raw Memory content out of logs and durable
+backend state. The separate evidence-backed lifecycle decision remains under
+IR-730. Do not place a provider key on the Mac, add an on-device replacement,
+or restore premium/max/BYOK switching.
 
 ## IR-711 - Hidden Premium/Max tier for retained Mac Gemini workloads
 
@@ -1450,13 +1460,20 @@ Should the retained Gemini proxy keep Vertex when explicitly configured plus our
 
 ### Decision
 
-`keep Vertex plus platform-owned AI Studio fallback exactly as the managed proxy pattern; delete only customer BYOK routing`
+`reopened and resolved - use the Gemini Developer API only and delete Vertex model selection and fallback`
 
-Confirmed: retain one authenticated Mac-facing Gemini proxy contract with both platform-owned Google upstream routes. When the runtime explicitly provides a Google Cloud project and obtains platform credentials, use Vertex AI; otherwise use our server-side Gemini AI Studio key, including local development and the existing Vertex credential-acquisition fallback. Preserve the current request/response adaptation that hides the two Google API shapes from the Mac, including embedding conversion.
+Retain one authenticated Mac-facing Gemini proxy contract backed only by the
+Gemini Developer API and the server-held `GEMINI_API_KEY`. Preserve the bounded
+generation, native streaming, and embedding actions, request/response
+adaptation, authentication, rate limits, and local result ownership.
 
-Remove only the customer-key branch and `get_byok_key("gemini")` selection under IR-062. Customers do not choose the Google access route, provide a Gemini key, or gain a second billing path. Keep prompts/results transient in the proxy with no durable server content copy. Do not collapse to one Google route, add a customer-facing switch, or alter realtime PTT's separate provider portfolio.
-
-No product code has been changed.
+Delete `USE_VERTEX_AI`, Vertex model/client selection, project/location model
+inference, and the credential-acquisition fallback, together with customer BYOK
+routing already rejected under IR-062. Cloud Run ADC remains required for
+Firebase, Firestore, Cloud Tasks, and other non-model Google Cloud
+infrastructure. Customers do not choose the Google access route or provide a
+Gemini key. Prompts and results remain transient with no durable backend content
+copy.
 
 ## IR-713 - Managed Gemini proxy authentication, limits, and payload guardrails
 
@@ -1464,7 +1481,7 @@ No product code has been changed.
 
 > Every managed Gemini generation, streaming, and embedding request must pass one account and cost-safety boundary before our provider credentials pay for it.
 
-This does not choose a Gemini model or Google access route. IR-711 pins the ordinary model workloads and IR-712 keeps Vertex plus platform-owned AI Studio access. IR-713 is the shared front door around those calls.
+This does not choose a Gemini model or Google access route. IR-711 pins the ordinary model workloads and IR-712 selects the Gemini Developer API as the sole model access route. IR-713 is the shared front door around those calls.
 
 ### Exact current behavior
 
@@ -1663,9 +1680,9 @@ This is a child of IR-713's retained allowlist boundary, not a rejection of allo
 
 `delete Gemini Pro admission and its exclusive downgrade/tier policy`
 
-Confirmed: remove `gemini-2.5-pro` from the desktop proxy's AI Studio and Vertex allowlists; the Pro-only post-soft-limit rewrite to Flash; the `OMI_MODEL_TIER` 30-versus-300 soft-limit branch used only by that rewrite; Pro-only proxy tests, fixtures, comments, and documentation; and any remaining Pro model helper proven to have no surviving caller after IR-711 and the unused shared-Rust deletion under IR-009.
+Confirmed: remove `gemini-2.5-pro` from the desktop proxy's model allowlist; the Pro-only post-soft-limit rewrite to Flash; the `OMI_MODEL_TIER` 30-versus-300 soft-limit branch used only by that rewrite; Pro-only proxy tests, fixtures, comments, and documentation; and any remaining Pro model helper proven to have no surviving caller after IR-711 and the unused shared-Rust deletion under IR-009.
 
-Preserve `gemini-2.5-flash`, `gemini-2.5-flash-lite`, and `gemini-embedding-001`; generate, stream, single-embed, and batch-embed actions as applicable; Vertex-first plus platform-key AI Studio fallback under IR-712; Firebase authentication and retained entitlement checks; 30 requests per minute and 1,500 per day with fail-closed Redis; request sanitization; payload/output/thinking bounds; and all live Mac workloads. A hand-crafted Pro request must now receive the same `403` as any unsupported model rather than being accepted or silently downgraded.
+Preserve the live allowlisted Gemini generation and embedding models and actions; the sole Gemini Developer API route under IR-712; Firebase authentication and retained entitlement checks; 30 requests per minute and 1,500 per day with fail-closed Redis; request sanitization; payload/output/thinking bounds; and all live Mac workloads. A hand-crafted Pro request must now receive the same `403` as any unsupported model rather than being accepted or silently downgraded.
 
 No product code has been changed.
 
@@ -1691,17 +1708,24 @@ POST /v1/proxy/gemini-stream/{path}
 
 Repository-wide production tracing finds no Mac, Node, or surviving Python caller for `/v1/proxy/gemini-stream` or `streamGenerateContent`. The retained Focus, Insight, Task, Goals, and Suggestion model clients use `generateContent` and must receive a complete response before decoding text, structured JSON, or tool calls. Streaming a partial JSON object would not let those features act earlier.
 
-This route is unrelated to normal Claude Chat streaming through `/v2/chat/completions`, OpenAI/Gemini realtime PTT audio, live STT WebSockets, or batch embeddings. Those have independent transports and do not call this endpoint.
+This route was unrelated to the separate normal-Chat stream, Gemini Live realtime PTT audio, live STT WebSockets, or batch embeddings. Those have independent transports and did not call this endpoint. IR-718's final decision below now assigns normal Chat one authenticated native Gemini streaming action without restoring this compatibility route.
 
 ### Decision
 
-`delete the callerless Gemini streaming proxy`
+`reopened and resolved - keep one authenticated native Gemini streaming action exclusively for normal Chat`
 
-Confirmed: remove `/v1/proxy/gemini-stream/{path}`; `streamGenerateContent` from the desktop proxy action allowlist; streaming-only upstream client/context/chunk forwarding and cleanup; streaming-only stub behavior; route-specific tests, fixtures, comments, inventory, and documentation; and any helper left with no surviving caller.
+Normal Chat now calls
+`POST /v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse` through the
+packaged Pi adapter. Keep that one authenticated native-streaming action,
+server-held Gemini credential, raw Gemini SSE transport, bounded request and
+duration policy, usage accounting, cancellation, typed provider failures, and
+opaque thought-signature round trips required by tool continuation.
 
-Preserve the authenticated `/v1/proxy/gemini/{path}` route; `generateContent`, `embedContent`, and `batchEmbedContents`; complete-response error propagation; Flash, Flash-Lite, and embedding models retained under IR-717; Vertex/AI Studio routing; universal Gemini rate limits and request bounds; normal Claude Chat streaming; realtime PTT; and live transcription streaming.
-
-No product code has been changed.
+Keep non-stream generation and embedding actions unchanged. Do not restore the
+old `/v1/proxy/gemini-stream/{path}` compatibility route, a generic streaming
+action for unrelated callers, Claude Chat, Vertex routing, or provider
+selection. Realtime Gemini Live and managed transcription remain separate
+protocol owners.
 
 ## IR-719 - Legacy Gemini preview-name compatibility rewrite
 
@@ -1777,7 +1801,7 @@ Confirmed: preserve the first-real-exchange trigger; existing maximum-six-word p
 
 Read the title input from the authoritative local journal and bound it to the existing small first-exchange context. Return the candidate transiently from Python without reading or writing a backend Chat session. Validate and persist the accepted title only in the owner-scoped local session catalog, then update the current/sidebar presentation from that local commit.
 
-Delete the Firestore session lookup/update and backend session ID requirement from the compute boundary; server-side title persistence; global premium/max/BYOK title switching; OpenRouter involvement; and tests/contracts that require a cloud session record. This does not change normal Chat's direct Anthropic model, public-web deletion, local journal authority, or manual rename.
+Delete the Firestore session lookup/update and backend session ID requirement from the compute boundary; server-side title persistence; global premium/max/BYOK title switching; OpenRouter involvement; and tests/contracts that require a cloud session record. This does not change normal Chat's separate native Gemini stream, public-web deletion, local journal authority, or manual rename.
 
 No product code has been changed.
 
@@ -1805,15 +1829,25 @@ create owner-scoped local Chat session
 
 ### Decision
 
-`keep OpenAI GPT-5.4-mini for the automatic greeting with local-only authority`
+`reopened and resolved - preserve the bounded greeting contract and route transient inference to Gemini 3.7 Flash`
 
-Confirmed: preserve the ordinary primary-assistant greeting prompt's friendly, short, personalized behavior; one generation attempt when a new ordinary Chat is created; managed OpenAI GPT-5.4-mini computation; authentication, rate limiting, count-only usage accounting, bounded timeout/error handling, and focused greeting tests; and the non-fatal failure behavior that leaves the existing welcome state and composer usable.
+Preserve the ordinary primary-assistant greeting prompt's friendly, short,
+personalized behavior; one generation attempt when a new ordinary Chat is
+created; authentication, rate limiting, count-only usage accounting, bounded
+timeout/error handling, and focused greeting tests; and the non-fatal failure
+behavior that leaves the existing welcome state and composer usable. The
+canonical `chat_greeting` workload uses Gemini 3.7 Flash.
 
 Build the prompt from an explicitly bounded local AI Profile/memory packet supplied for transient computation. Python returns greeting text only and stores no prompt context, output, session, or message. The Mac assigns the local turn identity, commits it directly to the owner-scoped journal, and derives preview/count from that accepted local turn.
 
-Delete Firestore Chat-session lookup/creation; previous backend-message lookup; backend prompt-memory lookup; app/persona greeting forks; server message/session writes and server message ID; remote-turn import used only to copy the greeting back; global premium/max/BYOK route switching; and old generic `chat_responses` vocabulary or hosted-Chat helpers left with no other surviving caller. This does not change normal Chat's direct Anthropic Sonnet loop, automatic title generation, manual rename, or the separate local post-onboarding Home opener.
-
-No product code has been changed.
+Delete Firestore Chat-session lookup/creation; previous backend-message lookup;
+backend prompt-memory lookup; app/persona greeting forks; server
+message/session writes and server message ID; remote-turn import used only to
+copy the greeting back; global premium/max/BYOK route switching; and old
+generic `chat_responses` vocabulary or hosted-Chat helpers left with no other
+surviving caller. This does not change normal Chat's separate native Gemini
+stream, automatic title generation, manual rename, or the local post-onboarding
+Home opener.
 
 ## IR-723 - Cloud Mentor/App proactive-notification model workload
 
@@ -1959,17 +1993,22 @@ IR-608 deletes the separate LLM gateway, and IR-609 deletes the Premium/Max/BYOK
 
 ### Decision
 
-`keep the two existing OpenAI GPT-5.4-mini jobs with local result authority`
+`reopened and resolved - keep both conversation-enrichment jobs and route transient inference to Gemini 3.7 Flash`
 
-Confirmed: retain separate `conv_structure` and `conv_action_items` computations using their existing OpenAI GPT-5.4-mini prompt patterns, structured response validation, language and deterministic local-time handling, due-date normalization, conservative task-quality rules, related-task deduplication semantics, bounded errors, usage accounting and focused behavioral tests.
+Retain separate `conv_structure` and `conv_action_items` computations using
+their established prompt patterns, structured response validation, language
+and deterministic local-time handling, due-date normalization, conservative
+task-quality rules, related-task deduplication semantics, bounded errors, usage
+accounting, and focused behavioral tests. Both canonical workloads use Gemini
+3.7 Flash.
 
 Adapt the ownership boundary: the Mac owns the accepted finalized transcript and supplies only the bounded transcript plus independently retained local language, time-zone, conversation-local speaker/context and related-task facts needed for transient computation. Python returns candidate structure and action items without creating or loading a hosted conversation, task, session or processing record. The Mac validates the response against the local enrichment generation, assigns local identities, and commits accepted title, overview, emoji, calendar commitments and linked tasks through the authoritative local transaction.
 
 Remove the global quality-profile and BYOK switching already rejected by IR-609; standalone-gateway/auto-lane/shadow/promotion machinery already rejected by IR-608; Firestore conversation/task reads and writes; server-owned processing state and IDs; rejected category, wearable-photo, App/integration and automatic-folder inputs/outputs; and exclusive compatibility, synchronization and cloud-authority tests. Manual title edits and ordinary local task edit/completion behavior continue to override or mutate their authoritative local records.
 
-This does not alter normal Chat's direct Anthropic Sonnet loop, automatic Chat greeting/title jobs, Gemini translation or proactive-assistant workloads, realtime PTT, or local Parakeet transcription.
-
-No product code has been changed.
+This does not alter normal Chat's separate native Gemini stream, automatic Chat
+greeting/title jobs, Gemini translation or proactive-assistant workloads,
+realtime PTT, or local Parakeet transcription.
 
 ## IR-728 - Managed model for conversation-derived Memory extraction
 
@@ -1983,17 +2022,31 @@ This is distinct from the retained Gemini screen-to-Memory Assistant, manual Add
 
 ### Decision
 
-`keep the existing OpenAI GPT-4.1-mini memory_l1 extraction pattern with local admission`
+`reopened and resolved - keep the memory_l1 extraction and local-admission pattern and route transient inference to Gemini 3.7 Flash`
 
-Confirmed: retain the source-aware conversation prompt; OpenAI GPT-4.1-mini route; structured candidate schema; 32-item maximum; source-local speaker and subject-attribution rules; evidence-quote requirement and exact grounding; candidate deduplication/bounding; confidence and sensitivity/risk hints; strict parse/failure behavior; usage accounting; and focused behavioral tests.
+Retain the source-aware conversation prompt; structured candidate schema;
+32-item maximum; source-local speaker and subject-attribution rules;
+evidence-quote requirement and exact grounding; candidate
+deduplication/bounding; confidence and sensitivity/risk hints; strict
+parse/failure behavior; usage accounting; and focused behavioral tests. The
+canonical `memory_l1` workload uses Gemini 3.7 Flash.
 
 Adapt the ownership boundary: the Mac supplies a bounded readable transcript built from authoritative local segment rows and conversation-local speaker labels for transient computation. Python returns candidates and stores no transcript, candidate, source, route outcome or memory record. The Mac verifies every evidence quote against exactly one local source segment, resolves subject attribution from authoritative local segment facts, assigns local identities, and admits accepted candidates into the locally authoritative Short-term lifecycle and audit transaction selected under IR-260.
 
-Remove hosted People and user-language/profile lookups by supplying the independently retained local name/language/context explicitly; Firestore conversation and memory reads/writes; canonical cohort/capability selection; hosted evidence associations, route outcomes, analytics dedup state and source-replacement transactions; global quality profiles/BYOK and standalone-gateway machinery already rejected under IR-609/608; rejected external-integration extraction callers; and exclusive synchronization/cloud-authority tests. Keep later local promotion/archive behavior and its separately retained `memory_conflict` consolidation judgment unchanged.
+Remove hosted People and user-language/profile lookups by supplying the
+independently retained local name/language/context explicitly; Firestore
+conversation and Memory reads/writes; canonical cohort/capability selection;
+hosted evidence associations, route outcomes, analytics dedup state and
+source-replacement transactions; global quality profiles/BYOK and
+standalone-gateway machinery already rejected under IR-609/608; rejected
+external-integration extraction callers; and exclusive synchronization/cloud-
+authority tests. Keep later local promotion/archive behavior and its separately
+retained `memory_conflict` consolidation judgment unchanged.
 
-Do not route screenshot/OCR memories through this conversation endpoint, replace manual memory creation, weaken source-conversation deletion cascades, or make Python authoritative for memory identity, tier, expiry, correction, conflict resolution, deletion or search.
-
-No product code has been changed.
+Do not route screenshot/OCR Memories through this conversation endpoint,
+replace manual Memory creation, weaken source-conversation deletion cascades,
+or make Python authoritative for Memory identity, tier, expiry, correction,
+conflict resolution, deletion, or search.
 
 ## IR-729 - Obsolete memory-extraction and category model routes
 
@@ -2047,15 +2100,35 @@ This is not the older per-fact legacy conflict helper removed under IR-729. It i
 
 ### Decision
 
-`keep the existing OpenAI GPT-4.1-mini memory_conflict consolidation pattern with local authority`
+`reopened and resolved - keep the memory_conflict consolidation pattern with local authority and route transient inference to Gemini 3.7 Flash`
 
-Confirmed: retain the canonical batch prompt; OpenAI GPT-4.1-mini route; promote/archive/review/reject and create/duplicate/replace/merge/keep-both vocabulary; total one-decision-per-input contract; bounded similarity context; subject, evidence, sensitivity, aboutness, relationship and recurrence rules; supersession/merge semantics; structured output; deterministic allowlist and conservation validation; no-mutation-on-invalid-output behavior; retry/review escalation; usage accounting; and focused behavioral tests.
+Retain the canonical batch prompt; promote/archive/review/reject and
+create/duplicate/replace/merge/keep-both vocabulary; total
+one-decision-per-input contract; bounded similarity context; subject, evidence,
+sensitivity, aboutness, relationship and recurrence rules; supersession/merge
+semantics; structured output; deterministic allowlist and conservation
+validation; no-mutation-on-invalid-output behavior; retry/review escalation;
+usage accounting; and focused behavioral tests. The canonical
+`memory_conflict` workload uses Gemini 3.7 Flash.
 
-Adapt the ownership boundary: the Mac's local lifecycle runner selects a bounded due Short-term batch and relevant active local memories, assigns an input-generation identity, and sends only that packet through the authenticated canonical Python backend for transient inference. Python calls OpenAI directly, returns a proposed batch, and stores no memory, evidence, retry, cursor, watermark or decision record. The Mac validates every returned candidate, target, supersession and evidence reference against the same current local generation, then atomically commits accepted lifecycle and audit transitions to GRDB. Provider, parse, stale-generation or validation failure changes nothing and is retried locally under the retained bounded policy.
+The Mac's local lifecycle runner selects a bounded due Short-term batch and
+relevant active local Memories, assigns an input-generation identity, and sends
+only that packet through the authenticated canonical Python backend for
+transient inference. Python calls Gemini, returns a proposed batch, and stores
+no Memory, evidence, retry, cursor, watermark, or decision record. The Mac
+validates every returned candidate, target, supersession, and evidence reference
+against the same current local generation, then atomically commits accepted
+lifecycle and audit transitions to GRDB. Provider, parse, stale-generation, or
+validation failure changes nothing and is retried locally under the retained
+bounded policy.
 
-Remove the Cloud Run scheduler/job, Firestore candidate hydration and writes, hosted retry leases/cursors/watermarks/outbox, cohort gating, cloud graph/recurrence handoffs already rejected elsewhere, global quality/BYOK and gateway switching, the legacy per-memory resolver deleted under IR-729, and exclusive cloud-authority tests. Do not combine this prompt with `memory_l1`, make Python authoritative, put an OpenAI key on the Mac, or alter manual Add/Edit normalization under IR-710.
-
-No product code has been changed.
+Remove the Cloud Run scheduler/job, Firestore candidate hydration and writes,
+hosted retry leases/cursors/watermarks/outbox, cohort gating, cloud
+graph/recurrence handoffs already rejected elsewhere, global quality/BYOK and
+gateway switching, the legacy per-Memory resolver deleted under IR-729, and
+exclusive cloud-authority tests. Do not combine this prompt with `memory_l1`,
+make Python authoritative, put a provider key on the Mac, or alter manual
+Add/Edit normalization under IR-710.
 
 ## IR-731 - Obsolete hosted Chat extraction/RAG and persona-answer routes
 
@@ -2102,15 +2175,24 @@ For example, “Yeah, okay, thanks” may be discarded, while “Call Sarah tomo
 
 ### Decision
 
-`keep the existing OpenAI GPT-4.1-nano conv_discard pattern with local conversation authority`
+`reopened and resolved - keep the conv_discard pattern with local conversation authority and route transient inference to Gemini 3.7 Flash`
 
-Confirmed: retain the empty-content discard fast path; over-100-word automatic keep; duration-aware higher bar for recordings under two minutes; existing meaningful-content versus filler criteria; OpenAI GPT-4.1-nano prompt; boolean schema/parser; bounded provider failure; keep-on-model/parse-failure safety; usage accounting; and focused behavioral tests.
+Retain the empty-content discard fast path; over-100-word automatic keep;
+duration-aware higher bar for recordings under two minutes; existing
+meaningful-content versus filler criteria; prompt; boolean schema/parser;
+bounded provider failure; keep-on-model/parse-failure safety; usage accounting;
+and focused behavioral tests. The canonical `conv_discard` workload uses Gemini
+3.7 Flash.
 
 Adapt the ownership boundary: the Mac supplies only the bounded authoritative local transcript, duration and word count through the authenticated canonical Python backend. Python performs transient inference, returns the proposed boolean, and stores no transcript, conversation, discard state or processing record. The Mac verifies the response against the current local finalization/enrichment generation and applies the retained local discard/cleanup policy atomically; stale results do nothing.
 
-Remove wearable-photo input and visual criteria under IR-359; hosted conversation reads/writes and discard synchronization; premium/max/BYOK and gateway routing under IR-609/608; and exclusive cloud-authority tests. Do not route long or empty transcripts through the model, weaken keep-on-failure, apply this classifier to typed Chat/PTT, or change the downstream rule that discarded ambient captures do not produce visible conversation history, summaries, tasks or memories.
-
-No product code has been changed.
+Remove wearable-photo input and visual criteria under IR-359; hosted
+conversation reads/writes and discard synchronization; premium/max/BYOK and
+gateway routing under IR-609/608; and exclusive cloud-authority tests. Do not
+route long or empty transcripts through the model, weaken keep-on-failure,
+apply this classifier to typed Chat/PTT, or change the downstream rule that
+discarded ambient captures do not produce visible conversation history,
+summaries, tasks, or Memories.
 
 ## IR-008 - Retained Python backend and deployed supporting services
 
@@ -3098,7 +3180,7 @@ IR-258 deletes the Memories-page **This device** filter and its backend capabili
 
 IR-259 deletes memory Public/Private state and shareable-persona controls by dependency, while leaving deletion controls separate. IR-260 next challenges the server-owned Short-term/Long-term/Archive lifecycle: its filter, badges, expiry/promotion/archive rules, cohort capability, and jobs have no current local producer after IR-024.
 
-IR-260 keeps the complete Short-term/Long-term/Archive behavior but makes GRDB and a local lifecycle runner authoritative, preserving the existing policy and transition-safety pattern while deleting server cohort, synchronization, Firestore, hosted worker, and reconciliation authority. IR-710 retains OpenAI GPT-4.1-mini `memory_l2` for bounded explicit-memory normalization, and IR-730 retains OpenAI GPT-4.1-mini `memory_conflict` for bounded consolidation judgment; the Mac owns scheduling, validation, and commit for both.
+IR-260 keeps the complete Short-term/Long-term/Archive behavior but makes GRDB and a local lifecycle runner authoritative, preserving the existing policy and transition-safety pattern while deleting server cohort, synchronization, Firestore, hosted worker, and reconciliation authority. IR-710 retains `memory_l2` with Gemini 3.7 Flash for bounded explicit-memory normalization, and IR-730 retains `memory_conflict` with Gemini 3.7 Flash for bounded consolidation judgment; the Mac owns scheduling, validation, and commit for both.
 
 IR-261 next challenges the fourth **Workflow** memory category: the surviving local writers produce About You, Insights, and Manual, while Workflow has no current Mac producer after hosted/external memory writes are removed.
 
@@ -9674,7 +9756,7 @@ The backend also has a legacy Firestore/vector path, but that belongs to the rej
 
 `keep Add Memory and adapt the existing lifecycle locally`
 
-The product capability is useful and already built. The unnecessary part is hosted authority, not manual memory creation or its battle-tested processing boundary. Save should enter the same locally owned Short-term-to-Long-term lifecycle retained in IR-260 instead of becoming either an API call or a raw SQLite shortcut. IR-710 retains OpenAI GPT-4.1-mini for bounded explicit-memory normalization, and IR-730 separately retains the later consolidation judgment.
+The product capability is useful and already built. The unnecessary part is hosted authority, not manual memory creation or its battle-tested processing boundary. Save should enter the same locally owned Short-term-to-Long-term lifecycle retained in IR-260 instead of becoming either an API call or a raw SQLite shortcut. IR-710 retains Gemini 3.7 Flash for bounded explicit-memory normalization, and IR-730 separately retains the later Gemini-backed consolidation judgment.
 
 ### Question
 
@@ -12397,7 +12479,7 @@ Should we delete Omi's plan-based deferred mode and start normal local enrichmen
 
 `delete Omi's plan-based lazy-on-first-open enrichment mode`
 
-Confirmed: remove the `deferred` conversation product field and its Basic/Neo/Operator/Architect/BYOK eligibility policy, first-detail-read enrichment trigger, atomic deferred reacquisition, failure re-arming, stale-sweeper exclusions, Mac deferred branch, and focused contracts. Every finalized conversation enters the normal locally authoritative enrichment lifecycle immediately. Keep the ordinary Processing state and separately audit its UI/update behavior. IR-727 subsequently selects the existing direct OpenAI GPT-5.4-mini structure and action-item routes.
+Confirmed: remove the `deferred` conversation product field and its Basic/Neo/Operator/Architect/BYOK eligibility policy, first-detail-read enrichment trigger, atomic deferred reacquisition, failure re-arming, stale-sweeper exclusions, Mac deferred branch, and focused contracts. Every finalized conversation enters the normal locally authoritative enrichment lifecycle immediately. Keep the ordinary Processing state and separately audit its UI/update behavior. IR-727 subsequently selects the separate Gemini 3.7 Flash structure and action-item workloads.
 
 No code deletion is authorized yet.
 
@@ -13144,7 +13226,7 @@ During normal `process_conversation`, Omi turns the transcript—with available 
 
 `ConversationDetailView` renders the Summary section only when the overview is non-empty. It shows a gold `star.fill`, the semibold label **Summary**, and the overview through `OmiMarkdown` in dark presentation with text selection enabled and full-width leading alignment.
 
-The overview also participates in Conversations search retained locally under IR-298 and in retained local conversation-retrieval behavior. The local `transcription_sessions` record already carries an overview field. Under IR-329, normal enrichment starts at finalization rather than first open; IR-727 subsequently selects the existing direct OpenAI GPT-5.4-mini structure route.
+The overview also participates in Conversations search retained locally under IR-298 and in retained local conversation-retrieval behavior. The local `transcription_sessions` record already carries an overview field. Under IR-329, normal enrichment starts at finalization rather than first open; IR-727 subsequently selects the Gemini 3.7 Flash structure workload.
 
 ### Requirement materialized by this code
 
@@ -23477,15 +23559,20 @@ Should we delete the GPT fair-use classifier and its warning/throttle/restrict c
 
 ### Decision
 
-`resolved - keep fair-use protection and adapt it to the retained product architecture`
+`reopened and resolved - keep fair-use protection and route its bounded transient classification through Gemini 3.7 Flash`
 
 Confirmed: preserve rolling usage awareness, a conservative abuse-review step after soft triggers, graduated warning/throttle/restrict states, a user-visible explanation/appeal path, support controls, and the deterministic impossible-volume ceiling. Do not collapse all protection into the ordinary monthly quota.
 
 This is not approval to keep the current implementation verbatim. Its hosted-conversation evidence is no longer authoritative, the `throttle` stage currently claims a quality reduction that no production reader performs, and Omi/Deepgram/on-device wording and legacy plan types must become our own Dodo-backed contract. IR-611 through IR-709 now resolve the evidence, inference, thresholds, enforcement effects, recovery, user/support surfaces, retention, and operational-override boundaries.
 
-The fair-use branch is now closed. Its children preserve the existing product pattern while moving durable evidence authority to local GRDB, retaining backend GPT-5.1 as bounded transient compute, retaining content-free backend enforcement/support state, and recording the user's explicit choices where current behavior remains intentionally imperfect.
-
-No product code deletion is authorized yet.
+The fair-use branch is now closed. Its children preserve the existing product
+pattern while moving durable evidence authority to local GRDB, routing bounded
+transient classification through the canonical Gemini 3.7 Flash workload,
+retaining content-free backend enforcement/support state, and recording the
+user's explicit choices where current behavior remains intentionally imperfect.
+The Gemini-first implementation preserves the existing classifier schema,
+parser, and fail-open behavior; it does not restore hosted conversations or
+make model output durable product authority.
 
 ## IR-611 - Local-conversation evidence admitted to fair-use classification
 
@@ -23575,7 +23662,7 @@ Should the Mac own the evidence while the existing backend GPT-5.1 classifier re
 
 ### Decision
 
-`resolved after correction - keep local-authoritative evidence with the existing cloud GPT-5.1 classifier`
+`reopened and resolved - keep local-authoritative evidence and replace GPT-5.1 with Gemini 3.7 Flash as bounded transient compute`
 
 Confirmed flow:
 
@@ -23583,26 +23670,31 @@ Confirmed flow:
 backend detects a rolling soft-cap trigger
   -> authenticated Mac reads up to thirty local evidence records
   -> send one bounded, owner-authorized evidence request
-  -> existing backend GPT-5.1 classifier uses the same prompt/recipes/schema
+  -> backend Gemini 3.7 Flash classifier uses the retained prompt/recipes/schema
   -> transient result contains misuse_score, type, confidence,
      evidence, and reasoning
   -> discard request content and detailed result after deriving bounded facts
   -> backend applies the retained graduated enforcement policy
 ```
 
-Preserve the existing semantic behavior rather than inventing a replacement model or heuristic: the same GPT-5.1 model, recent seven-day/up-to-thirty-conversation window, title/overview/category/duration/source/time evidence, prompt, recipes, conservative legitimate-use rules, misuse score, coarse usage type, confidence, evidence selection, parser behavior, and warning/throttle/restrict decision contract. The implementation change is only the durable authority: local GRDB replaces hosted conversation queries.
+Preserve the recent seven-day/up-to-thirty-conversation window,
+title/overview/category/duration/source/time evidence, prompt, recipes,
+conservative legitimate-use rules, misuse score, coarse usage type, confidence,
+evidence selection, parser behavior, warning/throttle/restrict decision contract,
+and fail-open policy. Gemini 3.7 Flash replaces GPT-5.1 only at the bounded
+transient inference boundary; local GRDB remains the evidence authority.
 
 No raw audio, full transcript, screenshot, person/name, or unbounded conversation payload leaves the Mac. The exact bounded title/overview/category/duration/source/time evidence may cross only in the authenticated transient classification request. It must not enter Firestore, Redis, logs, metrics, crash reports, notifications, support responses, or a hosted conversation store. The backend remains authoritative for metered cloud usage, strikes, enforcement state, and the deterministic 30-hour ceiling.
 
-IR-613 is resolved by this transient-compute boundary: GPT-5.1 may observe bounded evidence for the live request, while the backend durably stores only content-free verdict, usage, and enforcement facts.
-
-No product code deletion is authorized yet.
+IR-613 is resolved by this transient-compute boundary: Gemini may observe
+bounded evidence for the live request, while the backend durably stores only
+content-free verdict, usage, and enforcement facts.
 
 ## IR-613 - Durable storage of classifier conversation evidence
 
 ### Requirement implied by the current case schema
 
-> After transient GPT-5.1 classification, the backend must persist the classifier's conversation identifiers, titles, and content-specific reasons inside its Firestore `fair_use_events` case.
+> After transient managed-model classification, the backend must persist the classifier's conversation identifiers, titles, and content-specific reasons inside its Firestore `fair_use_events` case.
 
 ### Exact difference between temporary inference and durable storage
 
@@ -23622,7 +23714,7 @@ The current backend nests that result in a durable Firestore fair-use event beca
 
 ### Choices
 
-1. **Persist only content-free decision/audit facts.** Keep account UID, usage-window totals and thresholds, model/provider and prompt version, score, the existing coarse usage type, confidence, previous/new stage, action, timestamps, and case reference. Hold titles/overviews only in request memory for GPT-5.1 and exclude them from logs, metrics, Firestore, notifications, and support list responses. Do not invent a new reason-code taxonomy.
+1. **Persist only content-free decision/audit facts.** Keep account UID, usage-window totals and thresholds, model/provider and prompt version, score, the existing coarse usage type, confidence, previous/new stage, action, timestamps, and case reference. Hold titles/overviews only in request memory for the Gemini 3.7 Flash classification and exclude them from logs, metrics, Firestore, notifications, and support list responses. Do not invent a new reason-code taxonomy.
 2. **Persist selected titles and model reasons in the case.** Give support richer evidence for appeals, accepting that private derived conversation content becomes a durable backend record with retention, deletion, access-control, and disclosure obligations.
 3. **Persist opaque local references only.** Store local IDs/hashes without text so the Mac can later resolve the conversations during an appeal. This couples server cases to owner-local records and still needs explicit user-mediated evidence sharing; the backend cannot interpret the references itself.
 
@@ -23634,13 +23726,13 @@ Support needs to know that the existing score/type/confidence and usage facts ca
 
 ### Question
 
-After transient GPT-5.1 classification finishes, should the backend discard the content request/result and persist only the existing content-free score/type/confidence plus usage and enforcement facts?
+After transient classification finishes, should the backend discard the content request/result and persist only the existing content-free score/type/confidence plus usage and enforcement facts?
 
 ### Decision
 
 `resolved by IR-612 - allow transient classifier content and persist only content-free case facts`
 
-Confirmed: the authenticated classification request may contain only the existing title, first 200 overview characters, category, duration, source, time, and an opaque request-local evidence token for at most thirty conversations. The backend fair-use event retains account UID, rolling usage and thresholds, GPT-5.1/prompt version, score, the existing coarse usage type, confidence, prior/new stage, action, timestamps, and case reference. No title, overview, transcript, raw audio, name, local conversation ID, prompt payload, selected evidence, content-specific reasoning text, or newly invented reason-code taxonomy is durably stored or logged.
+Confirmed: the authenticated classification request may contain only the existing title, first 200 overview characters, category, duration, source, time, and an opaque request-local evidence token for at most thirty conversations. The backend fair-use event retains account UID, rolling usage and thresholds, provider/model/prompt version, score, the existing coarse usage type, confidence, prior/new stage, action, timestamps, and case reference. No title, overview, transcript, raw audio, name, local conversation ID, prompt payload, selected evidence, content-specific reasoning text, or newly invented reason-code taxonomy is durably stored or logged.
 
 No code deletion is authorized yet.
 
@@ -24120,7 +24212,7 @@ No product code deletion is authorized yet.
 
 ### Exact current behavior
 
-Each classifier review creates one Firestore event. After the local-authority/transient-compute decisions, a retained backend event contains only bounded account/usage/enforcement facts: UID, timestamps, thresholds and usage totals, GPT-5.1/prompt version, score, the existing coarse type/confidence, prior/new stage, action, case reference, and later support resolution metadata. It contains no title, overview, transcript, audio, screenshot, local conversation ID, prompt payload, selected evidence, detailed classifier reasoning, or new reason-code taxonomy.
+Each classifier review creates one Firestore event. After the local-authority/transient-compute decisions, a retained backend event contains only bounded account/usage/enforcement facts: UID, timestamps, thresholds and usage totals, provider/model/prompt version, score, the existing coarse type/confidence, prior/new stage, action, case reference, and later support resolution metadata. It contains no title, overview, transcript, audio, screenshot, local conversation ID, prompt payload, selected evidence, detailed classifier reasoning, or new reason-code taxonomy.
 
 Automatic escalation looks only at the recent seven-/thirty-day qualifying window established in IR-707. Support normally loads at most the newest fifty events. But the database has no TTL, cap, or deletion job for older events. Reset changes the counting boundary without deleting history. The retained account-deletion worker eventually removes the user's Firestore subtree, including these records.
 

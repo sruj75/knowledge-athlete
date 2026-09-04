@@ -9,6 +9,11 @@ checks:
     triggers: ["Makefile", "scripts/dev-harness/**", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the hermetic dev-harness stack backs release qualification; its reduced retained-service lifecycle must stay behaviorally covered"
+  - id: dev-init-setup-ownership
+    command: ["bash", "scripts/dev-harness/test-dev-init.sh"]
+    triggers: ["Makefile", "scripts/dev-harness/dev-init.sh", "scripts/dev-harness/_resolve_python.sh", "scripts/dev-harness/test-dev-init.sh", "backend/scripts/sync-python-deps.sh", "scripts/install-git-hooks.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 audit at d882065f found dev-init maintaining an unlocked Python environment and one incomplete Git hook beside make setup; the developer bootstrap must have one owner"
   - id: pre-tag-readiness-contract
     command: ["bash", "desktop/macos/tests/test-pre-tag-readiness-contract.sh"]
     triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test-pre-tag-readiness-contract.sh", "scripts/dev-harness/_resolve_python.sh", ".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/workflows/desktop_auto_release.yml", ".github/checks-manifest.yaml"]
@@ -19,6 +24,21 @@ checks:
     triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test_pre_tag_readiness_behavior.py", ".github/scripts/git_bash.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "a disposable source and authenticated capability fakes prove the real readiness orchestrator emits its exact-SHA receipt only after ordered cleanup"
+  - id: gauntlet-evidence-at-head-tests
+    command: ["bash", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh"]
+    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/omi-hardening-smoke.sh", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "PR #46 carried stale-SHA Tier-2 evidence and the S-31 final review found raw prompts, replies, identities, logs, screenshots, and audio beside its scrubbed manifest; the bounded pre-push audience must reject incomplete, stale, red, or non-private gauntlet bundles"
+  - id: agent-continuity-gauntlet-self-check
+    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 final review found authenticated health returning a state envelope and the shared CI route lacking the gauntlet's locked Vitest dependency; the live driver must self-provision and exercise its parser and immutable-source contract in deterministic lanes"
+  - id: agent-continuity-gauntlet-source-provenance-test
+    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the S-31 final review found the gauntlet requesting authenticated state while asserting unauthenticated launch provenance; the production ensure-bridge path must select the public health contract"
   - id: verify-pre-tag-readiness-tests
     command: ["python3", ".github/scripts/test_verify_pre_tag_readiness.py"]
     triggers: [".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/checks-manifest.yaml"]
@@ -39,9 +59,14 @@ checks:
     triggers: ["scripts/pre-push", ".github/scripts/check_pre_push_hatch_disclosure.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the retained workflow-lint gate can fail when actionlint and Go are unavailable; every missing-toolchain failure must name PRE_PUSH_SKIP_ACTIONLINT so contributors can distinguish an unprovisioned machine from a repository defect"
+  - id: pre-commit-formatter-ownership
+    command: ["bash", "scripts/test-pre-commit-formatters.sh"]
+    triggers: [".pre-commit-config.yaml", "backend/.black-version", "backend/scripts/black-wrapper.sh", "backend/test-preflight.sh", "scripts/pre-commit", "scripts/pre-push", "scripts/install-git-hooks.sh", "scripts/test-pre-commit-formatters.sh", ".github/scripts/run-lint.sh", ".github/workflows/repo-checks.yml", ".github/actions/detect-changes/action.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "S-31 commit b229d599 exposed local Black 24.8 formatting differently from CI Black 26.5.1 while pre-commit ignored formatter failures; every commit and CI must use one checked-in version owner"
   - id: setup-pre-push-prerequisites
     command: ["bash", "scripts/test-make-setup.sh"]
-    triggers: ["Makefile", "backend/scripts/sync-python-deps.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
+    triggers: ["Makefile", "backend/scripts/sync-python-deps.sh", "scripts/dev-harness/dev-init.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "make setup must provision the minimal, rerunnable backend environment required by selected pre-push checks"
   - id: desktop-release-process-guards
@@ -59,6 +84,18 @@ checks:
     triggers: [".github/scripts/check-desktop-auto-beta-candidate.py", ".github/scripts/test_check_desktop_auto_beta_candidate.py", "desktop/macos/scripts/smoke-signed-desktop-artifact.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the candidate gate validates signed-smoke evidence; a stable-only flag change must not fail-close the first dual-identity release"
+  - id: pre-push-worktree-fallback
+    command: ["bash", "scripts/test-pre-push-worktree-fallback.sh"]
+    triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", "scripts/test-pre-push-worktree-fallback.sh", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
+    lanes: ["local", "ci"]
+    reason: "#10293 and Actions run 33792902192 require the installed Git hook path to retain a real worktree when Git Bash inherits a bare Git context"
+    platforms: ["windows"]
+  - id: preflight-runner-portability
+    command: ["python3", ".github/scripts/test_preflight_runner.py"]
+    triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/test_preflight_runner.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
+    lanes: ["local", "ci"]
+    reason: "Actions run 33792902192 showed the native Windows process and hook-launcher contracts were named by CI but absent from the canonical manifest"
+    platforms: ["windows"]
   - id: check-manifest-contract
     command: ["python3", ".github/scripts/test_run_checks.py"]
     triggers: ["all"]
@@ -166,7 +203,7 @@ checks:
     command: ["python3", "scripts/test_failure_class.py"]
     triggers: ["scripts/failure-class", "scripts/test_failure_class.py", ".github/failure-classes/**", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "the failure-class CLI is the registry's only schema authority; its hermetic tests had no blocking lane and had silently gone stale"
+    reason: "the failure-class CLI is the registry's only schema authority; the S-31 developer-layer audit found fix commits with literal escaped newlines and unbacked new declarations that the PR-only validator accepted"
   - id: desktop-changelog-data
     command: ["python3", ".github/scripts/desktop-changelog.py", "validate"]
     triggers: ["all"]
@@ -284,8 +321,8 @@ checks:
     lanes: ["local", "ci"]
     reason: "backend production Python changes must retain import-time purity"
   - id: managed-model-callsite-inventory
-    command: ["bash", "-c", "cd backend && .venv/bin/python -m pytest -q -m slow tests/unit/test_managed_model_workloads.py::test_application_model_call_sites_cannot_bypass_the_typed_inventory"]
-    triggers: ["backend/**/*.py", ".github/checks-manifest.yaml"]
+    command: ["bash", "scripts/run-managed-model-callsite-inventory.sh"]
+    triggers: ["backend/**/*.py", "backend/.python-version", "backend/pylock*.toml", "backend/scripts/sync-python-deps.sh", "scripts/run-managed-model-callsite-inventory.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
@@ -305,7 +342,7 @@ checks:
     reason: "workflow boundary sources changed"
   - id: desktop-swift-ci-contract
     command: ["python3", ".github/scripts/test_desktop_swift_ci_contract.py"]
-    triggers: [".github/workflows/desktop-swift-ci.yml", "scripts/pre_push_ci_prediction.py", ".github/scripts/test_desktop_swift_ci_contract.py"]
+    triggers: [".github/workflows/desktop-swift-ci.yml", "desktop/macos/scripts/run-swift-ci.sh", "desktop/macos/scripts/swift-test-suites.sh", "scripts/pre_push_ci_prediction.py", ".github/scripts/test_desktop_swift_ci_contract.py"]
     lanes: ["local", "ci"]
     reason: "#9843 Rung-0: desktop Swift CI must pin its toolchain and cache on Package.resolved"
   - id: resolve-desktop-changelog-sync-fixtures
@@ -358,6 +395,18 @@ checks:
     triggers: ["desktop/macos/run.sh", "desktop/macos/tests/test-launch-env-forwarding.sh"]
     lanes: ["local", "ci"]
     reason: "`open` launches from launchd, so retained automation token overrides must be passed explicitly with `open --env`"
+  - id: desktop-source-provenance
+    command: ["bash", "desktop/macos/tests/test-source-provenance.sh"]
+    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/tests/test-source-provenance.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    platforms: ["macos"]
+    reason: "PR #46 carried stale-SHA acceptance evidence; named app bundles must stamp the full source SHA and tracked-tree state before signing"
+  - id: desktop-evidence-provenance
+    command: ["bash", "desktop/macos/tests/test-fault-suite-launch-env.sh"]
+    triggers: ["desktop/macos/run.sh", "desktop/macos/scripts/desktop-core-harness.sh", "desktop/macos/scripts/source-provenance.sh", "desktop/macos/Desktop/Sources/AppBuild.swift", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", "desktop/macos/tests/test-fault-suite-launch-env.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    platforms: ["macos"]
+    reason: "PR #46 carried stale-SHA acceptance evidence; green T1+ and fault manifests must prove the exact clean running bundle instead of relabelling repository HEAD"
   - id: desktop-main-actor-xctest-hooks
     command: ["python3", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]
     triggers: ["desktop/macos/Desktop/Tests/**/*.swift", "desktop/macos/scripts/check-main-actor-xctest-hooks.py"]

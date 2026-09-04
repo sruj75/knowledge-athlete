@@ -151,6 +151,8 @@ unset TOOLCHAINS
 
 # shellcheck source=fast-dev-bundle.sh
 source "$SCRIPT_DIR/scripts/fast-dev-bundle.sh"
+# shellcheck source=source-provenance.sh
+source "$SCRIPT_DIR/scripts/source-provenance.sh"
 # shellcheck source=local-profile-env.sh
 source "$SCRIPT_DIR/scripts/local-profile-env.sh"
 # shellcheck source=python-backend-dev.sh
@@ -915,6 +917,9 @@ if [ "$FAST_BUNDLE" = "1" ]; then
         update_app_backend_api_url "$APP_PATH/Contents/Resources/.env"
     fi
 
+    step "Stamping source provenance..."
+    intentive_stamp_source_provenance "$SCRIPT_DIR/../.." "$APP_PATH"
+
     step "Signing updated app with hardened runtime..."
     sign_app_bundle "$APP_PATH" false
     reset_local_profile_keychain_state
@@ -1015,6 +1020,7 @@ cp -f Desktop/Info.plist "$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$APP_BUNDLE/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $URL_SCHEME" "$APP_BUNDLE/Contents/Info.plist"
+intentive_stamp_source_provenance "$SCRIPT_DIR/../.." "$APP_BUNDLE"
 
 auth_debug "AFTER plist edits: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
 

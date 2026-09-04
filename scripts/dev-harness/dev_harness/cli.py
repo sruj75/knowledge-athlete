@@ -14,12 +14,21 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
 from . import config, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
+CONFIG_DIGEST_SCHEMA_VERSION = 3
+RUNTIME_SOURCE_PATHS = (
+    "backend",
+    "scripts/dev-harness",
+    "firebase.json",
+    "firestore.rules",
+    "firestore.indexes.json",
+)
 
 
 def _now() -> str:
@@ -59,9 +68,300 @@ def _json_digest(data: object) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _runtime_source_contract(repo_root: Path) -> dict[str, object]:
+    """Fingerprint every source/dependency input used by the owned backend."""
+
+    def run_git(args: list[str], *, binary: bool = False) -> str | bytes:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=not binary,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.decode(errors="replace") if binary else result.stderr
+            raise RuntimeError(f"cannot fingerprint harness runtime source: git {' '.join(args)}: {detail.strip()}")
+        return result.stdout
+
+    sha = str(run_git(["rev-parse", "HEAD"])).strip()
+    if len(sha) != 40 or any(character not in "0123456789abcdef" for character in sha):
+        raise RuntimeError("cannot fingerprint harness runtime source: HEAD is not a full Git SHA")
+    pathspec = ["--", *RUNTIME_SOURCE_PATHS]
+    status = bytes(run_git(["status", "--porcelain=v1", "-z", "--untracked-files=all", *pathspec], binary=True))
+    diff = bytes(run_git(["diff", "--binary", "HEAD", *pathspec], binary=True))
+    untracked = bytes(run_git(["ls-files", "--others", "--exclude-standard", "-z", *pathspec], binary=True))
+
+    digest = hashlib.sha256()
+    digest.update(sha.encode("ascii"))
+    digest.update(b"\0tracked-diff\0")
+    digest.update(diff)
+    digest.update(b"\0untracked-files\0")
+    for raw_path in sorted(path for path in untracked.split(b"\0") if path):
+        relative = raw_path.decode("utf-8", errors="surrogateescape")
+        source_path = repo_root / relative
+        if not source_path.is_file():
+            raise RuntimeError(f"cannot fingerprint harness runtime source: untracked input is not a file: {relative}")
+        digest.update(raw_path)
+        digest.update(b"\0")
+        digest.update(source_path.read_bytes())
+        digest.update(b"\0")
+    return {
+        "repository_git_sha": sha,
+        "tree_dirty": bool(status),
+        "fingerprint_sha256": digest.hexdigest(),
+        "pathspec": list(RUNTIME_SOURCE_PATHS),
+    }
+
+
 def _process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
     records = _load_json(cfg.layout.process_manifest, {"processes": []}).get("processes", [])
     return records if isinstance(records, list) else []
+
+
+def _owned_live_process_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
+    owned: list[dict[str, object]] = []
+    for record in _process_records(cfg):
+        try:
+            service = str(record.get("service", ""))
+            pid = int(record.get("pid", -1))
+            marker = str(record.get("ownership_marker", ""))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        expected_marker = f"{OWNERSHIP_PREFIX}:{cfg.instance}:{service}"
+        if not service or (marker != expected_marker and not marker.startswith(f"{expected_marker}:")):
+            continue
+        try:
+            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+        except safety.SafetyError:
+            continue
+        owned.append(record)
+    return owned
+
+
+def _current_provider_report(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
+    provider_env = config.preflight_env(cfg)
+    provider_env["PROVIDER_MODE"] = cfg.provider_mode
+    return providers.provider_preflight(cfg.repo_root, env=provider_env)
+
+
+def _provider_budgets() -> dict[str, object]:
+    return {
+        "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
+        "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
+        "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
+        "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
+        "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
+        "automatic_replay_after_restart": False,
+    }
+
+
+def _launch_contract(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight,
+) -> dict[str, object]:
+    return {
+        "project_id": cfg.project_id,
+        "database_id": cfg.database_id,
+        "provider_mode": cfg.provider_mode,
+        "enabled_external_providers": list(provider_report.enabled_external_providers),
+        "credential_fingerprints": dict(provider_report.fingerprints),
+        "offline_fake_sources": dict(provider_report.offline_fake_sources),
+        "provider_budgets": _provider_budgets(),
+        "runtime_source": _runtime_source_contract(cfg.repo_root),
+        "instance": cfg.instance,
+        "state_root": str(cfg.layout.state_root),
+        "ports": {
+            "firestore": cfg.firestore_port,
+            "auth": cfg.auth_port,
+            "redis": cfg.redis_port,
+            "backend": cfg.backend_port,
+        },
+        "endpoints": {
+            "firestore": cfg.firestore_host,
+            "auth": cfg.auth_host,
+            "redis": f"{cfg.redis_host}:{cfg.redis_port}",
+            "backend": cfg.backend_url,
+        },
+    }
+
+
+def _config_digest(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight,
+) -> dict[str, object]:
+    return {
+        "schema_version": CONFIG_DIGEST_SCHEMA_VERSION,
+        "updated_at": _now(),
+        **_launch_contract(cfg, provider_report),
+    }
+
+
+def _digest_launch_contract(digest: dict[str, object]) -> dict[str, object]:
+    return {key: digest.get(key) for key in _launch_contract_keys()}
+
+
+def _launch_contract_keys() -> tuple[str, ...]:
+    return (
+        "project_id",
+        "database_id",
+        "provider_mode",
+        "enabled_external_providers",
+        "credential_fingerprints",
+        "offline_fake_sources",
+        "provider_budgets",
+        "runtime_source",
+        "instance",
+        "state_root",
+        "ports",
+        "endpoints",
+    )
+
+
+def _validated_active_digest(requested: config.HarnessConfig) -> dict[str, object] | None:
+    if not _owned_live_process_records(requested):
+        return None
+    digest = _load_json(requested.layout.config_digest_path, {})
+    try:
+        if digest.get("schema_version") != CONFIG_DIGEST_SCHEMA_VERSION:
+            raise ValueError("schema")
+        if digest.get("instance") != requested.instance:
+            raise ValueError("instance")
+        if digest.get("state_root") != str(requested.layout.state_root):
+            raise ValueError("state_root")
+        provider_mode = digest["provider_mode"]
+        if provider_mode not in config.PROVIDER_MODES:
+            raise ValueError("provider_mode")
+        project_id = digest["project_id"]
+        database_id = digest["database_id"]
+        if not isinstance(project_id, str) or not project_id:
+            raise ValueError("project_id")
+        if not isinstance(database_id, str) or not database_id:
+            raise ValueError("database_id")
+        ports = digest["ports"]
+        if not isinstance(ports, dict) or set(ports) != {"firestore", "auth", "redis", "backend"}:
+            raise ValueError("ports")
+        if any(not isinstance(ports[name], int) or not 1 <= ports[name] <= 65535 for name in ports):
+            raise ValueError("ports")
+        if len(set(ports.values())) != len(ports):
+            raise ValueError("ports")
+        endpoints = digest["endpoints"]
+        expected_endpoints = {
+            "firestore": f"127.0.0.1:{ports['firestore']}",
+            "auth": f"127.0.0.1:{ports['auth']}",
+            "redis": f"127.0.0.1:{ports['redis']}",
+            "backend": f"http://127.0.0.1:{ports['backend']}",
+        }
+        if endpoints != expected_endpoints:
+            raise ValueError("endpoints")
+        enabled = digest["enabled_external_providers"]
+        fingerprints = digest["credential_fingerprints"]
+        fake_sources = digest["offline_fake_sources"]
+        if not isinstance(enabled, list) or any(not isinstance(item, str) for item in enabled):
+            raise ValueError("enabled_external_providers")
+        if not isinstance(fingerprints, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in fingerprints.items()
+        ):
+            raise ValueError("credential_fingerprints")
+        if not isinstance(fake_sources, dict) or any(
+            not isinstance(key, str) or not isinstance(value, str) for key, value in fake_sources.items()
+        ):
+            raise ValueError("offline_fake_sources")
+        if digest["provider_budgets"] != _provider_budgets():
+            raise ValueError("provider_budgets")
+        runtime_source = digest["runtime_source"]
+        if not isinstance(runtime_source, dict) or set(runtime_source) != {
+            "repository_git_sha",
+            "tree_dirty",
+            "fingerprint_sha256",
+            "pathspec",
+        }:
+            raise ValueError("runtime_source")
+        source_sha = runtime_source["repository_git_sha"]
+        source_fingerprint = runtime_source["fingerprint_sha256"]
+        if not isinstance(source_sha, str) or len(source_sha) != 40:
+            raise ValueError("runtime_source")
+        if not isinstance(source_fingerprint, str) or len(source_fingerprint) != 64:
+            raise ValueError("runtime_source")
+        if not isinstance(runtime_source["tree_dirty"], bool):
+            raise ValueError("runtime_source")
+        if runtime_source["pathspec"] != list(RUNTIME_SOURCE_PATHS):
+            raise ValueError("runtime_source")
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError(
+            "owned services are live but their complete launch evidence is missing or invalid; run make dev-down"
+        ) from None
+    if digest["runtime_source"] != _runtime_source_contract(requested.repo_root):
+        raise RuntimeError(
+            "owned services are live but their backend/harness source or dependency fingerprint is stale; "
+            "run make dev-down"
+        )
+    return digest
+
+
+def _provider_report_from_digest(digest: dict[str, object]) -> providers.ProviderPreflight:
+    return providers.ProviderPreflight(
+        mode=str(digest["provider_mode"]),
+        enabled_external_providers=tuple(str(item) for item in digest["enabled_external_providers"]),
+        fingerprints=dict(digest["credential_fingerprints"]),
+        offline_fake_sources=dict(digest["offline_fake_sources"]),
+    )
+
+
+def active_runtime_config(
+    requested: config.HarnessConfig,
+) -> tuple[config.HarnessConfig, str | None]:
+    digest = _validated_active_digest(requested)
+    if digest is None:
+        return requested, None
+    ports = digest["ports"]
+    assert isinstance(ports, dict)
+    active_mode = str(digest["provider_mode"])
+    active = replace(
+        requested,
+        provider_mode=active_mode,
+        project_id=str(digest["project_id"]),
+        database_id=str(digest["database_id"]),
+        firestore_port=int(ports["firestore"]),
+        auth_port=int(ports["auth"]),
+        redis_host="127.0.0.1",
+        redis_port=int(ports["redis"]),
+        backend_port=int(ports["backend"]),
+    )
+    requested_mode = requested.provider_mode if active_mode != requested.provider_mode else None
+    return active, requested_mode
+
+
+def _runtime_provider_report(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
+    digest = _validated_active_digest(cfg)
+    return _provider_report_from_digest(digest) if digest is not None else _current_provider_report(cfg)
+
+
+def prepare_provider_mode_for_start(requested: config.HarnessConfig) -> str | None:
+    """Return the proven live mode or clear stale evidence before a fresh start."""
+    if not _owned_live_process_records(requested):
+        requested.layout.config_digest_path.unlink(missing_ok=True)
+        return None
+    raw_digest = _load_json(requested.layout.config_digest_path, {})
+    active_mode = raw_digest.get("provider_mode")
+    if not isinstance(active_mode, str) or active_mode not in config.PROVIDER_MODES:
+        _validated_active_digest(requested)
+        raise AssertionError("validated active digest did not provide a provider mode")
+    if active_mode != requested.provider_mode:
+        raise RuntimeError(
+            f"owned services are already running in provider mode {active_mode}; "
+            f"run make dev-down before starting mode {requested.provider_mode}"
+        )
+    digest = _validated_active_digest(requested)
+    assert digest is not None
+    expected = _launch_contract(requested, _current_provider_report(requested))
+    if _digest_launch_contract(digest) != expected:
+        raise RuntimeError(
+            "owned services are already running but their complete launch contract differs from the requested "
+            "configuration; run make dev-down before starting the new configuration"
+        )
+    return str(active_mode)
 
 
 def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
@@ -173,7 +473,10 @@ def _python_importable(module: str) -> bool:
     )
 
 
-def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]]:
+def prerequisite_report(
+    cfg: config.HarnessConfig,
+    provider_report: providers.ProviderPreflight | None = None,
+) -> tuple[list[str], list[str]]:
     missing: list[str] = []
     warnings: list[str] = []
     if not _which("node"):
@@ -196,7 +499,7 @@ def prerequisite_report(cfg: config.HarnessConfig) -> tuple[list[str], list[str]
         missing.append("backend/main.py")
     if not _python_importable("uvicorn"):
         missing.append("Python package uvicorn (install backend requirements before starting backend)")
-    provider_report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+    provider_report = provider_report or _current_provider_report(cfg)
     missing.extend(provider_report.missing)
     warnings.extend(provider_report.warnings)
     if cfg.provider_mode == "offline":
@@ -218,17 +521,22 @@ def print_config(cfg: config.HarnessConfig) -> None:
     print(f"backend: {cfg.backend_url}")
 
 
-def print_provider_status(cfg: config.HarnessConfig) -> providers.ProviderPreflight:
-    parsed = config.parse_secrets_file(cfg)
-    report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+def print_provider_status(
+    cfg: config.HarnessConfig,
+    report: providers.ProviderPreflight | None = None,
+    *,
+    show_current_sources: bool = True,
+) -> providers.ProviderPreflight:
+    parsed = config.parse_secrets_file(cfg) if show_current_sources else None
+    report = report or _current_provider_report(cfg)
     print("provider_status:")
     for line in providers.status_lines(report):
         print(f"  {line}")
-    if parsed.ignored_keys:
+    if parsed is not None and parsed.ignored_keys:
         print("secrets_file_ignored_keys:")
         for key in parsed.ignored_keys:
             print(f"  - {key} (harness injects this; remove from backend/.env.local-dev)")
-    if parsed.sources:
+    if parsed is not None and parsed.sources:
         print("provider_credential_sources:")
         for key in sorted(parsed.sources):
             if key == "PROVIDER_MODE":
@@ -315,11 +623,19 @@ def write_session_summary(cfg: config.HarnessConfig, provider_report: providers.
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
-    missing, warnings = prerequisite_report(cfg)
+    requested = config.load_config(_repo_root(), create_layout=False)
+    try:
+        cfg, requested_provider_mode = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"dev-check failed: {exc}")
+        return 1
+    missing, warnings = prerequisite_report(cfg, provider_report)
     print("Intentive local dev harness prerequisite check")
     print_config(cfg)
-    print_provider_status(cfg)
+    if requested_provider_mode is not None:
+        print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
+    print_provider_status(cfg, provider_report, show_current_sources=False)
     if warnings:
         print("\nWarnings:")
         for item in warnings:
@@ -598,10 +914,16 @@ def _wait_health(
 
 def cmd_up(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
-    missing, warnings = prerequisite_report(cfg)
+    provider_report = _current_provider_report(cfg)
+    try:
+        active_mode = prepare_provider_mode_for_start(cfg)
+    except RuntimeError as exc:
+        print(f"dev-up failed: {exc}")
+        return 1
+    missing, warnings = prerequisite_report(cfg, provider_report)
     print("Intentive local dev harness startup")
     print_config(cfg)
-    provider_report = print_provider_status(cfg)
+    print_provider_status(cfg, provider_report)
     for item in warnings:
         print(f"warning: {item}")
     if missing:
@@ -609,35 +931,7 @@ def cmd_up(args: argparse.Namespace) -> int:
         for item in missing:
             print(f"  - {item}")
         return 1
-    _write_json(
-        cfg.layout.config_digest_path,
-        {
-            "schema_version": 1,
-            "updated_at": _now(),
-            "project_id": cfg.project_id,
-            "database_id": cfg.database_id,
-            "provider_mode": cfg.provider_mode,
-            "enabled_external_providers": list(provider_report.enabled_external_providers),
-            "credential_fingerprints": dict(provider_report.fingerprints),
-            "offline_fake_sources": dict(provider_report.offline_fake_sources),
-            "provider_budgets": {
-                "session_usd": providers.DEFAULT_SESSION_BUDGET_USD,
-                "day_usd": providers.DEFAULT_DAILY_BUDGET_USD,
-                "concurrency": providers.DEFAULT_MAX_CONCURRENCY,
-                "idempotent_retries": providers.DEFAULT_IDEMPOTENT_RETRIES,
-                "non_idempotent_retries": providers.DEFAULT_NON_IDEMPOTENT_RETRIES,
-                "automatic_replay_after_restart": False,
-            },
-            "instance": cfg.instance,
-            "state_root": str(cfg.layout.state_root),
-            "endpoints": {
-                "firestore": cfg.firestore_host,
-                "auth": cfg.auth_host,
-                "redis": f"{cfg.redis_host}:{cfg.redis_port}",
-                "backend": cfg.backend_url,
-            },
-        },
-    )
+    config_digest = _config_digest(cfg, provider_report)
     try:
         _start_services(cfg)
         failures = _wait_health(cfg)
@@ -650,6 +944,8 @@ def cmd_up(args: argparse.Namespace) -> int:
             print(f"  - {failure}")
         print(f"Inspect logs with: make dev-logs OMI_LOCAL_STATE_ROOT={cfg.layout.state_root.parent}")
         return 1
+    if active_mode is None:
+        _write_json(cfg.layout.config_digest_path, config_digest)
     try:
         synthetic_profiles.seed_profiles(cfg)
         print("synthetic desktop profiles: ready")
@@ -661,10 +957,18 @@ def cmd_up(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
+    requested = config.load_config(_repo_root(), create_layout=False)
+    try:
+        cfg, requested_provider_mode = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"dev-status failed: {exc}")
+        return 1
     print("Intentive local dev harness status")
     print_config(cfg)
-    provider_report = print_provider_status(cfg)
+    if requested_provider_mode is not None:
+        print(f"requested_provider_mode: {requested_provider_mode} (active stack takes precedence)")
+    print_provider_status(cfg, provider_report, show_current_sources=False)
     if cfg.provider_mode == "offline":
         print(
             "offline_hint: PROVIDER_MODE=offline active; external provider credentials are stripped from child processes"
@@ -708,8 +1012,13 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    cfg = config.load_config(_repo_root(), create_layout=False)
-    provider_report = providers.provider_preflight(cfg.repo_root, env=config.preflight_env(cfg))
+    requested = config.load_config(_repo_root(), create_layout=False)
+    try:
+        cfg, _ = active_runtime_config(requested)
+        provider_report = _runtime_provider_report(cfg)
+    except RuntimeError as exc:
+        print(f"Cannot write session summary: {exc}")
+        return 1
     if not cfg.layout.sentinel_path.is_file():
         print("Cannot write session summary: harness sentinel is missing (run make dev-up or make dev-reset first)")
         return 1

@@ -50,7 +50,11 @@ run_suite() {
   if [ "$PREBUILD" = "1" ]; then
     build_args+=("--skip-build")
   fi
-  local -a command=(xcrun swift test --package-path "$PACKAGE_PATH" "${build_args[@]}" --filter "${suite}/")
+  local -a command=(
+    xcrun swift test --package-path "$PACKAGE_PATH"
+    ${build_args[@]+"${build_args[@]}"}
+    --filter "${suite}/"
+  )
   if [ "${#skip_args[@]}" -gt 0 ]; then
     command+=("${skip_args[@]}")
   fi

@@ -26,6 +26,31 @@ printf 'target-one\n' >"$TMP_ROOT/outputs/targets/one"
 printf 'target-two\n' >"$TMP_ROOT/outputs/targets/two"
 ln -s targets/one "$TMP_ROOT/outputs/runtime-link"
 
+# Large preparation trees follow the packaged-runtime owner even when the
+# ambient system temp directory points somewhere else.
+mkdir -p "$TMP_ROOT/system-temp"
+WORK_DIR="$(TMPDIR="$TMP_ROOT/system-temp" arc_make_work_dir "$TMP_ROOT/external-runtime" "node-universal")"
+case "$WORK_DIR" in
+  "$TMP_ROOT/external-runtime"/node-universal.*) ;;
+  *) fail "runtime work directory escaped its owned root: $WORK_DIR" ;;
+esac
+[ -d "$WORK_DIR" ] || fail "runtime work directory was not created"
+[ ! -e "$TMP_ROOT/system-temp/$(basename "$WORK_DIR")" ] || fail "runtime work directory leaked into TMPDIR"
+
+# Validation resolves a worktree-local symlink to external runtime storage
+# before deciding whether npm links remain inside their owned package root.
+mkdir -p \
+  "$TMP_ROOT/runtime-actual/agent-node_modules/pkg" \
+  "$TMP_ROOT/runtime-actual/agent-node_modules/.bin" \
+  "$TMP_ROOT/runtime-actual/pi-node-modules"
+printf 'cli\n' >"$TMP_ROOT/runtime-actual/agent-node_modules/pkg/cli"
+ln -s ../pkg/cli "$TMP_ROOT/runtime-actual/agent-node_modules/.bin/tool"
+ln -s "$TMP_ROOT/runtime-actual" "$TMP_ROOT/runtime-link-root"
+arc_validate_packaged_symlinks \
+  "$TMP_ROOT/runtime-link-root/agent-node_modules" \
+  "$TMP_ROOT/runtime-link-root/pi-node-modules" \
+  || fail "valid npm link under a symlinked runtime root was rejected"
+
 CHECKSUM_FILE="$TMP_ROOT/checksum-file"
 printf 'checksum-v1\n' >"$CHECKSUM_FILE"
 CHECKSUM="$(arc_sha256_file "$CHECKSUM_FILE")"

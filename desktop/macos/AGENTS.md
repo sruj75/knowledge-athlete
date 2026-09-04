@@ -73,10 +73,10 @@ The canonical Python backend must contain the manifest/pointer endpoints before 
 Signed artifact smoke scope:
 - Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, helper/runtime packaging, artifact readability, and local storage package surface.
 - Before outer-bundle signing, the provider must run `scripts/prepare-release-libwebp.sh` with the candidate Developer ID identity. It verifies the pinned two-architecture cache and structural Mach-O contract, uses only the checksum-pinned source rebuild as fallback, signs the nested libraries in dependency order, and fails before app signing if either path is invalid. Local `run.sh` continues using Homebrew.
-- S-29's build-provider definition must upload `build/desktop-smoke-result.json` with artifact digests and completed checks; promotion tooling compares this result to the exact release asset before changing channels.
+- S-29's build provider must upload the generated `desktop-smoke-result.json` with artifact digests and completed checks; promotion tooling compares this result to the exact release asset before changing channels.
 - The synthetic `--auth-storage-canary` is mandatory before beta publication and runs inside the exact signed app without real credentials. Optional broader live probes (`--launch --network --auth --chat --permissions --storage`) require an isolated release runner and explicit canary env vars; production-bundle launch is fail-closed unless `OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1`, and `--auth` requires `OMI_SIGNED_ARTIFACT_SMOKE_AUTH_PROOF_COMMAND` to prove app-level persistence rather than a raw bearer-token curl.
 - Artifact creation and user visibility are split: create/upload the immutable candidate first, then advance beta/stable visibility only after digest-matched qualification passes.
-- Automatic beta is fail-closed: any signed-smoke, reservation, digest, static, T2, fault-suite, manifest, admission-generation, or pointer failure leaves the candidate non-live. Operators pause/resume only through the ADMIN_KEY-protected backend admission control; workflow variables are not pause authority. When a served Beta is concretely broken, `desktop_rollback_beta.yml` can repoint only macOS Beta to a retained T2-qualified manifest, and `desktop_breakglass_rollout_beta.yml` can advance only to a higher evidence-bound emergency candidate. Both reuse the existing protected `prod` environment and Google identity, atomically audit + pause admission, and cannot reach Stable. Rollback does not downgrade already-updated clients; follow it with a higher-build repair.
+- Automatic beta is fail-closed: any signed-smoke, reservation, digest, static, T2, fault-suite, manifest, admission-generation, or pointer failure leaves the candidate non-live. The scheduled qualification retry discovers candidate state with read-only authority, succeeds as a no-op when no candidate exists, and requests release-app write authority only for an eligible transient retry. Operators pause/resume only through the ADMIN_KEY-protected backend admission control; workflow variables are not pause authority. When a served Beta is concretely broken, `desktop_rollback_beta.yml` can repoint only macOS Beta to a retained T2-qualified manifest, and `desktop_breakglass_rollout_beta.yml` can advance only to a higher evidence-bound emergency candidate. Both reuse the existing protected `prod` environment and Google identity, atomically audit + pause admission, and cannot reach Stable. Rollback does not downgrade already-updated clients; follow it with a higher-build repair.
 
 Stable is manual:
 - Automatic qualification never promotes Stable. `desktop_promote_prod.yml` remains `workflow_dispatch` only and protected by the `prod` environment.
@@ -325,6 +325,12 @@ Fast path (skips web login and sidebar click-through):
 3. **Package boundary:** use `./run.sh --full` only for the first named launch, resource/entitlement/package/runtime input changes, or when `--fast-only` reports an expected fingerprint mismatch.
 4. **QA, commit, and PR readiness:** run `./scripts/omi-macos-dev doctor`, exercise the real user-facing path, then run the appropriate full component/PR contract.
 
+Every `run.sh` package stamps its full source Git SHA and tracked-tree dirty
+state into the signed bundle. Desktop Core T1+, fault, and continuity evidence
+accept green only when public `/health` proves the running named bundle came
+from the current clean full SHA. A live local stack is reusable only when its
+recorded complete launch contract still matches; otherwise run `make dev-down`.
+
 `omi-macos-dev` defaults to bounded JSON summaries so an agent can safely inspect a busy machine. Pass `--verbose` to the specific command for path-level records (for example, `clean plan --verbose`); cleanup always requires the exact current plan hash. The normal 14-day retention window can be deliberately bypassed with `--older-than 0` only when the operator has explicitly approved immediate cleanup.
 
 Never ask a user to test an unexercised path. A fast named-bundle launch plus a semantic bridge assertion is valid inner-loop evidence; a clean full bundle is release/QA evidence.
@@ -441,8 +447,8 @@ timeline identity/open, or pill projection is incomplete until:
    ./scripts/agent-continuity-gauntlet.sh --suite continuity --bundle-id com.heyintentive.intentive.dev.omi-gauntlet
    ./scripts/check-gauntlet-evidence-at-head.sh
    ```
-   CI only runs gauntlet `--self-check` (wiring). Live suite is a PR/RC gate,
-   not PR CI. Do not assert exact assistant wording.
+   CI installs locked agent dependencies and runs gauntlet `--self-check`; live suite is a PR/RC gate, not PR CI.
+   Evidence is hash/size-only: never retain prompts, replies, identities, logs, screenshots, audio, or machine paths. Do not assert exact assistant wording.
 5. **Hermetic e2e** only if a bridge action/surface contract changed. Do not
    expand flow `covers:` lists as fake continuity coverage.
 6. **No second message store** / no new free-text identity format / no
@@ -457,8 +463,9 @@ timeline identity/open, or pill projection is incomplete until:
   P4 requires a current-fact answer with no synthetic public-web activity,
   browsing claim, or source URL. **Continuity PRs / RC:** `--suite
   continuity` (typed + PTT + blind recall) after auth seed; `--suite all` for
-  RC. Evidence under `.harness/agent-continuity-gauntlet/*/manifest.json` with
-  matching git SHA.
+  RC. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
+  The S-31 checker rejects incomplete, failed, malformed, stale, raw, media, or secret-bearing evidence. Its pre-push hatch requires both
+  `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE` and `..._REASON`.
 - **Anti-flake:** clear owner/kernel surface before probes; per-run nonces;
   hard-fail on blind-recall / structural snapshot only; zero automatic retries
   on model wrongness.

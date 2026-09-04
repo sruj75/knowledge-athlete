@@ -10,6 +10,11 @@ import XCTest
 /// crash). All app code must use `Bundle.resourceBundle`, which resolves the
 /// bundle inside `Contents/Resources/`.
 final class ResourceBundleAccessorTests: XCTestCase {
+  func testResourceBundleResolvesInSwiftPMTestHost() {
+    XCTAssertNotNil(
+      Bundle.resourceBundle.url(forResource: "intentive_mark", withExtension: "png"))
+  }
+
   func testNoGeneratedBundleModuleAccessorUsageInAppSources() throws {
     // omi-test-quality: source-inspection -- static contract: the generated Bundle.module accessor cannot resolve resources on user installs; this cannot be expressed behaviorally in a hermetic test because it depends on the installed-app filesystem layout.
     let sourcesRoot = URL(fileURLWithPath: #filePath)

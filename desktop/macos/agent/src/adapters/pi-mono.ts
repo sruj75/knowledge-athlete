@@ -115,7 +115,18 @@ function normalizeProviderHTTPErrorMessage(message: string): string {
   const trimmed = message.trim();
   // Provider SDK wording is not our downstream contract: retain its detail,
   // but make a leading HTTP failure status explicit and stable for Swift.
-  return /^[45]\d{2}(?=$|[\s:])/.test(trimmed) ? `HTTP ${trimmed}` : trimmed;
+  if (/^[45]\d{2}(?=$|[\s:])/.test(trimmed)) return `HTTP ${trimmed}`;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    const rawStatus = parsed.code ?? parsed.status ?? parsed.statusCode;
+    const status = typeof rawStatus === "number" ? rawStatus : Number(rawStatus);
+    if (Number.isInteger(status) && status >= 400 && status <= 599) {
+      return `HTTP ${status}: ${trimmed}`;
+    }
+  } catch {
+    // Non-JSON provider details retain their original wording.
+  }
+  return trimmed;
 }
 
 const REQUIRED_AGENT_CONTROL_TOOLS = new Set([

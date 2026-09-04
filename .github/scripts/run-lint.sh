@@ -2,8 +2,8 @@
 # run-lint.sh — Run all pre-commit hooks manually (no git commit needed)
 #
 # Usage:
-#   ./github/scripts/run-lint.sh                  # all files (check only)
-#   ./github/scripts/run-lint.sh --files a.py b.py # specific files
+#   .github/scripts/run-lint.sh                    # all files (check only)
+#   .github/scripts/run-lint.sh --files a.py b.py  # specific files
 #
 # Timing (warm cache, M2 MacBook):
 #   black:           ~0.3s    ruff lint+format: ~0.5s
@@ -39,7 +39,7 @@ if [ -n "$FILES_ARG" ]; then
       [ "${f##*.}" != "py" ] && continue
       if [ "$MODE" = "fix" ]; then
         echo "  black (fix) $f"
-        if ! black --line-length=120 --skip-string-normalization "$f" 2>&1; then
+        if ! backend/scripts/black-wrapper.sh --line-length=120 --skip-string-normalization "$f" 2>&1; then
           echo "    ❌ black failed on $f"
           FAIL=1
         fi
@@ -50,7 +50,7 @@ if [ -n "$FILES_ARG" ]; then
         fi
       else
         echo "  black (check) $f"
-        if ! black --check --line-length=120 --skip-string-normalization "$f" 2>&1; then
+        if ! backend/scripts/black-wrapper.sh --check --line-length=120 --skip-string-normalization "$f" 2>&1; then
           echo "    ❌ black failed on $f"
           FAIL=1
         fi
@@ -68,8 +68,8 @@ else
   if command -v pre-commit &>/dev/null; then
     pre-commit run --all-files || FAIL=1
   else
-    echo "⚠️  pre-commit not installed. Install with:"
-    echo "   pip install pre-commit && pre-commit install"
+    echo "⚠️  pre-commit CLI not installed. Install the CLI without replacing repo hooks:"
+    echo "   pip install pre-commit"
     exit 1
   fi
 fi

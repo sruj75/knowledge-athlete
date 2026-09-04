@@ -35,4 +35,12 @@ final class HomeAskFocusPolicy {
 
   /// True only if `token` was captured against the still-current generation.
   func isCurrent(_ token: Token) -> Bool { token.generation == generation }
+
+  /// Focus may open the hub composer only as a foreground user interaction.
+  /// SwiftUI can transfer first-responder state between the chat and hub
+  /// composers while the app is inactive; admitting that transfer would turn
+  /// a background collapse straight back into chat.
+  func admitsHubFocusOpen(isHubFocused: Bool, isChatVisible: Bool, isAppActive: Bool) -> Bool {
+    isHubFocused && !isChatVisible && isAppActive
+  }
 }

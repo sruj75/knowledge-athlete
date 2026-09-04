@@ -3,7 +3,6 @@
 #
 # Usage:
 #   ./scripts/desktop-core-harness.sh --self-check
-#   ./scripts/desktop-core-harness.sh --self-check --skip-backend-contracts
 #   ./scripts/desktop-core-harness.sh --tier 0
 #   ./scripts/desktop-core-harness.sh --tier 1 --bundle omi-core-e2e
 #   ./scripts/desktop-core-harness.sh --tier 2 --bundle omi-core-e2e --keep-stack
@@ -22,10 +21,11 @@ FAULT_BUNDLE="omi-fault"
 KEEP_STACK=0
 SELF_CHECK=0
 READINESS=0
-SKIP_BACKEND_CONTRACTS=0
 PORT="${OMI_AUTOMATION_PORT:-47777}"
 FAULT_PORT="${OMI_FAULT_PORT:-47790}"
 DEV_STACK_PROVIDER_MODE=""
+VERIFIED_APP_GIT_SHA=""
+VERIFIED_APP_BUNDLE=""
 
 usage() {
   cat <<'USAGE'
@@ -37,9 +37,8 @@ Options:
   --port PORT                 Automation bridge port (default: OMI_AUTOMATION_PORT or 47777)
   --keep-stack                On T2+, leave dev-up running after the run
   --fault-suite               Start omi-fault-inject + omi-fault bundle; run chat-fault-5xx flow
-  --self-check                Static checks (flow lint + gauntlet self-check; backend contracts locally)
+  --self-check                Desktop static checks (flow lint + gauntlet self-check)
   --readiness                 Pre-tag readiness: self-check + offline dev-stack probe (no app launch, no E2E flows)
-  --skip-backend-contracts    With --self-check, skip backend preflight + pytest contracts (CI desktop gate)
   --help                      Show this help
 USAGE
 }
@@ -70,9 +69,6 @@ while [[ $# -gt 0 ]]; do
     --readiness)
       READINESS=1
       ;;
-    --skip-backend-contracts)
-      SKIP_BACKEND_CONTRACTS=1
-      ;;
     --help|-h)
       usage
       exit 0
@@ -101,24 +97,72 @@ finalize_run() {
   local started_at="$4"
   local duration_s="$5"
   local flows_json="$6"
-  python3 - "$run_dir/manifest.json" "$passed" "$tier_value" "$started_at" "$duration_s" "$flows_json" "$BUNDLE" "$(git_sha)" "$DEV_STACK_PROVIDER_MODE" <<'PY'
+  local repository_git_sha evidence_git_sha evidence_bundle source_provenance source_tree_dirty
+  local requires_bundle_provenance=0
+  repository_git_sha="$(git_sha)"
+  evidence_git_sha="$repository_git_sha"
+  evidence_bundle="$BUNDLE"
+  source_provenance="repository-unverified"
+  source_tree_dirty=""
+  case "$tier_value" in
+    1|2|3)
+      requires_bundle_provenance=1
+      ;;
+    fault)
+      requires_bundle_provenance=1
+      evidence_bundle="$FAULT_BUNDLE"
+      ;;
+    *)
+      source_provenance="repository"
+      ;;
+  esac
+  if [[ -n "$VERIFIED_APP_GIT_SHA" ]]; then
+    evidence_git_sha="$VERIFIED_APP_GIT_SHA"
+    evidence_bundle="$VERIFIED_APP_BUNDLE"
+    source_provenance="bundle-health"
+    source_tree_dirty="false"
+  fi
+  if [[ "$passed" == true && "$requires_bundle_provenance" -eq 1 ]]; then
+    if [[ -z "$VERIFIED_APP_GIT_SHA" || "$VERIFIED_APP_GIT_SHA" != "$repository_git_sha" ]]; then
+      echo "desktop-core-harness: refusing green manifest without current clean-bundle source provenance" >&2
+      return 1
+    fi
+  fi
+  python3 - "$run_dir/manifest.json" "$passed" "$tier_value" "$started_at" "$duration_s" "$flows_json" "$evidence_bundle" "$evidence_git_sha" "$repository_git_sha" "$DEV_STACK_PROVIDER_MODE" "$source_provenance" "$source_tree_dirty" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
-path, passed, tier_value, started_at, duration_s, flows_json, bundle, git_sha, provider_mode = sys.argv[1:10]
+(
+    path,
+    passed,
+    tier_value,
+    started_at,
+    duration_s,
+    flows_json,
+    bundle,
+    git_sha,
+    repository_git_sha,
+    provider_mode,
+    source_provenance,
+    source_tree_dirty,
+) = sys.argv[1:13]
 manifest = {
     "passed": passed == "true",
     "tier": int(tier_value) if tier_value.isdigit() else tier_value,
     "git_sha": git_sha,
+    "repository_git_sha": repository_git_sha,
     "bundle": bundle,
+    "source_provenance": source_provenance,
     "started_at": started_at,
     "duration_s": float(duration_s),
     "flows": json.loads(flows_json or "[]"),
 }
 if provider_mode:
     manifest["provider_mode"] = provider_mode
+if source_tree_dirty:
+    manifest["source_tree_dirty"] = source_tree_dirty == "true"
 lane = os.environ.get("OMI_READINESS_LANE")
 if lane:
     manifest["lane"] = lane
@@ -131,7 +175,9 @@ PY
     echo "# Desktop Core E2E"
     echo ""
     echo "- tier: ${tier_value}"
-    echo "- bundle: ${BUNDLE}"
+    echo "- bundle: ${evidence_bundle}"
+    echo "- git_sha: ${evidence_git_sha}"
+    echo "- source_provenance: ${source_provenance}"
     if [[ -n "$DEV_STACK_PROVIDER_MODE" ]]; then
       echo "- provider_mode: ${DEV_STACK_PROVIDER_MODE}"
     fi
@@ -145,17 +191,7 @@ run_self_check() {
   echo "=== desktop-core-harness self-check ==="
   python3 "$SCRIPT_DIR/desktop-flow-lint.py"
   python3 "$SCRIPT_DIR/agent-continuity-gauntlet-lib.py" --self-check
-  if [[ "$SKIP_BACKEND_CONTRACTS" -eq 1 ]]; then
-    echo "desktop-core-harness: skipping backend preflight + pytest contracts (--skip-backend-contracts; CI desktop gate)"
-    echo "desktop-core-harness self-check passed (desktop static checks only)"
-    return 0
-  fi
-  if [[ -x "$REPO_ROOT/backend/test-preflight.sh" ]]; then
-    bash "$REPO_ROOT/backend/test-preflight.sh" >/dev/null
-  fi
-  python3 -m pytest "$REPO_ROOT/backend/testing/contracts" -q --maxfail=1 -k "desktop" 2>/dev/null \
-    || python3 -m pytest "$REPO_ROOT/backend/testing/contracts" -q --maxfail=1
-  echo "desktop-core-harness self-check passed"
+  echo "desktop-core-harness self-check passed (desktop static checks only)"
 }
 
 flows_for_max_tier() {
@@ -211,20 +247,43 @@ bridge_health() {
   source "$SCRIPT_DIR/app-config.sh"
   derive_omi_app_config "$BUNDLE"
   expected_bundle_id="$BUNDLE_ID"
-  python3 - "$PORT" "$expected_bundle_id" <<'PY'
+  verify_bridge_health_provenance "$PORT" "$expected_bundle_id" "$BUNDLE"
+}
+
+verify_bridge_health_provenance() {
+  local port="$1"
+  local expected_bundle_id="$2"
+  local evidence_bundle="$3"
+  local expected_git_sha verified_git_sha
+  expected_git_sha="$(git_sha)"
+  verified_git_sha="$(python3 - "$port" "$expected_bundle_id" "$expected_git_sha" <<'PY'
 import json
+import re
 import sys
 import urllib.request
 
-port, expected = sys.argv[1:3]
+port, expected_bundle, expected_git_sha = sys.argv[1:4]
 with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
     payload = json.loads(response.read().decode("utf-8"))
 if not payload.get("ok"):
     raise SystemExit(f"bridge unhealthy: {payload}")
 actual = payload.get("bundleIdentifier")
-if actual != expected:
-    raise SystemExit(f"wrong bundle on port {port}: expected {expected}, got {actual}")
+if actual != expected_bundle:
+    raise SystemExit(f"wrong bundle on port {port}: expected {expected_bundle}, got {actual}")
+source_git_sha = payload.get("sourceGitSHA")
+if not isinstance(source_git_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_git_sha):
+    raise SystemExit(f"bundle on port {port} has no full source Git SHA")
+if source_git_sha != expected_git_sha:
+    raise SystemExit(
+        f"stale bundle on port {port}: expected source {expected_git_sha}, got {source_git_sha}"
+    )
+if payload.get("sourceTreeDirty") is not False:
+    raise SystemExit(f"bundle on port {port} was built from a dirty or unproven source tree")
+print(source_git_sha)
 PY
+  )" || return 1
+  VERIFIED_APP_GIT_SHA="$verified_git_sha"
+  VERIFIED_APP_BUNDLE="$evidence_bundle"
 }
 
 # Like bridge_health, but also requires the /health bundleIdentifier to match the
@@ -233,20 +292,7 @@ PY
 verify_fault_bundle_health() {
   local port="$1"
   local expected_bundle="$2"
-  python3 - "$port" "$expected_bundle" <<'PY'
-import json
-import sys
-import urllib.request
-
-port, expected = sys.argv[1], sys.argv[2]
-with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
-    payload = json.loads(response.read().decode("utf-8"))
-if not payload.get("ok"):
-    raise SystemExit(f"bridge unhealthy: {payload}")
-actual = payload.get("bundleIdentifier")
-if actual != expected:
-    raise SystemExit(f"wrong bundle on port {port}: expected {expected}, got {actual}")
-PY
+  verify_bridge_health_provenance "$port" "$expected_bundle" "$FAULT_BUNDLE"
 }
 
 # Probe dev-harness stack health + provider_mode from config-digest.json.
@@ -263,7 +309,7 @@ from pathlib import Path
 
 repo_root = Path(sys.argv[1])
 sys.path.insert(0, str(repo_root / "scripts" / "dev-harness"))
-from dev_harness import config, safety
+from dev_harness import cli, config, safety
 
 # Services with process records in the dev-harness manifest. The Firebase Auth
 # emulator has no record of its own — it runs inside the "firestore" process
@@ -384,6 +430,30 @@ if str(digest.get("state_root", "")) != expected_state_root:
         details={"expected": expected_state_root, "got": digest.get("state_root")},
     )
 
+try:
+    current_runtime_source = cli._runtime_source_contract(repo_root)
+except RuntimeError as exc:
+    ownership_failure(
+        "runtime_source_unavailable",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+        details=str(exc),
+    )
+recorded_runtime_source = digest.get("runtime_source")
+if recorded_runtime_source != current_runtime_source:
+    ownership_failure(
+        "runtime_source_mismatch",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+        details={"recorded": recorded_runtime_source, "current": current_runtime_source},
+    )
+if current_runtime_source.get("tree_dirty") is not False:
+    ownership_failure(
+        "runtime_source_dirty",
+        provider_mode=provider_mode,
+        digest_path=digest_path,
+    )
+
 if provider_mode and provider_mode != "offline":
     print(
         json.dumps(
@@ -467,6 +537,7 @@ print(
             "config_digest_path": str(digest_path),
             "instance": cfg.instance,
             "state_root": expected_state_root,
+            "runtime_source": current_runtime_source,
         }
     )
 )
@@ -727,6 +798,29 @@ print(config.load_config(repo_root).auth_host)
 PY
 }
 
+prepare_fault_profile() {
+  local expected_bundle_id
+  # shellcheck source=app-config.sh
+  source "$SCRIPT_DIR/app-config.sh"
+  derive_omi_app_config "$FAULT_BUNDLE"
+  expected_bundle_id="com.heyintentive.intentive.dev.${FAULT_BUNDLE}"
+  if [[ "$BUNDLE_ID" != "$expected_bundle_id" || "$FAULT_BUNDLE" != omi-fault-* ]]; then
+    echo "desktop-core-harness: refusing to prepare non-fault profile: $FAULT_BUNDLE ($BUNDLE_ID)" >&2
+    return 1
+  fi
+
+  # The fault lane tests backend failure behavior, not onboarding. Its synthetic
+  # Auth-emulator owner must therefore start past onboarding with capture and
+  # permissions side effects disabled, matching the isolated qualification lane.
+  defaults write "$BUNDLE_ID" hasCompletedOnboarding -bool true
+  defaults write "$BUNDLE_ID" devLazyPermissionsEnabled -bool true
+  defaults write "$BUNDLE_ID" screenAnalysisEnabled -bool false
+  defaults write "$BUNDLE_ID" transcriptionEnabled -bool false
+  defaults write "$BUNDLE_ID" systemAudioCaptureMode -string never
+  defaults write "$BUNDLE_ID" screenAnalysisAutoStartFixed_v2 -bool true
+  defaults write "$BUNDLE_ID" shortcut_floatingBarTypedQuestionVoiceAnswersEnabled -bool false
+}
+
 stop_fault_stack() {
   local status=0
   if [[ -n "$FAULT_FLOW_PID" ]]; then
@@ -809,6 +903,7 @@ start_fault_stack() {
     exit 1
   fi
   refuse_prod_bundle "$FAULT_BUNDLE"
+  prepare_fault_profile
   OMI_FAULT_STATE_DIR="$FAULT_STATE_DIR" "$SCRIPT_DIR/omi-fault-inject.sh" stop >/dev/null 2>&1 || true
   eval "$(OMI_FAULT_STATE_DIR="$FAULT_STATE_DIR" OMI_FAULT_OWNERSHIP_TOKEN="$FAULT_RUN_TOKEN" "$SCRIPT_DIR/omi-fault-inject.sh" start error --port "$FAULT_PORT")"
   echo "desktop-core-harness: fault inject at $OMI_FAULT_URL"
@@ -825,7 +920,7 @@ start_fault_stack() {
       OMI_SEED_FROM_CANONICAL_DEV=0 \
       OMI_LOCAL_PROFILE_STORAGE_NAME="$FAULT_BUNDLE" \
       OMI_LOCAL_AUTH_USER=alice \
-      OMI_LOCAL_AUTH_EMAIL=alice@local.omi.invalid \
+      OMI_LOCAL_AUTH_EMAIL=alice@local.heyintentive.invalid \
       OMI_LOCAL_AUTH_PASSWORD=alice-local-password-030 \
       OMI_LOCAL_AUTH_DISPLAY_NAME='Synthetic Alice' \
       FIREBASE_AUTH_EMULATOR_HOST="$auth_host" \
@@ -857,13 +952,27 @@ start_fault_stack() {
     echo "desktop-core-harness: OMI_FAULT_BRIDGE_READY_ATTEMPTS must be a positive integer" >&2
     return 1
   }
+  local owner_ready_timeout_seconds="${OMI_FAULT_OWNER_READY_TIMEOUT_SECONDS:-90}"
+  [[ "$owner_ready_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || {
+    echo "desktop-core-harness: OMI_FAULT_OWNER_READY_TIMEOUT_SECONDS must be a positive integer" >&2
+    return 1
+  }
   local attempt
   for attempt in $(seq 1 "$bridge_ready_attempts"); do
     if verify_fault_bundle_health "$PORT" "$expected_bundle" 2>/dev/null; then
-      OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/omi-ctl" wait-ready 90
       record_owned_fault_app
+      if ! OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/omi-ctl" wait-ready "$owner_ready_timeout_seconds"; then
+        echo "desktop-core-harness: $FAULT_BUNDLE did not reach signed-in owner-ready state within ${owner_ready_timeout_seconds}s" >&2
+        return 1
+      fi
       echo "desktop-core-harness: $FAULT_BUNDLE bridge ready on port $PORT (bundle: $expected_bundle)"
       return 0
+    fi
+    # A bridge can be the exact process launched by this run yet still fail the
+    # source-provenance check. Capture its token-bound ownership as soon as the
+    # launch signal exists so the rejection path can reclaim that process.
+    if [[ ! -f "$FAULT_APP_RECORD" && -f "$FAULT_LAUNCH_SIGNAL_FILE" ]]; then
+      record_owned_fault_app || return 1
     fi
     # `open` returns after dispatching the app. Once the signed owner-only
     # launch signal exists, run.sh is allowed to exit while its app remains
@@ -872,7 +981,9 @@ start_fault_stack() {
       echo "desktop-core-harness: $FAULT_BUNDLE launch exited before bridge was ready" >&2
       return 1
     fi
-    sleep 2
+    if [[ "$attempt" -lt "$bridge_ready_attempts" ]]; then
+      sleep 2
+    fi
   done
   echo "desktop-core-harness: timed out waiting for $FAULT_BUNDLE bridge on port $PORT" >&2
   return 1
@@ -943,6 +1054,7 @@ if [[ "$SELF_CHECK" -eq 1 ]]; then
 fi
 
 if [[ "$FAULT_SUITE" -eq 1 ]]; then
+  DEV_STACK_PROVIDER_MODE="offline"
   RUN_DIR="$HARNESS_ROOT/$(run_id)-fault"
   mkdir -p "$RUN_DIR"
   chmod 700 "$RUN_DIR"

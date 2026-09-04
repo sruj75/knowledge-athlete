@@ -44,14 +44,17 @@ test("managed provider headers retain correlation and the bounded reasoning cont
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"fast"}'), "fast");
   assert.equal(omiReasoningEffortFromRelayContext('{"reasoningEffort":"max"}'), undefined);
 
-  const headers: Record<string, string> = { "x-goog-api-key": "must-not-leave-desktop" };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${OMI_MANAGED_PROVIDER_SENTINEL}`,
+    "X-Goog-Api-Key": "must-not-leave-desktop",
+  };
   applyOmiProviderHeaders(
     headers,
     JSON.stringify({ requestId: "req_1", sessionId: "session_1", reasoningEffort: "adaptive" }),
     "firebase-token",
   );
   assert.deepEqual(headers, {
-    "authorization": "Bearer firebase-token",
+    "Authorization": "Bearer firebase-token",
     "x-intentive-chat-contract-version": OMI_CHAT_CONTRACT_VERSION,
     "x-intentive-request-id": "req_1",
     "x-intentive-session-id": "session_1",

@@ -383,6 +383,31 @@ def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json
         )
 
 
+def test_automatic_dev_runtime_contract_steps_receive_every_secret_version_input():
+    """Static workflow tripwire for the runtime-manifest renderer and its preflight callers."""
+    manifest = yaml.safe_load((ROOT / 'deploy/runtime_env.yaml').read_text(encoding='utf-8'))
+    service_secrets = manifest['environments']['dev']['cloud_run']['services']['backend']['secrets']
+    required_versions = {
+        binding['version_env_var']
+        for binding in service_secrets.values()
+        if isinstance(binding, dict) and 'version_env_var' in binding
+    }
+    workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml').read_text(encoding='utf-8'))
+    contract_steps = {
+        'Preflight Cloud Run deploy',
+        'Render backend runtime env',
+        'Check development Cloud Run runtime bindings',
+        'Validate backend runtime env after deploy',
+    }
+
+    deploy_steps = {step.get('name'): step for step in workflow['jobs']['deploy']['steps']}
+    assert contract_steps <= deploy_steps.keys()
+    for step_name in sorted(contract_steps):
+        step_env = deploy_steps[step_name].get('env', {})
+        missing = sorted(required_versions - step_env.keys())
+        assert missing == [], f'{step_name} does not receive secret version inputs: {missing}'
+
+
 def test_workflow_validation_uses_immutable_workflow_root_with_admitted_runtime_manifest(tmp_path):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows/gcp_backend.yml'

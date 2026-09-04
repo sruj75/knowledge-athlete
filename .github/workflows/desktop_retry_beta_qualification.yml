@@ -30,9 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      should_retry: ${{ steps.decide.outputs.should_retry }}
-      release_tag: ${{ steps.decide.outputs.release_tag }}
-      reason: ${{ steps.decide.outputs.reason }}
+      should_retry: ${{ steps.decide.outputs.should_retry || 'false' }}
+      release_tag: ${{ steps.decide.outputs.release_tag || steps.discover.outputs.release_tag }}
+      reason: ${{ steps.decide.outputs.reason || steps.discover.outputs.reason }}
     steps:
       - name: Checkout retry controls
         uses: actions/checkout@v7
@@ -40,28 +40,44 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Generate Intentive release app token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
-          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
-          permission-actions: write
-          permission-contents: read
-
-      - name: Gather server-derived candidate and qualification state
-        id: gather
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPO: ${{ github.repository }}
+      - name: Discover newest published macOS candidate
+        id: discover
         run: |
           set -euo pipefail
           mkdir -p /tmp/desktop-beta-retry
           git fetch --force origin 'refs/tags/v*-macos:refs/tags/v*-macos'
           LATEST_TAG=$(git for-each-ref --count=1 --sort=-v:refname \
             --format='%(refname:strip=2)' 'refs/tags/v*-macos')
-          test -n "$LATEST_TAG"
+          if [[ -z "$LATEST_TAG" ]]; then
+            {
+              echo 'has_candidate=false'
+              echo 'release_tag='
+              echo 'reason=no published macOS candidate exists; retry is a no-op'
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo '### Desktop Beta qualification retry'
+              echo
+              echo 'No published macOS candidate exists; retry is a safe no-op.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           TAG_SHA=$(git rev-list -n1 "$LATEST_TAG")
+          {
+            echo 'has_candidate=true'
+            echo "release_tag=$LATEST_TAG"
+            echo 'reason=candidate discovered; evaluating qualification state'
+            echo "tag_sha=$TAG_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Gather server-derived candidate and qualification state
+        id: gather
+        if: steps.discover.outputs.has_candidate == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          LATEST_TAG="${{ steps.discover.outputs.release_tag }}"
           # Read-only production state: a release view plus the qualification
           # run list. Transient API errors degrade to empty JSON, which the
           # decision script turns into a safe "no" rather than a failed job.
@@ -72,20 +88,17 @@ jobs:
           gh api "repos/$REPO/actions/workflows/desktop_qualify_beta.yml/runs?event=workflow_dispatch&per_page=100" \
             --jq '.workflow_runs' > /tmp/desktop-beta-retry/runs.json 2>/dev/null \
             || echo '[]' > /tmp/desktop-beta-retry/runs.json
-          {
-            echo "latest_tag=$LATEST_TAG"
-            echo "tag_sha=$TAG_SHA"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Decide whether to retry the newest candidate
         id: decide
+        if: steps.discover.outputs.has_candidate == 'true'
         run: |
           set -euo pipefail
           python3 .github/scripts/desktop_beta_qualification_retry.py decide \
             --release-json /tmp/desktop-beta-retry/release.json \
             --runs-json /tmp/desktop-beta-retry/runs.json \
-            --release-tag "${{ steps.gather.outputs.latest_tag }}" \
-            --tag-sha "${{ steps.gather.outputs.tag_sha }}" \
+            --release-tag "${{ steps.discover.outputs.release_tag }}" \
+            --tag-sha "${{ steps.discover.outputs.tag_sha }}" \
             --output /tmp/desktop-beta-retry/decision.json
           python3 - <<'PY'
           import json, os
@@ -102,6 +115,16 @@ jobs:
             cat /tmp/desktop-beta-retry/decision.json
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate Intentive release app token
+        if: steps.decide.outputs.should_retry == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
+          permission-actions: write
+          permission-contents: read
 
       - name: Re-dispatch trusted macOS qualification for the newest candidate
         if: steps.decide.outputs.should_retry == 'true'

@@ -32,14 +32,17 @@ NOW_ISO = _utc_iso(_NOW)
 RECENT_ISO = _utc_iso(_NOW - timedelta(hours=1))
 
 
-def _release(*, tag: str = TAG, channel: str = "candidate", is_live: str = "false",
-             draft: bool = False, prerelease: bool = False, published: str = RECENT_ISO,
-             assets=retry.CANONICAL_ASSETS) -> dict:
-    body = (
-        "<!-- KEY_VALUE_START\n"
-        f"channel: {channel}\nisLive: {is_live}\n"
-        "<!-- KEY_VALUE_END -->"
-    )
+def _release(
+    *,
+    tag: str = TAG,
+    channel: str = "candidate",
+    is_live: str = "false",
+    draft: bool = False,
+    prerelease: bool = False,
+    published: str = RECENT_ISO,
+    assets=retry.CANONICAL_ASSETS,
+) -> dict:
+    body = "<!-- KEY_VALUE_START\n" f"channel: {channel}\nisLive: {is_live}\n" "<!-- KEY_VALUE_END -->"
     return {
         "tagName": tag,
         "body": body,
@@ -50,8 +53,7 @@ def _release(*, tag: str = TAG, channel: str = "candidate", is_live: str = "fals
     }
 
 
-def _run(*, status="completed", conclusion="failure", branch=TAG, sha=SHA,
-         updated=NOW_ISO, run_id=1) -> dict:
+def _run(*, status="completed", conclusion="failure", branch=TAG, sha=SHA, updated=NOW_ISO, run_id=1) -> dict:
     return {
         "id": run_id,
         "status": status,
@@ -185,10 +187,7 @@ class RetryDecisionTests(unittest.TestCase):
     # --- deterministic / persistent loop guard ---
 
     def test_at_max_attempts_denies(self):
-        runs = [
-            _run(conclusion="failure", run_id=i, updated=_utc_iso(_NOW + timedelta(minutes=i)))
-            for i in (1, 2, 3)
-        ]
+        runs = [_run(conclusion="failure", run_id=i, updated=_utc_iso(_NOW + timedelta(minutes=i))) for i in (1, 2, 3)]
         d = _decide(_release(), runs)
         self.assertFalse(d["should_retry"])
         self.assertEqual(d["attempts_so_far"], 3)
@@ -260,8 +259,7 @@ class RetryDecisionTests(unittest.TestCase):
 
     def test_older_in_progress_with_newer_cancelled_denies(self):
         runs = [
-            _run(status="in_progress", conclusion=None, run_id=1,
-                 updated=_utc_iso(_NOW - timedelta(hours=1))),
+            _run(status="in_progress", conclusion=None, run_id=1, updated=_utc_iso(_NOW - timedelta(hours=1))),
             _run(conclusion="cancelled", run_id=2, updated=NOW_ISO),
         ]
         d = _decide(_release(), runs)
@@ -301,12 +299,24 @@ class CliOutputContractTests(unittest.TestCase):
             import subprocess
 
             result = subprocess.run(
-                [sys.executable, str(script), "decide",
-                 "--release-json", str(release_path),
-                 "--runs-json", str(runs_path),
-                 "--release-tag", TAG, "--tag-sha", SHA,
-                 "--output", str(out_path)],
-                check=True, encoding="utf-8", capture_output=True,
+                [
+                    sys.executable,
+                    str(script),
+                    "decide",
+                    "--release-json",
+                    str(release_path),
+                    "--runs-json",
+                    str(runs_path),
+                    "--release-tag",
+                    TAG,
+                    "--tag-sha",
+                    SHA,
+                    "--output",
+                    str(out_path),
+                ],
+                check=True,
+                encoding="utf-8",
+                capture_output=True,
             )
             decision = json.loads(out_path.read_text(encoding="utf-8"))
             self.assertTrue(decision["should_retry"])
@@ -316,10 +326,29 @@ class CliOutputContractTests(unittest.TestCase):
 
 class WorkflowContractTests(unittest.TestCase):
     def test_app_token_requests_only_required_permissions(self):
-        workflow = (Path(__file__).resolve().parents[1] / "workflows" /
-                    "desktop_retry_beta_qualification.yml").read_text(encoding="utf-8")
+        workflow = (
+            Path(__file__).resolve().parents[1] / "workflows" / "desktop_retry_beta_qualification.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}\n", workflow)
+        self.assertNotIn("          client-id:", workflow)
         self.assertIn("          permission-actions: write\n", workflow)
         self.assertIn("          permission-contents: read\n", workflow)
+
+    def test_read_only_no_candidate_path_does_not_require_release_credentials(self):
+        workflow = (
+            Path(__file__).resolve().parents[1] / "workflows" / "desktop_retry_beta_qualification.yml"
+        ).read_text(encoding="utf-8")
+        discover = workflow.index("      - name: Discover newest published macOS candidate")
+        gather = workflow.index("      - name: Gather server-derived candidate and qualification state")
+        decide = workflow.index("      - name: Decide whether to retry the newest candidate")
+        app_token = workflow.index("      - name: Generate Intentive release app token")
+
+        self.assertLess(discover, gather)
+        self.assertLess(gather, decide)
+        self.assertLess(decide, app_token)
+        self.assertIn("          GH_TOKEN: ${{ github.token }}\n", workflow)
+        self.assertIn("if: steps.discover.outputs.has_candidate == 'true'", workflow)
+        self.assertIn("if: steps.decide.outputs.should_retry == 'true'", workflow)
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ printf 'Darwin\n'
 SH
   cat >"$bin_dir/git" <<'SH'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "-C" ]]; then printf 'deadbeef\n'; else exec /usr/bin/git "$@"; fi
+if [[ "${1:-}" == "-C" ]]; then printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n'; else exec /usr/bin/git "$@"; fi
 SH
   cat >"$bin_dir/python3" <<'SH'
 #!/usr/bin/env bash
@@ -121,16 +121,17 @@ set -euo pipefail
 app_path="/Applications/${OMI_APP_NAME}.app"
 executable_path="$app_path/Contents/MacOS/Omi Computer"
 bundle_id="com.heyintentive.intentive.dev.${OMI_APP_NAME}"
-server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2];
+source_sha="$(git -C "$(pwd)/../.." rev-parse HEAD)"
+server='import http.server,json,sys; port=int(sys.argv[1]); bundle=sys.argv[2]; sha=sys.argv[3];
 class H(http.server.BaseHTTPRequestHandler):
  def do_GET(self):
-  body=json.dumps({"ok":True,"bundleIdentifier":bundle}).encode(); self.send_response(200); self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
+  body=json.dumps({"ok":True,"bundleIdentifier":bundle,"sourceGitSHA":sha,"sourceTreeDirty":False}).encode(); self.send_response(200); self.send_header("Content-Length",str(len(body))); self.end_headers(); self.wfile.write(body)
  def log_message(self,*args): pass
 http.server.ThreadingHTTPServer(("127.0.0.1",port),H).serve_forever()'
 # The executable path is an explicit argv value in this portable model; on macOS
 # the real `open ... --args` process exposes it as argv[0]. Both are checked by
 # the harness alongside the unguessable token.
-python3 -c "$server" "$OMI_AUTOMATION_PORT" "$bundle_id" "$executable_path" "--omi-launch-token=${OMI_DESKTOP_LAUNCH_TOKEN}" &
+python3 -c "$server" "$OMI_AUTOMATION_PORT" "$bundle_id" "$source_sha" "$executable_path" "--omi-launch-token=${OMI_DESKTOP_LAUNCH_TOKEN}" &
 owned_pid=$!
 printf '%s\n' "$owned_pid" >"${OMI_TEST_OWNED_PID_FILE:?}"
 # Same executable path and bundle identity, but a different capability token.

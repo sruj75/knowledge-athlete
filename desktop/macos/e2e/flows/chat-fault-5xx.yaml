@@ -30,6 +30,18 @@ steps:
       state.homeMode: chat
 
   - id: S3
+    name: Wait for the local chat journal to finish loading
+    bridge.action:
+      name: wait_main_chat_idle
+      params:
+        timeoutMs: "30000"
+        pollMs: "500"
+    expect:
+      result.detail.idle: "true"
+      result.detail.is_loading: "false"
+      result.detail.is_loading_sessions: "false"
+
+  - id: S4
     name: Send chat query against fault backend
     bridge.action:
       name: ask_main_chat
@@ -38,7 +50,7 @@ steps:
     expect:
       result.detail.sent: "Trigger backend fault [[MARKER:chat-fault-5xx]]"
 
-  - id: S4
+  - id: S5
     name: Wait for chat to settle after backend 5xx
     bridge.action:
       name: wait_main_chat_idle
@@ -46,7 +58,7 @@ steps:
         timeoutMs: "30000"
         pollMs: "500"
 
-  - id: S5
+  - id: S6
     name: Assert injected backend 5xx surfaced (not bridge unavailable)
     bridge.action:
       name: main_chat_snapshot
@@ -57,7 +69,7 @@ steps:
       result.detail.error_message:
         contains: "HTTP 500"
 
-  - id: S6
+  - id: S7
     name: Logs clean
     log.expect:
       absent:
