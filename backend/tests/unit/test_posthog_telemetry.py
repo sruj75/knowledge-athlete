@@ -62,3 +62,30 @@ def test_client_construction_failure_is_fail_open_and_records_fallback(monkeypat
             'log': posthog_telemetry.logger,
         }
     ]
+
+
+def test_client_defaults_to_owned_us_ingestion_host(monkeypatch):
+    constructed = []
+
+    class RecordingPosthog:
+        def __init__(self, **kwargs):
+            constructed.append(kwargs)
+
+    _reset_client(monkeypatch)
+    monkeypatch.setenv('POSTHOG_PROJECT_API_KEY', 'configured-test-key')
+    monkeypatch.delenv('POSTHOG_HOST', raising=False)
+    monkeypatch.setattr(
+        posthog_telemetry.importlib,
+        'import_module',
+        lambda _name: SimpleNamespace(Posthog=RecordingPosthog),
+    )
+
+    client = posthog_telemetry._get_posthog_client()
+
+    assert isinstance(client, RecordingPosthog)
+    assert constructed == [
+        {
+            'project_api_key': 'configured-test-key',
+            'host': 'https://us.i.posthog.com',
+        }
+    ]

@@ -22,6 +22,7 @@ VERSION="${VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 SOURCE_SHA="${SOURCE_SHA:-}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
+readonly OWNED_POSTHOG_PROJECT_TOKEN_SHA256="d30c51741e163c11c7bc34f5661d63c5f691ae6c584663aacfdd735153e9894c"
 
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$BINARY_NAME"
@@ -126,6 +127,18 @@ validate_owned_identity() {
   fi
 }
 
+validate_posthog_configuration() {
+  require_env POSTHOG_PROJECT_API_KEY
+  require_env POSTHOG_HOST
+  validate_url POSTHOG_HOST
+  [[ "${POSTHOG_HOST%/}" == "https://us.i.posthog.com" ]] ||
+    fail "POSTHOG_HOST must be the owned US ingestion host https://us.i.posthog.com"
+  local token_sha256
+  token_sha256="$(printf '%s' "$POSTHOG_PROJECT_API_KEY" | shasum -a 256 | awk '{print $1}')"
+  [[ "$token_sha256" == "$OWNED_POSTHOG_PROJECT_TOKEN_SHA256" ]] ||
+    fail "POSTHOG_PROJECT_API_KEY does not match the owned Intentive Desktop project"
+}
+
 validate_common_secrets() {
   for name in \
     MACOS_DEVELOPER_ID_P12 \
@@ -137,6 +150,7 @@ validate_common_secrets() {
     INTENTIVE_DESKTOP_APP_ENV_BASE64; do
     require_env "$name"
   done
+  validate_posthog_configuration
 }
 
 validate_release_secrets_and_urls() {
@@ -345,6 +359,31 @@ validate_packaged_firebase_plist() {
   fi
 }
 
+configure_owned_runtime() {
+  require_env OMI_PYTHON_API_URL
+  require_env INTENTIVE_DESKTOP_APP_ENV_BASE64
+  validate_posthog_configuration
+
+  local app_plist env_file
+  app_plist="$APP_BUNDLE/Contents/Info.plist"
+  env_file="$APP_BUNDLE/Contents/Resources/.env"
+  [[ -f "$app_plist" ]] || fail "owned runtime configuration requires an existing app Info.plist"
+  mkdir -p "$(dirname "$env_file")"
+
+  plist_set "$app_plist" IntentivePostHogProjectToken string "$POSTHOG_PROJECT_API_KEY"
+  plist_set "$app_plist" IntentivePostHogHost string "${POSTHOG_HOST%/}"
+
+  printf '%s' "$INTENTIVE_DESKTOP_APP_ENV_BASE64" | base64 --decode > "$env_file"
+  if grep -Eq '^[[:space:]]*(export[[:space:]]+)?(OMI_PYTHON_API_URL|OMI_DESKTOP_API_URL)[[:space:]]*=' "$env_file"; then
+    fail "protected desktop app env must not contain backend URL overrides"
+  fi
+  if grep -Eq '^[[:space:]]*(export[[:space:]]+)?POSTHOG_(PROJECT_API_KEY|HOST)[[:space:]]*=' "$env_file"; then
+    fail "protected desktop app env must not contain PostHog overrides"
+  fi
+  grep -q '^FIREBASE_API_KEY=' "$env_file" || fail "desktop app env is missing FIREBASE_API_KEY"
+  printf 'OMI_PYTHON_API_URL=%s\n' "$OMI_PYTHON_API_URL" >> "$env_file"
+}
+
 build() {
   require_env VERSION
   require_env BUILD_NUMBER
@@ -364,7 +403,7 @@ build() {
   xcrun swift build -c release --package-path Desktop --triple arm64-apple-macosx
   xcrun swift build -c release --package-path Desktop --triple x86_64-apple-macosx
 
-  local arm_binary x86_binary resource_bundle app_plist env_file firebase_plist
+  local arm_binary x86_binary resource_bundle app_plist firebase_plist
   arm_binary="Desktop/.build/arm64-apple-macosx/release/$BINARY_NAME"
   x86_binary="Desktop/.build/x86_64-apple-macosx/release/$BINARY_NAME"
   [[ -f "$arm_binary" && -f "$x86_binary" ]] || fail "both release executable slices are required"
@@ -415,13 +454,7 @@ build() {
   firebase_plist="$APP_BUNDLE/Contents/Resources/GoogleService-Info.plist"
   printf '%s' "$INTENTIVE_FIREBASE_PLIST_BASE64" | base64 --decode > "$firebase_plist"
   validate_packaged_firebase_plist "$firebase_plist" "$BUNDLE_ID"
-  env_file="$APP_BUNDLE/Contents/Resources/.env"
-  printf '%s' "$INTENTIVE_DESKTOP_APP_ENV_BASE64" | base64 --decode > "$env_file"
-  if grep -Eq '^(OMI_PYTHON_API_URL|OMI_DESKTOP_API_URL)=' "$env_file"; then
-    fail "protected desktop app env must contain secrets only, not backend URL overrides"
-  fi
-  grep -q '^FIREBASE_API_KEY=' "$env_file" || fail "desktop app env is missing FIREBASE_API_KEY"
-  printf 'OMI_PYTHON_API_URL=%s\n' "$OMI_PYTHON_API_URL" >> "$env_file"
+  configure_owned_runtime
 
   resource_bundle="Desktop/.build/x86_64-apple-macosx/release/Omi Computer_Omi Computer.bundle"
   [[ -d "$resource_bundle" ]] || resource_bundle="Desktop/.build/arm64-apple-macosx/release/Omi Computer_Omi Computer.bundle"
@@ -669,6 +702,8 @@ smoke() {
       --expected-bundle-id "$BUNDLE_ID" \
       --expected-url-scheme "$URL_SCHEME" \
       --expected-python-api-url "$OMI_PYTHON_API_URL" \
+      --expected-posthog-project-token "$POSTHOG_PROJECT_API_KEY" \
+      --expected-posthog-host "${POSTHOG_HOST%/}" \
       --preview \
       --result-json "$BUILD_DIR/desktop-smoke-result.json"
     return
@@ -688,6 +723,8 @@ smoke() {
       --expected-manual-download-url "$INTENTIVE_MANUAL_DOWNLOAD_URL" \
       --expected-releases-url "$GITHUB_RELEASES_URL" \
       --expected-python-api-url "$INTENTIVE_PRODUCTION_API_URL" \
+      --expected-posthog-project-token "$POSTHOG_PROJECT_API_KEY" \
+      --expected-posthog-host "${POSTHOG_HOST%/}" \
       --expected-product-url "$INTENTIVE_PRODUCT_URL" \
       --expected-terms-url "$INTENTIVE_TERMS_URL" \
       --expected-privacy-url "$INTENTIVE_PRIVACY_URL" \
@@ -711,6 +748,8 @@ smoke() {
       --expected-manual-download-url "$INTENTIVE_MANUAL_DOWNLOAD_URL" \
       --expected-releases-url "$GITHUB_RELEASES_URL" \
       --expected-python-api-url "$INTENTIVE_PRODUCTION_API_URL" \
+      --expected-posthog-project-token "$POSTHOG_PROJECT_API_KEY" \
+      --expected-posthog-host "${POSTHOG_HOST%/}" \
       --expected-product-url "$INTENTIVE_PRODUCT_URL" \
       --expected-terms-url "$INTENTIVE_TERMS_URL" \
       --expected-privacy-url "$INTENTIVE_PRIVACY_URL" \
@@ -877,8 +916,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage: scripts/codemagic-release.sh <phase>
 
-Phases: validate, import-signing, build, sign-nested, sign-outer,
-        notarize, sparkle, symbols, smoke, publish
+Phases: validate, configure-owned-runtime, import-signing, build, sign-nested,
+        sign-outer, notarize, sparkle, symbols, smoke, publish
 EOF
   exit 2
 }
@@ -886,6 +925,7 @@ EOF
 phase="${1:-}"
 case "$phase" in
   validate) validate ;;
+  configure-owned-runtime) configure_owned_runtime ;;
   import-signing) import_signing ;;
   build) build ;;
   sign-nested) sign_nested ;;

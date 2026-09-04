@@ -3,10 +3,15 @@
 set -euo pipefail
 
 MACOS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$MACOS_DIR/scripts/codemagic-release.sh"
+PRODUCTION_SCRIPT="$MACOS_DIR/scripts/codemagic-release.sh"
 TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/intentive-codemagic-release-test.XXXXXX")"
+OWNED_POSTHOG_TOKEN_SHA256="d30c51741e163c11c7bc34f5661d63c5f691ae6c584663aacfdd735153e9894c"
+FIXTURE_POSTHOG_TOKEN="fixture-posthog-project-token"
+FIXTURE_POSTHOG_TOKEN_SHA256="$(printf '%s' "$FIXTURE_POSTHOG_TOKEN" | shasum -a 256 | awk '{print $1}')"
+SCRIPT=""
 
 cleanup() {
+  [[ -z "$SCRIPT" ]] || rm -f -- "$SCRIPT"
   case "$TMP_ROOT" in
     "${TMPDIR:-/tmp}/intentive-codemagic-release-test."*) rm -rf -- "$TMP_ROOT" ;;
     *) echo "Refusing unsafe cleanup path: $TMP_ROOT" >&2 ;;
@@ -18,6 +23,12 @@ fail() {
   echo "FAIL: $*" >&2
   exit 1
 }
+
+SCRIPT="$(mktemp "$MACOS_DIR/scripts/.codemagic-release-test.XXXXXX")"
+grep -Fq "OWNED_POSTHOG_PROJECT_TOKEN_SHA256=\"$OWNED_POSTHOG_TOKEN_SHA256\"" "$PRODUCTION_SCRIPT" ||
+  fail "production release script does not pin the owned PostHog project fingerprint"
+sed "s/$OWNED_POSTHOG_TOKEN_SHA256/$FIXTURE_POSTHOG_TOKEN_SHA256/g" "$PRODUCTION_SCRIPT" > "$SCRIPT"
+chmod +x "$SCRIPT"
 
 make_executable() {
   local path="$1"
@@ -97,6 +108,8 @@ common_env=(
   "APP_STORE_CONNECT_ISSUER_ID=fixture-issuer"
   "INTENTIVE_FIREBASE_PLIST_BASE64=fixture-firebase"
   "INTENTIVE_DESKTOP_APP_ENV_BASE64=fixture-app-env"
+  "POSTHOG_PROJECT_API_KEY=$FIXTURE_POSTHOG_TOKEN"
+  "POSTHOG_HOST=https://us.i.posthog.com"
   "SIGN_IDENTITY=Developer ID Application: Intentive (24D6NXS6H7)"
   "PREVIEW_SLUG=$preview_slug"
   "PREVIEW_ID=$preview_id"
@@ -122,6 +135,73 @@ grep -Fxq "URL_SCHEME=heyintentive-preview-$preview_id" "$cm_env" ||
 if grep -q 'fixture-password\|fixture-private-key\|fixture-publish-key' "$cm_env"; then
   fail "protected provider input leaked into CM_ENV"
 fi
+
+if env "${common_env[@]}" POSTHOG_PROJECT_API_KEY= \
+  CM_ENV="$TMP_ROOT/rejected-missing-posthog.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-missing-posthog.err"; then
+  fail "missing PostHog project token unexpectedly passed"
+fi
+grep -q 'POSTHOG_PROJECT_API_KEY is required' "$TMP_ROOT/rejected-missing-posthog.err" ||
+  fail "missing PostHog project token rejection was not explicit"
+
+if env "${common_env[@]}" POSTHOG_PROJECT_API_KEY=wrong-posthog-project-token \
+  CM_ENV="$TMP_ROOT/rejected-wrong-posthog.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-wrong-posthog.err"; then
+  fail "wrong PostHog project token unexpectedly passed"
+fi
+grep -q 'does not match the owned Intentive Desktop project' "$TMP_ROOT/rejected-wrong-posthog.err" ||
+  fail "wrong PostHog project token rejection was not explicit"
+
+runtime_build="$TMP_ROOT/runtime-build"
+runtime_app="$runtime_build/Intentive.app"
+mkdir -p "$runtime_app/Contents/Resources"
+cp "$MACOS_DIR/Desktop/Info.plist" "$runtime_app/Contents/Info.plist"
+runtime_env_base64="$(printf 'FIREBASE_API_KEY=fixture-firebase-key\nSAFE_VALUE=retained\n' | base64 | tr -d '\n')"
+env \
+  BUILD_DIR="$runtime_build" \
+  APP_NAME=Intentive \
+  OMI_PYTHON_API_URL=https://api.heyintentive.com \
+  INTENTIVE_DESKTOP_APP_ENV_BASE64="$runtime_env_base64" \
+  POSTHOG_PROJECT_API_KEY=fixture-posthog-project-token \
+  POSTHOG_HOST=https://us.i.posthog.com \
+  "$SCRIPT" configure-owned-runtime >/dev/null
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :IntentivePostHogProjectToken' "$runtime_app/Contents/Info.plist")" == \
+  "fixture-posthog-project-token" ]] || fail "owned runtime phase did not stamp the PostHog project token"
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :IntentivePostHogHost' "$runtime_app/Contents/Info.plist")" == \
+  "https://us.i.posthog.com" ]] || fail "owned runtime phase did not stamp the PostHog host"
+grep -Fxq 'OMI_PYTHON_API_URL=https://api.heyintentive.com' "$runtime_app/Contents/Resources/.env" ||
+  fail "owned runtime phase did not stamp the backend URL"
+if grep -Eq '^POSTHOG_(PROJECT_API_KEY|HOST)=' "$runtime_app/Contents/Resources/.env"; then
+  fail "owned PostHog configuration was duplicated into the override-capable bundled env"
+fi
+
+runtime_override_base64="$(printf 'FIREBASE_API_KEY=fixture-firebase-key\n  export POSTHOG_PROJECT_API_KEY=inherited-token\nPOSTHOG_HOST = https://attacker.example\n' | base64 | tr -d '\n')"
+if env \
+  BUILD_DIR="$runtime_build" \
+  APP_NAME=Intentive \
+  OMI_PYTHON_API_URL=https://api.heyintentive.com \
+  INTENTIVE_DESKTOP_APP_ENV_BASE64="$runtime_override_base64" \
+  POSTHOG_PROJECT_API_KEY=fixture-posthog-project-token \
+  POSTHOG_HOST=https://us.i.posthog.com \
+  "$SCRIPT" configure-owned-runtime >/dev/null 2>"$TMP_ROOT/rejected-posthog-override.err"; then
+  fail "bundled PostHog override unexpectedly passed"
+fi
+grep -q 'must not contain PostHog overrides' "$TMP_ROOT/rejected-posthog-override.err" ||
+  fail "bundled PostHog override rejection was not explicit"
+
+runtime_backend_override_base64="$(printf 'FIREBASE_API_KEY=fixture-firebase-key\n export OMI_PYTHON_API_URL = https://attacker.example\n' | base64 | tr -d '\n')"
+if env \
+  BUILD_DIR="$runtime_build" \
+  APP_NAME=Intentive \
+  OMI_PYTHON_API_URL=https://api.heyintentive.com \
+  INTENTIVE_DESKTOP_APP_ENV_BASE64="$runtime_backend_override_base64" \
+  POSTHOG_PROJECT_API_KEY="$FIXTURE_POSTHOG_TOKEN" \
+  POSTHOG_HOST=https://us.i.posthog.com \
+  "$SCRIPT" configure-owned-runtime >/dev/null 2>"$TMP_ROOT/rejected-backend-override.err"; then
+  fail "normalized bundled backend override unexpectedly passed"
+fi
+grep -q 'must not contain backend URL overrides' "$TMP_ROOT/rejected-backend-override.err" ||
+  fail "normalized bundled backend override rejection was not explicit"
 
 if env "${common_env[@]}" OMI_PYTHON_API_URL=https://api.omi.me \
   CM_ENV="$TMP_ROOT/rejected-host.env" "$SCRIPT" validate >/dev/null 2>"$TMP_ROOT/rejected-host.err"; then

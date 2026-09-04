@@ -22,6 +22,8 @@ EXPECTED_PRODUCT_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PRODUCT_URL:-}"
 EXPECTED_TERMS_URL="${OMI_SIGNED_ARTIFACT_SMOKE_TERMS_URL:-}"
 EXPECTED_PRIVACY_URL="${OMI_SIGNED_ARTIFACT_SMOKE_PRIVACY_URL:-}"
 EXPECTED_SUPPORT_URL="${OMI_SIGNED_ARTIFACT_SMOKE_SUPPORT_URL:-}"
+EXPECTED_POSTHOG_PROJECT_TOKEN="${OMI_SIGNED_ARTIFACT_SMOKE_POSTHOG_PROJECT_TOKEN:-}"
+EXPECTED_POSTHOG_HOST="${OMI_SIGNED_ARTIFACT_SMOKE_POSTHOG_HOST:-}"
 IS_EXTERNAL_PREVIEW=false
 RUN_LAUNCH=false
 RUN_NETWORK=false
@@ -74,6 +76,10 @@ Options:
   --expected-terms-url URL   Expected IntentiveTermsURL
   --expected-privacy-url URL Expected IntentivePrivacyURL
   --expected-support-url URL Expected IntentiveSupportURL
+  --expected-posthog-project-token TOKEN
+                             Expected IntentivePostHogProjectToken
+  --expected-posthog-host URL
+                             Expected IntentivePostHogHost
   --preview                  Assert external-preview isolation (no Sparkle feed)
   --launch                   Launch the app and assert it stays alive briefly
   --network                  Probe configured backend/appcast URLs
@@ -177,6 +183,8 @@ parse_args() {
       --expected-terms-url) require_option_value "$1" "${2:-}"; EXPECTED_TERMS_URL="$2"; shift 2 ;;
       --expected-privacy-url) require_option_value "$1" "${2:-}"; EXPECTED_PRIVACY_URL="$2"; shift 2 ;;
       --expected-support-url) require_option_value "$1" "${2:-}"; EXPECTED_SUPPORT_URL="$2"; shift 2 ;;
+      --expected-posthog-project-token) require_option_value "$1" "${2:-}"; EXPECTED_POSTHOG_PROJECT_TOKEN="$2"; shift 2 ;;
+      --expected-posthog-host) require_option_value "$1" "${2:-}"; EXPECTED_POSTHOG_HOST="$2"; shift 2 ;;
       --preview) IS_EXTERNAL_PREVIEW=true; shift ;;
       --launch) RUN_LAUNCH=true; shift ;;
       --network) RUN_NETWORK=true; shift ;;
@@ -205,6 +213,10 @@ validate_release_expectations() {
     || fail "release smoke requires --expected-python-api-url"
   [[ "$EXPECTED_RELEASES_URL" == "https://github.com/sruj75/knowledge-athlete/releases" ]] \
     || fail "release repository must be https://github.com/sruj75/knowledge-athlete/releases"
+  [[ -n "$EXPECTED_POSTHOG_PROJECT_TOKEN" ]] \
+    || fail "release smoke requires --expected-posthog-project-token"
+  [[ "$EXPECTED_POSTHOG_HOST" == "https://us.i.posthog.com" ]] \
+    || fail "release smoke requires the owned US PostHog ingestion host"
 
   if [[ "$IS_EXTERNAL_PREVIEW" != true ]]; then
     for name in EXPECTED_PRODUCT_URL EXPECTED_TERMS_URL EXPECTED_PRIVACY_URL EXPECTED_SUPPORT_URL; do
@@ -348,19 +360,28 @@ assert_bundle_matches_current() {
 
   local current_id current_version current_build candidate_id candidate_version candidate_build
   local current_executable candidate_executable current_executable_sha candidate_executable_sha
+  local current_posthog_project_token candidate_posthog_project_token current_posthog_host candidate_posthog_host
   current_id="$(plist_read CFBundleIdentifier)"
   current_version="$(plist_read CFBundleShortVersionString)"
   current_build="$(plist_read CFBundleVersion)"
   current_executable="$(plist_read CFBundleExecutable)"
+  current_posthog_project_token="$(plist_read IntentivePostHogProjectToken)"
+  current_posthog_host="$(plist_read IntentivePostHogHost)"
   candidate_id="$(plist_read_from "$candidate" CFBundleIdentifier)"
   candidate_version="$(plist_read_from "$candidate" CFBundleShortVersionString)"
   candidate_build="$(plist_read_from "$candidate" CFBundleVersion)"
   candidate_executable="$(plist_read_from "$candidate" CFBundleExecutable)"
+  candidate_posthog_project_token="$(plist_read_from "$candidate" IntentivePostHogProjectToken)"
+  candidate_posthog_host="$(plist_read_from "$candidate" IntentivePostHogHost)"
 
   [[ "$candidate_id" == "$current_id" ]] || fail "$label bundle id mismatch: expected $current_id, got ${candidate_id:-missing}"
   [[ "$candidate_version" == "$current_version" ]] || fail "$label version mismatch: expected $current_version, got ${candidate_version:-missing}"
   [[ "$candidate_build" == "$current_build" ]] || fail "$label build mismatch: expected $current_build, got ${candidate_build:-missing}"
   [[ "$candidate_executable" == "$current_executable" ]] || fail "$label executable name mismatch: expected $current_executable, got ${candidate_executable:-missing}"
+  [[ "$candidate_posthog_project_token" == "$current_posthog_project_token" ]] \
+    || fail "$label PostHog project token mismatch"
+  [[ "$candidate_posthog_host" == "$current_posthog_host" ]] \
+    || fail "$label PostHog host mismatch"
   current_executable_sha="$(sha256_file "$APP_BUNDLE/Contents/MacOS/$current_executable")"
   candidate_executable_sha="$(sha256_file "$candidate/Contents/MacOS/$candidate_executable")"
   [[ "$candidate_executable_sha" == "$current_executable_sha" ]] \
@@ -450,7 +471,7 @@ assert_bundle_identity() {
   [[ -d "$APP_BUNDLE/Contents" ]] || fail "app bundle not found: $APP_BUNDLE"
 
   local bundle_id version build executable url_scheme feed_url public_key manual_download_url releases_url
-  local product_url terms_url privacy_url support_url
+  local product_url terms_url privacy_url support_url posthog_project_token posthog_host
   local production_api_url
   local external_preview_marker automatic_checks
   local app_bundle_name required_app_bundle_name
@@ -467,6 +488,8 @@ assert_bundle_identity() {
   terms_url="$(plist_read IntentiveTermsURL)"
   privacy_url="$(plist_read IntentivePrivacyURL)"
   support_url="$(plist_read IntentiveSupportURL)"
+  posthog_project_token="$(plist_read IntentivePostHogProjectToken)"
+  posthog_host="$(plist_read IntentivePostHogHost)"
   url_scheme="$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true)"
   external_preview_marker="$(plist_read OMIExternalPreview)"
   automatic_checks="$(plist_read SUEnableAutomaticChecks)"
@@ -477,6 +500,10 @@ assert_bundle_identity() {
   [[ "$app_bundle_name" == "$required_app_bundle_name" ]] \
     || fail "app bundle name for $EXPECTED_BUNDLE_ID must be $required_app_bundle_name, got $app_bundle_name"
   [[ "$url_scheme" == "$EXPECTED_URL_SCHEME" ]] || fail "URL scheme must be $EXPECTED_URL_SCHEME, got ${url_scheme:-missing}"
+  [[ "$posthog_project_token" == "$EXPECTED_POSTHOG_PROJECT_TOKEN" ]] \
+    || fail "IntentivePostHogProjectToken mismatch"
+  [[ "$posthog_host" == "$EXPECTED_POSTHOG_HOST" ]] \
+    || fail "IntentivePostHogHost mismatch: expected $EXPECTED_POSTHOG_HOST, got ${posthog_host:-missing}"
   if [[ "$IS_EXTERNAL_PREVIEW" == true ]]; then
     [[ "$bundle_id" =~ ^com[.]heyintentive[.]intentive[.]preview[.][a-z0-9-]+$ ]] \
       || fail "external preview bundle id must use the preview namespace"

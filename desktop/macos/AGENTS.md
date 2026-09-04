@@ -63,15 +63,16 @@ intentionally incomplete:
 3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
 4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
    Apple signing/notarization, preview, website, remaining protected publication, or production
-   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, Sparkle keypair, and
-   Sentry upload token are already protected. Never substitute inherited Omi values.
+   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, PostHog client configuration,
+   Sparkle keypair, and Sentry upload token are already protected. The tracked PostHog fingerprint must
+   match the protected project token. Never substitute inherited Omi values or bundle PostHog overrides.
 5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until the remaining owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
 The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
 
 Signed artifact smoke scope:
-- Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, helper/runtime packaging, artifact readability, and local storage package surface.
+- Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, exact fingerprint-bound PostHog configuration across the app/ZIP/DMG copies, helper/runtime packaging, artifact readability, and local storage package surface. Stable/Beta analytics resolve only from this signed metadata; environment overrides are for non-production bundles only.
 - Before outer-bundle signing, the provider must run `scripts/prepare-release-libwebp.sh` with the candidate Developer ID identity. It verifies the pinned two-architecture cache and structural Mach-O contract, uses only the checksum-pinned source rebuild as fallback, signs the nested libraries in dependency order, and fails before app signing if either path is invalid. Local `run.sh` continues using Homebrew.
 - S-29's build provider must upload the generated `desktop-smoke-result.json` with artifact digests and completed checks; promotion tooling compares this result to the exact release asset before changing channels.
 - The synthetic `--auth-storage-canary` is mandatory before beta publication and runs inside the exact signed app without real credentials. Optional broader live probes (`--launch --network --auth --chat --permissions --storage`) require an isolated release runner and explicit canary env vars; production-bundle launch is fail-closed unless `OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1`, and `--auth` requires `OMI_SIGNED_ARTIFACT_SMOKE_AUTH_PROOF_COMMAND` to prove app-level persistence rather than a raw bearer-token curl.
@@ -88,10 +89,10 @@ Stable is manual:
 **Artifact provider:** the Codemagic login is established and the selected owned application is
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
-protected groups already hold the owned Stable/Beta Firebase plists, Sparkle keypair, and Sentry
-upload token. Apple signing/notarization and preview values remain incomplete, so no candidate may
-be dispatched. The second empty provider record was deleted; only the selected application is a
-build authority.
+protected groups already hold the owned Stable/Beta Firebase plists, shared PostHog client
+configuration, Sparkle keypair, and Sentry upload token. Apple signing/notarization and preview
+values remain incomplete, so no candidate may be dispatched. The second empty provider record was
+deleted; only the selected application is a build authority.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.

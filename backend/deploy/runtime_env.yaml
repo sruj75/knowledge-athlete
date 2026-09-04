@@ -193,7 +193,7 @@ environments:
               env_var: BACKEND_CANONICAL_URL
               category: oauth_metadata
             POSTHOG_HOST:
-              value: https://app.posthog.com
+              value: https://us.i.posthog.com
               category: telemetry
             LANGFUSE_BASE_URL:
               value: https://us.cloud.langfuse.com
@@ -431,7 +431,7 @@ environments:
               value: disabled
               category: rollout
             POSTHOG_HOST:
-              value: https://app.posthog.com
+              value: https://us.i.posthog.com
               category: telemetry
             LANGFUSE_BASE_URL:
               value: https://us.cloud.langfuse.com
