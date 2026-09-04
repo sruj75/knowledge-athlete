@@ -1,9 +1,9 @@
 {
   "files": {
-    "backend/scripts/validate-backend-runtime-env.py": 1602
+    "backend/scripts/validate-backend-runtime-env.py": 1636
   },
   "raise_justifications": {
-    "backend/scripts/validate-backend-runtime-env.py": "S-27 keeps one manifest validator authority while adding the full dev and production cloud-foundation contract."
+    "backend/scripts/validate-backend-runtime-env.py": "Live post-deploy validation now normalizes Cloud Run defaults and verifies public access through IAM."
   },
   "threshold": 1500
 }

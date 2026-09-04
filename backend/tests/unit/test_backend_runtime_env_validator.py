@@ -1121,6 +1121,76 @@ def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract
     assert flags['--startup-probe'].startswith('httpGet.path=/v1/health,periodSeconds=10')
 
 
+def test_live_cloud_run_normalizes_default_scale_affinity_and_public_iam(monkeypatch):
+    validator = load_validator()
+    monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'knowledge-athlete-dev')
+    service_document = {
+        'spec': {
+            'template': {
+                'metadata': {'annotations': {}},
+                'spec': {'containers': [{'env': []}]},
+            }
+        }
+    }
+    iam_policy = {
+        'bindings': [
+            {
+                'role': 'roles/run.invoker',
+                'members': ['allUsers', 'serviceAccount:tasks@knowledge-athlete.iam.gserviceaccount.com'],
+            }
+        ]
+    }
+
+    def fake_run(command, **_kwargs):
+        document = iam_policy if 'get-iam-policy' in command else service_document
+        return SimpleNamespace(returncode=0, stdout=json.dumps(document), stderr='')
+
+    monkeypatch.setattr(validator.subprocess, 'run', fake_run)
+
+    flags = validator._fetch_live_cloud_run_state(_live_env_config())['services']['backend']['flags']
+    errors = validator._validate_workflow_flags(
+        scope='cloud_run/backend',
+        expected={
+            '--min-instances': '0',
+            '--allow-unauthenticated': True,
+            '--no-session-affinity': True,
+        },
+        actual=flags,
+        strict_provisional=False,
+    )
+
+    assert errors == []
+
+
+def test_live_cloud_run_public_flag_requires_unconditional_all_users_invoker():
+    validator = load_validator()
+
+    flags = validator._cloud_run_service_flags_from_state(
+        annotations={},
+        template_spec={},
+        container={},
+        iam_policy={
+            'bindings': [
+                {
+                    'role': 'roles/run.invoker',
+                    'members': ['allUsers'],
+                    'condition': {'expression': 'request.time < timestamp("2027-01-01T00:00:00Z")'},
+                }
+            ]
+        },
+    )
+    errors = validator._validate_workflow_flags(
+        scope='cloud_run/backend',
+        expected={'--allow-unauthenticated': True},
+        actual=flags,
+        strict_provisional=False,
+    )
+
+    assert [(error.scope, error.message) for error in errors] == [
+        ('cloud_run/backend', 'missing Cloud Run flag --allow-unauthenticated')
+    ]
+
+
 def test_live_cloud_run_describe_normalizes_request_based_cpu() -> None:
     validator = load_validator()
 
