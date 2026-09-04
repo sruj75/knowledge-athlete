@@ -66,6 +66,9 @@ def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
     workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
     modes = workflow[True]['workflow_dispatch']['inputs']['mode']['options']
     job = workflow['jobs']['foundation-maintenance']
+    readiness_step = next(
+        step for step in job['steps'] if step.get('name') == 'Compare sanitized live foundation with the manifest'
+    )
     serialized = json.dumps(job, sort_keys=True)
     runs = '\n'.join(str(step.get('run', '')) for step in job['steps'])
 
@@ -75,6 +78,9 @@ def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
     assert '--include-tags' in serialized
     assert 'artifacts delete' not in serialized
     assert 'run revisions delete' not in serialized
+    assert readiness_step['env']['REDIS_DB_HOST'] == '${{ vars.REDIS_DB_HOST }}'
+    assert readiness_step['env']['REDIS_DB_PORT'] == '${{ vars.REDIS_DB_PORT }}'
+    assert readiness_step['env']['REDIS_DB_CA_CERT_PEM'] == '${{ vars.REDIS_DB_CA_CERT_PEM }}'
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])

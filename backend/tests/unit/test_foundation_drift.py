@@ -228,7 +228,7 @@ def fake_gcloud(command, wanted):
                 'destination': 'logging.googleapis.com/projects/runtime-dev/locations/global/buckets/_Required',
             },
         ]
-    if words[1:4] == ('monitoring', 'channels', 'list'):
+    if words[1:5] == ('beta', 'monitoring', 'channels', 'list'):
         return [
             {
                 'name': 'projects/runtime-dev/notificationChannels/1',
@@ -301,6 +301,58 @@ def test_fake_gcloud_describes_match_the_development_foundation() -> None:
             '--format=json',
         )
     ]
+    channel_lists = [command for command in commands if 'channels' in command and 'list' in command]
+    assert channel_lists == [
+        ('gcloud', 'beta', 'monitoring', 'channels', 'list', '--project', 'runtime-dev', '--format=json')
+    ]
+
+
+def test_wif_provider_lookup_uses_the_canonical_project_id() -> None:
+    expected = expected_dev()
+    wanted = expected_observable_foundation(expected)
+    commands = []
+
+    def recording_runner(command):
+        commands.append(tuple(command))
+        return fake_gcloud(command, wanted)
+
+    collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=recording_runner,
+    )
+
+    provider_describe = next(
+        command for command in commands if command[1:5] == ('iam', 'workload-identity-pools', 'providers', 'describe')
+    )
+    assert provider_describe[-3:] == ('--project', 'runtime-dev', '--format=json')
+
+
+def test_gcloud_storage_cli_bucket_shape_is_normalized() -> None:
+    expected = expected_dev()
+    wanted = expected_observable_foundation(expected)
+
+    def storage_cli_runner(command):
+        words = tuple(command)
+        if words[1:4] == ('storage', 'buckets', 'describe'):
+            return {
+                'name': 'desktop-updates-dev',
+                'location': 'US-WEST1',
+                'uniform_bucket_level_access': True,
+                'public_access_prevention': 'enforced',
+                'lifecycle_config': None,
+            }
+        return fake_gcloud(command, wanted)
+
+    actual = collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=storage_cli_runner,
+    )
+
+    assert drift_paths(wanted, actual) == []
 
 
 def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> None:

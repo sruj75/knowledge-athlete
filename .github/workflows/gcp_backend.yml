@@ -220,6 +220,9 @@ jobs:
           GITHUB_REPOSITORY_OWNER_ID: ${{ github.repository_owner_id }}
           PRIVATE_SERVICE_ACCESS_RANGE_CIDR: ${{ vars.PRIVATE_SERVICE_ACCESS_RANGE_CIDR }}
           PRIVATE_SERVICE_ACCESS_RANGE_NAME: ${{ vars.PRIVATE_SERVICE_ACCESS_RANGE_NAME }}
+          REDIS_DB_CA_CERT_PEM: ${{ vars.REDIS_DB_CA_CERT_PEM }}
+          REDIS_DB_HOST: ${{ vars.REDIS_DB_HOST }}
+          REDIS_DB_PORT: ${{ vars.REDIS_DB_PORT }}
           REDIS_INSTANCE_NAME: ${{ vars.REDIS_INSTANCE_NAME }}
           RUNTIME_GCP_PROJECT_ID: ${{ vars.RUNTIME_GCP_PROJECT_ID }}
         run: |
