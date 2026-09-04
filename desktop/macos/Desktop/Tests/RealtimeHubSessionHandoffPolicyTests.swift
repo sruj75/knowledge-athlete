@@ -290,10 +290,10 @@ import XCTest
     }
 
     @MainActor
-    func testPhysicalFaultInvalidatesPendingMintAndFencesLateSessionStart() {
+    func testPhysicalFaultInvalidatesPendingMintAndFencesLateSessionStart() throws {
       let controller = RealtimeHubController()
       let ownerScope = controller.currentOwnerScope
-      let mintGeneration = try! XCTUnwrap(controller.beginMint(ownerScope: ownerScope))
+      let mintGeneration = try XCTUnwrap(controller.beginMint(ownerScope: ownerScope))
       var sessionStartCount = 0
       controller.testingSessionStartAfterDrain = { _, _, _ in
         sessionStartCount += 1
