@@ -1020,7 +1020,7 @@ async def _generate_custom_token(
     """
     try:
         # Get Firebase API Key from environment
-        firebase_api_key = os.getenv('FIREBASE_API_KEY')
+        firebase_api_key = os.getenv('FIREBASE_API_KEY', '').strip()
         if not firebase_api_key:
             raise Exception("FIREBASE_API_KEY not configured")
 
