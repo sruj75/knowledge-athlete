@@ -87,6 +87,7 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
     backend = services['backend']
     assert {
         'BILLING_MODE',
+        'BASE_API_URL',
         'FIREBASE_PROJECT_ID',
         'ACCOUNT_DELETION_DISPATCH_MODE',
         'DESKTOP_UPDATE_POINTERS_MODE',

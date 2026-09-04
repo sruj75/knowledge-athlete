@@ -189,6 +189,9 @@ environments:
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
               category: oauth_metadata
+            BASE_API_URL:
+              env_var: BACKEND_CANONICAL_URL
+              category: oauth_metadata
             POSTHOG_HOST:
               value: https://app.posthog.com
               category: telemetry
@@ -420,6 +423,9 @@ environments:
               category: runtime_identity
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
+              category: oauth_metadata
+            BASE_API_URL:
+              env_var: BACKEND_CANONICAL_URL
               category: oauth_metadata
             BILLING_MODE:
               value: disabled

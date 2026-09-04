@@ -630,6 +630,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           RUNTIME_GCP_PROJECT_ID: ${{ vars.RUNTIME_GCP_PROJECT_ID }}
           FIREBASE_AUTH_PROJECT_ID: ${{ vars.FIREBASE_AUTH_PROJECT_ID }}
+          BACKEND_CANONICAL_URL: ${{ vars.BACKEND_CANONICAL_URL }}
           ACCOUNT_DELETION_HANDLER_URL: ${{ steps.account-deletion-target.outputs.handler_url }}
           ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE: ${{ steps.account-deletion-target.outputs.oidc_audience }}
           ACCOUNT_DELETION_TASKS_INVOKER_SA: ${{ vars.ACCOUNT_DELETION_TASKS_INVOKER_SA }}
