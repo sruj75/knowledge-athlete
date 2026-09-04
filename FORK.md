@@ -143,7 +143,7 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
 
 ### Signing & distribution
 
-- macOS: Developer ID certificate + notarization. `run.sh:447` already hard-errors
+- macOS: Developer ID certificate + notarization. `desktop/macos/run.sh` already hard-errors
   without a signing identity; ad-hoc signing makes macOS reset TCC permissions on
   every build.
 - Windows: the committed `electron-builder.config.mjs:101` is unsigned, while
