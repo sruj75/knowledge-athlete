@@ -226,6 +226,7 @@ from unittest.mock import AsyncMock
 from routers.auth import (  # noqa: E402
     _DEFAULT_NATIVE_REDIRECT,
     _code_challenge_for_verifier,
+    _generate_custom_token,
     _validate_pkce_challenge,
     _verify_pkce_code_verifier,
     auth_authorize,
@@ -770,3 +771,23 @@ class TestTokenEdgeCases:
                 )
             )
         assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_firebase_custom_token_exchange_trims_secret_manager_newline(monkeypatch):
+    """Secret Manager values may retain a trailing newline from their input file."""
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"localId": "intentive-user"}
+    client = MagicMock()
+    client.post = AsyncMock(return_value=response)
+    create_custom_token = MagicMock(return_value=b"firebase-custom-token")
+
+    monkeypatch.setenv("FIREBASE_API_KEY", "firebase-web-key\n")
+    with patch("routers.auth.get_auth_client", return_value=client), patch(
+        "routers.auth.firebase_admin.auth.create_custom_token", create_custom_token, create=True
+    ):
+        custom_token = await _generate_custom_token("google", "google-id-token", "google-access-token")
+
+    assert custom_token == "firebase-custom-token"
+    assert client.post.await_args.args[0].endswith("?key=firebase-web-key")
+    assert "\n" not in client.post.await_args.args[0]
