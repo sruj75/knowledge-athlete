@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
 
 import pytest
+import yaml
 
 from scripts import verify_backend_release_vector as verify
 
@@ -11,7 +14,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 REPO_DIR = BACKEND_DIR.parent
 COMMIT_SHA = 'abcdef1234567890abcdef1234567890abcdef12'
 IMAGE_DIGEST = 'sha256:' + ('1' * 64)
-EXPECTED_IMAGE = f'us-west1-docker.pkg.dev/owned-dev/backend-images/backend:{COMMIT_SHA}@{IMAGE_DIGEST}'
+EXPECTED_IMAGE = f'us-west1-docker.pkg.dev/owned-dev/backend-images/backend@{IMAGE_DIGEST}'
 
 
 def _expectation(*, environment: str = 'dev') -> verify.DeploymentExpectation:
@@ -74,6 +77,45 @@ def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -
     assert expectation.environment == 'dev'
 
 
+@pytest.mark.parametrize('workflow_name', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
+def test_capture_step_emits_digest_reference_accepted_by_release_vector(workflow_name: str, tmp_path: Path) -> None:
+    workflow = yaml.safe_load((REPO_DIR / '.github' / 'workflows' / workflow_name).read_text(encoding='utf-8'))
+    capture = next(
+        step for step in workflow['jobs']['deploy']['steps'] if step.get('name') == 'Capture immutable runtime image'
+    )
+    repository = 'us-west1-docker.pkg.dev/owned-dev/backend-images/backend'
+    script = (
+        capture['run']
+        .replace('${{ steps.image-tag.outputs.repository }}', repository)
+        .replace('${{ steps.build-runtime-image.outputs.digest }}', IMAGE_DIGEST)
+    )
+    output = tmp_path / 'github-output'
+
+    result = subprocess.run(
+        ['bash', '-c', script],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={**os.environ, 'GITHUB_OUTPUT': str(output)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    values = dict(line.split('=', 1) for line in output.read_text(encoding='utf-8').splitlines())
+    expectation = verify.build_expectation(
+        commit_sha=COMMIT_SHA,
+        short_sha='abcdef1',
+        deploy_run_id='12345',
+        deploy_run_attempt='2',
+        project='knowledge-athlete',
+        region='us-central1',
+        environment='dev',
+        service_name='knowledge-athlete-dev',
+        expected_image=values['immutable_ref'],
+    )
+
+    assert expectation.image == f'{repository}@{IMAGE_DIGEST}'
+
+
 @pytest.mark.parametrize(
     ('kwargs', 'message'),
     [
@@ -83,6 +125,14 @@ def test_expectation_binds_one_backend_revision_to_commit_and_deploy_attempt() -
         ({'environment': 'stage'}, 'environment'),
         ({'service_name': 'Backend'}, 'service name'),
         ({'expected_image': 'us-west1-docker.pkg.dev/owned/backend:latest'}, 'expected image'),
+        (
+            {
+                'expected_image': (
+                    f'us-west1-docker.pkg.dev/owned-dev/backend-images/backend:{COMMIT_SHA}@{IMAGE_DIGEST}'
+                )
+            },
+            'expected image',
+        ),
     ],
 )
 def test_expectation_rejects_ambiguous_release_identity(kwargs: dict, message: str) -> None:

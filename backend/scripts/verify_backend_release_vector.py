@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 CLOUD_RUN_TIMEOUT_SECONDS = 3600
-IMMUTABLE_IMAGE_RE = re.compile(r'^us-west1-docker\.pkg\.dev/[^/]+/[^/]+/backend:[0-9a-f]{40}@sha256:[0-9a-f]{64}$')
+IMMUTABLE_IMAGE_RE = re.compile(r'^us-west1-docker\.pkg\.dev/[^/]+/[^/]+/backend@sha256:[0-9a-f]{64}$')
 CLOUD_RUN_SERVICE_RE = re.compile(r'^[a-z][a-z0-9-]{0,62}$')
 
 
@@ -62,7 +62,9 @@ def build_expectation(
     else:
         resolved_short_sha = normalized_sha[:7]
     if expected_image is None or not IMMUTABLE_IMAGE_RE.fullmatch(expected_image.strip()):
-        raise ValueError('expected image must be the us-west1 Artifact Registry full-SHA tag plus sha256 digest')
+        raise ValueError(
+            'expected image must be the canonical us-west1 Artifact Registry repository plus sha256 digest'
+        )
     suffix = f'{resolved_short_sha}-{deploy_run_id}-{deploy_run_attempt}'
     return DeploymentExpectation(
         commit_sha=normalized_sha,
