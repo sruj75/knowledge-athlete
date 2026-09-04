@@ -10,11 +10,13 @@ covers:
   - desktop/macos/Desktop/Sources/CredentialHealthManager.swift
   - desktop/macos/Desktop/Sources/DefaultsKey.swift
   - desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PTTAttemptLifecycleRecorder.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PTTBatchTranscriptionPolicy.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PTTCaptureAudioTransition.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PTTLanguageIdentifier.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkManager.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkPolicies.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkManager+OwnerBoundaryTestSupport.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/PushToTalkManager+InputDeviceRouting.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/ShortcutSettings.swift
