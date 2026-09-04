@@ -131,7 +131,7 @@ extension AuthService {
         })
     else { return false }
     guard committed, sessionAttemptFence.isCurrent(attempt) else { return false }
-    NSLog("INTENTIVE AUTH: Saved auth state - signedIn: %@, email: %@", isSignedIn ? "true" : "false", email ?? "nil")
+    AuthLogPrivacy.recordPersistedAuthState(isSignedIn: isSignedIn, email: email) { NSLog("%@", $0) }
     return true
   }
 

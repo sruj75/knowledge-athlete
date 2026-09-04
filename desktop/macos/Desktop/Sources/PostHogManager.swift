@@ -130,7 +130,7 @@ class PostHogManager {
     }
 
     PostHogSDK.shared.identify(uid, userProperties: properties)
-    log("PostHog: Identified user \(uid)")
+    AuthLogPrivacy.recordAnalyticsIdentification(uid, sink: log)
   }
 
   /// Set person properties in one identify call.

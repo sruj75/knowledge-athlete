@@ -78,12 +78,13 @@ final class AuthTokenDecodingTests: XCTestCase {
 
   func testOAuthCallbackDiagnosticExcludesCodeAndState() throws {
     let url = try XCTUnwrap(URL(string: "heyintentive://auth/callback?code=secret-code&state=secret-state"))
+    var emitted: [String] = []
 
-    let diagnostic = AuthLogPrivacy.callbackReceived(url)
+    AuthLogPrivacy.recordCallbackReceived(url) { emitted.append($0) }
 
-    XCTAssertEqual(diagnostic, "INTENTIVE AUTH: Received OAuth callback")
-    XCTAssertFalse(diagnostic.contains("secret-code"))
-    XCTAssertFalse(diagnostic.contains("secret-state"))
+    XCTAssertEqual(emitted, ["INTENTIVE AUTH: Received OAuth callback"])
+    XCTAssertFalse(emitted.joined().contains("secret-code"))
+    XCTAssertFalse(emitted.joined().contains("secret-state"))
   }
 
   func testFirebaseResponseDiagnosticExcludesTokensAndPII() throws {
@@ -118,6 +119,59 @@ final class AuthTokenDecodingTests: XCTestCase {
     XCTAssertFalse(diagnostic.contains("Lovelace"))
   }
 
+  func testAnalyticsIdentificationDiagnosticExcludesUserIdentifier() {
+    var emitted: [String] = []
+
+    AuthLogPrivacy.recordAnalyticsIdentification("firebase-user-secret") { emitted.append($0) }
+
+    XCTAssertEqual(emitted, ["INTENTIVE ANALYTICS: Identified signed-in user"])
+    XCTAssertFalse(emitted.joined().contains("firebase-user-secret"))
+  }
+
+  func testAuthStateInitializationDiagnosticExcludesSavedEmail() {
+    var emitted: [String] = []
+
+    AuthLogPrivacy.recordAuthStateInitialization(
+      localProfile: false,
+      savedSignedIn: true,
+      email: "person@example.com",
+      isRestoringAuth: true
+    ) { emitted.append($0) }
+
+    XCTAssertEqual(
+      emitted,
+      ["INTENTIVE AUTH: Initialized localProfile=false savedSignedIn=true isRestoringAuth=true"]
+    )
+    XCTAssertFalse(emitted.joined().contains("person@example.com"))
+  }
+
+  func testPersistedAuthStateDiagnosticExcludesSavedEmail() {
+    var emitted: [String] = []
+
+    AuthLogPrivacy.recordPersistedAuthState(
+      isSignedIn: true,
+      email: "person@example.com"
+    ) { emitted.append($0) }
+
+    XCTAssertEqual(emitted, ["INTENTIVE AUTH: Saved auth state signedIn=true"])
+    XCTAssertFalse(emitted.joined().contains("person@example.com"))
+  }
+
+  func testSensitiveAuthLoggingCallSitesUsePrivacyBoundaryStaticTripwire() throws {
+    let postHog = try productionSource("PostHogManager.swift")
+    let app = try productionSource("OmiApp.swift")
+    let ownerTransition = try productionSource("Auth/AuthOwnerTransition.swift")
+
+    XCTAssertTrue(postHog.contains("AuthLogPrivacy.recordAnalyticsIdentification(uid, sink: log)"))
+    XCTAssertFalse(postHog.contains(#"log("PostHog: Identified user \(uid)")"#))
+    XCTAssertTrue(app.contains("AuthLogPrivacy.recordAuthStateInitialization("))
+    XCTAssertFalse(app.contains("Initialized localProfile=%@ savedSignedIn=%@ email=%@"))
+    XCTAssertTrue(app.contains("AuthLogPrivacy.recordCallbackReceived(url)"))
+    XCTAssertFalse(app.contains("Received URL event: %@"))
+    XCTAssertTrue(ownerTransition.contains("AuthLogPrivacy.recordPersistedAuthState("))
+    XCTAssertFalse(ownerTransition.contains("Saved auth state - signedIn: %@, email: %@"))
+  }
+
   private func firebaseTokenResponse(idToken: String, expiresIn: Any, localId: String?) throws -> Data {
     var json: [String: Any] = [
       "idToken": idToken,
@@ -134,6 +188,16 @@ final class AuthTokenDecodingTests: XCTestCase {
     let header = base64URL(["alg": "none", "typ": "JWT"])
     let payload = base64URL(payload)
     return "\(header).\(payload)."
+  }
+
+  private func productionSource(_ relativePath: String) throws -> String {
+    let sourceURL = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Sources")
+      .appendingPathComponent(relativePath)
+    // omi-test-quality: source-inspection -- static contract: privacy wiring complements behavioral sink coverage
+    return try String(contentsOf: sourceURL, encoding: .utf8)
   }
 
   private func base64URL(_ json: [String: Any]) -> String {

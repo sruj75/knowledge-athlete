@@ -59,11 +59,12 @@ class AuthState: ObservableObject {
       self.sessionPhase = savedSignedIn ? .restoring : .signedOut
       self.userEmail = savedEmail
     }
-    NSLog(
-      "INTENTIVE AuthState: Initialized localProfile=%@ savedSignedIn=%@ email=%@ isRestoringAuth=%@",
-      DesktopLocalProfile.isEnabled ? "true" : "false",
-      savedSignedIn ? "true" : "false", savedEmail ?? "nil", self.isRestoringAuth ? "true" : "false"
-    )
+    AuthLogPrivacy.recordAuthStateInitialization(
+      localProfile: DesktopLocalProfile.isEnabled,
+      savedSignedIn: savedSignedIn,
+      email: savedEmail,
+      isRestoringAuth: self.isRestoringAuth
+    ) { NSLog("%@", $0) }
   }
 
   func update(isSignedIn: Bool, userEmail: String? = nil) {
@@ -1280,7 +1281,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       return
     }
 
-    NSLog("INTENTIVE AppDelegate: Received URL event: %@", urlString)
+    AuthLogPrivacy.recordCallbackReceived(url) { NSLog("%@", $0) }
 
     Task { @MainActor in
       AuthService.shared.handleOAuthCallback(url: url)
