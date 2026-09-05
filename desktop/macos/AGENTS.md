@@ -98,10 +98,9 @@ deleted; only the selected application is a build authority.
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
 The `(default)` Firestore database exists in `us-west1` with deny-all rules. Desktop app
 registration `com.heyintentive.intentive.dev` and its downloaded development plist are owned;
-Google and Apple providers are enabled for development. Stable and Beta registrations and plists
-are owned in the same approved MVP project. The Apple Developer identifier/capability remains an
-explicit provider step. Never copy or edit inherited `based-hardware` credentials into an Intentive
-identity.
+Google and Apple providers are enabled; Stable and Beta registrations/plists use the same MVP
+project. Google is sufficient for the first release; native Apple sign-in awaits its owned
+identifier/capability. Never copy or edit inherited `based-hardware` credentials into Intentive.
 
 ## Module Layout (SwiftPM)
 
@@ -191,8 +190,8 @@ do not hand-edit those paths to match a specific machine.
 ## Key Architecture Notes
 
 ### Authentication
-- Firebase Auth is native Apple/Google on iOS; desktop uses `/v1/auth/authorize` plus a custom token.
-- Apple Services ID: not yet approved or provisioned. Never reuse inherited `me.omi.web`; signed native Apple sign-in remains fail-closed until the owner supplies the Intentive identifier and capability.
+- Desktop first-release auth uses Google through `/v1/auth/authorize` plus a Firebase custom token.
+- Native Apple sign-in is deferred, not a first-release requirement. Never reuse `me.omi.web`; keep it fail-closed until the owned Apple identifier/capability exists.
 - `AuthSessionCoordinator` owns session death (`INV-AUTH-1`); expired/revoked credentials use `invalidateSession`, never `signOut()`.
 
 #### Session vs provider 401
@@ -247,7 +246,7 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **Swift tests**: Local suites use four workers; CI uses one for its shared `.build` lock. Use `OMI_SWIFT_TEST_SUITE_WORKERS=1` for diagnosis; increase CI workers only with isolated builds. `./scripts/run-swift-ci.sh --release-notification-regression` sets command-scoped `OMI_NOTIFICATION_RELEASE_TESTS_ONLY=1` to select only the callback test target, with release app flags unchanged; normal testing includes all targets.
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
 - **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/heyintentive-desktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
-- **Managed agent boundary**: production Chat, background Pills, and voice work use `pi-mono`, managed Sonnet, and the owned Unix socket. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
+- **Managed agent boundary**: Chat/Pills use `pi-mono`, Gemini 3.7 Flash, and the owned Unix socket; realtime voice uses Gemini Live separately. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
 - **Release builds**: root `codemagic.yaml` plus `scripts/codemagic-release.sh` are the only artifact builder. They remain fail-closed until the remaining protected provider-group fields and exact production/public inputs in `OWNER-PROVIDER-DECISIONS.md` are configured; GitHub controls tag, observe, qualify, promote, or recover but never build.
 - **DO NOT** use bare `swift build` — it will fail with SDK version mismatch
 - **DO NOT** use `xcodebuild` — there is no `.xcodeproj`

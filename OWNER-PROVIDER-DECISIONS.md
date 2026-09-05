@@ -7,7 +7,7 @@ Repository-tracked operator handoff. This file records account ownership and
 provider boundaries, but must never contain passwords, tokens, private keys,
 certificate contents, API keys, recovery codes, or secret values.
 
-Last confirmed: 2026-09-04
+Last confirmed: 2026-09-05
 
 ## Product identity
 
@@ -49,6 +49,19 @@ Last confirmed: 2026-09-04
 - Langfuse project: the existing Intentive US project owns operator tracing and Prompt Management.
   - `intentive-chat-system` version 1 is deliberately blank because Omi's private LangSmith prompt is unavailable.
   - Preserve `intentive-runtime-bundle` versions 1–5 as history; never copy Omi credentials or prompt content.
+
+## Existing product website
+
+- Use the existing Vercel project `srujxx/intentive-tally-landing-page` and GitHub
+  repository `sruj75/intentive-tally-landing-page`; do not create a second landing page.
+- Verified 2026-09-05: `https://heyintentive.com` serves commit
+  `e033a625286f16db39c33f583336dffe689578eb`, embedding the existing Tally form
+  `ODNJ5A`, verified in `index.html` at that exact commit.
+- `/terms`, `/privacy`, and `/support` return 404; `www.heyintentive.com` fails
+  certificate hostname validation. Publishing those pages or changing DNS still
+  requires owner approval; the existing home page is not a release/legal sign-off.
+- Firebase's default `knowledge-athlete.web.app` Hosting site has no releases or
+  custom domains. It is not the product website; no Firebase Hosting deployment is needed.
 
 ## Sparkle update identity
 
@@ -115,7 +128,12 @@ Last confirmed: 2026-09-04
 ## Firebase topology
 
 - Firebase Authentication and Firestore are separate Firebase services.
-- The desktop sign-in flow requires Google and Apple authentication providers.
+- Google sign-in is sufficient for the first desktop release. Apple is enabled
+  in Firebase, but native Apple sign-in is owner-deferred and must remain unavailable
+  until its Apple identifier/capability is configured.
+- This defers only the Apple sign-in method, as the owner explicitly requested;
+  Apple membership, distribution signing, and notarization still block the first
+  real candidate. Google-only sign-in does not bypass those release requirements.
 - The retained backend separately requires Firestore.
 - Existing project `knowledge-athlete` is the development Firebase/data project; do not create another development Firebase project.
 - Created 2026-08-27: the `(default)` Firestore database in `us-west1` (Oregon), Standard edition.
@@ -172,7 +190,9 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Register the owned development macOS app in Firebase project `knowledge-athlete` and track its downloaded Google service plist without rewriting an inherited Omi plist.
 - [x] Use the same owner-approved MVP Firebase project for Development, Beta, and Stable; register `com.heyintentive.intentive.dev`, `com.heyintentive.intentive.beta`, and `com.heyintentive.intentive`, and preserve each real plist only in its tracked or protected owner.
 - [x] Enable and configure Google sign-in in Firebase Authentication with public-facing name `Intentive` and support email `srujan@heyintentive.com`; track the refreshed development plist containing its OAuth client.
-- [x] Enable Apple sign-in in Firebase Authentication. Native use still requires the Apple Developer identifier/capability under account `22btrsn071@gmail.com`.
+- [x] Enable Apple sign-in in Firebase Authentication. Native use is deferred and
+  still requires the Apple Developer identifier/capability under account
+  `22btrsn071@gmail.com`; Google is sufficient for the first release.
 - [x] Grant the development runtime identity only application-level Firestore data access (`roles/datastore.user`). The database continues to deny direct third-party client access on purpose.
 - [x] Verify one development Firestore read/write path through the runtime identity after the hosted Cloud Run service exists; the fixed release-probe user wrote and read `language=en`, then all probe state was deleted. No service-account key file was created.
 
@@ -182,6 +202,10 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Review the currently enabled APIs and live project resources. Required development APIs remain enabled; default/Firebase-managed APIs were not blindly disabled, and API availability remains neither a provisioned paid resource nor authorization to create one.
 - [x] Create and verify the public-ingress `knowledge-athlete-dev` Cloud Run service and dedicated runtime identity inside `knowledge-athlete/us-west1` using the documented permanent-free bootstrap shape.
 - [x] Use the one free Upstash database `intentive-development` for development and owner-approved early MVP production. Do not provision Google Memorystore under the current cost constraint; revisit environment isolation before meaningful production traffic.
+- [x] Verify shared Upstash remains on Free Tier. The 2026-09-05 dashboard showed
+  $0.00 cost, 99/500,000 monthly commands, 207 B/256 MB storage, and 0 B/50 GB
+  bandwidth, with TLS enabled. This is a point-in-time usage check, not a guarantee
+  about future traffic or the separate Google Cloud/provider charges.
 - [x] Store the development Redis password, Firebase API key, Google OAuth client secret, OpenAI TTS-only key, Modulate key, and both Langfuse credentials as exact Secret Manager version 1 values, plus the Gemini authorization key as exact version 2. The runtime identity has secret-level access only to `REDIS_DB_PASSWORD`, `FIREBASE_API_KEY`, `GOOGLE_CLIENT_SECRET`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `MODULATE_API_KEY`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`; the Google client ID remains non-secret deployment configuration.
 - [x] Retire the active service's cross-project recovery-image dependency by building and serving an immutable backend image from `knowledge-athlete/us-west1/intentive`.
 - [x] Bind OpenAI TTS-only key version 1, Gemini authorization key version 2, Modulate key version 1, and both Langfuse version 1 credentials through the complete development deployment. The real authenticated Gemini Chat and Gemini realtime gates passed, and both Chat turns are visible as private Langfuse generations linked to the owned prompt; no Anthropic or Artificial Analysis credential exists.
@@ -196,7 +220,14 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Delete the empty duplicate Codemagic application `6a8ff02926a0b2fbc893544e`; only the selected application remains.
 - [x] Finish YAML setup for the selected Codemagic app and create/update its GitHub webhook after the provider document reached the default branch.
 - [x] Store the existing Codemagic API token only as protected GitHub Actions secret `CODEMAGIC_API_TOKEN`.
-- [ ] Finish protected Codemagic groups `intentive_macos_signing`, `intentive_macos_release`, and `intentive_macos_preview`. Signing contains the Stable Firebase plist, desktop Firebase environment, and owned PostHog client configuration; release contains the Beta plist, Sparkle pair, and Sentry upload token. Apple signing/notarization values and the preview group remain pending. Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`; never commit their values.
+- [x] Populate the existing approved Codemagic values. Verified 2026-09-05:
+  `intentive_macos_signing` has the Stable Firebase plist, desktop Firebase environment,
+  and PostHog key/host; `intentive_macos_release` has the Beta plist, Sparkle pair,
+  and Sentry upload token. Secret values were not revealed and no build was started.
+- [ ] Finish the remaining Codemagic release/preview values, including publication
+  token/URLs and Apple signing/notarization. The preview group is not configured.
+  Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
+  never commit credentials or fill missing destinations with fake working URLs.
 - [ ] Import the supplied Developer ID `.p12` into Codemagic. This requires the `.p12` password; the password must be entered into Codemagic's secret store, never committed or pasted into documentation.
 - [ ] Renew/confirm the Apple Developer Program membership for team `24D6NXS6H7` before relying on notarization or creating new identifiers.
 - [ ] Create an App Store Connect API key or an accepted notarytool keychain profile for notarization, and store the issuer ID, key ID, and private key only in protected provider secrets.
@@ -205,14 +236,24 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Add the Sparkle private key only to Codemagic's protected `intentive_macos_release` group.
 - [x] Configure protected Codemagic variable `SENTRY_AUTH_TOKEN` in `intentive_macos_release` for dSYM upload to `heyintentive/desktop-macos`. The Sentry organization token is named `intentive-macos-release-symbols`, has only the `org:ci` scope, and was verified against Sentry's debug-files endpoint before storage. The token value must never be committed.
 - [ ] Configure the owned production backend URL, appcast/feed URL, manual-download URL, and GitHub release URL as release inputs. Store the exact production API origin separately as protected `INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN` in every release environment and both Codemagic groups; it must match the production app URL and preview-registry URL before any credential is loaded or sent. No origin is approved yet, so missing values must keep release/update behavior disabled.
-- [ ] Configure an owned GitHub App for release automation, install it on `sruj75/knowledge-athlete`, and record its app ID/private key as protected GitHub secrets.
+- [x] Configure the owned `Intentive Release` GitHub App (`intentive-release`,
+  app ID `4838294`, installation `159216850`), installed only on
+  `sruj75/knowledge-athlete`. Its ID/private key are protected GitHub secrets.
+  Verified 2026-09-05: App authentication and scoped check/workflow reads passed;
+  Actions/Contents/Pull requests are write-enabled, Checks/Metadata read-only.
+  The ephemeral verification token was revoked; no tag or release was created.
+  This does not populate Codemagic's separate `GH_TOKEN` publication input.
+- [ ] Protect `main` through the existing required CI checks and PR-only merges.
+  Verified 2026-09-05: neither branch protection nor a ruleset is configured.
 - [ ] Provision the trusted Apple Silicon qualification runner and apply only the Intentive runner labels documented by this repository.
 
 ### Needed before Beta or Stable publication
 
 - [ ] Create production Cloud Run/backend resources and public release endpoints only after the owner gives a new explicit release-stage authorization. No current development service should be mistaken for production authority.
 - [ ] Configure the release/preview object bucket, public origin, Firestore release documents, service identities, and protected GitHub environments against owned resources.
-- [ ] Publish the minimal owned website on `heyintentive.com` with product, download, preview, Terms, Privacy, and support/contact destinations.
+- [x] Identify the already-published `heyintentive.com` landing page and its Vercel/GitHub owners above.
+- [ ] Add approved Terms, Privacy, working support/contact, and applicable download/preview
+  destinations to that existing website; repair `www` TLS only after DNS approval.
 - [ ] Decide the exact support and privacy contacts. The valid domain is `heyintentive.com`; earlier spellings such as `heyintuitive.com` or `heintuitive.com` are not owned product identities and must not ship. Likely choices are `support@heyintentive.com` and `privacy@heyintentive.com`, but they are not approved or created yet.
 - [ ] Approve the actual Terms and Privacy content. There is no registered company today; the current operator is an individual, so repository agents must not invent a legal company name.
 - [ ] Run one signed/notarized candidate, trusted-Mac qualification, clean-install/update exercise, and Beta/Stable recovery drill with evidence tied to the exact source SHA and artifact digests.

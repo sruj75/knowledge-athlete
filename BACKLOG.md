@@ -116,25 +116,39 @@ authorized behavioral and denial probes.
 
 ## BL-003: S-27 deferred broad verification
 
-**Status:** OPEN — the deployment-concurrency guard now passes; remaining
-clean-SHA broad host and CI evidence is not yet recorded
+**Status:** OPEN — broad local evidence exists; final-source hosted verification
+and reconciliation remain outstanding
 
-**Run when:** the local host has enough free disk and a healthy container
-runtime, and GitHub Actions can execute detector jobs; before the final
-all-waves closeout
+**Run when:** the final source is pushed and GitHub Actions can execute the
+selected checks; before the final all-waves closeout
 
 **Next-wave effect:** does not block repository implementation of later slices
 
 At S-27 commit `2853357f`, focused tests and deterministic contracts passed, but
 the locked full backend/Pyright lane could not be completed, Colima could not
 run the backend image smoke, and PR #50 detector jobs failed before executing
-any steps. That paragraph is the historical S-27 baseline. As of 2026-09-04,
-the deployment-concurrency repair is present on `main` and
-`.github/scripts/check-deployment-concurrency.py` passes for all three
-persistent writers. The current host still has no healthy Docker runtime, and
-the complete required command set has not been recorded on one current clean
-SHA. Close this entry by running `backend/test-preflight.sh`,
-`backend/test.sh`, `backend/scripts/typecheck.sh`, and
-`make runtime-image-smoke SERVICE=backend` on one clean SHA, then recording
-hosted checks that execute rather than fail at detection. Live GCP and
-named-bundle acceptance stay owned by BL-002 and BL-001 respectively.
+any steps. That paragraph is the historical S-27 baseline.
+
+The 2026-09-05 local command set on exact source
+`c632eeddcc36e8568afa4cddcebec1af678e41c3` now records:
+
+- `backend/test-preflight.sh`: 16 passing checks, eight optional integration
+  warnings; `backend/scripts/typecheck.sh`: 0 errors, 497 existing warnings.
+- `backend/test.sh`: 2,730 passing tests, 70 deselected, no assertion failures;
+  nonzero exit from the existing 0.12-second local CPU ratchet in unaffected
+  tests that also reproduce on `origin/main`. Do not relabel this a runner pass.
+- `make runtime-image-smoke SERVICE=backend`: healthy Docker, 11.42 MB context,
+  image `b9cdb3d192c5`, and all 147 reachable third-party imports passing under
+  the registered runtime privilege/protected-path checks.
+
+The original `c632eedd` preflight used a desktop-changelog bypass; hosted CI
+correctly rejected it. Commit `5e5112d3` adds the missing release note, and
+`0c3cee98` isolates the release notification test target without weakening app
+flags or normal test discovery. The latter passed all 92 selected preflight
+checks without a changelog bypass, plus the full desktop runner and three real
+optimized notification tests locally. PR #71 now tests that exact pushed SHA.
+
+These results supersede the old unavailable-Docker/detector blockers, but do not
+combine different SHAs into one final acceptance record. Reconcile the required
+broad commands and hosted results on the final source before closing BL-003.
+Live GCP and named-bundle acceptance remain BL-002 and BL-001 respectively.
