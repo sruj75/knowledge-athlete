@@ -17,13 +17,38 @@ import { OmiArtifactStorage } from "../src/runtime/artifact-storage.js";
 import { AgentRuntimeKernel, StaleAdapterBindingError } from "../src/runtime/kernel.js";
 import { SqliteAgentStore } from "../src/runtime/sqlite-store.js";
 import { readSessionExecutionProfile } from "../src/runtime/session-execution-profile.js";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export interface KernelHarness {
   store: SqliteAgentStore;
   adapter: FakeRuntimeAdapter;
   kernel: AgentRuntimeKernel;
+}
+
+export interface AgentArtifactRootFixture {
+  cleanup: () => void;
+}
+
+export function createAgentArtifactRootFixture(): AgentArtifactRootFixture {
+  const ambientArtifactRoot = process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+  const rootDir = mkdtempSync(join(tmpdir(), "omi-agent-test-artifacts-"));
+  process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = rootDir;
+  let cleanedUp = false;
+
+  return {
+    cleanup: () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      if (ambientArtifactRoot === undefined) {
+        delete process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR;
+      } else {
+        process.env.HEYINTENTIVE_AGENT_ARTIFACTS_DIR = ambientArtifactRoot;
+      }
+      rmSync(rootDir, { recursive: true, force: true });
+    },
+  };
 }
 
 export class FakeRuntimeAdapter implements RuntimeAdapter {

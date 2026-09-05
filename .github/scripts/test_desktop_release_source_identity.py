@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import tempfile
@@ -98,6 +99,9 @@ class DesktopReleaseSourceIdentityTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         repository = Path(directory.name)
         self._git(repository, "init")
+        # PR #71 main CI hit ENOTEMPTY during teardown: detached maintenance
+        # must not retain write ownership after a disposable fixture exits.
+        self._git(repository, "config", "maintenance.auto", "false")
         self._git(repository, "config", "user.name", "Release test")
         self._git(repository, "config", "user.email", "release-test@example.com")
         planned_source_sha = self._commit(
@@ -107,6 +111,33 @@ class DesktopReleaseSourceIdentityTests(unittest.TestCase):
             "desktop source",
         )
         return directory, repository, planned_source_sha
+
+    def test_fixture_commits_do_not_spawn_background_maintenance(self) -> None:
+        directory, repository, planned_source_sha = self._repository_with_planned_source()
+        with directory:
+            trace_path = repository / "git-trace.jsonl"
+            environment = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+            environment["GIT_TRACE2_EVENT"] = str(trace_path)
+            subprocess.run(
+                ["git", "-C", str(repository), "commit", "--allow-empty", "-m", "fixture ownership probe"],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+            maintenance_children = [
+                event["argv"]
+                for event in events
+                if event.get("event") == "child_start"
+                and any(command in event.get("argv", []) for command in ("maintenance", "gc"))
+            ]
+            self.assertEqual(maintenance_children, [], "Git maintenance must not outlive a disposable test repository")
+            identity.ensure_candidate_history_is_safe(
+                repository_root=repository,
+                planned_source_sha=planned_source_sha,
+                candidate_source_sha=self._git(repository, "rev-parse", "HEAD"),
+            )
 
     def test_non_desktop_main_commit_after_planned_source_is_valid(self) -> None:
         directory, repository, planned_source_sha = self._repository_with_planned_source()

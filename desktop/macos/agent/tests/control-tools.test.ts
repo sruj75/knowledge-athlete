@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AGENT_CONTROL_TOOL_NAMES,
   agentControlToolDefinitions,
@@ -24,16 +24,28 @@ import {
 } from "../src/runtime/run-tool-capability.js";
 import { readToolInvocation } from "../src/runtime/tool-invocation-ledger.js";
 import { readSessionExecutionProfile } from "../src/runtime/session-execution-profile.js";
-import { baseRunInput, createKernelHarness, FakeRuntimeAdapter, waitUntil } from "./kernel-fakes.js";
+import {
+  type AgentArtifactRootFixture,
+  baseRunInput,
+  createAgentArtifactRootFixture,
+  createKernelHarness,
+  FakeRuntimeAdapter,
+  waitUntil,
+} from "./kernel-fakes.js";
 
 const createdDirs: string[] = [];
 const servers: Array<{ server: Server; sockPath: string }> = [];
+let artifactRootFixture: AgentArtifactRootFixture | undefined;
 const ORIGIN_BOUND_CONTROL_TOOLS = new Set([
   "send_agent_message",
   "spawn_background_agent",
   "spawn_agent",
   "run_agent_and_wait",
 ]);
+
+beforeEach(() => {
+  artifactRootFixture = createAgentArtifactRootFixture();
+});
 
 function handleAgentControlToolCall(
   context: AgentControlToolContext,
@@ -61,6 +73,8 @@ afterEach(async () => {
         }),
     ),
   );
+  artifactRootFixture?.cleanup();
+  artifactRootFixture = undefined;
   for (const dir of createdDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -132,14 +132,14 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   membership, and notarization credentials.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
   `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, PostHog
-  client configuration, Sparkle keypair, and Sentry token are protected; Apple signing and
-  notarization fields and preview/release publication fields remain incomplete. The owned
+  client configuration, Sparkle keypair, and Sentry token are protected, and the four public
+  website/legal URLs are stored. Apple signing and preview/release publication remain incomplete. The owned
   GitHub Release App is installed and verified, but Codemagic's publication token,
   trusted Intentive M1 runner, and production backend/feed remain unconfigured.
 - The existing `heyintentive.com` landing page is hosted by Vercel project
   `intentive-tally-landing-page` from the same-named `sruj75` repository. Do not
-  create a replacement site. Approved legal/support/download destinations and
-  the `www` TLS repair remain outstanding.
+  create a replacement site. Privacy, Terms, and Support subdomains are live over HTTPS;
+  the apex/Tally page is unchanged. Download/preview destinations and `www` TLS remain outstanding.
 - The approved Intentive app icon, mark, menu-bar art, sign-in backdrop, and DMG backgrounds
   are installed; visual-asset ownership is no longer a candidate blocker.
 - The complete beginner-facing checklist and account map are tracked in
