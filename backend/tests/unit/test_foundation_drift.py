@@ -32,11 +32,6 @@ def external_inputs() -> dict[str, str]:
         'GCP_DEPLOY_SERVICE_ACCOUNT': 'deploy-dev@project-dev.iam.gserviceaccount.com',
         'GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT': 'reader-dev@project-dev.iam.gserviceaccount.com',
         'GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT': 'writer-dev@project-dev.iam.gserviceaccount.com',
-        'CLOUD_RUN_VPC_NETWORK': 'backend-dev',
-        'CLOUD_RUN_VPC_SUBNET': 'backend-dev-west1',
-        'PRIVATE_SERVICE_ACCESS_RANGE_NAME': 'backend-dev-services',
-        'PRIVATE_SERVICE_ACCESS_RANGE_CIDR': '10.80.0.0/16',
-        'REDIS_INSTANCE_NAME': 'backend-dev-cache',
         'REDIS_DB_HOST': 'redis.external.example',
         'REDIS_DB_PORT': '6379',
         'RUNTIME_GCP_PROJECT_ID': 'runtime-dev',
@@ -362,6 +357,22 @@ def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> No
     observed['redis']['plan'] = 'paid'
 
     assert drift_paths(expected, observed) == ['redis.plan', 'redis.transit_encryption']
+
+
+def test_production_foundation_uses_shared_external_redis_without_managed_resource_inputs() -> None:
+    expected = expected_prod()
+
+    assert expected['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
+    assert expected['redis'] == {
+        'provider': 'upstash',
+        'database': 'intentive-development',
+        'region': 'us-west-2',
+        'plan': 'free',
+        'endpoint': {'host': 'redis.external.example', 'port': '6379'},
+        'auth': True,
+        'transit_encryption': 'TLS',
+        'verification': 'runtime-tls-probe',
+    }
 
 
 def test_missing_resource_section_fails_closed_without_secret_values() -> None:

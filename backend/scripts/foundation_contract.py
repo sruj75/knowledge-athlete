@@ -57,48 +57,24 @@ def validation_messages(environment: str, env_config: Mapping[str, Any]) -> list
         errors.append('WIF principals must use distinct environment-scoped external identities')
 
     network = _mapping(foundation.get('network')) or {}
-    expected_network = (
-        {'region': 'us-west1', 'connectivity': 'public-egress'}
-        if environment == 'dev'
-        else {
-            'region': 'us-west1',
-            'vpc': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-            'subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-            'private_service_access': {
-                'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
-                'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
-            },
-        }
-    )
+    expected_network = {'region': 'us-west1', 'connectivity': 'public-egress'}
     if network != expected_network:
         errors.append('network foundation must match the environment-owned connectivity profile')
 
     redis = _mapping(foundation.get('redis')) or {}
-    expected_redis = (
-        {
-            'provider': 'upstash',
-            'database': 'intentive-development',
-            'region': 'us-west-2',
-            'plan': 'free',
-            'endpoint': {
-                'host': {'env_var': 'REDIS_DB_HOST'},
-                'port': {'env_var': 'REDIS_DB_PORT'},
-            },
-            'auth': True,
-            'transit_encryption': 'TLS',
-            'verification': 'runtime-tls-probe',
-        }
-        if environment == 'dev'
-        else {
-            'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
-            'region': 'us-west1',
-            'tier': 'STANDARD_HA',
-            'memory_gib': 1,
-            'private_service_access': True,
-            'auth': True,
-            'transit_encryption': 'SERVER_AUTHENTICATION',
-        }
-    )
+    expected_redis = {
+        'provider': 'upstash',
+        'database': 'intentive-development',
+        'region': 'us-west-2',
+        'plan': 'free',
+        'endpoint': {
+            'host': {'env_var': 'REDIS_DB_HOST'},
+            'port': {'env_var': 'REDIS_DB_PORT'},
+        },
+        'auth': True,
+        'transit_encryption': 'TLS',
+        'verification': 'runtime-tls-probe',
+    }
     if redis != expected_redis:
         errors.append('Redis foundation must match owned TLS/AUTH topology')
 

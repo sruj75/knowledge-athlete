@@ -81,6 +81,13 @@ def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
     assert readiness_step['env']['REDIS_DB_HOST'] == '${{ vars.REDIS_DB_HOST }}'
     assert readiness_step['env']['REDIS_DB_PORT'] == '${{ vars.REDIS_DB_PORT }}'
     assert readiness_step['env']['REDIS_DB_CA_CERT_PEM'] == '${{ vars.REDIS_DB_CA_CERT_PEM }}'
+    assert {
+        'CLOUD_RUN_VPC_NETWORK',
+        'CLOUD_RUN_VPC_SUBNET',
+        'PRIVATE_SERVICE_ACCESS_RANGE_CIDR',
+        'PRIVATE_SERVICE_ACCESS_RANGE_NAME',
+        'REDIS_INSTANCE_NAME',
+    }.isdisjoint(readiness_step['env'])
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
@@ -157,19 +164,7 @@ def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inp
     ('env_name', 'network_flags', 'cpu', 'memory', 'minimum', 'maximum', 'cpu_mode'),
     [
         ('dev', {}, '1', '2Gi', '0', '1', '--cpu-throttling'),
-        (
-            'prod',
-            {
-                '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-                '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-                '--vpc-egress': 'private-ranges-only',
-            },
-            '2',
-            '4Gi',
-            '1',
-            '10',
-            '--no-cpu-throttling',
-        ),
+        ('prod', {}, '1', '2Gi', '0', '1', '--cpu-throttling'),
     ],
 )
 def test_canonical_cloud_run_contract_is_explicit_and_owned(
@@ -207,7 +202,7 @@ def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift
     validator = load_validator()
     manifest = copy.deepcopy(validator._load_yaml(validator.DEFAULT_MANIFEST))
     backend = manifest['environments']['prod']['cloud_run']['services']['backend']
-    backend['flags']['--cpu'] = '1'
+    backend['flags']['--cpu'] = '2'
     backend['secrets']['OPENAI_API_KEY'] = {'secret': 'OPENAI_API_KEY', 'version': 'latest'}
     manifest_path = tmp_path / 'runtime_env.yaml'
     write_yaml(manifest_path, manifest)
@@ -223,36 +218,20 @@ def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, a
     validator = load_validator()
     foundation = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments'][env_name]['foundation']
 
-    if env_name == 'dev':
-        assert foundation['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
-        assert foundation['redis'] == {
-            'provider': 'upstash',
-            'database': 'intentive-development',
-            'region': 'us-west-2',
-            'plan': 'free',
-            'endpoint': {
-                'host': {'env_var': 'REDIS_DB_HOST'},
-                'port': {'env_var': 'REDIS_DB_PORT'},
-            },
-            'auth': True,
-            'transit_encryption': 'TLS',
-            'verification': 'runtime-tls-probe',
-        }
-    else:
-        assert foundation['network']['region'] == 'us-west1'
-        assert foundation['network']['private_service_access'] == {
-            'range_name': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_NAME'},
-            'range_cidr': {'env_var': 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR'},
-        }
-        assert foundation['redis'] == {
-            'instance_name': {'env_var': 'REDIS_INSTANCE_NAME'},
-            'region': 'us-west1',
-            'tier': 'STANDARD_HA',
-            'memory_gib': 1,
-            'private_service_access': True,
-            'auth': True,
-            'transit_encryption': 'SERVER_AUTHENTICATION',
-        }
+    assert foundation['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
+    assert foundation['redis'] == {
+        'provider': 'upstash',
+        'database': 'intentive-development',
+        'region': 'us-west-2',
+        'plan': 'free',
+        'endpoint': {
+            'host': {'env_var': 'REDIS_DB_HOST'},
+            'port': {'env_var': 'REDIS_DB_PORT'},
+        },
+        'auth': True,
+        'transit_encryption': 'TLS',
+        'verification': 'runtime-tls-probe',
+    }
     assert foundation['tasks']['queue'] == {
         'name': 'account-deletion',
         'location': 'us-west1',
