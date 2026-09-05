@@ -60,6 +60,7 @@ EXEMPT_DESKTOP_PATHS = {
 EXEMPT_DESKTOP_PATH_PREFIXES = (
     "desktop/macos/tests/",
     "desktop/macos/Desktop/Tests/",
+    "desktop/macos/agent/tests/",
     # Generated Swift (e.g. Sources/Generated/OmiApi.generated.swift) is
     # deterministically derived from the backend OpenAPI contract, never a
     # user-facing app note. Regenerating it after a spec change must not demand

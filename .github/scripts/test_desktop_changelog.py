@@ -84,6 +84,11 @@ class ChangelogRequirementTests(unittest.TestCase):
             # post-merge push run of the changelog gate reddened main (#10387).
             "desktop/macos/tests/test-qualify-desktop-beta-contract.sh",
             "desktop/macos/tests/some-other-desktop-test.sh",
+            # Agent test repairs must also pass the post-merge push lane,
+            # which cannot inherit a PR-only no-changelog-needed label.
+            "desktop/macos/agent/tests/control-tools.test.ts",
+            "desktop/macos/agent/tests/agent-spawn-journal.test.ts",
+            "desktop/macos/agent/tests/kernel-fakes.ts",
             # Generated Swift is derived from the OpenAPI contract, never a
             # user-facing app note (EXEMPT_DESKTOP_PATH_PREFIXES).
             "desktop/macos/Desktop/Sources/Generated/OmiApi.generated.swift",
@@ -96,6 +101,8 @@ class ChangelogRequirementTests(unittest.TestCase):
         for path in (
             "desktop/macos/Desktop/Sources/AppDelegate.swift",
             "desktop/macos/scripts/some-user-facing-script.sh",
+            "desktop/macos/agent/src/runtime/control-tools.ts",
+            "desktop/macos/agent/tests-extra/runtime.ts",
         ):
             with self.subTest(path=path):
                 self.assertTrue(checker.is_desktop_change_requiring_changelog(path))
