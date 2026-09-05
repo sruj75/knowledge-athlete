@@ -40,13 +40,25 @@ private actor WarningDeliverySuspension {
 
 @MainActor
 final class LocalWarningNotificationTests: XCTestCase {
+  private var ownerFixture: RuntimeOwnerAuthorityTestFixture?
+
+  override func setUp() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    ownerFixture = fixture
+    await fixture.establish(authOwnerID: "warning-owner-a")
+  }
+
+  override func tearDown() async throws {
+    guard let ownerFixture else { return }
+    // Await restoration so cleanup cannot revoke the next XCTest method's owner.
+    await ownerFixture.restore()
+    self.ownerFixture = nil
+  }
+
   func testWarningUsesFixedCopyAndPersistsOwnerScopedDeduplication() async throws {
     let suite = "LocalWarningNotificationTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     var deliveries: [FairUseWarningPresentation] = []
     let presenter = FairUseWarningNotificationPresenter(
@@ -91,9 +103,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     var deliveryCount = 0
     let presenter = FairUseWarningNotificationPresenter(
@@ -122,9 +131,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationRetryTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     var inAppFlags: [Bool] = []
     let presenter = FairUseWarningNotificationPresenter(
@@ -165,9 +171,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationInAppRetryTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
@@ -207,9 +210,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationQueuedRetryTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
@@ -250,10 +250,8 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationQueuedOwnerTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let firstAuthorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let ownerFixture = try XCTUnwrap(ownerFixture)
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
       accepted: true,
@@ -276,8 +274,8 @@ final class LocalWarningNotificationTests: XCTestCase {
       })
 
     let incomplete = await presenter.present(receipt, authorization: firstAuthorization)
-    await fixture.establish(authOwnerID: "warning-owner-b")
-    await fixture.establish(authOwnerID: "warning-owner-a")
+    await ownerFixture.establish(authOwnerID: "warning-owner-b")
+    await ownerFixture.establish(authOwnerID: "warning-owner-a")
     let replacementAuthorization = try XCTUnwrap(
       RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let replayed = await presenter.replayPending(authorization: replacementAuthorization)
@@ -292,9 +290,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationCancelledQueueTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
@@ -331,9 +326,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationConcurrentReplayTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
@@ -374,9 +366,6 @@ final class LocalWarningNotificationTests: XCTestCase {
     let suite = "LocalWarningNotificationSnoozeTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let receipt = FairUseClassificationReceipt(
       reviewId: UUID().uuidString,
@@ -408,14 +397,41 @@ final class LocalWarningNotificationTests: XCTestCase {
     XCTAssertTrue(replayedInApp)
   }
 
+  func testXCTestTeardownAwaitsOwnerRestorationBeforeReturning() async throws {
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let suspension = WarningDeliverySuspension()
+    let mutationAuthorization = LocalMutationAuthorization {
+      RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+    }
+    let mutation = Task { @MainActor in
+      try await mutationAuthorization.withCommitLease {
+        await suspension.deliver()
+      }
+    }
+    await suspension.waitUntilStarted()
+
+    var cleanupFinished = false
+    let cleanup = Task { @MainActor in
+      try await self.tearDown()
+      cleanupFinished = true
+    }
+    await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
+
+    XCTAssertFalse(cleanupFinished)
+    await suspension.allowDelivery()
+    let mutationFinished = try await mutation.value
+    XCTAssertTrue(mutationFinished)
+    try await cleanup.value
+    XCTAssertTrue(cleanupFinished)
+    XCTAssertFalse(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
+  }
+
   func testOwnerTransitionWaitsForNotificationDeliveryAndDedupCommit() async throws {
     let suite = "LocalWarningNotificationOwnerFenceTests.\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let fixture = RuntimeOwnerAuthorityTestFixture()
-    await fixture.establish(authOwnerID: "warning-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let ownerFixture = try XCTUnwrap(ownerFixture)
     let suspension = WarningDeliverySuspension()
     let presenter = FairUseWarningNotificationPresenter(
       defaults: defaults,
@@ -451,7 +467,7 @@ final class LocalWarningNotificationTests: XCTestCase {
     }
     await suspension.waitUntilStarted()
     let transition = Task { @MainActor in
-      await fixture.establish(authOwnerID: "warning-owner-b")
+      await ownerFixture.establish(authOwnerID: "warning-owner-b")
     }
     await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
 
