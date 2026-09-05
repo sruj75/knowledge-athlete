@@ -76,8 +76,11 @@ case "${1:-}" in
     cd "$MACOS_DIR"
     # Keep this narrow enough for a PR boundary check while exercising the
     # release compiler mode used for signed candidates. This is the direct
-    # UserNotifications private-callback-to-MainActor regression suite.
-    xcrun swift test -c release --package-path Desktop --filter UserNotificationCallbackBridgeTests/
+    # UserNotifications private-callback-to-MainActor regression suite. SwiftPM
+    # filters execution only; select its test target in the manifest so unrelated
+    # DEBUG-only suites cannot prevent this release-mode check from compiling.
+    OMI_NOTIFICATION_RELEASE_TESTS_ONLY=1 \
+      xcrun swift test -c release --package-path Desktop --filter UserNotificationCallbackBridgeTests/
     ;;
   *)
     usage

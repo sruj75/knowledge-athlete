@@ -138,6 +138,9 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
     def test_notification_boundary_runs_targeted_release_regression(self):
         job = self.jobs["desktop-swift-verify"]
         for path in (
+            "desktop/macos/Desktop/Package.swift",
+            "desktop/macos/scripts/run-swift-ci.sh",
+            "desktop/macos/tests/test-run-swift-ci.sh",
             "desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift",
             "desktop/macos/Desktop/Sources/NotificationProbe.swift",
             "desktop/macos/Desktop/Sources/OmiApp.swift",

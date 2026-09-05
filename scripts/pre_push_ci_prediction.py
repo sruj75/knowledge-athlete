@@ -64,6 +64,9 @@ DESKTOP_SWIFT_TEST_INPUTS = {
 }
 
 DESKTOP_NOTIFICATION_REGRESSION_INPUTS = {
+    "desktop/macos/Desktop/Package.swift",
+    "desktop/macos/scripts/run-swift-ci.sh",
+    "desktop/macos/tests/test-run-swift-ci.sh",
     "desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift",
     "desktop/macos/Desktop/Sources/OmiApp.swift",
     "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift",

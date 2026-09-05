@@ -1,4 +1,5 @@
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
 
 let package = Package(
@@ -109,7 +110,16 @@ let package = Package(
         "SemanticFeatureSentinels",
         "OmiSupportTests",
         "VoiceTurnDomainTests",
+        "UserNotificationCallbackTests",
       ],
+      swiftSettings: [
+        .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
+      ]
+    ),
+    .testTarget(
+      name: "UserNotificationCallbackTests",
+      dependencies: [.target(name: "Omi Computer")],
+      path: "Tests/UserNotificationCallbackTests",
       swiftSettings: [
         .unsafeFlags(["-strict-concurrency=complete", "-warnings-as-errors"])
       ]
@@ -141,3 +151,10 @@ let package = Package(
   ],
   swiftLanguageModes: [.v6]
 )
+
+// SwiftPM's --filter selects execution, not compilation. The release callback
+// gate must not compile suites that rely on DEBUG-only app helpers. Only test
+// targets change here: the app and its compiler settings remain identical.
+if ProcessInfo.processInfo.environment["OMI_NOTIFICATION_RELEASE_TESTS_ONLY"] == "1" {
+  package.targets.removeAll { $0.type == .test && $0.name != "UserNotificationCallbackTests" }
+}
