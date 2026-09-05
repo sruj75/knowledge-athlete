@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AgentRuntimeKernel } from "../src/runtime/kernel.js";
 import { AdapterRegistry } from "../src/runtime/adapter-registry.js";
@@ -11,12 +11,24 @@ import { recordJournalTurn } from "../src/runtime/conversation-journal.js";
 import { handleAgentControlToolCall } from "../src/runtime/control-tools.js";
 import { SqliteAgentStore } from "../src/runtime/sqlite-store.js";
 import { resolveSurfaceSession } from "../src/runtime/surface-session.js";
-import { createKernelHarness, waitUntil } from "./kernel-fakes.js";
+import {
+  type AgentArtifactRootFixture,
+  createAgentArtifactRootFixture,
+  createKernelHarness,
+  waitUntil,
+} from "./kernel-fakes.js";
 
 const roots: string[] = [];
+let artifactRootFixture: AgentArtifactRootFixture | undefined;
+
+beforeEach(() => {
+  artifactRootFixture = createAgentArtifactRootFixture();
+});
 
 afterEach(() => {
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+  artifactRootFixture?.cleanup();
+  artifactRootFixture = undefined;
 });
 
 describe("realtime spawn semantic receipt", () => {
