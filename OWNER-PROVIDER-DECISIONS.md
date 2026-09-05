@@ -54,12 +54,13 @@ Last confirmed: 2026-09-05
 
 - Use the existing Vercel project `srujxx/intentive-tally-landing-page` and GitHub
   repository `sruj75/intentive-tally-landing-page`; do not create a second landing page.
-- Verified 2026-09-05: `https://heyintentive.com` serves commit
-  `e033a625286f16db39c33f583336dffe689578eb`, embedding the existing Tally form
-  `ODNJ5A`, verified in `index.html` at that exact commit.
-- `/terms`, `/privacy`, and `/support` return 404; `www.heyintentive.com` fails
-  certificate hostname validation. Publishing those pages or changing DNS still
-  requires owner approval; the existing home page is not a release/legal sign-off.
+- Verified 2026-09-05 at website commit `421735ff66828fb1778001e2e7fac95a7d61a1ff`:
+  `privacy.heyintentive.com`, `terms.heyintentive.com`, and `support.heyintentive.com`
+  are live over HTTPS under the owner's delegated publication approval. The apex
+  and its existing Tally form `ODNJ5A` are unchanged.
+- The pages use the existing `srujan@heyintentive.com` contact; no email aliases
+  were created. Re-review the development-only policies before a public Mac release.
+  Download/preview destinations and the `www` TLS repair remain outstanding.
 - Firebase's default `knowledge-athlete.web.app` Hosting site has no releases or
   custom domains. It is not the product website; no Firebase Hosting deployment is needed.
 
@@ -223,9 +224,15 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Populate the existing approved Codemagic values. Verified 2026-09-05:
   `intentive_macos_signing` has the Stable Firebase plist, desktop Firebase environment,
   and PostHog key/host; `intentive_macos_release` has the Beta plist, Sparkle pair,
-  and Sentry upload token. Secret values were not revealed and no build was started.
+  and Sentry upload token. The release group also stores non-secret
+  `INTENTIVE_PRODUCT_URL=https://heyintentive.com/`,
+  `INTENTIVE_PRIVACY_URL=https://privacy.heyintentive.com/`,
+  `INTENTIVE_TERMS_URL=https://terms.heyintentive.com/`, and
+  `INTENTIVE_SUPPORT_URL=https://support.heyintentive.com/`.
+  All four were read back; secret rows were unchanged and no build was started.
 - [ ] Finish the remaining Codemagic release/preview values, including publication
-  token/URLs and Apple signing/notarization. The preview group is not configured.
+  `GH_TOKEN`, backend/feed/download URLs, and Apple signing/notarization.
+  The preview group is not configured.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
 - [ ] Import the supplied Developer ID `.p12` into Codemagic. This requires the `.p12` password; the password must be entered into Codemagic's secret store, never committed or pasted into documentation.
@@ -252,9 +259,13 @@ already done. An unchecked item is still required before the corresponding live 
 - [ ] Create production Cloud Run/backend resources and public release endpoints only after the owner gives a new explicit release-stage authorization. No current development service should be mistaken for production authority.
 - [ ] Configure the release/preview object bucket, public origin, Firestore release documents, service identities, and protected GitHub environments against owned resources.
 - [x] Identify the already-published `heyintentive.com` landing page and its Vercel/GitHub owners above.
-- [ ] Add approved Terms, Privacy, working support/contact, and applicable download/preview
-  destinations to that existing website; repair `www` TLS only after DNS approval.
-- [ ] Decide the exact support and privacy contacts. The valid domain is `heyintentive.com`; earlier spellings such as `heyintuitive.com` or `heintuitive.com` are not owned product identities and must not ship. Likely choices are `support@heyintentive.com` and `privacy@heyintentive.com`, but they are not approved or created yet.
-- [ ] Approve the actual Terms and Privacy content. There is no registered company today; the current operator is an individual, so repository agents must not invent a legal company name.
+- [x] Publish development Privacy, Terms, and Support subdomains under the owner's
+  delegated approval, using `srujan@heyintentive.com` and leaving the apex unchanged.
+- [ ] Add approved download/preview destinations and repair `www` TLS only after
+  separate authorization; no `support@heyintentive.com` or `privacy@heyintentive.com` alias exists.
+- [ ] Re-review Terms and Privacy before a public Mac release. The current operator
+  is an individual, not a registered company; do not invent a legal company name.
 - [ ] Run one signed/notarized candidate, trusted-Mac qualification, clean-install/update exercise, and Beta/Stable recovery drill with evidence tied to the exact source SHA and artifact digests.
-- [ ] Give a fresh explicit authorization before publishing any candidate, Beta, Stable, paid artifact, DNS record, legal page, or production resource. The current authorization is repository work and development infrastructure only.
+- [ ] Give fresh explicit authorization before any candidate, Beta, Stable, paid artifact,
+  additional DNS/legal publication, or production resource. The three policy/support
+  subdomains were separately authorized; their publication is not app-release approval.

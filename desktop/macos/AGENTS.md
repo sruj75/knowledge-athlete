@@ -62,10 +62,10 @@ intentionally incomplete:
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
 3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
 4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
-   Apple signing/notarization, preview, website, remaining protected publication, or production
+   Apple signing/notarization, preview, remaining protected publication, or production
    backend/feed inputs are missing. The owned Stable/Beta Firebase plists, PostHog client configuration,
    Sparkle keypair, and Sentry upload token are already protected. The tracked PostHog fingerprint must
-   match the protected project token. Never substitute inherited Omi values or bundle PostHog overrides.
+   match the token. Public/legal URLs are stored. Never substitute Omi values or bundle PostHog overrides.
 5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until the remaining owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
