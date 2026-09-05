@@ -1,10 +1,48 @@
-backend/google-credentials.json
-.git
-.context
+# Backend runtime images use the repository root as their Docker context.
+# Deny everything first, then admit only the source paths copied by registered
+# Dockerfiles. runtime_image_contracts.py keeps this allowlist fail closed.
+**
+
+!backend/
+!backend/**
+!.github/
+!.github/scripts/
+!.github/scripts/desktop_qualification_admission.py
+!.github/scripts/desktop_qualification_evidence.py
+!.github/scripts/desktop_release_manifest.py
+
+# Local credentials and generated caches remain excluded inside backend/.
+backend/.env*
+backend/**/.env*
+backend/*.env
+backend/**/*.env
+backend/google-credentials*.json
+backend/**/google-credentials*.json
 backend/.venv
 backend/.openapi-venv
+backend/**/.venv
+backend/**/.openapi-venv
 backend/**/__pycache__
 backend/**/.pytest_cache
 backend/**/.mypy_cache
 backend/**/.ruff_cache
+backend/**/.build
 backend/**/*.pyc
+backend/**/*.pem
+backend/**/*.key
+backend/**/*.p12
+backend/.harness
+backend/_speech_profiles
+backend/_temp
+backend/logs
+backend/pretrained_models
+backend/scripts/data
+backend/scripts/rag/*.json
+backend/scripts/rag/visualizations
+backend/scripts/research
+backend/scripts/stt/_temp
+backend/scripts/stt/_temp2
+backend/scripts/stt/diarization.json
+backend/scripts/stt/pretrained_models
+backend/scripts/stt/results
+backend/syncing

@@ -1,5 +1,75 @@
 import Foundation
+import OmiSupport
 import VoiceTurnDomain
+
+/// One-shot development fault used to prove that a physical PTT capture takes
+/// the real buffered recovery route when Gemini becomes unavailable mid-path.
+///
+/// The gate owns no transport or audio. It only fences readiness for the exact
+/// physical turn that consumed the armed fault, then restores itself when that
+/// turn reaches its reducer terminal.
+struct RealtimePhysicalPTTTransportFaultGate {
+  enum CommandResult: Equatable {
+    case armed
+    case cleared
+    case rejectedIdentity
+    case rejectedActive
+  }
+
+  private enum State: Equatable {
+    case idle
+    case armed
+    case active(VoiceTurnID)
+  }
+
+  private var state: State = .idle
+
+  var blocksTransport: Bool {
+    if case .active = state { return true }
+    return false
+  }
+
+  var diagnosticsState: String {
+    switch state {
+    case .idle: return "idle"
+    case .armed: return "armed"
+    case .active: return "active"
+    }
+  }
+
+  mutating func arm(bundleIdentifier: String) -> CommandResult {
+    guard DesktopProductIdentity(bundleIdentifier: bundleIdentifier)?.isNamedDevelopment == true
+    else { return .rejectedIdentity }
+    guard !blocksTransport else { return .rejectedActive }
+    state = .armed
+    return .armed
+  }
+
+  mutating func clear(bundleIdentifier: String) -> CommandResult {
+    guard DesktopProductIdentity(bundleIdentifier: bundleIdentifier)?.isNamedDevelopment == true
+    else { return .rejectedIdentity }
+    guard !blocksTransport else { return .rejectedActive }
+    state = .idle
+    return .cleared
+  }
+
+  @discardableResult
+  mutating func activateIfArmed(
+    turnID: VoiceTurnID,
+    isPhysicalMicrophone: Bool
+  ) -> Bool {
+    guard isPhysicalMicrophone, state == .armed else { return false }
+    state = .active(turnID)
+    return true
+  }
+
+  @discardableResult
+  mutating func restoreAfterTerminal(turnID: VoiceTurnID) -> Bool {
+    guard case .active(let faultedTurnID) = state, faultedTurnID == turnID else { return false }
+    state = .idle
+    return true
+  }
+}
 
 /// Physical PCM held while a replacement socket authenticates. Logical turn
 /// state remains in `VoiceTurnCoordinator`.

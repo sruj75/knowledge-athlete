@@ -109,6 +109,29 @@ Assert `injected_bytes` equals the clip length, then inspect only the typed diag
 route, pending deadlines, terminal reason). This is the first automated surface for the actual PTT
 manager; use a natural authenticated physical PTT press as the final UX validation.
 
+For the final physical Gemini-recovery proof, arm the one-turn transport fault on a **named
+development bundle** immediately before pressing the real PTT shortcut:
+
+```bash
+cd desktop/macos
+./scripts/omi-ctl action ptt_live_transport_fault operation=arm
+# Physically hold PTT, speak naturally into the microphone, then release.
+./scripts/omi-ctl action ptt_turn_snapshot
+```
+
+The action is rejected by Stable, Beta, canonical Intentive Dev, preview, and unknown bundles.
+Synthetic `ptt_start` / `ptt_manager_turn` actions do not consume it. A physical press detaches
+the active Gemini transport, keeps the real microphone capture alive through the existing bounded
+warm wait, and then exercises buffered batch recovery. The fault restores automatically only when
+that exact turn terminates. Before a physical press, `operation=clear` safely disarms it.
+
+Accept capture evidence only when the terminal snapshot reports
+`capture_origin=physical_microphone`, `captured_audio_bytes > 0`, and
+`captured_audio_seconds > 0`. These are content-free capture-shape fields; no audio, transcript,
+device name, or provider response is retained by the evidence recorder. Synthetic manager input
+reports `capture_origin=automation`; DEBUG capture-driver tests report `capture_origin=test_fixture`.
+Neither can close this physical-path row.
+
 ### 2c. Inject backend faults (failure-path testing)
 The hermetic E2E harness is backend-only, so desktop failure paths (backend 5xx →
 structured `ChatErrorState` and transcription transport truthfulness) can't be driven

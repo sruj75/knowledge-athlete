@@ -535,7 +535,7 @@ def test_runtime_binding_check_rejects_cross_environment_project_without_gcloud_
 def test_backend_deploy_workflows_do_not_materialize_an_ignored_service_account_key() -> None:
     """Static guard: backend image builds must not materialize an excluded key file."""
     repo_root = BACKEND_ROOT.parent
-    assert 'backend/google-credentials.json' in (repo_root / '.dockerignore').read_text(encoding='utf-8')
+    assert 'backend/google-credentials*.json' in (repo_root / '.dockerignore').read_text(encoding='utf-8')
     workflows = (
         'gcp_backend.yml',
         'gcp_backend_auto_dev.yml',

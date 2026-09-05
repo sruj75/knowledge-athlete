@@ -7,10 +7,10 @@ or transcription send selected inputs to the configured providers for transient
 processing; they do not make the backend a second product-data authority.
 
 This repository is under active development. Intentive for macOS is not
-published, and production website, legal, support, backend, and update
-destinations intentionally remain unconfigured until their owners approve them.
-The inherited Omi icon, logo, and backdrop files are development placeholders,
-not shippable Intentive assets.
+published. The existing [landing page](https://heyintentive.com) is live, but legal,
+support, production backend, and update destinations still await owner approval
+and configuration. The owned Intentive icon, mark, menu-bar art, sign-in backdrop,
+and installer artwork are installed; provenance is recorded under `desktop/macos/`.
 
 ## Repository scope
 

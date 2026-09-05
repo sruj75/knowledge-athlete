@@ -303,15 +303,7 @@ def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> 
 
     cloud_run = _as_config_dict(env_config.get('cloud_run')) or {}
     network = _as_config_dict(cloud_run.get('network')) or {}
-    expected_network = (
-        {}
-        if env == 'dev'
-        else {
-            '--network': {'env_var': 'CLOUD_RUN_VPC_NETWORK'},
-            '--subnet': {'env_var': 'CLOUD_RUN_VPC_SUBNET'},
-            '--vpc-egress': 'private-ranges-only',
-        }
-    )
+    expected_network: ConfigDict = {}
     if network.get('flags') != expected_network:
         errors.append(ValidationError(scope, 'network flags must match the environment-owned connectivity profile'))
 
@@ -320,16 +312,16 @@ def _validate_canonical_cloud_run_manifest(env: str, env_config: ConfigDict) -> 
     if backend.get('deployment_name') != {'env_var': 'BACKEND_CLOUD_RUN_SERVICE'}:
         errors.append(ValidationError(scope, 'deployment_name must bind $BACKEND_CLOUD_RUN_SERVICE'))
     expected_flags: ConfigDict = {
-        '--cpu': '1' if env == 'dev' else '2',
-        '--memory': '2Gi' if env == 'dev' else '4Gi',
+        '--cpu': '1',
+        '--memory': '2Gi',
         '--concurrency': '20',
         '--timeout': '3600s',
-        '--min-instances': '0' if env == 'dev' else '1',
-        '--max-instances': '1' if env == 'dev' else '10',
+        '--min-instances': '0',
+        '--max-instances': '1',
         '--execution-environment': 'gen2',
         '--allow-unauthenticated': True,
         '--no-session-affinity': True,
-        '--cpu-throttling' if env == 'dev' else '--no-cpu-throttling': True,
+        '--cpu-throttling': True,
         '--no-cpu-boost': True,
         '--startup-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24',
         '--liveness-probe': 'httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5',
@@ -543,7 +535,7 @@ def _validate_cloud_run_workflows(
         workflow_services.update(extracted['services'])
         workflow_jobs.update(extracted['jobs'])
 
-    workflow_vars = _workflow_variable_map(env_config, expected_services)
+    workflow_vars = _workflow_variable_map(env_config)
     for service, service_config in expected_services.items():
         service_state = workflow_services.get(service)
         if service_state is None:
@@ -862,25 +854,13 @@ def _validate_firestore_index_reconciliation_boundary(
     return errors
 
 
-def _workflow_variable_map(env_config: ConfigDict, expected_services: ConfigDict) -> StringMap:
+def _workflow_variable_map(env_config: ConfigDict) -> StringMap:
     runtime_gcp_project = str(env_config.get('runtime_gcp_project', env_config['gcp_project']))
     return {
         '${{ vars.GCP_PROJECT_ID }}': str(env_config['gcp_project']),
         '${{vars.GCP_PROJECT_ID}}': str(env_config['gcp_project']),
         '${{ vars.RUNTIME_GCP_PROJECT_ID }}': runtime_gcp_project,
         '${{vars.RUNTIME_GCP_PROJECT_ID}}': runtime_gcp_project,
-        '${{ vars.CLOUD_RUN_VPC_NETWORK }}': _expected_flag_value(
-            env_config.get('cloud_run', {}).get('network', {}).get('flags', {}).get('--network', '')
-        ),
-        '${{vars.CLOUD_RUN_VPC_NETWORK}}': _expected_flag_value(
-            env_config.get('cloud_run', {}).get('network', {}).get('flags', {}).get('--network', '')
-        ),
-        '${{ vars.CLOUD_RUN_VPC_SUBNET }}': _expected_flag_value(
-            env_config.get('cloud_run', {}).get('network', {}).get('flags', {}).get('--subnet', '')
-        ),
-        '${{vars.CLOUD_RUN_VPC_SUBNET}}': _expected_flag_value(
-            env_config.get('cloud_run', {}).get('network', {}).get('flags', {}).get('--subnet', '')
-        ),
     }
 
 

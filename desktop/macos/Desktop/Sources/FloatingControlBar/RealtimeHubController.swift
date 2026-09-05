@@ -128,6 +128,9 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// Sole owner of ordinary physical-session replacement. A replacement cannot
   /// warm until the detached transport queue has closed and drained.
   let sessionReplacementGate = RealtimeHubTransportReplacementGate()
+  /// Named-development-only, one-turn fault gate for proving that a real
+  /// microphone capture survives Gemini transport loss through batch recovery.
+  var physicalPTTTransportFault = RealtimePhysicalPTTTransportFaultGate()
   #if DEBUG
     var testingSessionStartAfterDrain: ((RealtimeHubProvider, HubAuth, RealtimeHubOwnerScope) -> Bool)?
   #endif
@@ -652,6 +655,15 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     return mintGeneration
   }
 
+  /// Makes every in-flight token mint stale before a semantic transport fault
+  /// disconnects the active socket. A late completion therefore cannot reopen
+  /// provider input during the one-turn fault window.
+  func invalidatePendingMint() {
+    mintGeneration &+= 1
+    minting = false
+    mintOwnerScope = nil
+  }
+
   @discardableResult
   func releaseMint(generation: UInt64, ownerScope: RealtimeHubOwnerScope) -> Bool {
     guard minting, mintGeneration == generation, mintOwnerScope == ownerScope else {
@@ -743,6 +755,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
         (requirement.isResolved && requirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity)
         ? "true" : "false",
       "ptt_handoff_pending": pendingSessionRefreshReason ?? "none",
+      "ptt_live_transport_fault_state": physicalPTTTransportFault.diagnosticsState,
     ]
   }
 

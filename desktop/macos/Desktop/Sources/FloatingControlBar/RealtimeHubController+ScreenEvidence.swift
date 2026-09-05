@@ -443,6 +443,9 @@ extension RealtimeHubController {
     for (key, value) in automationPTTInputDiagnostics() {
       snapshot[key] = value
     }
+    for (key, value) in PushToTalkManager.shared.automationPTTCaptureEvidenceDiagnostics() {
+      snapshot[key] = value
+    }
     return snapshot
   }
 

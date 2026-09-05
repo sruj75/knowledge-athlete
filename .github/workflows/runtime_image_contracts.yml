@@ -3,7 +3,11 @@ name: Runtime Image Contracts
 on:
   pull_request:
     paths:
+      - '.dockerignore'
       - 'backend/**'
+      - '.github/scripts/desktop_release_manifest.py'
+      - '.github/scripts/desktop_qualification_admission.py'
+      - '.github/scripts/desktop_qualification_evidence.py'
       - 'Makefile'
       - '.github/workflows/runtime_image_contracts.yml'
       - '.github/workflows/gcp_*.yml'

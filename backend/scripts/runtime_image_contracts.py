@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that deployable Python images contain their reachable first-party imports.
+"""Verify deployable Python images' source closure and bounded build contexts.
 
 The local checkout has every backend package on its import path; a Docker image does
 not.  This module treats the final runtime stage's COPY instructions as the source of
@@ -29,6 +29,9 @@ from typing import Iterable
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = REPOSITORY_ROOT / "backend" / "runtime_images.json"
+PULL_REQUEST_WORKFLOW_PATH = REPOSITORY_ROOT / ".github" / "workflows" / "runtime_image_contracts.yml"
+CHECKS_MANIFEST_PATH = REPOSITORY_ROOT / ".github" / "checks-manifest.yaml"
+SOURCE_CLOSURE_CHECK_ID = "backend-runtime-image-source-closure"
 IGNORED_SOURCE_DIRECTORIES = {
     ".git",
     ".mypy_cache",
@@ -37,6 +40,42 @@ IGNORED_SOURCE_DIRECTORIES = {
     ".ruff_cache",
     ".venv",
     "__pycache__",
+}
+REQUIRED_CONTEXT_DENY_PATTERNS = {
+    "backend/.env*",
+    "backend/**/.env*",
+    "backend/*.env",
+    "backend/**/*.env",
+    "backend/google-credentials*.json",
+    "backend/**/google-credentials*.json",
+    "backend/.venv",
+    "backend/.openapi-venv",
+    "backend/**/.venv",
+    "backend/**/.openapi-venv",
+    "backend/**/__pycache__",
+    "backend/**/.pytest_cache",
+    "backend/**/.mypy_cache",
+    "backend/**/.ruff_cache",
+    "backend/**/.build",
+    "backend/**/*.pyc",
+    "backend/**/*.pem",
+    "backend/**/*.key",
+    "backend/**/*.p12",
+    "backend/.harness",
+    "backend/_speech_profiles",
+    "backend/_temp",
+    "backend/logs",
+    "backend/pretrained_models",
+    "backend/scripts/data",
+    "backend/scripts/rag/*.json",
+    "backend/scripts/rag/visualizations",
+    "backend/scripts/research",
+    "backend/scripts/stt/_temp",
+    "backend/scripts/stt/_temp2",
+    "backend/scripts/stt/diarization.json",
+    "backend/scripts/stt/pretrained_models",
+    "backend/scripts/stt/results",
+    "backend/syncing",
 }
 
 
@@ -75,6 +114,13 @@ class ContractError(ValueError):
 
 def _repository_relative(path: Path) -> str:
     return path.relative_to(REPOSITORY_ROOT).as_posix()
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return _repository_relative(path)
+    except ValueError:
+        return path.as_posix()
 
 
 def load_contracts(registry_path: Path = REGISTRY_PATH) -> list[ImageContract]:
@@ -216,6 +262,26 @@ def _logical_docker_lines(path: Path) -> list[str]:
     return logical_lines
 
 
+def _copy_instruction(line: str, dockerfile: Path) -> CopyInstruction | None:
+    if not line.upper().startswith("COPY "):
+        return None
+    tokens = shlex.split(line[5:])
+    if any(token.startswith("--from=") for token in tokens):
+        return None
+    tokens = [token for token in tokens if not token.startswith("--")]
+    if len(tokens) < 2:
+        raise ContractError(f"cannot parse COPY instruction in {_repository_relative(dockerfile)}: {line}")
+    return CopyInstruction(sources=tuple(tokens[:-1]), destination=tokens[-1])
+
+
+def build_context_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
+    return [
+        instruction
+        for line in _logical_docker_lines(dockerfile)
+        if (instruction := _copy_instruction(line, dockerfile)) is not None
+    ]
+
+
 def final_stage_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
     stages: list[list[str]] = []
     current_stage: list[str] | None = None
@@ -231,16 +297,234 @@ def final_stage_copy_instructions(dockerfile: Path) -> list[CopyInstruction]:
 
     copies: list[CopyInstruction] = []
     for line in stages[-1]:
-        if not line.upper().startswith("COPY "):
-            continue
-        tokens = shlex.split(line[5:])
-        if any(token.startswith("--from=") for token in tokens):
-            continue
-        tokens = [token for token in tokens if not token.startswith("--")]
-        if len(tokens) < 2:
-            raise ContractError(f"cannot parse COPY instruction in {_repository_relative(dockerfile)}: {line}")
-        copies.append(CopyInstruction(sources=tuple(tokens[:-1]), destination=tokens[-1]))
+        instruction = _copy_instruction(line, dockerfile)
+        if instruction is not None:
+            copies.append(instruction)
     return copies
+
+
+def _required_context_includes(contract: ImageContract) -> set[str]:
+    includes: set[str] = set()
+    sources: list[tuple[str, PurePosixPath, bool]] = []
+    for instruction in build_context_copy_instructions(contract.dockerfile):
+        for source in instruction.sources:
+            if "$" in source:
+                raise ContractError(
+                    f"{contract.name}: variable COPY source cannot define a fail-closed context: {source}"
+                )
+            normalized = source.removeprefix("./").rstrip("/")
+            if (
+                not normalized
+                or normalized == "."
+                or normalized.startswith("/")
+                or ".." in PurePosixPath(normalized).parts
+            ):
+                raise ContractError(f"{contract.name}: broad or escaping COPY source is forbidden: {source}")
+            path = PurePosixPath(normalized)
+            sources.append((source, path, source.endswith("/") or (contract.build_context / path.as_posix()).is_dir()))
+
+    directory_roots = {path for _, path, is_directory in sources if is_directory}
+    for _, path, is_directory in sources:
+        if not is_directory and any(path.is_relative_to(root) for root in directory_roots):
+            continue
+        parents = list(path.parents)[:-1]
+        for parent in reversed(parents):
+            includes.add(f"!{parent.as_posix()}/")
+        if is_directory:
+            includes.add(f"!{path.as_posix()}/")
+            includes.add(f"!{path.as_posix()}/**")
+        else:
+            includes.add(f"!{path.as_posix()}")
+    return includes
+
+
+def _required_pull_request_trigger_patterns(contract: ImageContract) -> set[str]:
+    """Return the narrowest path patterns covering every host-side COPY input."""
+
+    sources: list[tuple[PurePosixPath, bool]] = []
+    for instruction in build_context_copy_instructions(contract.dockerfile):
+        for source in instruction.sources:
+            if "$" in source:
+                raise ContractError(
+                    f"{contract.name}: variable COPY source cannot define pull-request routing: {source}"
+                )
+            normalized = source.removeprefix("./").rstrip("/")
+            if (
+                not normalized
+                or normalized == "."
+                or normalized.startswith("/")
+                or ".." in PurePosixPath(normalized).parts
+            ):
+                raise ContractError(f"{contract.name}: broad or escaping COPY source is forbidden: {source}")
+            context_relative_path = PurePosixPath(normalized)
+            host_path = contract.build_context / context_relative_path.as_posix()
+            try:
+                repository_relative_path = PurePosixPath(_repository_relative(host_path))
+            except ValueError as exc:
+                raise ContractError(f"{contract.name}: COPY source is outside the repository: {source}") from exc
+            sources.append((repository_relative_path, source.endswith("/") or host_path.is_dir()))
+
+    directory_roots = {path for path, is_directory in sources if is_directory}
+    patterns: set[str] = set()
+    for path, is_directory in sources:
+        if not is_directory and any(path.is_relative_to(root) for root in directory_roots):
+            continue
+        patterns.add(f"{path.as_posix()}/**" if is_directory else path.as_posix())
+    return patterns
+
+
+def _workflow_pull_request_paths(path: Path) -> set[str]:
+    in_pull_request = False
+    in_paths = False
+    found_paths = False
+    paths: set[str] = set()
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indentation = len(raw_line) - len(raw_line.lstrip())
+        if stripped == "pull_request:" and indentation == 2:
+            in_pull_request = True
+            in_paths = False
+            continue
+        if in_pull_request and indentation <= 2:
+            break
+        if in_pull_request and stripped == "paths:" and indentation == 4:
+            in_paths = True
+            found_paths = True
+            continue
+        if in_paths:
+            if indentation <= 4:
+                break
+            if not stripped.startswith("-"):
+                continue
+            values = shlex.split(stripped[1:].strip())
+            if len(values) != 1:
+                raise ContractError(f"cannot parse pull_request path in {_display_path(path)}: {raw_line}")
+            paths.add(values[0])
+    if not found_paths:
+        raise ContractError(f"{_display_path(path)} has no pull_request.paths list")
+    return paths
+
+
+def _manifest_check_triggers(path: Path, check_id: str) -> set[str]:
+    in_check = False
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("- id: "):
+            in_check = stripped == f"- id: {check_id}"
+            continue
+        if not in_check or not stripped.startswith("triggers:"):
+            continue
+        try:
+            triggers = json.loads(stripped.partition(":")[2].strip())
+        except json.JSONDecodeError as exc:
+            raise ContractError(f"cannot parse {check_id} triggers in {_display_path(path)}: {exc}") from exc
+        if not isinstance(triggers, list) or any(not isinstance(trigger, str) for trigger in triggers):
+            raise ContractError(f"{check_id} triggers in {_display_path(path)} must be a string list")
+        return set(triggers)
+    raise ContractError(f"{_display_path(path)} has no triggers for check {check_id}")
+
+
+def pull_request_trigger_contract_errors(
+    contracts: Iterable[ImageContract],
+    workflow_path: Path = PULL_REQUEST_WORKFLOW_PATH,
+    manifest_path: Path = CHECKS_MANIFEST_PATH,
+) -> list[str]:
+    """Route every registered image input to both hosted and deterministic checks."""
+
+    required_patterns: set[str] = set()
+    for contract in contracts:
+        required_patterns.update(_required_pull_request_trigger_patterns(contract))
+
+    workflow_paths = _workflow_pull_request_paths(workflow_path)
+    manifest_triggers = _manifest_check_triggers(manifest_path, SOURCE_CLOSURE_CHECK_ID)
+    required_workflow_patterns = required_patterns | {
+        ".dockerignore",
+        "Makefile",
+        _repository_relative(PULL_REQUEST_WORKFLOW_PATH),
+    }
+    required_manifest_patterns = required_patterns | {
+        ".dockerignore",
+        _repository_relative(CHECKS_MANIFEST_PATH),
+    }
+    errors: list[str] = []
+    missing_workflow = sorted(required_workflow_patterns - workflow_paths)
+    if missing_workflow:
+        errors.append(
+            f"{_display_path(workflow_path)} pull_request.paths omit runtime-image check inputs: {missing_workflow}"
+        )
+    missing_manifest = sorted(required_manifest_patterns - manifest_triggers)
+    if missing_manifest:
+        errors.append(
+            f"{_display_path(manifest_path)} {SOURCE_CLOSURE_CHECK_ID} triggers omit runtime-image check inputs: "
+            f"{missing_manifest}"
+        )
+    return errors
+
+
+def _dockerignore_patterns(path: Path) -> list[str]:
+    try:
+        return [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    except OSError as exc:
+        raise ContractError(f"cannot read Docker build-context policy {_repository_relative(path)}: {exc}") from exc
+
+
+def docker_context_contract_errors(contracts: Iterable[ImageContract]) -> list[str]:
+    """Keep host build contexts deny-by-default and limited to Dockerfile COPY inputs."""
+
+    errors: list[str] = []
+    policies: dict[Path, list[ImageContract]] = {}
+    checked_overrides: set[Path] = set()
+    for contract in contracts:
+        override = contract.dockerfile.with_name(f"{contract.dockerfile.name}.dockerignore")
+        if override not in checked_overrides and override.is_file():
+            errors.append(
+                f"{_repository_relative(override)}: Dockerfile-specific ignore policy is forbidden because it "
+                "would bypass the registered build-context policy"
+            )
+        checked_overrides.add(override)
+        policies.setdefault(contract.build_context / ".dockerignore", []).append(contract)
+    for ignore_path, policy_contracts in policies.items():
+        patterns = _dockerignore_patterns(ignore_path)
+        if not patterns or patterns[0] != "**":
+            errors.append(f"{_repository_relative(ignore_path)} must begin with ** to deny new paths by default")
+            continue
+        includes = {pattern for pattern in patterns if pattern.startswith("!")}
+        required_includes: set[str] = set()
+        for contract in policy_contracts:
+            required_includes.update(_required_context_includes(contract))
+        missing_includes = sorted(required_includes - includes)
+        extra_includes = sorted(includes - required_includes)
+        if missing_includes:
+            errors.append(f"{_repository_relative(ignore_path)} omits required COPY inputs: {missing_includes}")
+        if extra_includes:
+            errors.append(
+                f"{_repository_relative(ignore_path)} admits paths no registered image copies: {extra_includes}"
+            )
+        denies = {pattern for pattern in patterns[1:] if not pattern.startswith("!")}
+        missing_denies = sorted(REQUIRED_CONTEXT_DENY_PATTERNS - denies)
+        extra_denies = sorted(denies - REQUIRED_CONTEXT_DENY_PATTERNS)
+        if missing_denies:
+            errors.append(f"{_repository_relative(ignore_path)} omits cache or credential exclusions: {missing_denies}")
+        if extra_denies:
+            errors.append(
+                f"{_repository_relative(ignore_path)} has undeclared exclusions that can hide COPY inputs: {extra_denies}"
+            )
+        if len(patterns) != len(set(patterns)):
+            errors.append(f"{_repository_relative(ignore_path)} must not contain duplicate active patterns")
+        last_include = max((index for index, pattern in enumerate(patterns) if pattern.startswith("!")), default=0)
+        if any(
+            index <= last_include for index, pattern in enumerate(patterns) if pattern in REQUIRED_CONTEXT_DENY_PATTERNS
+        ):
+            errors.append(
+                f"{_repository_relative(ignore_path)} cache and credential exclusions must follow every include"
+            )
+    return errors
 
 
 def _ignore_source_directory(_: str, names: list[str]) -> set[str]:
@@ -614,9 +898,11 @@ def main() -> int:
         if args.command in {"check", "check-source", "check-workflows"}:
             errors = []
             if args.command in {"check", "check-source"}:
+                errors.extend(docker_context_contract_errors(contracts))
                 errors.extend(check_source_closures(contracts))
             if args.command in {"check", "check-workflows"}:
                 errors.extend(workflow_contract_errors(contracts))
+                errors.extend(pull_request_trigger_contract_errors(contracts))
             if errors:
                 print("FAIL: runtime-image contract is incomplete:", file=sys.stderr)
                 for error in errors:

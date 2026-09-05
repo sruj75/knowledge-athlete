@@ -105,7 +105,7 @@ def collect_live_foundation(
     region = _string(network.get('region'), 'network region')
 
     provider_resource = _string(wif.get('provider'), 'WIF provider')
-    provider_project, provider_pool, provider_name = _provider_parts(provider_resource)
+    _, provider_pool, provider_name = _provider_parts(provider_resource)
     provider_doc = _object(
         run(
             (
@@ -119,7 +119,7 @@ def collect_live_foundation(
                 provider_pool,
                 '--location=global',
                 '--project',
-                provider_project,
+                project,
                 '--format=json',
             )
         )
@@ -376,7 +376,9 @@ def collect_live_foundation(
         )
     )
     logging_sink_docs = _array(run(('gcloud', 'logging', 'sinks', 'list', '--project', project, '--format=json')))
-    channel_docs = _array(run(('gcloud', 'monitoring', 'channels', 'list', '--project', project, '--format=json')))
+    channel_docs = _array(
+        run(('gcloud', 'beta', 'monitoring', 'channels', 'list', '--project', project, '--format=json'))
+    )
     uptime_docs = _array(run(('gcloud', 'monitoring', 'uptime', 'list-configs', '--project', project, '--format=json')))
     alert_docs = _array(run(('gcloud', 'monitoring', 'policies', 'list', '--project', project, '--format=json')))
     budget_docs = _array(
@@ -394,8 +396,13 @@ def collect_live_foundation(
 
     network_name = _leaf(network_doc.get('name'))
     authorized_network = _leaf(redis_doc.get('authorizedNetwork'))
-    iam = _mapping(bucket_doc.get('iamConfiguration'), 'bucket IAM configuration')
-    ubla = _mapping(iam.get('uniformBucketLevelAccess'), 'bucket uniform access')
+    iam = bucket_doc.get('iamConfiguration')
+    if isinstance(iam, Mapping):
+        ubla = _mapping(iam.get('uniformBucketLevelAccess'), 'bucket uniform access').get('enabled')
+        public_access_prevention = iam.get('publicAccessPrevention')
+    else:
+        ubla = bucket_doc.get('uniform_bucket_level_access')
+        public_access_prevention = bucket_doc.get('public_access_prevention')
     selected_budget = next(
         (
             item
@@ -460,8 +467,8 @@ def collect_live_foundation(
         'gcs': {
             'bucket': _leaf(bucket_doc.get('name')),
             'location': str(bucket_doc.get('location') or '').lower(),
-            'uniform_bucket_level_access': ubla.get('enabled'),
-            'public_access_prevention': iam.get('publicAccessPrevention'),
+            'uniform_bucket_level_access': ubla,
+            'public_access_prevention': public_access_prevention,
             'lifecycle_rules': _bucket_lifecycle_rules(bucket_doc),
             'runtime_viewer_grants': _role_grants(bucket_iam_doc, 'roles/storage.objectViewer'),
             'runtime_bucket_mutating_grants': _member_role_grants(

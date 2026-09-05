@@ -431,6 +431,7 @@ check_runtime_image_source_closure_if_needed() {
   fi
 
   if ! changed_matches \
+    '.dockerignore' \
     'backend/*.py' \
     'backend/**/*.py' \
     'backend/**/Dockerfile*' \

@@ -13,6 +13,8 @@ export OMI_SIGNED_ARTIFACT_SMOKE_PRODUCT_URL="https://heyintentive.com"
 export OMI_SIGNED_ARTIFACT_SMOKE_TERMS_URL="https://heyintentive.com/terms"
 export OMI_SIGNED_ARTIFACT_SMOKE_PRIVACY_URL="https://heyintentive.com/privacy"
 export OMI_SIGNED_ARTIFACT_SMOKE_SUPPORT_URL="https://heyintentive.com/support"
+export OMI_SIGNED_ARTIFACT_SMOKE_POSTHOG_PROJECT_TOKEN="fixture-posthog-project-token"
+export OMI_SIGNED_ARTIFACT_SMOKE_POSTHOG_HOST="https://us.i.posthog.com"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -102,6 +104,8 @@ cat > "$tmp_app/Contents/Info.plist" <<'PLIST'
   <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
   <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
   <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
+  <key>IntentivePostHogProjectToken</key><string>fixture-posthog-project-token</string>
+  <key>IntentivePostHogHost</key><string>https://us.i.posthog.com</string>
 </dict>
 </plist>
 PLIST
@@ -137,6 +141,8 @@ cat > "$beta_app/Contents/Info.plist" <<'PLIST'
   <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
   <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
   <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
+  <key>IntentivePostHogProjectToken</key><string>fixture-posthog-project-token</string>
+  <key>IntentivePostHogHost</key><string>https://us.i.posthog.com</string>
 </dict>
 </plist>
 PLIST
@@ -197,6 +203,8 @@ make_signed_smoke_fixture() {
   <key>IntentiveTermsURL</key><string>https://heyintentive.com/terms</string>
   <key>IntentivePrivacyURL</key><string>https://heyintentive.com/privacy</string>
   <key>IntentiveSupportURL</key><string>https://heyintentive.com/support</string>
+  <key>IntentivePostHogProjectToken</key><string>fixture-posthog-project-token</string>
+  <key>IntentivePostHogHost</key><string>https://us.i.posthog.com</string>
 </dict>
 </plist>
 PLIST
@@ -313,6 +321,33 @@ PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$canonical_dmg_app" \
   --tag v0.12.34+12034-macos \
   >/tmp/omi-smoke-canonical-dmg.out 2>/tmp/omi-smoke-canonical-dmg.err \
   || fail "canonical Intentive.app DMG should pass: $(cat /tmp/omi-smoke-canonical-dmg.err)"
+
+wrong_posthog_dmg_app="$tmp_root/wrong-posthog/Intentive.app"
+make_signed_smoke_fixture "$wrong_posthog_dmg_app" \
+  com.heyintentive.intentive \
+  https://updates.heyintentive.com/v2/desktop/appcast.xml
+/usr/libexec/PlistBuddy -c 'Set :IntentivePostHogProjectToken wrong-project-token' \
+  "$wrong_posthog_dmg_app/Contents/Info.plist"
+if PATH="$mock_bin:$PATH" OMI_TEST_DMG_APP_SOURCE="$wrong_posthog_dmg_app" \
+  "$SMOKE" --app "$canonical_dmg_app" --dmg "$dummy_dmg" \
+  --tag v0.12.34+12034-macos \
+  >/tmp/omi-smoke-wrong-posthog-dmg.out 2>/tmp/omi-smoke-wrong-posthog-dmg.err; then
+  fail "signed smoke unexpectedly accepted a DMG with the wrong PostHog project token"
+fi
+grep -q "DMG-contained Intentive.app PostHog project token mismatch" /tmp/omi-smoke-wrong-posthog-dmg.err ||
+  fail "wrong DMG PostHog token rejection should identify the cross-artifact boundary"
+
+/usr/libexec/PlistBuddy -c 'Set :IntentivePostHogProjectToken wrong-project-token' \
+  "$canonical_dmg_app/Contents/Info.plist"
+if PATH="$mock_bin:$PATH" \
+  "$SMOKE" --app "$canonical_dmg_app" --tag v0.12.34+12034-macos \
+  >/tmp/omi-smoke-wrong-posthog.out 2>/tmp/omi-smoke-wrong-posthog.err; then
+  fail "signed smoke unexpectedly accepted the wrong PostHog project token"
+fi
+grep -q "IntentivePostHogProjectToken mismatch" /tmp/omi-smoke-wrong-posthog.err ||
+  fail "wrong PostHog token rejection should name IntentivePostHogProjectToken"
+/usr/libexec/PlistBuddy -c 'Set :IntentivePostHogProjectToken fixture-posthog-project-token' \
+  "$canonical_dmg_app/Contents/Info.plist"
 
 /usr/libexec/PlistBuddy -c 'Set :IntentiveProductURL https://example.com' \
   "$canonical_dmg_app/Contents/Info.plist"

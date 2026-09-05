@@ -44,7 +44,7 @@ def _get_posthog_client() -> Optional[Any]:
         _posthog_disabled = True
         return None
 
-    host = os.getenv('POSTHOG_HOST', 'https://app.posthog.com')
+    host = os.getenv('POSTHOG_HOST', 'https://us.i.posthog.com')
     try:
         posthog_module = importlib.import_module('posthog')
         posthog_client_cls = getattr(posthog_module, 'Posthog')

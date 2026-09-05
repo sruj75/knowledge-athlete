@@ -1,6 +1,6 @@
 {
   "files": {
-    "backend/scripts/validate-backend-runtime-env.py": 1636
+    "backend/scripts/validate-backend-runtime-env.py": 1616
   },
   "raise_justifications": {
     "backend/scripts/validate-backend-runtime-env.py": "Live post-deploy validation now normalizes Cloud Run defaults and verifies public access through IAM."

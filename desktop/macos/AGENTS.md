@@ -63,15 +63,16 @@ intentionally incomplete:
 3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
 4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
    Apple signing/notarization, preview, website, remaining protected publication, or production
-   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, Sparkle keypair, and
-   Sentry upload token are already protected. Never substitute inherited Omi values.
+   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, PostHog client configuration,
+   Sparkle keypair, and Sentry upload token are already protected. The tracked PostHog fingerprint must
+   match the protected project token. Never substitute inherited Omi values or bundle PostHog overrides.
 5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until the remaining owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
 The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
 
 Signed artifact smoke scope:
-- Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, helper/runtime packaging, artifact readability, and local storage package surface.
+- Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, exact fingerprint-bound PostHog configuration across the app/ZIP/DMG copies, helper/runtime packaging, artifact readability, and local storage package surface. Stable/Beta analytics resolve only from this signed metadata; environment overrides are for non-production bundles only.
 - Before outer-bundle signing, the provider must run `scripts/prepare-release-libwebp.sh` with the candidate Developer ID identity. It verifies the pinned two-architecture cache and structural Mach-O contract, uses only the checksum-pinned source rebuild as fallback, signs the nested libraries in dependency order, and fails before app signing if either path is invalid. Local `run.sh` continues using Homebrew.
 - S-29's build provider must upload the generated `desktop-smoke-result.json` with artifact digests and completed checks; promotion tooling compares this result to the exact release asset before changing channels.
 - The synthetic `--auth-storage-canary` is mandatory before beta publication and runs inside the exact signed app without real credentials. Optional broader live probes (`--launch --network --auth --chat --permissions --storage`) require an isolated release runner and explicit canary env vars; production-bundle launch is fail-closed unless `OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1`, and `--auth` requires `OMI_SIGNED_ARTIFACT_SMOKE_AUTH_PROOF_COMMAND` to prove app-level persistence rather than a raw bearer-token curl.
@@ -88,19 +89,18 @@ Stable is manual:
 **Artifact provider:** the Codemagic login is established and the selected owned application is
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
-protected groups already hold the owned Stable/Beta Firebase plists, Sparkle keypair, and Sentry
-upload token. Apple signing/notarization and preview values remain incomplete, so no candidate may
-be dispatched. The second empty provider record was deleted; only the selected application is a
-build authority.
+protected groups already hold the owned Stable/Beta Firebase plists, shared PostHog client
+configuration, Sparkle keypair, and Sentry upload token. Apple signing/notarization and preview
+values remain incomplete, so no candidate may be dispatched. The second empty provider record was
+deleted; only the selected application is a build authority.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
 The `(default)` Firestore database exists in `us-west1` with deny-all rules. Desktop app
 registration `com.heyintentive.intentive.dev` and its downloaded development plist are owned;
-Google and Apple providers are enabled for development. Stable and Beta registrations and plists
-are owned in the same approved MVP project. The Apple Developer identifier/capability remains an
-explicit provider step. Never copy or edit inherited `based-hardware` credentials into an Intentive
-identity.
+Google and Apple providers are enabled; Stable and Beta registrations/plists use the same MVP
+project. Google is sufficient for the first release; native Apple sign-in awaits its owned
+identifier/capability. Never copy or edit inherited `based-hardware` credentials into Intentive.
 
 ## Module Layout (SwiftPM)
 
@@ -190,8 +190,8 @@ do not hand-edit those paths to match a specific machine.
 ## Key Architecture Notes
 
 ### Authentication
-- Firebase Auth is native Apple/Google on iOS; desktop uses `/v1/auth/authorize` plus a custom token.
-- Apple Services ID: not yet approved or provisioned. Never reuse inherited `me.omi.web`; signed native Apple sign-in remains fail-closed until the owner supplies the Intentive identifier and capability.
+- Desktop first-release auth uses Google through `/v1/auth/authorize` plus a Firebase custom token.
+- Native Apple sign-in is deferred, not a first-release requirement. Never reuse `me.omi.web`; keep it fail-closed until the owned Apple identifier/capability exists.
 - `AuthSessionCoordinator` owns session death (`INV-AUTH-1`); expired/revoked credentials use `invalidateSession`, never `signOut()`.
 
 #### Session vs provider 401
@@ -243,10 +243,10 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **Full dev run**: `./run.sh` — builds Swift app, starts Python backend, starts Cloudflare tunnel, launches app
 - **Fast default dev run**: after one successful full named-bundle launch, ordinary Swift-only `./run.sh` calls reuse the installed bundle. The fast lane runs incremental SwiftPM, atomically replaces the executable and current desktop API URL, re-signs the app, and relaunches without copying/re-signing static agent/framework assets or resetting LaunchServices/auth. Named local profiles are eligible: their current disposable `.env` is refreshed on each patch and is never cached in the bundle fingerprint. Package metadata, resources, agent/runtime inputs, entitlements, and persistent launch configuration automatically take the full path. Force that path with `./run.sh --full` or `OMI_FORCE_FULL_BUNDLE=1`. `OMI_SCAN_STALE_BUNDLES=1` is an explicit stale-LaunchServices recovery scan; do not enable it in the normal loop.
 - **Focused feedback loop**: `./scripts/dev-feedback.py --once|--watch swift '<XCTest filter>'` or `... python '<pytest path>'` runs exactly the regression you selected and reports each iteration time. It watches only the matching component inputs, keeps watching after a failure, and never replaces the full component suite. Pre-push deliberately adds only `xcrun swift build -c debug`; never promote it to the full pinned-Xcode suite or release compile, because that push-time budget belongs to CI.
-- **Swift suite throughput**: Local suites default to four workers; CI pins one for the shared `.build` lock. Do not raise it without isolated builds. Set `OMI_SWIFT_TEST_SUITE_WORKERS=1` to diagnose concurrency failures.
+- **Swift tests**: Local suites use four workers; CI uses one for its shared `.build` lock. Use `OMI_SWIFT_TEST_SUITE_WORKERS=1` for diagnosis; increase CI workers only with isolated builds. `./scripts/run-swift-ci.sh --release-notification-regression` sets command-scoped `OMI_NOTIFICATION_RELEASE_TESTS_ONLY=1` to select only the callback test target, with release app flags unchanged; normal testing includes all targets.
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
 - **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/heyintentive-desktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
-- **Managed agent boundary**: production Chat, background Pills, and voice work use `pi-mono`, managed Sonnet, and the owned Unix socket. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
+- **Managed agent boundary**: Chat/Pills use `pi-mono`, Gemini 3.7 Flash, and the owned Unix socket; realtime voice uses Gemini Live separately. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
 - **Release builds**: root `codemagic.yaml` plus `scripts/codemagic-release.sh` are the only artifact builder. They remain fail-closed until the remaining protected provider-group fields and exact production/public inputs in `OWNER-PROVIDER-DECISIONS.md` are configured; GitHub controls tag, observe, qualify, promote, or recover but never build.
 - **DO NOT** use bare `swift build` — it will fail with SDK version mismatch
 - **DO NOT** use `xcodebuild` — there is no `.xcodeproj`
@@ -338,7 +338,7 @@ Never ask a user to test an unexercised path. A fast named-bundle launch plus a 
 ### After Implementing Changes
 
 - `xcrun swift build` is for **compile checks only** — it does NOT start the backend
-- Voice-path verification means a natural authenticated PTT turn on a named bundle — signed-out, forced-transcript, or reducer-only runs do not count; provider mint or payload changes must also show the deploy-inline provider probe.
+- Voice-path verification means a natural authenticated PTT turn on a named bundle; `ptt_turn_snapshot` must prove physical origin and nonzero capture shape. Use named-dev-only `ptt_live_transport_fault` for recovery evidence; see `e2e/SKILL.md` §2b.1. Provider mint or payload changes must also show the deploy-inline provider probe.
 - **When the user says "test it"**, use the `test-local` skill to build, run, and verify via macOS automation
 
 ### macOS Version Compatibility

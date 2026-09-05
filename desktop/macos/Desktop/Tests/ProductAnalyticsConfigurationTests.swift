@@ -10,7 +10,8 @@ final class ProductAnalyticsConfigurationTests: XCTestCase {
         environment: [
           "POSTHOG_PROJECT_API_KEY": "owned-project-token",
           "POSTHOG_HOST": "https://us.i.posthog.com",
-        ]))
+        ],
+        isProductionBundle: false))
 
     XCTAssertEqual(configuration.projectToken, "owned-project-token")
     XCTAssertEqual(configuration.host.absoluteString, "https://us.i.posthog.com")
@@ -45,5 +46,22 @@ final class ProductAnalyticsConfigurationTests: XCTestCase {
 
     XCTAssertEqual(configuration.projectToken, "packaged-project-token")
     XCTAssertEqual(configuration.host.absoluteString, "https://eu.i.posthog.com")
+  }
+
+  func testProductionConfigurationIgnoresRuntimeOverrides() throws {
+    let configuration = try XCTUnwrap(
+      ProductAnalyticsConfiguration.resolve(
+        infoDictionary: [
+          "IntentivePostHogProjectToken": "packaged-project-token",
+          "IntentivePostHogHost": "https://us.i.posthog.com",
+        ],
+        environment: [
+          "POSTHOG_PROJECT_API_KEY": "runtime-override-token",
+          "POSTHOG_HOST": "https://attacker.example",
+        ],
+        isProductionBundle: true))
+
+    XCTAssertEqual(configuration.projectToken, "packaged-project-token")
+    XCTAssertEqual(configuration.host.absoluteString, "https://us.i.posthog.com")
   }
 }

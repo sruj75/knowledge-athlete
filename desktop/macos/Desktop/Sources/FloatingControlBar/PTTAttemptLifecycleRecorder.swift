@@ -118,6 +118,12 @@ final class PTTAttemptLifecycleRecorder {
     case cancelled
   }
 
+  enum CaptureOrigin: String {
+    case physicalMicrophone = "physical_microphone"
+    case automation
+    case testFixture = "test_fixture"
+  }
+
   enum RecoveryAction: String {
     case none
     case captureRebuild = "capture_rebuild"
@@ -170,6 +176,8 @@ final class PTTAttemptLifecycleRecorder {
     var source: String
     var hubActive: Bool
     var micPermissionGranted: Bool
+    var captureOrigin: CaptureOrigin
+    var capturedAudioBytes: Int
     var turnAudioSeconds: Double
     var voicedAudioSeconds: Double?
     var peak: Int
@@ -200,6 +208,8 @@ final class PTTAttemptLifecycleRecorder {
         "source": source,
         "hub_active": hubActive,
         "tcc_microphone_granted": micPermissionGranted,
+        "capture_origin": captureOrigin.rawValue,
+        "captured_audio_bytes": capturedAudioBytes,
         "turn_audio_seconds": rounded(turnAudioSeconds),
         "peak": peak,
         "rms": rms,
@@ -245,6 +255,8 @@ final class PTTAttemptLifecycleRecorder {
   private var routeChangedDuringAttempt = false
   private var recoveryTriggered = false
   private var recoveryAction: RecoveryAction = .none
+  private var capturedAudioBytes = 0
+  private var lastSnapshot: Snapshot?
 
   /// A capture rebuild requested on a *prior* attempt, awaiting its next judgeable
   /// turn to record whether it restored capture. Joined on `recovery_attempt_id`.
@@ -254,6 +266,7 @@ final class PTTAttemptLifecycleRecorder {
   private var cachedMode: String = ""
   private var cachedHubActive: Bool = false
   private var cachedMicPermissionGranted: Bool = false
+  private var cachedCaptureOrigin: CaptureOrigin = .automation
 
   init() {}
 
@@ -261,7 +274,12 @@ final class PTTAttemptLifecycleRecorder {
 
   /// PTT press / attempt start. The transcription route `source` (hub / omni_stt /
   /// batch_stt …) is resolved at finalization, not at press.
-  func beginAttempt(mode: String, hubActive: Bool, micPermissionGranted: Bool) {
+  func beginAttempt(
+    mode: String,
+    hubActive: Bool,
+    micPermissionGranted: Bool,
+    captureOrigin: CaptureOrigin
+  ) {
     attemptSequence &+= 1
     attemptId = String(attemptSequence)
     attemptStartedAt = now()
@@ -275,9 +293,12 @@ final class PTTAttemptLifecycleRecorder {
     routeChangedDuringAttempt = false
     recoveryTriggered = false
     recoveryAction = .none
+    capturedAudioBytes = 0
+    lastSnapshot = nil
     cachedMode = mode
     cachedHubActive = hubActive
     cachedMicPermissionGranted = micPermissionGranted
+    cachedCaptureOrigin = captureOrigin
   }
 
   /// Capture-start requested (the async CoreAudio start is now in flight).
@@ -310,6 +331,10 @@ final class PTTAttemptLifecycleRecorder {
   /// energy bucket and scanning stops once the first usable frame is found, so a
   /// long successful turn does not pay a per-chunk cost. Raw PCM is not retained.
   func ingestAudioChunk(_ pcm16k: Data) {
+    capturedAudioBytes =
+      pcm16k.count > Int.max - capturedAudioBytes
+      ? Int.max
+      : capturedAudioBytes + pcm16k.count
     if firstAudioCallbackAt == nil {
       firstAudioCallbackAt = now()
     }
@@ -349,6 +374,40 @@ final class PTTAttemptLifecycleRecorder {
   }
 
   // MARK: - Termination
+
+  /// A successful provider path terminates from the exact capture callbacks
+  /// already observed by this recorder. Deriving duration from that byte count
+  /// prevents a successful physical turn from reporting the old zero-duration
+  /// placeholder, and still retains no PCM or transcript content.
+  @discardableResult
+  func terminateCommittedCapture(source: String) -> Snapshot {
+    terminate(
+      disposition: .committed,
+      source: source,
+      peak: 0,
+      rms: 0,
+      turnAudioSeconds: Double(capturedAudioBytes) / 32_000.0,
+      voicedAudioSeconds: nil,
+      isNearZero: false,
+      judgeable: true)
+  }
+
+  /// Safe local bridge evidence for the current attempt. A new press clears the
+  /// prior snapshot so injected automation can never masquerade as the physical
+  /// turn being qualified.
+  func automationDiagnostics() -> [String: String] {
+    guard let lastSnapshot else {
+      return ["capture_evidence_available": "false"]
+    }
+    return [
+      "capture_evidence_available": "true",
+      "capture_origin": lastSnapshot.captureOrigin.rawValue,
+      "captured_audio_bytes": "\(lastSnapshot.capturedAudioBytes)",
+      "captured_audio_seconds": String(format: "%.4f", lastSnapshot.turnAudioSeconds),
+      "capture_evidence_source": lastSnapshot.source,
+      "capture_evidence_disposition": lastSnapshot.turnDisposition.rawValue,
+    ]
+  }
 
   /// Classify the attempt and emit one redacted snapshot. Resolves any pending
   /// recovery from a prior attempt against this turn's outcome.
@@ -417,14 +476,17 @@ final class PTTAttemptLifecycleRecorder {
       source: source,
       hubActive: cachedHubActive,
       micPermissionGranted: cachedMicPermissionGranted,
+      captureOrigin: cachedCaptureOrigin,
+      capturedAudioBytes: capturedAudioBytes,
       turnAudioSeconds: turnAudioSeconds,
       voicedAudioSeconds: voicedAudioSeconds,
       peak: peak,
       rms: rms,
       isNearZero: isNearZero,
       judgeable: judgeable,
-      telemetrySchemaVersion: 2)
+      telemetrySchemaVersion: 3)
 
+    lastSnapshot = snapshot
     emit(snapshot)
     return snapshot
   }

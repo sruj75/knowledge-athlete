@@ -32,11 +32,6 @@ def external_inputs() -> dict[str, str]:
         'GCP_DEPLOY_SERVICE_ACCOUNT': 'deploy-dev@project-dev.iam.gserviceaccount.com',
         'GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT': 'reader-dev@project-dev.iam.gserviceaccount.com',
         'GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT': 'writer-dev@project-dev.iam.gserviceaccount.com',
-        'CLOUD_RUN_VPC_NETWORK': 'backend-dev',
-        'CLOUD_RUN_VPC_SUBNET': 'backend-dev-west1',
-        'PRIVATE_SERVICE_ACCESS_RANGE_NAME': 'backend-dev-services',
-        'PRIVATE_SERVICE_ACCESS_RANGE_CIDR': '10.80.0.0/16',
-        'REDIS_INSTANCE_NAME': 'backend-dev-cache',
         'REDIS_DB_HOST': 'redis.external.example',
         'REDIS_DB_PORT': '6379',
         'RUNTIME_GCP_PROJECT_ID': 'runtime-dev',
@@ -228,7 +223,7 @@ def fake_gcloud(command, wanted):
                 'destination': 'logging.googleapis.com/projects/runtime-dev/locations/global/buckets/_Required',
             },
         ]
-    if words[1:4] == ('monitoring', 'channels', 'list'):
+    if words[1:5] == ('beta', 'monitoring', 'channels', 'list'):
         return [
             {
                 'name': 'projects/runtime-dev/notificationChannels/1',
@@ -301,6 +296,58 @@ def test_fake_gcloud_describes_match_the_development_foundation() -> None:
             '--format=json',
         )
     ]
+    channel_lists = [command for command in commands if 'channels' in command and 'list' in command]
+    assert channel_lists == [
+        ('gcloud', 'beta', 'monitoring', 'channels', 'list', '--project', 'runtime-dev', '--format=json')
+    ]
+
+
+def test_wif_provider_lookup_uses_the_canonical_project_id() -> None:
+    expected = expected_dev()
+    wanted = expected_observable_foundation(expected)
+    commands = []
+
+    def recording_runner(command):
+        commands.append(tuple(command))
+        return fake_gcloud(command, wanted)
+
+    collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=recording_runner,
+    )
+
+    provider_describe = next(
+        command for command in commands if command[1:5] == ('iam', 'workload-identity-pools', 'providers', 'describe')
+    )
+    assert provider_describe[-3:] == ('--project', 'runtime-dev', '--format=json')
+
+
+def test_gcloud_storage_cli_bucket_shape_is_normalized() -> None:
+    expected = expected_dev()
+    wanted = expected_observable_foundation(expected)
+
+    def storage_cli_runner(command):
+        words = tuple(command)
+        if words[1:4] == ('storage', 'buckets', 'describe'):
+            return {
+                'name': 'desktop-updates-dev',
+                'location': 'US-WEST1',
+                'uniform_bucket_level_access': True,
+                'public_access_prevention': 'enforced',
+                'lifecycle_config': None,
+            }
+        return fake_gcloud(command, wanted)
+
+    actual = collect_live_foundation(
+        expected,
+        project='runtime-dev',
+        cloud_run_service='knowledge-athlete-dev',
+        runner=storage_cli_runner,
+    )
+
+    assert drift_paths(wanted, actual) == []
 
 
 def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> None:
@@ -310,6 +357,22 @@ def test_external_redis_tls_or_plan_drift_is_reported_at_the_exact_field() -> No
     observed['redis']['plan'] = 'paid'
 
     assert drift_paths(expected, observed) == ['redis.plan', 'redis.transit_encryption']
+
+
+def test_production_foundation_uses_shared_external_redis_without_managed_resource_inputs() -> None:
+    expected = expected_prod()
+
+    assert expected['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
+    assert expected['redis'] == {
+        'provider': 'upstash',
+        'database': 'intentive-development',
+        'region': 'us-west-2',
+        'plan': 'free',
+        'endpoint': {'host': 'redis.external.example', 'port': '6379'},
+        'auth': True,
+        'transit_encryption': 'TLS',
+        'verification': 'runtime-tls-probe',
+    }
 
 
 def test_missing_resource_section_fails_closed_without_secret_values() -> None:

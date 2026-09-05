@@ -9,13 +9,18 @@ struct ProductAnalyticsConfiguration: Equatable {
 
   static func resolve(
     infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
-    environment: [String: String] = ProcessInfo.processInfo.environment
+    environment: [String: String] = ProcessInfo.processInfo.environment,
+    isProductionBundle: Bool = AppBuild.isProductionBundle
   ) -> ProductAnalyticsConfiguration? {
+    // Stable and Beta trust only the configuration sealed into their signed bundle.
+    // Named development and test bundles retain environment overrides for local QA.
+    let runtimeToken = isProductionBundle ? nil : nonempty(environment["POSTHOG_PROJECT_API_KEY"])
+    let runtimeHost = isProductionBundle ? nil : nonempty(environment["POSTHOG_HOST"])
     let token =
-      nonempty(environment["POSTHOG_PROJECT_API_KEY"])
+      runtimeToken
       ?? nonempty(infoDictionary["IntentivePostHogProjectToken"] as? String)
     let hostValue =
-      nonempty(environment["POSTHOG_HOST"])
+      runtimeHost
       ?? nonempty(infoDictionary["IntentivePostHogHost"] as? String)
 
     guard let token, let hostValue, let host = URL(string: hostValue),
@@ -125,7 +130,7 @@ class PostHogManager {
     }
 
     PostHogSDK.shared.identify(uid, userProperties: properties)
-    log("PostHog: Identified user \(uid)")
+    AuthLogPrivacy.recordAnalyticsIdentification(uid, sink: log)
   }
 
   /// Set person properties in one identify call.

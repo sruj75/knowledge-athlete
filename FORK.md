@@ -89,7 +89,7 @@ and the current external-resource handoff are recorded in
 | Container repository | `knowledge-athlete/us-west1/intentive/backend`; the active development revision uses an owned immutable digest and no longer reads a cross-project recovery image |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
-| PostHog | unconfigured; the Mac fails closed until an owned project token and HTTPS host are supplied through the Intentive configuration keys |
+| PostHog | account `srujantriples@gmail.com`, organization `Intentive`, US project `Intentive Desktop` (`397035`); shared Codemagic Mac configuration is release-stamped and smoke-verified |
 | Langfuse | owned US Cloud project `Intentive`; tracing and Prompt Management remain fail-open observability, not product-data authority |
 
 `intentive.life` and `intuitive.life` are not product domains. They must not be
@@ -111,10 +111,15 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   coordination. Development desktop defaults target it; it is not production authority.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
-- PostHog has no approved project token. Product analytics therefore stays off;
-  the inherited Omi token is neither embedded nor used as a fallback.
-- Existing Omi icon, logo, and backdrop bytes remain unchanged placeholders until
-  the owner supplies and approves an Intentive asset pack. They are not shippable assets.
+- PostHog product analytics targets the owned `Intentive Desktop` US project.
+  The public client token and ingestion host are supplied only by ignored local
+  configuration or protected Codemagic inputs. The release boundary verifies the
+  token against the tracked owned-project fingerprint, and Stable/Beta resolve
+  analytics only from signed bundle metadata; the inherited Omi token is neither
+  embedded nor used as a fallback.
+- The approved Intentive icon, mark, menu-bar art, sign-in backdrop, and DMG
+  backgrounds are installed and their source/derivation is recorded in
+  `desktop/macos/ASSET-PROVENANCE.md`; caller-free inherited Omi brand assets were deleted.
 
 ### Remaining release blockers
 
@@ -126,18 +131,23 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   through 2030-11-18. Codemagic still needs the supplied `.p12` password, active Apple
   membership, and notarization credentials.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
-  `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, Sparkle
-  keypair, and Sentry token are protected; the remaining provider-group fields, GitHub release
-  app/token boundary, trusted Intentive M1 runner, production backend/feed, public site, and
-  approved legal/support destinations are not configured.
-- An approved Intentive app icon, mark, wordmark, and any replacement sign-in backdrop
-  are still required before a candidate can be called visually rebranded.
+  `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, PostHog
+  client configuration, Sparkle keypair, and Sentry token are protected; Apple signing and
+  notarization fields and preview/release publication fields remain incomplete. The owned
+  GitHub Release App is installed and verified, but Codemagic's publication token,
+  trusted Intentive M1 runner, and production backend/feed remain unconfigured.
+- The existing `heyintentive.com` landing page is hosted by Vercel project
+  `intentive-tally-landing-page` from the same-named `sruj75` repository. Do not
+  create a replacement site. Approved legal/support/download destinations and
+  the `www` TLS repair remain outstanding.
+- The approved Intentive app icon, mark, menu-bar art, sign-in backdrop, and DMG backgrounds
+  are installed; visual-asset ownership is no longer a candidate blocker.
 - The complete beginner-facing checklist and account map are tracked in
   [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md).
 
 ### Signing & distribution
 
-- macOS: Developer ID certificate + notarization. `run.sh:447` already hard-errors
+- macOS: Developer ID certificate + notarization. `desktop/macos/run.sh` already hard-errors
   without a signing identity; ad-hoc signing makes macOS reset TCC permissions on
   every build.
 - Windows: the committed `electron-builder.config.mjs:101` is unsigned, while

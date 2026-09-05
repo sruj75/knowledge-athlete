@@ -55,7 +55,4 @@ jobs:
 
       - name: Check backend runtime env manifest
         if: needs.changes.outputs.has_backend_runtime_env == 'true'
-        run: |
-          CLOUD_RUN_VPC_NETWORK=offline-check-network \
-          CLOUD_RUN_VPC_SUBNET=offline-check-subnet \
-            backend/scripts/pre-deploy-check.sh
+        run: backend/scripts/pre-deploy-check.sh

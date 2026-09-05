@@ -31,9 +31,9 @@ checks:
     reason: "PR #46 carried stale-SHA Tier-2 evidence and the S-31 final review found raw prompts, replies, identities, logs, screenshots, and audio beside its scrubbed manifest; the bounded pre-push audience must reject incomplete, stale, red, or non-private gauntlet bundles"
   - id: agent-continuity-gauntlet-self-check
     command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh"]
-    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/agent-continuity-gauntlet-self-check.sh", "desktop/macos/scripts/desktop_flow_contract.py", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "the S-31 final review found authenticated health returning a state envelope and the shared CI route lacking the gauntlet's locked Vitest dependency; the live driver must self-provision and exercise its parser and immutable-source contract in deterministic lanes"
+    reason: "the S-31 final review found authenticated health returning a state envelope and the shared CI route lacking the gauntlet's locked Vitest dependency; required action discovery must follow the shared automation source inventory when registrations are extracted"
   - id: agent-continuity-gauntlet-source-provenance-test
     command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh"]
     triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
@@ -327,9 +327,9 @@ checks:
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
-    triggers: ["backend/**/*.py", "backend/**/Dockerfile*", "backend/runtime_images.json", "backend/scripts/runtime_image_contracts.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml"]
+    triggers: [".dockerignore", "backend/**", ".github/scripts/desktop_release_manifest.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/desktop_qualification_evidence.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "#9857: deployable Python images must contain the transitive first-party imports of their runtime entrypoints"
+    reason: "#9857 plus the oversized-context incident: runtime images must retain source closure without admitting unrelated checkout paths"
   - id: backend-module-isolation
     command: ["python3", "backend/scripts/check_module_stub_pollution.py", "--files", "{changed_files}", "--check-allowlist-monotonic", "{base}"]
     triggers: ["backend/tests/**/*.py", "backend/testing/**/*.py", "backend/tests/.module_stub_legacy_allowlist", "backend/scripts/check_module_stub_pollution.py"]
@@ -342,7 +342,7 @@ checks:
     reason: "workflow boundary sources changed"
   - id: desktop-swift-ci-contract
     command: ["python3", ".github/scripts/test_desktop_swift_ci_contract.py"]
-    triggers: [".github/workflows/desktop-swift-ci.yml", "desktop/macos/scripts/run-swift-ci.sh", "desktop/macos/scripts/swift-test-suites.sh", "scripts/pre_push_ci_prediction.py", ".github/scripts/test_desktop_swift_ci_contract.py"]
+    triggers: [".github/workflows/desktop-swift-ci.yml", "desktop/macos/Desktop/Package.swift", "desktop/macos/scripts/run-swift-ci.sh", "desktop/macos/scripts/swift-test-suites.sh", "desktop/macos/tests/test-run-swift-ci.sh", "scripts/pre_push_ci_prediction.py", ".github/scripts/test_desktop_swift_ci_contract.py"]
     lanes: ["local", "ci"]
     reason: "#9843 Rung-0: desktop Swift CI must pin its toolchain and cache on Package.resolved"
   - id: resolve-desktop-changelog-sync-fixtures

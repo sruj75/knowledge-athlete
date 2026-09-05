@@ -8,7 +8,8 @@ from urllib.parse import urljoin
 
 from utils.billing.config import BillingConfig
 from utils.billing.config import load_billing_config
-from utils.billing.provider import BillingProvider, CheckoutSession, DodoBillingProvider
+from utils.billing.contracts import BillingProvider, CheckoutSession
+from utils.billing.factory import create_dodo_billing_provider
 from utils.billing.projection import project_subscription
 from utils.billing.store import BillingProjectionStore, FirestoreBillingProjectionStore
 from utils.billing.values import as_mapping
@@ -57,7 +58,7 @@ class BillingService:
     def __init__(
         self,
         config: BillingConfig,
-        provider_factory: ProviderFactory = DodoBillingProvider,
+        provider_factory: ProviderFactory = create_dodo_billing_provider,
         projection_store: BillingProjectionStore | None = None,
         projection_invalidator: ProjectionInvalidator = _invalidate_projection_caches,
     ):

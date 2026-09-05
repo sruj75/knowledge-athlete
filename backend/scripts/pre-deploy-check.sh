@@ -4,9 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-export CLOUD_RUN_VPC_NETWORK="${CLOUD_RUN_VPC_NETWORK:-offline-check-network}"
-export CLOUD_RUN_VPC_SUBNET="${CLOUD_RUN_VPC_SUBNET:-offline-check-subnet}"
-
 usage() {
   cat <<'EOF'
 Usage: backend/scripts/pre-deploy-check.sh [--live ENV PROJECT]

@@ -215,6 +215,186 @@ import XCTest
       XCTAssertTrue(RealtimeWarmSessionStartPolicy.canStart(requirementIsResolved: true))
     }
 
+    func testNamedDevelopmentFaultArmsOnePhysicalTurnAndRestoresAfterItsTerminal() {
+      var gate = RealtimePhysicalPTTTransportFaultGate()
+      let turnID = VoiceTurnID()
+
+      XCTAssertEqual(
+        gate.arm(bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence"),
+        .armed)
+      XCTAssertEqual(gate.diagnosticsState, "armed")
+      XCTAssertTrue(gate.activateIfArmed(turnID: turnID, isPhysicalMicrophone: true))
+      XCTAssertTrue(gate.blocksTransport)
+      XCTAssertEqual(gate.diagnosticsState, "active")
+      XCTAssertEqual(
+        gate.clear(bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence"),
+        .rejectedActive)
+      XCTAssertFalse(gate.restoreAfterTerminal(turnID: VoiceTurnID()))
+      XCTAssertTrue(gate.blocksTransport, "an unrelated turn cannot restore another turn's fault")
+      XCTAssertTrue(gate.restoreAfterTerminal(turnID: turnID))
+      XCTAssertFalse(gate.blocksTransport)
+      XCTAssertEqual(gate.diagnosticsState, "idle")
+    }
+
+    func testPhysicalTransportFaultRejectsEveryNonNamedIdentity() {
+      for bundleIdentifier in [
+        "com.heyintentive.intentive",
+        "com.heyintentive.intentive.beta",
+        "com.heyintentive.intentive.dev",
+        "com.heyintentive.intentive.preview.candidate",
+        "org.example.intentive",
+      ] {
+        var gate = RealtimePhysicalPTTTransportFaultGate()
+        XCTAssertEqual(
+          gate.arm(bundleIdentifier: bundleIdentifier),
+          .rejectedIdentity,
+          bundleIdentifier)
+        XCTAssertEqual(gate.diagnosticsState, "idle", bundleIdentifier)
+        XCTAssertFalse(gate.blocksTransport, bundleIdentifier)
+      }
+    }
+
+    func testArmedPhysicalTransportFaultIgnoresSyntheticManagerTurnsAndCanBeCleared() {
+      var gate = RealtimePhysicalPTTTransportFaultGate()
+      XCTAssertEqual(
+        gate.arm(bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence"),
+        .armed)
+      XCTAssertFalse(gate.activateIfArmed(turnID: VoiceTurnID(), isPhysicalMicrophone: false))
+      XCTAssertEqual(gate.diagnosticsState, "armed")
+      XCTAssertFalse(gate.blocksTransport)
+      XCTAssertEqual(
+        gate.clear(bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence"),
+        .cleared)
+      XCTAssertEqual(gate.diagnosticsState, "idle")
+    }
+
+    @MainActor
+    func testControllerConsumesPhysicalFaultAndRestoresItThroughTerminalLifecycle() {
+      let controller = RealtimeHubController()
+      let turnID = VoiceTurnID()
+
+      let armed = controller.configurePhysicalPTTTransportFault(
+        operation: "arm",
+        bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence")
+      XCTAssertEqual(armed["armed"], "true")
+      XCTAssertTrue(
+        controller.activatePhysicalPTTTransportFaultIfArmed(
+          turnID: turnID,
+          isPhysicalMicrophone: true))
+      XCTAssertFalse(controller.isTransportReady)
+      XCTAssertEqual(controller.automationPTTInputDiagnostics()["ptt_live_transport_fault_state"], "active")
+
+      controller.voiceTurnDidTerminate(turnID: turnID)
+
+      XCTAssertEqual(controller.automationPTTInputDiagnostics()["ptt_live_transport_fault_state"], "idle")
+    }
+
+    @MainActor
+    func testPhysicalFaultInvalidatesPendingMintAndFencesLateSessionStart() throws {
+      let controller = RealtimeHubController()
+      let ownerScope = controller.currentOwnerScope
+      let mintGeneration = try XCTUnwrap(controller.beginMint(ownerScope: ownerScope))
+      var sessionStartCount = 0
+      controller.testingSessionStartAfterDrain = { _, _, _ in
+        sessionStartCount += 1
+        return true
+      }
+      let turnID = VoiceTurnID()
+      XCTAssertEqual(
+        controller.configurePhysicalPTTTransportFault(
+          operation: "arm",
+          bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence")["armed"],
+        "true")
+
+      XCTAssertTrue(
+        controller.activatePhysicalPTTTransportFaultIfArmed(
+          turnID: turnID,
+          isPhysicalMicrophone: true))
+      XCTAssertFalse(
+        controller.acceptMintCompletionOrRewarm(
+          generation: mintGeneration,
+          ownerScope: ownerScope),
+        "the token minted before fault activation must be stale")
+      controller.startSession(
+        provider: .gemini,
+        auth: .hermeticStub,
+        ownerScope: ownerScope)
+
+      XCTAssertEqual(sessionStartCount, 0)
+      XCTAssertNil(controller.session)
+      controller.voiceTurnDidTerminate(turnID: turnID)
+    }
+
+    @MainActor
+    func testPhysicalFaultWaitsForTransportCloseAcknowledgementBeforeRewarm() async throws {
+      let controller = RealtimeHubController()
+      let fixture = try await installDelayedTransport(
+        on: controller,
+        ownerScope: controller.currentOwnerScope)
+      var warmCount = 0
+      let rewarmed = expectation(description: "controller rewarmed after fault drain")
+      controller.testingWarmAfterDrain = {
+        warmCount += 1
+        rewarmed.fulfill()
+      }
+      let turnID = VoiceTurnID()
+      XCTAssertEqual(
+        controller.configurePhysicalPTTTransportFault(
+          operation: "arm",
+          bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence")["armed"],
+        "true")
+
+      XCTAssertTrue(
+        controller.activatePhysicalPTTTransportFaultIfArmed(
+          turnID: turnID,
+          isPhysicalMicrophone: true))
+      await Task.yield()
+      XCTAssertTrue(controller.sessionReplacementGate.isPending)
+      XCTAssertEqual(fixture.tracker.liveCount, 1)
+
+      controller.voiceTurnDidTerminate(turnID: turnID)
+      XCTAssertEqual(warmCount, 0, "terminal restore cannot overlap the draining transport")
+      XCTAssertTrue(controller.sessionReplacementGate.isPending)
+
+      fixture.transport.acknowledgeClose()
+      await fulfillment(of: [rewarmed], timeout: 1)
+      XCTAssertEqual(fixture.tracker.liveCount, 0)
+      XCTAssertFalse(controller.sessionReplacementGate.isPending)
+    }
+
+    @MainActor
+    func testControllerRejectsUnknownPhysicalFaultOperationWithoutChangingState() {
+      let controller = RealtimeHubController()
+
+      let result = controller.configurePhysicalPTTTransportFault(
+        operation: "toggle",
+        bundleIdentifier: "com.heyintentive.intentive.dev.omi-live-evidence")
+
+      XCTAssertEqual(result["error"], "unsupported operation; expected arm or clear")
+      XCTAssertEqual(result["fault_state"], "idle")
+    }
+
+    @MainActor
+    func testPhysicalTransportFaultActionUsesProductionRegistryAndRejectsTestHostIdentity() async throws {
+      let registry = DesktopAutomationActionRegistry.shared
+      registry.registerBuiltins()
+
+      let descriptor = try XCTUnwrap(
+        registry.descriptors().first { $0.name == "ptt_live_transport_fault" })
+      XCTAssertEqual(descriptor.safety, "non_production_fault")
+      XCTAssertEqual(descriptor.surfaces, ["floating_bar"])
+      XCTAssertEqual(descriptor.sideEffects.count, 1)
+      let performed = try await registry.perform(
+        "ptt_live_transport_fault",
+        params: ["operation": "arm"])
+      let detail = try XCTUnwrap(performed)
+
+      XCTAssertEqual(
+        detail["error"],
+        "physical PTT transport fault requires a named development bundle")
+      XCTAssertEqual(detail["fault_state"], "idle")
+    }
+
     func testIdleMaintenanceDefersWhileAnotherLogicalTurnOwnsTheSession() {
       XCTAssertEqual(
         RealtimeHubSessionHandoffPolicy.decide(

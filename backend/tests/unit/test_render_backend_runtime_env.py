@@ -122,8 +122,8 @@ def test_selected_job_rejects_unknown_name_without_emitting_partial_output(capsy
 
 
 def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, monkeypatch):
-    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'intentive-test-vpc')
-    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'intentive-test-subnet')
+    monkeypatch.delenv('CLOUD_RUN_VPC_NETWORK', raising=False)
+    monkeypatch.delenv('CLOUD_RUN_VPC_SUBNET', raising=False)
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
     monkeypatch.setenv(
         'ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.com/v1/users/account-deletion-wipes/run'
@@ -142,6 +142,14 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert _MODULE['main']() == 0
     output = capsys.readouterr().out
 
+    assert _output_value(output, 'cloud_run_flags') == ''
+    service_flags = _output_value(output, 'backend_flags')
+    assert '--cpu=1' in service_flags
+    assert '--memory=2Gi' in service_flags
+    assert '--min-instances=0' in service_flags
+    assert '--max-instances=1' in service_flags
+    assert '--cpu-throttling' in service_flags
+    assert '--no-cpu-throttling' not in service_flags
     service_env = _job_env_block(output, 'backend')
     assert 'ACCOUNT_DELETION_TASKS_QUEUE=account-deletion' in service_env
     assert 'ACCOUNT_DELETION_TASKS_MAX_ATTEMPTS=5' in service_env
@@ -153,8 +161,10 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'LANGFUSE_PROMPT_NAME=intentive-chat-system' in service_env
     assert 'LANGFUSE_PROMPT_CACHE_TTL_SECONDS=300' in service_env
     assert 'BASE_API_URL=https://backend.example.com' in service_env
+    assert 'OMI_ENV_STAGE=prod' in service_env
     assert 'LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:7' in _job_secret_lines(output, 'backend')
     assert 'LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:7' in _job_secret_lines(output, 'backend')
+    assert 'REDIS_DB_PASSWORD=DESKTOP_REDIS_DB_PASSWORD:7' in _job_secret_lines(output, 'backend')
     assert 'backend_sync_env_vars' not in output
     assert 'OMI_LLM_GATEWAY' not in output
 
@@ -194,8 +204,8 @@ def test_render_dev_emits_free_tier_cloud_run_without_private_network(capsys, mo
 
 
 def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(capsys, monkeypatch):
-    monkeypatch.setenv('CLOUD_RUN_VPC_NETWORK', 'owned-prod-vpc')
-    monkeypatch.setenv('CLOUD_RUN_VPC_SUBNET', 'owned-prod-subnet')
+    monkeypatch.delenv('CLOUD_RUN_VPC_NETWORK', raising=False)
+    monkeypatch.delenv('CLOUD_RUN_VPC_SUBNET', raising=False)
     monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
     monkeypatch.setenv('ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.run.app/delete')
     monkeypatch.setenv('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE', 'https://backend.example.run.app/delete')
@@ -211,20 +221,39 @@ def test_render_foundation_is_deterministic_redacted_and_lists_external_inputs(c
     required_inputs = _output_value(output, 'foundation_required_inputs').split(',')
 
     contract = json.loads(rendered)
-    assert contract['network']['region'] == 'us-west1'
-    assert contract['redis']['tier'] == 'STANDARD_HA'
+    assert contract['wif']['claims']['environment'] == 'prod'
+    assert contract['network'] == {'connectivity': 'public-egress', 'region': 'us-west1'}
+    assert contract['redis']['provider'] == 'upstash'
+    assert contract['redis']['database'] == 'intentive-development'
+    assert contract['redis']['plan'] == 'free'
     assert contract['budget']['thresholds'] == [0.5, 0.8, 1.0]
     assert contract['budget']['recipients'] == {'env_var': 'GCP_BUDGET_RECIPIENTS'}
     assert 'private-owner@example.com' not in rendered
     assert required_inputs == sorted(required_inputs)
     assert 'GCP_BUDGET_RECIPIENTS' in required_inputs
     assert 'GCP_WORKLOAD_IDENTITY_PROVIDER' in required_inputs
+    assert 'REDIS_DB_HOST' in required_inputs
+    assert 'REDIS_DB_PORT' in required_inputs
+    assert 'CLOUD_RUN_VPC_NETWORK' not in required_inputs
+    assert 'CLOUD_RUN_VPC_SUBNET' not in required_inputs
+    assert 'PRIVATE_SERVICE_ACCESS_RANGE_NAME' not in required_inputs
+    assert 'PRIVATE_SERVICE_ACCESS_RANGE_CIDR' not in required_inputs
+    assert 'REDIS_INSTANCE_NAME' not in required_inputs
 
 
-def test_render_prod_requires_vpc_env_vars_before_job_outputs(monkeypatch):
-    """Prod network flags are env_var-backed; missing VPC vars abort rendering."""
+def test_render_prod_does_not_require_legacy_managed_redis_inputs(capsys, monkeypatch):
     monkeypatch.delenv('CLOUD_RUN_VPC_NETWORK', raising=False)
     monkeypatch.delenv('CLOUD_RUN_VPC_SUBNET', raising=False)
+    monkeypatch.delenv('PRIVATE_SERVICE_ACCESS_RANGE_NAME', raising=False)
+    monkeypatch.delenv('PRIVATE_SERVICE_ACCESS_RANGE_CIDR', raising=False)
+    monkeypatch.delenv('REDIS_INSTANCE_NAME', raising=False)
+    monkeypatch.setenv('GOOGLE_CLIENT_ID', 'fake-google-client-id')
+    monkeypatch.setenv('ACCOUNT_DELETION_HANDLER_URL', 'https://backend.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_TASKS_OIDC_AUDIENCE', 'https://backend.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_TASKS_INVOKER_SA', 'tasks@example.iam.gserviceaccount.com')
+    monkeypatch.setenv('ACCOUNT_DELETION_LEGACY_TASKS_OIDC_AUDIENCE', 'https://legacy.example.run.app/delete')
+    monkeypatch.setenv('ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA', 'legacy@example.iam.gserviceaccount.com')
     monkeypatch.setattr('sys.argv', ['render_backend_runtime_env.py', '--env', 'prod'])
-    with pytest.raises(ValueError, match='CLOUD_RUN_VPC'):
-        _MODULE['main']()
+
+    assert _MODULE['main']() == 0
+    assert _output_value(capsys.readouterr().out, 'cloud_run_flags') == ''

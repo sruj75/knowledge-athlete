@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import importlib
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
+import main
 from routers import payment
+from utils.billing import provider as billing_provider
 from routers.payment import (
     CreateCheckoutRequest,
     create_checkout_session_endpoint,
     create_customer_portal_endpoint,
 )
-from utils.billing.config import BillingConfig, BillingMode, load_billing_config
 from utils.billing.catalog import BillingCatalog
+from utils.billing.config import BillingConfig, BillingMode, load_billing_config
+from utils.billing.contracts import CheckoutSession
 from utils.billing.projection import UnknownBillingProductError, project_subscription
-from utils.billing.provider import CheckoutSession, DodoBillingProvider
+from utils.billing.provider import DodoBillingProvider
 from utils.billing.service import BillingService
 
 
@@ -115,9 +119,125 @@ async def test_disabled_transaction_routes_return_typed_error_without_provider(
     factory.assert_not_called()
 
 
+def test_disabled_webhook_returns_typed_error_without_provider_or_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv('BILLING_MODE', BillingMode.disabled.value)
+    monkeypatch.setenv('DODO_PAYMENTS_API_KEY', 'ignored-api-key')
+    monkeypatch.setenv('DODO_PAYMENTS_WEBHOOK_KEY', 'ignored-webhook-key')
+    monkeypatch.setenv('DODO_BILLING_CATALOG_JSON', '{malformed')
+    factory = MagicMock(side_effect=AssertionError('provider must not be constructed'))
+
+    class ForbiddenStore:
+        def __getattr__(self, name):
+            raise AssertionError(f'disabled billing must not access projection store method {name}')
+
+    store = ForbiddenStore()
+    service = BillingService(load_billing_config(), provider_factory=factory, projection_store=store)
+    main.app.dependency_overrides[payment.get_billing_service] = lambda: service
+    try:
+        response = TestClient(main.app).post('/v1/dodo/webhook', content=b'\xff')
+    finally:
+        main.app.dependency_overrides.pop(payment.get_billing_service, None)
+
+    assert response.status_code == 503
+    assert response.json()['detail']['code'] == 'billing_disabled'
+    factory.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_disabled_webhook_rejects_invalid_utf8_before_reading_the_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv('BILLING_MODE', BillingMode.disabled.value)
+    factory = MagicMock(side_effect=AssertionError('provider must not be constructed'))
+
+    class ForbiddenStore:
+        def __getattr__(self, name):
+            raise AssertionError(f'disabled billing must not access projection store method {name}')
+
+    body_reads = 0
+
+    async def receive():
+        nonlocal body_reads
+        body_reads += 1
+        return {'type': 'http.request', 'body': b'\xff', 'more_body': False}
+
+    request = Request(
+        {'type': 'http', 'method': 'POST', 'path': '/v1/dodo/webhook', 'headers': []},
+        receive=receive,
+    )
+    service = BillingService(
+        load_billing_config(),
+        provider_factory=factory,
+        projection_store=ForbiddenStore(),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await payment.dodo_webhook_endpoint(request, service)
+
+    assert error.value.status_code == 503
+    assert error.value.detail['code'] == 'billing_disabled'
+    assert body_reads == 0
+    factory.assert_not_called()
+
+
+def test_active_provider_factory_loads_the_concrete_adapter_only_when_called(monkeypatch: pytest.MonkeyPatch) -> None:
+    billing_factory = importlib.import_module('utils.billing.factory')
+    constructed: list[BillingConfig] = []
+
+    class FakeProvider:
+        def __init__(self, config: BillingConfig):
+            constructed.append(config)
+
+    loader = MagicMock(return_value=type('ProviderModule', (), {'DodoBillingProvider': FakeProvider}))
+    monkeypatch.setattr(billing_factory, 'import_module', loader)
+    config = BillingConfig(
+        mode=BillingMode.dodo_test,
+        api_key='synthetic-api-key',
+        webhook_key='synthetic-webhook-key',
+        catalog=_catalog(),
+        public_base_url='https://billing.invalid/',
+    )
+
+    loader.assert_not_called()
+    result = billing_factory.create_dodo_billing_provider(config)
+
+    loader.assert_called_once_with('utils.billing.provider')
+    assert isinstance(result, FakeProvider)
+    assert constructed == [config]
+
+
+def test_active_provider_constructs_the_statically_imported_dodo_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    constructed: list[dict] = []
+
+    class FakeDodoPayments:
+        def __init__(self, **kwargs):
+            constructed.append(kwargs)
+
+    monkeypatch.setattr(billing_provider, 'DodoPayments', FakeDodoPayments)
+
+    billing_provider.DodoBillingProvider(
+        BillingConfig(
+            mode=BillingMode.dodo_test,
+            api_key='synthetic-api-key',
+            webhook_key='synthetic-webhook-key',
+            catalog=_catalog(),
+            public_base_url='https://billing.invalid/',
+        )
+    )
+
+    assert constructed == [
+        {
+            'bearer_token': 'synthetic-api-key',
+            'webhook_key': 'synthetic-webhook-key',
+            'environment': 'test_mode',
+        }
+    ]
+
+
 def _catalog() -> BillingCatalog:
-    return BillingCatalog.from_json(
-        '''
+    return BillingCatalog.from_json('''
         {
           "plans": [{
             "id": "synthetic-plan",
@@ -133,8 +253,7 @@ def _catalog() -> BillingCatalog:
             }]
           }]
         }
-        '''
-    )
+        ''')
 
 
 @pytest.mark.asyncio
