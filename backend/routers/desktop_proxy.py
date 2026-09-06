@@ -102,16 +102,15 @@ def _sanitize(body: bytes, action: str) -> bytes:
     return json.dumps(payload, separators=(",", ":")).encode()
 
 
-def _studio_url(path: str) -> str:
-    key = os.getenv("GEMINI_API_KEY")
+def _upstream(path: str, query: dict[str, str]) -> tuple[str, dict[str, str], dict[str, str]]:
+    key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         raise HTTPException(status_code=503, detail="Gemini is not configured")
-    return f"https://generativelanguage.googleapis.com/v1beta/{path}"
-
-
-def _upstream(path: str, query: dict[str, str]) -> tuple[str, dict[str, str], dict[str, str]]:
-    key = os.getenv("GEMINI_API_KEY", "")
-    return _studio_url(path), {"x-goog-api-key": key}, {name: value for name, value in query.items() if name != "key"}
+    return (
+        f"https://generativelanguage.googleapis.com/v1beta/{path}",
+        {"x-goog-api-key": key},
+        {name: value for name, value in query.items() if name != "key"},
+    )
 
 
 async def _meter_server_request(uid: str, path: str, model: str, action: str) -> str:

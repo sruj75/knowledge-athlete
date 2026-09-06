@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+import httpcore
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -16,6 +17,63 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from routers import desktop_proxy
+
+
+@pytest.mark.parametrize('api_key', ['managed-gemini-key', 'managed-gemini-key\n', ' \tmanaged-gemini-key\r\n'])
+def test_embedding_proxy_normalizes_secret_whitespace_before_http_wire_encoding(monkeypatch, api_key):
+    """Incident #74: exercise real httpx/httpcore/h11 encoding without a socket.
+
+    A MockTransport alone would accept the illegal newline header that failed live.
+    Only the network backend is replaced, so protocol validation stays real.
+    """
+    async_client = httpx.AsyncClient
+    embedding = b'{"embedding":{"values":[0.1,0.2]}}'
+    wire_response = (
+        b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: '
+        + str(len(embedding)).encode()
+        + b'\r\n\r\n'
+        + embedding
+    )
+
+    def client_with_memory_network(**kwargs):
+        transport = httpx.AsyncHTTPTransport()
+        transport._pool = httpcore.AsyncConnectionPool(network_backend=httpcore.AsyncMockBackend([wire_response]))
+        return async_client(transport=transport, trust_env=False, **kwargs)
+
+    async def immediate(_executor, function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setenv('GEMINI_API_KEY', api_key)
+    monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', lambda *args: (True, 1, 60))
+    monkeypatch.setattr(desktop_proxy, 'llm_stub_enabled', lambda: False)
+    monkeypatch.setattr(desktop_proxy.httpx, 'AsyncClient', client_with_memory_network)
+    app = FastAPI()
+    app.include_router(desktop_proxy.router)
+    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'embedding-test-user'
+    with TestClient(app) as client:
+        response = client.post(
+            '/v1/proxy/gemini/models/gemini-embedding-001:embedContent',
+            json={
+                'model': 'models/gemini-embedding-001',
+                'content': {'parts': [{'text': 'synthetic memory query'}]},
+                'taskType': 'RETRIEVAL_QUERY',
+            },
+        )
+    assert response.status_code == 200, response.text
+    assert response.content == embedding
+
+
+@pytest.mark.parametrize('api_key', [None, '', ' \t\r\n'])
+def test_proxy_rejects_absent_or_whitespace_only_managed_credential(monkeypatch, api_key):
+    if api_key is None:
+        monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    else:
+        monkeypatch.setenv('GEMINI_API_KEY', api_key)
+    with pytest.raises(HTTPException) as error:
+        desktop_proxy._upstream('models/gemini-embedding-001:embedContent', {})
+    assert error.value.status_code == 503
+    assert error.value.detail == 'Gemini is not configured'
 
 
 def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(monkeypatch):
