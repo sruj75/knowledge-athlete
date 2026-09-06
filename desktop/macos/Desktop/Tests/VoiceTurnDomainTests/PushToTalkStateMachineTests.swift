@@ -456,6 +456,16 @@ final class PushToTalkHeadlessAutomationTests: XCTestCase {
   final class PushToTalkRealtimeCommitTests: XCTestCase {
     @MainActor
     func testAcceptedHubCommitKeepsFullPCMAvailableForPostReleaseRecovery() async throws {
+      try await assertWarmCaptureCommit(releaseBeforeHistory: false)
+    }
+
+    @MainActor
+    func testReleasedWarmCaptureCommitsWhenPendingHistorySettles() async throws {
+      try await assertWarmCaptureCommit(releaseBeforeHistory: true)
+    }
+
+    @MainActor
+    private func assertWarmCaptureCommit(releaseBeforeHistory: Bool) async throws {
       let manager = PushToTalkManager.shared
       let hub = RealtimeHubController.shared
       let previousAuthOwner = UserDefaults.standard.string(forKey: .authUserId)
@@ -471,6 +481,10 @@ final class PushToTalkHeadlessAutomationTests: XCTestCase {
       await transitionOwner(defaults: .standard, to: "ptt-post-release-fallback-owner")
       hub.installOwnerBoundaryFixture(ownerID: "ptt-post-release-fallback-owner", readyForInput: true)
       hub.pendingSessionRefreshReason = nil
+      // Drain the fixture's initial ready callback before capture. Reusing an
+      // already-warm socket must not depend on another connection notification.
+      let warmSession = try XCTUnwrap(hub.session)
+      _ = await warmSession.inputLifecycleSnapshot()
 
       var samples: [Int16] = []
       samples.reserveCapacity(6_400)
@@ -479,9 +493,39 @@ final class PushToTalkHeadlessAutomationTests: XCTestCase {
       }
       let voicedPCM = samples.withUnsafeBytes { Data($0) }
 
+      let snapshot = KernelVoiceContextSnapshot(
+        surface: .realtimeVoice(chatId: "owner-boundary-fixture"),
+        sessionId: "owner-session", conversationId: "owner-boundary-fixture",
+        context: "owner-private-context", freshnessIdentity: "owner-freshness",
+        contextPlanID: "owner-plan", stableCacheIdentity: "owner-stable-cache",
+        dynamicContextIdentity: "owner-dynamic-context", semanticGuidance: "owner semantic guidance",
+        turnIDs: ["owner-turn"])
+      let (snapshots, delivery) = AsyncStream.makeStream(of: KernelVoiceContextSnapshot.self)
+      defer { delivery.finish() }
+      let refresh = hub.prefetchVoiceContextSnapshotIfNeeded {
+        var iterator = snapshots.makeAsyncIterator()
+        let value = await iterator.next()
+        return try XCTUnwrap(value)
+      }
+      if !releaseBeforeHistory { delivery.yield(snapshot) }
       XCTAssertEqual(manager.beginRealtimePushToTalkForAutomation()["listening"], "true")
-      XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(voicedPCM))
-      XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
+      let preparation = try XCTUnwrap(hub.turnPreparationTask)
+      if releaseBeforeHistory {
+        XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(voicedPCM))
+        XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
+        XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .finalizing)
+        XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.route, .hubWarmWait)
+        delivery.yield(snapshot)
+      }
+      let refreshed = await refresh.value
+      XCTAssertTrue(refreshed)
+      await preparation.value
+      XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.route, .hub(sessionID: hub.voiceSessionID))
+      XCTAssertTrue(hub.session === warmSession)
+      if !releaseBeforeHistory {
+        XCTAssertTrue(manager.injectRealtimePTTAutomationAudio(voicedPCM))
+        XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
+      }
       XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
       XCTAssertEqual(
         manager.ownerBoundarySnapshot.bufferedAudioBytes,

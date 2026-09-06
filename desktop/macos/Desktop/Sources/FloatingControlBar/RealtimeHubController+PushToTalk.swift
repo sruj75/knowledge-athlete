@@ -172,10 +172,13 @@ extension RealtimeHubController {
       // speculative. Capture immediately, then admit against the settled
       // snapshot. Reuse the socket when its context is still current; a failed
       // read takes the existing managed-transcription fallback.
+      // Join before scheduling the waiter: a fast read may settle before the
+      // task runs and must not trigger a second, unrelated kernel read.
+      prefetchVoiceContextSnapshotIfNeeded()
       turnPreparationTask = Task { @MainActor [weak self] in
         guard let self else { return }
         guard !Task.isCancelled else { return }
-        guard await self.awaitVoiceContextReadiness() else {
+        guard await self.voiceContextSingleFlight.latestResult() else {
           self.failContextFreshInputPreparation(
             turnID: turnID,
             message: "Voice context is temporarily unavailable")

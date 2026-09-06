@@ -53,10 +53,9 @@ struct OwnerIsolationKernelProbeReceipt: Equatable {
   let turns: [KernelJournalTurn]
 }
 
-/// Non-production owner-isolation probes need kernel ownership evidence even
-/// when their synthetic owner intentionally has no Firebase credential. This
-/// seam admits only an owner handshake, one canonical surface mapping, and one
-/// journal exchange; it never opens a managed-model execution lane.
+/// Local owner-isolation probes explicitly skip model credentials: the synthetic
+/// owner has no Firebase session. Only ownership, a canonical surface mapping,
+/// and a fixed journal exchange run here; managed queries keep normal admission.
 @MainActor
 enum OwnerIsolationKernelProbe {
   static func run(

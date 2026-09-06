@@ -354,26 +354,11 @@ Never ask a user to test an unexercised path. A fast named-bundle launch plus a 
 - If your change modifies shared surfaces (Theme tokens, `SettingsSection`, bridge actions, INV-* contract files), grep for all usages — including tests and e2e flows — and update them in the same commit so concurrent contributors inherit a consistent tree.
 
 ### Agent Logic Harness
-When touching desktop agent runtime, floating agent pills, realtime hub, PTT, or `pi-mono-extension`, run the focused harness before broader checks:
+For agent runtime, floating pills, realtime/PTT, or `pi-mono-extension`, run this before broader checks:
 ```bash
 cd desktop/macos && ./scripts/agent-logic-harness.sh
 ```
-It is self-driving for agents: it runs the risky Swift lifecycle/state tests, focused agent runtime tests, exact `pi-mono-extension` package tests, and prints per-step runtime. Use `--swift-only`, `--node-only`, or `--skip-install` only when narrowing a failure.
-
-The synthetic owner-isolation probe selects `requiresCredentials: false` through
-`OwnerIsolationKernelProbe` for its local owner handshake and journal exchange.
-Do not fetch a Firebase token for synthetic owner B or change ordinary managed
-query admission; `ChatQueryTelemetryTests` exercises this registration boundary
-and the canonical exchange order (regression: Intentive issue #77).
-
-PTT may capture immediately, but a pending canonical history read makes the
-cached socket/context match speculative. Keep input in the existing reconnect
-buffer until the newest snapshot settles; reuse an unchanged warm socket and
-replace a changed one through the existing handoff owner. Single-flight settlement
-also resumes already-pinned transport recovery; cancellation withdraws only its
-waiter unless the owner explicitly cancels the shared read. Cover this boundary
-through `RealtimeHubSessionInputLifecycleTests` (actual setup/input frames) and
-`RealtimeVoiceContextSingleFlightTests`, not call-spelling assertions (issue #76).
+It times Swift lifecycle, agent runtime, and exact Pi extension tests. Narrow failures with `--swift-only`, `--node-only`, or `--skip-install`. Synthetic owner probes skip credentials (#77); PTT buffers input until the latest history settles (#76), even on a warm socket.
 
 ### Chat Continuity Write-Path Contract (INV-6)
 

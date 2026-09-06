@@ -519,13 +519,6 @@ extension RealtimeHubController {
   }
 
   @discardableResult
-  func awaitVoiceContextReadiness() async -> Bool {
-    guard !Task.isCancelled else { return false }
-    prefetchVoiceContextSnapshotIfNeeded()
-    return await voiceContextSingleFlight.latestResult()
-  }
-
-  @discardableResult
   func refreshVoiceContextSnapshot() async -> Bool {
     guard !Task.isCancelled else { return false }
     return await prefetchVoiceContextSnapshotIfNeeded(forceRefresh: true).value
@@ -786,12 +779,15 @@ extension RealtimeHubController {
           sessionID: voiceSessionID,
           responseID: pending.responseID))
     }
+    // A reused socket emits no new connection callback. Wake the manager's
+    // existing flush/commit effect only after this input boundary is admitted.
+    if VoiceTurnCoordinator.shared.activeTurn?.route == .hubWarmWait {
+      VoiceTurnCoordinator.shared.publish(.hubReady(turnID: pending.turnID, sessionID: voiceSessionID))
+    }
   }
 
-  /// A released PTT turn remains eligible for context preparation while its
-  /// reducer-owned commit is deferred. This lets a short press finish the
-  /// snapshot/reconnect/replay sequence instead of abandoning its captured
-  /// audio when the key is released before the snapshot arrives.
+  /// A short press can release before history settles. Preserve both the
+  /// manager-owned warm buffer and an already-deferred controller commit.
   func contextFreshInputPreparationIsCurrent(
     turnID: VoiceTurnID,
     preparationEpoch: Int
@@ -804,6 +800,7 @@ extension RealtimeHubController {
       return false
     }
     return activeTurn.phase.isRecording || activeTurn.hubCommitPending
+      || (activeTurn.phase == .finalizing && activeTurn.route == .hubWarmWait)
   }
 
   /// A failed kernel snapshot must release the buffered PTT boundary. Leaving
