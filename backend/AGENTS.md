@@ -123,6 +123,8 @@ The effective owner's `omi.db` is the sole durable Memory authority. The backend
 proposal computation pinned to Gemini 3.7 Flash. These modules must not import Firestore,
 Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini
 embedding proxy is transient compute; vector storage and similarity remain local on macOS.
+The proxy normalizes surrounding whitespace on its server-owned `GEMINI_API_KEY` before
+building HTTP headers, matching Chat/realtime; an empty normalized key returns 503.
 
 ### macOS Focus, Insights, profile, and settings boundary
 
