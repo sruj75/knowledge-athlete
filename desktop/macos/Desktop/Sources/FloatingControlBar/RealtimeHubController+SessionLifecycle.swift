@@ -348,7 +348,10 @@ extension RealtimeHubController {
   func startSession(
     provider: RealtimeHubProvider,
     auth: HubAuth,
-    ownerScope: RealtimeHubOwnerScope
+    ownerScope: RealtimeHubOwnerScope,
+    rawWebSocketFactory: @escaping (URL, DispatchQueue) -> RealtimeRawWebSocketTransport = {
+      RawWebSocket(url: $0, queue: $1)
+    }
   ) {
     guard !physicalPTTTransportFault.blocksTransport else {
       log("RealtimeHub: physical session start deferred until PTT transport fault restores")
@@ -394,6 +397,7 @@ extension RealtimeHubController {
       stableCacheIdentity: topLevelContext.stableCacheIdentity,
       dynamicContextIdentity: topLevelContext.dynamicContextIdentity,
       contextCacheReplaced: pendingContextCacheReplacement,
+      rawWebSocketFactory: rawWebSocketFactory,
       delegate: self)
     pendingContextCacheReplacement = false
     lastWarmAt = nil
@@ -458,14 +462,19 @@ extension RealtimeHubController {
 
   /// Prefetch the typed kernel snapshot on PTT key-down before `beginTurn`.
   @discardableResult
-  func prefetchVoiceContextSnapshotIfNeeded(forceRefresh: Bool = false) -> Task<Bool, Never> {
+  func prefetchVoiceContextSnapshotIfNeeded(
+    forceRefresh: Bool = false,
+    loadSnapshot: @escaping @MainActor @Sendable () async throws -> KernelVoiceContextSnapshot = {
+      try await FloatingControlBarManager.shared.kernelVoiceContextSnapshot()
+    }
+  ) -> Task<Bool, Never> {
     let ownerScope = currentOwnerScope
     let operation: @MainActor @Sendable () async -> Bool = { @MainActor [weak self] in
       guard let self else { return false }
       guard !Task.isCancelled, self.isOwnerScopeCurrent(ownerScope) else { return false }
       let resolvedSnapshot: KernelVoiceContextSnapshot
       do {
-        resolvedSnapshot = try await FloatingControlBarManager.shared.kernelVoiceContextSnapshot()
+        resolvedSnapshot = try await loadSnapshot()
       } catch is CancellationError {
         return false
       } catch {
@@ -485,18 +494,35 @@ extension RealtimeHubController {
       self.prefetchedVoiceContextTurnIDs = resolvedSnapshot.turnIDs
       self.prefetchedVoiceContextOwnerScope = ownerScope
       self.prefetchedVoiceContextSurface = resolvedSnapshot.surface
-      self.reconcileWarmSessionForCurrentRequirement()
       return true
     }
+    let onSettled: @MainActor @Sendable (Bool) -> Void = { [weak self] ready in
+      guard let self, self.isOwnerScopeCurrent(ownerScope) else { return }
+      if ready { self.reconcileWarmSessionForCurrentRequirement() }
+      // Transport recovery can become ready during a key-down refresh without
+      // a first-admission waiter. Its existing journal pin identifies that
+      // already-admitted turn; cold preparation still belongs to beginTurn.
+      guard let pending = self.reconnectAudioBuffer,
+        self.journalPinsByContinuityKey[self.turnIdempotencyKey] != nil
+      else { return }
+      if !ready {
+        self.failContextFreshInputPreparation(
+          turnID: pending.turnID,
+          message: "Voice context is temporarily unavailable")
+      } else if self.isTransportReady {
+        self.finishSessionReconnectAfterReady()
+      }
+    }
     return forceRefresh
-      ? voiceContextSingleFlight.restart(operation)
-      : voiceContextSingleFlight.joinOrStart(operation)
+      ? voiceContextSingleFlight.restart(onSettled: onSettled, operation)
+      : voiceContextSingleFlight.joinOrStart(onSettled: onSettled, operation)
   }
 
   @discardableResult
   func awaitVoiceContextReadiness() async -> Bool {
     guard !Task.isCancelled else { return false }
-    return await prefetchVoiceContextSnapshotIfNeeded().value
+    prefetchVoiceContextSnapshotIfNeeded()
+    return await voiceContextSingleFlight.latestResult()
   }
 
   @discardableResult
@@ -680,6 +706,7 @@ extension RealtimeHubController {
   /// ordered replay path as a physical reconnect without needlessly replacing a
   /// fresh socket.
   func finishContextFreshInputOnCurrentSession() {
+    guard !voiceContextSingleFlight.isRunning else { return }
     guard let pending = reconnectAudioBuffer, let live = session else { return }
     guard let voiceSessionID else { return }
     guard let pinnedSurface = journalPinsByContinuityKey[turnIdempotencyKey]?.surface,
@@ -1335,6 +1362,7 @@ extension RealtimeHubController {
   /// The provider input window opens before replay so Gemini's activity boundaries
   /// and event ownership remain tied to the original PTT turn.
   func finishSessionReconnectAfterReady() {
+    guard !voiceContextSingleFlight.isRunning else { return }
     guard let pending = reconnectAudioBuffer, let live = session else { return }
     guard let voiceSessionID else { return }
     let admission = RealtimeInputAdmissionPolicy.decide(

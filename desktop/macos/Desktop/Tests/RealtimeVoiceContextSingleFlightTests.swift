@@ -131,4 +131,77 @@ final class RealtimeVoiceContextSingleFlightTests: XCTestCase {
     let retryResult = await retry.value
     XCTAssertTrue(retryResult)
   }
+
+  func testReadinessUsesCompletedSuccessorWhenCancelledPredecessorFinishesLast() async {
+    let singleFlight = RealtimeVoiceContextSingleFlight()
+    let older = Gate()
+    let newer = Gate()
+    let joined = Signal()
+    let ready = expectation(description: "newest snapshot releases waiter before obsolete read")
+    singleFlight.joinOrStart { await older.run() }
+    await older.waitUntilStarted()
+    let waiter = Task {
+      joined.fire()
+      let result = await singleFlight.latestResult()
+      ready.fulfill()
+      return result
+    }
+    await joined.wait()
+    let successor = singleFlight.restart { await newer.run() }
+    await newer.waitUntilStarted()
+    newer.finish(true)
+    _ = await successor.value
+    XCTAssertFalse(singleFlight.isRunning)
+    await fulfillment(of: [ready], timeout: 1)
+    older.finish(false)
+    let result = await waiter.value
+    XCTAssertTrue(result, "the completed newer snapshot supersedes the cancelled read")
+    XCTAssertEqual(newer.startCount, 1, "joining a completed successor must not trigger another read")
+  }
+
+  func testLatestFailureSettlesOnceAfterRunningClearsWithoutRetry() async {
+    let singleFlight = RealtimeVoiceContextSingleFlight()
+    var starts = 0
+    var completions: [Bool] = []
+    singleFlight.joinOrStart(onSettled: { result in
+      XCTAssertFalse(singleFlight.isRunning)
+      completions.append(result)
+    }) {
+      starts += 1
+      return false
+    }
+    let result = await singleFlight.latestResult()
+    XCTAssertFalse(result)
+    XCTAssertEqual(starts, 1)
+    XCTAssertEqual(completions, [false])
+  }
+
+  func testCancelledLatestWaiterDoesNotCancelOrSettleSharedWorkEarly() async {
+    let singleFlight = RealtimeVoiceContextSingleFlight()
+    let gate = Gate()
+    let joined = Signal()
+    let withdrawn = expectation(description: "cancelled waiter withdraws before shared work settles")
+    var completions: [Bool] = []
+    let speculative = singleFlight.joinOrStart(onSettled: { completions.append($0) }) {
+      await gate.run()
+    }
+    await gate.waitUntilStarted()
+    let waiter = Task {
+      joined.fire()
+      let result = await singleFlight.latestResult()
+      withdrawn.fulfill()
+      return result
+    }
+    await joined.wait()
+    waiter.cancel()
+    XCTAssertTrue(singleFlight.isRunning)
+    XCTAssertTrue(completions.isEmpty)
+    await fulfillment(of: [withdrawn], timeout: 1)
+    gate.finish(true)
+    let speculativeResult = await speculative.value
+    let waiterResult = await waiter.value
+    XCTAssertTrue(speculativeResult)
+    XCTAssertFalse(waiterResult)
+    XCTAssertEqual(completions, [true])
+  }
 }

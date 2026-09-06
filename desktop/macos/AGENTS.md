@@ -366,6 +366,15 @@ Do not fetch a Firebase token for synthetic owner B or change ordinary managed
 query admission; `ChatQueryTelemetryTests` exercises this registration boundary
 and the canonical exchange order (regression: Intentive issue #77).
 
+PTT may capture immediately, but a pending canonical history read makes the
+cached socket/context match speculative. Keep input in the existing reconnect
+buffer until the newest snapshot settles; reuse an unchanged warm socket and
+replace a changed one through the existing handoff owner. Single-flight settlement
+also resumes already-pinned transport recovery; cancellation withdraws only its
+waiter unless the owner explicitly cancels the shared read. Cover this boundary
+through `RealtimeHubSessionInputLifecycleTests` (actual setup/input frames) and
+`RealtimeVoiceContextSingleFlightTests`, not call-spelling assertions (issue #76).
+
 ### Chat Continuity Write-Path Contract (INV-6)
 
 Invariant: Home and floating/notch Chat present one owner-scoped local timeline
