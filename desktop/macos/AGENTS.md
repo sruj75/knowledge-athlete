@@ -360,6 +360,12 @@ cd desktop/macos && ./scripts/agent-logic-harness.sh
 ```
 It is self-driving for agents: it runs the risky Swift lifecycle/state tests, focused agent runtime tests, exact `pi-mono-extension` package tests, and prints per-step runtime. Use `--swift-only`, `--node-only`, or `--skip-install` only when narrowing a failure.
 
+The synthetic owner-isolation probe selects `requiresCredentials: false` through
+`OwnerIsolationKernelProbe` for its local owner handshake and journal exchange.
+Do not fetch a Firebase token for synthetic owner B or change ordinary managed
+query admission; `ChatQueryTelemetryTests` exercises this registration boundary
+and the canonical exchange order (regression: Intentive issue #77).
+
 ### Chat Continuity Write-Path Contract (INV-6)
 
 Invariant: Home and floating/notch Chat present one owner-scoped local timeline

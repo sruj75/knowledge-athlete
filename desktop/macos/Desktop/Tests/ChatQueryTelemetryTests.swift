@@ -369,9 +369,10 @@ final class ChatQueryTelemetryTests: XCTestCase {
   }
 
   @MainActor
-  func testOwnerIsolationControlProbeCreatesSurfaceBeforeCanonicalExchange() async throws {
+  func testOwnerIsolationControlProbeUsesCredentialFreeAdmissionBeforeCanonicalExchange() async throws {
     var events: [String] = []
     var capturedWrites: [KernelJournalTurnWrite] = []
+    var requestedCredentials: Bool?
     let surface = AgentSurfaceReference.mainChat(chatId: nil)
     let recordedTurns = try [
       XCTUnwrap(
@@ -406,7 +407,10 @@ final class ChatQueryTelemetryTests: XCTestCase {
       ownerID: "owner-b",
       query: "PROBE request",
       response: "PROBE",
-      registerControlOnlyRuntime: { events.append("register") },
+      registerRuntime: { requiresCredentials in
+        events.append("register")
+        requestedCredentials = requiresCredentials
+      },
       synchronizeOwner: {
         events.append("synchronize")
         return true
@@ -423,6 +427,11 @@ final class ChatQueryTelemetryTests: XCTestCase {
     )
 
     XCTAssertEqual(events, ["register", "synchronize", "resolve_surface", "record_exchange"])
+    XCTAssertEqual(
+      requestedCredentials,
+      false,
+      "the synthetic owner has no Firebase credential and only needs the local control runtime"
+    )
     XCTAssertEqual(capturedWrites.map(\.role), ["user", "assistant"])
     XCTAssertEqual(capturedWrites.map(\.status), [.completed, .completed])
     XCTAssertEqual(capturedWrites.map(\.content), ["PROBE request", "PROBE"])

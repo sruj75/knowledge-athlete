@@ -63,12 +63,12 @@ enum OwnerIsolationKernelProbe {
     ownerID: String,
     query: String,
     response: String,
-    registerControlOnlyRuntime: @MainActor () async throws -> Void,
+    registerRuntime: @MainActor (_ requiresCredentials: Bool) async throws -> Void,
     synchronizeOwner: @MainActor () async -> Bool,
     resolveSurface: @MainActor () async throws -> (conversationID: String, sessionID: String),
     recordExchange: @MainActor ([KernelJournalTurnWrite]) async throws -> [KernelJournalTurn]
   ) async throws -> OwnerIsolationKernelProbeReceipt {
-    try await registerControlOnlyRuntime()
+    try await registerRuntime(false)
     guard await synchronizeOwner() else { throw BridgeError.authMissing }
     let surface = try await resolveSurface()
     let now = Int(Date().timeIntervalSince1970 * 1000)
@@ -6066,11 +6066,12 @@ class ChatProvider: ObservableObject {
         ownerID: trimmedOwnerB,
         query: trimmedQuery,
         response: "PROBE",
-        registerControlOnlyRuntime: {
+        registerRuntime: { requiresCredentials in
           try await runtime.registerClient(
             clientId: probeClientID,
             harnessMode: "piMono",
-            authorizationSnapshot: authorization)
+            authorizationSnapshot: authorization,
+            requiresCredentials: requiresCredentials)
         },
         synchronizeOwner: {
           await runtime.refreshRuntimeOwner(
