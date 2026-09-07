@@ -10,6 +10,172 @@ import XCTest
 
   @MainActor
   final class RealtimeHubSessionInputLifecycleTests: XCTestCase {
+    func testPendingHistoryRefreshCannotAdmitInputToAnOlderMatchingSocket() async throws {
+      try await assertPendingHistoryRefresh(replacesSocket: true)
+    }
+
+    func testPendingUnchangedHistoryReusesWarmSocketAndReplaysBufferedInput() async throws {
+      try await assertPendingHistoryRefresh(replacesSocket: false)
+    }
+
+    func testTransportRecoveryReadyDuringUnchangedRefreshResumesWithoutAnotherTurnWaiter() async throws {
+      try await assertPendingHistoryRefresh(replacesSocket: false, transportRecovery: true)
+    }
+
+    func testFailedHistoryReadReleasesFirstAdmissionInsteadOfUsingOldContext() async throws {
+      try await assertPendingHistoryRefresh(replacesSocket: false, failsRead: true)
+    }
+
+    func testFailedHistoryReadReleasesTransportRecoveryWithoutAnotherTurnWaiter() async throws {
+      try await assertPendingHistoryRefresh(replacesSocket: false, transportRecovery: true, failsRead: true)
+    }
+
+    private func assertPendingHistoryRefresh(
+      replacesSocket: Bool, transportRecovery: Bool = false, failsRead: Bool = false
+    ) async throws {
+      let defaults = UserDefaults.standard
+      let oldOwner = defaults.object(forKey: .authUserId)
+      let oldOverride = defaults.object(forKey: .automationOwnerOverride)
+      defaults.set("voice-history-fixture", forKey: .authUserId)
+      defaults.removeObject(forKey: .automationOwnerOverride)
+      defer {
+        defaults.set(oldOwner, forKey: .authUserId)
+        defaults.set(oldOverride, forKey: .automationOwnerOverride)
+      }
+
+      let controller = RealtimeHubController()
+      controller.prefetchedVoiceContext = "Earlier conversation"
+      controller.prefetchedVoiceContextSessionID = "kernel-session"
+      controller.prefetchedVoiceContextFreshnessIdentity = "history-a"
+      controller.prefetchedVoiceContextOwnerScope = controller.currentOwnerScope
+      controller.prefetchedVoiceContextSurface = .realtimeVoice()
+      let tracker = RealtimeTransportTracker()
+      var transports: [ControllableRealtimeRawWebSocket] = []
+      let createTransport: (URL, DispatchQueue) -> RealtimeRawWebSocketTransport = { _, queue in
+        let transport = ControllableRealtimeRawWebSocket(queue: queue, tracker: tracker)
+        transports.append(transport)
+        return transport
+      }
+      controller.startSession(
+        provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+        rawWebSocketFactory: createTransport)
+      let oldSession = try XCTUnwrap(controller.session)
+      _ = await oldSession.inputLifecycleSnapshot()
+      controller.hubDidConnect(source: oldSession)
+      XCTAssertEqual(controller.pttAdmission, .immediate)
+
+      let coordinator = VoiceTurnCoordinator.shared
+      let turnID = RealtimeAutomationTurnHarness.begin(on: coordinator)
+      coordinator.publish(.selectRoute(turnID: turnID, route: .hub(sessionID: controller.voiceSessionID)))
+      defer {
+        controller.turnPreparationTask?.cancel()
+        controller.voiceContextSingleFlight.cancel()
+        controller.idleVoiceContextRefreshTask?.cancel()
+        controller.testingWarmAfterDrain = {}
+        coordinator.publish(.finish(turnID: turnID, reason: .cancelled))
+        controller.session?.stop()
+      }
+      let oldTransport = try XCTUnwrap(transports.first)
+      var previousInputs = 0
+      if transportRecovery {
+        XCTAssertEqual(controller.beginTurn(turnID: turnID), .accepted)
+        controller.feedAudio(Data([1, 2, 3, 4]), turnID: turnID)
+        _ = await oldSession.inputLifecycleSnapshot()
+        previousInputs = await oldTransport.sentTextFrames().filter(isRealtimeInput).count
+        XCTAssertTrue(controller.beginTransportRebindForActiveInputIfNeeded())
+        XCTAssertNil(controller.turnPreparationTask)
+      }
+      let pending = SuspendedVoiceHistorySnapshot()
+      let refresh = controller.prefetchVoiceContextSnapshotIfNeeded { try await pending.load() }
+      await pending.waitUntilLoading()
+      XCTAssertEqual(controller.pttAdmission, .captureAndBuffer)
+      if !transportRecovery {
+        XCTAssertEqual(controller.beginTurn(turnID: turnID), .accepted)
+        controller.feedAudio(Data([1, 2, 3, 4]), turnID: turnID)
+      }
+      // A transport-ready notification must not drain a still-speculative buffer.
+      controller.hubDidConnect(source: oldSession)
+      XCTAssertEqual(controller.reconnectAudioBuffer?.audioBuffer, [Data([1, 2, 3, 4])])
+      _ = await oldSession.inputLifecycleSnapshot()
+      let earlyFrames = await oldTransport.sentTextFrames()
+      let admittedOldInput = earlyFrames.filter(isRealtimeInput).count > previousInputs
+      XCTAssertFalse(admittedOldInput, "a matching old cache is not proof the newest history reached the provider")
+
+      let replacementOpened = XCTestExpectation(description: "fresh history connection opened")
+      controller.testingWarmAfterDrain = { [weak controller] in
+        guard let controller else { return }
+        controller.startSession(
+          provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+          rawWebSocketFactory: createTransport)
+        replacementOpened.fulfill()
+      }
+      let snapshot = KernelVoiceContextSnapshot(
+        sessionId: "kernel-session", conversationId: "conversation",
+        context: replacesSocket ? "The project code from typed chat is Cedar Harbor 42" : "Earlier conversation",
+        freshnessIdentity: replacesSocket ? "history-b" : "history-a",
+        contextPlanID: "plan-b", stableCacheIdentity: "stable",
+        dynamicContextIdentity: "dynamic-b", semanticGuidance: "", turnIDs: ["prior-typed-turn"])
+      if failsRead {
+        await pending.fail()
+      } else {
+        await pending.resolve(snapshot)
+      }
+      let refreshed = await refresh.value
+      XCTAssertEqual(refreshed, !failsRead)
+      guard !admittedOldInput else {
+        oldTransport.acknowledgeClose()
+        await oldSession.stopAndWait()
+        return
+      }
+      let preparation = controller.turnPreparationTask
+      await preparation?.value
+      if failsRead {
+        _ = await oldSession.inputLifecycleSnapshot()
+        let failedFrames = await oldTransport.sentTextFrames()
+        XCTAssertEqual(failedFrames.filter(isRealtimeInput).count, previousInputs)
+        XCTAssertNil(controller.reconnectAudioBuffer)
+        XCTAssertNil(controller.admittedInputTurnID)
+        XCTAssertEqual(coordinator.activeTurn?.route, .managedBatch)
+        XCTAssertEqual(transports.count, 1)
+        oldTransport.acknowledgeClose()
+        await oldSession.stopAndWait()
+        return
+      }
+      if replacesSocket {
+        oldTransport.acknowledgeClose()
+        await fulfillment(of: [replacementOpened], timeout: 2)
+      } else {
+        XCTAssertTrue(controller.session === oldSession)
+        XCTAssertFalse(oldTransport.closeRequested)
+      }
+      let freshSession = try XCTUnwrap(controller.session)
+      _ = await freshSession.inputLifecycleSnapshot()
+      if replacesSocket { controller.hubDidConnect(source: freshSession) }
+      _ = await freshSession.inputLifecycleSnapshot()
+      let freshTransport = try XCTUnwrap(transports.last)
+      let frames = await freshTransport.sentTextFrames()
+      let setup = try XCTUnwrap(
+        JSONSerialization.jsonObject(with: Data(try XCTUnwrap(frames.first).utf8)) as? [String: Any])
+      let config = try XCTUnwrap(setup["setup"] as? [String: Any])
+      let instruction = try XCTUnwrap(config["systemInstruction"] as? [String: Any])
+      let parts = try XCTUnwrap(instruction["parts"] as? [[String: String]])
+      XCTAssertTrue(parts.contains { $0["text"]?.contains(snapshot.context) == true })
+      XCTAssertEqual(controller.prefetchedVoiceContextTurnIDs, ["prior-typed-turn"])
+      XCTAssertGreaterThan(frames.filter(isRealtimeInput).count, replacesSocket ? 0 : previousInputs)
+      XCTAssertNil(controller.reconnectAudioBuffer)
+      XCTAssertEqual(transports.count, replacesSocket ? 2 : 1)
+      XCTAssertEqual(tracker.maximumLiveCount, 1)
+      freshTransport.acknowledgeClose()
+      await freshSession.stopAndWait()
+    }
+
+    private func isRealtimeInput(_ frame: String) -> Bool {
+      let payload = try? JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any]
+      guard let input = payload?["realtimeInput"] as? [String: Any] else { return false }
+      // Failure may close an existing input window; activityEnd is not new input.
+      return input["activityStart"] != nil || input["audio"] != nil || input["text"] != nil
+    }
+
     func testTerminalReceiveFailureClosesOldGeminiTransportBeforeUsableReplacement() async {
       let tracker = RealtimeTransportTracker()
       let firstDelegate = RealtimeHubSessionDelegateSpy()
@@ -529,6 +695,7 @@ import XCTest
     private let tracker: RealtimeTransportTracker
     private var open = false
     private var setupCompleted = false
+    private var sentFrames: [String] = []
     private var closeWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(queue: DispatchQueue, tracker: RealtimeTransportTracker) {
@@ -547,6 +714,7 @@ import XCTest
         completion?(NSError(domain: NSPOSIXErrorDomain, code: Int(POSIXErrorCode.ENOTCONN.rawValue)))
         return
       }
+      sentFrames.append(text)
       completion?(nil)
       if !setupCompleted {
         setupCompleted = true
@@ -554,6 +722,12 @@ import XCTest
       } else if text.contains(#""realtimeInput""#) {
         onInputAccepted?()
         onInputAccepted = nil
+      }
+    }
+
+    func sentTextFrames() async -> [String] {
+      await withCheckedContinuation { continuation in
+        queue.async { continuation.resume(returning: self.sentFrames) }
       }
     }
 
@@ -599,6 +773,36 @@ import XCTest
             message: "receive failed",
             underlyingError: error))
       }
+    }
+  }
+
+  private actor SuspendedVoiceHistorySnapshot {
+    private var loading = false
+    private var loadingWaiters: [CheckedContinuation<Void, Never>] = []
+    private var result: CheckedContinuation<KernelVoiceContextSnapshot, Error>?
+
+    func load() async throws -> KernelVoiceContextSnapshot {
+      try await withCheckedThrowingContinuation { continuation in
+        result = continuation
+        loading = true
+        loadingWaiters.forEach { $0.resume() }
+        loadingWaiters.removeAll()
+      }
+    }
+
+    func waitUntilLoading() async {
+      if loading { return }
+      await withCheckedContinuation { loadingWaiters.append($0) }
+    }
+
+    func resolve(_ snapshot: KernelVoiceContextSnapshot) {
+      result?.resume(returning: snapshot)
+      result = nil
+    }
+
+    func fail() {
+      result?.resume(throwing: URLError(.cannotConnectToHost))
+      result = nil
     }
   }
 #endif

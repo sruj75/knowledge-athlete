@@ -53,22 +53,21 @@ struct OwnerIsolationKernelProbeReceipt: Equatable {
   let turns: [KernelJournalTurn]
 }
 
-/// Non-production owner-isolation probes need kernel ownership evidence even
-/// when their synthetic owner intentionally has no Firebase credential. This
-/// seam admits only an owner handshake, one canonical surface mapping, and one
-/// journal exchange; it never opens a managed-model execution lane.
+/// Local owner-isolation probes explicitly skip model credentials: the synthetic
+/// owner has no Firebase session. Only ownership, a canonical surface mapping,
+/// and a fixed journal exchange run here; managed queries keep normal admission.
 @MainActor
 enum OwnerIsolationKernelProbe {
   static func run(
     ownerID: String,
     query: String,
     response: String,
-    registerControlOnlyRuntime: @MainActor () async throws -> Void,
+    registerRuntime: @MainActor (_ requiresCredentials: Bool) async throws -> Void,
     synchronizeOwner: @MainActor () async -> Bool,
     resolveSurface: @MainActor () async throws -> (conversationID: String, sessionID: String),
     recordExchange: @MainActor ([KernelJournalTurnWrite]) async throws -> [KernelJournalTurn]
   ) async throws -> OwnerIsolationKernelProbeReceipt {
-    try await registerControlOnlyRuntime()
+    try await registerRuntime(false)
     guard await synchronizeOwner() else { throw BridgeError.authMissing }
     let surface = try await resolveSurface()
     let now = Int(Date().timeIntervalSince1970 * 1000)
@@ -6066,11 +6065,12 @@ class ChatProvider: ObservableObject {
         ownerID: trimmedOwnerB,
         query: trimmedQuery,
         response: "PROBE",
-        registerControlOnlyRuntime: {
+        registerRuntime: { requiresCredentials in
           try await runtime.registerClient(
             clientId: probeClientID,
             harnessMode: "piMono",
-            authorizationSnapshot: authorization)
+            authorizationSnapshot: authorization,
+            requiresCredentials: requiresCredentials)
         },
         synchronizeOwner: {
           await runtime.refreshRuntimeOwner(

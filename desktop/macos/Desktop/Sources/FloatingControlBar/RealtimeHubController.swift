@@ -721,7 +721,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   var pttAdmission: RealtimePTTAdmission {
     let requirement = voiceSessionContext(for: currentOwnerScope)
     return RealtimePTTAdmissionPolicy.decide(
-      requirementIsResolved: requirement.isResolved,
+      requirementIsResolved: requirement.isResolved && !voiceContextSingleFlight.isRunning,
       transportIsReady: isTransportReady,
       bindingMatchesRequirement:
         requirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity

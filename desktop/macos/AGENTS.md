@@ -354,11 +354,11 @@ Never ask a user to test an unexercised path. A fast named-bundle launch plus a 
 - If your change modifies shared surfaces (Theme tokens, `SettingsSection`, bridge actions, INV-* contract files), grep for all usages — including tests and e2e flows — and update them in the same commit so concurrent contributors inherit a consistent tree.
 
 ### Agent Logic Harness
-When touching desktop agent runtime, floating agent pills, realtime hub, PTT, or `pi-mono-extension`, run the focused harness before broader checks:
+For agent runtime, floating pills, realtime/PTT, or `pi-mono-extension`, run this before broader checks:
 ```bash
 cd desktop/macos && ./scripts/agent-logic-harness.sh
 ```
-It is self-driving for agents: it runs the risky Swift lifecycle/state tests, focused agent runtime tests, exact `pi-mono-extension` package tests, and prints per-step runtime. Use `--swift-only`, `--node-only`, or `--skip-install` only when narrowing a failure.
+It times Swift lifecycle, agent runtime, and exact Pi extension tests. Narrow failures with `--swift-only`, `--node-only`, or `--skip-install`. Synthetic owner probes skip credentials (#77); PTT buffers input until the latest history settles (#76), even on a warm socket.
 
 ### Chat Continuity Write-Path Contract (INV-6)
 

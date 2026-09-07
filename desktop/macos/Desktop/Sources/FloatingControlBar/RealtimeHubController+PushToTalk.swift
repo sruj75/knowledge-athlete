@@ -129,7 +129,7 @@ extension RealtimeHubController {
         return .rejected
       }
       let cachedRequirement = voiceSessionContext(for: currentOwnerScope)
-      if cachedRequirement.isResolved {
+      if cachedRequirement.isResolved && !voiceContextSingleFlight.isRunning {
         guard let pinnedSurface = cachedRequirement.surface else {
           failContextFreshInputPreparation(
             turnID: turnID,
@@ -152,7 +152,8 @@ extension RealtimeHubController {
         }
         reconnectAudioBuffer = pending
         if isTransportReady,
-          cachedRequirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity
+          cachedRequirement.snapshotFreshnessIdentity == sessionVoiceContextFreshnessIdentity,
+          cachedRequirement.surface == sessionVoiceContextSurface
         {
           // The common path: the launch/post-turn prewarm already installed the
           // exact immutable context. Open its input window synchronously; do
@@ -167,14 +168,17 @@ extension RealtimeHubController {
         return .accepted
       }
 
-      // No cached requirement exists yet (cold start or a transient kernel
-      // read). Capture immediately, then bind and hand off exactly once when
-      // the canonical snapshot arrives. A failed read takes the typed fallback
-      // route rather than terminalizing a user's already-captured turn.
+      // A pending key-down read makes even a matching cached requirement
+      // speculative. Capture immediately, then admit against the settled
+      // snapshot. Reuse the socket when its context is still current; a failed
+      // read takes the existing managed-transcription fallback.
+      // Join before scheduling the waiter: a fast read may settle before the
+      // task runs and must not trigger a second, unrelated kernel read.
+      prefetchVoiceContextSnapshotIfNeeded()
       turnPreparationTask = Task { @MainActor [weak self] in
         guard let self else { return }
         guard !Task.isCancelled else { return }
-        guard await self.awaitVoiceContextReadiness() else {
+        guard await self.voiceContextSingleFlight.latestResult() else {
           self.failContextFreshInputPreparation(
             turnID: turnID,
             message: "Voice context is temporarily unavailable")
@@ -186,7 +190,7 @@ extension RealtimeHubController {
             preparationEpoch: preparationEpoch)
         else { return }
         let current = self.voiceSessionContext(for: self.currentOwnerScope)
-        guard let pinnedSurface = current.surface else {
+        guard current.isResolved, let pinnedSurface = current.surface else {
           self.failContextFreshInputPreparation(
             turnID: turnID,
             message: "Voice context chat identity is unavailable")
@@ -207,15 +211,17 @@ extension RealtimeHubController {
           return
         }
         self.reconnectAudioBuffer = pending
-        self.pendingContextCacheReplacement = true
-        guard !Task.isCancelled,
-          self.contextFreshInputPreparationIsCurrent(
-            turnID: turnID,
-            preparationEpoch: preparationEpoch)
-        else { return }
-        self.requestSessionHandoff(
-          reason: .voiceContextFreshness,
-          preservingReconnectAudio: true)
+        if self.isTransportReady,
+          current.snapshotFreshnessIdentity == self.sessionVoiceContextFreshnessIdentity,
+          current.surface == self.sessionVoiceContextSurface
+        {
+          self.finishContextFreshInputOnCurrentSession()
+        } else {
+          self.pendingContextCacheReplacement = true
+          self.requestSessionHandoff(
+            reason: .voiceContextFreshness,
+            preservingReconnectAudio: true)
+        }
       }
     }
     return .accepted

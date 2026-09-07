@@ -1046,6 +1046,9 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
   }
 
   func testCancelRefreshesPersistenceContextWithoutBlockingTheNextWarmSession() throws {
+    // Static persistence-fence tripwire. Snapshot-loader and single-flight
+    // behavior is exercised by RealtimeHubSessionInputLifecycleTests and
+    // RealtimeVoiceContextSingleFlightTests, not exact call-spelling checks.
     let source = try realtimeHubControllerSource()
     let cancel = try XCTUnwrap(
       source.range(of: "func cancelTurn(turnID requestedTurnID: VoiceTurnID) -> Bool"))
@@ -1076,14 +1079,8 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertLessThan(ordinaryPersistenceWait.lowerBound, contextRefresh.lowerBound)
 
     XCTAssertTrue(source.contains("let voiceContextSingleFlight = RealtimeVoiceContextSingleFlight()"))
-    XCTAssertTrue(source.contains("voiceContextSingleFlight.joinOrStart(operation)"))
-    XCTAssertTrue(source.contains("voiceContextSingleFlight.restart(operation)"))
-    XCTAssertTrue(source.contains("await prefetchVoiceContextSnapshotIfNeeded().value"))
     XCTAssertTrue(source.contains("prefetchVoiceContextSnapshotIfNeeded(forceRefresh: true)"))
     XCTAssertFalse(source.contains("voiceContextPrefetchTask?.cancel()"))
-    XCTAssertTrue(
-      source.contains(
-        "resolvedSnapshot = try await FloatingControlBarManager.shared.kernelVoiceContextSnapshot()"))
     XCTAssertTrue(source.contains("prefetchedVoiceContext = resolvedSnapshot.context"))
     XCTAssertTrue(source.contains("prefetchedVoiceContextFreshnessIdentity = resolvedSnapshot.freshnessIdentity"))
     XCTAssertTrue(source.contains("resolvedSnapshot.isResolved"))
