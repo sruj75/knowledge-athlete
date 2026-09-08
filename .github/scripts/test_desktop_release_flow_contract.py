@@ -400,7 +400,13 @@ if __name__ == "__main__":
     if not result.wasSuccessful():
         raise SystemExit(1)
     owner_contract = subprocess.run(
-        [sys.executable, str(ROOT / ".github/scripts/test_owner_manual_desktop_qualification.py"), "-q"],
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            str(ROOT / ".github/scripts/test_owner_manual_desktop_qualification.py"),
+            "-q",
+        ],
         check=False,
     )
     raise SystemExit(owner_contract.returncode)
