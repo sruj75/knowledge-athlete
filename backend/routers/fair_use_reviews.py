@@ -21,7 +21,7 @@ from utils.fair_use_reviews import (
     mark_fair_use_review_consumed,
 )
 from utils.llm.fair_use_classifier import classify_fair_use_evidence
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid
 
 router = APIRouter()
 
@@ -68,7 +68,7 @@ def validate_evidence_window(request: FairUseClassificationRequest, pending: dic
 async def classify_review(
     review_id: str,
     request: FairUseClassificationRequest,
-    uid: str = Depends(get_current_user_uid),
+    uid: str = Depends(get_current_participant_uid),
 ) -> FairUseClassificationResponse:
     receipt = await run_blocking(db_executor, get_fair_use_review_receipt, uid, review_id)
     if receipt is not None:

@@ -373,7 +373,7 @@ async def stream_generate_content(
     model: str,
     body: dict[str, object],
     alt: str | None = Query(None),
-    uid: str = Depends(auth.get_current_user_uid),
+    uid: str = Depends(auth.get_current_participant_uid),
     x_app_platform: str | None = Header(None, alias='X-App-Platform'),
     x_omi_chat_contract_version: str | None = Header(None, alias='X-Intentive-Chat-Contract-Version'),
     x_omi_request_id: str | None = Header(None, alias='X-Intentive-Request-Id'),

@@ -27,6 +27,10 @@ source and tests.
 
 6. **Managed desktop access.** Desktop AI, voice, transcription, and agent
    surfaces use account entitlement plus product-owned provider credentials.
+   The hosted prototype additionally admits only its configured one-to-five
+   Firebase participants and its reserved release probe; local/offline Dev is
+   separate. Unlisted accounts retain authenticated account export/deletion.
+   Customer billing remains disabled for this Beta.
    They do not solicit, forward, or select customer-supplied provider keys.
    The concrete guards live in the desktop managed-access, request-routing,
    realtime-authentication, and agent-runtime tests and the backend route tests.

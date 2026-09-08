@@ -50,7 +50,7 @@ class GenerateTitleRequest(BaseModel):
 def create_initial_message(
     request: InitialMessageRequest,
     uid: str = Depends(
-        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "chat:initial"))
+        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_participant_uid, "chat:initial"))
     ),
 ):
     """Compute a greeting from bounded Mac-owned context without product-data access."""
@@ -86,7 +86,7 @@ appropriate. Do not say that you are an assistant or that this is an initial mes
 def generate_session_title(
     request: GenerateTitleRequest,
     uid: str = Depends(
-        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_user_uid, "chat:initial"))
+        cast(Callable[..., str], _auth_module.with_rate_limit(auth.get_current_participant_uid, "chat:initial"))
     ),
 ):
     """Compute a title from the first real local exchange without storing it."""

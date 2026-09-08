@@ -118,7 +118,9 @@ def record_client_device(
 
         doc_ref.set(updates, merge=True)
     except Exception as e:  # noqa: BLE001
-        logger.warning("record_client_device failed for uid=%s: %s", uid, e)
+        logger.warning(
+            "event=client_metadata_failed operation=record_client_device exception_type=%s", type(e).__name__
+        )
 
 
 def record_user_platform(uid: str, raw_platform: Optional[str]) -> None:
@@ -172,7 +174,9 @@ def record_user_platform(uid: str, raw_platform: Optional[str]) -> None:
 
         user_ref.set(updates, merge=True)
     except Exception as e:  # noqa: BLE001
-        logger.warning("record_user_platform failed for uid=%s: %s", uid, e)
+        logger.warning(
+            "event=client_metadata_failed operation=record_user_platform exception_type=%s", type(e).__name__
+        )
 
 
 def is_exists_user(uid: str):

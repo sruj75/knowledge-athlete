@@ -32,7 +32,7 @@ def _listen_app(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, AsyncMock]
     monkeypatch.setattr(transcribe, "run_listen_session", run_transient)
     app = FastAPI()
     app.include_router(transcribe.router)
-    app.dependency_overrides[auth.get_current_user_uid_ws_listen] = lambda: "uid-transient"
+    app.dependency_overrides[auth.get_current_participant_uid_ws_listen] = lambda: "uid-transient"
     return TestClient(app), captured
 
 
@@ -217,7 +217,7 @@ def test_real_route_streams_segment_and_keyed_translation_without_product_state(
 
     app = FastAPI()
     app.include_router(transcribe.router)
-    app.dependency_overrides[auth.get_current_user_uid_ws_listen] = lambda: "uid-transient"
+    app.dependency_overrides[auth.get_current_participant_uid_ws_listen] = lambda: "uid-transient"
 
     with TestClient(app) as client:
         with client.websocket_connect(
@@ -267,7 +267,7 @@ def test_real_route_reports_provider_initialization_failure_without_ready(monkey
 
     app = FastAPI()
     app.include_router(transcribe.router)
-    app.dependency_overrides[auth.get_current_user_uid_ws_listen] = lambda: "uid-transient"
+    app.dependency_overrides[auth.get_current_participant_uid_ws_listen] = lambda: "uid-transient"
 
     with TestClient(app) as client:
         with client.websocket_connect(
