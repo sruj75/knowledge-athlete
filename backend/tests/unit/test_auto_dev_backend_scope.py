@@ -50,6 +50,7 @@ def _run_scope(
     main_sha: str | None = None,
     comparison: str = 'identical',
     api_fault: str = '',
+    deployment_mode: str = 'manual-only',
     expected_returncode: int = 0,
 ) -> tuple[dict[str, str], str]:
     output = repo / 'github-output.txt'
@@ -128,6 +129,7 @@ fi
             'MOCK_MAIN_SHA': main_sha or sha,
             'MOCK_COMPARISON': comparison,
             'MOCK_API_FAULT': api_fault,
+            'AUTO_DEV_DEPLOYMENT_MODE': deployment_mode,
             'GITHUB_OUTPUT': str(output),
             'GITHUB_STEP_SUMMARY': str(summary),
         },
@@ -145,7 +147,13 @@ def git_repo(tmp_path: Path) -> Path:
     _git(tmp_path, 'init')
     _git(tmp_path, 'config', 'user.email', 'scope-test@example.invalid')
     _git(tmp_path, 'config', 'user.name', 'Scope Test')
-    _commit(tmp_path, 'README.md')
+    policy = tmp_path / '.github/scripts/backend_auto_deploy_policy.py'
+    policy.parent.mkdir(parents=True)
+    policy.write_bytes((ROOT / '.github/scripts/backend_auto_deploy_policy.py').read_bytes())
+    policy.chmod(0o755)
+    (tmp_path / 'README.md').write_text('fixture\n', encoding='utf-8')
+    _git(tmp_path, 'add', 'README.md', '.github/scripts/backend_auto_deploy_policy.py')
+    _git(tmp_path, 'commit', '-m', 'fixture')
     return tmp_path
 
 
@@ -165,7 +173,7 @@ def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None
 
     outputs, summary = _run_scope(git_repo, desktop_sha)
 
-    assert outputs == {'applies': 'false'}
+    assert outputs == {'applies': 'false', 'reason': 'unrelated'}
     assert 'Green no-op' in summary
 
 
@@ -173,12 +181,20 @@ def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None
     'relative_path',
     ('backend/main.py', '.github/actions/release-eligibility/action.yml'),
 )
-def test_backend_source_or_deploy_input_change_proceeds(git_repo: Path, relative_path: str) -> None:
+def test_backend_source_or_deploy_input_change_requires_deliberate_dispatch(git_repo: Path, relative_path: str) -> None:
     relevant_sha = _commit(git_repo, relative_path)
 
     outputs, _summary = _run_scope(git_repo, relevant_sha)
 
-    assert outputs == {'applies': 'true'}
+    assert outputs == {'applies': 'false', 'reason': 'manual-required'}
+
+
+def test_active_policy_preserves_the_existing_backend_scope_decision(git_repo: Path) -> None:
+    relevant_sha = _commit(git_repo, 'backend/main.py')
+
+    outputs, _summary = _run_scope(git_repo, relevant_sha, deployment_mode='active')
+
+    assert outputs == {'applies': 'true', 'reason': 'automatic'}
 
 
 def test_superseded_backend_commit_is_a_green_no_op(git_repo: Path) -> None:
@@ -195,9 +211,11 @@ def test_superseded_backend_commit_is_a_green_no_op(git_repo: Path) -> None:
 def test_non_ancestor_comparison_cannot_bypass_source_admission(git_repo: Path, comparison: str) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
 
-    outputs, summary = _run_scope(git_repo, relevant_sha, main_sha='a' * 40, comparison=comparison)
+    outputs, summary = _run_scope(
+        git_repo, relevant_sha, main_sha='a' * 40, comparison=comparison, deployment_mode='active'
+    )
 
-    assert outputs == {'applies': 'true'}
+    assert outputs == {'applies': 'true', 'reason': 'automatic'}
     assert 'superseded no-op' not in summary
 
 
@@ -231,10 +249,10 @@ def test_missing_parent_cannot_authorize_cloud_work(git_repo: Path) -> None:
 
 def test_stale_relevant_sha_reaches_and_fails_the_existing_admission_guard(git_repo: Path) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
-    outputs, _summary = _run_scope(git_repo, relevant_sha)
+    outputs, _summary = _run_scope(git_repo, relevant_sha, deployment_mode='active')
     admission = _load_admission_script()
 
-    assert outputs == {'applies': 'true'}
+    assert outputs == {'applies': 'true', 'reason': 'automatic'}
     with pytest.raises(admission.AutomaticReleaseAdmissionError, match='still equal current main'):
         admission.validate(
             admission.AutomaticReleaseIdentity(

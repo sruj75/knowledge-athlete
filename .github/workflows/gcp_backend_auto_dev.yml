@@ -15,6 +15,9 @@ env:
   SERVICE: backend
   REGION: us-west1
   CHAT_CONTRACT_VERSION: '2'
+  # Main CI still proves release eligibility. Shared Dev changes are applied
+  # only by the existing deliberate gcp_backend.yml dispatcher.
+  AUTO_DEV_DEPLOYMENT_MODE: manual-only
   # Cloud Run tags are service-scoped. Reusing this tag atomically moves each
   # service's candidate URL without accumulating stale no-traffic routes.
   CANDIDATE_TAG: candidate
@@ -117,19 +120,15 @@ jobs:
 
           changed_files="$(git diff --name-only "$parent_sha" "$RELEASE_SHA")"
           printf 'Changed files for %s:\n%s\n' "$RELEASE_SHA" "$changed_files"
-          if grep -Eq '^(backend/|\.github/workflows/(gcp_backend_auto_dev|gcp_backend|release-eligibility)\.yml$|\.github/actions/release-eligibility/|\.github/scripts/(verify_auto_backend_release_admission|desktop_release_manifest|desktop_qualification_admission|desktop_qualification_evidence)\.py$)' <<<"$changed_files"; then
-            echo "applies=true" >> "$GITHUB_OUTPUT"
-            {
-              echo "### Backend development deploy scope"
-              echo "In scope: the triggering commit can affect backend runtime or deployment inputs."
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "applies=false" >> "$GITHUB_OUTPUT"
-            {
-              echo "### Backend development deploy no-op"
-              echo "Green no-op: the triggering commit cannot affect backend runtime or deployment inputs."
-            } >> "$GITHUB_STEP_SUMMARY"
+          backend_changed=false
+          if grep -Eq '^(backend/|\.github/workflows/(gcp_backend_auto_dev|gcp_backend|release-eligibility)\.yml$|\.github/actions/release-eligibility/|\.github/scripts/(backend_auto_deploy_policy|verify_auto_backend_release_admission|desktop_release_manifest|desktop_qualification_admission|desktop_qualification_evidence)\.py$)' <<<"$changed_files"; then
+            backend_changed=true
           fi
+          python3 .github/scripts/backend_auto_deploy_policy.py \
+            --mode "$AUTO_DEV_DEPLOYMENT_MODE" \
+            --backend-changed "$backend_changed" \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
 
   firestore_readiness:
     # A workflow_run can access deployment credentials, so never run source
