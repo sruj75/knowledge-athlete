@@ -146,6 +146,39 @@ class ManifestContractTests(unittest.TestCase):
         manifest = load_manifest(MANIFEST_PATH)
         self.assertEqual(validate_manifest(manifest, REPO_ROOT), [])
 
+    def test_isolated_python_flags_are_allowed_before_an_existing_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = Path("checks/test_policy.py")
+            (root / script).parent.mkdir(parents=True)
+            (root / script).write_text("", encoding="utf-8")
+            check = Check(
+                "isolated-python",
+                ("python3", "-I", "-S", str(script)),
+                ("all",),
+                ("local", "ci"),
+                "fixture",
+            )
+
+            self.assertEqual(validate_manifest(Manifest((check,), ()), root), [])
+
+    def test_isolated_python_flags_do_not_hide_a_missing_script(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            missing = "checks/missing.py"
+            check = Check(
+                "isolated-python",
+                ("python3", "-I", "-S", missing),
+                ("all",),
+                ("local", "ci"),
+                "fixture",
+            )
+
+            self.assertIn(
+                f"isolated-python: command path does not exist: {missing}",
+                validate_manifest(Manifest((check,), ()), root),
+            )
+
     def test_removing_ci_lane_is_invalid(self) -> None:
         manifest = load_manifest(MANIFEST_PATH)
         first = manifest.checks[0]

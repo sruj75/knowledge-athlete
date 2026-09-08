@@ -133,9 +133,15 @@ def validate_manifest(manifest: Manifest, root: Path) -> list[str]:
         if not check.command:
             errors.append(f"{check.id}: command must not be empty")
         elif len(check.command) > 1 and check.command[0].startswith("python"):
-            script = check.command[1]
-            if not script.startswith("{") and not (root / script).is_file():
-                errors.append(f"{check.id}: command path does not exist: {script}")
+            script_index = 1
+            while script_index < len(check.command) and check.command[script_index] in {"-I", "-S"}:
+                script_index += 1
+            if script_index == len(check.command):
+                errors.append(f"{check.id}: command must name a Python script")
+            else:
+                script = check.command[script_index]
+                if not script.startswith("{") and not (root / script).is_file():
+                    errors.append(f"{check.id}: command path does not exist: {script}")
         if not check.triggers:
             errors.append(f"{check.id}: triggers must not be empty")
         for pattern in check.triggers:
