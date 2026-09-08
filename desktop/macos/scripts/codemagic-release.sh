@@ -731,6 +731,7 @@ smoke() {
       --expected-support-url "$INTENTIVE_SUPPORT_URL" \
       --launch \
       --auth-storage-canary \
+      --notification-callback-canary \
       --timeout 90 \
       --result-json "$BUILD_DIR/desktop-smoke-result.json"
 
@@ -756,6 +757,7 @@ smoke() {
       --expected-support-url "$INTENTIVE_SUPPORT_URL" \
       --launch \
       --auth-storage-canary \
+      --notification-callback-canary \
       --timeout 90 \
       --result-json "$BUILD_DIR/desktop-smoke-result-beta.json"
 }
