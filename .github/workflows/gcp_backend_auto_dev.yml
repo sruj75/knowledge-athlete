@@ -54,8 +54,8 @@ jobs:
           # The scope checkout is intentionally shallow. A stale Release
           # Eligibility result may be a green no-op only after two bounded,
           # read-only GitHub API proofs bind the current main and comparison
-          # identities. Any API, JSON, or identity ambiguity falls through to
-          # the privileged current-main source-admission guard below.
+          # identities. Any API, JSON, or identity ambiguity fails this
+          # unprivileged job before cloud credentials can be requested.
           api_base="${GITHUB_API_URL:-https://api.github.com}"
           ref_path="$(mktemp)"
           compare_path="$(mktemp)"
@@ -72,31 +72,32 @@ jobs:
             if .ref == "refs/heads/main" and .object.type == "commit" and (.object.sha | test("^[0-9a-f]{40}$"))
             then .object.sha else error("unexpected main ref identity") end
           ' "$ref_path" 2>/dev/null)"; then
-            echo "applies=true" >> "$GITHUB_OUTPUT"
             {
               echo "### Backend development deploy scope"
-              echo "In scope: supersession API proof was unavailable or ambiguous; preserving fail-closed source admission."
+              echo "Blocked: supersession API proof was unavailable or ambiguous; no cloud work authorized."
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
+          compare_url="$api_base/repos/$GITHUB_REPOSITORY/compare/$RELEASE_SHA...$main_sha"
           compare_status="$(curl --silent --show-error --output "$compare_path" --write-out '%{http_code}' \
             "${api_headers[@]}" \
-            "$api_base/repos/$GITHUB_REPOSITORY/compare/$RELEASE_SHA...$main_sha" || true)"
+            "$compare_url" || true)"
           if [[ "$compare_status" != "200" ]] || ! comparison="$(jq -er \
             --arg release_sha "$RELEASE_SHA" \
-            --arg main_sha "$main_sha" '
-              if .base_commit.sha == $release_sha and .head_commit.sha == $main_sha and
+            --arg compare_url "$compare_url" '
+              if .url == $compare_url and .base_commit.sha == $release_sha and
                 (.status == "behind" or .status == "ahead" or .status == "identical" or .status == "diverged")
               then .status else error("unexpected comparison identity") end
             ' "$compare_path" 2>/dev/null)"; then
-            echo "applies=true" >> "$GITHUB_OUTPUT"
             {
               echo "### Backend development deploy scope"
-              echo "In scope: supersession API proof was unavailable or ambiguous; preserving fail-closed source admission."
+              echo "Blocked: supersession API proof was unavailable or ambiguous; no cloud work authorized."
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
-          if [[ "$comparison" == "behind" ]]; then
+          # GitHub compares BASE...HEAD: ahead means current main (HEAD)
+          # contains newer commits than the triggering release (BASE).
+          if [[ "$comparison" == "ahead" ]]; then
             echo "applies=false" >> "$GITHUB_OUTPUT"
             {
               echo "### Backend development deploy superseded no-op"
@@ -106,14 +107,12 @@ jobs:
           fi
 
           if ! parent_sha="$(git rev-parse "${RELEASE_SHA}^" 2>/dev/null)"; then
-            # An unavailable parent is uncertain scope: retain the existing
-            # exact-SHA admission and deployment path rather than skip.
-            echo "applies=true" >> "$GITHUB_OUTPUT"
+            # An unavailable parent is not proof of backend scope.
             {
               echo "### Backend development deploy scope"
-              echo "In scope: could not resolve the triggering commit parent."
+              echo "Blocked: could not resolve the triggering commit parent; no cloud work authorized."
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
 
           changed_files="$(git diff --name-only "$parent_sha" "$RELEASE_SHA")"

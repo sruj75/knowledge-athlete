@@ -43,14 +43,24 @@ def _commit(repo: Path, relative_path: str) -> str:
     return _git(repo, 'rev-parse', 'HEAD')
 
 
-def _run_scope(repo: Path, sha: str, *, main_sha: str | None = None) -> tuple[dict[str, str], str]:
+def _run_scope(
+    repo: Path,
+    sha: str,
+    *,
+    main_sha: str | None = None,
+    comparison: str = 'identical',
+    api_fault: str = '',
+    expected_returncode: int = 0,
+) -> tuple[dict[str, str], str]:
     output = repo / 'github-output.txt'
     summary = repo / 'github-summary.md'
     fake_bin = repo / 'fake-bin'
     fake_bin.mkdir()
     # The scope step intentionally needs two GitHub API proofs before it may
     # no-op a stale run. Model those proofs locally instead of relying on a
-    # real token/network in unit tests.
+    # real token/network in unit tests. GitHub's wire contract has a comparison
+    # URL and base_commit, not head_commit (#79):
+    # https://docs.github.com/en/rest/commits/commits#compare-two-commits
     curl = fake_bin / 'curl'
     curl.write_text(
         '''#!/usr/bin/env bash
@@ -63,11 +73,15 @@ for ((i = 1; i <= $#; i++)); do
 done
 url="${!#}"
 if [[ "$url" == */git/ref/heads/main ]]; then
+  [[ "$MOCK_API_FAULT" == ref-http ]] && { printf '403'; exit 0; }
   printf '{"ref":"refs/heads/main","object":{"type":"commit","sha":"%s"}}' "$MOCK_MAIN_SHA" > "$output"
 elif [[ "$url" == */compare/* ]]; then
-  status=identical
-  [[ "$RELEASE_SHA" != "$MOCK_MAIN_SHA" ]] && status=behind
-  printf '{"base_commit":{"sha":"%s"},"head_commit":{"sha":"%s"},"status":"%s"}' "$RELEASE_SHA" "$MOCK_MAIN_SHA" "$status" > "$output"
+  [[ "$MOCK_API_FAULT" == compare-http ]] && { printf '503'; exit 0; }
+  [[ "$MOCK_API_FAULT" == malformed-json ]] && { printf '{' > "$output"; printf '200'; exit 0; }
+  [[ "$MOCK_API_FAULT" == wrong-url ]] && url="$url-invalid"
+  base_sha="$RELEASE_SHA"
+  [[ "$MOCK_API_FAULT" == wrong-base ]] && base_sha='0000000000000000000000000000000000000000'
+  printf '{"url":"%s","base_commit":{"sha":"%s"},"status":"%s"}' "$url" "$base_sha" "$MOCK_COMPARISON" > "$output"
 else
   exit 1
 fi
@@ -84,14 +98,13 @@ printf '200'
             '''#!/usr/bin/env bash
 set -euo pipefail
 payload="$(<"${!#}")"
-status=identical
-[[ "$RELEASE_SHA" != "$MOCK_MAIN_SHA" ]] && status=behind
 expected_ref='{"ref":"refs/heads/main","object":{"type":"commit","sha":"'"$MOCK_MAIN_SHA"'"}}'
-expected_compare='{"base_commit":{"sha":"'"$RELEASE_SHA"'"},"head_commit":{"sha":"'"$MOCK_MAIN_SHA"'"},"status":"'"$status"'"}'
+expected_compare='{"url":"https://api.github.com/repos/sruj75/knowledge-athlete/compare/'"$RELEASE_SHA"'...'"$MOCK_MAIN_SHA"'","base_commit":{"sha":"'"$RELEASE_SHA"'"},"status":"'"$MOCK_COMPARISON"'"}'
 if [[ "$payload" == "$expected_ref" ]]; then
   printf '%s\\n' "$MOCK_MAIN_SHA"
 elif [[ "$payload" == "$expected_compare" ]]; then
-  printf '%s\\n' "$status"
+  case "$MOCK_COMPARISON" in behind|ahead|identical|diverged) ;; *) exit 1 ;; esac
+  printf '%s\\n' "$MOCK_COMPARISON"
 else
   exit 1
 fi
@@ -113,13 +126,17 @@ fi
             'GITHUB_REPOSITORY': 'sruj75/knowledge-athlete',
             'RELEASE_SHA': sha,
             'MOCK_MAIN_SHA': main_sha or sha,
+            'MOCK_COMPARISON': comparison,
+            'MOCK_API_FAULT': api_fault,
             'GITHUB_OUTPUT': str(output),
             'GITHUB_STEP_SUMMARY': str(summary),
         },
         text=True,
     )
-    assert result.returncode == 0, result.stderr
-    values = dict(line.split('=', 1) for line in output.read_text(encoding='utf-8').splitlines())
+    assert result.returncode == expected_returncode, result.stderr
+    values = (
+        dict(line.split('=', 1) for line in output.read_text(encoding='utf-8').splitlines()) if output.exists() else {}
+    )
     return values, summary.read_text(encoding='utf-8')
 
 
@@ -146,7 +163,7 @@ def test_windows_bash_resolution_uses_the_active_git_installation(tmp_path: Path
 def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None:
     desktop_sha = _commit(git_repo, 'desktop/macos/README.md')
 
-    outputs, summary = _run_scope(git_repo, desktop_sha, main_sha=_git(git_repo, 'rev-parse', f'{desktop_sha}^'))
+    outputs, summary = _run_scope(git_repo, desktop_sha)
 
     assert outputs == {'applies': 'false'}
     assert 'Green no-op' in summary
@@ -162,6 +179,54 @@ def test_backend_source_or_deploy_input_change_proceeds(git_repo: Path, relative
     outputs, _summary = _run_scope(git_repo, relevant_sha)
 
     assert outputs == {'applies': 'true'}
+
+
+def test_superseded_backend_commit_is_a_green_no_op(git_repo: Path) -> None:
+    relevant_sha = _commit(git_repo, 'backend/main.py')
+    current_main = _commit(git_repo, 'README-new.md')
+
+    outputs, summary = _run_scope(git_repo, relevant_sha, main_sha=current_main, comparison='ahead')
+
+    assert outputs == {'applies': 'false'}
+    assert 'superseded no-op' in summary
+
+
+@pytest.mark.parametrize('comparison', ('behind', 'diverged'))
+def test_non_ancestor_comparison_cannot_bypass_source_admission(git_repo: Path, comparison: str) -> None:
+    relevant_sha = _commit(git_repo, 'backend/main.py')
+
+    outputs, summary = _run_scope(git_repo, relevant_sha, main_sha='a' * 40, comparison=comparison)
+
+    assert outputs == {'applies': 'true'}
+    assert 'superseded no-op' not in summary
+
+
+@pytest.mark.parametrize('api_fault', ('ref-http', 'compare-http', 'malformed-json', 'wrong-url', 'wrong-base'))
+def test_ambiguous_api_proof_cannot_authorize_cloud_work(git_repo: Path, api_fault: str) -> None:
+    relevant_sha = _commit(git_repo, 'backend/main.py')
+
+    outputs, summary = _run_scope(
+        git_repo, relevant_sha, main_sha='a' * 40, comparison='ahead', api_fault=api_fault, expected_returncode=1
+    )
+
+    assert outputs == {}
+    assert 'proof was unavailable or ambiguous' in summary
+
+
+def test_unknown_comparison_status_cannot_authorize_cloud_work(git_repo: Path) -> None:
+    relevant_sha = _commit(git_repo, 'backend/main.py')
+
+    outputs, summary = _run_scope(git_repo, relevant_sha, comparison='unexpected', expected_returncode=1)
+
+    assert outputs == {}
+    assert 'proof was unavailable or ambiguous' in summary
+
+
+def test_missing_parent_cannot_authorize_cloud_work(git_repo: Path) -> None:
+    outputs, summary = _run_scope(git_repo, _git(git_repo, 'rev-parse', 'HEAD'), expected_returncode=1)
+
+    assert outputs == {}
+    assert 'could not resolve the triggering commit parent' in summary
 
 
 def test_stale_relevant_sha_reaches_and_fails_the_existing_admission_guard(git_repo: Path) -> None:

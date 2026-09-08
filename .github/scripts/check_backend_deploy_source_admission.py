@@ -205,24 +205,24 @@ def validate_auto_workflow(text: str) -> list[str]:
                 "auto backend scope decision must bind the current-main ref response identity",
             ),
             (
-                '.base_commit.sha == $release_sha and .head_commit.sha == $main_sha',
+                '.url == $compare_url and .base_commit.sha == $release_sha',
                 "auto backend scope decision must bind compare base and head identities",
             ),
             (
                 '.status == "behind"',
-                "auto backend scope decision must require GitHub's behind status for a superseded no-op",
+                "auto backend scope decision must validate GitHub comparison statuses",
             ),
             (
-                'if [[ "$comparison" == "behind" ]]; then',
+                'if [[ "$comparison" == "ahead" ]]; then',
                 "auto backend scope decision must only no-op after confirmed supersession",
             ),
             (
-                "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission",
-                "auto backend scope decision must treat API or identity ambiguity as guarded admission",
+                "supersession API proof was unavailable or ambiguous; no cloud work authorized",
+                "auto backend scope decision must reject API or identity ambiguity",
             ),
             (
                 "echo \"applies=true\" >> \"$GITHUB_OUTPUT\"",
-                "auto backend scope decision must continue to guarded admission when supersession is uncertain",
+                "auto backend scope decision must retain legitimate backend delivery after proof",
             ),
             ("echo \"applies=false\" >> \"$GITHUB_OUTPUT\"", "auto backend scope decision must publish a no-op result"),
             (
@@ -242,10 +242,10 @@ def validate_auto_workflow(text: str) -> list[str]:
         ):
             require_fragment(errors, scope_decision, fragment, message)
         fallback_summary = (
-            "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission"
+            "supersession API proof was unavailable or ambiguous; no cloud work authorized"
         )
         if scope_decision.count(fallback_summary) != 2:
-            errors.append("auto backend scope decision must treat API or identity ambiguity as guarded admission")
+            errors.append("auto backend scope decision must reject API or identity ambiguity")
         for forbidden, message in (
             ("git fetch --no-tags", "auto backend scope decision must not fetch local main history for supersession"),
             ("git merge-base", "auto backend scope decision must not use local merge-base supersession proof"),

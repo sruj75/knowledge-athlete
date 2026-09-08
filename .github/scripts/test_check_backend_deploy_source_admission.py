@@ -281,21 +281,21 @@ class WorkflowContractTests(unittest.TestCase):
             ),
             (
                 "unbound compare identity",
-                '.base_commit.sha == $release_sha and .head_commit.sha == $main_sha',
-                '.base_commit.sha == $main_sha and .head_commit.sha == $release_sha',
+                '.url == $compare_url and .base_commit.sha == $release_sha',
+                '.url == $compare_url and .base_commit.sha == $main_sha',
                 "auto backend scope decision must bind compare base and head identities",
             ),
             (
                 "unconfirmed supersession",
-                'if [[ "$comparison" == "behind" ]]; then',
+                'if [[ "$comparison" == "ahead" ]]; then',
                 'if [[ "$comparison" == "identical" ]]; then',
                 "auto backend scope decision must only no-op after confirmed supersession",
             ),
             (
                 "ambiguous API becomes no-op",
-                "supersession API proof was unavailable or ambiguous; preserving fail-closed source admission",
+                "supersession API proof was unavailable or ambiguous; no cloud work authorized",
                 "GitHub compare confirmed triggering SHA $RELEASE_SHA is behind current main $main_sha",
-                "auto backend scope decision must treat API or identity ambiguity as guarded admission",
+                "auto backend scope decision must reject API or identity ambiguity",
             ),
             (
                 "local merge-base proof",
