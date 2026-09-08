@@ -24,7 +24,8 @@ Examples:
   omi-dev status --name omi-alice
 
 Each name owns one detached worktree and one state directory. Builds install only
-to /Applications/<name>.app. Named developer bundles do not use the shared
+to /Applications/<name>.app, or to the current user's Applications directory
+when OMI_DEV_APP_ROOT="$HOME/Applications". Named developer bundles do not use the shared
 production/beta Sparkle archive; update them with this command instead.
 USAGE
 }
@@ -78,7 +79,7 @@ require_git_repository() {
 configure_paths() {
   WORKTREE="${OMI_DEV_WORKTREE:-$WORKTREE_ROOT/$APP_NAME}"
   STATE_DIR="${OMI_DEV_STATE_DIR:-$STATE_ROOT/$APP_NAME}"
-  APP_PATH="/Applications/$APP_NAME.app"
+  APP_PATH="$(python3 "$DEFAULT_REPOSITORY/scripts/dev-harness/dev_harness/desktop_paths.py" "$APP_NAME")"
 }
 
 stored_ref() {

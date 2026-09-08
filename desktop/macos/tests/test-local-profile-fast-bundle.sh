@@ -66,6 +66,7 @@ PY
 # profile values are refreshed only when an already-installed bundle is patched.
 probe_log="$TMP_ROOT/fast-only.log"
 if HOME="$TMP_ROOT/home" \
+  OMI_DEV_APP_ROOT="$TMP_ROOT/home/Applications" \
   OMI_APP_NAME="omi-local-fast-contract" \
   OMI_DESKTOP_LOCAL_PROFILE=1 \
   OMI_SKIP_BACKEND=1 \

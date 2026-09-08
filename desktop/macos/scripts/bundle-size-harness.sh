@@ -6,7 +6,7 @@ MACOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$MACOS_DIR/../.." && pwd)"
 
 APP_NAME="${OMI_BUNDLE_SIZE_APP_NAME:-omi-bundle-size}"
-APP_PATH="/Applications/$APP_NAME.app"
+APP_PATH="$(python3 "$REPO_ROOT/scripts/dev-harness/dev_harness/desktop_paths.py" "$APP_NAME")"
 BUNDLE_PATH="$MACOS_DIR/build/$APP_NAME.app"
 HARNESS_DIR="$MACOS_DIR/.harness/bundle-size"
 REPORT_PATH="$HARNESS_DIR/latest.txt"
@@ -65,7 +65,7 @@ cleanup() {
   fi
   cleanup_stale_run_lock_if_safe
   if [[ "${OMI_BUNDLE_SIZE_KEEP_APP:-0}" != "1" ]]; then
-    local executable_path="/Applications/$APP_NAME.app/Contents/MacOS/Omi Computer"
+    local executable_path="$APP_PATH/Contents/MacOS/Omi Computer"
     while read -r pid command; do
       if [[ "$pid" =~ ^[0-9]+$ && "$command" == *"$executable_path"* ]]; then
         kill "$pid" 2>/dev/null || true

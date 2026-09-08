@@ -126,7 +126,7 @@ set -euo pipefail
 : "${OMI_DESKTOP_LAUNCH_SIGNAL_FILE:?}"
 : "${OMI_DESKTOP_LAUNCH_TOKEN:?}"
 : "${OMI_APP_NAME:?}"
-app_path="/Applications/${OMI_APP_NAME}.app"
+app_path="${OMI_DEV_APP_ROOT:-/Applications}/${OMI_APP_NAME}.app"
 executable_path="$app_path/Contents/MacOS/Omi Computer"
 # Model the detached app with a real bridge process. Its final argv entries bind
 # the expected executable path and run-unique launch token, so the harness uses
@@ -326,6 +326,7 @@ exercise_fault_launcher_without_backend_env() {
   ln -s "$RUN_SH" "$fixture/run.sh"
   ln -s "$MACOS_DIR/scripts" "$fixture/scripts"
   ln -s "$REPO_ROOT/scripts/dev-instance.sh" "$TMP_ROOT/fault-launcher/scripts/dev-instance.sh"
+  ln -s "$REPO_ROOT/scripts/dev-harness" "$TMP_ROOT/fault-launcher/scripts/dev-harness"
 
   cat >"$bin_dir/git" <<'SH'
 #!/usr/bin/env bash
@@ -395,7 +396,7 @@ SH
     || fail "fault launcher attempted normal local backend startup"
 }
 
-exercise_fault_suite_launch_command
+OMI_DEV_APP_ROOT="$HOME/Applications" exercise_fault_suite_launch_command
 exercise_fault_launcher_without_backend_env
 
 echo "fault suite launch environment regression tests passed"

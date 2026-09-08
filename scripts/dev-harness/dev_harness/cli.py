@@ -22,7 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Iterable, Mapping
 
-from . import config, desktop_profile, providers, qualification, safety, synthetic_profiles
+from . import config, desktop_paths, desktop_profile, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
 CONFIG_DIGEST_SCHEMA_VERSION = 4
@@ -613,7 +613,16 @@ def _service_record(cfg: config.HarnessConfig, service: str) -> dict[str, object
 
 
 def desktop_app_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
-    return Path("/Applications") / f"{profile.app_name}.app"
+    return desktop_paths.configured_app_path(profile.app_name, profile.env)
+
+
+def _record_app_path(app_name: str, app_path: Path) -> Path:
+    # Resolve from the recorded root, not today's launch preference: an already
+    # owned /Applications process must remain stoppable after opting into ~/Applications.
+    try:
+        return desktop_paths.dev_app_path(app_name, root=app_path.parent)
+    except ValueError as exc:
+        raise safety.SafetyError("Desktop record has an unsafe app path") from exc
 
 
 def desktop_executable_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
@@ -650,7 +659,7 @@ def _desktop_launch_attempt(cfg: config.HarnessConfig, record: Mapping[str, obje
     except (KeyError, TypeError, ValueError, safety.SafetyError):
         raise safety.SafetyError("Desktop record lacks complete typed provenance") from None
     expected_bundle = desktop_profile._local_bundle_id(app_name)
-    expected_app = Path("/Applications") / f"{app_name}.app"
+    expected_app = _record_app_path(app_name, app_path)
     expected_executable = expected_app / "Contents" / "MacOS" / "Omi Computer"
     if (
         record.get("desktop_schema_version") != DESKTOP_RECORD_SCHEMA_VERSION
@@ -732,7 +741,7 @@ def _desktop_record_identity(cfg: config.HarnessConfig, record: Mapping[str, obj
         ):
             raise safety.SafetyError("Desktop successor record lacks complete typed predecessor provenance")
     expected_bundle = desktop_profile._local_bundle_id(app_name)
-    expected_app = Path("/Applications") / f"{app_name}.app"
+    expected_app = _record_app_path(app_name, app_path)
     expected_executable = expected_app / "Contents" / "MacOS" / "Omi Computer"
     if (
         record.get("desktop_schema_version") != DESKTOP_RECORD_SCHEMA_VERSION

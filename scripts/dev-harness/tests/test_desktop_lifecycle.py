@@ -93,11 +93,19 @@ def _write_signal(path: Path, profile: desktop_profile.DesktopLocalProfile, toke
     path.chmod(0o600)
 
 
+@pytest.mark.parametrize("user_install", [False, True])
 def test_register_desktop_launch_resolves_signal_to_one_exact_token_bound_process(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, user_install: bool
 ) -> None:
     cfg = _config(monkeypatch, tmp_path)
     profile = _profile(cfg)
+    if user_install:
+        profile = desktop_profile.resolve_profile(
+            cfg,
+            user="alice",
+            seeded_users=("alice",),
+            env={"OMI_APP_NAME": profile.app_name, "OMI_DEV_APP_ROOT": str(Path.home() / "Applications")},
+        )
     token = "workspaceA_launch_token_123456"
     signal_path = cfg.layout.state_root / "manifests" / "desktop-launch.signal"
     snapshot = _snapshot(41001, profile, token)
@@ -432,14 +440,25 @@ def test_legacy_unowned_desktop_record_is_never_signalled(monkeypatch: pytest.Mo
         cli.stop_desktop_record(cfg, legacy, wait_seconds=0)
 
 
+@pytest.mark.parametrize("user_install", [False, True])
 def test_relaunch_stops_only_workspace_a_desktop_and_preserves_backend_and_workspace_b(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, user_install: bool
 ) -> None:
     cfg = _config(monkeypatch, tmp_path)
     profile = _profile(cfg)
+    if user_install:
+        profile = desktop_profile.resolve_profile(
+            cfg,
+            user="alice",
+            seeded_users=("alice",),
+            env={"OMI_APP_NAME": profile.app_name, "OMI_DEV_APP_ROOT": str(Path.home() / "Applications")},
+        )
     token = "workspaceA_launch_token_123456"
     desktop = _snapshot(45005, profile, token)
     desktop_record = _record(cfg, profile, desktop, token)
+    # Existing system-installed owners remain stoppable after a user opts into
+    # the standard-account destination. Shutdown follows the recorded owner.
+    monkeypatch.setenv("OMI_DEV_APP_ROOT", str(Path.home() / "Applications"))
     backend_record = {
         "service": "backend",
         "pid": 45006,
