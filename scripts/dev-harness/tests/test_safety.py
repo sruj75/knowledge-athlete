@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -13,7 +14,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dev_harness import safety
-
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -145,6 +145,31 @@ def test_process_exists_observes_live_and_exited_processes() -> None:
         proc.wait(timeout=5)
 
     assert not safety.process_exists(proc.pid)
+
+
+def test_process_snapshot_parses_start_and_command_for_pid_reuse_proof(monkeypatch: pytest.MonkeyPatch) -> None:
+    command = "/Applications/omi-workspace.app/Contents/MacOS/Omi Computer --omi-launch-token=token"
+    output = f"41001 Tue Sep  8 10:11:12 2026 {command}\nmalformed\n"
+    monkeypatch.setattr(
+        safety.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, stdout=output),
+    )
+
+    snapshots = safety.process_snapshots()
+
+    assert snapshots == (safety.ProcessSnapshot(41001, "Tue Sep 8 10:11:12 2026", command),)
+    digest = hashlib.sha256(command.encode()).hexdigest()
+    assert safety.matches_process_fingerprint(
+        snapshots[0],
+        process_start="Tue Sep 8 10:11:12 2026",
+        command_sha256=digest,
+    )
+    assert not safety.matches_process_fingerprint(
+        snapshots[0],
+        process_start="Tue Sep 8 11:12:13 2026",
+        command_sha256=digest,
+    )
 
 
 def test_windows_process_probe_closes_each_open_handle(monkeypatch: pytest.MonkeyPatch) -> None:

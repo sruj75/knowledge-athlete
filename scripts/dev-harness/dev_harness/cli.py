@@ -6,9 +6,12 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import secrets
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -18,7 +21,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Iterable
 
-from . import config, providers, qualification, safety, synthetic_profiles
+from . import config, desktop_profile, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
 CONFIG_DIGEST_SCHEMA_VERSION = 4
@@ -28,6 +31,13 @@ RUNTIME_SOURCE_PATHS = (
     "firebase.json",
     "firestore.rules",
     "firestore.indexes.json",
+)
+DESKTOP_RECORD_SCHEMA_VERSION = 1
+_DESKTOP_LAUNCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{16,128}")
+SERVICE_STOP_PHASES: tuple[tuple[signal.Signals, float], ...] = tuple(
+    (signal.Signals(value), wait_seconds)
+    for name, wait_seconds in (("SIGINT", 8.0), ("SIGTERM", 5.0), ("SIGKILL", 2.0))
+    if (value := getattr(signal, name, None)) is not None
 )
 
 
@@ -60,7 +70,12 @@ def _load_json(path: Path, default: dict[str, object]) -> dict[str, object]:
 
 def _write_json(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp")
+    try:
+        temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _json_digest(data: object) -> str:
@@ -128,6 +143,13 @@ def _owned_live_process_records(cfg: config.HarnessConfig) -> list[dict[str, obj
             pid = int(record.get("pid", -1))
             marker = str(record.get("ownership_marker", ""))
         except (AttributeError, TypeError, ValueError):
+            continue
+        if service == "desktop":
+            try:
+                if _validated_desktop_process(cfg, record) is not None:
+                    owned.append(record)
+            except safety.SafetyError:
+                pass
             continue
         expected_marker = f"{OWNERSHIP_PREFIX}:{cfg.instance}:{service}"
         if not service or (marker != expected_marker and not marker.startswith(f"{expected_marker}:")):
@@ -401,7 +423,28 @@ def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
 
 
 def _save_manifests(cfg: config.HarnessConfig, records: list[dict[str, object]]) -> None:
-    live = [record for record in records if safety.process_exists(int(record.get("pid", -1)))]
+    live: list[dict[str, object]] = []
+    for record in records:
+        if record.get("service") == "desktop":
+            try:
+                if _validated_desktop_process(cfg, record) is not None:
+                    live.append(record)
+            except safety.SafetyError:
+                # Invalid live evidence is retained for explicit safety
+                # inspection; manifest compaction must never erase the reason
+                # a desktop PID was refused.
+                live.append(record)
+            continue
+        if safety.process_exists(int(record.get("pid", -1))):
+            live.append(record)
+            continue
+        try:
+            if any(safety.listening_pids(port) for port in _owned_record_ports(record)):
+                live.append(record)
+        except safety.SafetyError:
+            # Listener discovery failure is not authority to erase the record
+            # that explains why a service port may still be occupied.
+            live.append(record)
     _write_json(cfg.layout.process_manifest, {"schema_version": 1, "updated_at": _now(), "processes": live})
     ports: list[dict[str, object]] = []
     for record in live:
@@ -439,9 +482,371 @@ def _port_open(host: str, port: int, timeout: float = 0.25) -> bool:
 
 def _service_record(cfg: config.HarnessConfig, service: str) -> dict[str, object] | None:
     for record in _process_records(cfg):
-        if record.get("service") == service and safety.process_exists(int(record.get("pid", -1))):
+        if record.get("service") != service:
+            continue
+        if service == "desktop":
+            try:
+                if _validated_desktop_process(cfg, record) is not None:
+                    return record
+            except safety.SafetyError:
+                continue
+        elif safety.process_exists(int(record.get("pid", -1))):
             return record
     return None
+
+
+def desktop_app_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return Path("/Applications") / f"{profile.app_name}.app"
+
+
+def desktop_executable_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return desktop_app_path(profile) / "Contents" / "MacOS" / "Omi Computer"
+
+
+def desktop_profile_root(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return Path(profile.application_support_dir).expanduser().resolve(strict=False)
+
+
+def _expected_desktop_profile_root(bundle_id: str) -> Path:
+    return (Path.home() / "Library" / "Application Support" / "Intentive Dev Bundles" / bundle_id).resolve(strict=False)
+
+
+def _desktop_record_identity(cfg: config.HarnessConfig, record: dict[str, object]) -> tuple[int, str]:
+    try:
+        pid = int(record["pid"])
+        port = int(record["port"])
+        app_name = str(record["app_name"])
+        bundle_id = str(record["bundle_id"])
+        app_path = Path(str(record["app_path"]))
+        executable_path = Path(str(record["executable_path"]))
+        profile_root = Path(str(record["profile_root"])).resolve(strict=False)
+        token = str(record["launch_token"])
+        process_start = str(record["process_start"])
+        command_sha256 = str(record["command_sha256"])
+    except (KeyError, TypeError, ValueError):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance") from None
+    expected_bundle = desktop_profile._local_bundle_id(app_name)
+    expected_app = Path("/Applications") / f"{app_name}.app"
+    expected_executable = expected_app / "Contents" / "MacOS" / "Omi Computer"
+    if (
+        record.get("desktop_schema_version") != DESKTOP_RECORD_SCHEMA_VERSION
+        or record.get("service") != "desktop"
+        or record.get("instance") != cfg.instance
+        or record.get("state_root") != str(cfg.layout.state_root)
+        or pid <= 0
+        or not app_name.lower().startswith(desktop_profile.LOCAL_NAMED_BUNDLE_PREFIX)
+        or bundle_id != expected_bundle
+        or app_path != expected_app
+        or executable_path != expected_executable
+        or profile_root != _expected_desktop_profile_root(bundle_id)
+        or port != cfg.automation_port
+        or record.get("owned_ports") != {"automation": cfg.automation_port}
+        or not _DESKTOP_LAUNCH_TOKEN_RE.fullmatch(token)
+        or record.get("launch_transport") not in {"open", "direct"}
+        or not process_start
+        or not safety.valid_process_fingerprint(process_start, command_sha256)
+    ):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance for this workspace")
+    return pid, token
+
+
+def _validated_desktop_process(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> safety.ProcessSnapshot | None:
+    pid, token = _desktop_record_identity(cfg, record)
+    process = safety.process_snapshot(pid)
+    if process is None:
+        return None
+    if (
+        not safety.matches_process_fingerprint(
+            process,
+            process_start=str(record["process_start"]),
+            command_sha256=str(record["command_sha256"]),
+        )
+        or str(record["executable_path"]) not in process.command
+        or f"--omi-launch-token={token}" not in process.command
+    ):
+        raise safety.SafetyError("Desktop PID no longer matches its recorded launch provenance")
+    return process
+
+
+def _read_owner_only_launch_signal(path: Path) -> dict[str, str]:
+    try:
+        info = path.lstat()
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise safety.SafetyError(f"Desktop launch signal is missing: {path}") from exc
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600:
+        raise safety.SafetyError("Desktop launch signal is not an owner-only regular file")
+    fields: dict[str, str] = {}
+    for line in lines:
+        if "=" not in line:
+            raise safety.SafetyError("Desktop launch signal is malformed")
+        key, value = line.split("=", 1)
+        if not key or key in fields:
+            raise safety.SafetyError("Desktop launch signal is malformed")
+        fields[key] = value
+    return fields
+
+
+def register_desktop_launch(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    signal_path: Path,
+    launch_token: str,
+) -> dict[str, object]:
+    if not _DESKTOP_LAUNCH_TOKEN_RE.fullmatch(launch_token):
+        raise safety.SafetyError("Desktop launch token is invalid")
+    resolved_signal = signal_path.resolve(strict=False)
+    manifests_root = (cfg.layout.state_root / "manifests").resolve(strict=False)
+    if resolved_signal.parent != manifests_root:
+        raise safety.SafetyError("Desktop launch signal escaped this workspace state root")
+    fields = _read_owner_only_launch_signal(resolved_signal)
+    expected_signal = {
+        "schema_version": "1",
+        "bundle_id": profile.bundle_id,
+        "app_path": str(desktop_app_path(profile)),
+        "executable_path": str(desktop_executable_path(profile)),
+        "launch_token": launch_token,
+    }
+    if any(fields.get(key) != value for key, value in expected_signal.items()):
+        raise safety.SafetyError("Desktop launch signal does not bind this workspace launch")
+    transport = fields.get("launch_transport")
+    if transport not in {"open", "direct"}:
+        raise safety.SafetyError("Desktop launch signal has unknown transport")
+    expected_executable = str(desktop_executable_path(profile))
+    token_argument = f"--omi-launch-token={launch_token}"
+    matches = tuple(
+        process
+        for process in safety.process_snapshots()
+        if expected_executable in process.command and token_argument in process.command
+    )
+    if len(matches) != 1:
+        raise safety.SafetyError(f"Desktop launch ownership is ambiguous (matching processes={len(matches)})")
+    process = matches[0]
+    record: dict[str, object] = {
+        "desktop_schema_version": DESKTOP_RECORD_SCHEMA_VERSION,
+        "service": "desktop",
+        "instance": cfg.instance,
+        "pid": process.pid,
+        "port": cfg.automation_port,
+        "owned_ports": {"automation": cfg.automation_port},
+        "endpoint": f"127.0.0.1:{cfg.automation_port}",
+        "app_name": profile.app_name,
+        "bundle_id": profile.bundle_id,
+        "app_path": str(desktop_app_path(profile)),
+        "executable_path": expected_executable,
+        "profile_root": str(desktop_profile_root(profile)),
+        "state_root": str(cfg.layout.state_root),
+        "launch_token": launch_token,
+        "launch_transport": transport,
+        "process_start": process.process_start,
+        "command_sha256": hashlib.sha256(process.command.encode()).hexdigest(),
+        "started_at": _now(),
+    }
+    records = [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"]
+    records.append(record)
+    _save_manifests(cfg, records)
+    return record
+
+
+def _desktop_bridge_payload(port: int) -> dict[str, object]:
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/health",
+        headers={"Host": f"127.0.0.1:{port}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=0.8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, TimeoutError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise safety.SafetyError(f"Desktop automation bridge is unavailable: {exc.__class__.__name__}") from exc
+    if not isinstance(payload, dict):
+        raise safety.SafetyError("Desktop automation bridge returned an invalid health payload")
+    return payload
+
+
+def desktop_record_status(cfg: config.HarnessConfig, record: dict[str, object]) -> tuple[str, str]:
+    try:
+        process = _validated_desktop_process(cfg, record)
+        if process is None:
+            return "stopped", "recorded process is not running"
+        listeners = safety.listening_pids(int(record["port"]))
+        if not listeners:
+            return "unhealthy", "automation port is closed"
+        if any(not safety.is_descendant_of(listener, process.pid) for listener in listeners):
+            raise safety.SafetyError("Desktop automation listener is outside the recorded process lineage")
+        payload = _desktop_bridge_payload(int(record["port"]))
+        expected_health = {
+            "ok": True,
+            "bundleIdentifier": record["bundle_id"],
+            "processID": process.pid,
+            "bridgePort": int(record["port"]),
+            "backendURL": cfg.backend_url,
+        }
+        if any(payload.get(key) != value for key, value in expected_health.items()):
+            raise safety.SafetyError("Desktop bridge identity does not match the recorded workspace")
+        return "healthy", "exact process and bridge"
+    except (KeyError, TypeError, ValueError, safety.SafetyError) as exc:
+        return "stale/unowned", str(exc)
+
+
+def stop_desktop_record(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+    *,
+    wait_seconds: float = 8.0,
+    kill_wait_seconds: float = 2.0,
+) -> bool:
+    process = _validated_desktop_process(cfg, record)
+    if process is None:
+        return False
+    try:
+        os.kill(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return False
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal desktop PID {process.pid}: {exc}") from exc
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        current = _validated_desktop_process(cfg, record)
+        if current is None:
+            return True
+        time.sleep(0.1)
+    current = _validated_desktop_process(cfg, record)
+    if current is None:
+        return True
+    kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+    try:
+        os.kill(current.pid, kill_signal)
+    except ProcessLookupError:
+        return True
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal desktop PID {current.pid}: {exc}") from exc
+    deadline = time.time() + kill_wait_seconds
+    while time.time() < deadline:
+        if _validated_desktop_process(cfg, record) is None:
+            return True
+        time.sleep(0.1)
+    if _validated_desktop_process(cfg, record) is not None:
+        raise safety.SafetyError(f"Desktop PID {current.pid} is still running after exact shutdown")
+    return True
+
+
+def stop_desktop_for_relaunch(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    wait_seconds: float = 8.0,
+) -> None:
+    records = _process_records(cfg)
+    desktops = [record for record in records if record.get("service") == "desktop"]
+    if len(desktops) > 1:
+        raise safety.SafetyError("Multiple desktop records exist for this workspace; refusing relaunch")
+    if not desktops:
+        return
+    record = desktops[0]
+    if record.get("bundle_id") != profile.bundle_id or record.get("app_name") != profile.app_name:
+        raise safety.SafetyError("Recorded desktop identity differs from the requested workspace app")
+    stop_desktop_record(cfg, record, wait_seconds=wait_seconds)
+    _save_manifests(cfg, [entry for entry in records if entry is not record])
+
+
+def launch_desktop_local(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    run_sh: Path | None = None,
+    wait_for_exit: bool = True,
+    registration_timeout: float = 10.0,
+    health_timeout: float = 20.0,
+) -> dict[str, object]:
+    """Replace and supervise only this workspace's proven named desktop app."""
+
+    stop_desktop_for_relaunch(cfg, profile)
+    _require_port_available_or_owned(cfg, "desktop", cfg.automation_port, label="automation")
+    launch_token = secrets.token_urlsafe(32)
+    signal_path = cfg.layout.state_root / "manifests" / "desktop-launch.signal"
+    signal_path.unlink(missing_ok=True)
+    command_path = run_sh or cfg.repo_root / "desktop" / "macos" / "run.sh"
+    env = desktop_profile.child_env(profile, parent=os.environ)
+    env.update(
+        {
+            "OMI_DESKTOP_LAUNCH_TOKEN": launch_token,
+            "OMI_DESKTOP_LAUNCH_SIGNAL_FILE": str(signal_path),
+        }
+    )
+    subprocess.run(
+        [str(command_path), "--no-wait"],
+        cwd=command_path.parent,
+        env=env,
+        check=True,
+    )
+
+    registration_deadline = time.time() + registration_timeout
+    while True:
+        try:
+            record = register_desktop_launch(
+                cfg,
+                profile,
+                signal_path=signal_path,
+                launch_token=launch_token,
+            )
+            break
+        except safety.SafetyError:
+            if time.time() >= registration_deadline:
+                raise
+            time.sleep(0.1)
+
+    health_deadline = time.time() + health_timeout
+    while True:
+        status, detail = desktop_record_status(cfg, record)
+        if status == "healthy":
+            break
+        if status == "stale/unowned" or time.time() >= health_deadline:
+            try:
+                stop_desktop_record(cfg, record)
+            except safety.SafetyError:
+                raise
+            _save_manifests(
+                cfg,
+                [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"],
+            )
+            raise safety.SafetyError(f"Desktop launch did not become healthy: {status}: {detail}")
+        time.sleep(0.2)
+
+    if not wait_for_exit:
+        return record
+
+    interrupted = False
+    stopped = False
+    previous_term_handler: object | None = None
+
+    def interrupt_monitor(_signum: int, _frame: object) -> None:
+        raise KeyboardInterrupt
+
+    if hasattr(signal, "SIGTERM"):
+        previous_term_handler = signal.signal(signal.SIGTERM, interrupt_monitor)
+    try:
+        while _validated_desktop_process(cfg, record) is not None:
+            time.sleep(0.5)
+        stopped = True
+    except KeyboardInterrupt:
+        interrupted = True
+        stop_desktop_record(cfg, record)
+        stopped = True
+    finally:
+        if previous_term_handler is not None:
+            signal.signal(signal.SIGTERM, previous_term_handler)
+        if stopped:
+            _save_manifests(
+                cfg,
+                [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"],
+            )
+    if interrupted:
+        print("desktop: stopped exact workspace app")
+    return record
 
 
 def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]:
@@ -458,27 +863,176 @@ def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]
     return False, f"unknown service {service!r}"
 
 
-def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -> None:
-    pid = int(record.get("pid", -1))
-    service = str(record.get("service"))
-    if not safety.process_exists(pid):
-        return
+def _owned_record_ports(record: dict[str, object]) -> tuple[int, ...]:
+    owned_ports = record.get("owned_ports")
+    if isinstance(owned_ports, dict):
+        try:
+            ports = tuple(sorted({int(port) for port in owned_ports.values()}))
+        except (TypeError, ValueError):
+            return ()
+        return tuple(port for port in ports if 1 <= port <= 65535)
     try:
-        safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-        _signal_owned_process_group(pid, service)
+        port = int(record.get("port", -1))
+    except (TypeError, ValueError):
+        return ()
+    return (port,) if 1 <= port <= 65535 else ()
+
+
+def _capture_owned_listener_processes(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object]:
+    """Persist exact listener identity while supervisor lineage is still provable."""
+
+    service = str(record.get("service", ""))
+    pid = int(record.get("pid", -1))
+    process_group = int(record.get("process_group", -1))
+    if process_group != pid:
+        raise safety.SafetyError(f"{service} process group no longer matches its recorded supervisor")
+    safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+    captured: dict[int, dict[str, object]] = {}
+    for port in _owned_record_ports(record):
+        safety.validate_port_owner(
+            port,
+            pid=pid,
+            port_manifest=cfg.layout.port_manifest,
+            process_manifest=None,
+            service=service,
+        )
+        for listener_pid in safety.listening_pids(port):
+            if not safety.is_descendant_of(listener_pid, pid):
+                raise safety.SafetyError(
+                    f"{service} port {port} has foreign listener PID {listener_pid}; refusing supervisor signal"
+                )
+            process = safety.process_snapshot(listener_pid)
+            if process is None:
+                raise safety.SafetyError(f"Cannot snapshot {service} listener PID {listener_pid}")
+            evidence = captured.setdefault(
+                listener_pid,
+                {
+                    "pid": listener_pid,
+                    "process_start": process.process_start,
+                    "command_sha256": hashlib.sha256(process.command.encode()).hexdigest(),
+                    "ports": [],
+                },
+            )
+            ports = evidence["ports"]
+            assert isinstance(ports, list)
+            ports.append(port)
+    prepared = dict(record)
+    prepared["listener_processes"] = sorted(captured.values(), key=lambda evidence: int(evidence["pid"]))
+    return prepared
+
+
+def _validated_recorded_listeners(record: dict[str, object]) -> tuple[safety.ProcessSnapshot, ...]:
+    evidence = record.get("listener_processes")
+    if not isinstance(evidence, list):
+        if any(safety.listening_pids(port) for port in _owned_record_ports(record)):
+            raise safety.SafetyError("Owned service has live listeners but no pre-signal listener provenance")
+        return ()
+    by_pid: dict[int, dict[str, object]] = {}
+    for item in evidence:
+        if not isinstance(item, dict):
+            raise safety.SafetyError("Owned service listener provenance is malformed")
+        try:
+            listener_pid = int(item["pid"])
+            process_start = str(item["process_start"])
+            command_sha256 = str(item["command_sha256"])
+            ports = tuple(int(port) for port in item["ports"])
+        except (KeyError, TypeError, ValueError):
+            raise safety.SafetyError("Owned service listener provenance is malformed") from None
+        if (
+            listener_pid <= 0
+            or not process_start
+            or not safety.valid_process_fingerprint(process_start, command_sha256)
+            or not ports
+            or any(port not in _owned_record_ports(record) for port in ports)
+        ):
+            raise safety.SafetyError("Owned service listener provenance is malformed")
+        by_pid[listener_pid] = item
+    current_listener_pids = {
+        listener_pid for port in _owned_record_ports(record) for listener_pid in safety.listening_pids(port)
+    }
+    validated: list[safety.ProcessSnapshot] = []
+    for listener_pid in sorted(current_listener_pids):
+        item = by_pid.get(listener_pid)
+        process = safety.process_snapshot(listener_pid)
+        if (
+            item is None
+            or process is None
+            or not safety.matches_process_fingerprint(
+                process,
+                process_start=str(item["process_start"]),
+                command_sha256=str(item["command_sha256"]),
+            )
+        ):
+            raise safety.SafetyError(
+                f"Listener PID {listener_pid} no longer matches its pre-signal ownership provenance"
+            )
+        validated.append(process)
+    return tuple(validated)
+
+
+def _signal_owned_supervisor(pid: int, service: str, sig: signal.Signals = signal.SIGINT) -> None:
+    """Signal the supervisor once; it owns forwarding to its direct child."""
+
+    try:
+        os.kill(pid, sig)
+        print(f"{service}: sent {sig.name} to supervisor PID {pid}")
+    except ProcessLookupError:
+        return
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal supervisor PID {pid}: {exc}") from exc
+
+
+def _stop_owned_service_record(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> None:
+    service = str(record.get("service", ""))
+    pid = int(record.get("pid", -1))
+    prepared = record
+    if safety.process_exists(pid):
+        prepared = _capture_owned_listener_processes(cfg, record)
+        current_records = [entry for entry in _process_records(cfg) if entry.get("service") != service]
+        current_records.append(prepared)
+        _save_manifests(cfg, current_records)
+    for sig, wait_seconds in SERVICE_STOP_PHASES:
+        supervisor_alive = safety.process_exists(pid)
+        listeners = _validated_recorded_listeners(prepared)
+        if not supervisor_alive and not listeners:
+            return
+        if supervisor_alive:
+            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+            _signal_owned_supervisor(pid, service, sig)
+        else:
+            for listener in listeners:
+                try:
+                    os.kill(listener.pid, sig)
+                    print(f"{service}: sent {sig.name} to pre-proven orphan listener PID {listener.pid}")
+                except ProcessLookupError:
+                    continue
+                except PermissionError as exc:
+                    raise safety.SafetyError(f"Cannot signal {service} listener PID {listener.pid}: {exc}") from exc
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            if not safety.process_exists(pid) and not _validated_recorded_listeners(prepared):
+                return
+            time.sleep(0.2)
+    if safety.process_exists(pid) or _validated_recorded_listeners(prepared):
+        raise safety.SafetyError(f"{service} still has a supervisor or listener after exact shutdown")
+
+
+def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -> bool:
+    service = str(record.get("service"))
+    try:
+        _stop_owned_service_record(cfg, record)
     except safety.SafetyError as exc:
         print(f"{service}: not stopped before restart: {exc}")
-        return
-    deadline = time.time() + 8
-    while time.time() < deadline and safety.process_exists(pid):
-        time.sleep(0.25)
-    if safety.process_exists(pid):
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
+        return False
     remaining = [entry for entry in _process_records(cfg) if entry.get("service") != service]
     _save_manifests(cfg, remaining)
+    return not any(entry.get("service") == service for entry in _process_records(cfg))
 
 
 def _require_port_available_or_owned(
@@ -773,7 +1327,8 @@ def _start_process(
             print(f"{service}: already recorded as running")
             return
         print(f"{service}: recorded process unhealthy ({detail}); restarting")
-        _stop_single_service(cfg, existing)
+        if not _stop_single_service(cfg, existing):
+            raise safety.SafetyError(f"{service} exact shutdown was incomplete; refusing replacement start")
     _require_port_available_or_owned(cfg, service, port)
     marker = _marker(cfg, service)
     log_path = cfg.layout.logs_dir / log_name
@@ -1115,9 +1670,13 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("  - none recorded")
     for record in records:
         pid = int(record.get("pid", -1))
+        service = str(record.get("service"))
+        if service == "desktop":
+            state, detail = desktop_record_status(cfg, record)
+            print(f"  - desktop: pid={pid} state={state} detail={detail}")
+            continue
         alive = safety.process_exists(pid)
         health = "not checked"
-        service = str(record.get("service"))
         port = int(record.get("port", 0) or 0)
         if port:
             health = "port-open" if _port_open("127.0.0.1", port) else "port-closed"
@@ -1142,49 +1701,27 @@ def cmd_summary(args: argparse.Namespace) -> int:
     return 0
 
 
-def _signal_owned_process_group(pid: int, service: str) -> None:
-    try:
-        os.killpg(pid, signal.SIGINT)
-        print(f"{service}: sent SIGINT to process group {pid}")
-    except ProcessLookupError:
-        return
-    except PermissionError as exc:
-        raise safety.SafetyError(f"Cannot signal process group {pid}: {exc}") from exc
-
-
-def _stop_owned(cfg: config.HarnessConfig) -> None:
+def _stop_owned(cfg: config.HarnessConfig) -> bool:
     records = _process_records(cfg)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        service = str(record.get("service"))
-        if not safety.process_exists(pid):
-            continue
+    desktop_records = [record for record in records if record.get("service") == "desktop"]
+    group_records = [record for record in records if record.get("service") != "desktop"]
+    stopped = True
+    for record in desktop_records:
         try:
-            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-            _signal_owned_process_group(pid, service)
+            if stop_desktop_record(cfg, record):
+                print(f"desktop: sent SIGTERM to exact PID {record.get('pid')}")
+        except safety.SafetyError as exc:
+            print(f"desktop: not stopped: {exc}")
+            stopped = False
+    for record in group_records:
+        service = str(record.get("service"))
+        try:
+            _stop_owned_service_record(cfg, record)
         except safety.SafetyError as exc:
             print(f"{service}: not stopped: {exc}")
-    deadline = time.time() + 8
-    while time.time() < deadline and any(safety.process_exists(int(r.get("pid", -1))) for r in records):
-        time.sleep(0.25)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        service = str(record.get("service"))
-        if safety.process_exists(pid):
-            try:
-                safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-                os.killpg(pid, signal.SIGTERM)
-                print(f"{service}: sent SIGTERM to process group {pid}")
-            except (ProcessLookupError, safety.SafetyError) as exc:
-                print(f"{service}: still running pid={pid}; leaving it for safety inspection: {exc}")
-    deadline = time.time() + 5
-    while time.time() < deadline and any(safety.process_exists(int(r.get("pid", -1))) for r in records):
-        time.sleep(0.25)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        if safety.process_exists(pid):
-            print(f"{record.get('service')}: still running pid={pid}; leaving it for safety inspection")
-    _save_manifests(cfg, records)
+            stopped = False
+    _save_manifests(cfg, _process_records(cfg))
+    return stopped and not _process_records(cfg)
 
 
 def cmd_down(args: argparse.Namespace) -> int:
@@ -1193,7 +1730,9 @@ def cmd_down(args: argparse.Namespace) -> int:
         print("No harness-owned state exists; nothing to stop.")
         return 0
     safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=cfg.repo_root, instance=cfg.instance)
-    _stop_owned(cfg)
+    if not _stop_owned(cfg):
+        print("dev-down incomplete; preserved ownership evidence for safe retry or inspection.")
+        return 1
     return 0
 
 
@@ -1211,7 +1750,9 @@ def cmd_reset(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
     print(f"Resetting harness-owned state only: {cfg.layout.state_root}")
     safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=cfg.repo_root, instance=cfg.instance)
-    _stop_owned(cfg)
+    if not _stop_owned(cfg):
+        print("Reset refused because exact shutdown was incomplete; ownership evidence was preserved.")
+        return 1
     _clear_state(cfg)
     print("Reset complete.")
     return 0

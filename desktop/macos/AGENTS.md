@@ -241,7 +241,7 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **No Xcode project** — this is a Swift Package Manager project
 - **Build command**: `xcrun swift build -c debug --package-path Desktop` (the `xcrun` prefix is required to match the SDK version)
 - **Full dev run**: `./run.sh` — builds Swift app, starts Python backend, starts Cloudflare tunnel, launches app
-- **Fast default dev run**: after one successful full named-bundle launch, ordinary Swift-only `./run.sh` calls reuse the installed bundle. The fast lane runs incremental SwiftPM, atomically replaces the executable and current desktop API URL, re-signs the app, and relaunches without copying/re-signing static agent/framework assets or resetting LaunchServices/auth. Named local profiles are eligible: their current disposable `.env` is refreshed on each patch and is never cached in the bundle fingerprint. Package metadata, resources, agent/runtime inputs, entitlements, and persistent launch configuration automatically take the full path. Force that path with `./run.sh --full` or `OMI_FORCE_FULL_BUNDLE=1`. `OMI_SCAN_STALE_BUNDLES=1` is an explicit stale-LaunchServices recovery scan; do not enable it in the normal loop.
+- **Fast dev run**: after a full named launch, Swift-only builds reuse static bundle assets, atomically replace/re-sign the executable, and refresh local-profile `.env` without resetting auth. Package/resources/runtime/entitlement changes force full packaging; `OMI_FORCE_FULL_BUNDLE=1` requests it explicitly. `OMI_SCAN_STALE_BUNDLES=1` is recovery-only, never routine cleanup.
 - **Focused feedback loop**: `./scripts/dev-feedback.py --once|--watch swift '<XCTest filter>'` or `... python '<pytest path>'` runs exactly the regression you selected and reports each iteration time. It watches only the matching component inputs, keeps watching after a failure, and never replaces the full component suite. Pre-push deliberately adds only `xcrun swift build -c debug`; never promote it to the full pinned-Xcode suite or release compile, because that push-time budget belongs to CI.
 - **Swift tests**: Local suites use four workers; CI uses one for its shared `.build` lock. Use `OMI_SWIFT_TEST_SUITE_WORKERS=1` for diagnosis; increase CI workers only with isolated builds. `./scripts/run-swift-ci.sh --release-notification-regression` sets command-scoped `OMI_NOTIFICATION_RELEASE_TESTS_ONLY=1` to select only the callback test target, with release app flags unchanged; normal testing includes all targets.
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
@@ -277,8 +277,7 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.heyintentive
 - To connect agent-swift: `agent-swift connect --bundle-id com.heyintentive.intentive.dev.omi-fix-rewind`
 - **Optional owned parity seed:** set `OMI_SEED_FROM_CANONICAL_DEV=1` to copy auth, curated settings, and a consistent Rewind snapshot only from `com.heyintentive.intentive.dev`. No Omi source or fallback is allowed.
 - **Jump to a screen without clicking:** the automation bridge auto-enables on non-prod bundles — `./scripts/omi-ctl navigate <screen>` (e.g. `rewind`, `memories`, `settings rewind`). See "Fast-Path for Local Iteration" in `e2e/SKILL.md`.
-- Named/dev bundles default to the canonical development Python backend unless
-  an explicit launch URL overrides them. Before QA, run
+- Routine Dev uses `make desktop-run-local`; named bundles no longer implicitly select hosted development. `--yolo` explicitly selects the hosted service. Before QA, run
   `./scripts/omi-ctl health`; its unauthenticated identity payload reports the
   resolved backend environment/URL plus the agent-runtime handshake state,
   negotiated protocol version, packaged runtime version, and expected protocol.
@@ -290,7 +289,7 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.heyintentive
 
 ### Run Variants & Parallel Worktrees
 - `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_PYTHON_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
-- **Workspace ownership.** `scripts/dev-instance.sh` resolves `omi-<worktree>` identity and nine Conductor ports, including Firebase auxiliaries. `OMI_HARNESS_PORT_OFFSET` preserves qualification allocation; conflicting ports fail closed. Outside Conductor, backend/automation keep 8080+/47777+ defaults. Stops are scoped; foreign listeners are never adopted. `desktop-run-local` embeds active `OMI_LOCAL_PROVIDER_MODE`: real AI needs explicit selection; absent/invalid stays offline. Local accounts/storage stay isolated in either mode. Hosted defaults are unchanged.
+- **Workspace ownership.** `scripts/dev-instance.sh` resolves `omi-<worktree>` and nine Conductor ports; `OMI_HARNESS_PORT_OFFSET` preserves qualification allocation. Foreign listeners fail closed. `make desktop-run-local` records exact app token/PID/start/bundle/profile/bridge ownership; `make dev-status` checks it and `make dev-down` stops only recorded workspace processes, preserving data. Incomplete stops retain evidence and block replacement. Restart reuses history. Provider/admin secrets stay in the backend. Embedded `OMI_LOCAL_PROVIDER_MODE` follows the active stack: absent/invalid stays offline; explicit real AI still uses local accounts/storage.
 - `Intentive Dev` is the canonical shared development profile and the only allowed opt-in seed source. Do not pass `OMI_APP_NAME="Intentive Dev"` from a linked worktree.
 - Local Python backend (per-worktree port): `cd backend && ./scripts/dev-serve.sh`.
 
@@ -321,7 +320,7 @@ Fast path (skips web login and sidebar click-through):
 ### Default agent development loop
 
 1. **Edit or diagnose:** run the smallest relevant unit/static harness. For repeated saves, start `./scripts/dev-feedback.py --watch swift '<filter>'` or `... python '<pytest path>'`; do not launch the app only to obtain compile evidence.
-2. **Swift/UI behavior:** reuse the existing named bundle with `OMI_APP_NAME=omi-<feature> ./run.sh --yolo --fast-only`; add `--no-wait` only with a harness/external backend, then use the local bridge (`omi-ctl action`, `state`, or a semantic snapshot) to assert the changed behavior.
+2. **Swift/UI behavior:** reuse the workspace bundle with `make desktop-run-local`, then assert behavior through its local bridge (`omi-ctl action`, `state`, or semantic snapshot). Hosted `--yolo` is explicit opt-in only.
 3. **Package boundary:** use `./run.sh --full` only for the first named launch, resource/entitlement/package/runtime input changes, or when `--fast-only` reports an expected fingerprint mismatch.
 4. **QA, commit, and PR readiness:** run `./scripts/omi-macos-dev doctor`, exercise the real user-facing path, then run the appropriate full component/PR contract.
 
@@ -463,7 +462,7 @@ timeline identity/open, or pill projection is incomplete until:
   P4 requires a current-fact answer with no synthetic public-web activity,
   browsing claim, or source URL. **Continuity PRs / RC:** `--suite
   continuity` (typed + PTT + blind recall) after auth seed; `--suite all` for
-  RC. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
+  RC. Add `--require-live-voice` for managed-voice proof; simulated/missing transport fails. Controller probes are not natural microphone evidence. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
   The S-31 checker rejects incomplete, failed, malformed, stale, raw, media, or secret-bearing evidence. Its pre-push hatch requires both
   `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE` and `..._REASON`.
 - **Anti-flake:** clear owner/kernel surface before probes; per-run nonces;

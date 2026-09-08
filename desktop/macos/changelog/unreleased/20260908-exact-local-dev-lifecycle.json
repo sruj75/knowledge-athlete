@@ -1,0 +1,3 @@
+{
+  "change": "Made named local development launches stay on their workspace services and stop without affecting other Intentive apps"
+}

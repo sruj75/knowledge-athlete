@@ -158,7 +158,7 @@ def test_firebase_auxiliary_port_collision_is_rejected_without_signalling(
     )
     monkeypatch.setattr(
         cli,
-        "_signal_owned_process_group",
+        "_signal_owned_supervisor",
         lambda _pid, _service: pytest.fail("foreign auxiliary listener must never be signalled"),
     )
     actual_port_open = cli._port_open
@@ -211,7 +211,7 @@ def test_recorded_auxiliary_port_rejects_a_listener_outside_the_supervisor_linea
     monkeypatch.setattr(safety, "is_descendant_of", lambda _pid, _ancestor: False)
     monkeypatch.setattr(
         cli,
-        "_signal_owned_process_group",
+        "_signal_owned_supervisor",
         lambda _pid, _service: pytest.fail("unproven auxiliary listener must never be signalled"),
     )
     actual_port_open = cli._port_open
@@ -411,7 +411,7 @@ def test_live_legacy_four_port_digest_requires_scoped_down_without_signalling_or
     monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend", "pid": 4242}])
     monkeypatch.setattr(
         cli,
-        "_signal_owned_process_group",
+        "_signal_owned_supervisor",
         lambda _pid, _service: pytest.fail("legacy launch evidence must not trigger a signal"),
     )
 

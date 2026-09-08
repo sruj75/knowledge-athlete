@@ -16,7 +16,6 @@ from __future__ import annotations
 import os
 import platform
 import shlex
-import subprocess
 import sys
 from pathlib import Path
 
@@ -87,16 +86,18 @@ print(f"resolved_profile: {resolved_path}")
 print("Firebase Auth emulator bootstrap: scenario seed creates local_default_user, alice, and bob; this launch selects the requested USER and Swift signs in to the Auth emulator with the seeded synthetic email/password.")
 print("Static safety scan: PASS (localhost endpoints, demo-heyintentive-local, no provider credential env in resolved profile).")
 
-command = ["./run.sh"]
+command = ["./run.sh", "--no-wait"]
 env_prefix = " ".join(f"{key}={shlex.quote(value)}" for key, value in sorted(profile.env.items()))
 print("Launch command:")
-print(f"  cd desktop/macos && {env_prefix} ./run.sh")
+print(f"  cd desktop/macos && {env_prefix} ./run.sh --no-wait")
 
 if platform.system() != "Darwin":
     print(f"Current platform is {platform.system()}, not macOS/Darwin; native Swift desktop build/launch is blocked here and intentionally not faked.")
     raise SystemExit(0)
 
-env = os.environ.copy()
-env.update(profile.env)
-subprocess.run(command, cwd=repo / "desktop" / "macos", env=env, check=True)
+try:
+    cli.launch_desktop_local(cfg, profile)
+except (safety.SafetyError, OSError) as exc:
+    print(f"Cannot launch desktop local profile: {exc}")
+    raise SystemExit(2) from None
 PY

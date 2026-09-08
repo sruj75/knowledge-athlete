@@ -95,6 +95,10 @@ _PROVIDER_ENV_NAMES = (
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
 )
+_DESKTOP_AMBIENT_SECRET_RE = re.compile(
+    r"(?:ADMIN|API_KEY|AUTH_TOKEN|ACCESS_TOKEN|CREDENTIAL|SECRET|SERVICE_ACCOUNT)", re.IGNORECASE
+)
+_DESKTOP_APP_SCRUB_ENV_PATH = Path(__file__).resolve().parents[1] / "desktop-app-scrub-env.txt"
 
 
 @dataclass(frozen=True)
@@ -128,6 +132,37 @@ class DesktopLocalProfile:
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, sort_keys=True) + "\n"
+
+
+def child_env(
+    profile: DesktopLocalProfile,
+    *,
+    parent: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Build the app-only environment without backend/provider authority.
+
+    The already-running harness backend is the only local process that receives
+    real-provider or admin credentials. The desktop gets the standard harness
+    allowlist, intentional build controls, and the resolved local profile.
+    """
+
+    try:
+        scrubbed_names = frozenset(
+            line.strip()
+            for line in _DESKTOP_APP_SCRUB_ENV_PATH.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        )
+    except OSError as exc:
+        raise safety.SafetyError("Desktop app environment scrub policy is unavailable") from exc
+    if any(not re.fullmatch(r"[A-Z][A-Z0-9_]*", name) for name in scrubbed_names):
+        raise safety.SafetyError("Desktop app environment scrub policy is malformed")
+
+    env = safety.build_child_env(parent, provider_mode="offline")
+    for key in tuple(env):
+        if key in scrubbed_names or _DESKTOP_AMBIENT_SECRET_RE.search(key):
+            env.pop(key)
+    env.update(profile.env)
+    return env
 
 
 def _is_loopback_url(raw: str) -> bool:
@@ -176,8 +211,7 @@ def resolve_profile(
     if app_name != LOCAL_APP_NAME:
         env["OMI_APP_NAME"] = app_name
         env["OMI_ENABLE_LOCAL_AUTOMATION"] = os.environ.get("OMI_ENABLE_LOCAL_AUTOMATION", "1")
-        if os.environ.get("OMI_AUTOMATION_PORT"):
-            env["OMI_AUTOMATION_PORT"] = os.environ["OMI_AUTOMATION_PORT"]
+        env["OMI_AUTOMATION_PORT"] = str(cfg.automation_port)
     return DesktopLocalProfile(
         app_name=app_name,
         display_name=app_name if app_name != LOCAL_APP_NAME else LOCAL_DISPLAY_NAME,
