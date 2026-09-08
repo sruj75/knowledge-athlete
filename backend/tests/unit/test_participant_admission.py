@@ -8,6 +8,7 @@ from config.participant_admission import (
     RELEASE_PROBE_UID,
     require_hosted_participant,
 )
+from scripts.firebase_release_probe_token import PROBE_UID
 
 
 def _hosted_env(participants: str) -> dict[str, str]:
@@ -59,8 +60,6 @@ def test_release_probe_is_a_reserved_system_principal_after_human_configuration_
 
 
 def test_release_probe_uid_matches_the_existing_token_minter_contract():
-    from scripts.firebase_release_probe_token import PROBE_UID
-
     assert RELEASE_PROBE_UID == PROBE_UID
 
 
