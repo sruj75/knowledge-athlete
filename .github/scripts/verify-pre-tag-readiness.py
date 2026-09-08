@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Verify trusted-M1 pre-tag readiness evidence before an immutable tag is created.
+"""Verify exact-source readiness evidence before desktop qualification.
 
-The desktop auto-release tag job runs this against the readiness evidence
-artifact produced on the trusted self-hosted M1. It never trusts that the
-readiness *job* merely succeeded: it loads the evidence and proves it covers the
-EXACT source SHA the tag job is about to tag, that it ran offline, and that it
-carries no production-pointer authority.
+The owner-manual collector runs this after an immutable candidate exists. It
+loads the evidence and proves it covers the exact candidate source SHA, ran
+offline, and carries no production-pointer authority.
 
 Readiness is deliberately distinct from signed-artifact qualification: this
 verifier accepts only readiness evidence and rejects qualification evidence.
@@ -66,10 +64,10 @@ def verify(evidence: object, expected_sha: str) -> dict:
     source_sha = evidence.get("source_sha")
     if not isinstance(source_sha, str) or not SHA_RE.fullmatch(source_sha):
         _fail(f"evidence source_sha must be 40 lowercase hex, got {source_sha!r}")
-    # The load-bearing check: the evidence must cover the EXACT SHA about to be
-    # tagged. A stale or mismatched evidence record must never authorize a tag.
+    # The load-bearing check: the evidence must cover the exact immutable
+    # candidate SHA. A stale or mismatched record cannot authorize qualification.
     if source_sha != expected_sha:
-        _fail(f"evidence source_sha {source_sha!r} != tag source {expected_sha!r}")
+        _fail(f"evidence source_sha {source_sha!r} != candidate source {expected_sha!r}")
     provider_mode = evidence.get("provider_mode")
     if provider_mode != "offline":
         _fail(f"evidence provider_mode must be 'offline', got {provider_mode!r}")
@@ -163,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         return _self_test()
     evidence = json.loads(Path(args.evidence).read_text(encoding="utf-8"))
     verify(evidence, args.source_sha)
-    print(f"pre-tag readiness evidence verified for {args.source_sha}")
+    print(f"candidate readiness evidence verified for {args.source_sha}")
     return 0
 
 

@@ -12,6 +12,7 @@ WATCHDOG="$SCRIPT_DIR/../scripts/qualification-watchdog.py"
 APP_CONFIG="$SCRIPT_DIR/../scripts/app-config.sh"
 RUN_SH="$SCRIPT_DIR/../run.sh"
 WORKFLOW="$SCRIPT_DIR/../../../.github/workflows/desktop_qualify_beta.yml"
+COLLECTOR="$SCRIPT_DIR/../scripts/collect-owner-manual-beta-qualification.sh"
 
 require_text() {
   local pattern="$1"
@@ -88,14 +89,6 @@ require_text 'QUALIFICATION_CACHE_LEASE_ID'
 require_text 'QUALIFICATION_CACHE_LEASE_TOKEN'
 require_text '"$SCRIPT_DIR/qualification-swift-cache.sh" release'
 require_text 'qualification-cache-reclaim.py' "$SWIFT_CACHE"
-require_text 'qualification-runner-self-clean.py' "$WORKFLOW"
-require_text 'qualification-watchdog.py' "$WORKFLOW"
-require_text '--current-run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' "$WORKFLOW"
-require_text '--max-reclaim-kib 134217728' "$WORKFLOW"
-require_text 'runner-hygiene.json' "$WORKFLOW"
-require_text '--label m1-desktop-qualification' "$WORKFLOW"
-require_text '--heartbeat-seconds 45' "$WORKFLOW"
-require_text '--timeout-seconds 14400' "$WORKFLOW"
 require_text 'qualification-lease "$action"' "$LEASE_COMMAND"
 require_text 'acquire)' "$LEASE_COMMAND"
 require_text 'preflight-fault-cleanup)' "$LEASE_COMMAND"
@@ -176,20 +169,29 @@ require_order "$QUALIFIER" \
 require_text '"target_seconds": 1200'
 require_text 'OMI_QUALIFICATION_TIMINGS_FILE' "$QUALIFIER"
 require_text 'OMI_QUALIFICATION_FAULT_PREFLIGHT_REPORT' "$QUALIFIER"
-require_text '/phase-timings.json' "$SCRIPT_DIR/../../../.github/workflows/desktop_qualify_beta.yml"
-require_text '/fault-listener-preflight.json' "$SCRIPT_DIR/../../../.github/workflows/desktop_qualify_beta.yml"
-
-# The canonical qualification owns the only M1 qualification lease lifecycle.
-# Its ordered preflight/final cleanup is retained as artifact evidence; no
-# standalone local-proof job may create an earlier duplicate lease.
-if grep -Fq 'local-proof-m1' "$WORKFLOW" || grep -Fq 'qualification-local-proof.sh' "$WORKFLOW"; then
-  echo "FAIL: qualification workflow must not retain a duplicate local-proof lifecycle" >&2
+# The everyday owner Mac is an explicit local evidence source, never an Actions
+# runner. GitHub-hosted admission rechecks the exact content-addressed bundle.
+require_text 'runs-on: ubuntu-latest' "$WORKFLOW"
+require_text 'owner_evidence_asset:' "$WORKFLOW"
+require_text 'owner_manual_desktop_qualification.py verify' "$WORKFLOW"
+require_text 'desktop-qualification-evidence-${{ inputs.release_tag }}' "$WORKFLOW"
+if grep -Eq 'self-hosted|intentive-qual-m1-studio|qualify-m1-studio' "$WORKFLOW"; then
+  echo "FAIL: owner-manual qualification must not register or target a Mac runner" >&2
   exit 1
 fi
-require_order "$WORKFLOW" \
-  'qualify-m1-studio:' \
-  'fault-listener-preflight.json' \
-  'phase-timings.json'
+require_text '--local-evidence-directory DIR' "$QUALIFIER"
+require_text 'source-t2-manifest.json' "$QUALIFIER"
+require_text 'fault-manifest.json' "$QUALIFIER"
+require_text '--qualification-mode owner-manual' "$COLLECTOR"
+require_text 'Intentive.Beta.zip' "$COLLECTOR"
+require_text 'intentive-beta.dmg' "$COLLECTOR"
+require_text '--auth-storage-canary' "$COLLECTOR"
+require_text 'pre-tag-readiness.sh' "$COLLECTOR"
+require_text 'owner_manual_desktop_qualification.py' "$COLLECTOR"
+if grep -Eq 'gh release upload|gh workflow run' "$COLLECTOR"; then
+  echo "FAIL: local owner evidence collection must not upload or dispatch" >&2
+  exit 1
+fi
 
 if [[ ! -x "$PROFILE_PREP" ]]; then
   echo "FAIL: missing executable qualification profile preparation helper" >&2
@@ -205,6 +207,10 @@ if [[ ! -x "$LEASE_COMMAND" ]]; then
 fi
 if [[ ! -x "$SELF_CLEAN" || ! -x "$WATCHDOG" ]]; then
   echo "FAIL: missing executable qualification self-clean/watchdog helper" >&2
+  exit 1
+fi
+if [[ ! -x "$COLLECTOR" ]]; then
+  echo "FAIL: missing executable owner-manual qualification collector" >&2
   exit 1
 fi
 

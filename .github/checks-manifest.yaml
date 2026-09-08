@@ -16,9 +16,9 @@ checks:
     reason: "the S-31 audit at d882065f found dev-init maintaining an unlocked Python environment and one incomplete Git hook beside make setup; the developer bootstrap must have one owner"
   - id: pre-tag-readiness-contract
     command: ["bash", "desktop/macos/tests/test-pre-tag-readiness-contract.sh"]
-    triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test-pre-tag-readiness-contract.sh", "scripts/dev-harness/_resolve_python.sh", ".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/workflows/desktop_auto_release.yml", ".github/checks-manifest.yaml"]
+    triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test-pre-tag-readiness-contract.sh", "scripts/dev-harness/_resolve_python.sh", ".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "trusted-M1 readiness must retain exact-SHA cache/lease ownership and cannot emit a passing receipt before authenticated cleanup"
+    reason: "owner-Mac post-candidate readiness must retain exact-SHA cache/lease ownership and cannot emit a passing receipt before authenticated cleanup"
   - id: pre-tag-readiness-behavior
     command: ["python3", "desktop/macos/tests/test_pre_tag_readiness_behavior.py"]
     triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test_pre_tag_readiness_behavior.py", ".github/scripts/git_bash.py", ".github/checks-manifest.yaml"]
@@ -83,7 +83,12 @@ checks:
     command: ["python3", ".github/scripts/test_check_desktop_auto_beta_candidate.py"]
     triggers: [".github/scripts/check-desktop-auto-beta-candidate.py", ".github/scripts/test_check_desktop_auto_beta_candidate.py", "desktop/macos/scripts/smoke-signed-desktop-artifact.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "the candidate gate validates signed-smoke evidence; a stable-only flag change must not fail-close the first dual-identity release"
+    reason: "the candidate gate validates both signed identities and requires the exact Beta ZIP/DMG pair for owner-manual qualification"
+  - id: owner-manual-desktop-qualification-contract
+    command: ["python3", ".github/scripts/test_owner_manual_desktop_qualification.py"]
+    triggers: [".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/test_owner_manual_desktop_qualification.py", ".github/scripts/desktop_qualification_evidence.py", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", ".github/workflows/desktop_qualify_beta.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "owner-manual qualification must retain exact source, signed Stable/Beta bytes, full smoke/canary results, behavioral receipts, command outcomes, and content-addressed receipt hashes"
   - id: pre-push-worktree-fallback
     command: ["bash", "scripts/test-pre-push-worktree-fallback.sh"]
     triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", "scripts/test-pre-push-worktree-fallback.sh", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
@@ -492,14 +497,19 @@ checks:
     reason: "#9989 exercises non-main, ambiguous SHA, mismatched checkout, and workflow-contract rejection cases"
   - id: backend-deploy-source-admission
     command: ["python3", ".github/scripts/check_backend_deploy_source_admission.py"]
-    triggers: [".github/workflows/gcp_backend.yml", ".github/workflows/gcp_backend_auto_dev.yml", ".github/scripts/verify_backend_release_admission.py", ".github/scripts/verify_auto_backend_release_admission.py", ".github/scripts/check_backend_deploy_source_admission.py", ".github/scripts/test_check_backend_deploy_source_admission.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/gcp_backend.yml", ".github/workflows/gcp_backend_auto_dev.yml", ".github/scripts/backend_auto_deploy_policy.py", ".github/scripts/verify_backend_release_admission.py", ".github/scripts/verify_auto_backend_release_admission.py", ".github/scripts/check_backend_deploy_source_admission.py", ".github/scripts/test_check_backend_deploy_source_admission.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#9991 keeps backend deploy source selection bound to one successful main Release Eligibility proof"
   - id: backend-deploy-source-admission-fixtures
     command: ["python3", ".github/scripts/test_check_backend_deploy_source_admission.py"]
-    triggers: [".github/workflows/gcp_backend.yml", ".github/workflows/gcp_backend_auto_dev.yml", ".github/scripts/verify_backend_release_admission.py", ".github/scripts/verify_auto_backend_release_admission.py", ".github/scripts/check_backend_deploy_source_admission.py", ".github/scripts/test_check_backend_deploy_source_admission.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/gcp_backend.yml", ".github/workflows/gcp_backend_auto_dev.yml", ".github/scripts/backend_auto_deploy_policy.py", ".github/scripts/verify_backend_release_admission.py", ".github/scripts/verify_auto_backend_release_admission.py", ".github/scripts/check_backend_deploy_source_admission.py", ".github/scripts/test_check_backend_deploy_source_admission.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#9991 mutation-tests workflow-run event, result, branch, SHA, repository, and manual proof drift"
+  - id: backend-auto-deployment-policy
+    command: ["python3", ".github/scripts/test_backend_auto_deploy_policy.py"]
+    triggers: [".github/workflows/gcp_backend_auto_dev.yml", ".github/scripts/backend_auto_deploy_policy.py", ".github/scripts/test_backend_auto_deploy_policy.py", "backend/tests/unit/test_auto_dev_backend_scope.py", ".github/scripts/check_backend_deploy_source_admission.py", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "shared Dev backend mutations require deliberate dispatch while preserving the existing immutable scope and source-admission proofs"
   - id: gcp-backend-production-boundary
     command: ["python3", ".github/scripts/check-gcp-backend-production-boundary.py"]
     triggers: [".github/workflows/gcp_backend.yml", "backend/scripts/firebase_release_probe_token.py", "backend/scripts/transcription_capability_probe.py", ".github/scripts/check-gcp-backend-production-boundary.py", ".github/scripts/test_check_gcp_backend_production_boundary.py", ".github/checks-manifest.yaml"]
@@ -532,16 +542,16 @@ checks:
     reason: "#10163 mutation-sensitive Stable retry and default-channel feed fixtures"
   - id: desktop-release-one-path-contract
     command: ["python3", ".github/scripts/test_desktop_release_flow_contract.py"]
-    triggers: [".github/workflows/desktop_auto_release.yml", ".github/workflows/desktop_qualify_beta.yml", ".github/workflows/desktop_promote_beta.yml", ".github/workflows/desktop_recover_beta.yml", ".github/workflows/desktop_rollback_beta.yml", ".github/workflows/desktop_breakglass_rollout_beta.yml", ".github/workflows/desktop_beta_admission_control.yml", ".github/workflows/desktop_promote_prod.yml", ".github/workflows/gcp_backend.yml", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/qualification-cache-reclaim.py", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/scripts/qualification-lease-command.sh", ".github/scripts/test_desktop_release_flow_contract.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/desktop_auto_release.yml", ".github/workflows/desktop_qualify_beta.yml", ".github/workflows/desktop_retry_beta_qualification.yml", ".github/workflows/desktop_promote_beta.yml", ".github/workflows/desktop_recover_beta.yml", ".github/workflows/desktop_rollback_beta.yml", ".github/workflows/desktop_breakglass_rollout_beta.yml", ".github/workflows/desktop_beta_admission_control.yml", ".github/workflows/desktop_promote_prod.yml", ".github/workflows/gcp_backend.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", ".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/desktop_qualification_evidence.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/test_desktop_release_flow_contract.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     platforms: ["linux", "macos"]
-    reason: "SCA-17 prevents duplicate desktop promotion authorities and requires post-traffic production release-vector verification"
+    reason: "owner-manual Beta admission keeps GitHub-hosted source/byte verification separate from owner-attested Mac checks and from pointer promotion"
   - id: desktop-qualification-bootstrap-contract
     command: ["bash", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh"]
-    triggers: [".github/workflows/desktop_qualify_beta.yml", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/prepare-qualification-profile.sh", "desktop/macos/scripts/qualification-cache-reclaim.py", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/scripts/qualification-swift-cache.sh", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/desktop_qualify_beta.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/prepare-qualification-profile.sh", "desktop/macos/scripts/qualification-cache-reclaim.py", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/scripts/qualification-swift-cache.sh", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     platforms: ["macos"]
-    reason: "Trusted qualification requires an exact-SHA persistent source, isolated named-bundle, unchanged gates, and phase-bound bootstrap contracts"
+    reason: "Owner-manual qualification requires an exact-tag source, isolated named bundle, unchanged behavioral gates, content-addressed receipts, and no persistent Mac runner"
   - id: desktop-qualification-lease-command
     command: ["bash", "desktop/macos/tests/test-qualification-lease-command.sh"]
     triggers: ["desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/tests/test-qualification-lease-command.sh", ".github/checks-manifest.yaml"]
@@ -571,7 +581,7 @@ checks:
     command: ["python3", ".github/scripts/test_desktop_beta_qualification_retry.py"]
     triggers: [".github/workflows/desktop_retry_beta_qualification.yml", ".github/scripts/desktop_beta_qualification_retry.py", ".github/scripts/test_desktop_beta_qualification_retry.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
-    reason: "SCA-49 bounded automatic retry of transient failed/cancelled Beta qualification must stay tag-bound, exact-SHA, bounded, and never re-dispatch in-progress/successful runs"
+    reason: "the bounded retry observer stays tag/SHA-bound but cannot impersonate the owner or dispatch a manual-attestation workflow"
   - id: guardrail-pulse-tests
     command: ["python3", ".github/scripts/test_guardrail_pulse.py"]
     triggers: [".github/scripts/guardrail_pulse.py", ".github/scripts/test_guardrail_pulse.py", ".github/workflows/guardrail-baseline-pulse.yml", ".github/guardrail-pulse-history.jsonl", ".github/checks-manifest.yaml"]

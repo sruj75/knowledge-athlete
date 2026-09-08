@@ -16,9 +16,17 @@ _spec = importlib.util.spec_from_file_location("desktop_qualification_evidence_c
 assert _spec is not None and _spec.loader is not None
 _contract = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_contract)
+REQUIRED_SMOKE_CHECKS = _contract.REQUIRED_SMOKE_CHECKS
 
 
 def verify_evidence(
     evidence: dict[str, Any], release: dict[str, Any], release_tag: str, source_sha: str, digests: dict[str, str]
 ) -> None:
     _contract.verify_evidence(evidence, release, release_tag, source_sha, digests)
+
+
+def validate_signed_smoke_contract(
+    smoke: dict[str, Any],
+    **kwargs: Any,
+) -> set[str]:
+    return _contract.validate_signed_smoke_contract(smoke, **kwargs)

@@ -75,6 +75,7 @@ def fixtures(root: Path) -> argparse.Namespace:
         tag_sha=SHA,
         checkout_sha=SHA,
         expected_team_id=TEAM_ID,
+        qualification_mode="runner",
         output=str(root / "result.json"),
     )
 
@@ -170,12 +171,19 @@ def main() -> int:
         smoke_path.write_text(json.dumps(smoke))
         expect_failure(args, "source SHA does not match the candidate tag")
 
+        smoke["source_sha"] = SHA
+        smoke_path.write_text(json.dumps(smoke))
+        owner_manual = argparse.Namespace(**{**vars(args), "qualification_mode": "owner-manual"})
+        expect_failure(owner_manual, "requires exact Intentive Beta ZIP/DMG")
+
     # Releases shipping the side-by-side Intentive Beta assets: the beta artifact must
     # satisfy the same smoke contract as stable, under its own bundle id.
     with tempfile.TemporaryDirectory() as temp_dir:
         args = beta_fixtures(Path(temp_dir))
+        args.qualification_mode = "owner-manual"
         result = validate(args)
         assert result["passed"] is True
+        assert result["qualification_mode"] == "owner-manual"
         assert result["artifact_digests"]["Intentive.Beta.zip"] == BETA_ZIP_SHA
         assert result["artifact_digests"]["intentive-beta.dmg"] == BETA_DMG_SHA
 

@@ -54,22 +54,32 @@ Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.
 
 ## Release Pipeline
 
-No Intentive candidate may be built or published from this checkout yet. Repository-safe S-29 work has re-owned the Mac identities, artifact names, signed-smoke contract, nested libwebp
-verification, and qualification admission checks, but the external release control plane is
-intentionally incomplete:
+No Intentive candidate exists yet. Repository-safe release controls own the Mac identities,
+artifact names, signed-smoke contract, nested libwebp verification, and qualification admission,
+but protected provider inputs and owned public endpoints remain incomplete:
 
 1. The MVP release repository is exactly `sruj75/knowledge-athlete`.
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
-3. The trusted runner labels are `intentive-desktop-qualification` and `intentive-qual-m1-studio`. They are not provisioned yet.
-4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. They fail closed before building while
-   Apple signing/notarization, preview, remaining protected publication, or production
-   backend/feed inputs are missing. The owned Stable/Beta Firebase plists, PostHog client configuration,
+3. Never register an everyday Mac as a GitHub Actions runner. After Codemagic publishes an immutable
+   candidate, run `scripts/collect-owner-manual-beta-qualification.sh` from its exact-tag checkout,
+   upload the resulting content-addressed ZIP without replacement under owner `sruj75`/`120443863`,
+   then manually dispatch `desktop_qualify_beta.yml` with the exact tag and evidence asset name.
+4. Root `codemagic.yaml` owns Codemagic app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. Beta release fails closed before building while
+   Apple signing/notarization, remaining protected publication, or production backend/feed inputs
+   are missing; preview readiness is not a Beta prerequisite. The owned Stable/Beta Firebase plists, PostHog client configuration,
    Sparkle keypair, and Sentry upload token are already protected. The tracked PostHog fingerprint must
    match the token. Public/legal URLs are stored. Never substitute Omi values or bundle PostHog overrides.
 5. Existing candidate/promotion/rollback workflow files are retained control logic, not an executable Intentive release path. They must not be dispatched until the remaining owned inputs in
    `OWNER-PROVIDER-DECISIONS.md` are configured.
 
-The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. `gcp_backend_auto_dev.yml` owns check-gated development delivery; `gcp_backend.yml` owns protected development/production candidate delivery, traffic promotion, recovery, and repair. Merging desktop code does not deploy the production backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
+The local handoff is explicit: from an isolated exact-tag checkout run
+`scripts/collect-owner-manual-beta-qualification.sh --output-directory <private-dir> <tag>`. It
+launches only the downloaded signed Stable/Beta artifacts plus the named source qualification
+bundle, emits one `owner-manual-qualification-<sha>-<digest>.zip`, and never uploads or promotes.
+The owner verifies `gh api user` is exactly `sruj75`/`120443863`, uploads that asset once without
+replacement, then dispatches `desktop_qualify_beta.yml` with the exact tag and asset name.
+
+The canonical Python backend must contain the manifest/pointer endpoints before the first beta promotion. Release Eligibility still checks every main commit, but `gcp_backend_auto_dev.yml` is explicitly `manual-only`: shared Dev backend changes require the existing `gcp_backend.yml` dispatcher, which also owns protected production candidate delivery, traffic promotion, recovery, and repair. Merging code does not change the shared backend. Static GCS/CDN feed ownership remains follow-up work and is not the channel source of truth.
 
 Signed artifact smoke scope:
 - Always-on release audit covers bundle identity, version/tag alignment, signing/Keychain entitlements, Sparkle metadata, backend URL leakage, exact fingerprint-bound PostHog configuration across the app/ZIP/DMG copies, helper/runtime packaging, artifact readability, and local storage package surface. Stable/Beta analytics resolve only from this signed metadata; environment overrides are for non-production bundles only.
@@ -77,7 +87,7 @@ Signed artifact smoke scope:
 - S-29's build provider must upload the generated `desktop-smoke-result.json` with artifact digests and completed checks; promotion tooling compares this result to the exact release asset before changing channels.
 - The synthetic `--auth-storage-canary` is mandatory before beta publication and runs inside the exact signed app without real credentials. Optional broader live probes (`--launch --network --auth --chat --permissions --storage`) require an isolated release runner and explicit canary env vars; production-bundle launch is fail-closed unless `OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1`, and `--auth` requires `OMI_SIGNED_ARTIFACT_SMOKE_AUTH_PROOF_COMMAND` to prove app-level persistence rather than a raw bearer-token curl.
 - Artifact creation and user visibility are split: create/upload the immutable candidate first, then advance beta/stable visibility only after digest-matched qualification passes.
-- Automatic beta is fail-closed: any signed-smoke, reservation, digest, static, T2, fault-suite, manifest, admission-generation, or pointer failure leaves the candidate non-live. The scheduled qualification retry discovers candidate state with read-only authority, succeeds as a no-op when no candidate exists, and requests release-app write authority only for an eligible transient retry. Operators pause/resume only through the ADMIN_KEY-protected backend admission control; workflow variables are not pause authority. When a served Beta is concretely broken, `desktop_rollback_beta.yml` can repoint only macOS Beta to a retained T2-qualified manifest, and `desktop_breakglass_rollout_beta.yml` can advance only to a higher evidence-bound emergency candidate. Both reuse the existing protected `prod` environment and Google identity, atomically audit + pause admission, and cannot reach Stable. Rollback does not downgrade already-updated clients; follow it with a higher-build repair.
+- Beta qualification is fail-closed: exact Stable/Beta ZIP/DMG bytes, provider and owner signed-smoke receipts, readiness, T2, fault-suite, owner upload identity, admission generation, and pointer state must agree or the candidate remains non-live. The scheduled retry is read-only and only reports that the owner must explicitly re-dispatch with an exact evidence asset; no GitHub App can attest Mac-local results. Operators pause/resume only through the ADMIN_KEY-protected backend admission control; workflow variables are not pause authority. When a served Beta is concretely broken, `desktop_rollback_beta.yml` can repoint only macOS Beta to a retained T2-qualified manifest, and `desktop_breakglass_rollout_beta.yml` can advance only to a higher evidence-bound emergency candidate. Both reuse the existing protected `prod` environment and Google identity, atomically audit + pause admission, and cannot reach Stable. Rollback does not downgrade already-updated clients; follow it with a higher-build repair.
 
 Stable is manual:
 - Automatic qualification never promotes Stable. `desktop_promote_prod.yml` remains `workflow_dispatch` only and protected by the `prod` environment.
@@ -90,8 +100,9 @@ Stable is manual:
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
 protected groups already hold the owned Stable/Beta Firebase plists, shared PostHog client
-configuration, Sparkle keypair, and Sentry upload token. Apple signing/notarization and preview
-values remain incomplete, so no candidate may be dispatched. The second empty provider record was
+configuration, Sparkle keypair, and Sentry upload token. Protected signing/notarization and owned
+publication values remain incomplete, so no candidate may be dispatched: the verified Developer ID P12/password
+are now saved as masked Codemagic secrets, while the Apple API `.p8` is still unavailable. The second empty provider record was
 deleted; only the selected application is a build authority.
 
 ## Firebase Connection

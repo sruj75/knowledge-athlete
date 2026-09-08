@@ -4,6 +4,7 @@ import json
 import zipfile
 import zlib
 from datetime import datetime, timedelta, timezone, tzinfo
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -11,6 +12,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from routers.updates import router as updates_router
+from owner_manual_desktop_qualification import REQUIRED_SMOKE_CHECKS, build_bundle
 from utils.qualified_beta_promotion import (
     MAX_QUALIFICATION_ARTIFACT_BYTES,
     REPOSITORY,
@@ -326,6 +328,157 @@ def _candidate_with_beta():
     return release, evidence_bytes, run, {beta_zip_url: b"beta zip bytes", beta_dmg_url: b"beta dmg bytes"}
 
 
+def _owner_manual_bundle(root: Path) -> bytes:
+    digests = {
+        "Intentive.zip": hashlib.sha256(b"zip bytes").hexdigest(),
+        "intentive.dmg": hashlib.sha256(b"dmg bytes").hexdigest(),
+        "Intentive.Beta.zip": hashlib.sha256(b"beta zip bytes").hexdigest(),
+        "intentive-beta.dmg": hashlib.sha256(b"beta dmg bytes").hexdigest(),
+    }
+
+    def smoke(bundle_id: str, zip_name: str, dmg_name: str) -> dict:
+        return {
+            "ok": True,
+            "finished_at": "2026-07-21T12:00:20+00:00",
+            "release_tag": TAG,
+            "source_sha": SHA,
+            "expected_channel": "beta",
+            "bundle_id": bundle_id,
+            "version": "0.12.93",
+            "build": "12093",
+            "team_id": "24D6NXS6H7",
+            "checks": sorted(REQUIRED_SMOKE_CHECKS),
+            "notification_callback_canary": {
+                "schema": 1,
+                "event": "user-notifications-settings-callback-completed",
+                "bundle_id": bundle_id,
+                "main_actor": True,
+                "authorization_status": 2,
+                "validated": True,
+            },
+            "artifacts": [
+                {"label": "sparkle_zip", "sha256": digests[zip_name]},
+                {"label": "dmg", "sha256": digests[dmg_name]},
+            ],
+        }
+
+    payloads = {
+        "release.json": {
+            "tagName": TAG,
+            "isDraft": False,
+            "isPrerelease": False,
+            "publishedAt": "2026-07-21T12:00:00Z",
+        },
+        "candidate-gate.json": {
+            "passed": True,
+            "qualification_mode": "owner-manual",
+            "release_tag": TAG,
+            "source_sha": SHA,
+            "artifact_digests": digests,
+            "verified_at": "2026-07-21T12:00:10+00:00",
+        },
+        "provider-smoke-stable.json": smoke("com.heyintentive.intentive", "Intentive.zip", "intentive.dmg"),
+        "provider-smoke-beta.json": smoke(
+            "com.heyintentive.intentive.beta", "Intentive.Beta.zip", "intentive-beta.dmg"
+        ),
+        "owner-smoke-stable.json": smoke("com.heyintentive.intentive", "Intentive.zip", "intentive.dmg"),
+        "owner-smoke-beta.json": smoke("com.heyintentive.intentive.beta", "Intentive.Beta.zip", "intentive-beta.dmg"),
+        "pre-tag-readiness.json": {
+            "kind": "intentive-desktop-pre-tag-readiness-v1",
+            "passed": True,
+            "source_sha": SHA,
+            "provider_mode": "offline",
+            "lane": "local",
+            "started_at": "2026-07-21T12:00:10Z",
+            "duration_s": 1,
+            "checks": {
+                name: True
+                for name in (
+                    "source_resolved_from_origin",
+                    "exact_sha_checkout_verified",
+                    "runner_self_clean",
+                    "swift_cache_prepared",
+                    "self_check",
+                    "offline_stack_ready",
+                )
+            },
+        },
+        "source-t2-manifest.json": {
+            "passed": True,
+            "tier": 2,
+            "provider_mode": "offline",
+            "git_sha": SHA,
+            "repository_git_sha": SHA,
+            "bundle": "omi-qualification-0.12.93+12093",
+            "source_provenance": "bundle-health",
+            "source_tree_dirty": False,
+            "started_at": "2026-07-21T12:00:15Z",
+            "duration_s": 1,
+        },
+        "fault-manifest.json": {
+            "passed": True,
+            "tier": "fault",
+            "provider_mode": "offline",
+            "git_sha": SHA,
+            "repository_git_sha": SHA,
+            "bundle": "omi-fault-test",
+            "source_provenance": "bundle-health",
+            "source_tree_dirty": False,
+            "started_at": "2026-07-21T12:00:20Z",
+            "duration_s": 1,
+        },
+        "backend-compatibility.json": {
+            "schema_version": 1,
+            "status": "healthy",
+            "service": "backend",
+            "process_health_status": "ok",
+            "chat_contract_version": "1",
+        },
+    }
+    paths: dict[str, Path] = {}
+    for name, payload in payloads.items():
+        path = root / name
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        paths[name] = path
+    receipt_names = {
+        "pre-tag-readiness": "pre-tag-readiness.json",
+        "candidate-gate": "candidate-gate.json",
+        "stable-signed-smoke": "owner-smoke-stable.json",
+        "beta-signed-smoke": "owner-smoke-beta.json",
+        "source-t2": "source-t2-manifest.json",
+        "fault-suite": "fault-manifest.json",
+    }
+    ledger_argv = {
+        "pre-tag-readiness": ["pre-tag-readiness.sh", TAG],
+        "candidate-gate": ["check-desktop-auto-beta-candidate.py", "--qualification-mode", "owner-manual", TAG],
+        "stable-signed-smoke": ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive", TAG],
+        "beta-signed-smoke": ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive.beta", TAG],
+        "source-t2": ["qualify-desktop-beta.sh", "--automatic", TAG],
+        "fault-suite": ["qualify-desktop-beta.sh", "--automatic", TAG],
+    }
+    ledger = {
+        "schema_version": 1,
+        "qualification_mode": "owner-manual",
+        "release_tag": TAG,
+        "source_sha": SHA,
+        "commands": [
+            {
+                "label": label,
+                "argv": ledger_argv[label],
+                "exit_code": 0,
+                "recorded_at": "2026-07-21T12:00:30Z",
+                "receipt": name,
+                "receipt_sha256": hashlib.sha256(paths[name].read_bytes()).hexdigest(),
+            }
+            for label, name in receipt_names.items()
+        ],
+    }
+    ledger_path = root / "command-ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    paths[ledger_path.name] = ledger_path
+    return build_bundle(paths, root, TAG, SHA).read_bytes()
+
+
 def _artifact_archive(evidence):
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w") as archive:
@@ -450,6 +603,7 @@ async def test_naive_admission_clock_is_a_typed_rejection_and_aware_offsets_norm
     )
 
     assert manifest["release_id"] == TAG
+    assert manifest["zip_url"].endswith("/Intentive.zip")
 
 
 def test_current_time_returns_exact_utc_datetimes_and_normalizes_fixed_offsets():
@@ -717,7 +871,144 @@ async def test_server_admits_a_candidate_that_ships_the_side_by_side_beta_assets
     )
 
     assert manifest["release_id"] == TAG
-    assert manifest["zip_url"].endswith("/Intentive.zip")
+
+
+@pytest.mark.asyncio
+async def test_owner_manual_promotion_refetches_and_verifies_the_exact_owner_bundle():
+    release, evidence_bytes, run, beta_downloads = _candidate_with_beta()
+    release["id"] = 789
+    manual_bytes = b"not an owner-manual evidence ZIP"
+    manual_digest = hashlib.sha256(manual_bytes).hexdigest()
+    manual_name = f"owner-manual-qualification-{SHA}-{manual_digest}.zip"
+    manual_url = f"https://github.com/{REPOSITORY}/releases/download/{TAG}/{manual_name}"
+    release["assets"].append(
+        {
+            "id": 654,
+            "name": manual_name,
+            "browser_download_url": manual_url,
+            "digest": f"sha256:{manual_digest}",
+            "created_at": "2026-07-21T12:00:30Z",
+            "uploader": {"login": "sruj75", "id": 120443863},
+        }
+    )
+    evidence = json.loads(evidence_bytes)
+    evidence["qualification_mode"] = "owner-manual"
+    evidence["owner_manual"] = {
+        "schema_version": 1,
+        "asset_name": manual_name,
+        "asset_id": 654,
+        "asset_url": manual_url,
+        "sha256": manual_digest,
+        "uploader_login": "sruj75",
+        "uploader_id": 120443863,
+        "release_id": 789,
+        "created_at": "2026-07-21T12:00:30Z",
+    }
+    run["actor"] = {"login": "sruj75", "id": 120443863}
+    run["triggering_actor"] = {"login": "sruj75", "id": 120443863}
+    reader = FakeQualifiedBetaReader(release, evidence_bytes, run)
+    reader.downloaded.update(beta_downloads)
+    reader.downloaded[manual_url] = manual_bytes
+    _replace_trusted_evidence(reader, evidence)
+
+    with pytest.raises(QualifiedBetaAdmissionError, match="owner-manual evidence bundle"):
+        await build_qualified_beta_manifest(
+            TAG,
+            reader=reader,
+            now=datetime(2026, 7, 21, 12, 2, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.asyncio
+async def test_owner_manual_promotion_admits_exact_owner_bundle_and_beta_bytes(tmp_path: Path):
+    release, evidence_bytes, run, beta_downloads = _candidate_with_beta()
+    release["id"] = 789
+    manual_bytes = _owner_manual_bundle(tmp_path)
+    manual_digest = hashlib.sha256(manual_bytes).hexdigest()
+    manual_name = f"owner-manual-qualification-{SHA}-{manual_digest}.zip"
+    manual_url = f"https://github.com/{REPOSITORY}/releases/download/{TAG}/{manual_name}"
+    release["assets"].append(
+        {
+            "id": 654,
+            "name": manual_name,
+            "browser_download_url": manual_url,
+            "digest": f"sha256:{manual_digest}",
+            "created_at": "2026-07-21T12:00:30Z",
+            "uploader": {"login": "sruj75", "id": 120443863},
+        }
+    )
+    evidence = json.loads(evidence_bytes)
+    evidence["qualification_mode"] = "owner-manual"
+    evidence["owner_manual"] = {
+        "schema_version": 1,
+        "asset_name": manual_name,
+        "asset_id": 654,
+        "asset_url": manual_url,
+        "sha256": manual_digest,
+        "uploader_login": "sruj75",
+        "uploader_id": 120443863,
+        "release_id": 789,
+        "created_at": "2026-07-21T12:00:30Z",
+    }
+    run["actor"] = {"login": "sruj75", "id": 120443863}
+    run["triggering_actor"] = {"login": "sruj75", "id": 120443863}
+    reader = FakeQualifiedBetaReader(release, evidence_bytes, run)
+    reader.downloaded.update(beta_downloads)
+    reader.downloaded[manual_url] = manual_bytes
+    _replace_trusted_evidence(reader, evidence)
+
+    manifest = await build_qualified_beta_manifest(
+        TAG,
+        reader=reader,
+        now=datetime(2026, 7, 21, 12, 2, tzinfo=timezone.utc),
+    )
+
+    assert manifest["release_id"] == TAG
+    assert manual_url in reader.download_calls
+
+
+@pytest.mark.asyncio
+async def test_owner_manual_promotion_rejects_a_second_owner_evidence_asset():
+    release, evidence_bytes, run, beta_downloads = _candidate_with_beta()
+    release["id"] = 789
+    manual_bytes = b"manual evidence"
+    manual_digest = hashlib.sha256(manual_bytes).hexdigest()
+    manual_name = f"owner-manual-qualification-{SHA}-{manual_digest}.zip"
+    manual_url = f"https://github.com/{REPOSITORY}/releases/download/{TAG}/{manual_name}"
+    asset = {
+        "id": 654,
+        "name": manual_name,
+        "browser_download_url": manual_url,
+        "digest": f"sha256:{manual_digest}",
+        "created_at": "2026-07-21T12:00:30Z",
+        "uploader": {"login": "sruj75", "id": 120443863},
+    }
+    release["assets"].extend([asset, {**asset, "id": 655, "name": f"owner-manual-qualification-{SHA}-{'f' * 64}.zip"}])
+    evidence = json.loads(evidence_bytes)
+    evidence["qualification_mode"] = "owner-manual"
+    evidence["owner_manual"] = {
+        "schema_version": 1,
+        "asset_name": manual_name,
+        "asset_id": 654,
+        "asset_url": manual_url,
+        "sha256": manual_digest,
+        "uploader_login": "sruj75",
+        "uploader_id": 120443863,
+        "release_id": 789,
+        "created_at": "2026-07-21T12:00:30Z",
+    }
+    run["actor"] = {"login": "sruj75", "id": 120443863}
+    run["triggering_actor"] = {"login": "sruj75", "id": 120443863}
+    reader = FakeQualifiedBetaReader(release, evidence_bytes, run)
+    reader.downloaded.update(beta_downloads)
+    _replace_trusted_evidence(reader, evidence)
+
+    with pytest.raises(QualifiedBetaAdmissionError, match="missing or ambiguous"):
+        await build_qualified_beta_manifest(
+            TAG,
+            reader=reader,
+            now=datetime(2026, 7, 21, 12, 2, tzinfo=timezone.utc),
+        )
 
 
 @pytest.mark.asyncio

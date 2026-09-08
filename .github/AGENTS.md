@@ -22,6 +22,7 @@ These rules apply to GitHub Actions workflows and custom actions under `.github/
 - Build and push only the full commit-SHA Artifact Registry tag, capture its digest, smoke that published digest, and deploy the resulting `tag@sha256:...` identity. A short SHA is display-only for Cloud Run revision suffixes.
 - Development backend acceptance obtains short-lived probe credentials without copying a service-account key into the image or runtime configuration.
 - Auto scope binds GitHub compare `url`/`base_commit.sha` (no `head_commit`); `ahead` means newer HEAD. Ambiguous API/identity proof must fail before cloud auth. Keep behavioral tests and independent exact-main admission.
+- Release Eligibility remains automatic, but `AUTO_DEV_DEPLOYMENT_MODE: manual-only` makes backend-relevant main commits a green no-op; shared Dev mutations require the existing protected `gcp_backend.yml` dispatcher. Do not replace this switch with a path exception.
 - Use `backend/scripts/deploy_status_report.py` as a strict gate on success paths; use it with `|| true` only after a primary rollout/traffic command already failed.
 - Full backend deploys must derive one immutable canonical Cloud Run release
   vector and run `backend/scripts/verify_backend_release_vector.py` after

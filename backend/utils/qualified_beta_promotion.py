@@ -17,6 +17,8 @@ import zlib
 from desktop_qualification_admission import validate_qualification_run
 from desktop_qualification_evidence import verify_evidence
 from desktop_release_manifest import validate_manifest
+from owner_manual_desktop_qualification import MAX_BUNDLE_BYTES as MAX_OWNER_MANUAL_BUNDLE_BYTES
+from owner_manual_desktop_qualification import verify_bundle as verify_owner_manual_bundle
 from utils.github_releases import extract_key_value_pairs
 from utils.http_client import get_web_fetch_client
 
@@ -233,6 +235,57 @@ def _qualification_evidence_asset(assets: list[dict[str, Any]], *, source_sha: s
     if len(matches) != 1:
         _fail("candidate qualification evidence asset is missing or ambiguous")
     return matches[0]
+
+
+def _owner_manual_asset(
+    assets: list[dict[str, Any]],
+    release: dict[str, Any],
+    descriptor: dict[str, Any],
+    *,
+    tag: str,
+    published: datetime,
+    completed: datetime,
+    now: datetime,
+) -> tuple[dict[str, Any], str]:
+    name = descriptor.get("asset_name")
+    if not isinstance(name, str):
+        _fail("candidate owner-manual evidence identity is invalid")
+    manual_assets = [
+        asset
+        for asset in assets
+        if isinstance(asset.get("name"), str)
+        and str(asset["name"]).startswith("owner-manual-qualification-")
+        and str(asset["name"]).endswith(".zip")
+    ]
+    if len(manual_assets) != 1 or manual_assets[0].get("name") != name:
+        _fail("candidate owner-manual evidence asset is missing or ambiguous")
+    asset = _asset(assets, name)
+    asset_id = asset.get("id")
+    release_id = release.get("id")
+    uploader = _github_object(asset.get("uploader"), "candidate owner-manual evidence identity is invalid")
+    created = _timestamp(asset.get("created_at"))
+    digest = _asset_digest(asset).removeprefix("sha256:")
+    url = _asset_url(asset, tag, name)
+    if (
+        not _is_exact_integer(asset_id)
+        or asset_id <= 0
+        or not _is_exact_integer(release_id)
+        or release_id <= 0
+        or descriptor.get("asset_id") != asset_id
+        or descriptor.get("release_id") != release_id
+        or descriptor.get("asset_url") != url
+        or descriptor.get("sha256") != digest
+        or descriptor.get("created_at") != asset.get("created_at")
+        or descriptor.get("uploader_login") != uploader.get("login")
+        or descriptor.get("uploader_id") != uploader.get("id")
+        or uploader.get("login") != "sruj75"
+        or uploader.get("id") != 120443863
+        or created < published
+        or created > completed
+        or not _is_fresh(created, now)
+    ):
+        _fail("candidate owner-manual evidence identity is invalid")
+    return asset, url
 
 
 def _trusted_run_id(run: dict[str, Any]) -> int:
@@ -498,7 +551,8 @@ async def build_qualified_beta_manifest(
             beta_asset = _asset(assets, beta_name)
             beta_assets[beta_name] = beta_asset
             expected_digests[beta_name] = _asset_digest(beta_asset)
-    _, run_id = _select_qualification_run(await _read_github(source, "runs"), tag, source_sha, current_time)
+    selected_run, run_id = _select_qualification_run(await _read_github(source, "runs"), tag, source_sha, current_time)
+    _, completed_at = _validate_selected_qualification_run(selected_run)
     artifact_id = _qualification_artifact_id(await _read_github(source, "artifacts", run_id), tag)
     trusted_evidence_bytes = _evidence_from_artifact(await _read_github(source, "download_artifact", artifact_id))
     try:
@@ -546,6 +600,44 @@ async def build_qualified_beta_manifest(
         )
     except ValueError as exc:
         raise QualifiedBetaAdmissionError("candidate qualification evidence does not bind this release") from exc
+    qualification_mode = evidence.get("qualification_mode", "runner")
+    try:
+        validate_qualification_run(
+            selected_run,
+            REPOSITORY,
+            tag,
+            source_sha,
+            qualification_mode=qualification_mode,
+        )
+    except ValueError as exc:
+        raise QualifiedBetaAdmissionError("candidate qualification run does not bind its mode") from exc
+    if qualification_mode == "owner-manual":
+        if not has_beta_identity:
+            _fail("candidate owner-manual qualification requires exact Intentive Beta assets")
+        owner_descriptor = _github_object(
+            evidence.get("owner_manual"), "candidate owner-manual evidence identity is invalid"
+        )
+        _, owner_url = _owner_manual_asset(
+            assets,
+            release,
+            owner_descriptor,
+            tag=tag,
+            published=published,
+            completed=completed_at,
+            now=current_time,
+        )
+        owner_payload = await _read_github(source, "download", owner_url)
+        if (
+            not isinstance(owner_payload, bytes)
+            or not owner_payload
+            or len(owner_payload) > MAX_OWNER_MANUAL_BUNDLE_BYTES
+            or hashlib.sha256(owner_payload).hexdigest() != owner_descriptor.get("sha256")
+        ):
+            _fail("candidate owner-manual evidence bundle is invalid")
+        try:
+            verify_owner_manual_bundle(owner_payload, tag, source_sha, verify_digests)
+        except ValueError as exc:
+            raise QualifiedBetaAdmissionError("candidate owner-manual evidence bundle is invalid") from exc
     metadata = extract_key_value_pairs(str(release.get("body") or ""))
     signature = metadata.get("edSignature", "").strip()
     if not signature:

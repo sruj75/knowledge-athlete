@@ -325,14 +325,14 @@ class CliOutputContractTests(unittest.TestCase):
 
 
 class WorkflowContractTests(unittest.TestCase):
-    def test_app_token_requests_only_required_permissions(self):
+    def test_retry_observer_cannot_dispatch_or_receive_release_credentials(self):
         workflow = (
             Path(__file__).resolve().parents[1] / "workflows" / "desktop_retry_beta_qualification.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn("          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}\n", workflow)
-        self.assertNotIn("          client-id:", workflow)
-        self.assertIn("          permission-actions: write\n", workflow)
-        self.assertIn("          permission-contents: read\n", workflow)
+        self.assertNotIn("actions/create-github-app-token", workflow)
+        self.assertNotIn("gh workflow run", workflow)
+        self.assertNotIn("secrets.", workflow)
+        self.assertIn("A retry requires a fresh owner dispatch", workflow)
 
     def test_read_only_no_candidate_path_does_not_require_release_credentials(self):
         workflow = (
@@ -341,11 +341,11 @@ class WorkflowContractTests(unittest.TestCase):
         discover = workflow.index("      - name: Discover newest published macOS candidate")
         gather = workflow.index("      - name: Gather server-derived candidate and qualification state")
         decide = workflow.index("      - name: Decide whether to retry the newest candidate")
-        app_token = workflow.index("      - name: Generate Intentive release app token")
+        report = workflow.index("      - name: Report owner-manual retry requirement")
 
         self.assertLess(discover, gather)
         self.assertLess(gather, decide)
-        self.assertLess(decide, app_token)
+        self.assertLess(decide, report)
         self.assertIn("          GH_TOKEN: ${{ github.token }}\n", workflow)
         self.assertIn("if: steps.discover.outputs.has_candidate == 'true'", workflow)
         self.assertIn("if: steps.decide.outputs.should_retry == 'true'", workflow)

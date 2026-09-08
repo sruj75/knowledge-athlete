@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import Any
 
 
-def validate_qualification_run(run: object, repository: str, release_tag: str, candidate_sha: str) -> None:
+def validate_qualification_run(
+    run: object,
+    repository: str,
+    release_tag: str,
+    candidate_sha: str,
+    *,
+    qualification_mode: str = "runner",
+) -> None:
     """Require a successful same-repository workflow dispatched on the candidate tag."""
     if not isinstance(run, dict):
         raise ValueError("qualification run must be an object")
@@ -33,6 +40,14 @@ def validate_qualification_run(run: object, repository: str, release_tag: str, c
         value = run.get(key)
         if not isinstance(value, dict) or value.get("full_name") != repository:
             raise ValueError(f"qualification run {key} must be the trusted repository")
+    if qualification_mode not in {"runner", "owner-manual"}:
+        raise ValueError("qualification run mode is invalid")
+    if qualification_mode == "owner-manual":
+        expected_actor = {"login": "sruj75", "id": 120443863}
+        for key in ("actor", "triggering_actor"):
+            actor = run.get(key)
+            if not isinstance(actor, dict) or any(actor.get(field) != value for field, value in expected_actor.items()):
+                raise ValueError(f"qualification run {key} must be the exact owner actor")
 
 
 def main() -> int:
