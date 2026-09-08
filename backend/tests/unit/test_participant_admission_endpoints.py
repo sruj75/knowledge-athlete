@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from config.participant_admission import RELEASE_PROBE_UID
-from routers import desktop_chat, transcribe
+from routers import chat_sessions, desktop_chat, transcribe
 from utils.other import endpoints as auth
 
 
@@ -151,6 +151,28 @@ def test_real_chat_route_denies_before_handler_provider_or_metering_work(monkeyp
         "/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
         headers={"Authorization": "Bearer valid-firebase-token"},
         json={"contents": [{"role": "user", "parts": [{"text": "hello"}]}]},
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "participant_not_admitted"}
+    assert calls == []
+
+
+def test_real_rate_limited_route_denies_before_redis_or_provider_work(monkeypatch: pytest.MonkeyPatch):
+    _hosted_policy(monkeypatch)
+    calls: list[str] = []
+    monkeypatch.setattr(auth, "verify_token", lambda _token: "legacy-unlisted-user")
+    monkeypatch.setattr(auth, "record_user_platform", lambda *_args: calls.append("platform"))
+    monkeypatch.setattr(auth, "record_client_device", lambda *_args, **_kwargs: calls.append("device"))
+    monkeypatch.setattr(auth, "_enforce_rate_limit", lambda *_args: calls.append("redis"))
+    monkeypatch.setattr(chat_sessions, "get_workload_client", lambda *_args: calls.append("provider"))
+    app = FastAPI()
+    app.include_router(chat_sessions.router)
+
+    response = TestClient(app).post(
+        "/v2/chat/initial-message",
+        headers={"Authorization": "Bearer valid-firebase-token"},
+        json={},
     )
 
     assert response.status_code == 403
