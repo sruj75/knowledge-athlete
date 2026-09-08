@@ -347,6 +347,7 @@ extension RealtimeHubController {
             self.cancelStreamingJournalWrites(forContinuityKey: receipt.continuityKey)
             self.lastTurnDiagnostics = [
               "provider": self.providerTag,
+              "transport_mode": source.transportMode,
               "provider_transcript": self.turnTranscript,
               "provider_transcript_language": "",
               "saved_user_text": self.turnTranscript,
@@ -880,6 +881,7 @@ extension RealtimeHubController {
 
   func hubDidFinishTurn(identity: RealtimeHubEventIdentity?, source: RealtimeHubSession) {
     guard acceptsTurnEvent(identity, source: source), let identity else { return }
+    let transportMode = source.transportMode
     hubReconnectStrikes = 0  // a completed provider cycle proves the hub works.
     if let turnID = VoiceTurnCoordinator.shared.activeTurnID {
       _ = resolvePendingScreenEvidenceBeforeProviderTermination(
@@ -994,6 +996,7 @@ extension RealtimeHubController {
             acceptedSpawnOwnerID: acceptedSpawnOwnerID) ?? false
         self?.lastTurnDiagnostics = [
           "provider": provider,
+          "transport_mode": transportMode,
           "provider_transcript": heard,
           "provider_transcript_language": resolution.providerLanguage ?? "",
           "saved_user_text": resolution.userText,

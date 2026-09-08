@@ -49,3 +49,15 @@ def test_validate_profile_allows_omi_memory_named_bundle() -> None:
 
     errors = desktop_profile.validate_profile(profile)
     assert not errors
+
+
+@pytest.mark.parametrize("mode", ["offline", "real"])
+def test_provider_mode_preserves_local_account_and_data_boundary(mode: str) -> None:
+    profile = _resolve({"OMI_APP_NAME": "omi-provider-contract", "PROVIDER_MODE": mode})
+
+    assert profile.env["OMI_LOCAL_PROVIDER_MODE"] == mode
+    assert profile.env["OMI_DESKTOP_LOCAL_PROFILE"] == "1"
+    assert profile.env["FIREBASE_AUTH_EMULATOR_HOST"] == "127.0.0.1:9099"
+    assert profile.env["FIREBASE_PROJECT_ID"] == "demo-heyintentive-local"
+    assert profile.backend_url == "http://127.0.0.1:8000"
+    assert not desktop_profile.validate_profile(profile)

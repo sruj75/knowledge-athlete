@@ -12,9 +12,11 @@ cleanup() {
 trap cleanup EXIT
 
 unset OMI_LOCAL_PROFILE_STORAGE_NAME
+unset OMI_LOCAL_PROVIDER_MODE
 default_env_file="$TMP_ROOT/default.env"
 omi_write_local_profile_env "$default_env_file"
 grep -qx 'OMI_LOCAL_PROFILE_STORAGE_NAME=Intentive' "$default_env_file"
+grep -qx 'OMI_LOCAL_PROVIDER_MODE=offline' "$default_env_file"
 
 export OMI_PYTHON_API_URL="http://127.0.0.1:8080"
 export OMI_LOCAL_PROFILE_STORAGE_NAME="omi-local-fast-contract"
@@ -27,12 +29,14 @@ export FIREBASE_PROJECT_ID="demo-heyintentive-local"
 export FIREBASE_AUTH_PROJECT_ID="demo-heyintentive-local"
 export FIRESTORE_DATABASE_ID="(default)"
 export FIREBASE_API_KEY="local-firebase-auth-emulator-api-key"
+export OMI_LOCAL_PROVIDER_MODE="real"
 
 env_file="$TMP_ROOT/.env"
 printf '%s\n' "stale=true" > "$env_file"
 omi_write_local_profile_env "$env_file"
 
 grep -qx 'OMI_DESKTOP_LOCAL_PROFILE=1' "$env_file"
+grep -qx 'OMI_LOCAL_PROVIDER_MODE=real' "$env_file"
 grep -qx 'OMI_PYTHON_API_URL=http://127.0.0.1:8080' "$env_file"
 ! grep -q '^OMI_DESKTOP_API_URL=' "$env_file"
 grep -qx 'OMI_LOCAL_AUTH_PASSWORD=local-profile-password-only-in-bundle' "$env_file"

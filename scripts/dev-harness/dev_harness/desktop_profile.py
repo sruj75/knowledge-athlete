@@ -156,6 +156,7 @@ def resolve_profile(
     storage_name = _local_storage_name(app_name)
     env = {
         "OMI_DESKTOP_LOCAL_PROFILE": "1",
+        "OMI_LOCAL_PROVIDER_MODE": cfg.provider_mode,
         "OMI_HARNESS_INSTANCE": cfg.instance,
         "OMI_SEED_FROM_CANONICAL_DEV": "0",
         "OMI_SKIP_BACKEND": "1",

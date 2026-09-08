@@ -5,7 +5,7 @@ import VoiceTurnDomain
 #if DEBUG
   @MainActor
   extension RealtimeHubController {
-    /// Hermetic `ptt_test_turn` transport for `OMI_DESKTOP_LOCAL_PROFILE=1`.
+    /// Hermetic `ptt_test_turn` transport for local profiles with offline providers.
     /// Provider events are synthesized, but every logical boundary remains the
     /// production boundary: voice reducer, external-run capability, tool ledger,
     /// spawn journal receipt, and kernel turn finalization.
@@ -76,7 +76,7 @@ import VoiceTurnDomain
         let plan = RealtimeLocalProfileTurnPlan.make(
           transcript: forceTranscript,
           voiceContext: prefetchedVoiceContext,
-          localProfileEnabled: DesktopLocalProfile.isEnabled)
+          localProfileEnabled: DesktopLocalProfile.usesHermeticProviderTransport)
       else {
         return ["error": "local-profile realtime provider could not plan the test turn"]
       }

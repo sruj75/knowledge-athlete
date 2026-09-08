@@ -344,7 +344,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return authority.accepts(
         sourceID: candidate.map(ObjectIdentifier.init),
         currentOwnerID: RuntimeOwnerIdentity.currentOwnerId(),
-        localProfileEnabled: DesktopLocalProfile.isEnabled,
+        localProfileEnabled: DesktopLocalProfile.usesHermeticProviderTransport,
         authorizationIsCurrent: RuntimeOwnerIdentity.isAuthorizationCurrent(
           authority.authorizationSnapshot))
     }
@@ -849,7 +849,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     pcm16k: Data, timeout: Double, forceTranscript: String? = nil, textOnly: Bool = false
   ) async -> [String: String] {
     #if DEBUG
-      if DesktopLocalProfile.isEnabled {
+      if DesktopLocalProfile.usesHermeticProviderTransport {
         return await runLocalProfileHeadlessPTTTurn(
           pcm16k: pcm16k,
           timeout: timeout,

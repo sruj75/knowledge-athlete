@@ -72,6 +72,8 @@ EXACT_VOICE_AGENT_MEMORY_FOLLOWUP = (
     "return one additional surprising insight. Do not spawn another agent."
 )
 TERMINAL_RUN_STATUSES = {"succeeded", "failed", "cancelled", "orphaned"}
+PTT_SUITES = {"continuity", "agents"}
+PTT_TRANSPORT_MODES = {"managed", "hermetic"}
 AGENT_CHILD_SURFACES = {
     "background_agent",
     "delegated_agent",
@@ -1336,21 +1338,52 @@ class GauntletRunner:
             "floating_spawn": f"GAUNTLET-{self.run_id}-{secrets.token_hex(4).upper()}-FLOAT",
         }
         self.suites = expand_suites(getattr(args, "suite", "core"))
+        self.require_live_voice = bool(getattr(args, "require_live_voice", False))
+        if self.require_live_voice and not self.suites.intersection(PTT_SUITES):
+            raise SystemExit("--require-live-voice requires the continuity or agents suite")
         self.baseline_identity: dict[str, str] | None = None
         self.failures: list[str] = []
         self.warnings: list[str] = []
         self.steps: list[dict[str, Any]] = []
+        self.ptt_transport_evidence: list[dict[str, str]] = []
         self.resilience_terminal_reason_counts: dict[str, int] = {}
         self.pcm_path = Path(tempfile.gettempdir()) / (f"intentive-gauntlet-{os.getpid()}-{secrets.token_hex(8)}.pcm")
 
     def bridge_act(self, name: str, params: dict[str, str] | None = None) -> dict[str, Any]:
         return bridge_action(self.port, name, params, turn_timeout_ms=self.args.turn_timeout_ms)
 
+    def ptt_act(self, evidence_id: str, params: dict[str, str]) -> dict[str, Any]:
+        response = self.bridge_act("ptt_test_turn", params)
+        self.record_ptt_transport_mode(evidence_id, response)
+        return response
+
     def fail(self, message: str) -> None:
         self.failures.append(message)
 
     def warn(self, message: str) -> None:
         self.warnings.append(message)
+
+    def record_ptt_transport_mode(self, step_id: str, action_response: dict[str, Any]) -> str:
+        result = action_response.get("result")
+        detail = result.get("detail") if isinstance(result, dict) else None
+        reported_mode = detail.get("transport_mode") if isinstance(detail, dict) else None
+        transport_mode = (
+            reported_mode
+            if isinstance(reported_mode, str) and reported_mode in PTT_TRANSPORT_MODES
+            else "unknown"
+        )
+        self.ptt_transport_evidence.append(
+            {
+                "step_id": step_id,
+                "transport_mode": transport_mode,
+            }
+        )
+        if self.require_live_voice and transport_mode != "managed":
+            self.fail(
+                f"{step_id}: --require-live-voice requires managed PTT transport "
+                f"(observed {transport_mode})"
+            )
+        return transport_mode
 
     def record_resilience_diagnostic(
         self,
@@ -2238,11 +2271,13 @@ class GauntletRunner:
             "marker_digests": {name: private_text_summary(marker) for name, marker in self.markers.items()},
             "ptt_config": {
                 "force_transcript_used": True,
+                "require_live_voice": self.require_live_voice,
                 "local_stt_note": (
                     "Gauntlet drives PTT with force_transcript; local_transcript is populated "
                     "only when provider language mismatches user voice languages."
                 ),
             },
+            "ptt_transport_evidence": self.ptt_transport_evidence,
         }
         manifest["suites"] = sorted(self.suites)
         self.manifest = manifest
@@ -2298,8 +2333,8 @@ class GauntletRunner:
             f"push-to-talk marker exactly: {self.markers['ptt']}."
         )
         trace_start = capture_trace_cursor()
-        ptt = self.bridge_act(
-            "ptt_test_turn",
+        ptt = self.ptt_act(
+            "02-ptt-turn",
             {
                 "pcm": str(self.pcm_path),
                 "timeout": str(max(30, self.args.turn_timeout_ms // 1000)),
@@ -2366,8 +2401,8 @@ class GauntletRunner:
             "starting with GAUNTLET- and ending in -PTT. Reply with only that exact marker."
         )
         trace_start = capture_trace_cursor()
-        ptt_recall = self.bridge_act(
-            "ptt_test_turn",
+        ptt_recall = self.ptt_act(
+            "02b-ptt-followup",
             {
                 "pcm": str(self.pcm_path),
                 "timeout": str(max(30, self.args.turn_timeout_ms // 1000)),
@@ -2441,8 +2476,8 @@ class GauntletRunner:
 
         step_log_offset = self.log_path.stat().st_size if self.log_path.exists() else 0
         trace_start = capture_trace_cursor()
-        ptt = self.bridge_act(
-            "ptt_test_turn",
+        ptt = self.ptt_act(
+            step_id,
             {
                 "pcm": str(self.pcm_path),
                 "timeout": str(max(30, self.args.turn_timeout_ms // 1000)),
@@ -2875,8 +2910,8 @@ class GauntletRunner:
         ptt_get_convos: list[dict[str, Any]] = []
         for attempt in range(3):
             trace_start = capture_trace_cursor()
-            ptt = self.bridge_act(
-                "ptt_test_turn",
+            ptt = self.ptt_act(
+                f"07c-spawn-recall-ptt-attempt-{attempt + 1}",
                 {
                     "pcm": str(self.pcm_path),
                     "timeout": str(max(30, self.args.turn_timeout_ms // 1000)),
@@ -3694,6 +3729,8 @@ class GauntletRunner:
 
     def finalize(self) -> int:
         manifest = self.manifest
+        if self.require_live_voice and not self.ptt_transport_evidence:
+            self.fail("--require-live-voice completed without any PTT transport evidence")
         manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
         if "resilience" in self.suites:
             manifest["resilience_terminal_reason_counts"] = dict(sorted(self.resilience_terminal_reason_counts.items()))
@@ -4612,6 +4649,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-dir", default=None)
     parser.add_argument("--log-path", default=None)
     parser.add_argument("--turn-timeout-ms", type=int, default=180_000)
+    parser.add_argument(
+        "--require-live-voice",
+        action="store_true",
+        help=(
+            "Require every exercised PTT action to report session-owned managed transport; "
+            "missing, unknown, or hermetic transport fails qualification."
+        ),
+    )
     parser.add_argument(
         "--suite",
         default="core",
