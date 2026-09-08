@@ -22,7 +22,7 @@ from routers import memory_compute
 from utils.llm import memory_compute as compute_service
 from utils.llm.memory_compute import validate_consolidation_response
 from utils.other import endpoints as auth_endpoints
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr(auth_endpoints, '_enforce_rate_limit', lambda *_args, **_kwargs: None)
     app = FastAPI()
     app.include_router(memory_compute.router)
-    app.dependency_overrides[get_current_user_uid] = lambda: 'owner-1'
+    app.dependency_overrides[get_current_participant_uid] = lambda: 'owner-1'
 
     def fake_extract(request, uid):
         assert uid == 'owner-1'
@@ -419,7 +419,7 @@ def test_model_invocation_uses_the_explicit_memory_l2_workload(monkeypatch: pyte
 def test_paid_compute_dependency_returns_429_before_model_invocation(monkeypatch: pytest.MonkeyPatch):
     app = FastAPI()
     app.include_router(memory_compute.router)
-    app.dependency_overrides[get_current_user_uid] = lambda: 'owner-1'
+    app.dependency_overrides[get_current_participant_uid] = lambda: 'owner-1'
 
     def reject(*_args, **_kwargs):
         from fastapi import HTTPException

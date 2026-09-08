@@ -172,7 +172,7 @@ async def _transcribe_voice_message_file(
 def create_voice_message_stream(
     files: List[UploadFile] = File(...),
     language: Optional[str] = Form(None),
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "voice:message")),
+    uid: str = Depends(auth.with_rate_limit(auth.get_current_participant_uid, "voice:message")),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
 ):
     """Transcribe a legacy voice-message upload without hosted Chat persistence or persona inference."""
@@ -279,7 +279,7 @@ def create_voice_message_stream(
 )
 async def transcribe_voice_message(
     request: Request,
-    uid: str = Depends(auth.with_rate_limit(auth.get_current_user_uid, "voice:transcribe")),
+    uid: str = Depends(auth.with_rate_limit(auth.get_current_participant_uid, "voice:transcribe")),
     x_app_platform: Optional[str] = Header(None, alias='X-App-Platform'),
 ):
     """Transcribe audio and return the transcript text.
@@ -584,7 +584,7 @@ async def transcribe_voice_message(
 @router.websocket("/v2/voice-message/transcribe-stream")
 async def transcribe_voice_message_stream(
     websocket: WebSocket,
-    uid: str = Depends(auth.get_current_user_uid_ws_listen),
+    uid: str = Depends(auth.get_current_participant_uid_ws_listen),
     language: str = 'en',
     sample_rate: int = 16000,
     codec: str = 'linear16',

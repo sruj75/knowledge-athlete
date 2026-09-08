@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from database import redis_db
 from database._client import get_firestore_client
 from utils.executors import critical_executor, db_executor, run_blocking
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
@@ -196,7 +196,7 @@ def _openai_tts_provider_failure(status_code: int) -> JSONResponse | None:
 
 
 @router.post("/v1/tts/synthesize", responses={200: {"content": {"audio/mpeg": {}}}})
-async def tts_synthesize(request: TtsSynthesizeRequest, uid: str = Depends(get_current_user_uid)):
+async def tts_synthesize(request: TtsSynthesizeRequest, uid: str = Depends(get_current_participant_uid)):
     text = request.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text is required")

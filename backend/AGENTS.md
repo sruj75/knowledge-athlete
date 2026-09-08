@@ -13,7 +13,7 @@ source .venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default, ignores billing credentials, and does not load the Dodo SDK or construct its client. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
+**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Hosted compute fails closed unless `INTENTIVE_HOSTED_PARTICIPANT_UIDS` contains exactly 1-5 distinct Firebase UIDs; the reserved `intentive-release-probe` system UID is admitted only after that human configuration validates. Local/offline stages bypass participant admission, as does `LOCAL_DEVELOPMENT=true` only when no real Firebase credential is configured. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default, ignores billing credentials, and does not load the Dodo SDK or construct its client. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
 
 Parity-pack capture is a dev-only, allowlisted, local persistence path. `OMI_PARITY_PACK_CAPTURE`, `OMI_PARITY_PACK_ALLOWED_PRINCIPALS`, and an absolute external `OMI_PARITY_PACK_ROOT` are its complete runtime configuration; it never exports cassettes or constructs a cloud-storage client.
 
@@ -165,7 +165,9 @@ Runtime-selected providers must keep model-token parsing and required environmen
 
 ## Auth
 
-HTTP endpoints: `uid: str = Depends(get_current_user_uid)` from `utils.other.endpoints`.
+Ordinary authenticated HTTP endpoints use `uid: str = Depends(get_current_user_uid)` from `utils.other.endpoints`. Account management, export/deletion, entitlement, and usage-reporting surfaces remain available to authenticated legacy principals.
+
+Managed compute/mint HTTP endpoints use `uid: str = Depends(get_current_participant_uid)`. This admits the exact hosted participant UID before client-metadata, Redis, or provider work. Managed compute WebSockets use `get_current_participant_uid_ws_listen`; denial closes with code 1008 before the handler runs.
 
 WebSocket endpoints: use `WebSocketException(code=1008)`, **not** `HTTPException` — HTTPException exits ASGI without handshake, causing LB 5xx.
 

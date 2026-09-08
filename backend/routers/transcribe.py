@@ -25,7 +25,7 @@ def _coarse_platform(websocket: WebSocket) -> str:
 @router.websocket("/v4/listen")
 async def listen_handler(
     websocket: WebSocket,
-    uid: str = Depends(auth.get_current_user_uid_ws_listen),
+    uid: str = Depends(auth.get_current_participant_uid_ws_listen),
 ) -> None:
     try:
         config = ListenSessionConfig.from_query(websocket.query_params.multi_items())

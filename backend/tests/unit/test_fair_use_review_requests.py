@@ -12,7 +12,7 @@ from models.fair_use import FairUseClassificationRequest
 from models.users import PlanType
 from routers import fair_use_reviews
 from utils import fair_use_reviews as review_state
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid
 import database.fair_use as fair_use_db
 from tests.unit.fixtures.strict_firestore_transaction import StrictFirestore
 
@@ -207,7 +207,7 @@ def test_pending_review_redis_failures_never_log_the_uid(monkeypatch, caplog):
 def make_client(uid: str = 'owner-a') -> TestClient:
     app = FastAPI()
     app.include_router(fair_use_reviews.router)
-    app.dependency_overrides[get_current_user_uid] = lambda: uid
+    app.dependency_overrides[get_current_participant_uid] = lambda: uid
     return TestClient(app)
 
 
