@@ -3,6 +3,8 @@
 # Child processes receive a fully-formed env from the harness (OMI_HARNESS_INSTANCE set);
 # they do not load backend/.env or stage files on disk.
 _repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=../dev-instance.sh
+source "$_repo_root/scripts/dev-instance.sh"
 _stage="${OMI_ENV_STAGE:-}"
 if [ -z "$_stage" ] && [ "${PROVIDER_MODE:-}" = "offline" ]; then
   _stage="offline"

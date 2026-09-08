@@ -21,6 +21,7 @@ mkdir -p \
   "$bin_dir"
 cp "$ROOT/scripts/dev-harness/dev-init.sh" "$fixture/scripts/dev-harness/dev-init.sh"
 cp "$ROOT/scripts/dev-harness/_resolve_python.sh" "$fixture/scripts/dev-harness/_resolve_python.sh"
+cp "$ROOT/scripts/dev-instance.sh" "$fixture/scripts/dev-instance.sh"
 chmod +x "$fixture/scripts/dev-harness/dev-init.sh"
 printf 'PROVIDER_KEY=replace-me\n' >"$fixture/backend/.env.local-dev.template"
 
@@ -36,7 +37,8 @@ cat >"$fixture/backend/.venv/bin/python" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$*" == "-m dev_harness.synthetic_profiles init" ]]; then
-  printf 'profiles init\n' >>"${DEV_INIT_LOG:?}"
+  printf 'profiles init instance=%s backend=%s\n' \
+    "${OMI_LOCAL_INSTANCE:-missing}" "${OMI_HARNESS_BACKEND_PORT:-missing}" >>"${DEV_INIT_LOG:?}"
   exit 0
 fi
 printf 'legacy python %s\n' "$*" >>"${DEV_INIT_LOG:?}"
@@ -47,10 +49,11 @@ chmod +x "$fixture/backend/.venv/bin/python"
 : >"$TMP_ROOT/dev-init.log"
 (
   cd "$fixture"
-  DEV_INIT_LOG="$TMP_ROOT/dev-init.log" PATH="$bin_dir:$PATH" scripts/dev-harness/dev-init.sh >/dev/null
+  CONDUCTOR_IS_LOCAL=1 CONDUCTOR_PORT=55000 OMI_INSTANCE=workspace-alpha \
+    DEV_INIT_LOG="$TMP_ROOT/dev-init.log" PATH="$bin_dir:$PATH" scripts/dev-harness/dev-init.sh >/dev/null
 ) || fail "dev-init failed in the hermetic fixture"
 
-expected=$'make setup\nprofiles init'
+expected=$'make setup\nprofiles init instance=workspace-alpha backend=55000'
 actual="$(cat "$TMP_ROOT/dev-init.log")"
 [[ "$actual" == "$expected" ]] || {
   printf 'FAIL: dev-init must delegate environment and hook ownership to make setup.\nExpected:\n%s\nActual:\n%s\n' \

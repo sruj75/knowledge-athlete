@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping
 
@@ -16,6 +16,11 @@ FIRESTORE_PORT = 8085
 AUTH_PORT = 9099
 BACKEND_PORT = 8000
 REDIS_PORT = 6380
+AUTOMATION_PORT = 47777
+FIRESTORE_WEBSOCKET_PORT = 9150
+FIREBASE_HUB_PORT = 4400
+FIREBASE_LOGGING_PORT = 4500
+FIREBASE_UI_PORT = 4000
 LOCAL_FIREBASE_API_KEY = "local-firebase-auth-emulator-api-key"
 PORT_OFFSET_ENV = "OMI_HARNESS_PORT_OFFSET"
 PORT_OVERRIDE_ENVS = {
@@ -23,6 +28,11 @@ PORT_OVERRIDE_ENVS = {
     "auth": "OMI_HARNESS_AUTH_PORT",
     "backend": "OMI_HARNESS_BACKEND_PORT",
     "redis": "OMI_HARNESS_REDIS_PORT",
+    "automation": "OMI_AUTOMATION_PORT",
+    "firestore_websocket": "OMI_HARNESS_FIRESTORE_WEBSOCKET_PORT",
+    "firebase_hub": "OMI_HARNESS_FIREBASE_HUB_PORT",
+    "firebase_logging": "OMI_HARNESS_FIREBASE_LOGGING_PORT",
+    "firebase_ui": "OMI_HARNESS_FIREBASE_UI_PORT",
 }
 PROVIDER_MODES = providers.PROVIDER_MODES
 CORE_PROVIDER_ENV = (
@@ -53,6 +63,11 @@ class HarnessConfig:
     backend_port: int = BACKEND_PORT
     redis_host: str = "127.0.0.1"
     redis_port: int = REDIS_PORT
+    automation_port: int = AUTOMATION_PORT
+    firestore_websocket_port: int = FIRESTORE_WEBSOCKET_PORT
+    firebase_hub_port: int = FIREBASE_HUB_PORT
+    firebase_logging_port: int = FIREBASE_LOGGING_PORT
+    firebase_ui_port: int = FIREBASE_UI_PORT
 
     @property
     def firestore_host(self) -> str:
@@ -114,6 +129,11 @@ def harness_ports_from_env(env: Mapping[str, str] | None = None) -> dict[str, in
         "auth": AUTH_PORT,
         "backend": BACKEND_PORT,
         "redis": REDIS_PORT,
+        "automation": AUTOMATION_PORT,
+        "firestore_websocket": FIRESTORE_WEBSOCKET_PORT,
+        "firebase_hub": FIREBASE_HUB_PORT,
+        "firebase_logging": FIREBASE_LOGGING_PORT,
+        "firebase_ui": FIREBASE_UI_PORT,
     }
     ports = {name: _port_from_env(source, name, default, offset) for name, default in defaults.items()}
     duplicates = sorted(port for port in set(ports.values()) if list(ports.values()).count(port) > 1)
@@ -213,20 +233,16 @@ def load_config(repo_root: Path, env: Mapping[str, str] | None = None, *, create
         auth_port=ports["auth"],
         backend_port=ports["backend"],
         redis_port=ports["redis"],
+        automation_port=ports["automation"],
+        firestore_websocket_port=ports["firestore_websocket"],
+        firebase_hub_port=ports["firebase_hub"],
+        firebase_logging_port=ports["firebase_logging"],
+        firebase_ui_port=ports["firebase_ui"],
     )
     parsed = parse_secrets_file(cfg)
     if parsed.secrets.get("PROVIDER_MODE"):
         provider_mode = provider_mode_from_env({**dict(source), **parsed.secrets})
-        cfg = HarnessConfig(
-            repo_root=cfg.repo_root,
-            instance=cfg.instance,
-            provider_mode=provider_mode,
-            layout=cfg.layout,
-            firestore_port=cfg.firestore_port,
-            auth_port=cfg.auth_port,
-            backend_port=cfg.backend_port,
-            redis_port=cfg.redis_port,
-        )
+        cfg = replace(cfg, provider_mode=provider_mode)
     safety.validate_harness_runtime_config(
         project_id=cfg.project_id,
         database_id=cfg.database_id,
