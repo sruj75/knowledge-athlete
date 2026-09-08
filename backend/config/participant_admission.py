@@ -36,6 +36,10 @@ def _is_local_or_offline(environ: dict[str, str]) -> bool:
     except ValueError as exc:
         raise ParticipantAdmissionConfigurationError() from exc
 
+    # Cloud Run injects K_SERVICE even when a local stage was mistakenly configured.
+    if environ.get("K_SERVICE", "").strip() or stage in {EnvStage.DEV.value, EnvStage.PROD.value}:
+        return False
+
     if stage in {EnvStage.LOCAL.value, EnvStage.OFFLINE.value}:
         return True
 

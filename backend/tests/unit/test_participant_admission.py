@@ -86,6 +86,31 @@ def test_real_firebase_credentials_keep_local_development_flag_from_bypassing_ho
         require_hosted_participant('unlisted-local-user', env)
 
 
+@pytest.mark.parametrize('stage', ['dev', 'prod'])
+def test_hosted_adc_stage_never_treats_missing_credential_files_as_local(stage: str):
+    env = {'OMI_ENV_STAGE': stage, 'LOCAL_DEVELOPMENT': 'true'}
+
+    with pytest.raises(ParticipantAdmissionConfigurationError):
+        require_hosted_participant('unlisted-user', env)
+
+    env['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] = 'firebase-owner-1'
+    with pytest.raises(ParticipantNotAdmittedError):
+        require_hosted_participant('unlisted-user', env)
+    require_hosted_participant('firebase-owner-1', env)
+
+
+@pytest.mark.parametrize('stage', ['', 'local', 'offline'])
+def test_cloud_run_service_identity_overrides_local_test_flags(stage: str):
+    env = {'K_SERVICE': 'knowledge-athlete-dev', 'LOCAL_DEVELOPMENT': 'true', 'OMI_ENV_STAGE': stage}
+
+    with pytest.raises(ParticipantAdmissionConfigurationError):
+        require_hosted_participant('unlisted-user', env)
+
+    env['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] = 'firebase-owner-1'
+    with pytest.raises(ParticipantNotAdmittedError):
+        require_hosted_participant('unlisted-user', env)
+
+
 def test_invalid_environment_stage_fails_closed_without_reflecting_participant_values():
     private_uid = 'private-firebase-uid'
     env = {
