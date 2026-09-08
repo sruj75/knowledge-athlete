@@ -650,7 +650,7 @@ async def transcribe_voice_message_stream(
             if not RATE_LIMIT_SHADOW:
                 await websocket.close(code=1008, reason=f'Rate limit exceeded. Retry in {retry_after}s.')
                 return
-            logger.warning(f'[shadow] rate_limit_exceeded policy=voice:transcribe_stream uid={uid}')
+            logger.warning('event=ptt_stream outcome=shadow_rate_limit policy=voice:transcribe_stream')
     except Exception:
         pass  # Fail-open, consistent with Redis rate limiting elsewhere
 
@@ -723,7 +723,7 @@ async def transcribe_voice_message_stream(
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
-                logger.warning(f'transcribe-stream: segment_sender error uid={uid}: {e}')
+                logger.warning('event=ptt_stream outcome=segment_send_failed exception_type=%s', type(e).__name__)
                 websocket_active = False
                 break
 
@@ -785,9 +785,7 @@ async def transcribe_voice_message_stream(
         stt_socket = await process_audio_modulate(stream_transcript, sample_rate, stt_language)
 
         if stt_socket is None:
-            logger.error(
-                'transcribe-stream: failed to connect to managed STT uid=%s provider=%s', uid, MODULATE_PROVIDER
-            )
+            logger.error('event=ptt_stream outcome=provider_connection_failed provider=%s', MODULATE_PROVIDER)
             await websocket.close(code=1011, reason='Transcription service unavailable')
             return
 
@@ -803,14 +801,14 @@ async def transcribe_voice_message_stream(
             now = asyncio.get_event_loop().time()
             remaining_idle = _WS_IDLE_TIMEOUT_S - (now - last_audio_time)
             if remaining_idle <= 0:
-                logger.info(f'transcribe-stream: audio-idle timeout ({_WS_IDLE_TIMEOUT_S}s) uid={uid}')
+                logger.info('event=ptt_stream outcome=audio_idle_timeout timeout_seconds=%s', _WS_IDLE_TIMEOUT_S)
                 await websocket.close(code=1008, reason=f'Idle timeout: no audio for {_WS_IDLE_TIMEOUT_S}s')
                 break
 
             try:
                 message = await asyncio.wait_for(websocket.receive(), timeout=remaining_idle)
             except asyncio.TimeoutError:
-                logger.info(f'transcribe-stream: audio-idle timeout ({_WS_IDLE_TIMEOUT_S}s) uid={uid}')
+                logger.info('event=ptt_stream outcome=audio_idle_timeout timeout_seconds=%s', _WS_IDLE_TIMEOUT_S)
                 await websocket.close(code=1008, reason=f'Idle timeout: no audio for {_WS_IDLE_TIMEOUT_S}s')
                 break
             except WebSocketDisconnect:
@@ -848,7 +846,7 @@ async def transcribe_voice_message_stream(
 
             # Guard against oversized frames (5 MB matches REST endpoint limit)
             if len(data) > 5 * 1024 * 1024:
-                logger.warning(f'transcribe-stream: oversized frame uid={uid} size={len(data)}')
+                logger.warning('event=ptt_stream outcome=oversized_frame size_bytes=%s', len(data))
                 continue
 
             # In-session budget enforcement: check BEFORE incrementing received_audio_bytes
@@ -857,7 +855,9 @@ async def transcribe_voice_message_stream(
                 prospective_ms = compute_pcm_duration_ms(received_audio_bytes + len(data), sample_rate, channels)
                 if prospective_ms > budget_remaining_ms:
                     logger.info(
-                        f'transcribe-stream: budget exhausted mid-session uid={uid} elapsed={prospective_ms}ms remaining={budget_remaining_ms}ms'
+                        'event=ptt_stream outcome=budget_exhausted elapsed_ms=%s remaining_ms=%s',
+                        prospective_ms,
+                        budget_remaining_ms,
                     )
                     await websocket.close(code=1008, reason='Daily transcription budget exhausted')
                     break
@@ -877,7 +877,7 @@ async def transcribe_voice_message_stream(
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.error(f'transcribe-stream: error uid={uid}: {e}')
+        logger.error('event=ptt_stream outcome=handler_error exception_type=%s', type(e).__name__)
         await close_stt_failure()
     finally:
         websocket_active = False

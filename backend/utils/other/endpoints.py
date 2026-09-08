@@ -64,7 +64,7 @@ def verify_token(token: str) -> str:
         candidate = token[: len(admin_key)].encode()
         if hmac.compare_digest(candidate, admin_key.encode()) and len(token) > len(admin_key):
             impersonated_uid = token[len(admin_key) :]
-            logger.warning('ADMIN_KEY auth used to impersonate uid=%s', impersonated_uid)
+            logger.warning('event=admin_key_auth outcome=impersonation_accepted')
             return impersonated_uid
 
     # Verify Firebase token
@@ -111,7 +111,7 @@ def _record_authenticated_client(
     try:
         record_user_platform(uid, x_app_platform)
     except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_user_platform swallowed error for uid=%s: %s", uid, e)
+        logger.debug("event=client_metadata_failed operation=record_user_platform exception_type=%s", type(e).__name__)
 
     try:
         device_ctx = resolve_client_device(
@@ -126,7 +126,7 @@ def _record_authenticated_client(
             app_version=device_ctx.app_version,
         )
     except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_client_device swallowed error for uid=%s: %s", uid, e)
+        logger.debug("event=client_metadata_failed operation=record_client_device exception_type=%s", type(e).__name__)
 
 
 def _require_http_participant(uid: str) -> None:
@@ -385,14 +385,16 @@ def _enforce_rate_limit(key: str, policy_name: str, *, fail_closed: bool = False
     try:
         allowed, _remaining, retry_after = check_rate_limit(key, policy_name, max_requests, window)
     except redis_pkg.exceptions.RedisError as e:  # type: ignore[reportAttributeAccessIssue]  # redis pkg exposes exceptions at runtime
-        logger.error(f"Rate limit Redis error policy={policy_name} key={key}: {e}")
+        logger.error("event=rate_limit outcome=redis_error policy=%s exception_type=%s", policy_name, type(e).__name__)
         if fail_closed:
             raise HTTPException(status_code=503, detail="Rate limiter unavailable")
         return
 
     if not allowed:
         if RATE_LIMIT_SHADOW:
-            logger.warning(f"[shadow] rate_limit_exceeded policy={policy_name} key={key} retry_after={retry_after}")
+            logger.warning(
+                "event=rate_limit outcome=shadow_rejected policy=%s retry_after_seconds=%s", policy_name, retry_after
+            )
             return
         raise HTTPException(
             status_code=429,
