@@ -259,9 +259,12 @@ already done. An unchecked item is still required before the corresponding live 
   `INTENTIVE_TERMS_URL=https://terms.heyintentive.com/`, and
   `INTENTIVE_SUPPORT_URL=https://support.heyintentive.com/`.
   All four were read back; secret rows were unchanged and no build was started.
-- [ ] Add the existing Intentive Release App private key to Codemagic as protected
-  `INTENTIVE_RELEASE_APP_PRIVATE_KEY`, then finish the approved backend/feed/download
-  bindings. Signing/notarization secrets are now stored.
+- [x] Store the existing Intentive Release App private key in Codemagic as protected
+  `INTENTIVE_RELEASE_APP_PRIVATE_KEY`. Verified 2026-09-09: exactly one masked value
+  persisted in `intentive_macos_release` after a page reload; no token was minted and
+  no build or release started.
+- [ ] Finish the approved backend/feed/download bindings. Signing/notarization
+  secrets are now stored.
   The preview group remains unconfigured and is not a five-person Beta prerequisite.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
@@ -279,7 +282,8 @@ already done. An unchecked item is still required before the corresponding live 
   Verified 2026-09-05: App authentication and scoped check/workflow reads passed;
   Actions/Contents/Pull requests are write-enabled, Checks/Metadata read-only.
   The ephemeral verification token was revoked; no tag or release was created.
-  This does not populate Codemagic's separate protected Release App private-key input.
+  Codemagic's separate protected Release App private-key input was populated and
+  read back masked on 2026-09-09; no installation token or release was created.
 - [ ] Protect `main` through the existing required CI checks and PR-only merges.
   Verified 2026-09-05: neither branch protection nor a ruleset is configured.
 - [ ] Exercise the owner-manual qualification path on an exact signed candidate. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates the owner-uploaded evidence and exact artifacts.
