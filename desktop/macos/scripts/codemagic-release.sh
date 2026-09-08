@@ -243,6 +243,7 @@ mint_github_release_app_token() {
 
   if ! token="$(
     curl --fail --silent --show-error \
+      --connect-timeout 10 --max-time 30 \
       --request POST \
       -H 'Accept: application/vnd.github+json' \
       -H "Authorization: Bearer $jwt" \
@@ -250,7 +251,7 @@ mint_github_release_app_token() {
       --data "$request" \
       "https://api.github.com/app/installations/$INTENTIVE_RELEASE_APP_INSTALLATION_ID/access_tokens" |
       EXPECTED_GITHUB_REPOSITORY="$OWNED_GITHUB_RELEASE_REPOSITORY" python3 -c '
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import sys
@@ -264,11 +265,15 @@ try:
     if not isinstance(token, str) or not token or any(character.isspace() for character in token):
         raise ValueError
     expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-    if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    # GitHub installation tokens last one hour; tolerate one minute of clock skew.
+    if expiry.tzinfo is None or not now < expiry <= now + timedelta(hours=1, minutes=1):
         raise ValueError
     if not isinstance(permissions, dict) or permissions.get("contents") != "write":
         raise ValueError
-    if any(level == "write" and name != "contents" for name, level in permissions.items()):
+    if set(permissions) - {"contents", "metadata"} or permissions.get("metadata", "read") != "read":
+        raise ValueError
+    if response.get("repository_selection") != "selected":
         raise ValueError
     if not isinstance(repositories, list) or len(repositories) != 1:
         raise ValueError

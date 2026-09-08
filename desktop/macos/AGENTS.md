@@ -86,11 +86,11 @@ Stable is manual:
 **Artifact provider:** the Codemagic login is established and the owned application is
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the provider workflow. The
-protected groups hold owned app, signing and provider inputs. Release mints a one-hour token at publish for
-`sruj75/knowledge-athlete` `contents:write`, never `CM_ENV`; the App key can exercise every App permission.
+protected groups hold owned app, signing and provider inputs. Publication mints a one-hour token for only
+`sruj75/knowledge-athlete` Contents write/implicit Metadata read, with a 30s request bound, never `CM_ENV`;
+the App key itself can exercise every App permission. Unexpected returned authority/lifetime fails closed.
 Codemagic still lacks protected `INTENTIVE_RELEASE_APP_PRIVATE_KEY` and endpoints, so do not dispatch.
 Live `notarytool history` authenticated, but no new artifact has been notarized.
-The redundant empty provider record was deleted; only the selected application is a build authority.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.

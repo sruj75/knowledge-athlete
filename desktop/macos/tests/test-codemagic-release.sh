@@ -76,10 +76,13 @@ make_executable "$mock_bin/curl" \
   'payload=""' \
   'authorization=""' \
   'url=""' \
+  'connect_timeout=""; total_timeout=""' \
   'while [[ "$#" -gt 0 ]]; do' \
   '  case "$1" in' \
   '    --data) payload="$2"; shift 2 ;;' \
   '    -H|--header) [[ "$2" == Authorization:* ]] && authorization="$2"; shift 2 ;;' \
+  '    --connect-timeout) connect_timeout="$2"; shift 2 ;;' \
+  '    --max-time) total_timeout="$2"; shift 2 ;;' \
   '    http*) url="$1"; shift ;;' \
   '    *) shift ;;' \
   '  esac' \
@@ -89,7 +92,9 @@ make_executable "$mock_bin/curl" \
   '    printf "%s\n" mint >> "${TEST_COMMAND_TRACE:?}"' \
   '    printf "%s\n" "$payload" > "${TEST_APP_TOKEN_REQUEST:?}"' \
   '    printf "%s\n" "$authorization" > "${TEST_APP_AUTHORIZATION:?}"' \
+  '    printf "%s %s\n" "$connect_timeout" "$total_timeout" > "${TEST_APP_TIMEOUTS:?}"' \
   '    printf "%s" "${TEST_APP_TOKEN_RESPONSE:?}"' \
+  '    exit "${TEST_APP_TOKEN_EXIT:-0}"' \
   '    ;;' \
   '  *)' \
   '    printf "%s\n" preview-registry >> "${TEST_COMMAND_TRACE:?}"' \
@@ -113,6 +118,7 @@ curl_payload="$TMP_ROOT/preview-payload.json"
 command_trace="$TMP_ROOT/command-trace.txt"
 app_token_request="$TMP_ROOT/app-token-request.json"
 app_authorization="$TMP_ROOT/app-authorization.txt"
+app_timeouts="$TMP_ROOT/app-timeouts.txt"
 gh_tokens="$TMP_ROOT/gh-tokens.txt"
 gh_create_args="$TMP_ROOT/gh-create-args.txt"
 gcp_key_base64="$(printf '{}\n' | base64)"
@@ -123,6 +129,7 @@ common_env=(
   "TEST_COMMAND_TRACE=$command_trace"
   "TEST_APP_TOKEN_REQUEST=$app_token_request"
   "TEST_APP_AUTHORIZATION=$app_authorization"
+  "TEST_APP_TIMEOUTS=$app_timeouts"
   "TEST_GH_TOKENS=$gh_tokens"
   "TEST_GH_CREATE_ARGS=$gh_create_args"
   "PREVIEW_MODE=true"
@@ -497,7 +504,7 @@ openssl dgst -sha256 \
   "$TMP_ROOT/jwt-message" >/dev/null || fail "GitHub App JWT signature does not match the protected private key"
 
 : > "$command_trace"
-bad_token_response='{"token":"private-response-token","expires_at":"2099-01-01T00:00:00Z","permissions":{"contents":"write"},"repository_selection":"selected","repositories":[{"full_name":"attacker/other"}]}'
+bad_token_response="$(jq '.token = "private-response-token" | .repositories = [{full_name: "attacker/other"}]' <<< "$token_response")"
 if env "${publish_env[@]}" TEST_APP_TOKEN_RESPONSE="$bad_token_response" "$SCRIPT" publish \
   >/dev/null 2>"$TMP_ROOT/rejected-token-response.err"; then
   fail "wrong-repository installation token response unexpectedly passed"
@@ -508,6 +515,38 @@ if grep -q 'private-response-token\|attacker/other' "$TMP_ROOT/rejected-token-re
   fail "installation token response body leaked into error output"
 fi
 [[ "$(cat "$command_trace")" == mint ]] || fail "invalid installation token response reached gh"
+
+# Execute the actual response parser with one changed authority/lifetime field.
+# GitHub's installation-token contract is one hour with requested permissions:
+# https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app
+for invalid_response in \
+  '.permissions.actions = "read"' \
+  '.expires_at = "2099-01-01T00:00:00Z"' \
+  '.repository_selection = "all"'; do
+  : > "$command_trace"
+  bad_token_response="$(jq "$invalid_response" <<< "$token_response")"
+  if env "${publish_env[@]}" TEST_APP_TOKEN_RESPONSE="$bad_token_response" "$SCRIPT" publish \
+    >"$TMP_ROOT/rejected-token-contract.out" 2>"$TMP_ROOT/rejected-token-contract.err"; then
+    fail "out-of-contract installation token response unexpectedly passed: $invalid_response"
+  fi
+  [[ "$(cat "$command_trace")" == mint ]] || fail "out-of-contract token reached gh"
+  grep -q 'installation token response failed validation' "$TMP_ROOT/rejected-token-contract.err" ||
+    fail "token contract rejection was not explicit"
+  if grep -Fq "$installation_token" "$TMP_ROOT/rejected-token-contract.out" "$TMP_ROOT/rejected-token-contract.err"; then
+    fail "rejected token leaked into diagnostics"
+  fi
+done
+
+: > "$command_trace"
+if env "${publish_env[@]}" TEST_APP_TOKEN_EXIT=28 "$SCRIPT" publish \
+  >"$TMP_ROOT/rejected-token-transport.out" 2>"$TMP_ROOT/rejected-token-transport.err"; then
+  fail "failed token transport unexpectedly reached publication"
+fi
+[[ "$(cat "$command_trace")" == mint ]] || fail "failed token transport reached gh"
+[[ "$(cat "$app_timeouts")" == '10 30' ]] || fail "token transport is not bounded to 10s connect and 30s total"
+if grep -Fq "$installation_token" "$TMP_ROOT/rejected-token-transport.out" "$TMP_ROOT/rejected-token-transport.err"; then
+  fail "failed token transport leaked response credentials"
+fi
 
 : > "$command_trace"
 if env "${publish_env[@]}" TEST_RELEASE_EXISTS=true "$SCRIPT" publish \
