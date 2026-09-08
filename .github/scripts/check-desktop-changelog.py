@@ -19,6 +19,8 @@ EXEMPT_DESKTOP_PATHS = {
     "desktop/macos/scripts/qualify-desktop-beta.sh",
     # Owner-local evidence collection is release infrastructure, not app code.
     "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh",
+    # Provider build/inspection control never ships in the desktop application.
+    "desktop/macos/scripts/codemagic-release.sh",
     # Capacity/lease authority for the same internal qualification runner.
     "desktop/macos/scripts/qualification-cache-reclaim.py",
     # M1 self-clean / lost-communication recovery for the qualification runner
