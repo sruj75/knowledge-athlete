@@ -465,9 +465,10 @@ timeline identity/open, or pill projection is incomplete until:
   RC. Add `--require-live-voice` for managed-voice proof; simulated/missing transport fails. Controller probes are not natural microphone evidence. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
   The S-31 checker rejects incomplete, failed, malformed, stale, raw, media, or secret-bearing evidence. Its pre-push hatch requires both
   `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE` and `..._REASON`.
-- **Anti-flake:** clear owner/kernel surface before probes; per-run nonces;
-  hard-fail on blind-recall / structural snapshot only; zero automatic retries
-  on model wrongness.
+- **Anti-flake:** clear owner/kernel state; per-run nonces; hard-fail only blind
+  recall/structural snapshots; no model-wrongness retry. Spoken replies may use
+  spaces for marker hyphens; fields/case/bounds stay exact. Typed/saved/wire
+  markers stay literal.
 - **Stress:** offline JSONL + forbidden terminal reasons remain the default
   gate; live bridge probes stay optional until continuity `terminal_reason`s
   exist in the taxonomy.

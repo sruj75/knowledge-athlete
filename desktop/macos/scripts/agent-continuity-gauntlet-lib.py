@@ -129,6 +129,34 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+def spoken_reply_mentions_marker(assistant_text: str, expected_marker: str) -> bool:
+    """Match one exact continuity marker after speech punctuation rendering."""
+
+    try:
+        namespace_and_run_id, nonce, channel = expected_marker.rsplit("-", 2)
+    except ValueError:
+        return False
+    prefix = "GAUNTLET-"
+    if (
+        not namespace_and_run_id.startswith(prefix)
+        or not namespace_and_run_id.removeprefix(prefix)
+        or re.fullmatch(r"[A-F0-9]{8}", nonce) is None
+        or channel not in {"TYPED", "PTT"}
+    ):
+        return False
+    components = (
+        "GAUNTLET",
+        namespace_and_run_id.removeprefix(prefix),
+        nonce,
+        channel,
+    )
+    rendered = r"(?:-|\s+)".join(re.escape(component) for component in components)
+    return re.search(
+        rf"(?<![A-Za-z0-9_-]){rendered}(?![A-Za-z0-9_-])",
+        assistant_text,
+    ) is not None
+
+
 def bridge_action_timeout_sec(
     name: str,
     params: dict[str, str] | None,
@@ -2376,12 +2404,12 @@ class GauntletRunner:
             self.fail("PTT turn marker not visible in main chat transcript after voice turn")
 
         assistant_reply = str(ptt_detail.get("assistant_reply") or "")
-        if self.markers["typed"] not in assistant_reply:
+        if not spoken_reply_mentions_marker(assistant_reply, self.markers["typed"]):
             self.fail(
                 "PTT step 02 failed blind recall of the prior typed marker "
                 f"{self.markers['typed']} (reply={assistant_reply[:160]!r})"
             )
-        if self.markers["ptt"] not in assistant_reply:
+        if not spoken_reply_mentions_marker(assistant_reply, self.markers["ptt"]):
             self.warn(
                 f"PTT step 02: assistant reply did not acknowledge marker {self.markers['ptt']} "
                 f"(reply={assistant_reply[:120]!r})"
@@ -2417,7 +2445,7 @@ class GauntletRunner:
                 f"{ptt_recall_detail.get('error', ptt_recall.get('error', ptt_recall))}"
             )
         ptt_recall_reply = str(ptt_recall_detail.get("assistant_reply") or "")
-        if self.markers["ptt"] not in ptt_recall_reply:
+        if not spoken_reply_mentions_marker(ptt_recall_reply, self.markers["ptt"]):
             self.fail(
                 "PTT step 02b failed blind recall of the prior PTT marker "
                 f"{self.markers['ptt']} (reply={ptt_recall_reply[:160]!r})"

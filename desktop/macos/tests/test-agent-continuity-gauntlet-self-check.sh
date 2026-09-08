@@ -91,6 +91,37 @@ assert module.missing_required_automation_actions(
     desktop_dir=fixture_root,
     source_relative_paths=sources,
 ) == ["ptt_turn_snapshot"]
+
+# Managed voice can transcribe spoken punctuation as spaces. Accept only that
+# rendering of the same exact marker components; typed/wire evidence stays exact.
+observed_reply = (
+    "GAUNTLET 20260908T135048Z BDD1E7B0 TYPED. I've noted down the new push to talk marker "
+    "GAUNTLET 20260908T135048Z 51B01CB1 PTT as requested. Anything else you need help with?"
+)
+typed_marker = "GAUNTLET-20260908T135048Z-BDD1E7B0-TYPED"
+ptt_marker = "GAUNTLET-20260908T135048Z-51B01CB1-PTT"
+assert module.spoken_reply_mentions_marker(observed_reply, typed_marker)
+assert module.spoken_reply_mentions_marker(observed_reply, ptt_marker)
+assert module.spoken_reply_mentions_marker(f"Acknowledged {typed_marker}.", typed_marker)
+custom_marker = "GAUNTLET-beta-a-run-BDD1E7B0-TYPED"
+assert module.spoken_reply_mentions_marker(
+    "Acknowledged GAUNTLET beta-a-run BDD1E7B0 TYPED.",
+    custom_marker,
+)
+assert not module.spoken_reply_mentions_marker(
+    "Acknowledged GAUNTLET beta a run BDD1E7B0 TYPED.",
+    custom_marker,
+)
+for rejected in (
+    "GAUNTLET 20260908T135048Z BDD1E7B1 TYPED",  # wrong nonce
+    "GAUNTLET 20260908T135048Z BDD1E7B TYPED",  # partial nonce
+    "GAUNTLET 20260908T135049Z BDD1E7B0 TYPED",  # wrong timestamp
+    "GAUNTLET 20260908T135048Z BDD1E7B0 PTT",  # wrong channel
+    "gauntlet 20260908T135048Z BDD1E7B0 TYPED",  # wrong case
+    "XGAUNTLET 20260908T135048Z BDD1E7B0 TYPED",  # embedded prefix
+    "GAUNTLET 20260908T135048Z BDD1E7B0 TYPEDX",  # embedded suffix
+):
+    assert not module.spoken_reply_mentions_marker(rejected, typed_marker)
 PY
 
 "$RUNNER"
