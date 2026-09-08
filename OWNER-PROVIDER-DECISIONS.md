@@ -61,7 +61,7 @@ These are the target boundaries, not a claim that the transition is complete.
 - Apple Developer: `22btrsn071@gmail.com`
   - Use only for Apple Developer membership, certificates, identifiers, notarization, and App Store Connect/Apple integration where applicable.
   - Owned Apple Team ID: `24D6NXS6H7`.
-  - Membership confirmed 2026-09-08: the owned Apple account shows renewal on 2027-09-09. The updated Program License Agreement still awaits owner acceptance; renewal is not notarization or release proof.
+  - Membership confirmed 2026-09-08: the owned Apple account shows renewal on 2027-09-09. The owner accepted the updated Program License Agreement, and its warning cleared on readback; neither renewal nor acceptance is notarization or release proof.
   - Installed signing identity reverified 2026-09-08: `Developer ID Application: Srujan Gowda (24D6NXS6H7)`, valid through 2030-11-18. The current Dev app uses certificate fingerprint `C47A7CD975D1D3B4CC7AEC1DD65D188D0102CDC8`; reuse this specific identity, not an export of every Keychain identity.
   - The supplied `.p12` is password-protected and remains under ignored `.context/`; never commit it. Codemagic still needs its password or a separately approved secure re-export of the existing identity. This verification performed no private-key export or upload.
 - GitHub account: `sruj75`; GitHub email: `srujan24@icloud.com`.
@@ -265,7 +265,7 @@ already done. An unchecked item is still required before the corresponding live 
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
 - [ ] Import the supplied Developer ID `.p12` with its password, or an approved re-export of the exact existing signing identity, into Codemagic. Store the certificate and password only in protected secrets, never Git or documentation.
-- [x] Confirm Apple Developer Program membership for team `24D6NXS6H7`: verified 2026-09-08, next renewal 2027-09-09. Updated license-agreement acceptance remains owner-pending.
+- [x] Confirm Apple Developer Program membership for team `24D6NXS6H7`: verified 2026-09-08, next renewal 2027-09-09. The owner accepted the updated license agreement; the account warning cleared on readback.
 - [ ] Create an App Store Connect API key or an accepted notarytool keychain profile for notarization, and store the issuer ID, key ID, and private key only in protected provider secrets. Read-only inspection on 2026-09-08 found API access still at `Request Access`; no access request or key creation has been submitted.
 - [ ] Register the stable, Beta, development, and preview identifiers/schemes with Apple/provider services where registration is required.
 - [x] Generate a new Sparkle EdDSA keypair, store it under the separate `heyintentive` Keychain account, configure the public key in Codemagic, and record its public-key fingerprint above.
