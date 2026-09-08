@@ -635,6 +635,92 @@ def test_desktop_stop_fails_closed_when_exact_process_survives_term_and_kill(
     assert signalled == [(snapshot.pid, signal.SIGTERM), (snapshot.pid, signal.SIGKILL)]
 
 
+def test_desktop_stop_keeps_authorized_identity_when_executable_proof_disappears_during_shutdown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(48508, profile, token)
+    record = _record(cfg, profile, snapshot, token)
+    current: safety.ProcessSnapshot | None = snapshot
+    shutdown_started = False
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: current)
+
+    def exact_executable(_process: safety.ProcessSnapshot, _executable: Path) -> bool:
+        if shutdown_started:
+            pytest.fail("post-signal shutdown must not require a live executable mapping")
+        return True
+
+    monkeypatch.setattr(cli, "_process_executes_exact_path", exact_executable)
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal shutdown_started
+        assert pid == snapshot.pid
+        shutdown_started = True
+        signalled.append((pid, sig))
+
+    def finish_shutdown(_seconds: float) -> None:
+        nonlocal current
+        current = None
+
+    monkeypatch.setattr(os, "kill", signal_exact)
+    monkeypatch.setattr(cli.time, "sleep", finish_shutdown)
+
+    assert cli.stop_desktop_record(cfg, record, wait_seconds=1) is True
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+
+
+def test_desktop_stop_requires_full_ownership_proof_again_before_kill_escalation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(48509, profile, token)
+    record = _record(cfg, profile, snapshot, token)
+    cli._save_manifests(cfg, [record])
+    exact_executable = True
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: snapshot)
+    monkeypatch.setattr(cli, "_process_executes_exact_path", lambda *_args: exact_executable)
+    times = iter((0.0, 9.0))
+    monkeypatch.setattr(cli.time, "time", lambda: next(times))
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal exact_executable
+        assert pid == snapshot.pid
+        signalled.append((pid, sig))
+        exact_executable = False
+
+    monkeypatch.setattr(os, "kill", signal_exact)
+
+    assert cli._stop_owned(cfg) is False
+
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [record]
+
+
+def test_dev_down_retry_clears_a_settled_desktop_record_after_process_and_listener_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    record = _record(cfg, profile, _snapshot(48608, profile, token), token)
+    cli._save_manifests(cfg, [record])
+    monkeypatch.setattr(cli, "_repo_root", lambda: REPO_ROOT)
+    monkeypatch.setattr(config, "load_config", lambda *_args, **_kwargs: cfg)
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: ())
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("an exited desktop must not be signalled"))
+
+    assert cli.cmd_down(argparse.Namespace()) == 0
+    assert cli._process_records(cfg) == []
+
+
 def test_local_launcher_runs_fake_run_sh_with_scrubbed_app_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -838,6 +838,23 @@ def _validated_desktop_process(
     return process
 
 
+def _desktop_process_after_authorized_signal(
+    identity: DesktopOwnershipRecord,
+) -> safety.ProcessSnapshot | None:
+    """Track an authorized shutdown without requiring its executable mapping to remain visible."""
+
+    process = safety.process_snapshot(identity.pid)
+    if process is None:
+        return None
+    if not safety.matches_process_fingerprint(
+        process,
+        process_start=identity.process_start,
+        command_sha256=identity.command_sha256,
+    ):
+        raise safety.SafetyError("Desktop PID changed identity during exact shutdown")
+    return process
+
+
 def _read_owner_only_launch_signal(path: Path) -> dict[str, str]:
     try:
         info = path.lstat()
@@ -1146,25 +1163,29 @@ def stop_desktop_record(
     else:
         process = _validated_desktop_process(cfg, record)
         if process is None:
+            identity = _desktop_record_identity(cfg, record)
             recovered = recover_desktop_record(cfg, record)
             if recovered == record:
-                return False
+                return not safety.listening_pids(identity.port)
             record = recovered
             process = _validated_desktop_process(cfg, record)
     if process is None:
         return False
+    identity = _desktop_record_identity(cfg, record)
     try:
         os.kill(process.pid, signal.SIGTERM)
     except ProcessLookupError:
-        return False
+        return not safety.listening_pids(identity.port)
     except PermissionError as exc:
         raise safety.SafetyError(f"Cannot signal desktop PID {process.pid}: {exc}") from exc
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
-        current = _validated_desktop_process(cfg, record)
+        current = _desktop_process_after_authorized_signal(identity)
         if current is None:
             return True
         time.sleep(0.1)
+    # SIGKILL is a new destructive action. Re-establish full executable/token
+    # ownership after the passive TERM wait before escalating.
     current = _validated_desktop_process(cfg, record)
     if current is None:
         return True
@@ -1177,10 +1198,10 @@ def stop_desktop_record(
         raise safety.SafetyError(f"Cannot signal desktop PID {current.pid}: {exc}") from exc
     deadline = time.time() + kill_wait_seconds
     while time.time() < deadline:
-        if _validated_desktop_process(cfg, record) is None:
+        if _desktop_process_after_authorized_signal(identity) is None:
             return True
         time.sleep(0.1)
-    if _validated_desktop_process(cfg, record) is not None:
+    if _desktop_process_after_authorized_signal(identity) is not None:
         raise safety.SafetyError(f"Desktop PID {current.pid} is still running after exact shutdown")
     return True
 
