@@ -38,6 +38,9 @@ QUALIFICATION_ARTIFACT_PREFIX = "desktop-qualification-evidence-"
 QUALIFICATION_EVIDENCE_FILE = "qualification-evidence.json"
 MAX_QUALIFICATION_ARTIFACT_BYTES = 1_048_576
 MAX_QUALIFICATION_EVIDENCE_BYTES = 262_144
+_RELEASE_ASSET_REDIRECT_HOST = "release-assets.githubusercontent.com"
+_ACTIONS_ARTIFACT_REDIRECT_HOST = "results-receiver.actions.githubusercontent.com"
+_ACTIONS_ARTIFACT_STORAGE_SUFFIX = ".blob.core.windows.net"
 _EXACT_DATETIME_TYPE = datetime
 
 
@@ -129,6 +132,26 @@ def _github_objects(value: object, message: str) -> list[dict[str, Any]]:
 
 def _is_exact_integer(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _trusted_https_redirect_hostname(value: object) -> str | None:
+    """Return a credential-safe HTTPS redirect host, rejecting malformed authorities."""
+    if not isinstance(value, str):
+        return None
+    try:
+        redirect = urlsplit(value)
+        port = redirect.port
+    except ValueError:
+        return None
+    if (
+        redirect.scheme != "https"
+        or not isinstance(redirect.hostname, str)
+        or port is not None
+        or redirect.username is not None
+        or redirect.password is not None
+    ):
+        return None
+    return redirect.hostname
 
 
 def _nonempty_string(value: object, message: str) -> str:
@@ -465,15 +488,9 @@ class GitHubQualifiedBetaReader:
         response = await client.get(url, headers=self._headers())
         if response.status_code in {301, 302, 303, 307, 308}:
             location = response.headers.get("location")
-            if not isinstance(location, str):
-                _fail("candidate GitHub asset is unavailable")
-            redirect = urlsplit(location)
             if (
-                redirect.scheme != "https"
-                or redirect.hostname != "release-assets.githubusercontent.com"
-                or redirect.port is not None
-                or redirect.username is not None
-                or redirect.password is not None
+                not isinstance(location, str)
+                or _trusted_https_redirect_hostname(location) != _RELEASE_ASSET_REDIRECT_HOST
             ):
                 _fail("candidate GitHub asset is unavailable")
             # Never forward the GitHub API credential to the signed asset URL.
@@ -483,9 +500,25 @@ class GitHubQualifiedBetaReader:
         return response.content
 
     async def download_artifact(self, artifact_id: int) -> bytes:
-        response = await get_web_fetch_client().get(
-            f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact_id}/zip", headers=self._headers()
+        client = get_web_fetch_client()
+        response = await client.get(
+            f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/{artifact_id}/zip",
+            headers=self._headers(),
+            follow_redirects=False,
         )
+        if response.status_code != 302:
+            _fail("candidate qualification artifact is unavailable")
+        location = response.headers.get("location")
+        hostname = _trusted_https_redirect_hostname(location)
+        if (
+            not isinstance(location, str)
+            or not isinstance(hostname, str)
+            or (hostname != _ACTIONS_ARTIFACT_REDIRECT_HOST and not hostname.endswith(_ACTIONS_ARTIFACT_STORAGE_SUFFIX))
+        ):
+            _fail("candidate qualification artifact is unavailable")
+        # GitHub's Actions API credential is only for the API hop. The
+        # short-lived storage URL is fetched without forwarding it.
+        response = await client.get(location, follow_redirects=False)
         if response.status_code != 200:
             _fail("candidate qualification artifact is unavailable")
         return response.content

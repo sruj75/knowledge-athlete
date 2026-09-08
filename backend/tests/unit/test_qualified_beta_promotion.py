@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, MockTransport, Response
 
 from routers.updates import router as updates_router
 from owner_manual_desktop_qualification import REQUIRED_SMOKE_CHECKS, build_bundle
@@ -213,6 +213,91 @@ async def test_github_asset_download_rejects_a_second_redirect(monkeypatch):
         await GitHubQualifiedBetaReader().download(
             "https://github.com/sruj75/knowledge-athlete/releases/download/tag/Intentive.zip"
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "redirect",
+    (
+        "https://results-receiver.actions.githubusercontent.com/actions-results/artifact.zip?sig=abc",
+        "https://productionresultssa0.blob.core.windows.net/actions-results/artifact.zip?sig=abc",
+    ),
+)
+async def test_github_artifact_download_follows_one_documented_storage_redirect_without_auth(monkeypatch, redirect):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return Response(302, headers={"location": redirect})
+        return Response(200, content=b"artifact")
+
+    async with AsyncClient(transport=MockTransport(handle)) as client:
+        monkeypatch.setattr("utils.qualified_beta_promotion.get_web_fetch_client", lambda: client)
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        assert await GitHubQualifiedBetaReader().download_artifact(456) == b"artifact"
+
+    assert str(requests[0].url) == f"https://api.github.com/repos/{REPOSITORY}/actions/artifacts/456/zip"
+    assert requests[0].headers["Authorization"] == "Bearer test-token"
+    assert str(requests[1].url) == redirect
+    assert "Authorization" not in requests[1].headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "redirect",
+    (
+        "http://productionresultssa0.blob.core.windows.net/actions-results/artifact.zip",
+        "https://attacker.example/actions-results/artifact.zip",
+        "https://user@results-receiver.actions.githubusercontent.com/actions-results/artifact.zip",
+        "https://results-receiver.actions.githubusercontent.com:444/actions-results/artifact.zip",
+        "https://blob.core.windows.net/actions-results/artifact.zip",
+        "https://productionresultssa0.blob.core.windows.net.attacker.example/actions-results/artifact.zip",
+    ),
+)
+async def test_github_artifact_download_rejects_unsafe_redirects(monkeypatch, redirect):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return Response(302, headers={"location": redirect})
+
+    async with AsyncClient(transport=MockTransport(handle)) as client:
+        monkeypatch.setattr("utils.qualified_beta_promotion.get_web_fetch_client", lambda: client)
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        with pytest.raises(QualifiedBetaAdmissionError, match="qualification artifact is unavailable"):
+            await GitHubQualifiedBetaReader().download_artifact(456)
+
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("api_status", "storage_status", "expected_calls"),
+    ((200, None, 1), (410, None, 1), (302, 403, 2), (302, 302, 2)),
+)
+async def test_github_artifact_download_rejects_noncontract_statuses(
+    monkeypatch, api_status, storage_status, expected_calls
+):
+    redirect = "https://productionresultssa0.blob.core.windows.net/actions-results/artifact.zip?sig=abc"
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return Response(api_status, headers={"location": redirect})
+        return Response(storage_status, content=b"artifact")
+
+    async with AsyncClient(transport=MockTransport(handle)) as client:
+        monkeypatch.setattr("utils.qualified_beta_promotion.get_web_fetch_client", lambda: client)
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+        with pytest.raises(QualifiedBetaAdmissionError, match="qualification artifact is unavailable"):
+            await GitHubQualifiedBetaReader().download_artifact(456)
+
+    assert len(requests) == expected_calls
 
 
 def _digest(value):
@@ -432,7 +517,7 @@ def _owner_manual_bundle(root: Path) -> bytes:
             "status": "healthy",
             "service": "backend",
             "process_health_status": "ok",
-            "chat_contract_version": "1",
+            "chat_contract_version": "2",
         },
     }
     paths: dict[str, Path] = {}
@@ -440,21 +525,82 @@ def _owner_manual_bundle(root: Path) -> bytes:
         path = root / name
         path.write_text(json.dumps(payload), encoding="utf-8")
         paths[name] = path
-    receipt_names = {
-        "pre-tag-readiness": "pre-tag-readiness.json",
-        "candidate-gate": "candidate-gate.json",
-        "stable-signed-smoke": "owner-smoke-stable.json",
-        "beta-signed-smoke": "owner-smoke-beta.json",
-        "source-t2": "source-t2-manifest.json",
-        "fault-suite": "fault-manifest.json",
-    }
     ledger_argv = {
-        "pre-tag-readiness": ["pre-tag-readiness.sh", TAG],
-        "candidate-gate": ["check-desktop-auto-beta-candidate.py", "--qualification-mode", "owner-manual", TAG],
-        "stable-signed-smoke": ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive", TAG],
-        "beta-signed-smoke": ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive.beta", TAG],
-        "source-t2": ["qualify-desktop-beta.sh", "--automatic", TAG],
-        "fault-suite": ["qualify-desktop-beta.sh", "--automatic", TAG],
+        "candidate-gate": [
+            "python3",
+            "check-desktop-auto-beta-candidate.py",
+            "--qualification-mode",
+            "owner-manual",
+            "--release-tag",
+            TAG,
+            "--tag-sha",
+            SHA,
+            "--checkout-sha",
+            SHA,
+            "--expected-team-id",
+            "24D6NXS6H7",
+        ],
+        "stable-signed-smoke": [
+            "smoke-signed-desktop-artifact.sh",
+            "--expected-bundle-id",
+            "com.heyintentive.intentive",
+            "--tag",
+            TAG,
+            "--source-sha",
+            SHA,
+            "--expected-channel",
+            "beta",
+            "--launch",
+            "--auth-storage-canary",
+            "--notification-callback-canary",
+        ],
+        "beta-signed-smoke": [
+            "smoke-signed-desktop-artifact.sh",
+            "--expected-bundle-id",
+            "com.heyintentive.intentive.beta",
+            "--tag",
+            TAG,
+            "--source-sha",
+            SHA,
+            "--expected-channel",
+            "beta",
+            "--launch",
+            "--auth-storage-canary",
+            "--notification-callback-canary",
+        ],
+        "pre-tag-readiness": ["pre-tag-readiness.sh", SHA],
+        "source-qualification": [
+            "qualify-desktop-beta.sh",
+            "--automatic",
+            "--signed-smoke-result",
+            "provider-smoke-stable.json",
+            "--candidate-gate-result",
+            "candidate-gate.json",
+            "--local-evidence-directory",
+            "<private-stage>",
+            TAG,
+        ],
+        "backend-compatibility": [
+            "python3",
+            "owner_manual_desktop_qualification.py",
+            "verify-backend-compatibility",
+            "--backend-contract-source",
+            "desktop_core.py",
+            "--process-health",
+            "backend-health.json",
+            "--root-health",
+            "backend-root.json",
+            "--output",
+            "backend-compatibility.json",
+        ],
+    }
+    ledger_receipts = {
+        "candidate-gate": ["candidate-gate.json"],
+        "stable-signed-smoke": ["owner-smoke-stable.json"],
+        "beta-signed-smoke": ["owner-smoke-beta.json"],
+        "pre-tag-readiness": ["pre-tag-readiness.json"],
+        "source-qualification": ["source-t2-manifest.json", "fault-manifest.json"],
+        "backend-compatibility": ["backend-compatibility.json"],
     }
     ledger = {
         "schema_version": 1,
@@ -466,11 +612,17 @@ def _owner_manual_bundle(root: Path) -> bytes:
                 "label": label,
                 "argv": ledger_argv[label],
                 "exit_code": 0,
-                "recorded_at": "2026-07-21T12:00:30Z",
-                "receipt": name,
-                "receipt_sha256": hashlib.sha256(paths[name].read_bytes()).hexdigest(),
+                "started_at": "2026-07-21T12:00:01Z",
+                "finished_at": "2026-07-21T12:00:30Z",
+                "receipts": [
+                    {
+                        "name": receipt,
+                        "sha256": hashlib.sha256(paths[receipt].read_bytes()).hexdigest(),
+                    }
+                    for receipt in receipt_names
+                ],
             }
-            for label, name in receipt_names.items()
+            for label, receipt_names in ledger_receipts.items()
         ],
     }
     ledger_path = root / "command-ledger.json"
