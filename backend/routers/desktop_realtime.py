@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, StrictInt
 
 from database._client import get_firestore_client
 from utils.executors import db_executor, run_blocking
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid, get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
@@ -110,7 +110,7 @@ async def _post_json(
 
 
 @router.post("/v2/realtime/session")
-async def mint_session(request: MintRequest, uid: str = Depends(get_current_user_uid)) -> JSONResponse:
+async def mint_session(request: MintRequest, uid: str = Depends(get_current_participant_uid)) -> JSONResponse:
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         return JSONResponse(
             status_code=402,

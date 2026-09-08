@@ -26,9 +26,9 @@ from utils.other import endpoints as auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Memory Compute'])
-extract_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:extract')
-normalize_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:normalize')
-consolidate_compute_uid = auth.with_rate_limit(auth.get_current_user_uid, 'memory:consolidate')
+extract_compute_uid = auth.with_rate_limit(auth.get_current_participant_uid, 'memory:extract')
+normalize_compute_uid = auth.with_rate_limit(auth.get_current_participant_uid, 'memory:normalize')
+consolidate_compute_uid = auth.with_rate_limit(auth.get_current_participant_uid, 'memory:consolidate')
 
 
 @router.post('/v1/memory/compute/extract', response_model=MemoryExtractResponse)

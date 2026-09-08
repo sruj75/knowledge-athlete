@@ -455,8 +455,8 @@ class TestListenEndpointAuth(WebSocketAuthTestCase):
         with open(path, encoding='utf-8') as f:
             return f.read()
 
-    def test_listen_handler_uses_ws_listen_auth(self):
-        """listen_handler should use get_current_user_uid_ws_listen (WS auth, no rate limiter)."""
+    def test_listen_handler_uses_participant_ws_auth(self):
+        """listen_handler should admit a participant without the general rate limiter."""
         source = self._read_transcribe_source()
         import re
 
@@ -468,7 +468,9 @@ class TestListenEndpointAuth(WebSocketAuthTestCase):
         self.assertIsNotNone(listen_match, "Could not find /v4/listen handler")
         handler_sig = listen_match.group()
         self.assertIn(
-            'get_current_user_uid_ws_listen', handler_sig, "/v4/listen must use get_current_user_uid_ws_listen"
+            'get_current_participant_uid_ws_listen',
+            handler_sig,
+            "/v4/listen must use get_current_participant_uid_ws_listen",
         )
 
 
