@@ -62,7 +62,17 @@ else
     [[ -n "${!name:-}" ]] || { echo "$name is required" >&2; exit 1; }
   done
   STAGE="$(mktemp -d "${TMPDIR:-/tmp}/intentive-owner-manual.XXXXXX")"
-  trap 'rm -rf -- "$STAGE"' EXIT
+  cleanup_stage() {
+    local status=$?
+    trap - EXIT
+    if [[ $status -eq 0 ]]; then
+      rm -rf -- "$STAGE"
+    else
+      echo "Owner-manual qualification failed; retained scoped evidence at $STAGE" >&2
+    fi
+    exit "$status"
+  }
+  trap cleanup_stage EXIT
   chmod 700 "$STAGE"
   mkdir "$STAGE/assets"
   gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
@@ -74,16 +84,22 @@ else
   cp "$STAGE/desktop-smoke-result.json" "$STAGE/provider-smoke-stable.json"
   cp "$STAGE/desktop-smoke-result-beta.json" "$STAGE/provider-smoke-beta.json"
 
+  record_command() {
+    python3 "$CONTRACT" record-command \
+      --ledger "$STAGE/command-ledger.json" --release-tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" "$@"
+  }
+
   LATEST_TAG="$(git -C "$REPO_ROOT" for-each-ref --count=1 --sort=-v:refname --format='%(refname:strip=2)' 'refs/tags/v*-macos')"
-  python3 "$CANDIDATE_GATE" \
-    --qualification-mode owner-manual \
-    --release-json "$STAGE/release.json" \
-    --smoke-result "$STAGE/provider-smoke-stable.json" \
-    --beta-smoke-result "$STAGE/provider-smoke-beta.json" \
-    --release-tag "$RELEASE_TAG" --latest-tag "$LATEST_TAG" \
-    --tag-sha "$SOURCE_SHA" --checkout-sha "$SOURCE_SHA" \
-    --expected-team-id "$OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID" \
-    --output "$STAGE/candidate-gate.json"
+  record_command --label candidate-gate --receipt "candidate-gate.json=$STAGE/candidate-gate.json" -- \
+    python3 "$CANDIDATE_GATE" \
+      --qualification-mode owner-manual \
+      --release-json "$STAGE/release.json" \
+      --smoke-result "$STAGE/provider-smoke-stable.json" \
+      --beta-smoke-result "$STAGE/provider-smoke-beta.json" \
+      --release-tag "$RELEASE_TAG" --latest-tag "$LATEST_TAG" \
+      --tag-sha "$SOURCE_SHA" --checkout-sha "$SOURCE_SHA" \
+      --expected-team-id "$OMI_SIGNED_ARTIFACT_SMOKE_TEAM_ID" \
+      --output "$STAGE/candidate-gate.json"
 
   common_smoke=(
     --tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" --expected-channel beta
@@ -94,61 +110,42 @@ else
     --expected-posthog-host "${POSTHOG_HOST%/}"
     --expected-product-url "$INTENTIVE_PRODUCT_URL" --expected-terms-url "$INTENTIVE_TERMS_URL"
     --expected-privacy-url "$INTENTIVE_PRIVACY_URL" --expected-support-url "$INTENTIVE_SUPPORT_URL"
-    --launch --auth-storage-canary --timeout 90
+    --launch --auth-storage-canary --notification-callback-canary --timeout 90
   )
-  OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1 "$SCRIPT_DIR/smoke-signed-desktop-artifact.sh" \
-    --zip "$STAGE/assets/Intentive.zip" --dmg "$STAGE/assets/intentive.dmg" \
-    --expected-bundle-id com.heyintentive.intentive --expected-url-scheme heyintentive \
-    --expected-feed-url "$INTENTIVE_STABLE_FEED_URL" "${common_smoke[@]}" \
-    --result-json "$STAGE/owner-smoke-stable.json"
-  OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1 "$SCRIPT_DIR/smoke-signed-desktop-artifact.sh" \
-    --zip "$STAGE/assets/Intentive.Beta.zip" --dmg "$STAGE/assets/intentive-beta.dmg" \
-    --expected-bundle-id com.heyintentive.intentive.beta --expected-url-scheme heyintentive-beta \
-    --expected-feed-url "$INTENTIVE_BETA_FEED_URL" "${common_smoke[@]}" \
-    --result-json "$STAGE/owner-smoke-beta.json"
+  OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1 record_command \
+    --label stable-signed-smoke --receipt "owner-smoke-stable.json=$STAGE/owner-smoke-stable.json" -- \
+    "$SCRIPT_DIR/smoke-signed-desktop-artifact.sh" \
+      --zip "$STAGE/assets/Intentive.zip" --dmg "$STAGE/assets/intentive.dmg" \
+      --expected-bundle-id com.heyintentive.intentive --expected-url-scheme heyintentive \
+      --expected-feed-url "$INTENTIVE_STABLE_FEED_URL" "${common_smoke[@]}" \
+      --result-json "$STAGE/owner-smoke-stable.json"
+  OMI_SIGNED_ARTIFACT_SMOKE_ALLOW_PRODUCTION_LAUNCH=1 record_command \
+    --label beta-signed-smoke --receipt "owner-smoke-beta.json=$STAGE/owner-smoke-beta.json" -- \
+    "$SCRIPT_DIR/smoke-signed-desktop-artifact.sh" \
+      --zip "$STAGE/assets/Intentive.Beta.zip" --dmg "$STAGE/assets/intentive-beta.dmg" \
+      --expected-bundle-id com.heyintentive.intentive.beta --expected-url-scheme heyintentive-beta \
+      --expected-feed-url "$INTENTIVE_BETA_FEED_URL" "${common_smoke[@]}" \
+      --result-json "$STAGE/owner-smoke-beta.json"
 
-  OMI_READINESS_LANE=local "$SCRIPT_DIR/pre-tag-readiness.sh" --source-repository "$REPO_ROOT" \
-    --evidence "$STAGE/pre-tag-readiness.json" "$SOURCE_SHA"
-  "$SCRIPT_DIR/qualify-desktop-beta.sh" --automatic \
-    --signed-smoke-result "$STAGE/provider-smoke-stable.json" \
-    --candidate-gate-result "$STAGE/candidate-gate.json" \
-    --local-evidence-directory "$STAGE" "$RELEASE_TAG"
+  OMI_READINESS_LANE=local record_command \
+    --label pre-tag-readiness --receipt "pre-tag-readiness.json=$STAGE/pre-tag-readiness.json" -- \
+    "$SCRIPT_DIR/pre-tag-readiness.sh" --source-repository "$REPO_ROOT" \
+      --evidence "$STAGE/pre-tag-readiness.json" "$SOURCE_SHA"
+  record_command --label source-qualification \
+    --receipt "source-t2-manifest.json=$STAGE/source-t2-manifest.json" \
+    --receipt "fault-manifest.json=$STAGE/fault-manifest.json" -- \
+    "$SCRIPT_DIR/qualify-desktop-beta.sh" --automatic \
+      --signed-smoke-result "$STAGE/provider-smoke-stable.json" \
+      --candidate-gate-result "$STAGE/candidate-gate.json" \
+      --local-evidence-directory "$STAGE" "$RELEASE_TAG"
   curl -fsS --max-time 15 "${INTENTIVE_PRODUCTION_API_URL%/}/v1/health" > "$STAGE/backend-health.json"
   curl -fsS --max-time 15 "${INTENTIVE_PRODUCTION_API_URL%/}/" > "$STAGE/backend-root.json"
-  python3 - "$STAGE/backend-health.json" "$STAGE/backend-root.json" "$STAGE/backend-compatibility.json" <<'PY'
-import json, sys
-health, root = (json.load(open(path, encoding="utf-8")) for path in sys.argv[1:3])
-if health.get("status") != "ok" or root.get("status") != "healthy" or root.get("service") != "backend" or root.get("chat_contract_version") != "1":
-    raise SystemExit("hosted backend compatibility check failed")
-json.dump({"schema_version": 1, "status": "healthy", "service": "backend", "process_health_status": "ok", "chat_contract_version": "1"}, open(sys.argv[3], "w", encoding="utf-8"), sort_keys=True)
-PY
-  python3 - "$STAGE" "$RELEASE_TAG" "$SOURCE_SHA" <<'PY'
-import datetime, hashlib, json, sys
-from pathlib import Path
-
-stage, tag, source_sha = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-receipts = {
-    "pre-tag-readiness": ("pre-tag-readiness.json", ["pre-tag-readiness.sh", tag]),
-    "candidate-gate": ("candidate-gate.json", ["check-desktop-auto-beta-candidate.py", "--qualification-mode", "owner-manual", tag]),
-    "stable-signed-smoke": ("owner-smoke-stable.json", ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive", tag]),
-    "beta-signed-smoke": ("owner-smoke-beta.json", ["smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive.beta", tag]),
-    "source-t2": ("source-t2-manifest.json", ["qualify-desktop-beta.sh", "--automatic", tag]),
-    "fault-suite": ("fault-manifest.json", ["qualify-desktop-beta.sh", "--automatic", tag]),
-}
-recorded_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-commands = []
-for label, (receipt, argv) in receipts.items():
-    commands.append({
-        "label": label,
-        "argv": argv,
-        "exit_code": 0,
-        "recorded_at": recorded_at,
-        "receipt": receipt,
-        "receipt_sha256": hashlib.sha256((stage / receipt).read_bytes()).hexdigest(),
-    })
-payload = {"schema_version": 1, "qualification_mode": "owner-manual", "release_tag": tag, "source_sha": source_sha, "commands": commands}
-(stage / "command-ledger.json").write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
-PY
+  record_command --label backend-compatibility \
+    --receipt "backend-compatibility.json=$STAGE/backend-compatibility.json" -- \
+    python3 "$CONTRACT" verify-backend-compatibility \
+      --backend-contract-source "$REPO_ROOT/backend/routers/desktop_core.py" \
+      --process-health "$STAGE/backend-health.json" --root-health "$STAGE/backend-root.json" \
+      --output "$STAGE/backend-compatibility.json"
 fi
 
 receipt_args=()

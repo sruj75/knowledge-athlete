@@ -504,33 +504,27 @@ class DesktopCandidateSourceCheckTests(unittest.TestCase):
         self.assertIn('python3 .github/scripts/publish-desktop-candidate-tag.py', workflow)
         self.assertIn('test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$CANDIDATE_SHA"', workflow)
 
-    def test_tag_release_runs_readiness_verification_and_publish_in_one_m1_transaction(self) -> None:
+    def test_static_tripwire_tag_release_is_a_github_hosted_exact_main_transaction(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertNotIn("pre-tag-readiness:\n", workflow)
         self.assertNotIn("needs: pre-tag-readiness", workflow)
         tag_release = workflow.split("\n  tag-release:\n", 1)[1]
-        self.assertIn(
-            "runs-on: [self-hosted, macos, intentive-desktop-qualification, intentive-qual-m1-studio]",
-            tag_release,
-        )
+        self.assertIn("runs-on: ubuntu-latest", tag_release)
+        self.assertNotIn("self-hosted", tag_release)
+        self.assertNotIn("intentive-qual-m1-studio", tag_release)
         self.assertIn("group: desktop-auto-release-tag-main", tag_release)
         self.assertIn("cancel-in-progress: false", tag_release)
-        self.assertIn("desktop/macos/scripts/pre-tag-readiness.sh", tag_release)
-        self.assertIn(".github/scripts/verify-pre-tag-readiness.py verify", tag_release)
+        self.assertNotIn("pre-tag-readiness.sh", tag_release)
+        self.assertNotIn("verify-pre-tag-readiness.py", tag_release)
         self.assertIn(".github/scripts/publish-desktop-candidate-tag.py", tag_release)
         self.assertLess(
             tag_release.index("Bind immutable planner evidence to fresh main"),
-            tag_release.index("pre-tag-readiness.sh"),
+            tag_release.index("Retain immutable planner source evidence"),
         )
         self.assertLess(
-            tag_release.index("pre-tag-readiness.sh"), tag_release.index("verify-pre-tag-readiness.py verify")
-        )
-        self.assertLess(
-            tag_release.index("verify-pre-tag-readiness.py verify"),
+            tag_release.index("Retain immutable planner source evidence"),
             tag_release.index("publish-desktop-candidate-tag.py"),
         )
-        self.assertIn("if: always()", tag_release)
-        self.assertIn("desktop-pre-tag-readiness", tag_release)
 
     def test_auto_release_is_manual_only(self) -> None:
         # Candidate tags must not fire on push/schedule. The planner may still

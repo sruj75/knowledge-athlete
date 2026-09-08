@@ -134,13 +134,10 @@ jobs:
           [[ "$INTENTIVE_PRODUCTION_API_URL" != *omi.me* && "$INTENTIVE_PRODUCTION_API_URL" != *basedhardware* ]]
           curl -fsS --max-time 15 "${INTENTIVE_PRODUCTION_API_URL%/}/v1/health" > "$STAGE/backend-health.json"
           curl -fsS --max-time 15 "${INTENTIVE_PRODUCTION_API_URL%/}/" > "$STAGE/backend-root.json"
-          jq -n --slurpfile health "$STAGE/backend-health.json" --slurpfile root "$STAGE/backend-root.json" '
-            if $health[0].status == "ok" and $root[0].status == "healthy" and
-              $root[0].service == "backend" and $root[0].chat_contract_version == "1"
-            then {schema_version: 1, status: "healthy", service: "backend",
-                  process_health_status: "ok", chat_contract_version: "1"}
-            else error("hosted backend compatibility check failed") end
-          ' > "$STAGE/backend-compatibility.json"
+          python3 .github/scripts/owner_manual_desktop_qualification.py verify-backend-compatibility \
+            --backend-contract-source backend/routers/desktop_core.py \
+            --process-health "$STAGE/backend-health.json" --root-health "$STAGE/backend-root.json" \
+            --output "$STAGE/backend-compatibility.json"
 
       - name: Bind owner-uploaded evidence identity
         env:

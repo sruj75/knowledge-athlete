@@ -84,11 +84,6 @@ checks:
     triggers: [".github/scripts/check-desktop-auto-beta-candidate.py", ".github/scripts/test_check_desktop_auto_beta_candidate.py", "desktop/macos/scripts/smoke-signed-desktop-artifact.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the candidate gate validates both signed identities and requires the exact Beta ZIP/DMG pair for owner-manual qualification"
-  - id: owner-manual-desktop-qualification-contract
-    command: ["python3", ".github/scripts/test_owner_manual_desktop_qualification.py"]
-    triggers: [".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/test_owner_manual_desktop_qualification.py", ".github/scripts/desktop_qualification_evidence.py", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", ".github/workflows/desktop_qualify_beta.yml", ".github/checks-manifest.yaml"]
-    lanes: ["local", "ci"]
-    reason: "owner-manual qualification must retain exact source, signed Stable/Beta bytes, full smoke/canary results, behavioral receipts, command outcomes, and content-addressed receipt hashes"
   - id: pre-push-worktree-fallback
     command: ["bash", "scripts/test-pre-push-worktree-fallback.sh"]
     triggers: ["scripts/pre-push", "scripts/pre-push-singleflight", "scripts/pr-preflight", "scripts/test-pre-push-worktree-fallback.sh", ".github/scripts/preflight_runner.py", ".github/scripts/pr_preflight.py", ".github/scripts/run_checks.py", ".github/checks-manifest.yaml", ".github/workflows/windows-preflight-portability.yml"]
@@ -332,7 +327,7 @@ checks:
     reason: "S-22 C12 requires actual application provider construction and model call sites to stay inside the typed workload inventory, with exactly three S-23 successor bindings"
   - id: backend-runtime-image-source-closure
     command: ["python3", "backend/scripts/runtime_image_contracts.py", "check"]
-    triggers: [".dockerignore", "backend/**", ".github/scripts/desktop_release_manifest.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/desktop_qualification_evidence.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml", ".github/checks-manifest.yaml"]
+    triggers: [".dockerignore", "backend/**", ".github/scripts/desktop_release_manifest.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/desktop_qualification_evidence.py", ".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/verify-pre-tag-readiness.py", ".github/workflows/runtime_image_contracts.yml", ".github/workflows/gcp_backend*.yml", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#9857 plus the oversized-context incident: runtime images must retain source closure without admitting unrelated checkout paths"
   - id: backend-module-isolation
@@ -542,7 +537,7 @@ checks:
     reason: "#10163 mutation-sensitive Stable retry and default-channel feed fixtures"
   - id: desktop-release-one-path-contract
     command: ["python3", ".github/scripts/test_desktop_release_flow_contract.py"]
-    triggers: [".github/workflows/desktop_auto_release.yml", ".github/workflows/desktop_qualify_beta.yml", ".github/workflows/desktop_retry_beta_qualification.yml", ".github/workflows/desktop_promote_beta.yml", ".github/workflows/desktop_recover_beta.yml", ".github/workflows/desktop_rollback_beta.yml", ".github/workflows/desktop_breakglass_rollout_beta.yml", ".github/workflows/desktop_beta_admission_control.yml", ".github/workflows/desktop_promote_prod.yml", ".github/workflows/gcp_backend.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", ".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/desktop_qualification_evidence.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/test_desktop_release_flow_contract.py", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/desktop_auto_release.yml", ".github/workflows/desktop_qualify_beta.yml", ".github/workflows/desktop_retry_beta_qualification.yml", ".github/workflows/desktop_promote_beta.yml", ".github/workflows/desktop_recover_beta.yml", ".github/workflows/desktop_rollback_beta.yml", ".github/workflows/desktop_breakglass_rollout_beta.yml", ".github/workflows/desktop_beta_admission_control.yml", ".github/workflows/desktop_promote_prod.yml", ".github/workflows/gcp_backend.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", ".github/scripts/owner_manual_desktop_qualification.py", ".github/scripts/desktop_qualification_evidence.py", ".github/scripts/desktop_qualification_admission.py", ".github/scripts/test_desktop_release_flow_contract.py", ".github/scripts/test_owner_manual_desktop_qualification.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     platforms: ["linux", "macos"]
     reason: "owner-manual Beta admission keeps GitHub-hosted source/byte verification separate from owner-attested Mac checks and from pointer promotion"

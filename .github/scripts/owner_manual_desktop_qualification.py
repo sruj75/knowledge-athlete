@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
@@ -12,6 +13,7 @@ import json
 import math
 from pathlib import Path
 import re
+import subprocess
 import sys
 import zipfile
 import zlib
@@ -60,12 +62,12 @@ MAX_BUNDLE_BYTES = 16 * 1024 * 1024
 MAX_RECEIPT_BYTES = 1024 * 1024
 REQUIRED_LEDGER_LABELS = frozenset(
     {
-        "pre-tag-readiness",
         "candidate-gate",
         "stable-signed-smoke",
         "beta-signed-smoke",
-        "source-t2",
-        "fault-suite",
+        "pre-tag-readiness",
+        "source-qualification",
+        "backend-compatibility",
     }
 )
 UTC_RFC3339_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,6})?Z$")
@@ -73,20 +75,12 @@ RECEIPT_TIMESTAMP_RE = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,6})?(?:Z|[+]00:00)$"
 )
 LEDGER_RECEIPTS = {
-    "pre-tag-readiness": "pre-tag-readiness.json",
-    "candidate-gate": "candidate-gate.json",
-    "stable-signed-smoke": "owner-smoke-stable.json",
-    "beta-signed-smoke": "owner-smoke-beta.json",
-    "source-t2": "source-t2-manifest.json",
-    "fault-suite": "fault-manifest.json",
-}
-LEDGER_ARGV = {
-    "pre-tag-readiness": ("pre-tag-readiness.sh",),
-    "candidate-gate": ("check-desktop-auto-beta-candidate.py", "--qualification-mode", "owner-manual"),
-    "stable-signed-smoke": ("smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive"),
-    "beta-signed-smoke": ("smoke-signed-desktop-artifact.sh", "com.heyintentive.intentive.beta"),
-    "source-t2": ("qualify-desktop-beta.sh", "--automatic"),
-    "fault-suite": ("qualify-desktop-beta.sh", "--automatic"),
+    "candidate-gate": ("candidate-gate.json",),
+    "stable-signed-smoke": ("owner-smoke-stable.json",),
+    "beta-signed-smoke": ("owner-smoke-beta.json",),
+    "pre-tag-readiness": ("pre-tag-readiness.json",),
+    "source-qualification": ("source-t2-manifest.json", "fault-manifest.json"),
+    "backend-compatibility": ("backend-compatibility.json",),
 }
 
 
@@ -120,6 +114,224 @@ def _duration(value: object, label: str) -> timedelta:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
         _fail(f"{label} duration is invalid")
     return timedelta(seconds=float(value))
+
+
+def _backend_contract_version(source: Path | None = None) -> str:
+    if source is None:
+        here = Path(__file__).resolve()
+        parents = tuple(here.parents)
+        candidates = [here.parent / "routers/desktop_core.py"]
+        if len(parents) >= 3:
+            candidates.insert(0, parents[2] / "backend/routers/desktop_core.py")
+        source = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if source is None or not source.is_file():
+        _fail("cannot locate the backend-owned chat contract")
+    try:
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    except (OSError, SyntaxError, UnicodeError) as exc:
+        raise ValueError("owner-manual qualification backend contract source is invalid") from exc
+    values = [
+        node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "CHAT_CONTRACT_VERSION" for target in node.targets)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    ]
+    if len(values) != 1 or re.fullmatch(r"[1-9][0-9]{0,5}", values[0]) is None:
+        _fail("backend-owned chat contract is invalid")
+    return values[0]
+
+
+def validate_backend_compatibility(
+    backend_contract_source: Path,
+    process_health_path: Path,
+    root_health_path: Path,
+    output_path: Path,
+) -> dict[str, object]:
+    process_health = _json_object(process_health_path.read_bytes(), "backend process health")
+    root_health = _json_object(root_health_path.read_bytes(), "backend root health")
+    expected_version = _backend_contract_version(backend_contract_source)
+    if process_health != {"status": "ok"} or any(
+        root_health.get(field) != expected
+        for field, expected in {
+            "status": "healthy",
+            "service": "backend",
+            "chat_contract_version": expected_version,
+        }.items()
+    ):
+        _fail("backend compatibility check failed")
+    result: dict[str, object] = {
+        "schema_version": 1,
+        "status": "healthy",
+        "service": "backend",
+        "process_health_status": "ok",
+        "chat_contract_version": expected_version,
+    }
+    output_path.write_text(json.dumps(result, sort_keys=True) + "\n", encoding="utf-8")
+    return result
+
+
+def _option(argv: list[str], name: str) -> str:
+    try:
+        index = argv.index(name)
+        value = argv[index + 1]
+    except (ValueError, IndexError) as exc:
+        raise ValueError(f"owner-manual qualification command is missing {name}") from exc
+    if not value or value.startswith("--"):
+        _fail(f"command is missing {name}")
+    return value
+
+
+def _sanitized_command_argv(label: str, command: list[str], release_tag: str, source_sha: str) -> list[str]:
+    if not command:
+        _fail("recorded command is empty")
+    executable = Path(command[0]).name
+    if label == "candidate-gate":
+        if (
+            executable != "python3"
+            or len(command) < 2
+            or Path(command[1]).name != "check-desktop-auto-beta-candidate.py"
+        ):
+            _fail("candidate-gate command identity is invalid")
+        expected = {
+            "--qualification-mode": QUALIFICATION_MODE,
+            "--release-tag": release_tag,
+            "--tag-sha": source_sha,
+            "--checkout-sha": source_sha,
+        }
+        if any(_option(command, flag) != value for flag, value in expected.items()):
+            _fail("candidate-gate command identity is invalid")
+        if _option(command, "--expected-team-id") != EXPECTED_TEAM_ID:
+            _fail("candidate-gate command identity is invalid")
+        return [
+            "python3",
+            "check-desktop-auto-beta-candidate.py",
+            *[part for pair in expected.items() for part in pair],
+            "--expected-team-id",
+            _option(command, "--expected-team-id"),
+        ]
+    if label in {"stable-signed-smoke", "beta-signed-smoke"}:
+        bundle_id = (
+            "com.heyintentive.intentive" if label == "stable-signed-smoke" else "com.heyintentive.intentive.beta"
+        )
+        expected = {
+            "--expected-bundle-id": bundle_id,
+            "--tag": release_tag,
+            "--source-sha": source_sha,
+            "--expected-channel": "beta",
+        }
+        required_switches = ("--launch", "--auth-storage-canary", "--notification-callback-canary")
+        if (
+            executable != "smoke-signed-desktop-artifact.sh"
+            or any(_option(command, flag) != value for flag, value in expected.items())
+            or any(flag not in command for flag in required_switches)
+        ):
+            _fail(f"{label} command identity is invalid")
+        return [executable, *[part for pair in expected.items() for part in pair], *required_switches]
+    if label == "pre-tag-readiness":
+        if executable != "pre-tag-readiness.sh" or source_sha not in command:
+            _fail("pre-tag-readiness command identity is invalid")
+        return [executable, source_sha]
+    if label == "source-qualification":
+        expected = {
+            "--signed-smoke-result": "provider-smoke-stable.json",
+            "--candidate-gate-result": "candidate-gate.json",
+        }
+        if (
+            executable != "qualify-desktop-beta.sh"
+            or "--automatic" not in command
+            or release_tag not in command
+            or any(Path(_option(command, flag)).name != value for flag, value in expected.items())
+            or "--local-evidence-directory" not in command
+        ):
+            _fail("source-qualification command identity is invalid")
+        return [
+            executable,
+            "--automatic",
+            *[part for pair in expected.items() for part in pair],
+            "--local-evidence-directory",
+            "<private-stage>",
+            release_tag,
+        ]
+    if label == "backend-compatibility":
+        if (
+            executable != "python3"
+            or len(command) < 3
+            or Path(command[1]).name != "owner_manual_desktop_qualification.py"
+            or command[2] != "verify-backend-compatibility"
+        ):
+            _fail("backend-compatibility command identity is invalid")
+        result = ["python3", "owner_manual_desktop_qualification.py", "verify-backend-compatibility"]
+        for flag in ("--backend-contract-source", "--process-health", "--root-health", "--output"):
+            result.extend((flag, Path(_option(command, flag)).name))
+        return result
+    _fail("command ledger label is invalid")
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def record_command(
+    *,
+    ledger_path: Path,
+    release_tag: str,
+    source_sha: str,
+    label: str,
+    receipt_paths: dict[str, Path],
+    command: list[str],
+) -> int:
+    if TAG_RE.fullmatch(release_tag) is None or SHA_RE.fullmatch(source_sha) is None:
+        _fail("release identity is invalid")
+    expected_receipts = LEDGER_RECEIPTS.get(label)
+    if expected_receipts is None or set(receipt_paths) != set(expected_receipts):
+        _fail("recorded command receipt set is invalid")
+    safe_argv = _sanitized_command_argv(label, command, release_tag, source_sha)
+    started_at = _utc_now()
+    result = subprocess.run(command, check=False)
+    finished_at = _utc_now()
+    receipt_values = []
+    if result.returncode == 0:
+        for name in expected_receipts:
+            path = receipt_paths[name]
+            if not path.is_file():
+                _fail(f"recorded command did not produce {name}")
+            receipt_values.append({"name": name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    if ledger_path.exists():
+        ledger = _json_object(ledger_path.read_bytes(), "command ledger")
+    else:
+        ledger = {
+            "schema_version": 1,
+            "qualification_mode": QUALIFICATION_MODE,
+            "release_tag": release_tag,
+            "source_sha": source_sha,
+            "commands": [],
+        }
+    commands = ledger.get("commands")
+    if (
+        set(ledger) != {"schema_version", "qualification_mode", "release_tag", "source_sha", "commands"}
+        or ledger.get("schema_version") != 1
+        or ledger.get("qualification_mode") != QUALIFICATION_MODE
+        or ledger.get("release_tag") != release_tag
+        or ledger.get("source_sha") != source_sha
+        or not isinstance(commands, list)
+        or any(isinstance(item, dict) and item.get("label") == label for item in commands)
+    ):
+        _fail("command ledger is invalid")
+    commands.append(
+        {
+            "label": label,
+            "argv": safe_argv,
+            "exit_code": result.returncode,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "receipts": receipt_values,
+        }
+    )
+    ledger_path.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    ledger_path.chmod(0o600)
+    return result.returncode
 
 
 def _artifact_digests(value: object) -> dict[str, str]:
@@ -281,13 +493,14 @@ def _validate_receipts(receipts: dict[str, bytes], tag: str, source_sha: str) ->
         "status": "healthy",
         "service": "backend",
         "process_health_status": "ok",
-        "chat_contract_version": "1",
+        "chat_contract_version": _backend_contract_version(),
     }:
         _fail("backend compatibility receipt is invalid")
     ledger = values["command-ledger.json"]
     commands = ledger.get("commands")
     if (
-        ledger.get("schema_version") != 1
+        set(ledger) != {"schema_version", "qualification_mode", "release_tag", "source_sha", "commands"}
+        or ledger.get("schema_version") != 1
         or ledger.get("qualification_mode") != QUALIFICATION_MODE
         or ledger.get("release_tag") != tag
         or ledger.get("source_sha") != source_sha
@@ -296,36 +509,50 @@ def _validate_receipts(receipts: dict[str, bytes], tag: str, source_sha: str) ->
         _fail("command ledger is invalid")
     labels: set[str] = set()
     receipt_finished = {
-        "pre-tag-readiness": readiness_finished,
         "candidate-gate": candidate_finished,
         "stable-signed-smoke": owner_stable_finished,
         "beta-signed-smoke": owner_beta_finished,
-        "source-t2": source_t2_finished,
-        "fault-suite": fault_finished,
+        "pre-tag-readiness": readiness_finished,
+        "source-qualification": max(source_t2_finished, fault_finished),
+        "backend-compatibility": None,
     }
     for command in commands:
         if (
             not isinstance(command, dict)
+            or set(command) != {"label", "argv", "exit_code", "started_at", "finished_at", "receipts"}
             or not isinstance(command.get("label"), str)
             or not isinstance(command.get("argv"), list)
             or not command["argv"]
             or any(not isinstance(part, str) or not part for part in command["argv"])
             or command.get("exit_code") != 0
-            or not isinstance(command.get("recorded_at"), str)
+            or not isinstance(command.get("started_at"), str)
+            or not isinstance(command.get("finished_at"), str)
+            or not isinstance(command.get("receipts"), list)
         ):
             _fail("command ledger is invalid")
         label = str(command["label"])
         labels.add(label)
-        expected_argv = LEDGER_ARGV.get(label)
-        if expected_argv is None or tuple(command["argv"][: len(expected_argv)]) != expected_argv:
+        if label not in REQUIRED_LEDGER_LABELS or command["argv"] != _sanitized_command_argv(
+            label, command["argv"], tag, source_sha
+        ):
             _fail("command ledger is invalid")
-        recorded_at = _timestamp(command.get("recorded_at"), f"{label} command")
-        if recorded_at < release_published or recorded_at < receipt_finished[label]:
+        started_at = _timestamp(command.get("started_at"), f"{label} command start")
+        finished_at = _timestamp(command.get("finished_at"), f"{label} command finish")
+        semantic_finish = receipt_finished[label]
+        if (
+            started_at < release_published
+            or finished_at < started_at
+            or (semantic_finish is not None and (semantic_finish < started_at or semantic_finish > finished_at))
+        ):
             _fail("command ledger timestamp predates its command receipt")
-        receipt_name = LEDGER_RECEIPTS.get(label)
-        if receipt_name is not None and (
-            command.get("receipt") != receipt_name
-            or command.get("receipt_sha256") != hashlib.sha256(receipts[receipt_name]).hexdigest()
+        expected_receipts = LEDGER_RECEIPTS[label]
+        receipt_entries = command["receipts"]
+        if len(receipt_entries) != len(expected_receipts) or any(
+            not isinstance(entry, dict)
+            or set(entry) != {"name", "sha256"}
+            or entry.get("name") != receipt_name
+            or entry.get("sha256") != hashlib.sha256(receipts[receipt_name]).hexdigest()
+            for entry, receipt_name in zip(receipt_entries, expected_receipts, strict=True)
         ):
             _fail("command ledger does not bind its receipt bytes")
     if labels != REQUIRED_LEDGER_LABELS or len(commands) != len(REQUIRED_LEDGER_LABELS):
@@ -435,6 +662,18 @@ def main(argv: list[str] | None = None) -> int:
     verify.add_argument("--source-sha", required=True)
     verify.add_argument("--bundle", type=Path, required=True)
     verify.add_argument("--artifact-digest", action="append", default=[])
+    record = sub.add_parser("record-command")
+    record.add_argument("--ledger", type=Path, required=True)
+    record.add_argument("--release-tag", required=True)
+    record.add_argument("--source-sha", required=True)
+    record.add_argument("--label", choices=sorted(REQUIRED_LEDGER_LABELS), required=True)
+    record.add_argument("--receipt", action="append", default=[])
+    record.add_argument("command_argv", nargs=argparse.REMAINDER)
+    compatibility = sub.add_parser("verify-backend-compatibility")
+    compatibility.add_argument("--backend-contract-source", type=Path, required=True)
+    compatibility.add_argument("--process-health", type=Path, required=True)
+    compatibility.add_argument("--root-health", type=Path, required=True)
+    compatibility.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "build":
         receipt_paths: dict[str, Path] = {}
@@ -444,7 +683,7 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("--receipt must be unique NAME=PATH")
             receipt_paths[name] = Path(path)
         print(build_bundle(receipt_paths, args.output_directory, args.release_tag, args.source_sha))
-    else:
+    elif args.command == "verify":
         digests: dict[str, str] = {}
         for raw in args.artifact_digest:
             name, separator, digest = raw.partition("=")
@@ -453,6 +692,34 @@ def main(argv: list[str] | None = None) -> int:
             digests[name] = digest.removeprefix("sha256:")
         verify_bundle(args.bundle.read_bytes(), args.release_tag, args.source_sha, digests)
         print("owner-manual qualification evidence verified")
+    elif args.command == "record-command":
+        receipt_paths: dict[str, Path] = {}
+        for raw in args.receipt:
+            name, separator, path = raw.partition("=")
+            if not separator or name in receipt_paths:
+                parser.error("--receipt must be unique NAME=PATH")
+            receipt_paths[name] = Path(path)
+        command = list(args.command_argv)
+        if command and command[0] == "--":
+            command.pop(0)
+        if not command:
+            parser.error("record-command requires a command after --")
+        return record_command(
+            ledger_path=args.ledger,
+            release_tag=args.release_tag,
+            source_sha=args.source_sha,
+            label=args.label,
+            receipt_paths=receipt_paths,
+            command=command,
+        )
+    else:
+        validate_backend_compatibility(
+            args.backend_contract_source,
+            args.process_health,
+            args.root_health,
+            args.output,
+        )
+        print("owner-manual backend compatibility verified")
     return 0
 
 
