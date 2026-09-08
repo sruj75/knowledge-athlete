@@ -29,6 +29,27 @@ class GcpBackendProductionBoundaryTests(unittest.TestCase):
         self.assertIn('--candidate-api-url "$SERVING_API_URL"', smoke)
         self.assertNotIn("api.omi.me", smoke)
 
+    def test_static_guard_rejects_retired_what_matters_now_deploy_probe(self) -> None:
+        """Merged #34 retired hosted task authority; this is a static workflow tripwire."""
+        original = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
+        promotion = original.index(CHECKER.TRAFFIC_SHIFT)
+        insertion = original.index("      - name: Cloud Run deploy status report\n", promotion)
+        retired_probe = (
+            "      # Retired hosted task authority\n"
+            "      # smoke_what_matters_now.py calls /v1/what-matters-now\n"
+        )
+        regression = original[:insertion] + retired_probe + original[insertion:]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow = root / ".github/workflows/gcp_backend.yml"
+            workflow.parent.mkdir(parents=True)
+            workflow.write_text(regression, encoding="utf-8")
+
+            self.assertTrue(
+                any("retired hosted task-authority probe" in error for error in CHECKER.validate(root))
+            )
+
     def test_rejects_production_boundary_regressions(self) -> None:
         original = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
         mutations = {

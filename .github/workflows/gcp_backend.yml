@@ -952,21 +952,6 @@ jobs:
             --snapshot artifacts/backend-cloud-run-pre-promotion-traffic-snapshot.json \
             --evidence-path artifacts/backend-cloud-run-traffic-restore.json
 
-      - name: Smoke What Matters Now datastore query
-        if: ${{ github.event.inputs.environment == 'development' }}
-        env:
-          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-          SERVING_API_URL: ${{ steps.account-deletion-target.outputs.backend_url }}
-          ADMIN_KEY_VERSION: ${{ vars.ADMIN_KEY_VERSION }}
-        run: |
-          set -euo pipefail
-          test -n "$ADMIN_KEY_VERSION"
-          [[ "$ADMIN_KEY_VERSION" != "latest" ]]
-          ADMIN_KEY="$(gcloud secrets versions access "$ADMIN_KEY_VERSION" --secret=ADMIN_KEY --project="$PROJECT_ID")"
-          export ADMIN_KEY
-          trap 'unset ADMIN_KEY' EXIT
-          python3 "$DEPLOY_CONTROL_SCRIPTS/smoke_what_matters_now.py" --base-url "$SERVING_API_URL"
-
       - name: Cloud Run deploy status report
         if: always()
         run: |

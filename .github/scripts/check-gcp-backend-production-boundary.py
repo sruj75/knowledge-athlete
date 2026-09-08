@@ -22,6 +22,12 @@ PROD_FORBIDDEN = (
     "helm upgrade",
     "kubectl ",
 )
+# Static workflow tripwire: merged #34 (46d67ccb) removed hosted task/goal
+# authority and its deployment smoke. Candidate and serving proofs remain below.
+RETIRED_HOSTED_TASK_PROBES = (
+    "smoke_what_matters_now.py",
+    "/v1/what-matters-now",
+)
 
 
 def validate(root: Path) -> list[str]:
@@ -35,6 +41,11 @@ def validate(root: Path) -> list[str]:
     for forbidden in PROD_FORBIDDEN:
         if forbidden in text:
             errors.append(f"gcp_backend.yml must not retain production candidate dependency {forbidden!r}")
+    for retired_probe in RETIRED_HOSTED_TASK_PROBES:
+        if retired_probe in text:
+            errors.append(
+                f"gcp_backend.yml must not retain retired hosted task-authority probe {retired_probe!r}"
+            )
     try:
         candidate_probe = text.index(CANDIDATE_PROBE)
         provider_probe = text.index(PROVIDER_PROBE)
