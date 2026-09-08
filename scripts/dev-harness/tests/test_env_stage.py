@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dev_harness import config, safety
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -250,7 +249,12 @@ def test_dev_instance_rejects_conflicting_port_aliases(tmp_path: Path, port_env:
     assert "conflicting port aliases" in result.stderr
 
 
-def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "http_status,expected_exit", [("401", 0), ("403", 0), ("000", 1), ("404", 1), ("500", 1), ("200", 1)]
+)
+def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(
+    tmp_path: Path, http_status: str, expected_exit: int
+) -> None:
     fixture = tmp_path / "workspace"
     wrapper_dir = fixture / "scripts" / "dev-harness"
     wrapper_dir.mkdir(parents=True)
@@ -263,13 +267,15 @@ def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(tmp_path: P
     bin_dir.mkdir()
     curl_args = tmp_path / "curl-args.txt"
     curl = bin_dir / "curl"
-    curl.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$CURL_ARGS_PATH"\nprintf 401\n', encoding="utf-8")
+    curl.write_text(
+        '#!/bin/bash\nprintf "%s\\n" "$@" > "$CURL_ARGS_PATH"\nprintf "%s" "$FAKE_HTTP_STATUS"\n',
+        encoding="utf-8",
+    )
     curl.chmod(0o755)
     ctl = fixture / "desktop" / "macos" / "scripts" / "omi-ctl"
     ctl.parent.mkdir(parents=True)
     ctl.write_text(
-        '#!/bin/bash\n[[ "$OMI_AUTOMATION_PORT" == "55004" ]] || exit 1\n'
-        'printf \'{"isSignedIn":true}\\n\'\n',
+        '#!/bin/bash\n[[ "$OMI_AUTOMATION_PORT" == "55004" ]] || exit 1\n' 'printf \'{"isSignedIn":true}\\n\'\n',
         encoding="utf-8",
     )
     ctl.chmod(0o755)
@@ -289,6 +295,7 @@ def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(tmp_path: P
             "OMI_INSTANCE": "workspace-alpha",
             "OMI_LOCAL_STATE_ROOT": str(state_base),
             "CURL_ARGS_PATH": str(curl_args),
+            "FAKE_HTTP_STATUS": http_status,
         },
         text=True,
         stdout=subprocess.PIPE,
@@ -296,7 +303,7 @@ def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(tmp_path: P
         check=False,
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == expected_exit, result.stdout + result.stderr
     assert "http://127.0.0.1:55000/v2/models/" in curl_args.read_text(encoding="utf-8")
     assert "backend log: no incorrect" in result.stdout
     assert "backend log not found" not in result.stdout
