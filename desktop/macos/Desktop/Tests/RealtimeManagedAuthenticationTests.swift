@@ -6,6 +6,11 @@ import XCTest
 final class RealtimeManagedAuthenticationTests: XCTestCase {
   private let legacyKeyNames = ["dev_openai_api_key", "dev_gemini_api_key"]
 
+  func testTransportEvidenceDistinguishesManagedAndHermeticWithoutCredentials() {
+    XCTAssertEqual(HubAuth.managedEphemeral("fixture-token").transportMode, "managed")
+    XCTAssertEqual(HubAuth.hermeticStub.transportMode, "hermetic")
+  }
+
   func testLegacyCustomerKeyCannotStartSignedOutRealtimeSession() {
     let defaults = UserDefaults.standard
     let previousSignedIn = AuthService.shared.isSignedIn

@@ -7,6 +7,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="$ROOT/run.sh"
+DESKTOP_APP_SCRUB_ENV_FILE="$ROOT/../../scripts/dev-harness/desktop-app-scrub-env.txt"
+export DESKTOP_APP_SCRUB_ENV_FILE
 
 BUILD_FUNCTION="$(sed -n '/^build_launch_env_args()/,/^}/p' "$RUN")"
 
@@ -15,16 +17,24 @@ if [[ -z "$BUILD_FUNCTION" ]]; then
   exit 1
 fi
 
-# Unset: no --env arguments, so a normal launch is untouched.
+# Unset: launchd's ambient provider/admin authority is explicitly cleared,
+# while optional automation capabilities remain absent.
 (
-  unset OMI_AUTOMATION_TOKEN_FILE OMI_AUTOMATION_TOKEN
+  unset OMI_AUTOMATION_TOKEN_FILE OMI_AUTOMATION_TOKEN LOCAL_PROFILE
   eval "$BUILD_FUNCTION"
   build_launch_env_args
-
-  if [ "${#LAUNCH_ENV_ARGS[@]}" -ne 0 ]; then
-    echo "FAIL: expected no --env arguments when the override is unset, got: ${LAUNCH_ENV_ARGS[*]}" >&2
-    exit 1
-  fi
+  rendered="$(printf '%s\n' "${LAUNCH_ENV_ARGS[@]}")"
+  direct_rendered="$(printf '%s\n' "${DIRECT_LAUNCH_ENV[@]}")"
+  grep -qx 'OPENAI_API_KEY=' <<<"$rendered"
+  grep -qx 'LANGFUSE_SECRET_KEY=' <<<"$rendered"
+  grep -qx 'ADMIN_KEY=' <<<"$rendered"
+  grep -qx 'OMI_HARNESS_OWNERSHIP_TOKEN=' <<<"$rendered"
+  ! grep -q '^OMI_AUTOMATION_TOKEN_FILE=' <<<"$rendered"
+  ! grep -q '^OMI_AUTOMATION_TOKEN=' <<<"$rendered"
+  grep -qx 'OPENAI_API_KEY=' <<<"$direct_rendered"
+  grep -qx 'LANGFUSE_SECRET_KEY=' <<<"$direct_rendered"
+  grep -qx 'ADMIN_KEY=' <<<"$direct_rendered"
+  grep -qx 'OMI_HARNESS_OWNERSHIP_TOKEN=' <<<"$direct_rendered"
 )
 
 # Set: retained automation overrides are forwarded verbatim as `open --env`
@@ -34,15 +44,13 @@ fi
   export OMI_AUTOMATION_TOKEN=test-token
   eval "$BUILD_FUNCTION"
   build_launch_env_args
-
-  if [ "${#LAUNCH_ENV_ARGS[@]}" -ne 4 ]; then
-    echo "FAIL: expected 4 --env arguments, got ${#LAUNCH_ENV_ARGS[@]}: ${LAUNCH_ENV_ARGS[*]}" >&2
-    exit 1
-  fi
-  test "${LAUNCH_ENV_ARGS[0]}" = "--env"
-  test "${LAUNCH_ENV_ARGS[1]}" = "OMI_AUTOMATION_TOKEN_FILE=/tmp/omi-test-token"
-  test "${LAUNCH_ENV_ARGS[2]}" = "--env"
-  test "${LAUNCH_ENV_ARGS[3]}" = "OMI_AUTOMATION_TOKEN=test-token"
+  rendered="$(printf '%s\n' "${LAUNCH_ENV_ARGS[@]}")"
+  direct_rendered="$(printf '%s\n' "${DIRECT_LAUNCH_ENV[@]}")"
+  grep -qx 'OPENAI_API_KEY=' <<<"$rendered"
+  grep -qx 'OMI_AUTOMATION_TOKEN_FILE=/tmp/omi-test-token' <<<"$rendered"
+  grep -qx 'OMI_AUTOMATION_TOKEN=test-token' <<<"$rendered"
+  grep -qx 'OMI_AUTOMATION_TOKEN_FILE=/tmp/omi-test-token' <<<"$direct_rendered"
+  grep -qx 'OMI_AUTOMATION_TOKEN=test-token' <<<"$direct_rendered"
 )
 
 # Every `open` invocation on the launch path must carry the forwarded env, or
@@ -66,6 +74,12 @@ fi
 
 if grep -qE '^[[:space:]]*if ! open .*[^+]"\$\{LAUNCH_ENV_ARGS\[@\]\}"' "$RUN"; then
   echo "FAIL: bare \"\${LAUNCH_ENV_ARGS[@]}\" expansion traps under set -u on bash 3.2 (FC-shell-unset-array-under-nounset)" >&2
+  exit 1
+fi
+
+DIRECT_CALLS="$(grep -cE '^[[:space:]]*env "\$\{DIRECT_LAUNCH_ENV\[@\]\}" "\$APP_PATH/Contents/MacOS/\$BINARY_NAME"' "$RUN" || true)"
+if [ "$DIRECT_CALLS" -ne "$OPEN_CALLS" ]; then
+  echo "FAIL: $OPEN_CALLS open fallbacks but only $DIRECT_CALLS sanitize the direct executable environment" >&2
   exit 1
 fi
 

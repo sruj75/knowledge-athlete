@@ -10,7 +10,13 @@ omi_write_local_profile_env() {
     : > "$env_file"
     {
         printf '%s\n' "OMI_DESKTOP_LOCAL_PROFILE=1"
+        printf '%s\n' "OMI_LOCAL_PROVIDER_MODE=${OMI_LOCAL_PROVIDER_MODE:-offline}"
         printf '%s\n' "OMI_PYTHON_API_URL=${OMI_PYTHON_API_URL:-}"
+        # Launch Services does not preserve argv or the launcher environment when
+        # macOS quits and reopens an app after a permission decision. Keep the
+        # workspace's non-secret bridge port in the named bundle profile so that
+        # exact-bundle successor verification remains reachable.
+        printf '%s\n' "OMI_AUTOMATION_PORT=${OMI_AUTOMATION_PORT:-47777}"
         printf '%s\n' "OMI_LOCAL_PROFILE_STORAGE_NAME=${OMI_LOCAL_PROFILE_STORAGE_NAME:-Intentive}"
         printf '%s\n' "OMI_LOCAL_AUTH_USER=${OMI_LOCAL_AUTH_USER:-}"
         printf '%s\n' "OMI_LOCAL_AUTH_EMAIL=${OMI_LOCAL_AUTH_EMAIL:-}"

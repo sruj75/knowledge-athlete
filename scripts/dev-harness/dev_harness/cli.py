@@ -6,19 +6,23 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import secrets
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from enum import Enum
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
-from . import config, providers, qualification, safety, synthetic_profiles
+from . import config, desktop_profile, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
 CONFIG_DIGEST_SCHEMA_VERSION = 4
@@ -29,10 +33,126 @@ RUNTIME_SOURCE_PATHS = (
     "firestore.rules",
     "firestore.indexes.json",
 )
+DESKTOP_RECORD_SCHEMA_VERSION = 1
+_DESKTOP_LAUNCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_-]{16,128}")
+_DESKTOP_SOURCE_SHA_RE = re.compile(r"[0-9a-f]{40}")
+DESKTOP_RECORD_STATE_ATTEMPT = "launch_attempt"
+DESKTOP_RECORD_STATE_OWNED = "owned"
+DESKTOP_PROOF_LAUNCH_TOKEN = "launch_token"
+DESKTOP_PROOF_BRIDGE_SUCCESSOR = "bridge_successor"
+SERVICE_STOP_PHASES: tuple[tuple[signal.Signals, float], ...] = tuple(
+    (signal.Signals(value), wait_seconds)
+    for name, wait_seconds in (("SIGINT", 8.0), ("SIGTERM", 5.0), ("SIGKILL", 2.0))
+    if (value := getattr(signal, name, None)) is not None
+)
 
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopLaunchAttempt:
+    """Owner-only durable evidence written before the detached launcher runs."""
+
+    instance: str
+    automation_port: int
+    app_name: str
+    bundle_id: str
+    app_path: Path
+    executable_path: Path
+    profile_root: Path
+    state_root: Path
+    launch_token: str
+    attempted_at: str
+
+    def as_record(self) -> dict[str, object]:
+        return {
+            "desktop_schema_version": DESKTOP_RECORD_SCHEMA_VERSION,
+            "desktop_record_state": DESKTOP_RECORD_STATE_ATTEMPT,
+            "service": "desktop",
+            "instance": self.instance,
+            "automation_port": self.automation_port,
+            "app_name": self.app_name,
+            "bundle_id": self.bundle_id,
+            "app_path": str(self.app_path),
+            "executable_path": str(self.executable_path),
+            "profile_root": str(self.profile_root),
+            "state_root": str(self.state_root),
+            "launch_token": self.launch_token,
+            "attempted_at": self.attempted_at,
+        }
+
+
+class DesktopOwnershipProof(str, Enum):
+    LAUNCH_TOKEN = DESKTOP_PROOF_LAUNCH_TOKEN
+    BRIDGE_SUCCESSOR = DESKTOP_PROOF_BRIDGE_SUCCESSOR
+
+
+class DesktopSuccessorPending(safety.SafetyError):
+    """An exact-path successor exists but has not completed health admission."""
+
+
+@dataclass(frozen=True, slots=True)
+class DesktopOwnershipRecord:
+    """A parsed desktop record whose workspace and process proof are verified."""
+
+    instance: str
+    pid: int
+    port: int
+    app_name: str
+    bundle_id: str
+    app_path: Path
+    executable_path: Path
+    profile_root: Path
+    state_root: Path
+    launch_token: str
+    launch_transport: str
+    process_start: str
+    command_sha256: str
+    proof: DesktopOwnershipProof
+    started_at: str
+    source_git_sha: str | None = None
+    source_tree_dirty: bool | None = None
+    predecessor_pid: int | None = None
+    predecessor_process_start: str | None = None
+    predecessor_command_sha256: str | None = None
+
+    def as_record(self) -> dict[str, object]:
+        record: dict[str, object] = {
+            "desktop_schema_version": DESKTOP_RECORD_SCHEMA_VERSION,
+            "desktop_record_state": DESKTOP_RECORD_STATE_OWNED,
+            "desktop_ownership_proof": self.proof.value,
+            "service": "desktop",
+            "instance": self.instance,
+            "pid": self.pid,
+            "port": self.port,
+            "owned_ports": {"automation": self.port},
+            "endpoint": f"127.0.0.1:{self.port}",
+            "app_name": self.app_name,
+            "bundle_id": self.bundle_id,
+            "app_path": str(self.app_path),
+            "executable_path": str(self.executable_path),
+            "profile_root": str(self.profile_root),
+            "state_root": str(self.state_root),
+            "launch_token": self.launch_token,
+            "launch_transport": self.launch_transport,
+            "process_start": self.process_start,
+            "command_sha256": self.command_sha256,
+            "started_at": self.started_at,
+        }
+        if self.source_git_sha is not None:
+            record["source_git_sha"] = self.source_git_sha
+            record["source_tree_dirty"] = self.source_tree_dirty
+        if self.predecessor_pid is not None:
+            record.update(
+                {
+                    "predecessor_pid": self.predecessor_pid,
+                    "predecessor_process_start": self.predecessor_process_start,
+                    "predecessor_command_sha256": self.predecessor_command_sha256,
+                }
+            )
+        return record
 
 
 def _repo_root() -> Path:
@@ -60,7 +180,12 @@ def _load_json(path: Path, default: dict[str, object]) -> dict[str, object]:
 
 def _write_json(path: Path, data: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp")
+    try:
+        temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _json_digest(data: object) -> str:
@@ -128,6 +253,22 @@ def _owned_live_process_records(cfg: config.HarnessConfig) -> list[dict[str, obj
             pid = int(record.get("pid", -1))
             marker = str(record.get("ownership_marker", ""))
         except (AttributeError, TypeError, ValueError):
+            continue
+        if service == "desktop":
+            try:
+                if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+                    _desktop_launch_attempt(cfg, record)
+                    owned.append(record)
+                    continue
+                recovered = recover_desktop_record(cfg, record)
+                if _validated_desktop_process(cfg, recovered) is not None:
+                    owned.append(recovered)
+            except DesktopSuccessorPending:
+                # An exact executable is already taking over the recorded
+                # bundle; keep the active launch contract until admission.
+                owned.append(record)
+            except safety.SafetyError:
+                pass
             continue
         expected_marker = f"{OWNERSHIP_PREFIX}:{cfg.instance}:{service}"
         if not service or (marker != expected_marker and not marker.startswith(f"{expected_marker}:")):
@@ -401,8 +542,27 @@ def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
 
 
 def _save_manifests(cfg: config.HarnessConfig, records: list[dict[str, object]]) -> None:
-    live = [record for record in records if safety.process_exists(int(record.get("pid", -1)))]
+    live: list[dict[str, object]] = []
+    for record in records:
+        if record.get("service") == "desktop":
+            # A detached launch or an app-controlled/OS-controlled restart may
+            # outlive the PID currently recorded here. Keep the exact attempt or
+            # predecessor as the only authority from which a delayed process can
+            # be recovered; explicit exact shutdown removes it.
+            live.append(record)
+            continue
+        if safety.process_exists(int(record.get("pid", -1))):
+            live.append(record)
+            continue
+        try:
+            if any(safety.listening_pids(port) for port in _owned_record_ports(record)):
+                live.append(record)
+        except safety.SafetyError:
+            # Listener discovery failure is not authority to erase the record
+            # that explains why a service port may still be occupied.
+            live.append(record)
     _write_json(cfg.layout.process_manifest, {"schema_version": 1, "updated_at": _now(), "processes": live})
+    cfg.layout.process_manifest.chmod(0o600)
     ports: list[dict[str, object]] = []
     for record in live:
         owned_ports = record.get("owned_ports")
@@ -439,9 +599,783 @@ def _port_open(host: str, port: int, timeout: float = 0.25) -> bool:
 
 def _service_record(cfg: config.HarnessConfig, service: str) -> dict[str, object] | None:
     for record in _process_records(cfg):
-        if record.get("service") == service and safety.process_exists(int(record.get("pid", -1))):
+        if record.get("service") != service:
+            continue
+        if service == "desktop":
+            try:
+                if _validated_desktop_process(cfg, record) is not None:
+                    return record
+            except safety.SafetyError:
+                continue
+        elif safety.process_exists(int(record.get("pid", -1))):
             return record
     return None
+
+
+def desktop_app_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return Path("/Applications") / f"{profile.app_name}.app"
+
+
+def desktop_executable_path(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return desktop_app_path(profile) / "Contents" / "MacOS" / "Omi Computer"
+
+
+def desktop_profile_root(profile: desktop_profile.DesktopLocalProfile) -> Path:
+    return Path(profile.application_support_dir).expanduser().resolve(strict=False)
+
+
+def _expected_desktop_profile_root(bundle_id: str) -> Path:
+    return (Path.home() / "Library" / "Application Support" / "Intentive Dev Bundles" / bundle_id).resolve(strict=False)
+
+
+def _required_record_string(record: Mapping[str, object], key: str) -> str:
+    value = record.get(key)
+    if not isinstance(value, str) or not value:
+        raise safety.SafetyError("Desktop record lacks complete typed provenance")
+    return value
+
+
+def _desktop_launch_attempt(cfg: config.HarnessConfig, record: Mapping[str, object]) -> DesktopLaunchAttempt:
+    try:
+        port = record["automation_port"]
+        if not isinstance(port, int) or isinstance(port, bool):
+            raise TypeError
+        app_name = _required_record_string(record, "app_name")
+        bundle_id = _required_record_string(record, "bundle_id")
+        app_path = Path(_required_record_string(record, "app_path"))
+        executable_path = Path(_required_record_string(record, "executable_path"))
+        profile_root = Path(_required_record_string(record, "profile_root")).resolve(strict=False)
+        token = _required_record_string(record, "launch_token")
+        attempted_at = _required_record_string(record, "attempted_at")
+    except (KeyError, TypeError, ValueError, safety.SafetyError):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance") from None
+    expected_bundle = desktop_profile._local_bundle_id(app_name)
+    expected_app = Path("/Applications") / f"{app_name}.app"
+    expected_executable = expected_app / "Contents" / "MacOS" / "Omi Computer"
+    if (
+        record.get("desktop_schema_version") != DESKTOP_RECORD_SCHEMA_VERSION
+        or record.get("desktop_record_state") != DESKTOP_RECORD_STATE_ATTEMPT
+        or record.get("service") != "desktop"
+        or record.get("instance") != cfg.instance
+        or record.get("state_root") != str(cfg.layout.state_root)
+        or not app_name.lower().startswith(desktop_profile.LOCAL_NAMED_BUNDLE_PREFIX)
+        or bundle_id != expected_bundle
+        or app_path != expected_app
+        or executable_path != expected_executable
+        or profile_root != _expected_desktop_profile_root(bundle_id)
+        or port != cfg.automation_port
+        or not _DESKTOP_LAUNCH_TOKEN_RE.fullmatch(token)
+    ):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance for this workspace")
+    return DesktopLaunchAttempt(
+        instance=cfg.instance,
+        automation_port=port,
+        app_name=app_name,
+        bundle_id=bundle_id,
+        app_path=app_path,
+        executable_path=executable_path,
+        profile_root=profile_root,
+        state_root=cfg.layout.state_root,
+        launch_token=token,
+        attempted_at=attempted_at,
+    )
+
+
+def _desktop_record_identity(cfg: config.HarnessConfig, record: Mapping[str, object]) -> DesktopOwnershipRecord:
+    if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+        _desktop_launch_attempt(cfg, record)
+        raise safety.SafetyError("Desktop launch attempt has not registered a process yet")
+    try:
+        pid = record["pid"]
+        port = record["port"]
+        if not isinstance(pid, int) or isinstance(pid, bool) or not isinstance(port, int) or isinstance(port, bool):
+            raise TypeError
+        app_name = _required_record_string(record, "app_name")
+        bundle_id = _required_record_string(record, "bundle_id")
+        app_path = Path(_required_record_string(record, "app_path"))
+        executable_path = Path(_required_record_string(record, "executable_path"))
+        profile_root = Path(_required_record_string(record, "profile_root")).resolve(strict=False)
+        token = _required_record_string(record, "launch_token")
+        process_start = _required_record_string(record, "process_start")
+        command_sha256 = _required_record_string(record, "command_sha256")
+        launch_transport = _required_record_string(record, "launch_transport")
+        started_at = str(record.get("started_at") or "unknown")
+    except (KeyError, TypeError, ValueError, safety.SafetyError):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance") from None
+    try:
+        proof = DesktopOwnershipProof(record.get("desktop_ownership_proof", DESKTOP_PROOF_LAUNCH_TOKEN))
+    except (TypeError, ValueError):
+        raise safety.SafetyError("Desktop record has an unknown ownership proof") from None
+    source_git_sha = record.get("source_git_sha")
+    source_tree_dirty = record.get("source_tree_dirty")
+    if source_git_sha is not None:
+        if (
+            not isinstance(source_git_sha, str)
+            or not _DESKTOP_SOURCE_SHA_RE.fullmatch(source_git_sha)
+            or not isinstance(source_tree_dirty, bool)
+        ):
+            raise safety.SafetyError("Desktop record lacks complete typed source provenance")
+    elif source_tree_dirty is not None:
+        raise safety.SafetyError("Desktop record lacks complete typed source provenance")
+    predecessor_pid = record.get("predecessor_pid")
+    predecessor_process_start = record.get("predecessor_process_start")
+    predecessor_command_sha256 = record.get("predecessor_command_sha256")
+    if proof is DesktopOwnershipProof.BRIDGE_SUCCESSOR:
+        if (
+            not isinstance(predecessor_pid, int)
+            or isinstance(predecessor_pid, bool)
+            or predecessor_pid <= 0
+            or not isinstance(predecessor_process_start, str)
+            or not isinstance(predecessor_command_sha256, str)
+            or not safety.valid_process_fingerprint(predecessor_process_start, predecessor_command_sha256)
+            or source_git_sha is None
+        ):
+            raise safety.SafetyError("Desktop successor record lacks complete typed predecessor provenance")
+    expected_bundle = desktop_profile._local_bundle_id(app_name)
+    expected_app = Path("/Applications") / f"{app_name}.app"
+    expected_executable = expected_app / "Contents" / "MacOS" / "Omi Computer"
+    if (
+        record.get("desktop_schema_version") != DESKTOP_RECORD_SCHEMA_VERSION
+        or record.get("desktop_record_state", DESKTOP_RECORD_STATE_OWNED) != DESKTOP_RECORD_STATE_OWNED
+        or record.get("service") != "desktop"
+        or record.get("instance") != cfg.instance
+        or record.get("state_root") != str(cfg.layout.state_root)
+        or pid <= 0
+        or not app_name.lower().startswith(desktop_profile.LOCAL_NAMED_BUNDLE_PREFIX)
+        or bundle_id != expected_bundle
+        or app_path != expected_app
+        or executable_path != expected_executable
+        or profile_root != _expected_desktop_profile_root(bundle_id)
+        or port != cfg.automation_port
+        or record.get("owned_ports") != {"automation": cfg.automation_port}
+        or not _DESKTOP_LAUNCH_TOKEN_RE.fullmatch(token)
+        or launch_transport not in {"open", "direct", "attempt_recovery", "successor"}
+        or not safety.valid_process_fingerprint(process_start, command_sha256)
+    ):
+        raise safety.SafetyError("Desktop record lacks complete typed provenance for this workspace")
+    return DesktopOwnershipRecord(
+        instance=cfg.instance,
+        pid=pid,
+        port=port,
+        app_name=app_name,
+        bundle_id=bundle_id,
+        app_path=app_path,
+        executable_path=executable_path,
+        profile_root=profile_root,
+        state_root=cfg.layout.state_root,
+        launch_token=token,
+        launch_transport=launch_transport,
+        process_start=process_start,
+        command_sha256=command_sha256,
+        proof=proof,
+        started_at=started_at,
+        source_git_sha=source_git_sha,
+        source_tree_dirty=source_tree_dirty if isinstance(source_tree_dirty, bool) else None,
+        predecessor_pid=predecessor_pid if isinstance(predecessor_pid, int) else None,
+        predecessor_process_start=(predecessor_process_start if isinstance(predecessor_process_start, str) else None),
+        predecessor_command_sha256=(
+            predecessor_command_sha256 if isinstance(predecessor_command_sha256, str) else None
+        ),
+    )
+
+
+def _process_executes_exact_path(process: safety.ProcessSnapshot, executable_path: Path) -> bool:
+    """Resolve the live text executable; a command substring is never ownership proof."""
+
+    try:
+        result = subprocess.run(
+            ["/usr/sbin/lsof", "-a", "-p", str(process.pid), "-d", "txt", "-Fn"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise safety.SafetyError(f"Cannot inspect desktop executable for PID {process.pid}") from exc
+    if result.returncode == 1:
+        return False
+    if result.returncode != 0:
+        raise safety.SafetyError(f"Cannot inspect desktop executable for PID {process.pid}")
+    expected = executable_path.resolve(strict=False)
+    loaded_paths = {
+        Path(line[1:]).resolve(strict=False) for line in result.stdout.splitlines() if line.startswith("n/")
+    }
+    return expected in loaded_paths
+
+
+def _command_has_launch_token(command: str, launch_token: str) -> bool:
+    token_argument = f"--omi-launch-token={launch_token}"
+    return any(argument == token_argument for argument in command.split())
+
+
+def _command_may_run_executable(command: str, executable_path: Path) -> bool:
+    expected = str(executable_path)
+    return command == expected or command.startswith(f"{expected} ")
+
+
+def _validated_desktop_process(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> safety.ProcessSnapshot | None:
+    identity = _desktop_record_identity(cfg, record)
+    process = safety.process_snapshot(identity.pid)
+    if process is None:
+        return None
+    if (
+        not safety.matches_process_fingerprint(
+            process,
+            process_start=identity.process_start,
+            command_sha256=identity.command_sha256,
+        )
+        or not _process_executes_exact_path(process, identity.executable_path)
+        or (
+            identity.proof is DesktopOwnershipProof.LAUNCH_TOKEN
+            and not _command_has_launch_token(process.command, identity.launch_token)
+        )
+    ):
+        raise safety.SafetyError("Desktop PID no longer matches its recorded launch provenance")
+    return process
+
+
+def _desktop_process_after_authorized_signal(
+    identity: DesktopOwnershipRecord,
+) -> safety.ProcessSnapshot | None:
+    """Track an authorized shutdown by PID/start while macOS may shed argv and executable mappings."""
+
+    process = safety.process_snapshot(identity.pid)
+    if process is None:
+        return None
+    if process.process_start != identity.process_start:
+        raise safety.SafetyError("Desktop PID changed identity during exact shutdown")
+    return process
+
+
+def _desktop_record_after_process_exit(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object] | None:
+    """Return successor/residue that prevents settlement, or None when the lifecycle is fully stopped."""
+
+    identity = _desktop_record_identity(cfg, record)
+    recovered = recover_desktop_record(cfg, record)
+    if recovered != record:
+        return recovered
+    return record if safety.listening_pids(identity.port) else None
+
+
+def _read_owner_only_launch_signal(path: Path) -> dict[str, str]:
+    try:
+        info = path.lstat()
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise safety.SafetyError(f"Desktop launch signal is missing: {path}") from exc
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o600:
+        raise safety.SafetyError("Desktop launch signal is not an owner-only regular file")
+    fields: dict[str, str] = {}
+    for line in lines:
+        if "=" not in line:
+            raise safety.SafetyError("Desktop launch signal is malformed")
+        key, value = line.split("=", 1)
+        if not key or key in fields:
+            raise safety.SafetyError("Desktop launch signal is malformed")
+        fields[key] = value
+    return fields
+
+
+def register_desktop_launch(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    signal_path: Path,
+    launch_token: str,
+) -> dict[str, object]:
+    if not _DESKTOP_LAUNCH_TOKEN_RE.fullmatch(launch_token):
+        raise safety.SafetyError("Desktop launch token is invalid")
+    resolved_signal = signal_path.resolve(strict=False)
+    manifests_root = (cfg.layout.state_root / "manifests").resolve(strict=False)
+    if resolved_signal.parent != manifests_root:
+        raise safety.SafetyError("Desktop launch signal escaped this workspace state root")
+    fields = _read_owner_only_launch_signal(resolved_signal)
+    expected_signal = {
+        "schema_version": "1",
+        "bundle_id": profile.bundle_id,
+        "app_path": str(desktop_app_path(profile)),
+        "executable_path": str(desktop_executable_path(profile)),
+        "launch_token": launch_token,
+    }
+    if any(fields.get(key) != value for key, value in expected_signal.items()):
+        raise safety.SafetyError("Desktop launch signal does not bind this workspace launch")
+    transport = fields.get("launch_transport")
+    if transport not in {"open", "direct"}:
+        raise safety.SafetyError("Desktop launch signal has unknown transport")
+    expected_executable = str(desktop_executable_path(profile))
+    matches = tuple(
+        process
+        for process in safety.process_snapshots()
+        if _command_has_launch_token(process.command, launch_token)
+        and _command_may_run_executable(process.command, Path(expected_executable))
+        and _process_executes_exact_path(process, Path(expected_executable))
+    )
+    if len(matches) != 1:
+        raise safety.SafetyError(f"Desktop launch ownership is ambiguous (matching processes={len(matches)})")
+    process = matches[0]
+    record = DesktopOwnershipRecord(
+        instance=cfg.instance,
+        pid=process.pid,
+        port=cfg.automation_port,
+        app_name=profile.app_name,
+        bundle_id=profile.bundle_id,
+        app_path=desktop_app_path(profile),
+        executable_path=Path(expected_executable),
+        profile_root=desktop_profile_root(profile),
+        state_root=cfg.layout.state_root,
+        launch_token=launch_token,
+        launch_transport=transport,
+        process_start=process.process_start,
+        command_sha256=hashlib.sha256(process.command.encode()).hexdigest(),
+        proof=DesktopOwnershipProof.LAUNCH_TOKEN,
+        started_at=_now(),
+    ).as_record()
+    records = [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"]
+    records.append(record)
+    _save_manifests(cfg, records)
+    return record
+
+
+def _desktop_bridge_payload(port: int) -> dict[str, object]:
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/health",
+        headers={"Host": f"127.0.0.1:{port}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=0.8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, TimeoutError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise safety.SafetyError(f"Desktop automation bridge is unavailable: {exc.__class__.__name__}") from exc
+    if not isinstance(payload, dict):
+        raise safety.SafetyError("Desktop automation bridge returned an invalid health payload")
+    return payload
+
+
+def _desktop_health_provenance(payload: Mapping[str, object]) -> tuple[str | None, bool | None]:
+    source_git_sha = payload.get("sourceGitSHA")
+    source_tree_dirty = payload.get("sourceTreeDirty")
+    if source_git_sha is None and source_tree_dirty is None:
+        return None, None
+    if (
+        not isinstance(source_git_sha, str)
+        or not _DESKTOP_SOURCE_SHA_RE.fullmatch(source_git_sha)
+        or not isinstance(source_tree_dirty, bool)
+    ):
+        raise safety.SafetyError("Desktop bridge returned invalid source provenance")
+    return source_git_sha, source_tree_dirty
+
+
+def _verified_desktop_successor_health(
+    cfg: config.HarnessConfig,
+    identity: DesktopOwnershipRecord,
+    process: safety.ProcessSnapshot,
+) -> tuple[str | None, bool | None] | None:
+    listeners = safety.listening_pids(identity.port)
+    if not listeners:
+        return None
+    if any(not safety.is_descendant_of(listener, process.pid) for listener in listeners):
+        raise safety.SafetyError("Desktop successor listener is outside the candidate process lineage")
+    try:
+        payload = _desktop_bridge_payload(identity.port)
+    except safety.SafetyError:
+        return None
+    backend_root = cfg.backend_url.rstrip("/")
+    expected_backend_urls = (backend_root, f"{backend_root}/")
+    expected_health = {
+        "ok": True,
+        "bundleIdentifier": identity.bundle_id,
+        "processID": process.pid,
+        "bridgePort": identity.port,
+    }
+    if (
+        any(payload.get(key) != value for key, value in expected_health.items())
+        or payload.get("backendURL") not in expected_backend_urls
+    ):
+        raise safety.SafetyError("Desktop successor bridge identity does not match the recorded workspace")
+    return _desktop_health_provenance(payload)
+
+
+def _replace_desktop_record(cfg: config.HarnessConfig, record: dict[str, object]) -> None:
+    records = [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"]
+    records.append(record)
+    _save_manifests(cfg, records)
+
+
+def bind_desktop_source_provenance(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object]:
+    """Bind the first healthy launch to the exact bundle source reported by its bridge."""
+
+    identity = _desktop_record_identity(cfg, record)
+    process = _validated_desktop_process(cfg, record)
+    if process is None:
+        raise safety.SafetyError("Desktop process exited before source provenance was bound")
+    provenance = _verified_desktop_successor_health(cfg, identity, process)
+    if provenance is None:
+        raise safety.SafetyError("Desktop bridge became unavailable before source provenance was bound")
+    source_git_sha, source_tree_dirty = provenance
+    if source_git_sha is None:
+        return record
+    bound = replace(
+        identity,
+        source_git_sha=source_git_sha,
+        source_tree_dirty=source_tree_dirty,
+    ).as_record()
+    _replace_desktop_record(cfg, bound)
+    return bound
+
+
+def _ownership_from_attempt_process(
+    attempt: DesktopLaunchAttempt,
+    process: safety.ProcessSnapshot,
+) -> DesktopOwnershipRecord:
+    return DesktopOwnershipRecord(
+        instance=attempt.instance,
+        pid=process.pid,
+        port=attempt.automation_port,
+        app_name=attempt.app_name,
+        bundle_id=attempt.bundle_id,
+        app_path=attempt.app_path,
+        executable_path=attempt.executable_path,
+        profile_root=attempt.profile_root,
+        state_root=attempt.state_root,
+        launch_token=attempt.launch_token,
+        launch_transport="attempt_recovery",
+        process_start=process.process_start,
+        command_sha256=hashlib.sha256(process.command.encode()).hexdigest(),
+        proof=DesktopOwnershipProof.LAUNCH_TOKEN,
+        started_at=attempt.attempted_at,
+    )
+
+
+def recover_desktop_record(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object]:
+    """Resolve one exact attempted process or one verified successor; never adopt by app name."""
+
+    if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+        attempt = _desktop_launch_attempt(cfg, record)
+        matches = tuple(
+            process
+            for process in safety.process_snapshots()
+            if _command_has_launch_token(process.command, attempt.launch_token)
+            and _command_may_run_executable(process.command, attempt.executable_path)
+            and _process_executes_exact_path(process, attempt.executable_path)
+        )
+        if len(matches) > 1:
+            raise safety.SafetyError(f"Desktop launch ownership is ambiguous (matching processes={len(matches)})")
+        if not matches:
+            return record
+        recovered = _ownership_from_attempt_process(attempt, matches[0]).as_record()
+        _replace_desktop_record(cfg, recovered)
+        return recovered
+
+    identity = _desktop_record_identity(cfg, record)
+    current = _validated_desktop_process(cfg, record)
+    if current is not None:
+        return record
+    candidates = tuple(
+        process
+        for process in safety.process_snapshots()
+        if process.pid != identity.pid
+        and _command_may_run_executable(process.command, identity.executable_path)
+        and _process_executes_exact_path(process, identity.executable_path)
+    )
+    if len(candidates) > 1:
+        raise safety.SafetyError(f"Desktop successor ownership is ambiguous (matching processes={len(candidates)})")
+    if not candidates:
+        return record
+    successor = candidates[0]
+    has_same_token = _command_has_launch_token(successor.command, identity.launch_token)
+    has_other_token = any(argument.startswith("--omi-launch-token=") for argument in successor.command.split())
+    if has_other_token and not has_same_token:
+        raise safety.SafetyError("Desktop successor carries a different launch capability")
+    provenance = _verified_desktop_successor_health(cfg, identity, successor)
+    if provenance is None:
+        raise DesktopSuccessorPending("Exact desktop successor is present but its bridge identity is not ready")
+    source_git_sha, source_tree_dirty = provenance
+    if identity.source_git_sha is not None and (
+        source_git_sha != identity.source_git_sha or source_tree_dirty != identity.source_tree_dirty
+    ):
+        raise safety.SafetyError("Desktop successor source provenance differs from its predecessor")
+    if not has_same_token and identity.source_git_sha is None:
+        raise safety.SafetyError("Tokenless desktop successor lacks predecessor source provenance")
+    proof = DesktopOwnershipProof.LAUNCH_TOKEN if has_same_token else DesktopOwnershipProof.BRIDGE_SUCCESSOR
+    recovered = replace(
+        identity,
+        pid=successor.pid,
+        launch_transport="successor",
+        process_start=successor.process_start,
+        command_sha256=hashlib.sha256(successor.command.encode()).hexdigest(),
+        proof=proof,
+        source_git_sha=source_git_sha,
+        source_tree_dirty=source_tree_dirty,
+        predecessor_pid=(identity.pid if proof is DesktopOwnershipProof.BRIDGE_SUCCESSOR else None),
+        predecessor_process_start=(identity.process_start if proof is DesktopOwnershipProof.BRIDGE_SUCCESSOR else None),
+        predecessor_command_sha256=(
+            identity.command_sha256 if proof is DesktopOwnershipProof.BRIDGE_SUCCESSOR else None
+        ),
+    ).as_record()
+    _replace_desktop_record(cfg, recovered)
+    return recovered
+
+
+def desktop_record_status(cfg: config.HarnessConfig, record: dict[str, object]) -> tuple[str, str]:
+    try:
+        process = _validated_desktop_process(cfg, record)
+        if process is None:
+            return "stopped", "recorded process is not running"
+        listeners = safety.listening_pids(int(record["port"]))
+        if not listeners:
+            return "unhealthy", "automation port is closed"
+        if any(not safety.is_descendant_of(listener, process.pid) for listener in listeners):
+            raise safety.SafetyError("Desktop automation listener is outside the recorded process lineage")
+        payload = _desktop_bridge_payload(int(record["port"]))
+        expected_health = {
+            "ok": True,
+            "bundleIdentifier": record["bundle_id"],
+            "processID": process.pid,
+            "bridgePort": int(record["port"]),
+        }
+        # Swift normalizes a root backend URL with a trailing slash. Accept
+        # only these equivalent roots, never another path, query or endpoint.
+        if any(payload.get(key) != value for key, value in expected_health.items()) or payload.get(
+            "backendURL"
+        ) not in (cfg.backend_url, cfg.backend_url + "/"):
+            raise safety.SafetyError("Desktop bridge identity does not match the recorded workspace")
+        return "healthy", "exact process and bridge"
+    except (KeyError, TypeError, ValueError, safety.SafetyError) as exc:
+        return "stale/unowned", str(exc)
+
+
+def stop_desktop_record(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+    *,
+    wait_seconds: float = 8.0,
+    kill_wait_seconds: float = 2.0,
+) -> bool:
+    if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+        record = recover_desktop_record(cfg, record)
+        if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+            return False
+        process = _validated_desktop_process(cfg, record)
+    else:
+        process = _validated_desktop_process(cfg, record)
+        if process is None:
+            residue = _desktop_record_after_process_exit(cfg, record)
+            if residue is None:
+                return True
+            if residue == record:
+                return False
+            record = residue
+            process = _validated_desktop_process(cfg, record)
+    if process is None:
+        return False
+    identity = _desktop_record_identity(cfg, record)
+    try:
+        os.kill(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return _desktop_record_after_process_exit(cfg, record) is None
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal desktop PID {process.pid}: {exc}") from exc
+    deadline = time.time() + wait_seconds
+    while time.time() < deadline:
+        current = _desktop_process_after_authorized_signal(identity)
+        if current is None:
+            return _desktop_record_after_process_exit(cfg, record) is None
+        time.sleep(0.1)
+    # SIGKILL is a new destructive action. Re-establish full executable/token
+    # ownership after the passive TERM wait before escalating.
+    current = _validated_desktop_process(cfg, record)
+    if current is None:
+        return _desktop_record_after_process_exit(cfg, record) is None
+    kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
+    try:
+        os.kill(current.pid, kill_signal)
+    except ProcessLookupError:
+        return _desktop_record_after_process_exit(cfg, record) is None
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal desktop PID {current.pid}: {exc}") from exc
+    deadline = time.time() + kill_wait_seconds
+    while time.time() < deadline:
+        if _desktop_process_after_authorized_signal(identity) is None:
+            return _desktop_record_after_process_exit(cfg, record) is None
+        time.sleep(0.1)
+    if _desktop_process_after_authorized_signal(identity) is not None:
+        raise safety.SafetyError(f"Desktop PID {current.pid} is still running after exact shutdown")
+    return _desktop_record_after_process_exit(cfg, record) is None
+
+
+def stop_desktop_for_relaunch(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    wait_seconds: float = 8.0,
+) -> None:
+    records = _process_records(cfg)
+    desktops = [record for record in records if record.get("service") == "desktop"]
+    if len(desktops) > 1:
+        raise safety.SafetyError("Multiple desktop records exist for this workspace; refusing relaunch")
+    if not desktops:
+        return
+    record = desktops[0]
+    if record.get("bundle_id") != profile.bundle_id or record.get("app_name") != profile.app_name:
+        raise safety.SafetyError("Recorded desktop identity differs from the requested workspace app")
+    stopped_exact = stop_desktop_record(cfg, record, wait_seconds=wait_seconds)
+    if not stopped_exact:
+        if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+            raise safety.SafetyError("Desktop launch attempt is unresolved; preserved for exact cleanup retry")
+        raise safety.SafetyError("Desktop shutdown is incomplete; preserved for exact cleanup retry")
+    _save_manifests(cfg, [entry for entry in records if entry is not record])
+
+
+def launch_desktop_local(
+    cfg: config.HarnessConfig,
+    profile: desktop_profile.DesktopLocalProfile,
+    *,
+    run_sh: Path | None = None,
+    wait_for_exit: bool = True,
+    registration_timeout: float = 10.0,
+    health_timeout: float = 20.0,
+) -> dict[str, object]:
+    """Replace and supervise only this workspace's proven named desktop app."""
+
+    stop_desktop_for_relaunch(cfg, profile)
+    _require_port_available_or_owned(cfg, "desktop", cfg.automation_port, label="automation")
+    launch_token = secrets.token_urlsafe(32)
+    signal_path = cfg.layout.state_root / "manifests" / "desktop-launch.signal"
+    signal_path.unlink(missing_ok=True)
+    attempt = DesktopLaunchAttempt(
+        instance=cfg.instance,
+        automation_port=cfg.automation_port,
+        app_name=profile.app_name,
+        bundle_id=profile.bundle_id,
+        app_path=desktop_app_path(profile),
+        executable_path=desktop_executable_path(profile),
+        profile_root=desktop_profile_root(profile),
+        state_root=cfg.layout.state_root,
+        launch_token=launch_token,
+        attempted_at=_now(),
+    ).as_record()
+    _replace_desktop_record(cfg, attempt)
+    command_path = run_sh or cfg.repo_root / "desktop" / "macos" / "run.sh"
+    env = desktop_profile.child_env(profile, parent=os.environ)
+    env.update(
+        {
+            "OMI_DESKTOP_LAUNCH_TOKEN": launch_token,
+            "OMI_DESKTOP_LAUNCH_SIGNAL_FILE": str(signal_path),
+        }
+    )
+    try:
+        subprocess.run(
+            [str(command_path), "--no-wait"],
+            cwd=command_path.parent,
+            env=env,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        # A compile/package failure happens before run.sh writes its launch
+        # signal. Clear that never-launched attempt so correcting source and
+        # retrying is ordinary. If the signal exists or an exact token-bound
+        # process already appeared, retain the evidence for safe cleanup.
+        recovered = recover_desktop_record(cfg, attempt)
+        if recovered == attempt and not signal_path.exists():
+            _save_manifests(
+                cfg,
+                [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"],
+            )
+        raise
+
+    registration_deadline = time.time() + registration_timeout
+    while True:
+        try:
+            record = register_desktop_launch(
+                cfg,
+                profile,
+                signal_path=signal_path,
+                launch_token=launch_token,
+            )
+            break
+        except safety.SafetyError:
+            if time.time() >= registration_deadline:
+                raise
+            time.sleep(0.1)
+
+    health_deadline = time.time() + health_timeout
+    while True:
+        status, detail = desktop_record_status(cfg, record)
+        if status == "healthy":
+            record = bind_desktop_source_provenance(cfg, record)
+            break
+        if status == "stale/unowned" or time.time() >= health_deadline:
+            try:
+                stopped_exact = stop_desktop_record(cfg, record)
+            except safety.SafetyError:
+                raise
+            if stopped_exact:
+                _save_manifests(
+                    cfg,
+                    [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"],
+                )
+            raise safety.SafetyError(f"Desktop launch did not become healthy: {status}: {detail}")
+        time.sleep(0.2)
+
+    if not wait_for_exit:
+        return record
+
+    interrupted = False
+    stopped_exact = False
+    previous_term_handler: object | None = None
+
+    def interrupt_monitor(_signum: int, _frame: object) -> None:
+        raise KeyboardInterrupt
+
+    if hasattr(signal, "SIGTERM"):
+        previous_term_handler = signal.signal(signal.SIGTERM, interrupt_monitor)
+    try:
+        while True:
+            if _validated_desktop_process(cfg, record) is not None:
+                time.sleep(0.5)
+                continue
+            successor_deadline = time.time() + registration_timeout
+            while True:
+                try:
+                    recovered = recover_desktop_record(cfg, record)
+                except DesktopSuccessorPending:
+                    if time.time() >= successor_deadline:
+                        return record
+                    time.sleep(0.1)
+                    continue
+                if recovered != record:
+                    record = recovered
+                    break
+                if time.time() >= successor_deadline:
+                    return record
+                time.sleep(0.1)
+    except KeyboardInterrupt:
+        interrupted = True
+        stopped_exact = stop_desktop_record(cfg, record)
+    finally:
+        if previous_term_handler is not None:
+            signal.signal(signal.SIGTERM, previous_term_handler)
+        if stopped_exact:
+            _save_manifests(
+                cfg,
+                [entry for entry in _process_records(cfg) if entry.get("service") != "desktop"],
+            )
+    if interrupted:
+        print("desktop: stopped exact workspace app")
+    return record
 
 
 def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]:
@@ -458,27 +1392,176 @@ def _service_health(cfg: config.HarnessConfig, service: str) -> tuple[bool, str]
     return False, f"unknown service {service!r}"
 
 
-def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -> None:
-    pid = int(record.get("pid", -1))
-    service = str(record.get("service"))
-    if not safety.process_exists(pid):
-        return
+def _owned_record_ports(record: dict[str, object]) -> tuple[int, ...]:
+    owned_ports = record.get("owned_ports")
+    if isinstance(owned_ports, dict):
+        try:
+            ports = tuple(sorted({int(port) for port in owned_ports.values()}))
+        except (TypeError, ValueError):
+            return ()
+        return tuple(port for port in ports if 1 <= port <= 65535)
     try:
-        safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-        _signal_owned_process_group(pid, service)
+        port = int(record.get("port", -1))
+    except (TypeError, ValueError):
+        return ()
+    return (port,) if 1 <= port <= 65535 else ()
+
+
+def _capture_owned_listener_processes(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object]:
+    """Persist exact listener identity while supervisor lineage is still provable."""
+
+    service = str(record.get("service", ""))
+    pid = int(record.get("pid", -1))
+    process_group = int(record.get("process_group", -1))
+    if process_group != pid:
+        raise safety.SafetyError(f"{service} process group no longer matches its recorded supervisor")
+    safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+    captured: dict[int, dict[str, object]] = {}
+    for port in _owned_record_ports(record):
+        safety.validate_port_owner(
+            port,
+            pid=pid,
+            port_manifest=cfg.layout.port_manifest,
+            process_manifest=None,
+            service=service,
+        )
+        for listener_pid in safety.listening_pids(port):
+            if not safety.is_descendant_of(listener_pid, pid):
+                raise safety.SafetyError(
+                    f"{service} port {port} has foreign listener PID {listener_pid}; refusing supervisor signal"
+                )
+            process = safety.process_snapshot(listener_pid)
+            if process is None:
+                raise safety.SafetyError(f"Cannot snapshot {service} listener PID {listener_pid}")
+            evidence = captured.setdefault(
+                listener_pid,
+                {
+                    "pid": listener_pid,
+                    "process_start": process.process_start,
+                    "command_sha256": hashlib.sha256(process.command.encode()).hexdigest(),
+                    "ports": [],
+                },
+            )
+            ports = evidence["ports"]
+            assert isinstance(ports, list)
+            ports.append(port)
+    prepared = dict(record)
+    prepared["listener_processes"] = sorted(captured.values(), key=lambda evidence: int(evidence["pid"]))
+    return prepared
+
+
+def _validated_recorded_listeners(record: dict[str, object]) -> tuple[safety.ProcessSnapshot, ...]:
+    evidence = record.get("listener_processes")
+    if not isinstance(evidence, list):
+        if any(safety.listening_pids(port) for port in _owned_record_ports(record)):
+            raise safety.SafetyError("Owned service has live listeners but no pre-signal listener provenance")
+        return ()
+    by_pid: dict[int, dict[str, object]] = {}
+    for item in evidence:
+        if not isinstance(item, dict):
+            raise safety.SafetyError("Owned service listener provenance is malformed")
+        try:
+            listener_pid = int(item["pid"])
+            process_start = str(item["process_start"])
+            command_sha256 = str(item["command_sha256"])
+            ports = tuple(int(port) for port in item["ports"])
+        except (KeyError, TypeError, ValueError):
+            raise safety.SafetyError("Owned service listener provenance is malformed") from None
+        if (
+            listener_pid <= 0
+            or not process_start
+            or not safety.valid_process_fingerprint(process_start, command_sha256)
+            or not ports
+            or any(port not in _owned_record_ports(record) for port in ports)
+        ):
+            raise safety.SafetyError("Owned service listener provenance is malformed")
+        by_pid[listener_pid] = item
+    current_listener_pids = {
+        listener_pid for port in _owned_record_ports(record) for listener_pid in safety.listening_pids(port)
+    }
+    validated: list[safety.ProcessSnapshot] = []
+    for listener_pid in sorted(current_listener_pids):
+        item = by_pid.get(listener_pid)
+        process = safety.process_snapshot(listener_pid)
+        if (
+            item is None
+            or process is None
+            or not safety.matches_process_fingerprint(
+                process,
+                process_start=str(item["process_start"]),
+                command_sha256=str(item["command_sha256"]),
+            )
+        ):
+            raise safety.SafetyError(
+                f"Listener PID {listener_pid} no longer matches its pre-signal ownership provenance"
+            )
+        validated.append(process)
+    return tuple(validated)
+
+
+def _signal_owned_supervisor(pid: int, service: str, sig: signal.Signals = signal.SIGINT) -> None:
+    """Signal the supervisor once; it owns forwarding to its direct child."""
+
+    try:
+        os.kill(pid, sig)
+        print(f"{service}: sent {sig.name} to supervisor PID {pid}")
+    except ProcessLookupError:
+        return
+    except PermissionError as exc:
+        raise safety.SafetyError(f"Cannot signal supervisor PID {pid}: {exc}") from exc
+
+
+def _stop_owned_service_record(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> None:
+    service = str(record.get("service", ""))
+    pid = int(record.get("pid", -1))
+    prepared = record
+    if safety.process_exists(pid):
+        prepared = _capture_owned_listener_processes(cfg, record)
+        current_records = [entry for entry in _process_records(cfg) if entry.get("service") != service]
+        current_records.append(prepared)
+        _save_manifests(cfg, current_records)
+    for sig, wait_seconds in SERVICE_STOP_PHASES:
+        supervisor_alive = safety.process_exists(pid)
+        listeners = _validated_recorded_listeners(prepared)
+        if not supervisor_alive and not listeners:
+            return
+        if supervisor_alive:
+            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
+            _signal_owned_supervisor(pid, service, sig)
+        else:
+            for listener in listeners:
+                try:
+                    os.kill(listener.pid, sig)
+                    print(f"{service}: sent {sig.name} to pre-proven orphan listener PID {listener.pid}")
+                except ProcessLookupError:
+                    continue
+                except PermissionError as exc:
+                    raise safety.SafetyError(f"Cannot signal {service} listener PID {listener.pid}: {exc}") from exc
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            if not safety.process_exists(pid) and not _validated_recorded_listeners(prepared):
+                return
+            time.sleep(0.2)
+    if safety.process_exists(pid) or _validated_recorded_listeners(prepared):
+        raise safety.SafetyError(f"{service} still has a supervisor or listener after exact shutdown")
+
+
+def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -> bool:
+    service = str(record.get("service"))
+    try:
+        _stop_owned_service_record(cfg, record)
     except safety.SafetyError as exc:
         print(f"{service}: not stopped before restart: {exc}")
-        return
-    deadline = time.time() + 8
-    while time.time() < deadline and safety.process_exists(pid):
-        time.sleep(0.25)
-    if safety.process_exists(pid):
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
+        return False
     remaining = [entry for entry in _process_records(cfg) if entry.get("service") != service]
     _save_manifests(cfg, remaining)
+    return not any(entry.get("service") == service for entry in _process_records(cfg))
 
 
 def _require_port_available_or_owned(
@@ -773,7 +1856,8 @@ def _start_process(
             print(f"{service}: already recorded as running")
             return
         print(f"{service}: recorded process unhealthy ({detail}); restarting")
-        _stop_single_service(cfg, existing)
+        if not _stop_single_service(cfg, existing):
+            raise safety.SafetyError(f"{service} exact shutdown was incomplete; refusing replacement start")
     _require_port_available_or_owned(cfg, service, port)
     marker = _marker(cfg, service)
     log_path = cfg.layout.logs_dir / log_name
@@ -1115,9 +2199,20 @@ def cmd_status(args: argparse.Namespace) -> int:
         print("  - none recorded")
     for record in records:
         pid = int(record.get("pid", -1))
+        service = str(record.get("service"))
+        if service == "desktop":
+            try:
+                recovered = recover_desktop_record(cfg, record)
+            except safety.SafetyError as exc:
+                state, detail = "stale/unowned", str(exc)
+            else:
+                record = recovered
+                pid = int(record.get("pid", -1))
+                state, detail = desktop_record_status(cfg, record)
+            print(f"  - desktop: pid={pid} state={state} detail={detail}")
+            continue
         alive = safety.process_exists(pid)
         health = "not checked"
-        service = str(record.get("service"))
         port = int(record.get("port", 0) or 0)
         if port:
             health = "port-open" if _port_open("127.0.0.1", port) else "port-closed"
@@ -1142,49 +2237,34 @@ def cmd_summary(args: argparse.Namespace) -> int:
     return 0
 
 
-def _signal_owned_process_group(pid: int, service: str) -> None:
-    try:
-        os.killpg(pid, signal.SIGINT)
-        print(f"{service}: sent SIGINT to process group {pid}")
-    except ProcessLookupError:
-        return
-    except PermissionError as exc:
-        raise safety.SafetyError(f"Cannot signal process group {pid}: {exc}") from exc
-
-
-def _stop_owned(cfg: config.HarnessConfig) -> None:
+def _stop_owned(cfg: config.HarnessConfig) -> bool:
     records = _process_records(cfg)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        service = str(record.get("service"))
-        if not safety.process_exists(pid):
-            continue
+    desktop_records = [record for record in records if record.get("service") == "desktop"]
+    group_records = [record for record in records if record.get("service") != "desktop"]
+    stopped = True
+    desktop_stopped = True
+    for record in desktop_records:
         try:
-            safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-            _signal_owned_process_group(pid, service)
+            if stop_desktop_record(cfg, record):
+                print(f"desktop: sent SIGTERM to exact PID {record.get('pid')}")
+            else:
+                desktop_stopped = False
+        except safety.SafetyError as exc:
+            print(f"desktop: not stopped: {exc}")
+            stopped = False
+            desktop_stopped = False
+    for record in group_records:
+        service = str(record.get("service"))
+        try:
+            _stop_owned_service_record(cfg, record)
         except safety.SafetyError as exc:
             print(f"{service}: not stopped: {exc}")
-    deadline = time.time() + 8
-    while time.time() < deadline and any(safety.process_exists(int(r.get("pid", -1))) for r in records):
-        time.sleep(0.25)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        service = str(record.get("service"))
-        if safety.process_exists(pid):
-            try:
-                safety.validate_owned_pid(pid, process_manifest=cfg.layout.process_manifest, service=service)
-                os.killpg(pid, signal.SIGTERM)
-                print(f"{service}: sent SIGTERM to process group {pid}")
-            except (ProcessLookupError, safety.SafetyError) as exc:
-                print(f"{service}: still running pid={pid}; leaving it for safety inspection: {exc}")
-    deadline = time.time() + 5
-    while time.time() < deadline and any(safety.process_exists(int(r.get("pid", -1))) for r in records):
-        time.sleep(0.25)
-    for record in records:
-        pid = int(record.get("pid", -1))
-        if safety.process_exists(pid):
-            print(f"{record.get('service')}: still running pid={pid}; leaving it for safety inspection")
-    _save_manifests(cfg, records)
+            stopped = False
+    remaining = _process_records(cfg)
+    if desktop_stopped:
+        remaining = [record for record in remaining if record.get("service") != "desktop"]
+    _save_manifests(cfg, remaining)
+    return stopped and not _process_records(cfg)
 
 
 def cmd_down(args: argparse.Namespace) -> int:
@@ -1193,7 +2273,9 @@ def cmd_down(args: argparse.Namespace) -> int:
         print("No harness-owned state exists; nothing to stop.")
         return 0
     safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=cfg.repo_root, instance=cfg.instance)
-    _stop_owned(cfg)
+    if not _stop_owned(cfg):
+        print("dev-down incomplete; preserved ownership evidence for safe retry or inspection.")
+        return 1
     return 0
 
 
@@ -1211,7 +2293,9 @@ def cmd_reset(args: argparse.Namespace) -> int:
     cfg = config.load_config(_repo_root(), create_layout=True)
     print(f"Resetting harness-owned state only: {cfg.layout.state_root}")
     safety.read_and_validate_sentinel(cfg.layout.state_root, repo_root=cfg.repo_root, instance=cfg.instance)
-    _stop_owned(cfg)
+    if not _stop_owned(cfg):
+        print("Reset refused because exact shutdown was incomplete; ownership evidence was preserved.")
+        return 1
     _clear_state(cfg)
     print("Reset complete.")
     return 0

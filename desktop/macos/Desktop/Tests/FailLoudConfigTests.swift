@@ -200,9 +200,10 @@ final class FailLoudConfigTests: XCTestCase {
 
   func testDesktopAutomationBridgeIsNonProductionAndAuthenticated() throws {
     let src = try source(relativePath: "Sources/DesktopAutomationBridge.swift")
+    let launchOptions = try source(relativePath: "Sources/Automation/DesktopAutomationLaunchOptions.swift")
 
     XCTAssertTrue(src.contains("guard AppBuild.isNonProduction else"))
-    XCTAssertTrue(src.contains("OMI_AUTOMATION_TOKEN"))
+    XCTAssertTrue(launchOptions.contains("OMI_AUTOMATION_TOKEN"))
     XCTAssertTrue(src.contains("writeTokenFileIfNeeded()"))
     XCTAssertTrue(src.contains("acceptsLoopbackHostAndOrigin"))
     XCTAssertTrue(src.contains("invalid_host_or_origin"))

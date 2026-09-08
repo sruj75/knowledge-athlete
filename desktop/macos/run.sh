@@ -61,7 +61,7 @@ Options (via environment variables):
   OMI_SEED_FROM_CANONICAL_DEV=1  Opt in to copying auth/settings/Rewind from Intentive Dev into a named bundle
   OMI_FORCE_REWIND_SEED=1   With parity seeding enabled, preserve and replace a named Rewind snapshot
   OMI_DEV_EAGER_PERMISSIONS=1  Preserve eager mic/screen/file startup behavior in named bundles
-  OMI_PYTHON_API_URL="..."  Python backend URL (explicit override; named bundles default to dev)
+  OMI_PYTHON_API_URL="..."  Python backend URL (explicit override)
   OMI_SIGN_IDENTITY="..."  Code signing identity (auto-detected if not set)
   OMI_FORCE_FULL_BUNDLE=1  Rebuild the complete app bundle on this launch
   OMI_SCAN_STALE_BUNDLES=1  Remove stale same-named app bundles under $HOME (recovery only)
@@ -125,6 +125,12 @@ apply_yolo_env() {
     : "${FIREBASE_API_KEY:?--yolo requires the owned Firebase desktop app API key}"
 }
 
+apply_requested_backend_mode() {
+    if [ "${YOLO_MODE:-0}" = "1" ]; then
+        apply_yolo_env
+    fi
+}
+
 if [ "$YOLO_MODE" = "1" ]; then
     echo ""
     echo "=========================================="
@@ -140,7 +146,7 @@ if [ "$YOLO_MODE" = "1" ]; then
     echo "=========================================="
     echo ""
 
-    apply_yolo_env
+    apply_requested_backend_mode
 fi
 
 # Clear system OPENAI_API_KEY so .env takes precedence
@@ -209,39 +215,11 @@ omi_run_sh_acquire_build_lock "another ./run.sh in this worktree" 600 || exit 1
 trap 'omi_run_sh_release_build_lock' EXIT INT TERM
 
 # App configuration
-BINARY_NAME="Omi Computer"  # Package.swift target — binary paths, pkill, CFBundleExecutable
+BINARY_NAME="Omi Computer"  # Package.swift target — binary paths and CFBundleExecutable
 source "$SCRIPT_DIR/scripts/app-config.sh"
 derive_omi_app_config "${OMI_APP_NAME:-Intentive Dev}" || exit 1
 LOCAL_PROFILE=false
 [ "${OMI_DESKTOP_LOCAL_PROFILE:-0}" = "1" ] && LOCAL_PROFILE=true
-
-# A named QA bundle should exercise the shared development service unless its
-# launcher deliberately selects another profile.  Check variable *presence*,
-# not values: `OMI_SKIP_BACKEND=0` is an explicit local-launch request and
-# must never be overwritten by the remote-dev defaults.
-should_default_named_bundle_to_dev_backend() {
-    [ "${IS_NAMED_BUNDLE:-false}" = true ] \
-        && [ "${LOCAL_PROFILE:-false}" = false ] \
-        && [ "${YOLO_MODE:-0}" != "1" ] \
-        && [ -z "${OMI_SKIP_BACKEND+x}" ] \
-        && [ -z "${OMI_SKIP_TUNNEL+x}" ] \
-        && [ -z "${OMI_PYTHON_API_URL+x}" ]
-}
-
-NAMED_BUNDLE_DEFAULT_DEV_BACKEND=false
-if should_default_named_bundle_to_dev_backend; then
-    NAMED_BUNDLE_DEFAULT_DEV_BACKEND=true
-fi
-
-# Named QA bundles are remote-dev by default. Apply this before any launch
-# preparation so they do not start a local backend or tunnel, and reapply it
-# after sourcing backend/.env below so repository-local defaults cannot
-# silently retarget a QA bundle. Explicit launch environment values above opt
-# out and remain authoritative.
-if [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" = true ]; then
-    substep "Named bundle default: using development backend"
-    apply_yolo_env
-fi
 
 # A detached launch is safe only when another service owns the backend. It is
 # intended for the remote-dev and local-harness fast lanes; a run.sh-owned
@@ -371,7 +349,7 @@ fast_bundle_fingerprint() {
     # The local-profile writer refreshes the endpoint setting plus disposable
     # Auth-emulator values inside the installed bundle on every fast patch.
     # They are launch configuration, not a packaged-input boundary.
-    if [ "$LOCAL_PROFILE" = true ]; then
+    if [ "${LOCAL_PROFILE:-false}" = true ]; then
         backend_api_fingerprint="local-profile-refreshed"
     fi
     omi_fast_bundle_fingerprint \
@@ -419,9 +397,7 @@ prepare_fast_only_configuration() {
         source "$BACKEND_DIR/.env"
         set +a
     fi
-    if [ "$YOLO_MODE" = "1" ] || [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" = true ]; then
-        apply_yolo_env
-    fi
+    apply_requested_backend_mode
 }
 
 FAST_BUNDLE_STAMP="$OMI_DEV_DIR/fast-dev-bundles/$BUNDLE_ID.stamp"
@@ -593,11 +569,13 @@ rewrite_bundled_dylib_load_path() {
     fi
 }
 
-step "Killing existing instances..."
-auth_debug "BEFORE pkill: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
-# Only kill the dev app — never touch Omi Beta (production)
-pkill -f "$APP_NAME.app" 2>/dev/null || true
-# Note: don't pkill cloudflared here — other agents may have tunnels running on this machine
+step "Preparing exact app launch..."
+auth_debug "BEFORE launch preparation: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
+if [ "$LOCAL_PROFILE" = true ]; then
+    substep "Harness verified any prior workspace app before invoking run.sh"
+else
+    substep "Leaving existing app processes untouched; no harness ownership record was supplied"
+fi
 # Keep an owned local Python backend alive until a replacement has started. The
 # backend startup path refreshes Firebase keys before it binds, so restarting it
 # for a Swift-only edit adds network-dependent delay and makes a compiler error
@@ -613,8 +591,7 @@ else
         rm -f "$BACKEND_PIDFILE" "$BACKEND_METADATA"
     fi
 fi
-sleep 0.5  # Let cfprefsd flush after process death
-auth_debug "AFTER pkill: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
+auth_debug "AFTER launch preparation: auth_isSignedIn=$(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || true)"
 
 # Each non-production app writes to its own bundle-and-launch log path. Never clear a
 # machine-global log here: another named QA or qualification bundle may still be running.
@@ -686,10 +663,22 @@ fi
 # ─── Load .env and credentials ─────────────────────────────────────────
 cd "$BACKEND_DIR"
 
+load_backend_launch_env() {
+    # The local harness backend already owns provider/admin credentials. Never
+    # rehydrate them into the app launcher after its environment was scrubbed.
+    if [ "${LOCAL_PROFILE:-false}" = false ] && [ -f "$BACKEND_DIR/.env" ]; then
+        set -a
+        source "$BACKEND_DIR/.env"
+        set +a
+    fi
+    apply_requested_backend_mode
+}
+
 if [ "$LOCAL_PROFILE" = true ]; then
     substep "Intentive local harness: skipping backend/.env copy/source and google-credentials bootstrap"
+    load_backend_launch_env
 else
-if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" != true ] \
+if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] \
     && { [ "${OMI_SKIP_BACKEND:-0}" != "1" ] || [ -z "${OMI_PYTHON_API_URL:-}" ]; }; then
     echo ""
     echo "=== First-time setup ==="
@@ -717,13 +706,7 @@ if [ ! -f ".env" ] && [ "$YOLO_MODE" != "1" ] && [ "$NAMED_BUNDLE_DEFAULT_DEV_BA
     exit 1
 fi
 
-# Read environment from .env (skip if missing — yolo mode doesn't need it)
-if [ -f "$BACKEND_DIR/.env" ]; then
-    set -a; source "$BACKEND_DIR/.env"; set +a
-fi
-if [ "$YOLO_MODE" = "1" ] || [ "$NAMED_BUNDLE_DEFAULT_DEV_BACKEND" = true ]; then
-    apply_yolo_env
-fi
+load_backend_launch_env
 
 # A checked-in/local `.env` may contain PORT=8080. The worktree-derived
 # selection above remains authoritative so the child process, probes, and
@@ -1302,18 +1285,60 @@ auth_debug "BEFORE launch: $(defaults read "$BUNDLE_ID" auth_isSignedIn 2>&1 || 
 # direct-exec fallback below inherits this shell's environment.
 build_launch_env_args() {
     LAUNCH_ENV_ARGS=()
+    DIRECT_LAUNCH_ENV=()
+    # `open` asks launchd to start the app, so merely removing credentials from
+    # this shell cannot clear values previously registered in launchd's user
+    # environment. Explicit empty overrides keep backend/provider/admin
+    # authority out of both the `open` and direct-exec launch paths.
+    local scrub_policy="${DESKTOP_APP_SCRUB_ENV_FILE:-$SCRIPT_DIR/../../scripts/dev-harness/desktop-app-scrub-env.txt}"
+    local scrubbed_key
+    if [ ! -r "$scrub_policy" ]; then
+        echo "ERROR: desktop app environment scrub policy is unavailable: $scrub_policy" >&2
+        return 1
+    fi
+    while IFS= read -r scrubbed_key || [ -n "$scrubbed_key" ]; do
+        case "$scrubbed_key" in
+            ''|\#*) continue ;;
+            *[!A-Z0-9_]*)
+                echo "ERROR: malformed desktop app environment scrub name: $scrubbed_key" >&2
+                return 1
+                ;;
+        esac
+        LAUNCH_ENV_ARGS+=(--env "$scrubbed_key=")
+        DIRECT_LAUNCH_ENV+=("$scrubbed_key=")
+    done < "$scrub_policy"
+    if [ "${LOCAL_PROFILE:-false}" = true ]; then
+        local local_key
+        for local_key in \
+            OMI_PYTHON_API_URL FIREBASE_API_KEY FIREBASE_PROJECT_ID \
+            FIREBASE_AUTH_PROJECT_ID FIREBASE_AUTH_EMULATOR_HOST FIRESTORE_DATABASE_ID; do
+            LAUNCH_ENV_ARGS+=(--env "$local_key=${!local_key}")
+            DIRECT_LAUNCH_ENV+=("$local_key=${!local_key}")
+        done
+        if [ -n "${OMI_LOCAL_PROVIDER_MODE:-}" ]; then
+            LAUNCH_ENV_ARGS+=(--env "OMI_LOCAL_PROVIDER_MODE=$OMI_LOCAL_PROVIDER_MODE")
+            DIRECT_LAUNCH_ENV+=("OMI_LOCAL_PROVIDER_MODE=$OMI_LOCAL_PROVIDER_MODE")
+        fi
+    fi
     # Forward automation token overrides when the caller already pinned them
     # (e.g. qualify-desktop-beta.sh). Default token discovery prefers Darwin
     # user temp in harness clients, matching NSTemporaryDirectory().
     if [ -n "${OMI_AUTOMATION_TOKEN_FILE:-}" ]; then
         LAUNCH_ENV_ARGS+=(--env "OMI_AUTOMATION_TOKEN_FILE=$OMI_AUTOMATION_TOKEN_FILE")
+        DIRECT_LAUNCH_ENV+=("OMI_AUTOMATION_TOKEN_FILE=$OMI_AUTOMATION_TOKEN_FILE")
     fi
     if [ -n "${OMI_AUTOMATION_TOKEN:-}" ]; then
         LAUNCH_ENV_ARGS+=(--env "OMI_AUTOMATION_TOKEN=$OMI_AUTOMATION_TOKEN")
+        DIRECT_LAUNCH_ENV+=("OMI_AUTOMATION_TOKEN=$OMI_AUTOMATION_TOKEN")
     fi
 }
 
 build_launch_env_args
+
+# Mark the exact token/path handoff before asking Launch Services to spawn. If
+# the post-open transport update fails, the harness must retain this owner-only
+# marker rather than classify an accepted but delayed launch as a compile error.
+signal_desktop_launch "pending"
 
 LAUNCH_TRANSPORT="open"
 if [ -n "$DESKTOP_LAUNCH_TOKEN" ]; then
@@ -1322,17 +1347,17 @@ if [ -n "$DESKTOP_LAUNCH_TOKEN" ]; then
     LAUNCH_ARGS=("${AUTOMATION_ARGS[@]}" "--omi-launch-token=$DESKTOP_LAUNCH_TOKEN")
     if ! open -n ${LAUNCH_ENV_ARGS[@]+"${LAUNCH_ENV_ARGS[@]}"} "$APP_PATH" --args "${LAUNCH_ARGS[@]}"; then
         LAUNCH_TRANSPORT="direct"
-        "$APP_PATH/Contents/MacOS/$BINARY_NAME" "${LAUNCH_ARGS[@]}" &
+        env "${DIRECT_LAUNCH_ENV[@]}" "$APP_PATH/Contents/MacOS/$BINARY_NAME" "${LAUNCH_ARGS[@]}" &
     fi
 elif [ "${#AUTOMATION_ARGS[@]}" -gt 0 ]; then
     if ! open ${LAUNCH_ENV_ARGS[@]+"${LAUNCH_ENV_ARGS[@]}"} "$APP_PATH" --args "${AUTOMATION_ARGS[@]}"; then
         LAUNCH_TRANSPORT="direct"
-        "$APP_PATH/Contents/MacOS/$BINARY_NAME" "${AUTOMATION_ARGS[@]}" &
+        env "${DIRECT_LAUNCH_ENV[@]}" "$APP_PATH/Contents/MacOS/$BINARY_NAME" "${AUTOMATION_ARGS[@]}" &
     fi
 else
     if ! open ${LAUNCH_ENV_ARGS[@]+"${LAUNCH_ENV_ARGS[@]}"} "$APP_PATH"; then
         LAUNCH_TRANSPORT="direct"
-        "$APP_PATH/Contents/MacOS/$BINARY_NAME" &
+        env "${DIRECT_LAUNCH_ENV[@]}" "$APP_PATH/Contents/MacOS/$BINARY_NAME" &
     fi
 fi
 signal_desktop_launch "$LAUNCH_TRANSPORT"

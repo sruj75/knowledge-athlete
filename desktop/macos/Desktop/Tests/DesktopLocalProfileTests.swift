@@ -2,6 +2,20 @@ import OmiSupport
 import XCTest
 
 final class DesktopLocalProfileTests: XCTestCase {
+  func testLocalProviderModeRequiresExplicitRealSelection() {
+    XCTAssertEqual(DesktopLocalProviderMode(configuredValue: "real"), .real)
+    for configuredValue in [nil, "", "offline", "typo", "REAL"] {
+      XCTAssertEqual(DesktopLocalProviderMode(configuredValue: configuredValue), .offline)
+    }
+  }
+
+  func testHermeticVoiceTransportRequiresBothLocalDataAndOfflineProviders() {
+    XCTAssertTrue(DesktopLocalProviderMode.offline.usesHermeticTransport(localProfileEnabled: true))
+    XCTAssertFalse(DesktopLocalProviderMode.real.usesHermeticTransport(localProfileEnabled: true))
+    XCTAssertFalse(DesktopLocalProviderMode.offline.usesHermeticTransport(localProfileEnabled: false))
+    XCTAssertFalse(DesktopLocalProviderMode.real.usesHermeticTransport(localProfileEnabled: false))
+  }
+
   func testNamedDevelopmentBundleUsesDedicatedStorageRoot() {
     XCTAssertEqual(
       DesktopStorageIdentity(

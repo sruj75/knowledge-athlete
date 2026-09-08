@@ -1,6 +1,21 @@
 import Foundation
 import os
 
+/// Local accounts and storage do not imply fake AI. Existing local bundles
+/// without an explicit provider selection retain their offline test transport.
+package enum DesktopLocalProviderMode: String {
+  case offline
+  case real
+
+  package init(configuredValue: String?) {
+    self = Self(rawValue: configuredValue ?? "") ?? .offline
+  }
+
+  package func usesHermeticTransport(localProfileEnabled: Bool) -> Bool {
+    localProfileEnabled && self == .offline
+  }
+}
+
 /// The identity-derived storage boundary for a running desktop bundle.
 ///
 /// A regular named development build gets a separate root regardless of how it
@@ -92,6 +107,14 @@ package enum DesktopLocalProfile {
 
   package static var isEnabled: Bool {
     value("OMI_DESKTOP_LOCAL_PROFILE") == "1"
+  }
+
+  package static var providerMode: DesktopLocalProviderMode {
+    DesktopLocalProviderMode(configuredValue: value("OMI_LOCAL_PROVIDER_MODE"))
+  }
+
+  package static var usesHermeticProviderTransport: Bool {
+    providerMode.usesHermeticTransport(localProfileEnabled: isEnabled)
   }
 
   package static var storageDirectoryName: String {

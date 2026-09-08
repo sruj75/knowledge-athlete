@@ -165,7 +165,10 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// provider's transcript comes back in a language the user doesn't speak.
   var fullLIDTask: Task<PTTLanguageIdentifier.Verdict, Never>?
   /// Diagnostics of the last completed turn, for the `ptt_test_turn` automation action.
-  var lastTurnDiagnostics: [String: String] = [:]
+  var lastTurnDiagnostics: RealtimeHeadlessPTTDiagnostics?
+  /// Exact headless turn/response whose provider audio may prove its transport.
+  var activeHeadlessPTTIdentity: RealtimeHubEventIdentity?
+  var lastHeadlessPTTTransportReceipt: RealtimeHeadlessPTTTransportReceipt?
   /// TEST SEAM (ptt_test_turn only, bridge is non-prod-only): replaces the provider's
   /// transcript for the next turn-done, simulating a provider-side language misdetect
   /// (the "Russian speech transcribed as Italian" case) — the one input that can't be
@@ -344,7 +347,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       return authority.accepts(
         sourceID: candidate.map(ObjectIdentifier.init),
         currentOwnerID: RuntimeOwnerIdentity.currentOwnerId(),
-        localProfileEnabled: DesktopLocalProfile.isEnabled,
+        localProfileEnabled: DesktopLocalProfile.usesHermeticProviderTransport,
         authorizationIsCurrent: RuntimeOwnerIdentity.isAuthorizationCurrent(
           authority.authorizationSnapshot))
     }
@@ -436,7 +439,9 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     terminalJournalContinuityKeys.removeAll()
     turnAudio16k.removeAll()
     turnEarlyVerdictCode = nil
-    lastTurnDiagnostics.removeAll()
+    lastTurnDiagnostics = nil
+    activeHeadlessPTTIdentity = nil
+    lastHeadlessPTTTransportReceipt = nil
     testProviderTranscriptOverride = nil
     acceptedSpawnJournalReceiptByContinuityKey.removeAll()
     prefetchedVoiceContext = ""
@@ -849,7 +854,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     pcm16k: Data, timeout: Double, forceTranscript: String? = nil, textOnly: Bool = false
   ) async -> [String: String] {
     #if DEBUG
-      if DesktopLocalProfile.isEnabled {
+      if DesktopLocalProfile.usesHermeticProviderTransport {
         return await runLocalProfileHeadlessPTTTurn(
           pcm16k: pcm16k,
           timeout: timeout,
@@ -857,6 +862,10 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
           textOnly: textOnly)
       }
     #endif
+    defer {
+      activeHeadlessPTTIdentity = nil
+      lastHeadlessPTTTransportReceipt = nil
+    }
     // A voice-context reconnect (triggered by the previous turn's kernel write) can replace
     // the warm session mid-turn; the fed audio/text/commit then land on the dead socket
     // and the turn never completes. Detect the swap and redrive the turn once.
@@ -870,7 +879,8 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
           VoiceTurnCoordinator.shared.publish(.finish(turnID: staleTurnID, reason: .providerFailed))
         }
       }
-      lastTurnDiagnostics = [:]
+      lastTurnDiagnostics = nil
+      lastHeadlessPTTTransportReceipt = nil
       let turnID = RealtimeAutomationTurnHarness.begin(on: VoiceTurnCoordinator.shared)
       VoiceTurnCoordinator.shared.publish(
         .selectRoute(turnID: turnID, route: .hub(sessionID: nil)))
@@ -896,6 +906,10 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
         return ["error": "hub session did not become active after voice context prefetch"]
       }
       beginTurn(turnID: turnID)
+      let headlessIdentity = voiceResponseID.map {
+        RealtimeHubEventIdentity(turnID: turnID, responseID: $0)
+      }
+      activeHeadlessPTTIdentity = headlessIdentity
       testProviderTranscriptOverride = forceTranscript
       let forcedSelection = RealtimeAutomationTranscriptOverridePolicy.select(
         providerText: "",
@@ -953,18 +967,14 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       while Date() < deadline {
         let hasCanonicalSpawnReceipt =
           acceptedSpawnJournalReceiptByContinuityKey[canonicalContinuityKey] != nil
-        switch RealtimeHeadlessPTTCompletionPolicy.terminalReason(
+        if let response = RealtimeHeadlessPTTCompletionPolicy.terminalResponse(
           for: turnID,
-          lastTerminal: VoiceTurnCoordinator.shared.model.lastTerminal)
+          expectedIdentity: headlessIdentity,
+          lastTerminal: VoiceTurnCoordinator.shared.model.lastTerminal,
+          diagnostics: lastTurnDiagnostics,
+          transportReceipt: lastHeadlessPTTTransportReceipt)
         {
-        case .success:
-          var result = lastTurnDiagnostics
-          result["terminal_reason"] = VoiceTurnTerminalReason.success.rawValue
-          return result
-        case let reason?:
-          return ["error": "voice turn terminated with \(reason.rawValue)"]
-        case nil:
-          break
+          return response
         }
         if attempt == 0,
           RealtimeHeadlessPTTSessionSwapPolicy.shouldRedrive(
@@ -980,7 +990,14 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
       log("RealtimeHub: headless PTT turn lost to a mid-turn session swap — redriving once")
       try? await Task.sleep(nanoseconds: 1_000_000_000)
     }
-    return ["error": "turn did not complete within \(Int(timeout))s"]
+    guard let activeHeadlessPTTIdentity else {
+      return ["error": "turn did not complete within \(Int(timeout))s"]
+    }
+    return RealtimeHeadlessPTTCompletionPolicy.timeoutResponse(
+      for: activeHeadlessPTTIdentity.turnID,
+      expectedIdentity: activeHeadlessPTTIdentity,
+      transportReceipt: lastHeadlessPTTTransportReceipt,
+      timeout: Int(timeout))
   }
 
   /// Non-production regression harness for the exact user report: commit several
@@ -1014,12 +1031,16 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
     guard await waitUntilActive(timeout: 15) else {
       return ["error": "hub session did not become active"]
     }
-    lastTurnDiagnostics = [:]
+    lastTurnDiagnostics = nil
+    var finalIdentity: RealtimeHubEventIdentity?
     for clip in clips {
       let turnID = RealtimeAutomationTurnHarness.begin(on: VoiceTurnCoordinator.shared)
       VoiceTurnCoordinator.shared.publish(
         .selectRoute(turnID: turnID, route: .hub(sessionID: nil)))
       beginTurn(turnID: turnID)
+      finalIdentity = voiceResponseID.map {
+        RealtimeHubEventIdentity(turnID: turnID, responseID: $0)
+      }
       var offset = 0
       while offset < clip.count {
         let end = min(offset + 3_200, clip.count)
@@ -1033,7 +1054,7 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
 
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
-      if !lastTurnDiagnostics.isEmpty { return lastTurnDiagnostics }
+      if let detail = lastTurnDiagnostics?.detail(matching: finalIdentity) { return detail }
       try? await Task.sleep(nanoseconds: 200_000_000)
     }
     return ["error": "rapid PTT burst did not complete within \(Int(timeout))s"]

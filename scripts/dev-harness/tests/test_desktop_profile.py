@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dev_harness import config, desktop_profile
+from dev_harness import config, desktop_profile, safety
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -35,9 +36,7 @@ def test_validate_profile_allows_omi_memory_named_bundle() -> None:
     assert profile.app_name == "omi-memory"
     assert profile.bundle_id == "com.heyintentive.intentive.dev.omi-memory"
     assert profile.url_scheme == "heyintentive-omi-memory"
-    assert profile.application_support_dir.endswith(
-        "/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-memory"
-    )
+    assert profile.application_support_dir.endswith("/Intentive Dev Bundles/com.heyintentive.intentive.dev.omi-memory")
     assert profile.keychain_access_group == ""
     assert profile.env["OMI_SEED_FROM_CANONICAL_DEV"] == "0"
     assert "OMI_SKIP_AUTH_SEED" not in profile.env
@@ -49,3 +48,68 @@ def test_validate_profile_allows_omi_memory_named_bundle() -> None:
 
     errors = desktop_profile.validate_profile(profile)
     assert not errors
+
+
+@pytest.mark.parametrize("mode", ["offline", "real"])
+def test_provider_mode_preserves_local_account_and_data_boundary(mode: str) -> None:
+    profile = _resolve({"OMI_APP_NAME": "omi-provider-contract", "PROVIDER_MODE": mode})
+
+    assert profile.env["OMI_LOCAL_PROVIDER_MODE"] == mode
+    assert profile.env["OMI_DESKTOP_LOCAL_PROFILE"] == "1"
+    assert profile.env["FIREBASE_AUTH_EMULATOR_HOST"] == "127.0.0.1:9099"
+    assert profile.env["FIREBASE_PROJECT_ID"] == "demo-heyintentive-local"
+    assert profile.backend_url == "http://127.0.0.1:8000"
+    assert not desktop_profile.validate_profile(profile)
+
+
+def test_desktop_child_environment_scrubs_backend_provider_admin_and_cloud_credentials() -> None:
+    profile = _resolve({"OMI_APP_NAME": "omi-memory"})
+    profile = replace(profile, env={**profile.env, "OMI_LOCAL_PROVIDER_MODE": "real"})
+    parent = {
+        "PATH": "/usr/bin",
+        "HOME": "/Users/dev",
+        "OPENAI_API_KEY": "provider-secret",
+        "GEMINI_API_KEY": "provider-secret",
+        "ADMIN_KEY": "backend-admin-secret",
+        "OMI_ADMIN_TOKEN": "ambient-admin-secret",
+        "GOOGLE_APPLICATION_CREDENTIALS": "/tmp/service-account.json",
+        "GOOGLE_CLOUD_PROJECT": "shared-project",
+        "OMI_FORCE_FULL_BUNDLE": "1",
+        "PROVIDER_MODE": "real",
+        "OMI_ENV_STAGE": "offline",
+        "OMI_LLM_STUB": "1",
+    }
+
+    env = desktop_profile.child_env(profile, parent=parent)
+
+    assert env["PATH"] == "/usr/bin"
+    assert env["HOME"] == "/Users/dev"
+    assert env["OMI_FORCE_FULL_BUNDLE"] == "1"
+    assert env["OMI_PYTHON_API_URL"] == profile.backend_url
+    assert env["FIREBASE_AUTH_EMULATOR_HOST"] == profile.firebase_auth_emulator_host
+    assert env["FIREBASE_API_KEY"] == desktop_profile.LOCAL_FIREBASE_API_KEY
+    assert env["OMI_LOCAL_PROVIDER_MODE"] == "real"
+    for key in (
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "ADMIN_KEY",
+        "OMI_ADMIN_TOKEN",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_CLOUD_PROJECT",
+        "PROVIDER_MODE",
+        "OMI_ENV_STAGE",
+        "OMI_LLM_STUB",
+    ):
+        assert key not in env
+
+
+def test_desktop_child_environment_rejects_a_malformed_scrub_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    profile = _resolve({"OMI_APP_NAME": "omi-memory"})
+    policy = tmp_path / "desktop-app-scrub-env.txt"
+    policy.write_text("OPENAI_API_KEY\nnot-a-valid-environment-name\n", encoding="utf-8")
+    monkeypatch.setattr(desktop_profile, "_DESKTOP_APP_SCRUB_ENV_PATH", policy)
+
+    with pytest.raises(safety.SafetyError, match="scrub policy is malformed"):
+        desktop_profile.child_env(profile, parent={"PATH": "/usr/bin"})

@@ -128,8 +128,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   identifiers must replace them; agents must never cosmetically edit inherited
   credentials.
 - Apple Team `24D6NXS6H7` has an installed Developer ID Application identity valid
-  through 2030-11-18. Codemagic still needs the supplied `.p12` password, active Apple
-  membership, and notarization credentials.
+  through 2030-11-18; membership was confirmed on 2026-09-08 with renewal on
+  2027-09-09. Codemagic still needs the supplied `.p12` password or an approved
+  re-export of that identity, plus notarization credentials. The owner accepted
+  the updated Program License Agreement; its account warning cleared on readback.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
   `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, PostHog
   client configuration, Sparkle keypair, and Sentry token are protected, and the four public

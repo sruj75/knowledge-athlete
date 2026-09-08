@@ -9,6 +9,7 @@ It does not start emulators or desktop apps.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import signal
@@ -140,6 +141,13 @@ class HarnessLayout:
     logs_dir: Path
     reports_dir: Path
     services_dir: Path
+
+
+@dataclass(frozen=True)
+class ProcessSnapshot:
+    pid: int
+    process_start: str
+    command: str
 
 
 def _real(path: Path) -> Path:
@@ -412,6 +420,58 @@ def process_exists(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def process_snapshots() -> tuple[ProcessSnapshot, ...]:
+    """Return PID-reuse-resistant process identity inputs for exact local ownership checks."""
+
+    try:
+        result = subprocess.run(
+            ["ps", "-axo", "pid=,lstart=,command="],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SafetyError("Cannot inspect process provenance") from exc
+    if result.returncode != 0:
+        raise SafetyError("Cannot inspect process provenance")
+    snapshots: list[ProcessSnapshot] = []
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 6)
+        if len(fields) != 7 or not fields[0].isdigit():
+            continue
+        snapshots.append(
+            ProcessSnapshot(
+                pid=int(fields[0]),
+                process_start=" ".join(fields[1:6]),
+                command=fields[6],
+            )
+        )
+    return tuple(snapshots)
+
+
+def process_snapshot(pid: int) -> ProcessSnapshot | None:
+    return next((process for process in process_snapshots() if process.pid == pid), None)
+
+
+def valid_process_fingerprint(process_start: str, command_sha256: str) -> bool:
+    return bool(process_start and re.fullmatch(r"[0-9a-f]{64}", command_sha256))
+
+
+def matches_process_fingerprint(
+    process: ProcessSnapshot,
+    *,
+    process_start: str,
+    command_sha256: str,
+) -> bool:
+    return (
+        valid_process_fingerprint(process_start, command_sha256)
+        and process.process_start == process_start
+        and hashlib.sha256(process.command.encode()).hexdigest() == command_sha256
+    )
 
 
 def command_line_for_pid(pid: int) -> str:

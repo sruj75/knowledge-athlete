@@ -43,6 +43,15 @@ enum HubAuth {
     #endif
     }
   }
+
+  var transportMode: String {
+    switch self {
+    case .managedEphemeral: return "managed"
+    #if DEBUG
+      case .hermeticStub: return "hermetic"
+    #endif
+    }
+  }
 }
 
 #if DEBUG
@@ -73,6 +82,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   private weak var delegate: RealtimeHubSessionDelegate?
 
   var requiredInputSampleRate: Int { 16000 }
+  var transportMode: String { auth.transportMode }
   // All socket + state access is serialized here (audio arrives on the capture
   // thread; receives on the URLSession/NW queue). Delegate calls hop to main.
   let q = DispatchQueue(label: "com.heyintentive.intentive.realtime-hub.session")
