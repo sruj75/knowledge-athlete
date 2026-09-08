@@ -18,5 +18,18 @@ _contract = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_contract)
 
 
-def validate_qualification_run(run: object, repository: str, release_tag: str, candidate_sha: str) -> None:
-    _contract.validate_qualification_run(run, repository, release_tag, candidate_sha)
+def validate_qualification_run(
+    run: object,
+    repository: str,
+    release_tag: str,
+    candidate_sha: str,
+    *,
+    qualification_mode: str = "runner",
+) -> None:
+    _contract.validate_qualification_run(
+        run,
+        repository,
+        release_tag,
+        candidate_sha,
+        qualification_mode=qualification_mode,
+    )

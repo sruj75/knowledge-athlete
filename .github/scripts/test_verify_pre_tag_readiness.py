@@ -36,16 +36,24 @@ class PreTagReadinessReceiptTests(unittest.TestCase):
 
     def test_invalid_receipts_fail_closed(self) -> None:
         fixtures = (
-            ("wrong source", valid_receipt(), "b" * 40, "!= tag source"),
+            ("wrong source", valid_receipt(), "b" * 40, "!= candidate source"),
             ("failed receipt", {**valid_receipt(), "passed": False}, SOURCE_SHA, "did not pass"),
             (
                 "missing check",
-                {**valid_receipt(), "checks": {name: True for name in verifier.REQUIRED_CHECKS if name != "self_check"}},
+                {
+                    **valid_receipt(),
+                    "checks": {name: True for name in verifier.REQUIRED_CHECKS if name != "self_check"},
+                },
                 SOURCE_SHA,
                 "missing required checks",
             ),
             ("non-offline", {**valid_receipt(), "provider_mode": "production"}, SOURCE_SHA, "offline"),
-            ("qualification authority", {**valid_receipt(), "qualified_beta": True}, SOURCE_SHA, "production/qualification"),
+            (
+                "qualification authority",
+                {**valid_receipt(), "qualified_beta": True},
+                SOURCE_SHA,
+                "production/qualification",
+            ),
         )
         for name, receipt, source_sha, message in fixtures:
             with self.subTest(name=name):

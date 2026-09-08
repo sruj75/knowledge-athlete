@@ -1,12 +1,9 @@
 name: Retry Failed Desktop Beta Qualification
 
-# Recover a *transient* failed/cancelled qualification of the newest immutable
-# published macOS candidate. This re-dispatches ONLY the trusted qualification
-# workflow; it never creates a build, never promotes, and never reaches Stable.
-# Promotion stays the single completed-success authority
-# (desktop_promote_beta.yml). The decision script re-derives the candidate and
-# run state from server data; on schedule the workflow supplies no tag, so no
-# caller claim is trusted.
+# Observe a *transient* failed/cancelled qualification of the newest immutable
+# published macOS candidate. Owner-manual evidence cannot be re-attested by a
+# GitHub App, so this reports a bounded retry opportunity but never dispatches,
+# builds, promotes, or reaches Stable.
 on:
   schedule:
     # Twice hourly, offset from the :17 candidate build, so a transient
@@ -116,30 +113,12 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Generate Intentive release app token
+      - name: Report owner-manual retry requirement
         if: steps.decide.outputs.should_retry == 'true'
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.INTENTIVE_RELEASE_APP_ID }}
-          private-key: ${{ secrets.INTENTIVE_RELEASE_APP_PRIVATE_KEY }}
-          permission-actions: write
-          permission-contents: read
-
-      - name: Re-dispatch trusted macOS qualification for the newest candidate
-        if: steps.decide.outputs.should_retry == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ steps.decide.outputs.release_tag }}
         run: |
           set -euo pipefail
-          # Per-tag GitHub concurrency and immutable qualification evidence own
-          # duplicate dispatches; this handoff only recovers a transient
-          # failed/cancelled qualification of the exact newest candidate.
-          # The Intentive release app token (not the default GITHUB_TOKEN) is required:
-          # a run dispatched by GITHUB_TOKEN does not trigger the downstream
-          # workflow_run promotion in desktop_promote_beta.yml on success.
-          gh workflow run desktop_qualify_beta.yml --repo "$REPO" \
-            -f release_tag="$RELEASE_TAG" --ref "$RELEASE_TAG"
-          echo "Re-dispatched qualification for $RELEASE_TAG after a transient failed/cancelled run." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo 'A retry requires a fresh owner dispatch of desktop_qualify_beta.yml with the exact owner evidence asset.'
+            echo 'No workflow or GitHub App may synthesize or re-attest the owner Mac evidence.'
+          } >> "$GITHUB_STEP_SUMMARY"

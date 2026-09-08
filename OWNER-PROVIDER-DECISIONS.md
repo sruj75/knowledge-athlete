@@ -259,14 +259,14 @@ already done. An unchecked item is still required before the corresponding live 
   `INTENTIVE_TERMS_URL=https://terms.heyintentive.com/`, and
   `INTENTIVE_SUPPORT_URL=https://support.heyintentive.com/`.
   All four were read back; secret rows were unchanged and no build was started.
-- [ ] Finish the remaining Codemagic release/preview values, including publication
-  `GH_TOKEN`, backend/feed/download URLs, and Apple signing/notarization.
-  The preview group is not configured.
+- [ ] Finish the remaining Codemagic Beta publication `GH_TOKEN` and approved
+  backend/feed/download bindings. Signing/notarization secrets are now stored.
+  The preview group remains unconfigured and is not a five-person Beta prerequisite.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
-- [ ] Import the supplied Developer ID `.p12` with its password, or an approved re-export of the exact existing signing identity, into Codemagic. Store the certificate and password only in protected secrets, never Git or documentation.
+- [x] Re-export the exact owned Developer ID identity and save its P12/password as masked Codemagic `intentive_macos_signing` secrets. Verified 2026-09-08: P12 password/MAC, certificate fingerprint/team/expiry, and private-key/public-certificate agreement passed; saved values persisted after a page reload. Only protected local/provider copies hold the secret bytes. A Codemagic import/build has not run yet.
 - [x] Confirm Apple Developer Program membership for team `24D6NXS6H7`: verified 2026-09-08, next renewal 2027-09-09. The owner accepted the updated license agreement; the account warning cleared on readback.
-- [ ] Create an App Store Connect API key or an accepted notarytool keychain profile for notarization, and store the issuer ID, key ID, and private key only in protected provider secrets. Read-only inspection on 2026-09-08 found API access still at `Request Access`; no access request or key creation has been submitted.
+- [x] Configure Apple notarization credentials. The owner accepted API access and supplied the replacement `Intentive Codemagic Notary 2` Developer-role key after the first download was unavailable. On 2026-09-08, OpenSSL key validation and live read-only `notarytool history` authentication passed. Key/issuer/ID are masked Codemagic `intentive_macos_signing` values; the local key copy is private and gitignored. Existing keys were not revoked. This proves access, not a newly notarized candidate.
 - [ ] Register the stable, Beta, development, and preview identifiers/schemes with Apple/provider services where registration is required.
 - [x] Generate a new Sparkle EdDSA keypair, store it under the separate `heyintentive` Keychain account, configure the public key in Codemagic, and record its public-key fingerprint above.
 - [x] Add the Sparkle private key only to Codemagic's protected `intentive_macos_release` group.
@@ -281,7 +281,7 @@ already done. An unchecked item is still required before the corresponding live 
   This does not populate Codemagic's separate `GH_TOKEN` publication input.
 - [ ] Protect `main` through the existing required CI checks and PR-only merges.
   Verified 2026-09-05: neither branch protection nor a ruleset is configured.
-- [ ] Provision the trusted Apple Silicon qualification runner and apply only the Intentive runner labels documented by this repository.
+- [ ] Exercise the owner-manual qualification path on an exact signed candidate. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates the owner-uploaded evidence and exact artifacts.
 
 ### Needed before Beta or Stable publication
 

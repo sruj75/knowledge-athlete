@@ -248,6 +248,49 @@ release_env=(
   "INTENTIVE_PRIVACY_URL=https://heyintentive.com/privacy"
   "INTENTIVE_SUPPORT_URL=https://heyintentive.com/support"
 )
+
+# Execute the real provider smoke phase against a controlled artifact inspector.
+# This proves the producer requests the callbacks its qualification consumer
+# requires, and preserves each inspector failure without building a signed app.
+smoke_scripts="$TMP_ROOT/smoke-repo/desktop/macos/scripts"
+smoke_calls="$TMP_ROOT/smoke-calls.tsv"
+mkdir -p "$smoke_scripts"
+cp "$PRODUCTION_SCRIPT" "$smoke_scripts/codemagic-release.sh"
+make_executable "$smoke_scripts/smoke-signed-desktop-artifact.sh" \
+  'bundle=""; auth_canary=false; notification_canary=false' \
+  'while [[ "$#" -gt 0 ]]; do' \
+  '  case "$1" in' \
+  '    --expected-bundle-id) bundle="$2"; shift 2 ;;' \
+  '    --auth-storage-canary) auth_canary=true; shift ;;' \
+  '    --notification-callback-canary) notification_canary=true; shift ;;' \
+  '    *) shift ;;' \
+  '  esac' \
+  'done' \
+  'printf "%s\t%s\t%s\n" "$bundle" "$auth_canary" "$notification_canary" >> "${TEST_SMOKE_CALLS:?}"' \
+  'if [[ "$bundle" == "${TEST_SMOKE_REJECT_BUNDLE:-}" ]]; then exit 23; fi'
+env "${release_env[@]}" SOURCE_SHA="$preview_sha" TEST_SMOKE_CALLS="$smoke_calls" \
+  bash "$smoke_scripts/codemagic-release.sh" smoke
+[[ "$(wc -l < "$smoke_calls" | tr -d ' ')" == "2" ]] || fail "provider did not inspect exactly both release identities"
+grep -Fxq $'com.heyintentive.intentive\ttrue\ttrue' "$smoke_calls" ||
+  fail "Stable provider smoke omitted an admission-required canary"
+grep -Fxq $'com.heyintentive.intentive.beta\ttrue\ttrue' "$smoke_calls" ||
+  fail "Beta provider smoke omitted an admission-required canary"
+
+for rejected_bundle in com.heyintentive.intentive com.heyintentive.intentive.beta; do
+  rejected_smoke_calls="$TMP_ROOT/smoke-rejected-$rejected_bundle.tsv"
+  if env "${release_env[@]}" SOURCE_SHA="$preview_sha" TEST_SMOKE_CALLS="$rejected_smoke_calls" \
+    TEST_SMOKE_REJECT_BUNDLE="$rejected_bundle" bash "$smoke_scripts/codemagic-release.sh" smoke; then
+    fail "provider ignored a failed artifact inspector for $rejected_bundle"
+  else
+    smoke_exit=$?
+  fi
+  [[ "$smoke_exit" == "23" ]] || fail "provider masked artifact inspector failure"
+  expected_calls=1
+  [[ "$rejected_bundle" != com.heyintentive.intentive.beta ]] || expected_calls=2
+  [[ "$(wc -l < "$rejected_smoke_calls" | tr -d ' ')" == "$expected_calls" ]] ||
+    fail "provider continued inspecting after an artifact failure"
+done
+
 if env "${release_env[@]}" \
   INTENTIVE_PRODUCTION_API_URL=https://attacker.example \
   CM_ENV="$TMP_ROOT/rejected-production-origin.env" "$SCRIPT" validate \

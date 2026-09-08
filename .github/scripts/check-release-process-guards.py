@@ -286,22 +286,26 @@ def check_desktop_qualification_and_promotion() -> list[str]:
         errors.append("desktop qualification runner must not execute pull-request or push workflows")
     for fragment in (
         "workflow_dispatch:",
-        "self-hosted",
-        "macos",
-        "intentive-desktop-qualification",
-        'git -C "$source_dir" checkout --quiet --detach "refs/tags/$RELEASE_TAG"',
+        "owner_evidence_asset:",
+        "runs-on: ubuntu-latest",
+        "environment: beta",
+        "Require exact repository owner dispatch",
+        'ref: ${{ inputs.release_tag }}',
         "check-desktop-auto-beta-candidate.py",
-        "--automatic",
+        "--qualification-mode owner-manual",
+        "owner_manual_desktop_qualification.py verify",
         "actions/create-github-app-token@v3",
-        "group: desktop-beta-qualification-m1",
+        "group: desktop-beta-qualification-${{ inputs.release_tag }}",
         "cancel-in-progress: false",
+        "desktop-qualification-evidence-${{ inputs.release_tag }}",
     ):
         if fragment not in qualification:
             errors.append(f"desktop qualification runner is missing required guard fragment: {fragment}")
     if "desktop_promote_beta.yml" in qualification:
         errors.append("desktop qualification runner must not promote beta inside its own run")
-    if "qualify-m4-mini" in qualification or "plan-fallbacks" in qualification:
-        errors.append("desktop qualification runner must use only the global M1 fallback lane")
+    for forbidden in ("self-hosted", "intentive-qual-m1-studio", "qualify-m4-mini", "plan-fallbacks"):
+        if forbidden in qualification:
+            errors.append(f"owner-manual desktop qualification must not use a persistent Mac runner: {forbidden}")
 
     for fragment in (
         'workflows: ["Qualify Desktop Beta Candidate"]',
