@@ -855,6 +855,19 @@ def _desktop_process_after_authorized_signal(
     return process
 
 
+def _desktop_record_after_process_exit(
+    cfg: config.HarnessConfig,
+    record: dict[str, object],
+) -> dict[str, object] | None:
+    """Return successor/residue that prevents settlement, or None when the lifecycle is fully stopped."""
+
+    identity = _desktop_record_identity(cfg, record)
+    recovered = recover_desktop_record(cfg, record)
+    if recovered != record:
+        return recovered
+    return record if safety.listening_pids(identity.port) else None
+
+
 def _read_owner_only_launch_signal(path: Path) -> dict[str, str]:
     try:
         info = path.lstat()
@@ -1163,11 +1176,12 @@ def stop_desktop_record(
     else:
         process = _validated_desktop_process(cfg, record)
         if process is None:
-            identity = _desktop_record_identity(cfg, record)
-            recovered = recover_desktop_record(cfg, record)
-            if recovered == record:
-                return not safety.listening_pids(identity.port)
-            record = recovered
+            residue = _desktop_record_after_process_exit(cfg, record)
+            if residue is None:
+                return True
+            if residue == record:
+                return False
+            record = residue
             process = _validated_desktop_process(cfg, record)
     if process is None:
         return False
@@ -1175,35 +1189,35 @@ def stop_desktop_record(
     try:
         os.kill(process.pid, signal.SIGTERM)
     except ProcessLookupError:
-        return not safety.listening_pids(identity.port)
+        return _desktop_record_after_process_exit(cfg, record) is None
     except PermissionError as exc:
         raise safety.SafetyError(f"Cannot signal desktop PID {process.pid}: {exc}") from exc
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
         current = _desktop_process_after_authorized_signal(identity)
         if current is None:
-            return True
+            return _desktop_record_after_process_exit(cfg, record) is None
         time.sleep(0.1)
     # SIGKILL is a new destructive action. Re-establish full executable/token
     # ownership after the passive TERM wait before escalating.
     current = _validated_desktop_process(cfg, record)
     if current is None:
-        return True
+        return _desktop_record_after_process_exit(cfg, record) is None
     kill_signal = getattr(signal, "SIGKILL", signal.SIGTERM)
     try:
         os.kill(current.pid, kill_signal)
     except ProcessLookupError:
-        return True
+        return _desktop_record_after_process_exit(cfg, record) is None
     except PermissionError as exc:
         raise safety.SafetyError(f"Cannot signal desktop PID {current.pid}: {exc}") from exc
     deadline = time.time() + kill_wait_seconds
     while time.time() < deadline:
         if _desktop_process_after_authorized_signal(identity) is None:
-            return True
+            return _desktop_record_after_process_exit(cfg, record) is None
         time.sleep(0.1)
     if _desktop_process_after_authorized_signal(identity) is not None:
         raise safety.SafetyError(f"Desktop PID {current.pid} is still running after exact shutdown")
-    return True
+    return _desktop_record_after_process_exit(cfg, record) is None
 
 
 def stop_desktop_for_relaunch(
@@ -1222,8 +1236,10 @@ def stop_desktop_for_relaunch(
     if record.get("bundle_id") != profile.bundle_id or record.get("app_name") != profile.app_name:
         raise safety.SafetyError("Recorded desktop identity differs from the requested workspace app")
     stopped_exact = stop_desktop_record(cfg, record, wait_seconds=wait_seconds)
-    if not stopped_exact and record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
-        raise safety.SafetyError("Desktop launch attempt is unresolved; preserved for exact cleanup retry")
+    if not stopped_exact:
+        if record.get("desktop_record_state") == DESKTOP_RECORD_STATE_ATTEMPT:
+            raise safety.SafetyError("Desktop launch attempt is unresolved; preserved for exact cleanup retry")
+        raise safety.SafetyError("Desktop shutdown is incomplete; preserved for exact cleanup retry")
     _save_manifests(cfg, [entry for entry in records if entry is not record])
 
 

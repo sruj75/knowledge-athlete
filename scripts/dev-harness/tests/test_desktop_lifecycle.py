@@ -208,6 +208,7 @@ def test_delayed_token_bound_launch_is_recovered_from_attempt_and_stopped_exactl
     monkeypatch.setattr(
         safety, "process_snapshot", lambda pid: current if current is not None and pid == current.pid else None
     )
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
     signalled: list[tuple[int, signal.Signals]] = []
 
     def stop_exact(pid: int, sig: signal.Signals) -> None:
@@ -447,10 +448,18 @@ def test_relaunch_stops_only_workspace_a_desktop_and_preserves_backend_and_works
     }
     cli._write_json(cfg.layout.process_manifest, {"processes": [backend_record, desktop_record]})
     preserved_apps = {"workspace-b": 45007, "Omi Beta": 45008, "Omi": 45009}
-    snapshots = iter((desktop, None))
-    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: next(snapshots))
+    desktop_running = True
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: desktop if desktop_running else None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (desktop,) if desktop_running else ())
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
     signalled: list[tuple[int, signal.Signals]] = []
-    monkeypatch.setattr(os, "kill", lambda pid, sig: signalled.append((pid, sig)))
+
+    def stop_desktop(pid: int, sig: signal.Signals) -> None:
+        nonlocal desktop_running
+        signalled.append((pid, sig))
+        desktop_running = False
+
+    monkeypatch.setattr(os, "kill", stop_desktop)
     monkeypatch.setattr(
         safety,
         "process_exists",
@@ -646,6 +655,8 @@ def test_desktop_stop_keeps_authorized_identity_when_executable_proof_disappears
     current: safety.ProcessSnapshot | None = snapshot
     shutdown_started = False
     monkeypatch.setattr(safety, "process_snapshot", lambda _pid: current)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (current,) if current is not None else ())
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
 
     def exact_executable(_process: safety.ProcessSnapshot, _executable: Path) -> bool:
         if shutdown_started:
@@ -670,6 +681,132 @@ def test_desktop_stop_keeps_authorized_identity_when_executable_proof_disappears
 
     assert cli.stop_desktop_record(cfg, record, wait_seconds=1) is True
     assert signalled == [(snapshot.pid, signal.SIGTERM)]
+
+
+def test_desktop_stop_preserves_a_pending_successor_that_appears_during_term_drain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(48510, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successor = safety.ProcessSnapshot(
+        pid=48511,
+        process_start="Tue Sep  8 10:12:12 2026",
+        command=str(cli.desktop_executable_path(profile)),
+    )
+    cli._save_manifests(cfg, [record])
+    term_sent = False
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None if term_sent else predecessor)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (successor,) if term_sent else (predecessor,))
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_predecessor(pid: int, sig: signal.Signals) -> None:
+        nonlocal term_sent
+        assert pid == predecessor.pid
+        term_sent = True
+        signalled.append((pid, sig))
+
+    monkeypatch.setattr(os, "kill", signal_predecessor)
+
+    with pytest.raises(cli.DesktopSuccessorPending, match="bridge identity is not ready"):
+        cli.stop_desktop_for_relaunch(cfg, profile)
+
+    assert signalled == [(predecessor.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [record]
+
+
+def test_desktop_stop_preserves_evidence_when_a_foreign_listener_remains_after_term(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(48512, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    foreign_pid = 48513
+    cli._save_manifests(cfg, [record])
+    term_sent = False
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None if term_sent else predecessor)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: () if term_sent else (predecessor,))
+    monkeypatch.setattr(
+        safety,
+        "listening_pids",
+        lambda port: (foreign_pid,) if term_sent and port == cfg.automation_port else (),
+    )
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_predecessor(pid: int, sig: signal.Signals) -> None:
+        nonlocal term_sent
+        if pid != predecessor.pid:
+            pytest.fail("an unowned listener must not be signalled")
+        term_sent = True
+        signalled.append((pid, sig))
+
+    monkeypatch.setattr(os, "kill", signal_predecessor)
+
+    with pytest.raises(safety.SafetyError, match="shutdown is incomplete"):
+        cli.stop_desktop_for_relaunch(cfg, profile)
+
+    assert signalled == [(predecessor.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [record]
+
+
+def test_relaunch_preserves_an_admitted_successor_that_appears_during_term_drain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(48514, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successor = safety.ProcessSnapshot(
+        pid=48515,
+        process_start="Tue Sep  8 10:12:12 2026",
+        command=str(cli.desktop_executable_path(profile)),
+    )
+    cli._save_manifests(cfg, [record])
+    term_sent = False
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None if term_sent else predecessor)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (successor,) if term_sent else (predecessor,))
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: (successor.pid,) if term_sent else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == successor.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": successor.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+            "sourceGitSHA": "a" * 40,
+            "sourceTreeDirty": False,
+        },
+    )
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_predecessor(pid: int, sig: signal.Signals) -> None:
+        nonlocal term_sent
+        if pid != predecessor.pid:
+            pytest.fail("the recovered successor must be retained for an exact retry")
+        term_sent = True
+        signalled.append((pid, sig))
+
+    monkeypatch.setattr(os, "kill", signal_predecessor)
+
+    with pytest.raises(safety.SafetyError, match="shutdown is incomplete"):
+        cli.stop_desktop_for_relaunch(cfg, profile)
+
+    recovered = cli._process_records(cfg)
+    assert signalled == [(predecessor.pid, signal.SIGTERM)]
+    assert len(recovered) == 1
+    assert recovered[0]["pid"] == successor.pid
+    assert recovered[0]["desktop_ownership_proof"] == "bridge_successor"
 
 
 def test_desktop_stop_requires_full_ownership_proof_again_before_kill_escalation(
