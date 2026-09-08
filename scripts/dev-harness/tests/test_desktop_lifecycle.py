@@ -22,7 +22,13 @@ def _config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, instance: str = 
     monkeypatch.setenv("PROVIDER_MODE", "offline")
     monkeypatch.setenv("OMI_LOCAL_INSTANCE", instance)
     monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
-    return config.load_config(REPO_ROOT, create_layout=True)
+    cfg = config.load_config(REPO_ROOT, create_layout=True)
+    monkeypatch.setattr(
+        cli,
+        "_process_executes_exact_path",
+        lambda process, executable: process.command == str(executable) or process.command.startswith(f"{executable} "),
+    )
+    return cfg
 
 
 def _profile(cfg: config.HarnessConfig, app_name: str = "omi-workspace-a") -> desktop_profile.DesktopLocalProfile:
@@ -104,7 +110,259 @@ def test_register_desktop_launch_resolves_signal_to_one_exact_token_bound_proces
     assert record["bundle_id"] == profile.bundle_id
     assert record["process_start"] == snapshot.process_start
     assert record["command_sha256"] == hashlib.sha256(snapshot.command.encode()).hexdigest()
+    assert isinstance(cli._desktop_record_identity(cfg, record), cli.DesktopOwnershipRecord)
     assert cli._process_records(cfg)[-1] == record
+
+
+def test_registration_timeout_retains_owner_only_typed_launch_attempt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    fake_run = tmp_path / "run.sh"
+    fake_run.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    fake_run.chmod(0o755)
+    monkeypatch.setattr(cli, "_require_port_available_or_owned", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(safety.SafetyError, match="launch signal is missing"):
+        cli.launch_desktop_local(
+            cfg,
+            profile,
+            run_sh=fake_run,
+            wait_for_exit=False,
+            registration_timeout=0,
+        )
+
+    records = cli._process_records(cfg)
+    assert len(records) == 1
+    attempt = cli._desktop_launch_attempt(cfg, records[0])
+    assert attempt.executable_path == cli.desktop_executable_path(profile)
+    assert attempt.automation_port == cfg.automation_port
+    assert cfg.layout.process_manifest.stat().st_mode & 0o777 == 0o600
+
+
+def test_compile_failure_without_launch_signal_clears_attempt_for_an_ordinary_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    fake_run = tmp_path / "run.sh"
+    fake_run.write_text("#!/bin/sh\nexit 23\n", encoding="utf-8")
+    fake_run.chmod(0o755)
+    monkeypatch.setattr(cli, "_require_port_available_or_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: ())
+
+    with pytest.raises(subprocess.CalledProcessError):
+        cli.launch_desktop_local(cfg, profile, run_sh=fake_run, wait_for_exit=False)
+
+    assert cli._process_records(cfg) == []
+    cli.stop_desktop_for_relaunch(cfg, profile, wait_seconds=0)
+
+
+def test_nonzero_launcher_after_handoff_marker_retains_attempt_for_delayed_process(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    fake_run = tmp_path / "run.sh"
+    fake_run.write_text(
+        "#!/bin/sh\nprintf 'launch_transport=pending\\n' > \"$OMI_DESKTOP_LAUNCH_SIGNAL_FILE\"\n"
+        "chmod 600 \"$OMI_DESKTOP_LAUNCH_SIGNAL_FILE\"\nexit 23\n",
+        encoding="utf-8",
+    )
+    fake_run.chmod(0o755)
+    monkeypatch.setattr(cli, "_require_port_available_or_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: ())
+
+    with pytest.raises(subprocess.CalledProcessError):
+        cli.launch_desktop_local(cfg, profile, run_sh=fake_run, wait_for_exit=False)
+
+    records = cli._process_records(cfg)
+    assert len(records) == 1
+    assert isinstance(cli._desktop_launch_attempt(cfg, records[0]), cli.DesktopLaunchAttempt)
+    with pytest.raises(safety.SafetyError, match="launch attempt is unresolved"):
+        cli.stop_desktop_for_relaunch(cfg, profile, wait_seconds=0)
+
+
+def test_delayed_token_bound_launch_is_recovered_from_attempt_and_stopped_exactly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    attempt = cli.DesktopLaunchAttempt(
+        instance=cfg.instance,
+        automation_port=cfg.automation_port,
+        app_name=profile.app_name,
+        bundle_id=profile.bundle_id,
+        app_path=cli.desktop_app_path(profile),
+        executable_path=cli.desktop_executable_path(profile),
+        profile_root=cli.desktop_profile_root(profile),
+        state_root=cfg.layout.state_root,
+        launch_token=token,
+        attempted_at="2026-09-08T10:11:12Z",
+    ).as_record()
+    cli._save_manifests(cfg, [attempt])
+    current: safety.ProcessSnapshot | None = _snapshot(41501, profile, token)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (current,) if current is not None else ())
+    monkeypatch.setattr(
+        safety, "process_snapshot", lambda pid: current if current is not None and pid == current.pid else None
+    )
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def stop_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal current
+        assert current is not None and pid == current.pid
+        signalled.append((pid, sig))
+        current = None
+
+    monkeypatch.setattr(os, "kill", stop_exact)
+
+    assert cli.stop_desktop_record(cfg, attempt, wait_seconds=0) is True
+    assert signalled == [(41501, signal.SIGTERM)]
+
+
+def test_tokenless_permission_reopen_adopts_only_one_exact_health_and_source_bound_successor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(41601, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successor = safety.ProcessSnapshot(
+        pid=41602,
+        process_start="Tue Sep  8 10:12:12 2026",
+        command=str(cli.desktop_executable_path(profile)),
+    )
+    foreign = tuple(
+        safety.ProcessSnapshot(42000 + index, "Tue Sep  8 10:12:12 2026", f"/usr/bin/foreign-{index}")
+        for index in range(200)
+    )
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (*foreign, successor))
+    exact_probes: list[int] = []
+
+    def exact_executable(process: safety.ProcessSnapshot, executable: Path) -> bool:
+        exact_probes.append(process.pid)
+        return process.pid == successor.pid and executable == cli.desktop_executable_path(profile)
+
+    monkeypatch.setattr(cli, "_process_executes_exact_path", exact_executable)
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (successor.pid,) if port == cfg.automation_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == successor.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": successor.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": f"{cfg.backend_url}/",
+            "sourceGitSHA": "a" * 40,
+            "sourceTreeDirty": False,
+        },
+    )
+
+    recovered = cli.recover_desktop_record(cfg, record)
+
+    assert recovered["pid"] == successor.pid
+    assert recovered["desktop_ownership_proof"] == "bridge_successor"
+    assert recovered["predecessor_pid"] == predecessor.pid
+    assert exact_probes == [successor.pid]
+    assert cli._process_records(cfg)[-1] == recovered
+
+
+def test_tokenless_successor_with_different_source_is_not_adopted_or_signalled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(41701, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successor = safety.ProcessSnapshot(41702, "Tue Sep  8 10:12:12 2026", str(cli.desktop_executable_path(profile)))
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (successor,))
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: (successor.pid,))
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == successor.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": successor.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+            "sourceGitSHA": "b" * 40,
+            "sourceTreeDirty": False,
+        },
+    )
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("mismatched successor must not be signalled"))
+
+    with pytest.raises(safety.SafetyError, match="source provenance differs"):
+        cli.recover_desktop_record(cfg, record)
+
+    assert cli._process_records(cfg) == []
+
+
+def test_successor_recovery_rejects_two_exact_executables_before_health_or_signal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(41801, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successors = tuple(
+        safety.ProcessSnapshot(
+            41802 + index,
+            "Tue Sep  8 10:12:12 2026",
+            str(cli.desktop_executable_path(profile)),
+        )
+        for index in range(2)
+    )
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: successors)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: pytest.fail("ambiguous candidates must not reach health admission"),
+    )
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("ambiguous candidates must not be signalled"))
+
+    with pytest.raises(safety.SafetyError, match="successor ownership is ambiguous"):
+        cli.recover_desktop_record(cfg, record)
+
+
+def test_relaunch_preserves_predecessor_when_exact_successor_bridge_is_still_starting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    predecessor = _snapshot(41901, profile, token)
+    record = _record(cfg, profile, predecessor, token)
+    record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    successor = safety.ProcessSnapshot(
+        41902,
+        "Tue Sep  8 10:12:12 2026",
+        str(cli.desktop_executable_path(profile)),
+    )
+    cli._save_manifests(cfg, [record])
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: None)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (successor,))
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
+    monkeypatch.setattr(os, "kill", lambda *_args: pytest.fail("unverified successor must not be signalled"))
+
+    with pytest.raises(cli.DesktopSuccessorPending, match="bridge identity is not ready"):
+        cli.stop_desktop_for_relaunch(cfg, profile, wait_seconds=0)
+
+    assert cli._process_records(cfg) == [record]
 
 
 def test_register_rejects_a_foreign_automation_listener_without_adopting_or_signalling_it(
@@ -398,6 +656,7 @@ def test_local_launcher_runs_fake_run_sh_with_scrubbed_app_environment(
     record = {"service": "desktop", "pid": 49009}
     monkeypatch.setattr(cli, "register_desktop_launch", lambda *_args, **_kwargs: record)
     monkeypatch.setattr(cli, "desktop_record_status", lambda *_args, **_kwargs: ("healthy", "exact process and bridge"))
+    monkeypatch.setattr(cli, "bind_desktop_source_provenance", lambda _cfg, desktop: desktop)
 
     launched = cli.launch_desktop_local(
         cfg,
@@ -488,6 +747,7 @@ def test_dev_down_routes_desktop_through_exact_pid_stop_not_process_group(
     cli._stop_owned(cfg)
 
     assert exact_stops == [50010]
+    assert cli._process_records(cfg) == []
 
 
 def test_dev_down_captures_and_stops_an_owned_listener_that_reparents_after_supervisor_exit(

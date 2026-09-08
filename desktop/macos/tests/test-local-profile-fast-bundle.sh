@@ -13,12 +13,15 @@ trap cleanup EXIT
 
 unset OMI_LOCAL_PROFILE_STORAGE_NAME
 unset OMI_LOCAL_PROVIDER_MODE
+unset OMI_AUTOMATION_PORT
 default_env_file="$TMP_ROOT/default.env"
 omi_write_local_profile_env "$default_env_file"
 grep -qx 'OMI_LOCAL_PROFILE_STORAGE_NAME=Intentive' "$default_env_file"
 grep -qx 'OMI_LOCAL_PROVIDER_MODE=offline' "$default_env_file"
+grep -qx 'OMI_AUTOMATION_PORT=47777' "$default_env_file"
 
 export OMI_PYTHON_API_URL="http://127.0.0.1:8080"
+export OMI_AUTOMATION_PORT="47894"
 export OMI_LOCAL_PROFILE_STORAGE_NAME="omi-local-fast-contract"
 export OMI_LOCAL_AUTH_USER="alice"
 export OMI_LOCAL_AUTH_EMAIL="alice@local.heyintentive.invalid"
@@ -38,10 +41,25 @@ omi_write_local_profile_env "$env_file"
 grep -qx 'OMI_DESKTOP_LOCAL_PROFILE=1' "$env_file"
 grep -qx 'OMI_LOCAL_PROVIDER_MODE=real' "$env_file"
 grep -qx 'OMI_PYTHON_API_URL=http://127.0.0.1:8080' "$env_file"
+grep -qx 'OMI_AUTOMATION_PORT=47894' "$env_file"
 ! grep -q '^OMI_DESKTOP_API_URL=' "$env_file"
 grep -qx 'OMI_LOCAL_AUTH_PASSWORD=local-profile-password-only-in-bundle' "$env_file"
 grep -qx 'FIRESTORE_DATABASE_ID=(default)' "$env_file"
 ! grep -q '^stale=' "$env_file"
+
+# Static companion to the dev-harness launch-failure behavior tests: the durable
+# exact-path/token handoff must precede Launch Services, and the resolved
+# transport update must remain after it.
+python3 - "$MACOS_DIR/run.sh" <<'PY'
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+pending = source.index('signal_desktop_launch "pending"')
+launch = source.index('if ! open -n', pending)
+resolved = source.index('signal_desktop_launch "$LAUNCH_TRANSPORT"', launch)
+assert pending < launch < resolved
+PY
 
 # A fast-only eligibility probe runs before any launch side effects. Local
 # profiles must now reach the ordinary bundle eligibility result; the secret

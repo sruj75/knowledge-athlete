@@ -30,6 +30,36 @@ final class RestartRelaunchCommandTests: XCTestCase {
       "non-prod relaunch must re-pass the port so the reopened bundle rebinds it")
   }
 
+  func testNonProdRelaunchPreservesTheExactOwnershipToken() {
+    let cmd = AppState.relaunchCommand(
+      appPath: "/Applications/omi-perm06v.app", isNonProduction: true, automationPort: 47894,
+      terminatingProcessIdentifier: 1234,
+      ownershipToken: "workspaceA_launch_token_123456")
+
+    XCTAssertTrue(
+      cmd.contains("--omi-launch-token=workspaceA_launch_token_123456"),
+      "the successor must carry the same opaque capability as the recorded process")
+  }
+
+  func testRelaunchNeverForwardsMalformedOrProductionOwnershipTokens() {
+    let malformed = AppState.relaunchCommand(
+      appPath: "/Applications/omi-perm06v.app", isNonProduction: true, automationPort: 47894,
+      terminatingProcessIdentifier: 1234,
+      ownershipToken: "unsafe; touch /tmp/not-allowed")
+    let production = AppState.relaunchCommand(
+      appPath: "/Applications/Intentive.app", isNonProduction: false, automationPort: 47894,
+      terminatingProcessIdentifier: 1234,
+      ownershipToken: "workspaceA_launch_token_123456")
+    let unicode = AppState.relaunchCommand(
+      appPath: "/Applications/omi-perm06v.app", isNonProduction: true, automationPort: 47894,
+      terminatingProcessIdentifier: 1234,
+      ownershipToken: "workspaceA_launch_tokén_123456")
+
+    XCTAssertFalse(malformed.contains("--omi-launch-token="))
+    XCTAssertFalse(production.contains("--omi-launch-token="))
+    XCTAssertFalse(unicode.contains("--omi-launch-token="))
+  }
+
   func testProdRelaunchIsBareOpenWithNoAutomationArgs() {
     let cmd = AppState.relaunchCommand(
       appPath: "/Applications/Omi.app", isNonProduction: false, automationPort: 47894,

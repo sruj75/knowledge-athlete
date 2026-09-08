@@ -84,7 +84,8 @@ extension AppState {
         appPath: relaunchURL.path,
         isNonProduction: AppBuild.isNonProduction,
         automationPort: DesktopAutomationLaunchOptions.port,
-        terminatingProcessIdentifier: ProcessInfo.processInfo.processIdentifier),
+        terminatingProcessIdentifier: ProcessInfo.processInfo.processIdentifier,
+        ownershipToken: DesktopAutomationLaunchOptions.ownershipToken),
     ]
 
     do {
@@ -126,11 +127,15 @@ extension AppState {
     appPath: String,
     isNonProduction: Bool,
     automationPort: UInt16,
-    terminatingProcessIdentifier: Int32
+    terminatingProcessIdentifier: Int32,
+    ownershipToken: String? = nil
   ) -> String {
     var openCommand = "open \"\(appPath)\""
     if isNonProduction {
       openCommand = "open -n \"\(appPath)\" --args \(DesktopAutomationLaunchOptions.portPrefix)\(automationPort)"
+      if let token = DesktopAutomationLaunchOptions.validatedOwnershipToken(ownershipToken) {
+        openCommand += " \(DesktopAutomationLaunchOptions.ownershipTokenPrefix)\(token)"
+      }
     }
     return
       "sleep 0.5 && while kill -0 \(terminatingProcessIdentifier) 2>/dev/null; do sleep 0.1; done && \(openCommand)"

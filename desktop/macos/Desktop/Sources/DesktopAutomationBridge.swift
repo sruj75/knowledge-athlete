@@ -8,6 +8,7 @@ import VoiceTurnDomain
 enum DesktopAutomationLaunchOptions {
   static let enableFlag = "--automation-bridge"
   static let portPrefix = "--automation-port="
+  static let ownershipTokenPrefix = "--omi-launch-token="
   static let captureRootPrefix = "--automation-capture-root="
   static let defaultPort: UInt16 = 47777
   static let tokenEnvironmentKey = "OMI_AUTOMATION_TOKEN"
@@ -60,6 +61,30 @@ enum DesktopAutomationLaunchOptions {
     }
 
     return defaultPort
+  }
+
+  static var ownershipToken: String? {
+    ownershipToken(arguments: CommandLine.arguments)
+  }
+
+  static func ownershipToken(arguments: [String]) -> String? {
+    let candidates = arguments.compactMap { argument -> String? in
+      guard argument.hasPrefix(ownershipTokenPrefix) else { return nil }
+      return String(argument.dropFirst(ownershipTokenPrefix.count))
+    }
+    guard candidates.count == 1 else { return nil }
+    return validatedOwnershipToken(candidates[0])
+  }
+
+  static func validatedOwnershipToken(_ rawValue: String?) -> String? {
+    guard let rawValue, (16...128).contains(rawValue.utf8.count) else { return nil }
+    guard
+      rawValue.utf8.allSatisfy({ byte in
+        (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)
+          || byte == 95 || byte == 45
+      })
+    else { return nil }
+    return rawValue
   }
 
   static var token: String {

@@ -1335,6 +1335,11 @@ build_launch_env_args() {
 
 build_launch_env_args
 
+# Mark the exact token/path handoff before asking Launch Services to spawn. If
+# the post-open transport update fails, the harness must retain this owner-only
+# marker rather than classify an accepted but delayed launch as a compile error.
+signal_desktop_launch "pending"
+
 LAUNCH_TRANSPORT="open"
 if [ -n "$DESKTOP_LAUNCH_TOKEN" ]; then
     # `-n` guarantees this invocation creates a process carrying the capability
