@@ -13,9 +13,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unittest
 import zipfile
-
-import pytest
 
 SCRIPT = Path(__file__).with_name("owner_manual_desktop_qualification.py")
 SPEC = importlib.util.spec_from_file_location("owner_manual_desktop_qualification", SCRIPT)
@@ -246,7 +245,7 @@ def receipts(root: Path) -> dict[str, Path]:
     return result
 
 
-def test_build_and_verify_binds_every_raw_receipt_and_exact_beta_bytes() -> None:
+def _build_and_verify_binds_every_raw_receipt_and_exact_beta_bytes() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         output = MODULE.build_bundle(receipts(root), root, TAG, SHA)
@@ -257,23 +256,23 @@ def test_build_and_verify_binds_every_raw_receipt_and_exact_beta_bytes() -> None
         assert verified["artifact_digests"] == DIGESTS
 
 
-def test_missing_beta_smoke_or_failing_command_is_rejected() -> None:
+def _missing_beta_smoke_or_failing_command_is_rejected(test_case: unittest.TestCase) -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         source = receipts(root)
         source.pop("owner-smoke-beta.json")
-        with pytest.raises(ValueError, match="exact receipt set"):
+        with test_case.assertRaisesRegex(ValueError, "exact receipt set"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
         source = receipts(root)
         ledger = json.loads(source["command-ledger.json"].read_text(encoding="utf-8"))
         ledger["commands"][-1]["exit_code"] = 1
         source["command-ledger.json"].write_text(json.dumps(ledger), encoding="utf-8")
-        with pytest.raises(ValueError, match="command ledger"):
+        with test_case.assertRaisesRegex(ValueError, "command ledger"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
 
-def test_receipt_replacement_and_zip_extra_member_are_rejected() -> None:
+def _receipt_replacement_and_zip_extra_member_are_rejected(test_case: unittest.TestCase) -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         output = MODULE.build_bundle(receipts(root), root, TAG, SHA)
@@ -282,17 +281,18 @@ def test_receipt_replacement_and_zip_extra_member_are_rejected() -> None:
         archive.write_bytes(raw)
         with zipfile.ZipFile(archive, "a") as contents:
             contents.writestr("unexpected.json", b"{}")
-        with pytest.raises(ValueError, match="unexpected contents"):
+        with test_case.assertRaisesRegex(ValueError, "unexpected contents"):
             MODULE.verify_bundle(archive.read_bytes(), TAG, SHA, DIGESTS)
 
         wrong = dict(DIGESTS)
         wrong["Intentive.Beta.zip"] = "f" * 64
-        with pytest.raises(ValueError, match="artifact digests"):
+        with test_case.assertRaisesRegex(ValueError, "artifact digests"):
             MODULE.verify_bundle(raw, TAG, SHA, wrong)
 
 
-@pytest.mark.parametrize("receipt_name", ["source-t2-manifest.json", "fault-manifest.json"])
-def test_stale_behavioral_manifest_cannot_be_relabelled_for_a_new_candidate(receipt_name: str) -> None:
+def _stale_behavioral_manifest_cannot_be_relabelled_for_a_new_candidate(
+    test_case: unittest.TestCase, receipt_name: str
+) -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         source = receipts(root)
@@ -300,11 +300,11 @@ def test_stale_behavioral_manifest_cannot_be_relabelled_for_a_new_candidate(rece
         payload["git_sha"] = "b" * 40
         payload["repository_git_sha"] = "b" * 40
         source[receipt_name].write_text(json.dumps(payload), encoding="utf-8")
-        with pytest.raises(ValueError, match="T2 receipt|fault-suite receipt"):
+        with test_case.assertRaisesRegex(ValueError, "T2 receipt|fault-suite receipt"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
 
-def test_ledger_hash_and_full_signed_smoke_contract_cannot_be_relabelled() -> None:
+def _ledger_hash_and_full_signed_smoke_contract_cannot_be_relabelled(test_case: unittest.TestCase) -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         source = receipts(root)
@@ -315,11 +315,11 @@ def test_ledger_hash_and_full_signed_smoke_contract_cannot_be_relabelled() -> No
         beta_entry = next(entry for entry in ledger["commands"] if entry["label"] == "beta-signed-smoke")
         beta_entry["receipts"][0]["sha256"] = hashlib.sha256(source["owner-smoke-beta.json"].read_bytes()).hexdigest()
         source["command-ledger.json"].write_text(json.dumps(ledger), encoding="utf-8")
-        with pytest.raises(ValueError, match="signed-smoke receipt"):
+        with test_case.assertRaisesRegex(ValueError, "signed-smoke receipt"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
 
-def test_ledger_timestamp_must_follow_the_exact_receipt_outcome() -> None:
+def _ledger_timestamp_must_follow_the_exact_receipt_outcome(test_case: unittest.TestCase) -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         source = receipts(root)
@@ -328,11 +328,13 @@ def test_ledger_timestamp_must_follow_the_exact_receipt_outcome() -> None:
         beta_entry["finished_at"] = "2026-07-21T12:02:00Z"
         source["command-ledger.json"].write_text(json.dumps(ledger), encoding="utf-8")
 
-        with pytest.raises(ValueError, match="timestamp predates"):
+        with test_case.assertRaisesRegex(ValueError, "timestamp predates"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
 
-def test_repository_local_collector_packages_a_prepared_stage_through_the_public_cli() -> None:
+def _repository_local_collector_packages_a_prepared_stage_through_the_public_cli(
+    test_case: unittest.TestCase,
+) -> None:
     collector = Path(__file__).parents[2] / "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh"
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -365,11 +367,11 @@ def test_repository_local_collector_packages_a_prepared_stage_through_the_public
         ledger = json.loads(source["command-ledger.json"].read_text(encoding="utf-8"))
         ledger["commands"][0]["receipts"][0]["sha256"] = "f" * 64
         source["command-ledger.json"].write_text(json.dumps(ledger), encoding="utf-8")
-        with pytest.raises(ValueError, match="bind its receipt bytes"):
+        with test_case.assertRaisesRegex(ValueError, "bind its receipt bytes"):
             MODULE.build_bundle(source, root, TAG, SHA)
 
 
-def test_backend_compatibility_uses_the_backend_owned_contract_version() -> None:
+def _backend_compatibility_uses_the_backend_owned_contract_version(test_case: unittest.TestCase) -> None:
     backend_contract = Path(__file__).parents[2] / "backend/routers/desktop_core.py"
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -389,11 +391,11 @@ def test_backend_compatibility_uses_the_backend_owned_contract_version() -> None
             '{"status":"healthy","service":"backend","chat_contract_version":"1"}',
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="backend compatibility"):
+        with test_case.assertRaisesRegex(ValueError, "backend compatibility"):
             MODULE.validate_backend_compatibility(backend_contract, process_health, compatibility, output)
 
 
-def test_bundle_verifier_resolves_the_backend_contract_from_the_runtime_image_layout() -> None:
+def _bundle_verifier_resolves_the_backend_contract_from_the_runtime_image_layout() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         runtime = root / "app"
@@ -427,7 +429,7 @@ def _write_executable(path: Path, source: str) -> None:
     path.chmod(0o755)
 
 
-def test_collector_invokes_both_signed_smokes_with_notification_callback_canary() -> None:
+def _collector_invokes_both_signed_smokes_with_notification_callback_canary() -> None:
     collector_source = Path(__file__).parents[2] / "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh"
     contract_sources = [
         Path(__file__).with_name("owner_manual_desktop_qualification.py"),
@@ -630,5 +632,40 @@ else:
         assert failed_ledger["commands"][-1]["receipts"] == []
 
 
+class OwnerManualDesktopQualificationTests(unittest.TestCase):
+    def test_build_and_verify_binds_every_raw_receipt_and_exact_beta_bytes(self) -> None:
+        _build_and_verify_binds_every_raw_receipt_and_exact_beta_bytes()
+
+    def test_missing_beta_smoke_or_failing_command_is_rejected(self) -> None:
+        _missing_beta_smoke_or_failing_command_is_rejected(self)
+
+    def test_receipt_replacement_and_zip_extra_member_are_rejected(self) -> None:
+        _receipt_replacement_and_zip_extra_member_are_rejected(self)
+
+    def test_stale_t2_manifest_cannot_be_relabelled_for_a_new_candidate(self) -> None:
+        _stale_behavioral_manifest_cannot_be_relabelled_for_a_new_candidate(self, "source-t2-manifest.json")
+
+    def test_stale_fault_manifest_cannot_be_relabelled_for_a_new_candidate(self) -> None:
+        _stale_behavioral_manifest_cannot_be_relabelled_for_a_new_candidate(self, "fault-manifest.json")
+
+    def test_ledger_hash_and_full_signed_smoke_contract_cannot_be_relabelled(self) -> None:
+        _ledger_hash_and_full_signed_smoke_contract_cannot_be_relabelled(self)
+
+    def test_ledger_timestamp_must_follow_the_exact_receipt_outcome(self) -> None:
+        _ledger_timestamp_must_follow_the_exact_receipt_outcome(self)
+
+    def test_repository_local_collector_packages_a_prepared_stage_through_the_public_cli(self) -> None:
+        _repository_local_collector_packages_a_prepared_stage_through_the_public_cli(self)
+
+    def test_backend_compatibility_uses_the_backend_owned_contract_version(self) -> None:
+        _backend_compatibility_uses_the_backend_owned_contract_version(self)
+
+    def test_bundle_verifier_resolves_the_backend_contract_from_the_runtime_image_layout(self) -> None:
+        _bundle_verifier_resolves_the_backend_contract_from_the_runtime_image_layout()
+
+    def test_collector_invokes_both_signed_smokes_with_notification_callback_canary(self) -> None:
+        _collector_invokes_both_signed_smokes_with_notification_callback_canary()
+
+
 if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__, "-q"]))
+    unittest.main()
