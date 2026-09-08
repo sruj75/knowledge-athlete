@@ -304,8 +304,9 @@ def test_start_twice_replaces_only_the_desktop_and_preserves_owned_services(
     assert [record["pid"] for record in records if record.get("service") == "desktop"] == [45202]
 
 
+@pytest.mark.parametrize("backend_suffix", ["", "/"])
 def test_desktop_status_binds_exact_process_listener_and_bridge_identity(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, backend_suffix: str
 ) -> None:
     cfg = _config(monkeypatch, tmp_path)
     profile = _profile(cfg)
@@ -322,7 +323,8 @@ def test_desktop_status_binds_exact_process_listener_and_bridge_identity(
             "bundleIdentifier": profile.bundle_id,
             "processID": snapshot.pid,
             "bridgePort": cfg.automation_port,
-            "backendURL": cfg.backend_url,
+            # Real app health normalizes its root URL with a trailing slash.
+            "backendURL": cfg.backend_url + backend_suffix,
         },
     )
 

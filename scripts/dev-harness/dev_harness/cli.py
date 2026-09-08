@@ -683,9 +683,12 @@ def desktop_record_status(cfg: config.HarnessConfig, record: dict[str, object]) 
             "bundleIdentifier": record["bundle_id"],
             "processID": process.pid,
             "bridgePort": int(record["port"]),
-            "backendURL": cfg.backend_url,
         }
-        if any(payload.get(key) != value for key, value in expected_health.items()):
+        # Swift normalizes a root backend URL with a trailing slash. Accept
+        # only these equivalent roots, never another path, query or endpoint.
+        if any(payload.get(key) != value for key, value in expected_health.items()) or payload.get(
+            "backendURL"
+        ) not in (cfg.backend_url, cfg.backend_url + "/"):
             raise safety.SafetyError("Desktop bridge identity does not match the recorded workspace")
         return "healthy", "exact process and bridge"
     except (KeyError, TypeError, ValueError, safety.SafetyError) as exc:
