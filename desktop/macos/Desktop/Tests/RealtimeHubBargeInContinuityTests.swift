@@ -1206,6 +1206,119 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
       "a terminal record from another PTT turn must never complete this probe")
   }
 
+  func testHeadlessPTTPlaybackFailureRetainsOnlyExactTurnTransportReceipt() throws {
+    let turnID = VoiceTurnID()
+    let responseID = VoiceResponseID("response-current")
+    let expectedIdentity = RealtimeHubEventIdentity(turnID: turnID, responseID: responseID)
+    let terminal = VoiceTurnTerminalRecord(
+      turnID: turnID,
+      reason: .playbackFailed,
+      route: .hub(sessionID: nil))
+    let transportReceipt = try XCTUnwrap(
+      RealtimeHeadlessPTTTransportReceipt.admitting(
+        eventIdentity: expectedIdentity,
+        activeIdentity: expectedIdentity,
+        transportMode: "managed"))
+    XCTAssertNil(
+      RealtimeHeadlessPTTTransportReceipt.admitting(
+        eventIdentity: RealtimeHubEventIdentity(
+          turnID: turnID,
+          responseID: VoiceResponseID("response-stale")),
+        activeIdentity: expectedIdentity,
+        transportMode: "managed"),
+      "a provider audio event from another response must not prove this headless turn's transport")
+    let exactDiagnostics = RealtimeHeadlessPTTDiagnostics(
+      identity: expectedIdentity,
+      detail: [
+        "transport_mode": "local",
+        "assistant_reply": "exact turn reply",
+      ])
+    let successfulTerminal = VoiceTurnTerminalRecord(
+      turnID: turnID,
+      reason: .success,
+      route: .hub(sessionID: nil))
+    let succeeded = try XCTUnwrap(
+      RealtimeHeadlessPTTCompletionPolicy.terminalResponse(
+        for: turnID,
+        expectedIdentity: expectedIdentity,
+        lastTerminal: successfulTerminal,
+        diagnostics: exactDiagnostics,
+        transportReceipt: transportReceipt))
+    XCTAssertEqual(succeeded["assistant_reply"], "exact turn reply")
+    XCTAssertEqual(succeeded["transport_mode"], "managed")
+    XCTAssertEqual(succeeded["terminal_reason"], "success")
+    XCTAssertNil(succeeded["error"])
+
+    let failed = try XCTUnwrap(
+      RealtimeHeadlessPTTCompletionPolicy.terminalResponse(
+        for: turnID,
+        expectedIdentity: expectedIdentity,
+        lastTerminal: terminal,
+        diagnostics: exactDiagnostics,
+        transportReceipt: transportReceipt))
+
+    XCTAssertEqual(failed["transport_mode"], "managed")
+    XCTAssertEqual(failed["terminal_reason"], "playback_failed")
+    XCTAssertEqual(failed["error"], "voice turn terminated with playback_failed")
+    XCTAssertNil(failed["assistant_reply"])
+
+    let timedOut = RealtimeHeadlessPTTCompletionPolicy.timeoutResponse(
+      for: turnID,
+      expectedIdentity: expectedIdentity,
+      transportReceipt: transportReceipt,
+      timeout: 180)
+    XCTAssertEqual(timedOut["transport_mode"], "managed")
+    XCTAssertEqual(timedOut["error"], "turn did not complete within 180s")
+    XCTAssertNil(timedOut["terminal_reason"])
+    XCTAssertNil(timedOut["assistant_reply"])
+
+    let staleDiagnostics = RealtimeHeadlessPTTDiagnostics(
+      identity: RealtimeHubEventIdentity(
+        turnID: turnID,
+        responseID: VoiceResponseID("response-stale")),
+      detail: [
+        "transport_mode": "managed",
+        "assistant_reply": "another turn's reply",
+      ])
+    let staleTransportReceipt = RealtimeHeadlessPTTTransportReceipt(
+      identity: RealtimeHubEventIdentity(
+        turnID: turnID,
+        responseID: VoiceResponseID("response-stale")),
+      transportMode: "managed")
+    let successWithoutStaleDiagnostics = try XCTUnwrap(
+      RealtimeHeadlessPTTCompletionPolicy.terminalResponse(
+        for: turnID,
+        expectedIdentity: expectedIdentity,
+        lastTerminal: successfulTerminal,
+        diagnostics: staleDiagnostics,
+        transportReceipt: nil))
+    XCTAssertNil(successWithoutStaleDiagnostics["transport_mode"])
+    XCTAssertNil(successWithoutStaleDiagnostics["assistant_reply"])
+    XCTAssertEqual(successWithoutStaleDiagnostics["terminal_reason"], "success")
+    XCTAssertNil(successWithoutStaleDiagnostics["error"])
+    let failedWithoutStaleReceipt = try XCTUnwrap(
+      RealtimeHeadlessPTTCompletionPolicy.terminalResponse(
+        for: turnID,
+        expectedIdentity: expectedIdentity,
+        lastTerminal: terminal,
+        diagnostics: staleDiagnostics,
+        transportReceipt: staleTransportReceipt))
+    XCTAssertNil(failedWithoutStaleReceipt["transport_mode"])
+    XCTAssertNil(failedWithoutStaleReceipt["assistant_reply"])
+    XCTAssertEqual(failedWithoutStaleReceipt["terminal_reason"], "playback_failed")
+    XCTAssertEqual(failedWithoutStaleReceipt["error"], "voice turn terminated with playback_failed")
+
+    let timeoutWithoutStaleReceipt = RealtimeHeadlessPTTCompletionPolicy.timeoutResponse(
+      for: turnID,
+      expectedIdentity: expectedIdentity,
+      transportReceipt: staleTransportReceipt,
+      timeout: 180)
+    XCTAssertNil(timeoutWithoutStaleReceipt["transport_mode"])
+    XCTAssertNil(timeoutWithoutStaleReceipt["assistant_reply"])
+    XCTAssertEqual(timeoutWithoutStaleReceipt["error"], "turn did not complete within 180s")
+    XCTAssertNil(timeoutWithoutStaleReceipt["terminal_reason"])
+  }
+
   func testRapidBurstHarnessCommitsEveryClipWithoutWaitingForReplies() throws {
     let source = try realtimeHubControllerSource()
     let harness = try XCTUnwrap(

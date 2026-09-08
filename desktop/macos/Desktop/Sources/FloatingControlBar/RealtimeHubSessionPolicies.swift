@@ -975,6 +975,30 @@ enum RealtimeHeadlessPTTSessionSwapPolicy {
 /// terminal reducer state. Persistence diagnostics arrive earlier, while native
 /// playback may still be draining, so treating them as completion hides exactly the
 /// cut-off and fallback regressions this harness is meant to catch.
+struct RealtimeHeadlessPTTDiagnostics: Equatable {
+  let identity: RealtimeHubEventIdentity
+  let detail: [String: String]
+
+  func detail(matching expectedIdentity: RealtimeHubEventIdentity?) -> [String: String]? {
+    guard let expectedIdentity, identity == expectedIdentity else { return nil }
+    return detail
+  }
+}
+
+struct RealtimeHeadlessPTTTransportReceipt: Equatable {
+  let identity: RealtimeHubEventIdentity
+  let transportMode: String
+
+  static func admitting(
+    eventIdentity: RealtimeHubEventIdentity,
+    activeIdentity: RealtimeHubEventIdentity?,
+    transportMode: String
+  ) -> Self? {
+    guard let activeIdentity, eventIdentity == activeIdentity else { return nil }
+    return Self(identity: eventIdentity, transportMode: transportMode)
+  }
+}
+
 enum RealtimeHeadlessPTTCompletionPolicy {
   /// Persistence diagnostics are observability, not user-visible completion. A probe may return
   /// only when its exact reducer turn reaches a terminal state, after native playback and all
@@ -985,6 +1009,74 @@ enum RealtimeHeadlessPTTCompletionPolicy {
   ) -> VoiceTurnTerminalReason? {
     guard lastTerminal?.turnID == turnID else { return nil }
     return lastTerminal?.reason
+  }
+
+  static func terminalResponse(
+    for turnID: VoiceTurnID,
+    expectedIdentity: RealtimeHubEventIdentity?,
+    lastTerminal: VoiceTurnTerminalRecord?,
+    diagnostics: RealtimeHeadlessPTTDiagnostics?,
+    transportReceipt: RealtimeHeadlessPTTTransportReceipt?
+  ) -> [String: String]? {
+    guard let reason = terminalReason(for: turnID, lastTerminal: lastTerminal) else { return nil }
+    var response =
+      reason == .success
+      ? exactDiagnosticsDetail(
+        for: turnID,
+        expectedIdentity: expectedIdentity,
+        diagnostics: diagnostics)
+      : [:]
+    addExactTransportReceipt(
+      to: &response,
+      for: turnID,
+      expectedIdentity: expectedIdentity,
+      transportReceipt: transportReceipt)
+    response["terminal_reason"] = reason.rawValue
+    if reason != .success {
+      response["error"] = "voice turn terminated with \(reason.rawValue)"
+    }
+    return response
+  }
+
+  static func timeoutResponse(
+    for turnID: VoiceTurnID,
+    expectedIdentity: RealtimeHubEventIdentity?,
+    transportReceipt: RealtimeHeadlessPTTTransportReceipt?,
+    timeout: Int
+  ) -> [String: String] {
+    var response: [String: String] = [:]
+    addExactTransportReceipt(
+      to: &response,
+      for: turnID,
+      expectedIdentity: expectedIdentity,
+      transportReceipt: transportReceipt)
+    response["error"] = "turn did not complete within \(timeout)s"
+    response.removeValue(forKey: "terminal_reason")
+    return response
+  }
+
+  private static func exactDiagnosticsDetail(
+    for turnID: VoiceTurnID,
+    expectedIdentity: RealtimeHubEventIdentity?,
+    diagnostics: RealtimeHeadlessPTTDiagnostics?
+  ) -> [String: String] {
+    guard expectedIdentity?.turnID == turnID else { return [:] }
+    return diagnostics?.detail(matching: expectedIdentity) ?? [:]
+  }
+
+  private static func addExactTransportReceipt(
+    to response: inout [String: String],
+    for turnID: VoiceTurnID,
+    expectedIdentity: RealtimeHubEventIdentity?,
+    transportReceipt: RealtimeHeadlessPTTTransportReceipt?
+  ) {
+    if let expectedIdentity,
+      expectedIdentity.turnID == turnID,
+      let transportReceipt,
+      transportReceipt.identity == expectedIdentity
+    {
+      response["transport_mode"] = transportReceipt.transportMode
+    }
   }
 }
 

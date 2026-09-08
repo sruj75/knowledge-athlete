@@ -345,20 +345,24 @@ extension RealtimeHubController {
             // Cancel any streaming projection that may have started before the
             // spawn receipt arrived; the spawn owns the canonical exchange now.
             self.cancelStreamingJournalWrites(forContinuityKey: receipt.continuityKey)
-            self.lastTurnDiagnostics = [
-              "provider": self.providerTag,
-              "transport_mode": source.transportMode,
-              "provider_transcript": self.turnTranscript,
-              "provider_transcript_language": "",
-              "saved_user_text": self.turnTranscript,
-              "used_local_transcript": "false",
-              "local_transcript": "",
-              "local_language": "",
-              "assistant_reply": receipt.assistantText,
-              "provider_assistant_reply": self.assistantText,
-              "external_tool_name": name,
-              "external_tool_error": "",
-            ]
+            if let responseID = self.voiceResponseID {
+              self.lastTurnDiagnostics = RealtimeHeadlessPTTDiagnostics(
+                identity: RealtimeHubEventIdentity(turnID: turnID, responseID: responseID),
+                detail: [
+                  "provider": self.providerTag,
+                  "transport_mode": source.transportMode,
+                  "provider_transcript": self.turnTranscript,
+                  "provider_transcript_language": "",
+                  "saved_user_text": self.turnTranscript,
+                  "used_local_transcript": "false",
+                  "local_transcript": "",
+                  "local_language": "",
+                  "assistant_reply": receipt.assistantText,
+                  "provider_assistant_reply": self.assistantText,
+                  "external_tool_name": name,
+                  "external_tool_error": "",
+                ])
+            }
             // The receipt is canonical for journal persistence, while the same
             // realtime turn remains the sole audible response. Clearing any
             // pre-tool speculation keeps it out of the visible reply without
@@ -618,6 +622,13 @@ extension RealtimeHubController {
     source: RealtimeHubSession
   ) {
     guard acceptsTurnEvent(identity, source: source), let identity else { return }
+    if let receipt = RealtimeHeadlessPTTTransportReceipt.admitting(
+      eventIdentity: identity,
+      activeIdentity: activeHeadlessPTTIdentity,
+      transportMode: source.transportMode)
+    {
+      lastHeadlessPTTTransportReceipt = receipt
+    }
     guard
       RealtimeProviderOutputPresentationPolicy.decide(
         screenGroundingState: screenGroundingState,
@@ -994,20 +1005,22 @@ extension RealtimeHubController {
             interrupted: false,
             idempotencyKey: completedTurnIdempotencyKey,
             acceptedSpawnOwnerID: acceptedSpawnOwnerID) ?? false
-        self?.lastTurnDiagnostics = [
-          "provider": provider,
-          "transport_mode": transportMode,
-          "provider_transcript": heard,
-          "provider_transcript_language": resolution.providerLanguage ?? "",
-          "saved_user_text": resolution.userText,
-          "used_local_transcript": resolution.usedLocalTranscript ? "true" : "false",
-          "local_transcript": resolution.localTranscript ?? "",
-          "local_language": resolution.localLanguage ?? "",
-          "assistant_reply": reply,
-          "provider_assistant_reply": providerReply,
-          "external_tool_name": self?.lastExternalToolName ?? "",
-          "external_tool_error": self?.lastExternalToolErrorCode ?? "",
-        ]
+        self?.lastTurnDiagnostics = RealtimeHeadlessPTTDiagnostics(
+          identity: identity,
+          detail: [
+            "provider": provider,
+            "transport_mode": transportMode,
+            "provider_transcript": heard,
+            "provider_transcript_language": resolution.providerLanguage ?? "",
+            "saved_user_text": resolution.userText,
+            "used_local_transcript": resolution.usedLocalTranscript ? "true" : "false",
+            "local_transcript": resolution.localTranscript ?? "",
+            "local_language": resolution.localLanguage ?? "",
+            "assistant_reply": reply,
+            "provider_assistant_reply": providerReply,
+            "external_tool_name": self?.lastExternalToolName ?? "",
+            "external_tool_error": self?.lastExternalToolErrorCode ?? "",
+          ])
         return accepted
       }
     }

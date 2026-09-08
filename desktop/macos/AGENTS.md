@@ -462,7 +462,7 @@ timeline identity/open, or pill projection is incomplete until:
   P4 requires a current-fact answer with no synthetic public-web activity,
   browsing claim, or source URL. **Continuity PRs / RC:** `--suite
   continuity` (typed + PTT + blind recall) after auth seed; `--suite all` for
-  RC. Add `--require-live-voice` for managed-voice proof; simulated/missing transport fails. Controller probes are not natural microphone evidence. Evidence has the clean running bundle's full SHA; backend reuse requires a matching backend/harness source fingerprint.
+  RC. `--require-live-voice` requires exact-turn transport on each attempt, including failure/timeout; simulated/missing fails. Controller probes are not natural-mic evidence. Evidence has the clean bundle's full SHA; backend reuse requires a matching backend/harness fingerprint.
   The S-31 checker rejects incomplete, failed, malformed, stale, raw, media, or secret-bearing evidence. Its pre-push hatch requires both
   `PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE` and `..._REASON`.
 - **Anti-flake:** clear owner/kernel state; per-run nonces; hard-fail only blind

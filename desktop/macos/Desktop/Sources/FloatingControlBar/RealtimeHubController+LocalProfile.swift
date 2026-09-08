@@ -90,7 +90,7 @@ import VoiceTurnDomain
         return ["error": "local-profile realtime transport did not become active"]
       }
 
-      lastTurnDiagnostics = [:]
+      lastTurnDiagnostics = nil
       let turnID = RealtimeAutomationTurnHarness.begin(on: VoiceTurnCoordinator.shared)
       VoiceTurnCoordinator.shared.publish(
         .selectRoute(turnID: turnID, route: .hub(sessionID: voiceSessionID)))
@@ -244,7 +244,9 @@ import VoiceTurnDomain
           guard terminal.reason == .success else {
             return ["error": "local-profile voice turn terminated with \(terminal.reason.rawValue)"]
           }
-          if !lastTurnDiagnostics.isEmpty { return lastTurnDiagnostics }
+          if let lastTurnDiagnostics, lastTurnDiagnostics.identity == eventIdentity {
+            return lastTurnDiagnostics.detail
+          }
         }
         try? await Task.sleep(nanoseconds: 50_000_000)
       }
