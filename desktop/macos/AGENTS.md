@@ -289,7 +289,7 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.heyintentive
 
 ### Run Variants & Parallel Worktrees
 - `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_PYTHON_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
-- **Workspace isolation.** Account separation, Conductor controls, app install paths, provider boundaries, and cache placement: [`scripts/dev-harness/README.md`](../../scripts/dev-harness/README.md).
+- **Dev beside Beta.** Use the same desktop login; separate apps, data, services, and updates: [`scripts/dev-harness/README.md`](../../scripts/dev-harness/README.md).
 - `Intentive Dev` is the canonical shared development profile and the only allowed opt-in seed source. Do not pass `OMI_APP_NAME="Intentive Dev"` from a linked worktree.
 - Local Python backend (per-worktree port): `cd backend && ./scripts/dev-serve.sh`.
 
