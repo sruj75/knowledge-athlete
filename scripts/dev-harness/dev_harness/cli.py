@@ -841,16 +841,12 @@ def _validated_desktop_process(
 def _desktop_process_after_authorized_signal(
     identity: DesktopOwnershipRecord,
 ) -> safety.ProcessSnapshot | None:
-    """Track an authorized shutdown without requiring its executable mapping to remain visible."""
+    """Track an authorized shutdown by PID/start while macOS may shed argv and executable mappings."""
 
     process = safety.process_snapshot(identity.pid)
     if process is None:
         return None
-    if not safety.matches_process_fingerprint(
-        process,
-        process_start=identity.process_start,
-        command_sha256=identity.command_sha256,
-    ):
+    if process.process_start != identity.process_start:
         raise safety.SafetyError("Desktop PID changed identity during exact shutdown")
     return process
 

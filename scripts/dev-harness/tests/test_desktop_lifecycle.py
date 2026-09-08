@@ -683,6 +683,65 @@ def test_desktop_stop_keeps_authorized_identity_when_executable_proof_disappears
     assert signalled == [(snapshot.pid, signal.SIGTERM)]
 
 
+def test_desktop_stop_tolerates_command_rendering_change_for_same_started_process_until_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(48517, profile, token)
+    draining = safety.ProcessSnapshot(snapshot.pid, snapshot.process_start, "(Omi Computer)")
+    record = _record(cfg, profile, snapshot, token)
+    current: safety.ProcessSnapshot | None = snapshot
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: current)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (current,) if current is not None else ())
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal current
+        assert pid == snapshot.pid
+        current = draining
+        signalled.append((pid, sig))
+
+    def finish_shutdown(_seconds: float) -> None:
+        nonlocal current
+        current = None
+
+    monkeypatch.setattr(os, "kill", signal_exact)
+    monkeypatch.setattr(cli.time, "sleep", finish_shutdown)
+
+    assert cli.stop_desktop_record(cfg, record, wait_seconds=1) is True
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+
+
+def test_desktop_stop_rejects_changed_process_start_during_passive_drain_without_escalation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(48516, profile, token)
+    reused = safety.ProcessSnapshot(snapshot.pid, "Tue Sep  8 10:13:12 2026", "(unrelated)")
+    record = _record(cfg, profile, snapshot, token)
+    cli._save_manifests(cfg, [record])
+    current = snapshot
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: current)
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal current
+        assert pid == snapshot.pid
+        current = reused
+        signalled.append((pid, sig))
+
+    monkeypatch.setattr(os, "kill", signal_exact)
+
+    assert cli._stop_owned(cfg) is False
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [record]
+
+
 def test_desktop_stop_preserves_a_pending_successor_that_appears_during_term_drain(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -809,13 +868,43 @@ def test_relaunch_preserves_an_admitted_successor_that_appears_during_term_drain
     assert recovered[0]["desktop_ownership_proof"] == "bridge_successor"
 
 
-def test_desktop_stop_requires_full_ownership_proof_again_before_kill_escalation(
+def test_desktop_stop_requires_full_command_proof_again_before_kill_escalation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     cfg = _config(monkeypatch, tmp_path)
     profile = _profile(cfg)
     token = "workspaceA_launch_token_123456"
     snapshot = _snapshot(48509, profile, token)
+    draining = safety.ProcessSnapshot(snapshot.pid, snapshot.process_start, "(Omi Computer)")
+    record = _record(cfg, profile, snapshot, token)
+    cli._save_manifests(cfg, [record])
+    current = snapshot
+    monkeypatch.setattr(safety, "process_snapshot", lambda _pid: current)
+    times = iter((0.0, 9.0))
+    monkeypatch.setattr(cli.time, "time", lambda: next(times))
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def signal_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal current
+        assert pid == snapshot.pid
+        signalled.append((pid, sig))
+        current = draining
+
+    monkeypatch.setattr(os, "kill", signal_exact)
+
+    assert cli._stop_owned(cfg) is False
+
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [record]
+
+
+def test_desktop_stop_requires_exact_executable_again_before_kill_escalation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = _config(monkeypatch, tmp_path)
+    profile = _profile(cfg)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(48518, profile, token)
     record = _record(cfg, profile, snapshot, token)
     cli._save_manifests(cfg, [record])
     exact_executable = True
@@ -834,7 +923,6 @@ def test_desktop_stop_requires_full_ownership_proof_again_before_kill_escalation
     monkeypatch.setattr(os, "kill", signal_exact)
 
     assert cli._stop_owned(cfg) is False
-
     assert signalled == [(snapshot.pid, signal.SIGTERM)]
     assert cli._process_records(cfg) == [record]
 
