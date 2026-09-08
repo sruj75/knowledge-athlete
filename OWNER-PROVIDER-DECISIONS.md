@@ -259,8 +259,9 @@ already done. An unchecked item is still required before the corresponding live 
   `INTENTIVE_TERMS_URL=https://terms.heyintentive.com/`, and
   `INTENTIVE_SUPPORT_URL=https://support.heyintentive.com/`.
   All four were read back; secret rows were unchanged and no build was started.
-- [ ] Finish the remaining Codemagic Beta publication `GH_TOKEN` and approved
-  backend/feed/download bindings. Signing/notarization secrets are now stored.
+- [ ] Add the existing Intentive Release App private key to Codemagic as protected
+  `INTENTIVE_RELEASE_APP_PRIVATE_KEY`, then finish the approved backend/feed/download
+  bindings. Signing/notarization secrets are now stored.
   The preview group remains unconfigured and is not a five-person Beta prerequisite.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
@@ -278,7 +279,7 @@ already done. An unchecked item is still required before the corresponding live 
   Verified 2026-09-05: App authentication and scoped check/workflow reads passed;
   Actions/Contents/Pull requests are write-enabled, Checks/Metadata read-only.
   The ephemeral verification token was revoked; no tag or release was created.
-  This does not populate Codemagic's separate `GH_TOKEN` publication input.
+  This does not populate Codemagic's separate protected Release App private-key input.
 - [ ] Protect `main` through the existing required CI checks and PR-only merges.
   Verified 2026-09-05: neither branch protection nor a ruleset is configured.
 - [ ] Exercise the owner-manual qualification path on an exact signed candidate. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates the owner-uploaded evidence and exact artifacts.

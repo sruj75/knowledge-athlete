@@ -23,6 +23,9 @@ BUILD_NUMBER="${BUILD_NUMBER:-}"
 SOURCE_SHA="${SOURCE_SHA:-}"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 readonly OWNED_POSTHOG_PROJECT_TOKEN_SHA256="d30c51741e163c11c7bc34f5661d63c5f691ae6c584663aacfdd735153e9894c"
+readonly OWNED_GITHUB_RELEASE_APP_ID="4838294"
+readonly OWNED_GITHUB_RELEASE_APP_INSTALLATION_ID="159216850"
+readonly OWNED_GITHUB_RELEASE_REPOSITORY="sruj75/knowledge-athlete"
 
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$BINARY_NAME"
@@ -153,13 +156,27 @@ validate_common_secrets() {
   validate_posthog_configuration
 }
 
+validate_release_app_inputs() {
+  require_env INTENTIVE_RELEASE_APP_ID
+  require_env INTENTIVE_RELEASE_APP_INSTALLATION_ID
+  require_env INTENTIVE_RELEASE_APP_PRIVATE_KEY
+  [[ "$INTENTIVE_RELEASE_APP_ID" == "$OWNED_GITHUB_RELEASE_APP_ID" ]] ||
+    fail "unexpected GitHub Release App ID"
+  [[ "$INTENTIVE_RELEASE_APP_INSTALLATION_ID" == "$OWNED_GITHUB_RELEASE_APP_INSTALLATION_ID" ]] ||
+    fail "unexpected GitHub Release App installation ID"
+  [[ "$GITHUB_REPOSITORY" == "$OWNED_GITHUB_RELEASE_REPOSITORY" ]] ||
+    fail "unexpected GitHub Release App repository"
+  openssl pkey -in <(printf '%s' "$INTENTIVE_RELEASE_APP_PRIVATE_KEY") -noout >/dev/null 2>&1 ||
+    fail "GitHub Release App private key is invalid"
+}
+
 validate_release_secrets_and_urls() {
+  validate_release_app_inputs
   for name in \
     INTENTIVE_BETA_FIREBASE_PLIST_BASE64 \
     INTENTIVE_SPARKLE_PUBLIC_KEY \
     SPARKLE_PRIVATE_KEY \
     SENTRY_AUTH_TOKEN \
-    GH_TOKEN \
     INTENTIVE_PRODUCTION_API_URL \
     INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN \
     INTENTIVE_STABLE_FEED_URL \
@@ -194,6 +211,79 @@ validate_release_secrets_and_urls() {
   done
   [[ "${GITHUB_RELEASES_URL:-}" == "https://github.com/sruj75/knowledge-athlete/releases" ]] ||
     fail "unexpected GitHub releases URL"
+}
+
+base64url() {
+  openssl base64 -A | tr '/+' '_-' | tr -d '='
+}
+
+mint_github_release_app_token() {
+  validate_release_app_inputs
+
+  local now issued_at expires_at header payload unsigned signature jwt request token
+  now="$(date +%s)"
+  issued_at="$((now - 60))"
+  expires_at="$((now + 540))"
+  header="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | base64url)"
+  payload="$(jq -cn \
+    --arg iss "$INTENTIVE_RELEASE_APP_ID" \
+    --argjson iat "$issued_at" \
+    --argjson exp "$expires_at" \
+    '{iss: $iss, iat: $iat, exp: $exp}' | base64url)"
+  unsigned="$header.$payload"
+  if ! signature="$(
+    printf '%s' "$unsigned" |
+      openssl dgst -sha256 -sign <(printf '%s' "$INTENTIVE_RELEASE_APP_PRIVATE_KEY") |
+      base64url
+  )"; then
+    fail "GitHub Release App JWT signing failed"
+  fi
+  jwt="$unsigned.$signature"
+  request="$(jq -cn '{repositories: ["knowledge-athlete"], permissions: {contents: "write"}}')"
+
+  if ! token="$(
+    curl --fail --silent --show-error \
+      --request POST \
+      -H 'Accept: application/vnd.github+json' \
+      -H "Authorization: Bearer $jwt" \
+      -H 'X-GitHub-Api-Version: 2022-11-28' \
+      --data "$request" \
+      "https://api.github.com/app/installations/$INTENTIVE_RELEASE_APP_INSTALLATION_ID/access_tokens" |
+      EXPECTED_GITHUB_REPOSITORY="$OWNED_GITHUB_RELEASE_REPOSITORY" python3 -c '
+from datetime import datetime, timezone
+import json
+import os
+import sys
+
+try:
+    response = json.load(sys.stdin)
+    token = response["token"]
+    expires_at = response["expires_at"]
+    permissions = response["permissions"]
+    repositories = response["repositories"]
+    if not isinstance(token, str) or not token or any(character.isspace() for character in token):
+        raise ValueError
+    expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+        raise ValueError
+    if not isinstance(permissions, dict) or permissions.get("contents") != "write":
+        raise ValueError
+    if any(level == "write" and name != "contents" for name, level in permissions.items()):
+        raise ValueError
+    if not isinstance(repositories, list) or len(repositories) != 1:
+        raise ValueError
+    if repositories[0].get("full_name") != os.environ["EXPECTED_GITHUB_REPOSITORY"]:
+        raise ValueError
+except (AttributeError, KeyError, TypeError, ValueError):
+    raise SystemExit(1)
+
+sys.stdout.write(token)
+' 2>/dev/null
+  )"; then
+    fail "GitHub App installation token response failed validation"
+  fi
+
+  printf '%s' "$token"
 }
 
 validate_preview_secrets_and_urls() {
@@ -763,7 +853,6 @@ smoke() {
 }
 
 publish_release() {
-  require_env GH_TOKEN
   require_env ED_SIGNATURE
   require_env BETA_ED_SIGNATURE
   for artifact in \
@@ -776,7 +865,10 @@ publish_release() {
     "$BUILD_DIR/desktop-smoke-result-beta.json"; do
     [[ -s "$artifact" ]] || fail "publication artifact is missing or empty: $artifact"
   done
-  if gh release view "$CM_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+
+  local github_token
+  github_token="$(mint_github_release_app_token)"
+  if GH_TOKEN="$github_token" gh release view "$CM_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
     fail "immutable candidate $CM_TAG already exists; refusing to replace its artifacts"
   fi
 
@@ -797,7 +889,7 @@ betaEdSignature: ${BETA_ED_SIGNATURE}
 KEY_VALUE_END -->
 EOF
 )
-  gh release create "$CM_TAG" \
+  GH_TOKEN="$github_token" gh release create "$CM_TAG" \
     --repo "$GITHUB_REPOSITORY" \
     --verify-tag \
     --target "$SOURCE_SHA" \
@@ -810,6 +902,7 @@ EOF
     "$DSYM_ARCHIVE" \
     "$BUILD_DIR/desktop-smoke-result.json" \
     "$BUILD_DIR/desktop-smoke-result-beta.json"
+  github_token=""
   echo "Published immutable non-live candidate $CM_TAG."
 }
 

@@ -45,6 +45,8 @@ workflows:
         CODEMAGIC_APP_ID: "6a8ff0296fc70d39540cb56a"
         GITHUB_REPOSITORY: "sruj75/knowledge-athlete"
         GITHUB_RELEASES_URL: "https://github.com/sruj75/knowledge-athlete/releases"
+        INTENTIVE_RELEASE_APP_ID: "4838294"
+        INTENTIVE_RELEASE_APP_INSTALLATION_ID: "159216850"
         BUILD_DIR: "build"
         DMGBUILD_VERSION: "1.6.7"
       xcode: 16.4
