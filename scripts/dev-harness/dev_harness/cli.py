@@ -21,7 +21,7 @@ from typing import Iterable
 from . import config, providers, qualification, safety, synthetic_profiles
 
 OWNERSHIP_PREFIX = "omi-dev-harness"
-CONFIG_DIGEST_SCHEMA_VERSION = 3
+CONFIG_DIGEST_SCHEMA_VERSION = 4
 RUNTIME_SOURCE_PATHS = (
     "backend",
     "scripts/dev-harness",
@@ -177,12 +177,22 @@ def _launch_contract(
             "auth": cfg.auth_port,
             "redis": cfg.redis_port,
             "backend": cfg.backend_port,
+            "automation": cfg.automation_port,
+            "firestore_websocket": cfg.firestore_websocket_port,
+            "firebase_hub": cfg.firebase_hub_port,
+            "firebase_logging": cfg.firebase_logging_port,
+            "firebase_ui": cfg.firebase_ui_port,
         },
         "endpoints": {
             "firestore": cfg.firestore_host,
             "auth": cfg.auth_host,
             "redis": f"{cfg.redis_host}:{cfg.redis_port}",
             "backend": cfg.backend_url,
+            "automation": f"127.0.0.1:{cfg.automation_port}",
+            "firestore_websocket": f"127.0.0.1:{cfg.firestore_websocket_port}",
+            "firebase_hub": f"127.0.0.1:{cfg.firebase_hub_port}",
+            "firebase_logging": f"127.0.0.1:{cfg.firebase_logging_port}",
+            "firebase_ui": f"127.0.0.1:{cfg.firebase_ui_port}",
         },
     }
 
@@ -240,7 +250,18 @@ def _validated_active_digest(requested: config.HarnessConfig) -> dict[str, objec
         if not isinstance(database_id, str) or not database_id:
             raise ValueError("database_id")
         ports = digest["ports"]
-        if not isinstance(ports, dict) or set(ports) != {"firestore", "auth", "redis", "backend"}:
+        expected_port_names = {
+            "firestore",
+            "auth",
+            "redis",
+            "backend",
+            "automation",
+            "firestore_websocket",
+            "firebase_hub",
+            "firebase_logging",
+            "firebase_ui",
+        }
+        if not isinstance(ports, dict) or set(ports) != expected_port_names:
             raise ValueError("ports")
         if any(not isinstance(ports[name], int) or not 1 <= ports[name] <= 65535 for name in ports):
             raise ValueError("ports")
@@ -252,6 +273,11 @@ def _validated_active_digest(requested: config.HarnessConfig) -> dict[str, objec
             "auth": f"127.0.0.1:{ports['auth']}",
             "redis": f"127.0.0.1:{ports['redis']}",
             "backend": f"http://127.0.0.1:{ports['backend']}",
+            "automation": f"127.0.0.1:{ports['automation']}",
+            "firestore_websocket": f"127.0.0.1:{ports['firestore_websocket']}",
+            "firebase_hub": f"127.0.0.1:{ports['firebase_hub']}",
+            "firebase_logging": f"127.0.0.1:{ports['firebase_logging']}",
+            "firebase_ui": f"127.0.0.1:{ports['firebase_ui']}",
         }
         if endpoints != expected_endpoints:
             raise ValueError("endpoints")
@@ -328,6 +354,11 @@ def active_runtime_config(
         redis_host="127.0.0.1",
         redis_port=int(ports["redis"]),
         backend_port=int(ports["backend"]),
+        automation_port=int(ports["automation"]),
+        firestore_websocket_port=int(ports["firestore_websocket"]),
+        firebase_hub_port=int(ports["firebase_hub"]),
+        firebase_logging_port=int(ports["firebase_logging"]),
+        firebase_ui_port=int(ports["firebase_ui"]),
     )
     requested_mode = requested.provider_mode if active_mode != requested.provider_mode else None
     return active, requested_mode
@@ -372,11 +403,29 @@ def _port_records(cfg: config.HarnessConfig) -> list[dict[str, object]]:
 def _save_manifests(cfg: config.HarnessConfig, records: list[dict[str, object]]) -> None:
     live = [record for record in records if safety.process_exists(int(record.get("pid", -1)))]
     _write_json(cfg.layout.process_manifest, {"schema_version": 1, "updated_at": _now(), "processes": live})
-    ports = [
-        {"service": record["service"], "port": record["port"], "pid": record["pid"], "endpoint": record.get("endpoint")}
-        for record in live
-        if "port" in record
-    ]
+    ports: list[dict[str, object]] = []
+    for record in live:
+        owned_ports = record.get("owned_ports")
+        if isinstance(owned_ports, dict):
+            ports.extend(
+                {
+                    "name": name,
+                    "service": record["service"],
+                    "port": port,
+                    "pid": record["pid"],
+                    "endpoint": f"127.0.0.1:{port}",
+                }
+                for name, port in owned_ports.items()
+            )
+        elif "port" in record:
+            ports.append(
+                {
+                    "service": record["service"],
+                    "port": record["port"],
+                    "pid": record["pid"],
+                    "endpoint": record.get("endpoint"),
+                }
+            )
     _write_json(cfg.layout.port_manifest, {"schema_version": 1, "updated_at": _now(), "ports": ports})
 
 
@@ -432,21 +481,61 @@ def _stop_single_service(cfg: config.HarnessConfig, record: dict[str, object]) -
     _save_manifests(cfg, remaining)
 
 
-def _require_port_available_or_owned(cfg: config.HarnessConfig, service: str, port: int) -> None:
+def _require_port_available_or_owned(
+    cfg: config.HarnessConfig, service: str, port: int, *, label: str | None = None
+) -> None:
     if not _port_open("127.0.0.1", port):
         return
     record = _service_record(cfg, service)
     if record is None:
+        display_name = label or service
         raise RuntimeError(
-            f"Port {port} for {service} is already in use by a foreign process. Stop it or set a separate local harness state/port before retrying."
+            f"Port {port} for {display_name} is already in use by a foreign process. "
+            "Stop it or set a separate local harness state/port before retrying."
         )
+    supervisor_pid = int(record["pid"])
     safety.validate_port_owner(
         port,
-        pid=int(record["pid"]),
+        pid=supervisor_pid,
         port_manifest=cfg.layout.port_manifest,
         process_manifest=cfg.layout.process_manifest,
         service=service,
     )
+    listeners = safety.listening_pids(port)
+    foreign_listeners = tuple(pid for pid in listeners if not safety.is_descendant_of(pid, supervisor_pid))
+    if foreign_listeners:
+        rendered = ", ".join(str(pid) for pid in foreign_listeners)
+        display_name = label or service
+        raise RuntimeError(
+            f"Port {port} for {display_name} has foreign listener PID(s) {rendered}; "
+            f"none are descendants of recorded {service} supervisor PID {supervisor_pid}."
+        )
+    if not listeners:
+        display_name = label or service
+        raise RuntimeError(
+            f"Port {port} for {display_name} is open but its listener PID cannot be proven; refusing to proceed."
+        )
+
+
+def _workspace_port_owners(cfg: config.HarnessConfig) -> tuple[tuple[str, str, int], ...]:
+    """Return every listener in the workspace contract and its process owner."""
+
+    return (
+        ("backend", "backend", cfg.backend_port),
+        ("firestore", "firestore", cfg.firestore_port),
+        ("auth", "firestore", cfg.auth_port),
+        ("redis", "redis", cfg.redis_port),
+        ("automation", "desktop", cfg.automation_port),
+        ("firestore.websocket", "firestore", cfg.firestore_websocket_port),
+        ("firebase.hub", "firestore", cfg.firebase_hub_port),
+        ("firebase.logging", "firestore", cfg.firebase_logging_port),
+        ("firebase.ui", "firestore", cfg.firebase_ui_port),
+    )
+
+
+def _require_workspace_ports_available_or_owned(cfg: config.HarnessConfig) -> None:
+    for label, service, port in _workspace_port_owners(cfg):
+        _require_port_available_or_owned(cfg, service, port, label=label)
 
 
 def _http_ok(url: str, timeout: float = 1.0, headers: dict[str, str] | None = None) -> tuple[bool, str]:
@@ -519,6 +608,11 @@ def print_config(cfg: config.HarnessConfig) -> None:
     print(f"firebase_auth_emulator: {cfg.auth_host}")
     print(f"redis: {cfg.redis_host}:{cfg.redis_port}")
     print(f"backend: {cfg.backend_url}")
+    print(f"automation: 127.0.0.1:{cfg.automation_port}")
+    print(f"firestore_websocket: 127.0.0.1:{cfg.firestore_websocket_port}")
+    print(f"firebase_hub: 127.0.0.1:{cfg.firebase_hub_port}")
+    print(f"firebase_logging: 127.0.0.1:{cfg.firebase_logging_port}")
+    print(f"firebase_ui: 127.0.0.1:{cfg.firebase_ui_port}")
 
 
 def print_provider_status(
@@ -568,6 +662,11 @@ def build_session_summary(cfg: config.HarnessConfig, provider_report: providers.
         "firebase_auth": cfg.auth_host,
         "redis": f"{cfg.redis_host}:{cfg.redis_port}",
         "backend": cfg.backend_url,
+        "automation": f"127.0.0.1:{cfg.automation_port}",
+        "firestore_websocket": f"127.0.0.1:{cfg.firestore_websocket_port}",
+        "firebase_hub": f"127.0.0.1:{cfg.firebase_hub_port}",
+        "firebase_logging": f"127.0.0.1:{cfg.firebase_logging_port}",
+        "firebase_ui": f"127.0.0.1:{cfg.firebase_ui_port}",
     }
     return {
         "schema_version": 1,
@@ -664,6 +763,7 @@ def _start_process(
     cwd: Path,
     log_name: str,
     port: int,
+    owned_ports: dict[str, int] | None = None,
     env: dict[str, str] | None = None,
 ) -> None:
     existing = _service_record(cfg, service)
@@ -705,6 +805,7 @@ def _start_process(
             "pid": proc.pid,
             "process_group": proc.pid,
             "port": port,
+            "owned_ports": owned_ports or {service: port},
             "endpoint": f"127.0.0.1:{port}",
             "log": str(log_path),
             "ownership_marker": marker,
@@ -728,6 +829,10 @@ def _firebase_command(cfg: config.HarnessConfig) -> list[str]:
         emulator = emulators.setdefault(name, {})
         emulator["host"] = "127.0.0.1"
         emulator["port"] = port
+    emulators["firestore"]["websocketPort"] = cfg.firestore_websocket_port
+    emulators["hub"] = {"host": "127.0.0.1", "port": cfg.firebase_hub_port}
+    emulators["logging"] = {"host": "127.0.0.1", "port": cfg.firebase_logging_port}
+    emulators["ui"] = {"enabled": True, "host": "127.0.0.1", "port": cfg.firebase_ui_port}
     firestore = payload.setdefault("firestore", {})
     firestore["rules"] = str(cfg.repo_root / "firestore.rules")
     firestore["indexes"] = str(cfg.repo_root / "firestore.indexes.json")
@@ -766,6 +871,14 @@ def _start_infrastructure(cfg: config.HarnessConfig) -> None:
         cwd=cfg.repo_root,
         log_name="firebase-emulators.log",
         port=cfg.firestore_port,
+        owned_ports={
+            "firestore": cfg.firestore_port,
+            "auth": cfg.auth_port,
+            "firestore.websocket": cfg.firestore_websocket_port,
+            "firebase.hub": cfg.firebase_hub_port,
+            "firebase.logging": cfg.firebase_logging_port,
+            "firebase.ui": cfg.firebase_ui_port,
+        },
     )
     redis_dir = cfg.layout.services_dir / "redis"
     redis_dir.mkdir(parents=True, exist_ok=True)
@@ -825,6 +938,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
 
 
 def _start_services(cfg: config.HarnessConfig) -> None:
+    _require_workspace_ports_available_or_owned(cfg)
     _start_infrastructure(cfg)
     # Give infrastructure services a brief head start so the Python backend can
     # bind connections to Redis and Firestore immediately on boot.

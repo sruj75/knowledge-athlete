@@ -4,8 +4,8 @@ set -euo pipefail
 source "$(dirname "$0")/_source_local_dev_env.sh"
 cd "$(dirname "$0")/../.."
 
-BACKEND_URL="${OMI_PYTHON_API_URL:-http://127.0.0.1:8000}"
-STATE_ROOT="${OMI_LOCAL_STATE_ROOT:-.local/dev-harness/default}"
+BACKEND_URL="${OMI_PYTHON_API_URL:-http://127.0.0.1:${OMI_HARNESS_BACKEND_PORT}}"
+STATE_ROOT="${OMI_LOCAL_STATE_ROOT:-.local/dev-harness}/${OMI_LOCAL_INSTANCE}"
 BACKEND_LOG="${STATE_ROOT}/logs/backend.log"
 OMI_CTL="./desktop/macos/scripts/omi-ctl"
 
@@ -34,16 +34,19 @@ else
   echo "warning: $OMI_CTL not found; skipping omi-ctl state check"
 fi
 
-chat_status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse" \
+chat_status="$(curl --connect-timeout 3 --max-time 5 -s -o /dev/null -w '%{http_code}' -X POST "${BACKEND_URL}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse" \
   -H 'Content-Type: application/json' \
   -H 'X-Intentive-Chat-Contract-Version: 2' \
   -d '{"contents":[{"role":"user","parts":[{"text":"ping"}]}],"generationConfig":{"maxOutputTokens":1}}' || true)"
-if [ "$chat_status" = "404" ]; then
-  echo "chat smoke: native Gemini route returned 404" >&2
-  failures=$((failures + 1))
-else
-  echo "chat smoke: native Gemini route returned HTTP ${chat_status:-unknown} (non-404)"
-fi
+# No Firebase token is sent: prove the route rejects anonymous inference, not
+# model success. Connection errors and arbitrary non-404 responses are not proof.
+case "$chat_status" in
+  401|403) echo "chat smoke: anonymous inference rejected (HTTP $chat_status)" ;;
+  *)
+    echo "chat smoke: expected authentication rejection, got HTTP ${chat_status:-unknown}" >&2
+    failures=$((failures + 1))
+    ;;
+esac
 
 if [ -f "$BACKEND_LOG" ]; then
   aud_count="$(grep -c 'incorrect "aud"' "$BACKEND_LOG" 2>/dev/null || true)"

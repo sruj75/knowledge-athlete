@@ -9,6 +9,34 @@ certificate contents, API keys, recovery codes, or secret values.
 
 Last confirmed: 2026-09-05
 
+## Current Dev and Beta destination (owner decision, 2026-09-08)
+
+These are the target boundaries, not a claim that the transition is complete.
+
+- Target two usable environments: isolated local Development on the owner's Mac,
+  and the same persistent `Intentive Beta.app` on the owner and four friends' Macs.
+  Keep customer `BILLING_MODE=disabled`; this is not a paid or public Stable launch.
+- Routine Dev must use a workspace-owned named app, local Firebase Auth/Firestore
+  emulators, and local Redis with synthetic accounts. Offline providers are the
+  automated-test default. Real AI tests use explicit local development configuration,
+  not the owner's everyday login, allowance, or hosted product data.
+- The existing Gemini v2, OpenAI TTS v1, and Modulate v1 inference credentials have
+  owner-only copies in ignored `backend/.env.local-dev` for those explicit tests.
+  This grants no Firebase/GCP administration to the local stack; never copy cloud
+  administration credentials or Beta authentication into workspace launch defaults.
+- Reuse of the existing hosted stack for Beta is a transition to prepare, not an
+  already-deployed Beta. Main merges must not become automatic updates to the
+  group's desktop or backend. Separate Firebase app registrations and Cloud Run
+  names do not isolate shared Auth, Firestore, or Redis data.
+- Preserve Beta/Omi installations, histories, permissions, and credentials. Dev
+  launch/stop/archive must own exact workspace artifacts and processes. No permanent
+  runner registration, cloud access/traffic change, purchase, or friend publication
+  is implied by local implementation approval.
+- Reuse Codemagic/Sparkle; propose manual Mac qualification before changing release
+  policy. A real signed/notarized A-to-B update and preserved state remain required.
+  Older checklist entries below retain their dated evidence; they are not all
+  prerequisites for useful local Dev progress or proof that Beta is ready.
+
 ## Product identity
 
 - Visible product name: `Intentive`

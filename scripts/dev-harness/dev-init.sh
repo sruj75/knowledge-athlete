@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Resolve the same workspace identity/ports as every other harness command.
+# This does not read provider secrets; dev-init owns creation of that file below.
+# shellcheck source=../dev-instance.sh
+source "$(dirname "$0")/../dev-instance.sh"
 # shellcheck source=_resolve_python.sh
 source "$(dirname "$0")/_resolve_python.sh"
 cd "$(dirname "$0")/../.."

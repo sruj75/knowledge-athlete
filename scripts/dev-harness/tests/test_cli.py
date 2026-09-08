@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 from dataclasses import replace
@@ -126,7 +127,107 @@ def test_firebase_command_writes_the_configured_emulator_ports(monkeypatch: pyte
     config_path = Path(command[command.index("--config") + 1])
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     assert payload["emulators"]["firestore"]["port"] == 8406
+    assert payload["emulators"]["firestore"]["websocketPort"] == 9471
     assert payload["emulators"]["auth"]["port"] == 9420
+    assert payload["emulators"]["hub"] == {"host": "127.0.0.1", "port": 4721}
+    assert payload["emulators"]["logging"] == {"host": "127.0.0.1", "port": 4821}
+    assert payload["emulators"]["ui"] == {"enabled": True, "host": "127.0.0.1", "port": 4321}
+
+
+def test_firebase_auxiliary_port_collision_is_rejected_without_signalling(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    foreign_port = int(listener.getsockname()[1])
+    cfg = SimpleNamespace(
+        firestore_port=48101,
+        auth_port=48102,
+        redis_port=48103,
+        backend_port=48104,
+        automation_port=48105,
+        firestore_websocket_port=foreign_port,
+        firebase_hub_port=48107,
+        firebase_logging_port=48108,
+        firebase_ui_port=48109,
+        layout=SimpleNamespace(
+            process_manifest=tmp_path / "processes.json",
+            port_manifest=tmp_path / "ports.json",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "_signal_owned_process_group",
+        lambda _pid, _service: pytest.fail("foreign auxiliary listener must never be signalled"),
+    )
+    actual_port_open = cli._port_open
+    monkeypatch.setattr(
+        cli,
+        "_port_open",
+        lambda host, port: actual_port_open(host, port) if port == foreign_port else False,
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match=rf"Port {foreign_port} for firestore\.websocket is already in use"):
+            cli._require_workspace_ports_available_or_owned(cfg)
+        probe = socket.create_connection(("127.0.0.1", foreign_port), timeout=1)
+        probe.close()
+    finally:
+        listener.close()
+
+
+def test_recorded_auxiliary_port_rejects_a_listener_outside_the_supervisor_lineage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen()
+    foreign_port = int(listener.getsockname()[1])
+    process_manifest = tmp_path / "processes.json"
+    port_manifest = tmp_path / "ports.json"
+    cli._write_json(
+        process_manifest,
+        {"processes": [{"service": "firestore", "pid": os.getpid(), "ownership_marker": ""}]},
+    )
+    cli._write_json(
+        port_manifest,
+        {"ports": [{"service": "firestore", "port": foreign_port, "pid": os.getpid()}]},
+    )
+    cfg = SimpleNamespace(
+        firestore_port=48101,
+        auth_port=48102,
+        redis_port=48103,
+        backend_port=48104,
+        automation_port=48105,
+        firestore_websocket_port=foreign_port,
+        firebase_hub_port=48107,
+        firebase_logging_port=48108,
+        firebase_ui_port=48109,
+        layout=SimpleNamespace(process_manifest=process_manifest, port_manifest=port_manifest),
+    )
+    foreign_pid = os.getpid() + 100000
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (foreign_pid,) if port == foreign_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda _pid, _ancestor: False)
+    monkeypatch.setattr(
+        cli,
+        "_signal_owned_process_group",
+        lambda _pid, _service: pytest.fail("unproven auxiliary listener must never be signalled"),
+    )
+    actual_port_open = cli._port_open
+    monkeypatch.setattr(
+        cli,
+        "_port_open",
+        lambda host, port: actual_port_open(host, port) if port == foreign_port else False,
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match=rf"Port {foreign_port} for firestore\.websocket has foreign listener"):
+            cli._require_workspace_ports_available_or_owned(cfg)
+        probe = socket.create_connection(("127.0.0.1", foreign_port), timeout=1)
+        probe.close()
+    finally:
+        listener.close()
 
 
 def test_wait_health_returns_terminal_timeout_failures(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -281,6 +382,44 @@ def test_status_rejects_owned_live_stack_without_complete_launch_evidence(
 
     with pytest.raises(RuntimeError, match="launch evidence is missing or invalid"):
         cli.active_runtime_config(requested)
+
+
+def test_live_legacy_four_port_digest_requires_scoped_down_without_signalling_or_deleting_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PROVIDER_MODE", "offline")
+    monkeypatch.setenv("OMI_LOCAL_STATE_ROOT", str(tmp_path / "state"))
+    requested = config.load_config(REPO_ROOT, create_layout=True)
+    legacy_digest = cli._config_digest(requested, cli._current_provider_report(requested))
+    legacy_digest["schema_version"] = 3
+    legacy_digest["ports"] = {
+        "firestore": requested.firestore_port,
+        "auth": requested.auth_port,
+        "redis": requested.redis_port,
+        "backend": requested.backend_port,
+    }
+    legacy_digest["endpoints"] = {
+        "firestore": requested.firestore_host,
+        "auth": requested.auth_host,
+        "redis": f"{requested.redis_host}:{requested.redis_port}",
+        "backend": requested.backend_url,
+    }
+    cli._write_json(requested.layout.config_digest_path, legacy_digest)
+    cli._write_json(requested.layout.process_manifest, {"processes": [{"service": "backend", "pid": 4242}]})
+    digest_before = requested.layout.config_digest_path.read_bytes()
+    processes_before = requested.layout.process_manifest.read_bytes()
+    monkeypatch.setattr(cli, "_owned_live_process_records", lambda _cfg: [{"service": "backend", "pid": 4242}])
+    monkeypatch.setattr(
+        cli,
+        "_signal_owned_process_group",
+        lambda _pid, _service: pytest.fail("legacy launch evidence must not trigger a signal"),
+    )
+
+    with pytest.raises(RuntimeError, match="run make dev-down"):
+        cli.active_runtime_config(requested)
+
+    assert requested.layout.config_digest_path.read_bytes() == digest_before
+    assert requested.layout.process_manifest.read_bytes() == processes_before
 
 
 def test_launch_contract_records_backend_source_and_dependency_fingerprint(

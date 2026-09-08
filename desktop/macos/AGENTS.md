@@ -290,7 +290,7 @@ This creates `/Applications/omi-fix-rewind.app` with bundle ID `com.heyintentive
 
 ### Run Variants & Parallel Worktrees
 - `./run.sh --yolo` — quick start against the dev backend, no local services. `OMI_SKIP_BACKEND=1` — app only, remote backend via `OMI_PYTHON_API_URL`. `OMI_SKIP_TUNNEL=1` — no Cloudflare tunnel.
-- **Parallel worktrees auto-isolate.** `scripts/dev-instance.sh` derives a unique instance from each linked git worktree, so `run.sh` (and `backend/scripts/dev-serve.sh`) pick one per-worktree canonical backend port (8080+) plus an automation port (47777+) and bundle name (`omi-<worktree>`). Kills are pidfile-scoped, and a taken port fails loud instead of clobbering. The primary checkout uses `Intentive Dev`, backend 8080, and automation 47777. Override any of `OMI_INSTANCE` / `PORT` / `PYTHON_PORT` / `OMI_AUTOMATION_PORT` / `OMI_APP_NAME` to opt out.
+- **Workspace ownership.** `scripts/dev-instance.sh` owns app/harness identity and port mapping. Linked worktrees use `omi-<worktree>`; Conductor uses nine of its ten ports, including Firebase auxiliary listeners. Explicit `OMI_HARNESS_PORT_OFFSET` retains qualification allocation; duplicate/conflicting port aliases fail closed. Outside Conductor, backend/automation retain 8080+/47777+ defaults. Backend stops are pidfile-scoped; no foreign listener is adopted. Use `PROVIDER_MODE=offline make desktop-run-local` for local testing; hosted launch behavior remains unchanged in this increment.
 - `Intentive Dev` is the canonical shared development profile and the only allowed opt-in seed source. Do not pass `OMI_APP_NAME="Intentive Dev"` from a linked worktree.
 - Local Python backend (per-worktree port): `cd backend && ./scripts/dev-serve.sh`.
 
