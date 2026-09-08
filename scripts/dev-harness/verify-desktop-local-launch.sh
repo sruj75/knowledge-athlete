@@ -4,8 +4,8 @@ set -euo pipefail
 source "$(dirname "$0")/_source_local_dev_env.sh"
 cd "$(dirname "$0")/../.."
 
-BACKEND_URL="${OMI_PYTHON_API_URL:-http://127.0.0.1:8000}"
-STATE_ROOT="${OMI_LOCAL_STATE_ROOT:-.local/dev-harness/default}"
+BACKEND_URL="${OMI_PYTHON_API_URL:-http://127.0.0.1:${OMI_HARNESS_BACKEND_PORT}}"
+STATE_ROOT="${OMI_LOCAL_STATE_ROOT:-.local/dev-harness}/${OMI_LOCAL_INSTANCE}"
 BACKEND_LOG="${STATE_ROOT}/logs/backend.log"
 OMI_CTL="./desktop/macos/scripts/omi-ctl"
 

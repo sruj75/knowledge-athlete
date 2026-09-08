@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -247,3 +248,55 @@ def test_dev_instance_rejects_conflicting_port_aliases(tmp_path: Path, port_env:
 
     assert result.returncode != 0
     assert "conflicting port aliases" in result.stderr
+
+
+def test_dev_verify_uses_the_resolved_workspace_ports_and_state_base(tmp_path: Path) -> None:
+    fixture = tmp_path / "workspace"
+    wrapper_dir = fixture / "scripts" / "dev-harness"
+    wrapper_dir.mkdir(parents=True)
+    (fixture / ".git").write_text("gitdir: /nonexistent\n", encoding="utf-8")
+    for name in ("verify-desktop-local-launch.sh", "_source_local_dev_env.sh"):
+        shutil.copy2(REPO_ROOT / "scripts" / "dev-harness" / name, wrapper_dir / name)
+    shutil.copy2(REPO_ROOT / "scripts" / "dev-instance.sh", fixture / "scripts" / "dev-instance.sh")
+
+    bin_dir = fixture / "bin"
+    bin_dir.mkdir()
+    curl_args = tmp_path / "curl-args.txt"
+    curl = bin_dir / "curl"
+    curl.write_text('#!/bin/bash\nprintf "%s\\n" "$@" > "$CURL_ARGS_PATH"\nprintf 401\n', encoding="utf-8")
+    curl.chmod(0o755)
+    ctl = fixture / "desktop" / "macos" / "scripts" / "omi-ctl"
+    ctl.parent.mkdir(parents=True)
+    ctl.write_text(
+        '#!/bin/bash\n[[ "$OMI_AUTOMATION_PORT" == "55004" ]] || exit 1\n'
+        'printf \'{"isSignedIn":true}\\n\'\n',
+        encoding="utf-8",
+    )
+    ctl.chmod(0o755)
+    state_base = tmp_path / "custom state"
+    backend_log = state_base / "workspace-alpha" / "logs" / "backend.log"
+    backend_log.parent.mkdir(parents=True)
+    backend_log.write_text("fixture backend ready\n", encoding="utf-8")
+
+    result = subprocess.run(
+        ["bash", str(wrapper_dir / "verify-desktop-local-launch.sh")],
+        cwd=fixture,
+        env={
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "PROVIDER_MODE": "offline",
+            "CONDUCTOR_IS_LOCAL": "1",
+            "CONDUCTOR_PORT": "55000",
+            "OMI_INSTANCE": "workspace-alpha",
+            "OMI_LOCAL_STATE_ROOT": str(state_base),
+            "CURL_ARGS_PATH": str(curl_args),
+        },
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "http://127.0.0.1:55000/v2/models/" in curl_args.read_text(encoding="utf-8")
+    assert "backend log: no incorrect" in result.stdout
+    assert "backend log not found" not in result.stdout
