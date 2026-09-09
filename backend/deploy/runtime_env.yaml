@@ -123,6 +123,9 @@ environments:
             --startup-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=24
             --liveness-probe: httpGet.path=/v1/health,periodSeconds=10,timeoutSeconds=5,failureThreshold=5
           env:
+            ADMIN_KEY_AUTH_ENABLED:
+              value: 'false'
+              category: access_control
             ACCOUNT_DELETION_DISPATCH_MODE:
               value: cloud_tasks
               category: reliability
@@ -177,14 +180,11 @@ environments:
             BACKEND_RUNTIME_SERVICE_ACCOUNT:
               env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
               category: runtime_identity
+            INTENTIVE_HOSTED_PARTICIPANT_UIDS:
+              env_var: INTENTIVE_HOSTED_PARTICIPANT_UIDS
+              category: access_control
             OMI_PARITY_PACK_CAPTURE:
-              value: '1'
-              category: replay_capture
-            OMI_PARITY_PACK_ALLOWED_PRINCIPALS:
-              value: vi7SA9ckQCe4ccobWNxlbdcNdC23
-              category: replay_capture
-            OMI_PARITY_PACK_ROOT:
-              value: /tmp/omi-parity-pack
+              value: '0'
               category: replay_capture
             GOOGLE_CLIENT_ID:
               env_var: GOOGLE_CLIENT_ID
@@ -220,6 +220,15 @@ environments:
               env_var: BUCKET_DESKTOP_UPDATES
               category: desktop_artifacts
           secrets:
+            ADMIN_KEY:
+              secret: ADMIN_KEY
+              version_env_var: ADMIN_KEY_VERSION
+            BETA_PROMOTION_TOKEN:
+              secret: BETA_PROMOTION_TOKEN
+              version_env_var: BETA_PROMOTION_TOKEN_VERSION
+            GITHUB_TOKEN:
+              secret: GITHUB_TOKEN
+              version_env_var: GITHUB_TOKEN_VERSION
             GOOGLE_CLIENT_SECRET:
               secret: GOOGLE_CLIENT_SECRET
               version_env_var: GOOGLE_CLIENT_SECRET_VERSION
