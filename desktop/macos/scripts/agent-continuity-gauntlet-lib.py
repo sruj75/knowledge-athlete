@@ -360,6 +360,27 @@ def bridge_failure_summary(response: Any) -> str:
     )
 
 
+class RequiredMainChatTurnError(RuntimeError):
+    """A required turn reached an idle terminal error without an assistant row."""
+
+    def __init__(
+        self,
+        *,
+        action_response: dict[str, Any],
+        snapshot_detail: dict[str, str],
+        traces: list[dict[str, Any]],
+    ) -> None:
+        self.evidence = {
+            "action_response": action_response,
+            "snapshot_detail": snapshot_detail,
+            "traces": traces,
+        }
+        super().__init__(
+            "required main-chat turn ended with a terminal error "
+            f"({bridge_failure_summary(self.evidence)})"
+        )
+
+
 def privacy_safe_evidence(value: Any) -> dict[str, Any]:
     """Convert arbitrary live diagnostics to a typed tree with no raw strings."""
     if value is None:
@@ -1102,6 +1123,22 @@ def current_turn_has_terminal_assistant(snapshot_detail: dict[str, str], query_t
     return terminal_assistant_for_exact_turn(snapshot_detail, query_text) is not None
 
 
+def current_turn_has_terminal_error(snapshot_detail: dict[str, str], query_text: str) -> bool:
+    """Recognize an error only after this exact query is visible and has no answer."""
+    try:
+        turn_messages = json.loads(current_turn_snapshot_text(snapshot_detail, query_text))
+    except json.JSONDecodeError:
+        return False
+    query_is_latest = bool(turn_messages) and not any(
+        isinstance(message, dict) and message.get("role") == "user" for message in turn_messages[1:]
+    )
+    return (
+        snapshot_detail.get("has_error") == "true"
+        and query_is_latest
+        and not current_turn_has_terminal_assistant(snapshot_detail, query_text)
+    )
+
+
 def exact_voice_agent_turn_signature(
     snapshot_detail: dict[str, Any],
     *,
@@ -1473,6 +1510,8 @@ class GauntletRunner:
         elif "response stopped" in lower_evidence:
             terminal_reason = "response_stopped"
         elif any(pattern.lower() in lower_evidence for pattern in RESILIENCE_GENERIC_CHAT_PATTERNS):
+            terminal_reason = "generic_chat_error"
+        elif current_turn_has_terminal_error(snapshot, query):
             terminal_reason = "generic_chat_error"
         elif not assistant:
             terminal_reason = "no_assistant_response"
@@ -2174,6 +2213,12 @@ class GauntletRunner:
                 snapshot_detail = snapshot.get("result", {}).get("detail", snapshot_detail)
                 if current_turn_has_terminal_assistant(snapshot_detail, query):
                     break
+                if current_turn_has_terminal_error(snapshot_detail, query):
+                    raise RequiredMainChatTurnError(
+                        action_response=send,
+                        snapshot_detail=snapshot_detail,
+                        traces=read_new_traces(trace_start),
+                    )
             time.sleep(0.25)
         else:
             self.fail("timed out waiting for query-specific terminal assistant row after query: " f"{query[:120]}")
@@ -2209,7 +2254,9 @@ class GauntletRunner:
             if wait.get("ok") and snapshot_detail.get("idle") == "true":
                 snapshot = self.bridge_act("main_chat_snapshot", {"limit": "80"})
                 snapshot_detail = snapshot.get("result", {}).get("detail", snapshot_detail)
-                if current_turn_has_terminal_assistant(snapshot_detail, query):
+                if current_turn_has_terminal_assistant(snapshot_detail, query) or current_turn_has_terminal_error(
+                    snapshot_detail, query
+                ):
                     break
             time.sleep(0.25)
         else:
@@ -2327,6 +2374,10 @@ class GauntletRunner:
             if "owner" in self.suites:
                 self.run_owner_suite()
 
+            return self.finalize()
+        except RequiredMainChatTurnError as exc:
+            self.fail(str(exc))
+            write_json(self.run_dir / "terminal-main-chat-error.json", exc.evidence)
             return self.finalize()
         finally:
             self.pcm_path.unlink(missing_ok=True)

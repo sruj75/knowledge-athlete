@@ -63,6 +63,8 @@ EXEMPT_DESKTOP_PATHS = {
     # not alter the desktop application a user receives.
     "desktop/macos/scripts/desktop-flow-lint.py",
     "desktop/macos/scripts/desktop_flow_contract.py",
+    # Internal continuity qualification harness; it never ships in the app.
+    "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
 }
 # Test and release-infra changes are likewise never user-facing app notes; the
 # `no-changelog-needed` PR label only satisfies the PR run, so post-merge push
@@ -72,6 +74,8 @@ EXEMPT_DESKTOP_PATH_PREFIXES = (
     "desktop/macos/tests/",
     "desktop/macos/Desktop/Tests/",
     "desktop/macos/agent/tests/",
+    # Flow declarations and operator guides are test-only qualification inputs.
+    "desktop/macos/e2e/",
     # Generated Swift (e.g. Sources/Generated/OmiApi.generated.swift) is
     # deterministically derived from the backend OpenAPI contract, never a
     # user-facing app note. Regenerating it after a spec change must not demand
