@@ -2,6 +2,13 @@
   "unreleased": [],
   "releases": [
     {
+      "version": "0.0.2",
+      "date": "2026-09-09",
+      "changes": [
+        "Fixed short push-to-talk releases that could drop captured audio while updated chat history was loading"
+      ]
+    },
+    {
       "version": "0.0.1",
       "date": "2026-09-09",
       "changes": [
@@ -5698,13 +5705,6 @@
     },
     {
       "version": "0.0.3",
-      "date": "2026-01-30",
-      "changes": [
-        "Bug fixes and stability improvements"
-      ]
-    },
-    {
-      "version": "0.0.2",
       "date": "2026-01-30",
       "changes": [
         "Bug fixes and stability improvements"
