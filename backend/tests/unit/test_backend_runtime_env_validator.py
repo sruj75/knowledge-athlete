@@ -501,6 +501,8 @@ def test_dev_runtime_contract_steps_receive_every_secret_version_input(workflow_
         step_env = deploy_steps[step_name].get('env', {})
         missing = sorted(required_versions - step_env.keys())
         assert missing == [], f'{step_name} does not receive secret version inputs: {missing}'
+        # GitHub reserves GITHUB_* configuration names; the renderer's process env is unchanged.
+        assert step_env['GITHUB_TOKEN_VERSION'] == '${{ vars.INTENTIVE_GITHUB_TOKEN_VERSION }}'
 
     renderer_env = deploy_steps['Render backend runtime env'].get('env', {})
     assert renderer_env['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] == '${{ vars.INTENTIVE_HOSTED_PARTICIPANT_UIDS }}'

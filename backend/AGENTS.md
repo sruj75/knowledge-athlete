@@ -141,6 +141,8 @@ Backend runtime and foundation contract: `backend/deploy/runtime_env.yaml` is th
 
 Firestore index boundary: backend deploy workflows run `reconcile_firestore_indexes.py --check-only` against `RUNTIME_GCP_PROJECT_ID` in an isolated approved-source job using the dedicated WIF read-only principal. Auto-dev deploys accept only a first-attempt successful same-repository `Release Eligibility` proof for `main` whose `head_sha` still equals freshly fetched and checked-out `main`, then use that admitted SHA for every source-derived step; manual **deploy** mode accepts only an exact main SHA with the same successful proof. Traffic-only repair leaves that input empty and stays source-independent because it changes no source-derived runtime state. A failed gate writes and locally revalidates a short-lived, redacted create-only proposal before upload; only the separate manual WIF writer may create missing indexes, and no lane deletes indexes.
 
+GitHub environment configuration uses `INTENTIVE_GITHUB_TOKEN_VERSION` because GitHub reserves the `GITHUB_` prefix for configuration-variable names. Both deploy workflows map it to the existing renderer input `GITHUB_TOKEN_VERSION`; the Secret Manager object and backend credential remain `GITHUB_TOKEN`.
+
 Keep this map up to date. When adding, removing, or changing inter-service calls, update this section and the executable workflow-contract tests in the same PR.
 
 ## Import Rules
