@@ -18,7 +18,7 @@ These rules apply to GitHub Actions workflows and custom actions under `.github/
 - GitHub concurrency is serialization, not a FIFO queue: only one pending run is
   retained and ordering is not guaranteed. Deploy workflows must not assume
   that every intermediate commit will run.
-- Backend and Firestore workflows authenticate through environment-scoped Workload Identity Federation with separate deploy, read-only index, and create-only index-writer service accounts. Exact repository/name IDs, owner ID, `main`, GitHub environment, and workflow-ref policies come from `runtime_env.yaml`; do not restore JSON-key inputs.
+- WIF identities (deploy, read-only index, create-only index writer), exact repository/owner/`main`/environment/workflow-ref claims, and resource IDs come from `runtime_env.yaml`; never restore JSON keys. Manual deploys must install the whole staged workflow-control tree before deleting it so every `DEPLOY_WORKFLOW_ROOT` path resolves.
 - Build and push only the full commit-SHA Artifact Registry tag, capture its digest, smoke that published digest, and deploy the resulting `tag@sha256:...` identity. A short SHA is display-only for Cloud Run revision suffixes.
 - Dev acceptance uses short-lived probe credentials, never service-account keys in runtime or images.
 - Auto scope proves compare `url`/`base_commit.sha` (not `head_commit`; `ahead` = newer HEAD) before cloud auth; retain behavioral tests and exact-main admission. `AUTO_DEV_DEPLOYMENT_MODE: manual-only` keeps eligibility automatic but requires protected `gcp_backend.yml` deployment; no path exceptions.
