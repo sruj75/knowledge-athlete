@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Mapping
 
 
+_PROTECTED_APP_BUNDLE_NAMES = frozenset(
+    name.casefold() for name in ("Omi.app", "Omi Beta.app", "Intentive.app", "Intentive Beta.app")
+)
+
+
 def dev_app_path(app_name: str, *, root: str | Path | None = None) -> Path:
     """Allow only Dev identities in the system or current user's Applications."""
     slug = re.sub(r"[^a-z0-9]+", "-", app_name.lower()).strip("-")
@@ -21,7 +26,10 @@ def dev_app_path(app_name: str, *, root: str | Path | None = None) -> Path:
     directory = Path(root) if root is not None else Path("/Applications")
     if directory not in (Path("/Applications"), Path.home() / "Applications") or directory.is_symlink():
         raise ValueError("Dev app root must be /Applications or the current user's ~/Applications, without a symlink")
-    return directory / f"{app_name}.app"
+    app_path = directory / f"{app_name}.app"
+    if app_path.name.casefold() in _PROTECTED_APP_BUNDLE_NAMES:
+        raise ValueError("Dev install target collides with a protected production app")
+    return app_path
 
 
 def configured_app_path(app_name: str, env: Mapping[str, str] | None = None) -> Path:

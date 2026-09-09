@@ -19,7 +19,26 @@ def test_user_install_and_existing_system_install(monkeypatch, tmp_path):
     assert desktop_paths.dev_app_path("Omi Subagent Test!!").name == "Omi Subagent Test!!.app"
 
 
-@pytest.mark.parametrize("name", ["Intentive Beta", "Omi", "omi-x/../../Omi", "omi-x\\Omi", "omi-x\nOmi"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Omi",
+        "omi",
+        "OMI",
+        "Omi Beta",
+        "omi beta",
+        "OMI BETA",
+        "Intentive",
+        "intentive",
+        "INTENTIVE",
+        "Intentive Beta",
+        "intentive beta",
+        "INTENTIVE BETA",
+        "omi-x/../../Omi",
+        "omi-x\\Omi",
+        "omi-x\nOmi",
+    ],
+)
 def test_production_and_path_escape_names_are_rejected(name):
     with pytest.raises(ValueError):
         desktop_paths.dev_app_path(name)
