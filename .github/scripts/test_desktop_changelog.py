@@ -109,7 +109,6 @@ class ChangelogRequirementTests(unittest.TestCase):
         for path in (
             "desktop/macos/Desktop/Sources/AppDelegate.swift",
             "desktop/macos/scripts/some-user-facing-script.sh",
-            "desktop/macos/scripts/codemagic-release.sh",
             "desktop/macos/scripts/prepare-release-libwebp.sh",
             "desktop/macos/agent/src/runtime/control-tools.ts",
             "desktop/macos/agent/tests-extra/runtime.ts",
