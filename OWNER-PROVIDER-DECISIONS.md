@@ -259,8 +259,17 @@ already done. An unchecked item is still required before the corresponding live 
   `INTENTIVE_TERMS_URL=https://terms.heyintentive.com/`, and
   `INTENTIVE_SUPPORT_URL=https://support.heyintentive.com/`.
   All four were read back; secret rows were unchanged and no build was started.
-- [ ] Finish the remaining Codemagic Beta publication `GH_TOKEN` and approved
-  backend/feed/download bindings. Signing/notarization secrets are now stored.
+- [x] Store the existing Intentive Release App private key in Codemagic as protected
+  `INTENTIVE_RELEASE_APP_PRIVATE_KEY`. Verified 2026-09-09: exactly one masked value
+  persisted in `intentive_macos_release` after a page reload; no token was minted and
+  no build or release started.
+- [x] Save the five approved candidate backend/feed/download inputs in
+  `intentive_macos_release`. Verified after reload on 2026-09-09: API and protected
+  approved origin are `https://knowledge-athlete-dev-674306938907.us-west1.run.app`;
+  Stable feed is `/v2/desktop/appcast.xml`, Beta adds `?identity=beta`, and the
+  manual-download base is `/v2/desktop/download/latest`. The workflow already owns
+  the GitHub releases URL. This saved configuration started no build, deployment,
+  or publication; hosted Beta activation remains separately approved.
   The preview group remains unconfigured and is not a five-person Beta prerequisite.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
@@ -271,14 +280,15 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Generate a new Sparkle EdDSA keypair, store it under the separate `heyintentive` Keychain account, configure the public key in Codemagic, and record its public-key fingerprint above.
 - [x] Add the Sparkle private key only to Codemagic's protected `intentive_macos_release` group.
 - [x] Configure protected Codemagic variable `SENTRY_AUTH_TOKEN` in `intentive_macos_release` for dSYM upload to `heyintentive/desktop-macos`. The Sentry organization token is named `intentive-macos-release-symbols`, has only the `org:ci` scope, and was verified against Sentry's debug-files endpoint before storage. The token value must never be committed.
-- [ ] Configure the owned production backend URL, appcast/feed URL, manual-download URL, and GitHub release URL as release inputs. Store the exact production API origin separately as protected `INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN` in every release environment and both Codemagic groups; it must match the production app URL and preview-registry URL before any credential is loaded or sent. No origin is approved yet, so missing values must keep release/update behavior disabled.
+- [ ] Complete the protected GitHub Beta environment's matching API/origin and promotion-token bindings. The Codemagic release group's five candidate addresses above are approved and saved; this does not approve public Stable or configure Preview. Missing environment-specific authority must continue to block that operation.
 - [x] Configure the owned `Intentive Release` GitHub App (`intentive-release`,
   app ID `4838294`, installation `159216850`), installed only on
   `sruj75/knowledge-athlete`. Its ID/private key are protected GitHub secrets.
   Verified 2026-09-05: App authentication and scoped check/workflow reads passed;
   Actions/Contents/Pull requests are write-enabled, Checks/Metadata read-only.
   The ephemeral verification token was revoked; no tag or release was created.
-  This does not populate Codemagic's separate `GH_TOKEN` publication input.
+  Codemagic's separate protected Release App private-key input was populated and
+  read back masked on 2026-09-09; no installation token or release was created.
 - [ ] Protect `main` through the existing required CI checks and PR-only merges.
   Verified 2026-09-05: neither branch protection nor a ruleset is configured.
 - [ ] Exercise the owner-manual qualification path on an exact signed candidate. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates the owner-uploaded evidence and exact artifacts.
