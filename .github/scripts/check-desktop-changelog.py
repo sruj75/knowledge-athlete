@@ -12,6 +12,13 @@ UNRELEASED_CHANGELOG_PREFIX = "desktop/macos/changelog/unreleased/"
 CHANGELOG_PREFIX = "desktop/macos/changelog/"
 DESKTOP_PREFIX = "desktop/macos/"
 EXEMPT_DESKTOP_PATHS = {
+    # These only build, update or exercise local Dev bundles; none ships in
+    # Stable/Beta. Cover push too (FC-push-gate-internal-path-scope), rather than
+    # relying on the PR-only no-changelog-needed label.
+    "desktop/macos/run.sh",
+    "desktop/macos/scripts/omi-dev",
+    "desktop/macos/scripts/bundle-size-harness.sh",
+    "desktop/macos/scripts/desktop-core-harness.sh",
     "desktop/macos/CHANGELOG.json",
     "desktop/macos/AGENTS.md",
     "desktop/macos/docs/release.md",

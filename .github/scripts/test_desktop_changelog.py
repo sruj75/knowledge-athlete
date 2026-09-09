@@ -70,6 +70,12 @@ class EncodingTests(unittest.TestCase):
 class ChangelogRequirementTests(unittest.TestCase):
     def test_internal_release_controls_are_exempt_but_product_source_is_not(self) -> None:
         for path in (
+            # Local Dev entrypoints are not included in signed Beta/Stable;
+            # this must hold on post-merge push without any PR label.
+            "desktop/macos/run.sh",
+            "desktop/macos/scripts/omi-dev",
+            "desktop/macos/scripts/bundle-size-harness.sh",
+            "desktop/macos/scripts/desktop-core-harness.sh",
             "desktop/macos/docs/release.md",
             "desktop/macos/scripts/qualify-desktop-beta.sh",
             "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh",
@@ -108,6 +114,7 @@ class ChangelogRequirementTests(unittest.TestCase):
         for path in (
             "desktop/macos/Desktop/Sources/AppDelegate.swift",
             "desktop/macos/scripts/some-user-facing-script.sh",
+            "desktop/macos/scripts/prepare-release-libwebp.sh",
             "desktop/macos/agent/src/runtime/control-tools.ts",
             "desktop/macos/agent/tests-extra/runtime.ts",
         ):

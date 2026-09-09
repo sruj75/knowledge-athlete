@@ -232,7 +232,7 @@ fi
 
 BUILD_DIR="build"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
-APP_PATH="/Applications/$APP_NAME.app"
+APP_PATH="$(python3 "$SCRIPT_DIR/../../scripts/dev-harness/dev_harness/desktop_paths.py" "$APP_NAME")" || exit 2
 # Agent runtime source (staged into the app bundle at Resources/agent below).
 # Without this, `[ -d "$AGENT_DIR/dist" ]` tests an empty path and the agent
 # copy is silently skipped → app shows "AI components missing".
@@ -1155,9 +1155,9 @@ xattr -cr "$APP_BUNDLE"
 step "Auditing app bundle dependencies..."
 "$(dirname "$0")/scripts/audit-desktop-bundle-deps.sh" "$APP_BUNDLE"
 
-step "Installing to /Applications/..."
-# Install to /Applications/ so "Quit & Reopen" (after granting screen recording
-# permission) launches the correct binary instead of a stale copy elsewhere.
+step "Installing to $APP_PATH..."
+# Register one canonical installed copy so permission-triggered relaunches use it.
+mkdir -p "$(dirname "$APP_PATH")"
 rm -rf "$APP_PATH"
 ditto "$APP_BUNDLE" "$APP_PATH"
 substep "Installed to $APP_PATH"
@@ -1170,7 +1170,7 @@ step "Clearing stale LaunchServices registration..."
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 $LSREGISTER -u "$APP_BUNDLE" 2>/dev/null || true
 $LSREGISTER -u "$APP_PATH" 2>/dev/null || true
-# Register the /Applications/ copy as the canonical bundle for this bundle ID
+# Register the installed copy as the canonical bundle for this bundle ID.
 $LSREGISTER -f "$APP_PATH" 2>/dev/null || true
 
 # Agent preparation may stage the universal Node executable after the initial

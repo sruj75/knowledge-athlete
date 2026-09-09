@@ -1,0 +1,19 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+# Provider credentials and release exports are never copied into new workspaces.
+file_include_globs = "!**"
+
+[scripts]
+setup = "bash scripts/dev-harness/conductor-dev.sh setup"
+archive = "bash scripts/dev-harness/conductor-dev.sh archive"
+run_mode = "concurrent"
+
+[scripts.run.dev]
+command = "bash scripts/dev-harness/conductor-dev.sh start"
+available_in = ["local"]
+default = true
+icon = "play"
+
+[scripts.run.dev-status]
+command = "bash scripts/dev-harness/conductor-dev.sh status"
+available_in = ["local"]
+icon = "activity"

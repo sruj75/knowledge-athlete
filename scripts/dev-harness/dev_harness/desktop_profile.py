@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping
 from urllib.parse import urlparse
 
-from . import config, safety, synthetic_profiles
+from . import config, desktop_paths, safety, synthetic_profiles
 
 LOCAL_APP_NAME = "Intentive Dev"
 LOCAL_DISPLAY_NAME = "Intentive Dev"
@@ -189,7 +189,9 @@ def resolve_profile(
     bundle_id = _local_bundle_id(app_name)
     url_scheme = _local_url_scheme(app_name)
     storage_name = _local_storage_name(app_name)
+    app_root = str(desktop_paths.configured_app_path(app_name, env).parent)
     env = {
+        "OMI_DEV_APP_ROOT": app_root,
         "OMI_DESKTOP_LOCAL_PROFILE": "1",
         "OMI_LOCAL_PROVIDER_MODE": cfg.provider_mode,
         "OMI_HARNESS_INSTANCE": cfg.instance,

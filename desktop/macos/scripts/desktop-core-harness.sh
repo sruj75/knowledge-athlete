@@ -631,7 +631,8 @@ record_owned_fault_app() {
   source "$SCRIPT_DIR/app-config.sh"
   derive_omi_app_config "$FAULT_BUNDLE"
   bundle_id="$BUNDLE_ID"
-  app_path="/Applications/${FAULT_BUNDLE}.app"
+  # run.sh validates the requested install root; match that exact launch receipt.
+  app_path="${OMI_DEV_APP_ROOT:-/Applications}/${FAULT_BUNDLE}.app"
   executable_path="$app_path/Contents/MacOS/Omi Computer"
   FAULT_APP_RECORD="$FAULT_RUN_DIR/fault-app.json"
   umask 077
@@ -722,8 +723,8 @@ expected = {
     "run_token": run_token,
     "bundle": bundle,
     "bundle_id": f"com.heyintentive.intentive.dev.{bundle}",
-    "app_path": f"/Applications/{bundle}.app",
-    "executable_path": f"/Applications/{bundle}.app/Contents/MacOS/Omi Computer",
+    "app_path": str(Path(os.environ.get("OMI_DEV_APP_ROOT") or "/Applications") / f"{bundle}.app"),
+    "executable_path": str(Path(os.environ.get("OMI_DEV_APP_ROOT") or "/Applications") / f"{bundle}.app/Contents/MacOS/Omi Computer"),
     "automation_port": int(port),
 }
 if any(payload.get(key) != value for key, value in expected.items()):

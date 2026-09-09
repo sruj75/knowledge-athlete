@@ -6,7 +6,7 @@
 checks:
   - id: dev-harness-unit-tests
     command: ["bash", "scripts/dev-harness/run-tests.sh"]
-    triggers: ["Makefile", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
+    triggers: ["Makefile", ".conductor/settings.toml", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the hermetic dev-harness stack backs release qualification; its reduced retained-service lifecycle must stay behaviorally covered"
   - id: dev-init-setup-ownership

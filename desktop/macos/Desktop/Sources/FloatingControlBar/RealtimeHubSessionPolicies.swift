@@ -889,9 +889,15 @@ enum VoiceAudioIngressOwnership {
   static func accepts(
     turnID: VoiceTurnID,
     activeTurnID: VoiceTurnID?,
-    capturingInput: Bool
+    phase: VoiceTurnPhase?,
+    route: VoiceTurnRoute?,
+    admittedInputTurnID: VoiceTurnID?
   ) -> Bool {
-    turnID == activeTurnID && capturingInput
+    guard turnID == activeTurnID, let phase else { return false }
+    if phase.isRecording { return true }
+    guard phase == .finalizing, admittedInputTurnID == turnID else { return false }
+    if case .hub = route { return true }
+    return false
   }
 }
 
