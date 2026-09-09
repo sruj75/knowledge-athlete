@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from scripts.runtime_env_contracts import validate_account_deletion_dispatch_contract
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/validate-backend-runtime-env.py'
 READINESS_PROPOSAL_ARGS = (
@@ -160,6 +162,94 @@ def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inp
     assert all(binding.get('version') != 'latest' for binding in backend['secrets'].values())
 
 
+def test_dev_runtime_declares_owner_beta_admission_release_controls_and_capture_off():
+    validator = load_validator()
+    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    backend = manifest['environments']['dev']['cloud_run']['services']['backend']
+
+    assert backend['env']['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] == {
+        'env_var': 'INTENTIVE_HOSTED_PARTICIPANT_UIDS',
+        'category': 'access_control',
+    }
+    assert backend['env']['ADMIN_KEY_AUTH_ENABLED'] == {
+        'value': 'false',
+        'category': 'access_control',
+    }
+    assert backend['env']['OMI_PARITY_PACK_CAPTURE'] == {
+        'value': '0',
+        'category': 'replay_capture',
+    }
+    assert {'OMI_PARITY_PACK_ALLOWED_PRINCIPALS', 'OMI_PARITY_PACK_ROOT'}.isdisjoint(backend['env'])
+    assert {name: backend['secrets'][name] for name in ('ADMIN_KEY', 'BETA_PROMOTION_TOKEN', 'GITHUB_TOKEN')} == {
+        'ADMIN_KEY': {'secret': 'ADMIN_KEY', 'version_env_var': 'ADMIN_KEY_VERSION'},
+        'BETA_PROMOTION_TOKEN': {
+            'secret': 'BETA_PROMOTION_TOKEN',
+            'version_env_var': 'BETA_PROMOTION_TOKEN_VERSION',
+        },
+        'GITHUB_TOKEN': {'secret': 'GITHUB_TOKEN', 'version_env_var': 'GITHUB_TOKEN_VERSION'},
+    }
+
+
+def test_dev_beta_runtime_contract_rejects_literal_participant_identity_and_enabled_capture(tmp_path):
+    validator = load_validator()
+    manifest = copy.deepcopy(validator._load_yaml(validator.DEFAULT_MANIFEST))
+    backend = manifest['environments']['dev']['cloud_run']['services']['backend']
+    backend['env']['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] = {
+        'value': 'raw-firebase-owner-uid',
+        'category': 'access_control',
+    }
+    backend['env']['OMI_PARITY_PACK_CAPTURE']['value'] = '1'
+    backend['env']['ADMIN_KEY_AUTH_ENABLED'] = {
+        'value': 'true',
+        'category': 'access_control',
+    }
+    backend['secrets'].pop('ADMIN_KEY', None)
+    backend['secrets']['GITHUB_TOKEN'] = {
+        'secret': 'WRONG_GITHUB_TOKEN',
+        'version_env_var': 'GITHUB_TOKEN_VERSION',
+    }
+    manifest_path = tmp_path / 'runtime_env.yaml'
+    write_yaml(manifest_path, manifest)
+
+    errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path)
+
+    assert (
+        validator.ValidationError(
+            'dev/cloud_run/backend',
+            'INTENTIVE_HOSTED_PARTICIPANT_UIDS must bind the environment-owned input of the same name',
+        )
+        in errors
+    )
+    assert (
+        validator.ValidationError(
+            'dev/cloud_run/backend',
+            "hosted Beta parity capture must be literal '0'",
+        )
+        in errors
+    )
+    assert (
+        validator.ValidationError(
+            'dev/cloud_run/backend',
+            "hosted Beta ADMIN_KEY impersonation must be literal 'false'",
+        )
+        in errors
+    )
+    assert (
+        validator.ValidationError(
+            'dev/cloud_run/backend',
+            'ADMIN_KEY must bind Secret Manager ADMIN_KEY through $ADMIN_KEY_VERSION',
+        )
+        in errors
+    )
+    assert (
+        validator.ValidationError(
+            'dev/cloud_run/backend',
+            'GITHUB_TOKEN must bind Secret Manager GITHUB_TOKEN through $GITHUB_TOKEN_VERSION',
+        )
+        in errors
+    )
+
+
 @pytest.mark.parametrize(
     ('env_name', 'network_flags', 'cpu', 'memory', 'minimum', 'maximum', 'cpu_mode'),
     [
@@ -264,7 +354,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
     prod = copy.deepcopy(manifest['environments']['prod'])
 
-    assert validator._validate_account_deletion_dispatch_contract('prod', prod) == []
+    assert validate_account_deletion_dispatch_contract('prod', prod) == []
 
     backend_env = prod['cloud_run']['services']['backend']['env']
     missing_entry = backend_env.pop('ACCOUNT_DELETION_DISPATCH_MODE')
@@ -272,7 +362,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
         assert validator.ValidationError(
             'prod/cloud_run/backend',
             'missing required account-deletion env ACCOUNT_DELETION_DISPATCH_MODE',
-        ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+        ) in validate_account_deletion_dispatch_contract('prod', prod)
     finally:
         backend_env['ACCOUNT_DELETION_DISPATCH_MODE'] = missing_entry
 
@@ -283,7 +373,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
         assert validator.ValidationError(
             'prod/cloud_run/backend',
             "account-deletion env ACCOUNT_DELETION_DISPATCH_MODE must be literal 'cloud_tasks'",
-        ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+        ) in validate_account_deletion_dispatch_contract('prod', prod)
     finally:
         dispatch_mode['value'] = original_mode
 
@@ -291,7 +381,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
     assert validator.ValidationError(
         'prod/cloud_run',
         'canonical backend must be the only Cloud Run service',
-    ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+    ) in validate_account_deletion_dispatch_contract('prod', prod)
 
 
 def test_repo_cloud_run_workflows_match_manifest():
@@ -372,7 +462,29 @@ def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json
         )
 
 
-def test_automatic_dev_runtime_contract_steps_receive_every_secret_version_input():
+@pytest.mark.parametrize(
+    ('workflow_name', 'contract_steps'),
+    [
+        (
+            'gcp_backend.yml',
+            {
+                'Preflight Cloud Run deploy',
+                'Render backend runtime env',
+                'Validate backend runtime env after deploy',
+            },
+        ),
+        (
+            'gcp_backend_auto_dev.yml',
+            {
+                'Preflight Cloud Run deploy',
+                'Render backend runtime env',
+                'Check development Cloud Run runtime bindings',
+                'Validate backend runtime env after deploy',
+            },
+        ),
+    ],
+)
+def test_dev_runtime_contract_steps_receive_every_secret_version_input(workflow_name, contract_steps):
     """Static workflow tripwire for the runtime-manifest renderer and its preflight callers."""
     manifest = yaml.safe_load((ROOT / 'deploy/runtime_env.yaml').read_text(encoding='utf-8'))
     service_secrets = manifest['environments']['dev']['cloud_run']['services']['backend']['secrets']
@@ -381,13 +493,7 @@ def test_automatic_dev_runtime_contract_steps_receive_every_secret_version_input
         for binding in service_secrets.values()
         if isinstance(binding, dict) and 'version_env_var' in binding
     }
-    workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml').read_text(encoding='utf-8'))
-    contract_steps = {
-        'Preflight Cloud Run deploy',
-        'Render backend runtime env',
-        'Check development Cloud Run runtime bindings',
-        'Validate backend runtime env after deploy',
-    }
+    workflow = yaml.safe_load((ROOT.parent / '.github/workflows' / workflow_name).read_text(encoding='utf-8'))
 
     deploy_steps = {step.get('name'): step for step in workflow['jobs']['deploy']['steps']}
     assert contract_steps <= deploy_steps.keys()
@@ -395,6 +501,11 @@ def test_automatic_dev_runtime_contract_steps_receive_every_secret_version_input
         step_env = deploy_steps[step_name].get('env', {})
         missing = sorted(required_versions - step_env.keys())
         assert missing == [], f'{step_name} does not receive secret version inputs: {missing}'
+        # GitHub reserves GITHUB_* configuration names; the renderer's process env is unchanged.
+        assert step_env['GITHUB_TOKEN_VERSION'] == '${{ vars.INTENTIVE_GITHUB_TOKEN_VERSION }}'
+
+    renderer_env = deploy_steps['Render backend runtime env'].get('env', {})
+    assert renderer_env['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] == '${{ vars.INTENTIVE_HOSTED_PARTICIPANT_UIDS }}'
 
 
 def test_workflow_validation_uses_immutable_workflow_root_with_admitted_runtime_manifest(tmp_path):
