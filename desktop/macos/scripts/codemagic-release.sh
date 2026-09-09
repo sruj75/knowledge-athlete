@@ -398,6 +398,7 @@ import_signing() {
   keychain initialize
   keychain_path="$(keychain get-default)"
   security import "$p12_path" \
+    -f pkcs12 \
     -k "$keychain_path" \
     -P "$MACOS_DEVELOPER_ID_P12_PASSWORD" \
     -T /usr/bin/codesign \

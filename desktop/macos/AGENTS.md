@@ -86,10 +86,10 @@ Stable is manual:
 **Artifact provider:** the Codemagic login is established and the owned application is
 `6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the Mac builder; GitHub creates an exact
 tag or approves an exact preview SHA, then observes/dispatches the provider workflow. The
-protected groups hold owned app, signing and provider inputs. Publication mints a one-hour token for only
-`sruj75/knowledge-athlete` Contents write/implicit Metadata read, with a 30s request bound, never `CM_ENV`;
-the App key itself can exercise every App permission. Unexpected returned authority/lifetime fails closed.
-The protected App key and five candidate endpoints are saved; builds require exact-main checks and deliberate dispatch.
+protected groups hold owned inputs. Publication mints a one-hour `sruj75/knowledge-athlete` Contents-write
+token (implicit Metadata read), bound to 30s and never `CM_ENV`; its App key retains all App permissions.
+Unexpected returned authority/lifetime fails closed. Import the saved PKCS#12 with `security import -f pkcs12`;
+builds still require exact-main checks and deliberate dispatch.
 Live `notarytool history` authenticated, but no new artifact has been notarized.
 
 ## Firebase Connection
