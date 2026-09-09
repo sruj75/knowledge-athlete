@@ -497,7 +497,7 @@ jobs:
           rm -rf "$GITHUB_WORKSPACE/.deploy-control"
           mkdir -p "$workflow_root"
           mkdir -p "$(dirname "$control_scripts")"
-          cp -a "$RUNNER_TEMP/backend-deploy-workflow-source/.github" "$workflow_root/.github"
+          cp -a "$RUNNER_TEMP/backend-deploy-workflow-source/." "$workflow_root/"
           cp -a "$RUNNER_TEMP/backend-deploy-control-scripts" "$control_scripts"
           rm -rf "$RUNNER_TEMP/backend-deploy-workflow-source"
           rm -rf "$RUNNER_TEMP/backend-deploy-control-scripts"
