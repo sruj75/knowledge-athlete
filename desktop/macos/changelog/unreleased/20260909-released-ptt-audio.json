@@ -1,0 +1,3 @@
+{
+  "change": "Fixed short push-to-talk releases that could drop captured audio while updated chat history was loading"
+}
