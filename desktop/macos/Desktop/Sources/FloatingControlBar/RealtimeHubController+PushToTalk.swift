@@ -271,11 +271,14 @@ extension RealtimeHubController {
       ensureWarm()
     }
     if let requestedTurnID {
+      let activeTurn = VoiceTurnCoordinator.shared.activeTurn
       guard requestedTurnID == VoiceTurnCoordinator.shared.activeTurnID,
         VoiceAudioIngressOwnership.accepts(
           turnID: requestedTurnID,
           activeTurnID: VoiceTurnCoordinator.shared.activeTurnID,
-          capturingInput: reducerCapturingInput)
+          phase: activeTurn?.phase,
+          route: activeTurn?.route,
+          admittedInputTurnID: admittedInputTurnID)
       else {
         log("RealtimeHub: dropping audio for closed/stale turn \(requestedTurnID)")
         return

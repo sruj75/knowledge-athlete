@@ -527,6 +527,12 @@ final class PushToTalkHeadlessAutomationTests: XCTestCase {
         XCTAssertEqual(manager.endPushToTalkForAutomation()["finalized"], "true")
       }
       XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
+      let transport = await warmSession.inputLifecycleSnapshot()
+      XCTAssertEqual(
+        transport.testingSentAudioByteCount,
+        voicedPCM.count,
+        "the exact admitted turn must deliver every retained PCM byte to the provider before commit"
+      )
       XCTAssertEqual(
         manager.ownerBoundarySnapshot.bufferedAudioBytes,
         voicedPCM.count,

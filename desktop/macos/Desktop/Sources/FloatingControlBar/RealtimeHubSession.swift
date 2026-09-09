@@ -64,6 +64,7 @@ enum HubAuth {
     let pendingCommit: Bool
     let responseIdentityCount: Int
     let inputIdentityCount: Int
+    let testingSentAudioByteCount: Int
     let testingResponseCreateCount: Int
     let testingLastResponseToolChoice: String?
     let testingLastResponseInstruction: String?
@@ -98,6 +99,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     // explicit readiness seam is a successful local transport boundary, not a
     // disconnected production session.
     private var acceptsTestingTransport = false
+    private var testingSentAudioByteCount = 0
     private var testingResponseCreateCount = 0
     private var testingLastResponseToolChoice: String?
     private var testingLastResponseInstruction: String?
@@ -291,6 +293,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
               pendingCommit: self.pendingCommit,
               responseIdentityCount: 0,
               inputIdentityCount: 0,
+              testingSentAudioByteCount: self.testingSentAudioByteCount,
               testingResponseCreateCount: self.testingResponseCreateCount,
               testingLastResponseToolChoice: self.testingLastResponseToolChoice,
               testingLastResponseInstruction: self.testingLastResponseInstruction))
@@ -744,6 +747,9 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   /// Send one mic PCM frame to the provider. Must be called on `q` with `isOpen`.
   /// Shared by sendAudio (live) and the markReady flush of buffered pre-connect audio.
   private func appendAudioFrame(_ pcm: Data) {
+    #if DEBUG
+      testingSentAudioByteCount += pcm.count
+    #endif
     let b64 = pcm.base64EncodedString()
     send(json: ["realtimeInput": ["audio": ["data": b64, "mimeType": "audio/pcm;rate=16000"]]])
   }

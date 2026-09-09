@@ -950,19 +950,42 @@ final class RealtimeHubBargeInContinuityTests: XCTestCase {
     XCTAssertEqual(replacementTurn.audioBuffer, [Data([3, 4])])
   }
 
-  func testAudioIngressClosesAtCommitAndCannotRebindToNextTurn() {
+  func testAudioIngressAdmitsOnlyTheCanonicalCurrentTurnInputWindow() {
     let turnA = VoiceTurnID()
     let turnB = VoiceTurnID()
 
     XCTAssertTrue(
       VoiceAudioIngressOwnership.accepts(
-        turnID: turnA, activeTurnID: turnA, capturingInput: true))
+        turnID: turnA, activeTurnID: turnA, phase: .recording,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: nil))
+    XCTAssertTrue(
+      VoiceAudioIngressOwnership.accepts(
+        turnID: turnA, activeTurnID: turnA, phase: .finalizing,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: turnA))
     XCTAssertFalse(
       VoiceAudioIngressOwnership.accepts(
-        turnID: turnA, activeTurnID: turnA, capturingInput: false))
+        turnID: turnA, activeTurnID: turnA, phase: .finalizing,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: nil))
     XCTAssertFalse(
       VoiceAudioIngressOwnership.accepts(
-        turnID: turnA, activeTurnID: turnB, capturingInput: true))
+        turnID: turnA, activeTurnID: turnA, phase: .awaitingResponse,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: turnA))
+    XCTAssertFalse(
+      VoiceAudioIngressOwnership.accepts(
+        turnID: turnA, activeTurnID: turnA, phase: .terminal(.success),
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: turnA))
+    XCTAssertFalse(
+      VoiceAudioIngressOwnership.accepts(
+        turnID: turnA, activeTurnID: turnA, phase: .finalizing,
+        route: .managedBatch, admittedInputTurnID: turnA))
+    XCTAssertFalse(
+      VoiceAudioIngressOwnership.accepts(
+        turnID: turnA, activeTurnID: turnB, phase: .recording,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: nil))
+    XCTAssertFalse(
+      VoiceAudioIngressOwnership.accepts(
+        turnID: turnA, activeTurnID: turnB, phase: .finalizing,
+        route: .hub(sessionID: VoiceSessionID()), admittedInputTurnID: turnA))
   }
 
   func testWarmHubErrorCannotTerminateFallbackRoute() {
