@@ -1,0 +1,7 @@
+{
+  "version": "0.0.2",
+  "date": "2026-09-09",
+  "changes": [
+    "Fixed short push-to-talk releases that could drop captured audio while updated chat history was loading"
+  ]
+}
