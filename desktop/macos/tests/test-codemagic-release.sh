@@ -74,21 +74,64 @@ make_executable "$mock_bin/gcloud" \
   '/bin/cp "$mapped_source" "$mapped_destination"'
 make_executable "$mock_bin/curl" \
   'payload=""' \
+  'authorization=""' \
+  'url=""' \
+  'connect_timeout=""; total_timeout=""' \
   'while [[ "$#" -gt 0 ]]; do' \
-  '  if [[ "$1" == "--data" ]]; then payload="$2"; shift 2; else shift; fi' \
+  '  case "$1" in' \
+  '    --data) payload="$2"; shift 2 ;;' \
+  '    -H|--header) [[ "$2" == Authorization:* ]] && authorization="$2"; shift 2 ;;' \
+  '    --connect-timeout) connect_timeout="$2"; shift 2 ;;' \
+  '    --max-time) total_timeout="$2"; shift 2 ;;' \
+  '    http*) url="$1"; shift ;;' \
+  '    *) shift ;;' \
+  '  esac' \
   'done' \
-  'printf "%s\n" "$payload" > "${TEST_CURL_PAYLOAD:?}"'
+  'case "$url" in' \
+  '  https://api.github.com/app/installations/*/access_tokens)' \
+  '    printf "%s\n" mint >> "${TEST_COMMAND_TRACE:?}"' \
+  '    printf "%s\n" "$payload" > "${TEST_APP_TOKEN_REQUEST:?}"' \
+  '    printf "%s\n" "$authorization" > "${TEST_APP_AUTHORIZATION:?}"' \
+  '    printf "%s %s\n" "$connect_timeout" "$total_timeout" > "${TEST_APP_TIMEOUTS:?}"' \
+  '    printf "%s" "${TEST_APP_TOKEN_RESPONSE:?}"' \
+  '    exit "${TEST_APP_TOKEN_EXIT:-0}"' \
+  '    ;;' \
+  '  *)' \
+  '    printf "%s\n" preview-registry >> "${TEST_COMMAND_TRACE:?}"' \
+  '    printf "%s\n" "$payload" > "${TEST_CURL_PAYLOAD:?}"' \
+  '    ;;' \
+  'esac'
+make_executable "$mock_bin/gh" \
+  'printf "gh:%s %s\n" "${1:-}" "${2:-}" >> "${TEST_COMMAND_TRACE:?}"' \
+  'printf "%s\n" "${GH_TOKEN:-}" >> "${TEST_GH_TOKENS:?}"' \
+  'case "${1:-} ${2:-}" in' \
+  '  "release view") [[ "${TEST_RELEASE_EXISTS:-false}" == "true" ]] ;;' \
+  '  "release create") printf "%s\n" "$*" > "${TEST_GH_CREATE_ARGS:?}" ;;' \
+  '  *) echo "unexpected gh call: $*" >&2; exit 1 ;;' \
+  'esac'
 
 preview_slug="focus-notes"
 preview_id="p$(printf '%s' "$preview_slug" | shasum -a 256 | cut -c1-10)"
 preview_notes=$'Try the focus flow.\nCheck the new keyboard shortcut.'
 cm_env="$TMP_ROOT/cm.env"
 curl_payload="$TMP_ROOT/preview-payload.json"
+command_trace="$TMP_ROOT/command-trace.txt"
+app_token_request="$TMP_ROOT/app-token-request.json"
+app_authorization="$TMP_ROOT/app-authorization.txt"
+app_timeouts="$TMP_ROOT/app-timeouts.txt"
+gh_tokens="$TMP_ROOT/gh-tokens.txt"
+gh_create_args="$TMP_ROOT/gh-create-args.txt"
 gcp_key_base64="$(printf '{}\n' | base64)"
 common_env=(
   "PATH=$mock_bin:$PATH"
   "TEST_PREVIEW_SHA=$preview_sha"
   "TEST_CURL_PAYLOAD=$curl_payload"
+  "TEST_COMMAND_TRACE=$command_trace"
+  "TEST_APP_TOKEN_REQUEST=$app_token_request"
+  "TEST_APP_AUTHORIZATION=$app_authorization"
+  "TEST_APP_TIMEOUTS=$app_timeouts"
+  "TEST_GH_TOKENS=$gh_tokens"
+  "TEST_GH_CREATE_ARGS=$gh_create_args"
   "PREVIEW_MODE=true"
   "PREVIEW_PUBLICATION_MODE=preview-only"
   "APP_NAME=Intentive Preview"
@@ -237,7 +280,9 @@ release_env=(
   "INTENTIVE_SPARKLE_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
   "SPARKLE_PRIVATE_KEY=fixture-sparkle-private-key"
   "SENTRY_AUTH_TOKEN=fixture-sentry-token"
-  "GH_TOKEN=fixture-github-token"
+  "GH_TOKEN="
+  "INTENTIVE_RELEASE_APP_ID=4838294"
+  "INTENTIVE_RELEASE_APP_INSTALLATION_ID=159216850"
   "INTENTIVE_PRODUCTION_API_URL=https://api.heyintentive.com"
   "INTENTIVE_APPROVED_PRODUCTION_API_ORIGIN=https://api.heyintentive.com"
   "INTENTIVE_STABLE_FEED_URL=https://updates.heyintentive.com/v2/desktop/appcast.xml"
@@ -291,6 +336,35 @@ for rejected_bundle in com.heyintentive.intentive com.heyintentive.intentive.bet
     fail "provider continued inspecting after an artifact failure"
 done
 
+fixture_release_app_private_key_path="$TMP_ROOT/release-app-private-key.pem"
+openssl genrsa 2048 > "$fixture_release_app_private_key_path" 2>/dev/null
+chmod 600 "$fixture_release_app_private_key_path"
+fixture_release_app_private_key="$(<"$fixture_release_app_private_key_path")"
+release_env+=("INTENTIVE_RELEASE_APP_PRIVATE_KEY=$fixture_release_app_private_key")
+
+: > "$command_trace"
+release_cm_env="$TMP_ROOT/release.env"
+env "${release_env[@]}" CM_ENV="$release_cm_env" "$SCRIPT" validate >/dev/null
+[[ ! -s "$command_trace" ]] || fail "initial release validation minted a pre-aged installation token"
+if grep -q 'fixture-github-token\|BEGIN .*PRIVATE KEY\|INTENTIVE_RELEASE_APP_PRIVATE_KEY' "$release_cm_env"; then
+  fail "GitHub publication credential leaked into CM_ENV"
+fi
+
+if env "${release_env[@]}" INTENTIVE_RELEASE_APP_INSTALLATION_ID=42 \
+  CM_ENV="$TMP_ROOT/rejected-release-app.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-release-app.err"; then
+  fail "wrong GitHub Release App installation unexpectedly passed"
+fi
+grep -q 'unexpected GitHub Release App installation ID' "$TMP_ROOT/rejected-release-app.err" ||
+  fail "wrong GitHub Release App installation rejection was not explicit"
+
+if env "${release_env[@]}" INTENTIVE_RELEASE_APP_PRIVATE_KEY=not-a-private-key \
+  CM_ENV="$TMP_ROOT/rejected-release-key.env" "$SCRIPT" validate \
+  >/dev/null 2>"$TMP_ROOT/rejected-release-key.err"; then
+  fail "malformed GitHub Release App private key unexpectedly passed"
+fi
+grep -q 'GitHub Release App private key is invalid' "$TMP_ROOT/rejected-release-key.err" ||
+  fail "malformed GitHub Release App private-key rejection was not explicit"
 if env "${release_env[@]}" \
   INTENTIVE_PRODUCTION_API_URL=https://attacker.example \
   CM_ENV="$TMP_ROOT/rejected-production-origin.env" "$SCRIPT" validate \
@@ -337,5 +411,152 @@ if env "${common_env[@]}" TEST_GCS_DIR="$gcs_root" "$SCRIPT" publish \
 fi
 grep -q 'already exists with a different digest' "$TMP_ROOT/rejected-immutable.err" ||
   fail "immutable preview conflict was not explicit"
+
+if grep -Fxq mint "$command_trace"; then
+  fail "preview publication unexpectedly requested a production release token"
+fi
+
+release_build="$TMP_ROOT/release-build"
+mkdir -p "$release_build"
+for artifact in \
+  Intentive.zip \
+  intentive.dmg \
+  Intentive.Beta.zip \
+  intentive-beta.dmg \
+  Intentive.app.dSYM.zip \
+  desktop-smoke-result.json \
+  desktop-smoke-result-beta.json; do
+  printf 'signed release fixture: %s\n' "$artifact" > "$release_build/$artifact"
+done
+token_expires_at="$(python3 - <<'PY'
+from datetime import datetime, timedelta, timezone
+
+print((datetime.now(timezone.utc) + timedelta(minutes=55)).isoformat().replace("+00:00", "Z"))
+PY
+)"
+installation_token="ghs_fixture_installation_token"
+token_response="$(jq -cn \
+  --arg token "$installation_token" \
+  --arg expires_at "$token_expires_at" \
+  '{token: $token, expires_at: $expires_at, permissions: {contents: "write", metadata: "read"}, repository_selection: "selected", repositories: [{full_name: "sruj75/knowledge-athlete"}]}')"
+publish_env=(
+  "${release_env[@]}"
+  "BUILD_DIR=$release_build"
+  "VERSION=1.2.3"
+  "SOURCE_SHA=$preview_sha"
+  "ED_SIGNATURE=stable-signature"
+  "BETA_ED_SIGNATURE=beta-signature"
+  "TEST_APP_TOKEN_RESPONSE=$token_response"
+  "TEST_RELEASE_EXISTS=false"
+)
+
+: > "$command_trace"
+: > "$gh_tokens"
+env "${publish_env[@]}" "$SCRIPT" publish >/dev/null
+[[ "$(sed -n '1p' "$command_trace")" == mint ]] || fail "release publication did not mint just in time"
+[[ "$(sed -n '2p' "$command_trace")" == "gh:release view" ]] || fail "release lookup did not follow token mint"
+[[ "$(sed -n '3p' "$command_trace")" == "gh:release create" ]] || fail "release creation did not follow lookup"
+[[ "$(wc -l < "$command_trace" | tr -d ' ')" == 3 ]] || fail "release publication ran unexpected commands"
+jq -e \
+  '.repositories == ["knowledge-athlete"] and .permissions == {"contents": "write"}' \
+  "$app_token_request" >/dev/null || fail "installation token request exceeded the exact repository/permission scope"
+while IFS= read -r observed_token; do
+  [[ "$observed_token" == "$installation_token" ]] || fail "gh did not receive only the minted installation token"
+done < "$gh_tokens"
+grep -Fq -- '--verify-tag' "$gh_create_args" || fail "create-only publication lost tag verification"
+grep -Fq -- '--target aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$gh_create_args" ||
+  fail "create-only publication lost exact source binding"
+
+jwt="$(sed 's/^Authorization: Bearer //' "$app_authorization")"
+IFS=. read -r jwt_header jwt_payload jwt_signature <<< "$jwt"
+python3 - "$jwt_header" "$jwt_payload" <<'PY'
+import base64
+import json
+import sys
+import time
+
+
+def decode(segment: str) -> dict:
+    padded = segment + "=" * (-len(segment) % 4)
+    return json.loads(base64.urlsafe_b64decode(padded))
+
+
+header = decode(sys.argv[1])
+payload = decode(sys.argv[2])
+assert header == {"alg": "RS256", "typ": "JWT"}
+assert payload["iss"] == "4838294"
+assert payload["exp"] - payload["iat"] == 600
+assert payload["iat"] <= int(time.time()) <= payload["exp"]
+PY
+printf '%s' "$jwt_header.$jwt_payload" > "$TMP_ROOT/jwt-message"
+python3 - "$jwt_signature" "$TMP_ROOT/jwt-signature" <<'PY'
+import base64
+from pathlib import Path
+import sys
+
+segment = sys.argv[1]
+Path(sys.argv[2]).write_bytes(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
+PY
+openssl pkey -in "$fixture_release_app_private_key_path" -pubout -out "$TMP_ROOT/release-app-public-key.pem" 2>/dev/null
+openssl dgst -sha256 \
+  -verify "$TMP_ROOT/release-app-public-key.pem" \
+  -signature "$TMP_ROOT/jwt-signature" \
+  "$TMP_ROOT/jwt-message" >/dev/null || fail "GitHub App JWT signature does not match the protected private key"
+
+: > "$command_trace"
+bad_token_response="$(jq '.token = "private-response-token" | .repositories = [{full_name: "attacker/other"}]' <<< "$token_response")"
+if env "${publish_env[@]}" TEST_APP_TOKEN_RESPONSE="$bad_token_response" "$SCRIPT" publish \
+  >/dev/null 2>"$TMP_ROOT/rejected-token-response.err"; then
+  fail "wrong-repository installation token response unexpectedly passed"
+fi
+grep -q 'installation token response failed validation' "$TMP_ROOT/rejected-token-response.err" ||
+  fail "wrong-repository token response rejection was not explicit"
+if grep -q 'private-response-token\|attacker/other' "$TMP_ROOT/rejected-token-response.err"; then
+  fail "installation token response body leaked into error output"
+fi
+[[ "$(cat "$command_trace")" == mint ]] || fail "invalid installation token response reached gh"
+
+# Execute the actual response parser with one changed authority/lifetime field.
+# GitHub's installation-token contract is one hour with requested permissions:
+# https://docs.github.com/en/rest/apps/apps#create-an-installation-access-token-for-an-app
+for invalid_response in \
+  '.permissions.actions = "read"' \
+  '.expires_at = "2099-01-01T00:00:00Z"' \
+  '.repository_selection = "all"'; do
+  : > "$command_trace"
+  bad_token_response="$(jq "$invalid_response" <<< "$token_response")"
+  if env "${publish_env[@]}" TEST_APP_TOKEN_RESPONSE="$bad_token_response" "$SCRIPT" publish \
+    >"$TMP_ROOT/rejected-token-contract.out" 2>"$TMP_ROOT/rejected-token-contract.err"; then
+    fail "out-of-contract installation token response unexpectedly passed: $invalid_response"
+  fi
+  [[ "$(cat "$command_trace")" == mint ]] || fail "out-of-contract token reached gh"
+  grep -q 'installation token response failed validation' "$TMP_ROOT/rejected-token-contract.err" ||
+    fail "token contract rejection was not explicit"
+  if grep -Fq "$installation_token" "$TMP_ROOT/rejected-token-contract.out" "$TMP_ROOT/rejected-token-contract.err"; then
+    fail "rejected token leaked into diagnostics"
+  fi
+done
+
+: > "$command_trace"
+if env "${publish_env[@]}" TEST_APP_TOKEN_EXIT=28 "$SCRIPT" publish \
+  >"$TMP_ROOT/rejected-token-transport.out" 2>"$TMP_ROOT/rejected-token-transport.err"; then
+  fail "failed token transport unexpectedly reached publication"
+fi
+[[ "$(cat "$command_trace")" == mint ]] || fail "failed token transport reached gh"
+[[ "$(cat "$app_timeouts")" == '10 30' ]] || fail "token transport is not bounded to 10s connect and 30s total"
+if grep -Fq "$installation_token" "$TMP_ROOT/rejected-token-transport.out" "$TMP_ROOT/rejected-token-transport.err"; then
+  fail "failed token transport leaked response credentials"
+fi
+
+: > "$command_trace"
+if env "${publish_env[@]}" TEST_RELEASE_EXISTS=true "$SCRIPT" publish \
+  >/dev/null 2>"$TMP_ROOT/rejected-existing-release.err"; then
+  fail "existing immutable candidate unexpectedly passed"
+fi
+grep -q 'already exists; refusing to replace' "$TMP_ROOT/rejected-existing-release.err" ||
+  fail "existing immutable candidate rejection was not explicit"
+[[ "$(sed -n '1p' "$command_trace")" == mint ]] || fail "existing-release check did not use a fresh token"
+[[ "$(sed -n '2p' "$command_trace")" == "gh:release view" ]] || fail "existing-release check did not query GitHub"
+[[ "$(wc -l < "$command_trace" | tr -d ' ')" == 2 ]] || fail "existing release reached candidate creation"
 
 echo "PASS: Codemagic release source, identity, secret boundary, and immutable retry contracts"

@@ -83,13 +83,14 @@ Stable is manual:
   promotion must check the configured owned production API; no production API is approved yet.
   Do not manually edit release visibility or pointers outside the promotion workflow.
 
-**Artifact provider:** the Codemagic login is established and the selected owned application is
-`6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the only Mac builder; GitHub creates an exact
-tag or approves an exact preview SHA, then observes/dispatches the owned provider workflow. The
-protected groups hold the owned Firebase, PostHog, Sparkle and Sentry inputs plus Developer ID P12/password
-and Apple notarization key/issuer/ID. Live `notarytool history` authenticated successfully; no new artifact
-has been notarized. Publication credentials and endpoint bindings remain missing, so do not dispatch yet.
-The redundant empty provider record was deleted; only the selected application is a build authority.
+**Artifact provider:** the Codemagic login is established and the owned application is
+`6a8ff0296fc70d39540cb56a`. Root `codemagic.yaml` is the Mac builder; GitHub creates an exact
+tag or approves an exact preview SHA, then observes/dispatches the provider workflow. The
+protected groups hold owned app, signing and provider inputs. Publication mints a one-hour token for only
+`sruj75/knowledge-athlete` Contents write/implicit Metadata read, with a 30s request bound, never `CM_ENV`;
+the App key itself can exercise every App permission. Unexpected returned authority/lifetime fails closed.
+The protected App key and five candidate endpoints are saved; builds require exact-main checks and deliberate dispatch.
+Live `notarytool history` authenticated, but no new artifact has been notarized.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.

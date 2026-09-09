@@ -157,6 +157,27 @@ def test_provider_guard_rejects_reordered_release_phases(monkeypatch):
     assert any("ordered release phase" in error for error in errors)
 
 
+def test_provider_guard_rejects_missing_jit_release_app_token_boundary(monkeypatch):
+    # omi-test-quality: source-inspection -- static provider wiring must keep the
+    # reviewed GitHub App endpoint while the executable shell test owns behavior.
+    real_read = GUARDS._read
+
+    def read_without_release_app_token_boundary(relative_path: str, errors: list[str]) -> str:
+        text = real_read(relative_path, errors)
+        if relative_path == "desktop/macos/scripts/codemagic-release.sh":
+            return text.replace(
+                "https://api.github.com/app/installations/$INTENTIVE_RELEASE_APP_INSTALLATION_ID/access_tokens",
+                "https://api.github.com/missing-installation-token-boundary",
+            )
+        return text
+
+    monkeypatch.setattr(GUARDS, "_read", read_without_release_app_token_boundary)
+
+    errors = GUARDS.check_codemagic_provider_controls()
+
+    assert any("INTENTIVE_RELEASE_APP_INSTALLATION_ID/access_tokens" in error for error in errors)
+
+
 def test_provider_guard_rejects_credentials_loaded_before_origin_validation(monkeypatch):
     real_read = GUARDS._read
 

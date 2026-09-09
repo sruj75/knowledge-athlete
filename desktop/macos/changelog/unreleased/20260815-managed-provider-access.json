@@ -1,3 +1,0 @@
-{
-  "change": "Removed customer API-key controls and routed desktop AI, voice, transcription, and agent requests through managed Omi access"
-}
