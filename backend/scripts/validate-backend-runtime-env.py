@@ -23,9 +23,9 @@ from scripts.firestore_workflow_policy import (  # noqa: E402
 from scripts.backend_workflow_contract import validate_immutable_deploy_contract  # noqa: E402
 from scripts import cloud_run_deployment_identity  # noqa: E402
 from scripts.foundation_contract import validation_messages as foundation_validation_messages  # noqa: E402
-from scripts.runtime_env_durable_dispatch_contracts import (  # noqa: E402
+from scripts.runtime_env_contracts import (  # noqa: E402
     ValidationError,
-    validate_account_deletion_dispatch_contract as _validate_account_deletion_dispatch_contract,
+    validate_runtime_env_contracts as _validate_runtime_env_contracts,
 )
 
 DEFAULT_MANIFEST = ROOT / 'backend/deploy/runtime_env.yaml'
@@ -33,7 +33,6 @@ ConfigDict = dict[str, Any]
 EnvEntry = dict[str, Any]
 EnvEntryMap = dict[str, EnvEntry]
 StringMap = dict[str, str]
-
 _MANAGED_STT_CLOUD_RUN_SERVICES = ('backend',)
 _RETIRED_STT_RUNTIME_ENV = frozenset(
     {
@@ -127,7 +126,7 @@ def validate_runtime_env(
         return errors
 
     errors.extend(_validate_managed_stt_contract(env, env_config))
-    errors.extend(_validate_account_deletion_dispatch_contract(env, env_config))
+    errors.extend(_validate_runtime_env_contracts(env, env_config))
     if check_workflows:
         errors.extend(
             _validate_cloud_run_workflows(

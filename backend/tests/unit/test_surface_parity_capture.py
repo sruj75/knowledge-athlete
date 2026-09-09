@@ -9,7 +9,6 @@ import yaml
 
 from testing.parity_pack_v0.live_capture import SurfaceParityCapture
 
-
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = BACKEND_ROOT.parent
 LOCAL_PARITY_SETTINGS = {
@@ -106,13 +105,17 @@ def test_surface_capture_stays_local_when_legacy_gcs_settings_are_present(tmp_pa
 
 def test_runtime_and_deployment_classification_retain_only_local_parity_settings():
     runtime = yaml.safe_load((BACKEND_ROOT / "deploy/runtime_env.yaml").read_text(encoding="utf-8"))
-    runtime_settings = set(runtime["environments"]["dev"]["cloud_run"]["services"]["backend"]["env"])
+    runtime_env = runtime["environments"]["dev"]["cloud_run"]["services"]["backend"]["env"]
+    runtime_settings = set(runtime_env)
     classified = json.loads(
         (REPOSITORY_ROOT / "config/deployment-setting-classification.json").read_text(encoding="utf-8")
     )
     classified_settings = set(classified["kinds"]["config"])
 
-    assert {setting for setting in runtime_settings if setting.startswith("OMI_PARITY_PACK_")} == LOCAL_PARITY_SETTINGS
+    assert {setting for setting in runtime_settings if setting.startswith("OMI_PARITY_PACK_")} == {
+        "OMI_PARITY_PACK_CAPTURE"
+    }
+    assert runtime_env["OMI_PARITY_PACK_CAPTURE"]["value"] == "0"
     assert {
         setting for setting in classified_settings if setting.startswith("OMI_PARITY_PACK_")
     } == LOCAL_PARITY_SETTINGS
