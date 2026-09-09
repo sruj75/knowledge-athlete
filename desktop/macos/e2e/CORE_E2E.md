@@ -152,6 +152,10 @@ Evidence contract: `.harness/desktop-core/<run-id>/{manifest.json, flows/, summa
 4. T2 hermetic failures: confirm `provider_mode: offline` in `manifest.json`, `PROVIDER_MODE=offline` in dev-harness `config-digest.json`, `OMI_LLM_STUB=1` on the canonical backend, and bridge `/v1/health`. If a live stack is already up, the harness fails loudly instead of reusing it.
 5. **`dev-up failed: Port 8085 for firestore is already in use by a foreign process`:** Another harness instance (or stale Firebase emulator) owns the default ports. Either `make dev-down` on the owning worktree, or set a separate `OMI_INSTANCE` / harness state root before `PROVIDER_MODE=offline make dev-up`. If emulators are healthy but process records are stale, flows can still be qualified manually: launch `make desktop-run-local DESKTOP_APP_NAME=omi-core-e2e DESKTOP_USER=alice`, note the automation port, then run each T2 flow with `python3 scripts/omi-harness run e2e/flows/<name>.yaml --lane bridge --port <PORT>`.
 6. T3 failures: check LLM credentials / quota; inspect gauntlet evidence under `.harness/agent-continuity-gauntlet/`.
+   A required chat turn whose exact user row is present and whose idle snapshot reports an error fails immediately,
+   retaining privacy-safe structured evidence in `terminal-main-chat-error.json`; it does not wait for a missing
+   assistant row or add a second no-response failure. Resilience probes stop at the same terminal boundary and
+   classify the error through their existing diagnostic path instead of aborting the whole run.
 
 ## Wave 8 qualification (2026-07-09)
 
