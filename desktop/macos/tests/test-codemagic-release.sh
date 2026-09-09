@@ -42,6 +42,46 @@ make_executable() {
 
 mock_bin="$TMP_ROOT/bin"
 mkdir -p "$mock_bin"
+make_executable "$mock_bin/keychain" \
+  'case "${1:-}" in' \
+  '  initialize) printf "%s\n" keychain-initialize >> "${TEST_SIGNING_TRACE:?}" ;;' \
+  '  get-default) printf "%s\n" "${TEST_KEYCHAIN_PATH:?}" ;;' \
+  '  *) echo "unexpected keychain call: $*" >&2; exit 1 ;;' \
+  'esac'
+make_executable "$mock_bin/security" \
+  'case "${1:-}" in' \
+  '  import)' \
+  '    shift' \
+  '    imported_path="${1:?missing imported certificate path}"' \
+  '    shift' \
+  '    import_format=""; keychain_path=""; password=""; trust_codesign=false; trust_security=false' \
+  '    while [[ "$#" -gt 0 ]]; do' \
+  '      case "$1" in' \
+  '        -f) import_format="$2"; shift 2 ;;' \
+  '        -k) keychain_path="$2"; shift 2 ;;' \
+  '        -P) password="$2"; shift 2 ;;' \
+  '        -T)' \
+  '          [[ "$2" == /usr/bin/codesign ]] && trust_codesign=true' \
+  '          [[ "$2" == /usr/bin/security ]] && trust_security=true' \
+  '          shift 2' \
+  '          ;;' \
+  '        *) echo "unexpected security import argument: $1" >&2; exit 1 ;;' \
+  '      esac' \
+  '    done' \
+  '    [[ "$import_format" == pkcs12 ]] || { echo "security import did not declare PKCS#12" >&2; exit 64; }' \
+  '    [[ "$keychain_path" == "${TEST_KEYCHAIN_PATH:?}" ]] || exit 65' \
+  '    [[ "$password" == "${TEST_P12_PASSWORD:?}" ]] || exit 66' \
+  '    [[ "$trust_codesign" == true && "$trust_security" == true ]] || exit 67' \
+  '    [[ "$(stat -f %Lp "$imported_path")" == 600 ]] || exit 68' \
+  '    /usr/bin/cmp -s "$imported_path" "${TEST_EXPECTED_P12:?}" || exit 69' \
+  '    printf "%s\t%s\t%s\n" "$import_format" "$keychain_path" "$password" > "${TEST_SECURITY_IMPORT_RECORD:?}"' \
+  '    printf "%s\n" "$imported_path" > "${TEST_SECURITY_IMPORT_PATH:?}"' \
+  '    [[ "${TEST_SECURITY_IMPORT_EXIT:-0}" == 0 ]] || exit "${TEST_SECURITY_IMPORT_EXIT}"' \
+  '    ;;' \
+  '  set-key-partition-list) printf "%s\n" partition-list >> "${TEST_SIGNING_TRACE:?}" ;;' \
+  '  find-identity) printf "%s\n" "  1) ABCDEF \"Developer ID Application: Intentive (24D6NXS6H7)\"" ;;' \
+  '  *) echo "unexpected security call: $*" >&2; exit 1 ;;' \
+  'esac'
 preview_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 # The single-quoted lines are intentionally emitted into the fake executables.
 make_executable "$mock_bin/git" \
@@ -293,6 +333,66 @@ release_env=(
   "INTENTIVE_PRIVACY_URL=https://heyintentive.com/privacy"
   "INTENTIVE_SUPPORT_URL=https://heyintentive.com/support"
 )
+
+# Execute the production import-signing entrypoint against the keychain/security
+# process boundary. SecItemImport accepts an explicit external-format hint; the
+# release path must declare PKCS#12 rather than infer from mktemp's random suffix.
+# https://developer.apple.com/documentation/security/secitemimport(_:_:_:_:_:_:_:_:)
+signing_fixture="$TMP_ROOT/developer-id-fixture.p12"
+# Opaque binary payload: the native API reproduction proves the real archive's
+# validity; this fixture proves the shell boundary preserves every input byte.
+printf 'opaque\000PKCS12\377fixture\n\000' > "$signing_fixture"
+signing_fixture_base64="$(base64 < "$signing_fixture" | tr -d '\n')"
+signing_password='fixture password ! with spaces'
+signing_trace="$TMP_ROOT/signing-trace.txt"
+signing_record="$TMP_ROOT/security-import-record.tsv"
+signing_import_path="$TMP_ROOT/security-import-path.txt"
+signing_cm_env="$TMP_ROOT/signing.env"
+fixture_keychain="$TMP_ROOT/intentive-build.keychain-db"
+: > "$signing_trace"
+: > "$signing_cm_env"
+env "${release_env[@]}" \
+  CM_ENV="$signing_cm_env" \
+  MACOS_DEVELOPER_ID_P12="$signing_fixture_base64" \
+  MACOS_DEVELOPER_ID_P12_PASSWORD="$signing_password" \
+  TEST_EXPECTED_P12="$signing_fixture" \
+  TEST_KEYCHAIN_PATH="$fixture_keychain" \
+  TEST_P12_PASSWORD="$signing_password" \
+  TEST_SECURITY_IMPORT_RECORD="$signing_record" \
+  TEST_SECURITY_IMPORT_PATH="$signing_import_path" \
+  TEST_SIGNING_TRACE="$signing_trace" \
+  "$SCRIPT" import-signing >/dev/null
+[[ "$(cat "$signing_record")" == $'pkcs12\t'"$fixture_keychain"$'\t'"$signing_password" ]] ||
+  fail "Developer ID import lost its explicit format, keychain, or password"
+grep -Fxq 'keychain-initialize' "$signing_trace" || fail "signing import did not initialize its owned keychain"
+grep -Fxq 'partition-list' "$signing_trace" || fail "signing import did not configure its key partition list"
+grep -Fxq 'SIGN_IDENTITY=Developer ID Application: Intentive (24D6NXS6H7)' "$signing_cm_env" ||
+  fail "signing import did not export the owned Developer ID identity"
+imported_temp_path="$(cat "$signing_import_path")"
+[[ ! -e "$imported_temp_path" ]] || fail "decoded Developer ID temporary file was not removed"
+
+: > "$signing_trace"
+: > "$signing_cm_env"
+if env "${release_env[@]}" \
+  CM_ENV="$signing_cm_env" \
+  MACOS_DEVELOPER_ID_P12="$signing_fixture_base64" \
+  MACOS_DEVELOPER_ID_P12_PASSWORD="$signing_password" \
+  TEST_EXPECTED_P12="$signing_fixture" \
+  TEST_KEYCHAIN_PATH="$fixture_keychain" \
+  TEST_P12_PASSWORD="$signing_password" \
+  TEST_SECURITY_IMPORT_RECORD="$signing_record" \
+  TEST_SECURITY_IMPORT_PATH="$signing_import_path" \
+  TEST_SECURITY_IMPORT_EXIT=53 \
+  TEST_SIGNING_TRACE="$signing_trace" \
+  "$SCRIPT" import-signing >/dev/null 2>"$TMP_ROOT/rejected-signing-import.err"; then
+  fail "failed PKCS#12 import unexpectedly passed"
+else
+  signing_import_exit=$?
+fi
+[[ "$signing_import_exit" == 53 ]] || fail "security import failure status was not preserved"
+[[ ! -s "$signing_cm_env" ]] || fail "failed signing import exported a signing identity"
+imported_temp_path="$(cat "$signing_import_path")"
+[[ ! -e "$imported_temp_path" ]] || fail "failed Developer ID import retained decoded certificate bytes"
 
 # Execute the real provider smoke phase against a controlled artifact inspector.
 # This proves the producer requests the callbacks its qualification consumer
