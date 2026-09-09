@@ -18,6 +18,21 @@ SPEC.loader.exec_module(CHECKER)
 
 
 class GcpBackendProductionBoundaryTests(unittest.TestCase):
+    def test_static_candidate_tag_fits_cloud_run_service_budget_and_distinguishes_attempts(self) -> None:
+        """Workflow tripwire for Cloud Run's rejection in deployment run 34377808355."""
+        workflow = (ROOT / ".github/workflows/gcp_backend.yml").read_text(encoding="utf-8")
+        template = next(line.split(": ", 1)[1] for line in workflow.splitlines() if line.startswith("  CANDIDATE_TAG: "))
+        tags: set[str] = set()
+        for run_id, attempt in (("34377808355", "1"), ("34377808355", "2"), ("34377808356", "1")):
+            with self.subTest(run_id=run_id, attempt=attempt):
+                tag = template.replace("${{ github.run_id }}", run_id).replace("${{ github.run_attempt }}", attempt)
+                tags.add(tag)
+                self.assertNotIn("${{", tag)
+                self.assertRegex(tag, r"^[a-z][a-z0-9-]*[a-z0-9]$")
+                # Live Google API rejected 47; the combined service/tag ceiling is 46.
+                self.assertLessEqual(len("knowledge-athlete-dev") + len(tag), 46)
+        self.assertEqual(len(tags), 3)
+
     def test_current_workflow_preserves_the_rollback_first_cloud_run_only_boundary(self) -> None:
         self.assertEqual(CHECKER.validate(ROOT), [])
 

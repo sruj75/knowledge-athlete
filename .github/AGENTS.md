@@ -27,9 +27,7 @@ These rules apply to GitHub Actions workflows and custom actions under `.github/
   vector and run `backend/scripts/verify_backend_release_vector.py` after
   traffic promotion; a mixed or partially applied serving vector must fail the
   workflow and emit evidence for a retry.
-- Keep candidate health, no-traffic acceptance, traffic snapshot, promotion,
-  serving verification, production smoke, and conditional restoration in that
-  order inside the locked backend deploy job.
+- Locked deploy order: candidate health/no-traffic acceptance, traffic snapshot/promotion, serving verification/smoke, conditional rollback. Service + run/attempt tag must fit 46 characters (boundary fixtures).
 - Backend deploy workflows may only run Firestore index readiness with `--check-only` against `RUNTIME_GCP_PROJECT_ID`; run it in an isolated job from the approved commit with `GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT`, and bind manual deploys to the exact checked candidate SHA. A failed gate may upload only a locally revalidated, bounded, redacted schema proposal artifact; Firestore index writes use the separate `GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT` in the manual, main-scoped `gcp_firestore_indexes.yml` workflow and share the backend-stack lock.
 - `backend/deploy/runtime_env.yaml` owns Cloud Run shape and the redacted foundation contract. Both deploy workflows must consume its renderer outputs, take the stable `run.app` URL as an explicit environment input for fresh-service bootstrap, verify the discovered URL after deploy, and bind exact Secret Manager versions. The manual `foundation-readiness` mode is read-only describe/drift evidence; `artifact-cleanup-dry-run` never deletes. Resource existence is never inferred from the tracked declaration.
 - Keep `actionlint` in CI. Policy/owner-flow manifest checks and their owner-test child run with `python3 -I -S`.

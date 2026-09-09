@@ -58,7 +58,7 @@ env:
   SERVICE: backend
   REGION: us-west1
   CHAT_CONTRACT_VERSION: '2'
-  CANDIDATE_TAG: backend-gate-${{ github.run_id }}-${{ github.run_attempt }}
+  CANDIDATE_TAG: gate-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   validate-production-boundary:
