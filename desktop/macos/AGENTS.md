@@ -89,7 +89,7 @@ tag or approves an exact preview SHA, then observes/dispatches the provider work
 protected groups hold owned app, signing and provider inputs. Publication mints a one-hour token for only
 `sruj75/knowledge-athlete` Contents write/implicit Metadata read, with a 30s request bound, never `CM_ENV`;
 the App key itself can exercise every App permission. Unexpected returned authority/lifetime fails closed.
-Codemagic still lacks protected `INTENTIVE_RELEASE_APP_PRIVATE_KEY` and endpoints, so do not dispatch.
+The protected `INTENTIVE_RELEASE_APP_PRIVATE_KEY` is saved; endpoint bindings still block dispatch.
 Live `notarytool history` authenticated, but no new artifact has been notarized.
 
 ## Firebase Connection
