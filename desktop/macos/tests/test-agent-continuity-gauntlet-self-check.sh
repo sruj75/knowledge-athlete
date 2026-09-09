@@ -122,6 +122,154 @@ for rejected in (
     "GAUNTLET 20260908T135048Z BDD1E7B0 TYPEDX",  # embedded suffix
 ):
     assert not module.spoken_reply_mentions_marker(rejected, typed_marker)
+
+# A required chat turn must finish on either its own terminal assistant row or
+# its own terminal error. The latter must fail the run immediately, retain only
+# privacy-safe evidence, and never burn the outer deadline or add a second
+# "no assistant" failure.
+def runner_args(run_dir: Path) -> object:
+    return type(
+        "Args",
+        (),
+        {
+            "port": 47777,
+            "bundle_id": "com.heyintentive.intentive.dev.omi-gauntlet-fixture",
+            "run_id": "terminal-error-fixture",
+            "run_dir": str(run_dir),
+            "log_path": str(run_dir / "app.log"),
+            "suite": "prompts",
+            "require_live_voice": False,
+            "turn_timeout_ms": 90_000,
+        },
+    )()
+
+
+module.capture_trace_cursor = lambda: "fixture-cursor"
+module.read_new_traces = lambda _cursor: [{"model": "fixture-model", "token_count": 2}]
+module.time.sleep = lambda _seconds: (_ for _ in ()).throw(AssertionError("turn wait slept"))
+
+query = "fixture current-facts query"
+success_calls = []
+
+
+def success_bridge_action(_port, name, _params=None, **_kwargs):
+    success_calls.append(name)
+    if name == "ask_main_chat":
+        return {"ok": True, "result": {"detail": {"accepted": "true"}}}
+    if name == "wait_main_chat_idle":
+        return {"ok": True, "result": {"detail": {"idle": "true", "has_error": "false"}}}
+    if name == "main_chat_snapshot":
+        return {
+            "ok": True,
+            "result": {
+                "detail": {
+                    "idle": "true",
+                    "has_error": "false",
+                    "messages_json": module.json.dumps(
+                        [
+                            {"role": "user", "text": query, "streaming": "false"},
+                            {"role": "assistant", "text": "fixture answer", "streaming": "false"},
+                        ]
+                    ),
+                }
+            },
+        }
+    raise AssertionError(f"unexpected success action: {name}")
+
+
+module.bridge_action = success_bridge_action
+success_runner = module.GauntletRunner(runner_args(fixture_root / "success-run"))
+_send, success_snapshot, success_traces = success_runner.send_and_wait(query, 90_000)
+assert module.current_turn_assistant_text(success_snapshot, query) == "fixture answer"
+assert success_traces == [{"model": "fixture-model", "token_count": 2}]
+assert success_runner.failures == []
+assert success_calls == ["ask_main_chat", "wait_main_chat_idle", "main_chat_snapshot", "main_chat_snapshot"]
+
+superseded_snapshot = {
+    "has_error": "true",
+    "messages_json": module.json.dumps(
+        [
+            {"role": "user", "text": query, "streaming": "false"},
+            {"role": "user", "text": "later fixture query", "streaming": "false"},
+        ]
+    ),
+}
+assert not module.current_turn_has_terminal_error(superseded_snapshot, query)
+
+denial_calls = []
+private_error = "fixture provider detail that must not survive evidence hygiene"
+
+
+def denial_bridge_action(_port, name, _params=None, **_kwargs):
+    denial_calls.append(name)
+    if name == "ask_main_chat":
+        return {"ok": True, "result": {"detail": {"accepted": "true"}}}
+    if name == "wait_main_chat_idle":
+        return {"ok": True, "result": {"detail": {"idle": "true", "has_error": "true"}}}
+    if name == "main_chat_snapshot":
+        return {
+            "ok": True,
+            "result": {
+                "detail": {
+                    "idle": "true",
+                    "is_sending": "false",
+                    "is_streaming": "false",
+                    "has_error": "true",
+                    "current_error": "quota",
+                    "error_message": private_error,
+                    "messages_json": module.json.dumps(
+                        [{"role": "user", "text": query, "streaming": "false"}]
+                    ),
+                }
+            },
+        }
+    raise AssertionError(f"unexpected denial action: {name}")
+
+
+module.bridge_action = denial_bridge_action
+module.git_sha = lambda: "a" * 40
+module.sine_pcm16k = lambda: b""
+module.finalize_evidence_hygiene = lambda *_args, **_kwargs: None
+denial_run_dir = fixture_root / "denial-run"
+denial_runner = module.GauntletRunner(runner_args(denial_run_dir))
+denial_runner.suites = {"prompts"}
+denial_runner.ensure_bridge = lambda: None
+denial_runner.navigate_chat = lambda: None
+denial_runner.clear_kernel_hygiene_if_available = lambda: None
+denial_runner.run_prompts_suite = lambda: denial_runner.send_and_wait(query, 90_000)
+
+assert denial_runner.run() == 1
+assert denial_calls == ["ask_main_chat", "wait_main_chat_idle", "main_chat_snapshot"]
+assert len(denial_runner.failures) == 1
+assert "timed out waiting" not in denial_runner.failures[0]
+assert "no terminal assistant" not in denial_runner.failures[0]
+terminal_evidence = denial_run_dir / "terminal-main-chat-error.json"
+assert terminal_evidence.is_file()
+serialized_terminal_evidence = terminal_evidence.read_text(encoding="utf-8")
+assert private_error not in serialized_terminal_evidence
+assert query not in serialized_terminal_evidence
+assert module.json.loads(serialized_terminal_evidence)["privacy_class"] == "hashed-summary"
+manifest = module.json.loads((denial_run_dir / "manifest.json").read_text(encoding="utf-8"))
+assert manifest["passed"] is False
+assert len(manifest["failures"]) == 1
+
+denial_calls.clear()
+resilience_runner = module.GauntletRunner(runner_args(fixture_root / "resilience-denial"))
+resilience_runner.suites = {"resilience"}
+send, snapshot, traces = resilience_runner.send_and_wait_resilience(query, 90_000)
+assert denial_calls == ["ask_main_chat", "wait_main_chat_idle", "main_chat_snapshot", "main_chat_snapshot"]
+terminal_reason = resilience_runner.classify_resilience_turn(
+    scenario="fixture-resilience",
+    iteration=1,
+    query=query,
+    send=send,
+    snapshot=snapshot,
+    traces=traces,
+    require_trace=False,
+)
+assert terminal_reason == "generic_chat_error"
+assert len(resilience_runner.failures) == 1
+assert "timed out waiting" not in resilience_runner.failures[0]
 PY
 
 "$RUNNER"
