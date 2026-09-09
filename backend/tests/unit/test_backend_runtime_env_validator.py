@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from scripts.runtime_env_contracts import validate_account_deletion_dispatch_contract
+
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/validate-backend-runtime-env.py'
 READINESS_PROPOSAL_ARGS = (
@@ -352,7 +354,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
     manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
     prod = copy.deepcopy(manifest['environments']['prod'])
 
-    assert validator._validate_account_deletion_dispatch_contract('prod', prod) == []
+    assert validate_account_deletion_dispatch_contract('prod', prod) == []
 
     backend_env = prod['cloud_run']['services']['backend']['env']
     missing_entry = backend_env.pop('ACCOUNT_DELETION_DISPATCH_MODE')
@@ -360,7 +362,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
         assert validator.ValidationError(
             'prod/cloud_run/backend',
             'missing required account-deletion env ACCOUNT_DELETION_DISPATCH_MODE',
-        ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+        ) in validate_account_deletion_dispatch_contract('prod', prod)
     finally:
         backend_env['ACCOUNT_DELETION_DISPATCH_MODE'] = missing_entry
 
@@ -371,7 +373,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
         assert validator.ValidationError(
             'prod/cloud_run/backend',
             "account-deletion env ACCOUNT_DELETION_DISPATCH_MODE must be literal 'cloud_tasks'",
-        ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+        ) in validate_account_deletion_dispatch_contract('prod', prod)
     finally:
         dispatch_mode['value'] = original_mode
 
@@ -379,7 +381,7 @@ def test_account_deletion_dispatch_contract_requires_canonical_backend_profile()
     assert validator.ValidationError(
         'prod/cloud_run',
         'canonical backend must be the only Cloud Run service',
-    ) in validator._validate_account_deletion_dispatch_contract('prod', prod)
+    ) in validate_account_deletion_dispatch_contract('prod', prod)
 
 
 def test_repo_cloud_run_workflows_match_manifest():

@@ -25,7 +25,6 @@ from scripts import cloud_run_deployment_identity  # noqa: E402
 from scripts.foundation_contract import validation_messages as foundation_validation_messages  # noqa: E402
 from scripts.runtime_env_contracts import (  # noqa: E402
     ValidationError,
-    validate_account_deletion_dispatch_contract as _validate_account_deletion_dispatch_contract,
     validate_runtime_env_contracts as _validate_runtime_env_contracts,
 )
 
