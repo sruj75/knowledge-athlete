@@ -81,6 +81,11 @@ class ChangelogRequirementTests(unittest.TestCase):
             # alter the desktop application users receive.
             "desktop/macos/scripts/desktop-flow-lint.py",
             "desktop/macos/scripts/desktop_flow_contract.py",
+            # The continuity gauntlet and its flow definitions are internal
+            # qualification infrastructure; PR labels cannot protect main push CI.
+            "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
+            "desktop/macos/e2e/CORE_E2E.md",
+            "desktop/macos/e2e/flows/agent-continuity.yaml",
             # Test files are never user-facing app changes (EXEMPT_DESKTOP_PATH_PREFIXES).
             # #10374's timeout bump touched this file; without the exemption the
             # post-merge push run of the changelog gate reddened main (#10387).
