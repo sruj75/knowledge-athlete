@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -170,6 +172,80 @@ class WorkflowContractTests(unittest.TestCase):
         text = text[:start] + text[end + 1 :]
         before = text.index(before_marker)
         path.write_text(text[:before] + step + text[before:], encoding="utf-8")
+
+    def workflow_script(self, root: Path, name: str) -> str:
+        workflow = (root / CHECKER.MANUAL_WORKFLOW_PATH).read_text(encoding="utf-8")
+        step = CHECKER.named_step_block(workflow, name, 6)
+        self.assertIsNotNone(step)
+        marker = "        run: |\n"
+        self.assertIn(marker, step)
+        script = step.split(marker, 1)[1]
+        return "\n".join(line[10:] if line.startswith("          ") else line for line in script.splitlines())
+
+    def test_manual_workflow_installs_every_staged_workflow_owned_probe(self) -> None:
+        root = self.fixture_root()
+        workspace = root / "workspace"
+        runner_temp = root / "runner-temp"
+        workflow_checkout = workspace / ".workflow-source"
+        (workflow_checkout / ".github/scripts").mkdir(parents=True)
+        shutil.copy2(
+            ROOT / ".github/scripts/backend_candidate_probe.py",
+            workflow_checkout / ".github/scripts/backend_candidate_probe.py",
+        )
+        (workflow_checkout / "backend/scripts").mkdir(parents=True)
+        (workflow_checkout / "backend/scripts/marker.py").write_text("# deploy control\n", encoding="utf-8")
+        (workflow_checkout / "scripts").mkdir()
+        shutil.copy2(ROOT / "scripts/voice-provider-probe.sh", workflow_checkout / "scripts/voice-provider-probe.sh")
+        runner_temp.mkdir()
+        github_env = root / "github-env"
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("GIT_")
+        }
+        env.update(
+            {
+                "GITHUB_ENV": str(github_env),
+                "GITHUB_WORKSPACE": str(workspace),
+                "RUNNER_TEMP": str(runner_temp),
+            }
+        )
+
+        for step_name in (
+            "Stage immutable workflow validation source and deploy-control scripts",
+            "Install immutable workflow validation source and deploy-control scripts",
+        ):
+            result = subprocess.run(
+                ["bash", "-c", self.workflow_script(root, step_name)],
+                cwd=workspace,
+                env=env,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, f"{step_name}: {result.stderr}")
+
+        installed_workflow_root = workspace / ".deploy-workflow-source"
+        installed_probes = (
+            (
+                installed_workflow_root / ".github/scripts/backend_candidate_probe.py",
+                (sys.executable,),
+                "base-url",
+            ),
+            (installed_workflow_root / "scripts/voice-provider-probe.sh", (), "backend_base_url"),
+        )
+        for installed_probe, command_prefix, expected_help in installed_probes:
+            with self.subTest(installed_probe=installed_probe):
+                result = subprocess.run(
+                    [*command_prefix, str(installed_probe), "--help"],
+                    env=env,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected_help, result.stdout)
+        self.assertTrue((workspace / ".deploy-control/scripts/marker.py").is_file())
 
     def test_current_workflows_are_valid(self) -> None:
         self.assertEqual(CHECKER.validate(), [])
