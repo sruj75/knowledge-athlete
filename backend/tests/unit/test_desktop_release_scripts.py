@@ -123,16 +123,39 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
     }
 
     admission.validate_qualification_run(trusted_tag_run, "sruj75/knowledge-athlete", tag, candidate_sha)
+    owner_run = {
+        **trusted_tag_run,
+        "actor": {"login": "sruj75", "id": 120443863},
+        "triggering_actor": {"login": "sruj75", "id": 120443863},
+    }
+    admission.validate_qualification_run(
+        owner_run,
+        "sruj75/knowledge-athlete",
+        tag,
+        candidate_sha,
+        qualification_mode="owner-manual",
+    )
+    with pytest.raises(ValueError, match="owner actor"):
+        admission.validate_qualification_run(
+            {**owner_run, "actor": {"login": "friend", "id": 42}},
+            "sruj75/knowledge-athlete",
+            tag,
+            candidate_sha,
+            qualification_mode="owner-manual",
+        )
     drifted_main_run = {**trusted_tag_run, "head_branch": "main", "head_sha": "b" * 40}
     with pytest.raises(ValueError, match="candidate tag"):
         admission.validate_qualification_run(drifted_main_run, "sruj75/knowledge-athlete", tag, candidate_sha)
 
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
-    assert 'git -C "$source_dir" checkout --quiet --detach "refs/tags/$RELEASE_TAG"' in qualification
+    assert 'ref: ${{ inputs.release_tag }}' in qualification
+    assert "owner_manual_desktop_qualification.py verify" in qualification
+    assert "runs-on: ubuntu-latest" in qualification
+    assert "self-hosted" not in qualification
     # The release attachment is content-addressed from the exact checked-out
     # candidate SHA and evidence digest, not a mutable tag-only filename.
     assert 'asset="qualification-evidence-${TARGET_SHA}-${digest}.json"' in qualification
-    assert 'digest=$(shasum -a 256 "$QUALIFICATION_STAGE/qualification-evidence.json"' in qualification
+    assert 'digest=$(sha256sum "$STAGE/qualification-evidence.json"' in qualification
     assert "gh release upload" in qualification
 
 
@@ -229,6 +252,92 @@ def test_qualification_evidence_accepts_the_side_by_side_beta_artifact_pair():
         with pytest.raises(ValueError, match="exact qualified"):
             qualification_evidence.build_evidence(
                 release, release["tagName"], "a" * 40, {**partial, "__candidate_gate__": gate}
+            )
+
+
+def test_owner_manual_evidence_requires_beta_pair_and_typed_owner_asset_identity():
+    source_sha = "a" * 40
+    body = _release()["body"].replace(
+        "edSignature: signature", "edSignature: signature\nbetaEdSignature: beta-signature"
+    )
+    release = _release(body=body)
+    release["assets"] = [
+        {"name": name, "url": f"https://example.com/{name}", "digest": ""}
+        for name in ("Intentive.zip", "intentive.dmg", "Intentive.Beta.zip", "intentive-beta.dmg")
+    ]
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        files = {}
+        for name in ("Intentive.zip", "intentive.dmg", "Intentive.Beta.zip", "intentive-beta.dmg"):
+            path = root / name
+            path.write_bytes(name.encode())
+            files[name] = path
+        gate = root / "gate.json"
+        gate.write_text(
+            json.dumps(
+                {
+                    "passed": True,
+                    "qualification_mode": "owner-manual",
+                    "release_tag": release["tagName"],
+                    "source_sha": source_sha,
+                }
+            )
+        )
+        bundle_digest = "b" * 64
+        manual = {
+            "schema_version": 1,
+            "asset_name": f"owner-manual-qualification-{source_sha}-{bundle_digest}.zip",
+            "asset_id": 456,
+            "asset_url": (
+                f"https://github.com/sruj75/knowledge-athlete/releases/download/{release['tagName']}/"
+                f"owner-manual-qualification-{source_sha}-{bundle_digest}.zip"
+            ),
+            "sha256": bundle_digest,
+            "uploader_login": "sruj75",
+            "uploader_id": 120443863,
+            "release_id": 789,
+            "created_at": "2026-07-09T11:05:00Z",
+        }
+        evidence = qualification_evidence.build_evidence(
+            release,
+            release["tagName"],
+            source_sha,
+            {**files, "__candidate_gate__": gate},
+            qualification_mode="owner-manual",
+            owner_manual=manual,
+        )
+        assert evidence["qualification_mode"] == "owner-manual"
+        assert evidence["owner_manual"] == manual
+        qualification_evidence.verify_evidence(
+            evidence,
+            release,
+            release["tagName"],
+            source_sha,
+            {name: qualification_evidence.file_sha256(path) for name, path in files.items()},
+        )
+
+        stable_only = {name: path for name, path in files.items() if "Beta" not in name and "beta" not in name}
+        with pytest.raises(ValueError, match="requires exact Intentive Beta"):
+            qualification_evidence.build_evidence(
+                release,
+                release["tagName"],
+                source_sha,
+                {**stable_only, "__candidate_gate__": gate},
+                qualification_mode="owner-manual",
+                owner_manual=manual,
+            )
+
+        runner = qualification_evidence.build_evidence(
+            release, release["tagName"], source_sha, {**files, "__candidate_gate__": gate}
+        )
+        runner["owner_manual"] = manual
+        with pytest.raises(ValueError, match="runner evidence must not contain owner-manual"):
+            qualification_evidence.verify_evidence(
+                runner,
+                release,
+                release["tagName"],
+                source_sha,
+                {name: qualification_evidence.file_sha256(path) for name, path in files.items()},
             )
 
 
@@ -394,29 +503,27 @@ def test_stable_repair_bundle_requires_the_release_publication_time():
         repair_installer.build_repair_bundle(manifest, "gs://knowledge-athlete-desktop-updates-dev")
 
 
-def test_qualification_is_serialized_by_machine_without_release_body_state():
+def test_owner_manual_qualification_is_serialized_by_candidate_without_release_body_state():
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
 
-    # The sole M1 Studio is the serialized resource; a tag-scoped group would
-    # permit competing qualifications to use that same runner concurrently.
-    assert "group: desktop-beta-qualification-m1" in qualification
+    assert "group: desktop-beta-qualification-${{ inputs.release_tag }}" in qualification
     assert "cancel-in-progress: false" in qualification
+    assert "self-hosted" not in qualification
     assert "desktop_qualification_dispatch.py" not in qualification
-    # The verdict accepts a qualification only through the sole M1 job output.
-    assert "M1_QUALIFIED: ${{ needs.qualify-m1-studio.outputs.qualified }}" in qualification
-    assert 'test "$M1_QUALIFIED" = true' in qualification
+    assert "QUALIFIED: ${{ needs.qualify-owner-evidence.outputs.qualified }}" in qualification
+    assert 'test "$QUALIFIED" = true' in qualification
 
 
 def test_qualification_publishes_the_single_artifact_pair_and_immutable_evidence_for_server_readback():
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
 
-    for asset in ("Intentive.zip", "intentive.dmg"):
+    for asset in ("Intentive.zip", "intentive.dmg", "Intentive.Beta.zip", "intentive-beta.dmg"):
         assert asset in qualification
     assert "actions/upload-artifact@v7" in qualification
     assert "--qualification-run-id \"$GITHUB_RUN_ID\"" in qualification
     assert "gh release upload" in qualification
     assert 'asset="qualification-evidence-${TARGET_SHA}-${digest}.json"' in qualification
-    assert '"$QUALIFICATION_STAGE/qualification-evidence.json#$asset"' in qualification
+    assert '"$STAGE/qualification-evidence.json#$asset"' in qualification
     assert "git tag -l 'v*-macos' --sort=-v:refname | head -1" not in qualification
 
 

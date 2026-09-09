@@ -12,6 +12,11 @@ from firebase_admin.auth import CertificateFetchError, ExpiredIdTokenError, Inva
 import logging
 import redis as redis_pkg
 
+from config.participant_admission import (
+    ParticipantAdmissionConfigurationError,
+    ParticipantNotAdmittedError,
+    require_hosted_participant,
+)
 from database.redis_db import check_rate_limit, try_acquire_listen_lock
 from database.users import record_client_device, record_user_platform
 from utils.client_device import resolve_client_device
@@ -59,7 +64,7 @@ def verify_token(token: str) -> str:
         candidate = token[: len(admin_key)].encode()
         if hmac.compare_digest(candidate, admin_key.encode()) and len(token) > len(admin_key):
             impersonated_uid = token[len(admin_key) :]
-            logger.warning('ADMIN_KEY auth used to impersonate uid=%s', impersonated_uid)
+            logger.warning('event=admin_key_auth outcome=impersonation_accepted')
             return impersonated_uid
 
     # Verify Firebase token
@@ -80,20 +85,7 @@ def verify_token(token: str) -> str:
         raise
 
 
-def get_current_user_uid(
-    authorization: str = Header(None),
-    x_app_platform: str = Header(None, alias='X-App-Platform'),
-    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
-    x_app_version: str = Header(None, alias='X-App-Version'),
-) -> str:
-    """FastAPI dependency for HTTP endpoints with Authorization header.
-
-    Side-effect: records the signup/last-active platform for the user via
-    `record_user_platform`, which is throttled via Redis to one Firestore
-    write per (uid, platform) every 10 minutes. Failures here never fail the
-    request — it's telemetry, not auth.
-
-    """
+def _authenticated_http_uid(authorization: str) -> str:
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header not found")
     elif len(str(authorization).split(' ')) != 2:
@@ -106,10 +98,20 @@ def get_current_user_uid(
         logger.error(e)
         raise HTTPException(status_code=401, detail="Invalid authorization token")
 
+    return uid
+
+
+def _record_authenticated_client(
+    uid: str,
+    *,
+    x_app_platform: str | None,
+    x_device_id_hash: str | None,
+    x_app_version: str | None,
+) -> None:
     try:
         record_user_platform(uid, x_app_platform)
     except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_user_platform swallowed error for uid=%s: %s", uid, e)
+        logger.debug("event=client_metadata_failed operation=record_user_platform exception_type=%s", type(e).__name__)
 
     try:
         device_ctx = resolve_client_device(
@@ -124,7 +126,53 @@ def get_current_user_uid(
             app_version=device_ctx.app_version,
         )
     except Exception as e:  # noqa: BLE001 — telemetry must never fail the request
-        logger.debug("record_client_device swallowed error for uid=%s: %s", uid, e)
+        logger.debug("event=client_metadata_failed operation=record_client_device exception_type=%s", type(e).__name__)
+
+
+def _require_http_participant(uid: str) -> None:
+    try:
+        require_hosted_participant(uid)
+    except ParticipantNotAdmittedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ParticipantAdmissionConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def get_current_user_uid(
+    authorization: str = Header(None),
+    x_app_platform: str = Header(None, alias='X-App-Platform'),
+    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
+    x_app_version: str = Header(None, alias='X-App-Version'),
+) -> str:
+    """Authenticate an HTTP request and record best-effort client metadata."""
+
+    uid = _authenticated_http_uid(authorization)
+    _record_authenticated_client(
+        uid,
+        x_app_platform=x_app_platform,
+        x_device_id_hash=x_device_id_hash,
+        x_app_version=x_app_version,
+    )
+
+    return uid
+
+
+def get_current_participant_uid(
+    authorization: str = Header(None),
+    x_app_platform: str = Header(None, alias='X-App-Platform'),
+    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
+    x_app_version: str = Header(None, alias='X-App-Version'),
+) -> str:
+    """Authenticate and admit a hosted-compute participant before metadata writes."""
+
+    uid = _authenticated_http_uid(authorization)
+    _require_http_participant(uid)
+    _record_authenticated_client(
+        uid,
+        x_app_platform=x_app_platform,
+        x_device_id_hash=x_device_id_hash,
+        x_app_version=x_app_version,
+    )
 
     return uid
 
@@ -184,6 +232,21 @@ async def get_current_user_uid_ws_listen(
     the product-managed provider policy and account quota.
     """
     uid = await run_blocking(critical_executor, _verify_ws_auth, authorization)
+
+    return uid
+
+
+async def get_current_participant_uid_ws_listen(
+    websocket: WebSocket = None,  # pyright: ignore[reportArgumentType]  # FastAPI needs bare WebSocket type for WS injection
+    authorization: str = Header(None),
+) -> str:
+    """Authenticate and admit a hosted-compute WebSocket before its handler runs."""
+
+    uid = await run_blocking(critical_executor, _verify_ws_auth, authorization)
+    try:
+        require_hosted_participant(uid)
+    except (ParticipantNotAdmittedError, ParticipantAdmissionConfigurationError) as exc:
+        raise WebSocketException(code=1008, reason=str(exc)) from exc
 
     return uid
 
@@ -322,14 +385,16 @@ def _enforce_rate_limit(key: str, policy_name: str, *, fail_closed: bool = False
     try:
         allowed, _remaining, retry_after = check_rate_limit(key, policy_name, max_requests, window)
     except redis_pkg.exceptions.RedisError as e:  # type: ignore[reportAttributeAccessIssue]  # redis pkg exposes exceptions at runtime
-        logger.error(f"Rate limit Redis error policy={policy_name} key={key}: {e}")
+        logger.error("event=rate_limit outcome=redis_error policy=%s exception_type=%s", policy_name, type(e).__name__)
         if fail_closed:
             raise HTTPException(status_code=503, detail="Rate limiter unavailable")
         return
 
     if not allowed:
         if RATE_LIMIT_SHADOW:
-            logger.warning(f"[shadow] rate_limit_exceeded policy={policy_name} key={key} retry_after={retry_after}")
+            logger.warning(
+                "event=rate_limit outcome=shadow_rejected policy=%s retry_after_seconds=%s", policy_name, retry_after
+            )
             return
         raise HTTPException(
             status_code=429,

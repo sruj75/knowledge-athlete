@@ -7,7 +7,6 @@ import re
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 AUTO_WORKFLOW_PATH = Path(".github/workflows/gcp_backend_auto_dev.yml")
 MANUAL_WORKFLOW_PATH = Path(".github/workflows/gcp_backend.yml")
@@ -221,8 +220,16 @@ def validate_auto_workflow(text: str) -> list[str]:
                 "auto backend scope decision must reject API or identity ambiguity",
             ),
             (
-                "echo \"applies=true\" >> \"$GITHUB_OUTPUT\"",
-                "auto backend scope decision must retain legitimate backend delivery after proof",
+                ".github/scripts/backend_auto_deploy_policy.py",
+                "auto backend scope decision must apply the explicit automatic deployment policy",
+            ),
+            (
+                '--mode "$AUTO_DEV_DEPLOYMENT_MODE"',
+                "auto backend scope decision must consume the workflow-owned deployment mode",
+            ),
+            (
+                '--backend-changed "$backend_changed"',
+                "auto backend scope decision must preserve the existing backend scope result",
             ),
             ("echo \"applies=false\" >> \"$GITHUB_OUTPUT\"", "auto backend scope decision must publish a no-op result"),
             (
@@ -241,9 +248,7 @@ def validate_auto_workflow(text: str) -> list[str]:
             ("Green no-op", "auto backend scope decision must summarize green no-ops"),
         ):
             require_fragment(errors, scope_decision, fragment, message)
-        fallback_summary = (
-            "supersession API proof was unavailable or ambiguous; no cloud work authorized"
-        )
+        fallback_summary = "supersession API proof was unavailable or ambiguous; no cloud work authorized"
         if scope_decision.count(fallback_summary) != 2:
             errors.append("auto backend scope decision must reject API or identity ambiguity")
         for forbidden, message in (
@@ -253,6 +258,12 @@ def validate_auto_workflow(text: str) -> list[str]:
         ):
             if forbidden in scope_decision:
                 errors.append(message)
+    require_fragment(
+        errors,
+        text,
+        "AUTO_DEV_DEPLOYMENT_MODE: manual-only",
+        "auto backend deploy must require the deliberate dispatcher for shared Dev changes",
+    )
     if firestore_job is None:
         errors.append("auto backend deploy is missing its source-admission job")
     else:

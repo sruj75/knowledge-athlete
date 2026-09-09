@@ -32,6 +32,8 @@ COPY --from=builder /opt/venv /opt/venv
 COPY .github/scripts/desktop_release_manifest.py /app/desktop_release_manifest_contract.py
 COPY .github/scripts/desktop_qualification_admission.py /app/desktop_qualification_admission_contract.py
 COPY .github/scripts/desktop_qualification_evidence.py /app/desktop_qualification_evidence_contract.py
+COPY .github/scripts/owner_manual_desktop_qualification.py /app/owner_manual_desktop_qualification_contract.py
+COPY .github/scripts/verify-pre-tag-readiness.py /app/verify-pre-tag-readiness.py
 COPY backend/ .
 
 # Run as a fixed non-root identity. Application code stays root-owned and

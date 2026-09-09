@@ -12,7 +12,7 @@ from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
     stub_gemini_proxy_json,
 )
-from utils.other.endpoints import get_current_user_uid
+from utils.other.endpoints import get_current_participant_uid
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
@@ -169,7 +169,7 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
         raise HTTPException(status_code=502, detail="Gemini upstream request failed") from exc
 
 
-async def _authorized_desktop_user(uid: str = Depends(get_current_user_uid)) -> str:
+async def _authorized_desktop_user(uid: str = Depends(get_current_participant_uid)) -> str:
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         raise HTTPException(status_code=402, detail="trial_expired")
     return uid

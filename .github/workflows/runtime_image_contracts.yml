@@ -8,6 +8,8 @@ on:
       - '.github/scripts/desktop_release_manifest.py'
       - '.github/scripts/desktop_qualification_admission.py'
       - '.github/scripts/desktop_qualification_evidence.py'
+      - '.github/scripts/owner_manual_desktop_qualification.py'
+      - '.github/scripts/verify-pre-tag-readiness.py'
       - 'Makefile'
       - '.github/workflows/runtime_image_contracts.yml'
       - '.github/workflows/gcp_*.yml'

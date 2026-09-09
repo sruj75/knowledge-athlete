@@ -78,6 +78,8 @@ class ChangelogRequirementTests(unittest.TestCase):
             "desktop/macos/scripts/desktop-core-harness.sh",
             "desktop/macos/docs/release.md",
             "desktop/macos/scripts/qualify-desktop-beta.sh",
+            "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh",
+            "desktop/macos/scripts/codemagic-release.sh",
             # Sibling qualification-runner helper (EXEMPT_DESKTOP_PATHS).
             "desktop/macos/scripts/qualification-swift-cache.sh",
             "desktop/macos/scripts/qualification-lease-command.sh",

@@ -20,6 +20,7 @@ AUTOMATIC=0
 SIGNED_SMOKE_RESULT=""
 CANDIDATE_GATE_RESULT=""
 GITHUB_ACTIONS_ARTIFACT=0
+LOCAL_EVIDENCE_DIRECTORY=""
 RELEASE_TAG=""
 
 usage() {
@@ -28,6 +29,7 @@ Qualify a macOS desktop candidate (rebuild tag + T2 core E2E).
 
 Usage:
   qualify-desktop-beta.sh [--keep-stack] [--automatic] [--github-actions-artifact] \
+    [--local-evidence-directory DIR] \
     [--signed-smoke-result PATH --candidate-gate-result PATH] <vX.Y.Z+BUILD-macos>
 
 Options:
@@ -36,6 +38,7 @@ Options:
   --signed-smoke-result PATH  Codemagic signed-artifact smoke evidence (required with --automatic)
   --candidate-gate-result PATH  Digest-bound candidate gate evidence (required with --automatic)
   --github-actions-artifact  Leave trusted evidence publication to the workflow artifact
+  --local-evidence-directory DIR  Copy raw T2/fault receipts for owner-manual collection
 USAGE
 }
 
@@ -63,6 +66,11 @@ while [[ $# -gt 0 ]]; do
       GITHUB_ACTIONS_ARTIFACT=1
       shift
       ;;
+    --local-evidence-directory)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:-}" != -* ]] || { echo "--local-evidence-directory requires a path" >&2; exit 2; }
+      LOCAL_EVIDENCE_DIRECTORY="$2"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -86,6 +94,10 @@ done
 
 if [[ -z "$RELEASE_TAG" ]]; then
   usage >&2
+  exit 2
+fi
+if [[ "$GITHUB_ACTIONS_ARTIFACT" -eq 1 && -n "$LOCAL_EVIDENCE_DIRECTORY" ]]; then
+  echo "--github-actions-artifact and --local-evidence-directory are mutually exclusive" >&2
   exit 2
 fi
 if [[ "$AUTOMATIC" -eq 1 ]]; then
@@ -970,6 +982,16 @@ fi
 if [[ "$GITHUB_ACTIONS_ARTIFACT" -eq 1 ]]; then
   QUALIFICATION_SUCCESS=1
   echo "Qualified $RELEASE_TAG for beta; trusted workflow will publish immutable Actions evidence."
+  exit 0
+fi
+
+if [[ -n "$LOCAL_EVIDENCE_DIRECTORY" ]]; then
+  mkdir -p "$LOCAL_EVIDENCE_DIRECTORY"
+  cp "$EVIDENCE/manifest.json" "$LOCAL_EVIDENCE_DIRECTORY/source-t2-manifest.json"
+  cp "$FAULT_EVIDENCE/manifest.json" "$LOCAL_EVIDENCE_DIRECTORY/fault-manifest.json"
+  cp "$QUALIFICATION_TIMINGS_FILE" "$LOCAL_EVIDENCE_DIRECTORY/source-qualification-timings.json"
+  QUALIFICATION_SUCCESS=1
+  echo "Qualified $RELEASE_TAG locally; raw owner-manual receipts copied to $LOCAL_EVIDENCE_DIRECTORY."
   exit 0
 fi
 

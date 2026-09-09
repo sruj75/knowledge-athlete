@@ -9,22 +9,12 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from desktop_qualification_evidence import REQUIRED_SMOKE_CHECKS, validate_signed_smoke_contract
 from desktop_release_metadata import fail, parse_metadata
 
 TAG_RE = re.compile(r"^v(?P<version>\d+\.\d+\.\d+)\+(?P<build>\d+)-macos$")
 EXPECTED_BUNDLE_ID = "com.heyintentive.intentive"
 EXPECTED_BETA_BUNDLE_ID = "com.heyintentive.intentive.beta"
-REQUIRED_SMOKE_CHECKS = {
-    "Launch + identity metadata is aligned",
-    "Auth persistence prerequisites: signing identity and Keychain-compatible entitlements are sane",
-    "Backend routing config matches the declared external backend",
-    "Sparkle/update metadata and authoritative ZIP artifacts are present",
-    "Native helper/runtime bundle integrity passed",
-    "Local storage/database package surface is present",
-    "Signed artifact Keychain write/read/delete canary passed",
-    "UserNotifications settings callback completion canary passed",
-    "Signed desktop artifact smoke completed",
-}
 
 
 def load_json(path: str) -> dict:
@@ -66,58 +56,25 @@ def _validate_smoke_contract(
     """Enforce the shared success/tag/version/build/team/channel contract on a
     smoke result. The beta artifact must satisfy the same bar as stable, only
     with its own bundle id."""
-    expected = {
-        "ok": True,
-        "release_tag": release_tag,
-        "expected_channel": "beta",
-        "bundle_id": bundle_id,
-        "version": expected_version,
-        "build": expected_build,
-        "team_id": expected_team_id,
-    }
-    for field, value in expected.items():
-        if smoke.get(field) != value:
-            fail(f"{label} smoke result {field} mismatch: expected {value!r}, got {smoke.get(field)!r}")
-
-    smoke_source_sha = smoke.get("source_sha")
-    if not isinstance(smoke_source_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", smoke_source_sha):
-        fail(f"{label} smoke result is missing an exact source SHA")
-    if smoke_source_sha != expected_source_sha:
-        fail(f"{label} smoke source SHA does not match the candidate tag")
-
-    checks = set(smoke.get("checks") or [])
-    missing_checks = sorted(REQUIRED_SMOKE_CHECKS - checks)
-    if missing_checks:
-        fail(f"{label} smoke result is missing required checks: {', '.join(missing_checks)}")
-
-    _validate_callback_canary(smoke, bundle_id=bundle_id, label=label)
-    return checks
-
-
-def _validate_callback_canary(smoke: dict, *, bundle_id: str, label: str) -> None:
-    """The UserNotifications callback canary must run inside the exact artifact
-    being qualified, so its recorded bundle id must match that artifact."""
-    callback_canary = smoke.get("notification_callback_canary")
-    if not isinstance(callback_canary, dict):
-        fail(f"{label} smoke result is missing UserNotifications callback canary evidence")
-    expected_callback_canary = {
-        "schema": 1,
-        "event": "user-notifications-settings-callback-completed",
-        "bundle_id": bundle_id,
-        "main_actor": True,
-        "validated": True,
-    }
-    for field, value in expected_callback_canary.items():
-        if callback_canary.get(field) != value:
-            fail(
-                f"{label} smoke UserNotifications callback canary "
-                f"{field} mismatch: expected {value!r}, got {callback_canary.get(field)!r}"
-            )
-    if not isinstance(callback_canary.get("authorization_status"), int):
-        fail(f"{label} smoke UserNotifications callback canary is missing authorization status")
+    try:
+        return validate_signed_smoke_contract(
+            smoke,
+            bundle_id=bundle_id,
+            release_tag=release_tag,
+            expected_version=expected_version,
+            expected_build=expected_build,
+            expected_source_sha=expected_source_sha,
+            expected_team_id=expected_team_id,
+            label=label,
+        )
+    except ValueError as exc:
+        fail(str(exc).removeprefix("qualification evidence "))
 
 
 def validate(args: argparse.Namespace) -> dict:
+    qualification_mode = str(getattr(args, "qualification_mode", "runner"))
+    if qualification_mode not in {"runner", "owner-manual"}:
+        fail("beta qualification mode is invalid")
     expected_team_id = str(getattr(args, "expected_team_id", "")).strip()
     if not re.fullmatch(r"[A-Z0-9]{10}", expected_team_id):
         fail("automatic beta qualification requires the owned 10-character Apple Team ID")
@@ -179,6 +136,10 @@ def validate(args: argparse.Namespace) -> dict:
     # result; when those assets exist the beta artifact must satisfy the same
     # contract as stable (older releases without beta assets stay valid).
     beta_assets = {a.get("name") for a in release.get("assets", [])}
+    if qualification_mode == "owner-manual" and not set(("Intentive.Beta.zip", "intentive-beta.dmg")).issubset(
+        beta_assets
+    ):
+        fail("owner-manual qualification requires exact Intentive Beta ZIP/DMG assets")
     if "Intentive.Beta.zip" in beta_assets:
         if not getattr(args, "beta_smoke_result", "") or not Path(args.beta_smoke_result).exists():
             fail("release ships Intentive Beta assets but no beta smoke result was provided")
@@ -207,6 +168,7 @@ def validate(args: argparse.Namespace) -> dict:
     return {
         "passed": True,
         "gate": "desktop-auto-beta-candidate-v1",
+        "qualification_mode": qualification_mode,
         "release_tag": args.release_tag,
         "source_sha": smoke_source_sha,
         "verified_at": datetime.now(timezone.utc).isoformat(),
@@ -226,6 +188,7 @@ def main() -> int:
     parser.add_argument("--tag-sha", required=True)
     parser.add_argument("--checkout-sha", required=True)
     parser.add_argument("--expected-team-id", required=True)
+    parser.add_argument("--qualification-mode", choices=("runner", "owner-manual"), default="runner")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     result = validate(args)

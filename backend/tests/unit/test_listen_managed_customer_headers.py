@@ -6,6 +6,9 @@ from utils.other import endpoints as auth
 
 
 def test_v4_listen_ignores_legacy_customer_headers_and_keeps_transient_contract(monkeypatch):
+    monkeypatch.setenv('OMI_ENV_STAGE', 'prod')
+    monkeypatch.setenv('INTENTIVE_HOSTED_PARTICIPANT_UIDS', 'managed-user')
+
     async def immediate(_executor, function, *args, **kwargs):
         return function(*args, **kwargs)
 

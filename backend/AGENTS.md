@@ -13,7 +13,7 @@ source .venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8080
 ```
 
-**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default, ignores billing credentials, and does not load the Dodo SDK or construct its client. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
+**Env stages** (`OMI_ENV_STAGE`): `local` (emulator harness, `.env.local-dev`), `offline` (fake-backed providers, `.env.offline`), `dev` (remote dev GCP, `.env.dev`), `prod` (reference only, `.env.prod`). `load_backend_env()` loads the stage file then `backend/.env` overrides. Templates: `backend/.env.*.template`. Harness: `PROVIDER_MODE=offline make dev-up` or `OMI_ENV_STAGE=offline`. Offline harness app factories install the shared hermetic Modulate fake for managed live and prerecorded STT without provider credentials. Hosted compute fails closed unless `INTENTIVE_HOSTED_PARTICIPANT_UIDS` contains exactly 1-5 distinct Firebase UIDs; the reserved `intentive-release-probe` system UID is admitted only after that human configuration validates. Explicit dev/prod and Cloud Run's injected `K_SERVICE` always enforce admission, including ADC without credential files. Only non-hosted local/offline or unstaged `LOCAL_DEVELOPMENT=true` without credential files bypass it. Billing is independently selected by `BILLING_MODE=disabled|dodo_test|dodo_live`; disabled is the default, ignores billing credentials, and does not load the Dodo SDK or construct its client. Active modes fail startup unless `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`, the normalized `DODO_BILLING_CATALOG_JSON`, and the owned callback `BASE_URL` are all present.
 
 Parity-pack capture is a dev-only, allowlisted, local persistence path. `OMI_PARITY_PACK_CAPTURE`, `OMI_PARITY_PACK_ALLOWED_PRINCIPALS`, and an absolute external `OMI_PARITY_PACK_ROOT` are its complete runtime configuration; it never exports cassettes or constructs a cloud-storage client.
 
@@ -86,6 +86,7 @@ Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its langu
 
 - **backend** (`main.py`) — The one REST/WebSocket Cloud Run service. `/v4/listen` applies in-process `VADStreamingGate`, streams fixed PCM directly to Modulate, and returns transient canonical segments without a side channel, People, or conversation storage. Retained Python model workloads call their declared providers directly through `utils/llm/clients.py`.
 - **Deployment identity** — `backend` is the logical service and container-image label. Workflows resolve the real environment-owned Cloud Run name only from `BACKEND_CLOUD_RUN_SERVICE`; development is `knowledge-athlete-dev`, while production stays unset until that service is approved. Never fall back to deploying a Cloud Run service literally named `backend`.
+- **Deployment authority** — main Release Eligibility remains automatic, but `gcp_backend_auto_dev.yml` is `manual-only`; apply shared Dev backend changes through the existing protected `gcp_backend.yml` dispatcher. Desktop Beta promotion re-fetches the exact GitHub run, canonical Actions evidence, owner-uploaded content-addressed qualification bundle, signed Stable/Beta bytes, and owner identity before any pointer mutation.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes Gemini 3.7 Flash transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
 - **account deletion** — `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and the complete dedicated `ACCOUNT_DELETION_*` bindings enqueue opaque job IDs to the canonical backend's OIDC handler. Startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks, and API success follows persisted deletion intent plus durable enqueue. A bounded legacy audience/payload branch remains only because no live queue-drain proof was authorized for S-25.
@@ -165,11 +166,13 @@ Runtime-selected providers must keep model-token parsing and required environmen
 
 ## Auth
 
-HTTP endpoints: `uid: str = Depends(get_current_user_uid)` from `utils.other.endpoints`.
+Ordinary authenticated HTTP endpoints use `uid: str = Depends(get_current_user_uid)` from `utils.other.endpoints`. Account management, export/deletion, entitlement, and usage-reporting surfaces remain available to authenticated legacy principals.
+
+Managed compute/mint HTTP endpoints use `uid: str = Depends(get_current_participant_uid)`. This admits the exact hosted participant UID before client-metadata, Redis, or provider work. Managed compute WebSockets use `get_current_participant_uid_ws_listen`; denial closes with code 1008 before the handler runs.
 
 WebSocket endpoints: use `WebSocketException(code=1008)`, **not** `HTTPException` — HTTPException exits ASGI without handshake, causing LB 5xx.
 
-Rate limiting: `Depends(auth.with_rate_limit(get_current_user_uid, "policy_name"))` — policies in `utils/rate_limit_config.py`.
+Rate limiting wraps the route's auth dependency: `get_current_participant_uid` for managed compute, `get_current_user_uid` for account surfaces. Use `Depends(auth.with_rate_limit(dependency, "policy_name"))`; policies live in `utils/rate_limit_config.py`.
 
 Managed provider proxies return provider-owned auth and quota failures as typed JSON with
 `reason`, `provider`, `backend_route`, `upstream_status_code`, and `retryable`. Clients must
