@@ -1,3 +1,0 @@
-{
-  "change": "Improved sign-in privacy by omitting account IDs, email addresses, and OAuth callback details from local diagnostic logs"
-}

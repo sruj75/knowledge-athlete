@@ -1,3 +1,0 @@
-{
-  "change": "Fixed a race that could send push-to-talk input before updated chat history was ready"
-}

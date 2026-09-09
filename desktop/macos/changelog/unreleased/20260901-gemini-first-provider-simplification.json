@@ -1,3 +1,0 @@
-{
-  "change": "Simplified managed Chat and realtime voice to use Gemini while preserving spoken-answer fallback"
-}
