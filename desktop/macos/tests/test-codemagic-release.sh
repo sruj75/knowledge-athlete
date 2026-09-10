@@ -394,6 +394,98 @@ fi
 imported_temp_path="$(cat "$signing_import_path")"
 [[ ! -e "$imported_temp_path" ]] || fail "failed Developer ID import retained decoded certificate bytes"
 
+# Execute the real build entrypoint against SwiftPM's process boundary. Public
+# binary downloads must not query a headless signing Keychain (#98). The native
+# reproduction uses the pinned Sentry archive; this fixture stays offline.
+# Stop at the following lipo boundary: this is not artifact/signing coverage.
+build_fixture="$TMP_ROOT/build fixture/desktop/macos"
+build_mock_bin="$TMP_ROOT/build-bin"
+mkdir -p "$build_fixture/scripts" "$build_fixture/vendor/libwebp" "$build_mock_bin" "$TMP_ROOT/webp/lib"
+cp "$PRODUCTION_SCRIPT" "$build_fixture/scripts/codemagic-release.sh"
+make_executable "$build_fixture/scripts/prepare-agent-runtime.sh" '[[ "$*" == --universal-node ]]'
+make_executable "$build_fixture/scripts/prepare-release-libwebp.sh" '[[ "$*" == --verify-only ]]'
+for dylib in libwebp.7.dylib libsharpyuv.0.dylib; do
+  printf 'pinned fixture %s\n' "$dylib" > "$build_fixture/vendor/libwebp/$dylib"
+  cp "$build_fixture/vendor/libwebp/$dylib" "$TMP_ROOT/webp/lib/$dylib"
+done
+make_executable "$build_mock_bin/brew" \
+  'case "$*" in' \
+  '  "list webp") exit 0 ;;' \
+  '  "--prefix webp") printf "%s\n" "${TEST_WEBP_PREFIX:?}" ;;' \
+  '  *) echo "unexpected brew call: $*" >&2; exit 90 ;;' \
+  'esac'
+make_executable "$build_mock_bin/xcrun" \
+  '[[ "${1:-}" == swift ]] || exit 90' \
+  'shift; phase="${1:-}"; shift' \
+  'keychain_enabled=true; triple=""; configuration=""; package_path=""' \
+  'if [[ "$phase" == package ]]; then [[ "${1:-}" == resolve ]] || exit 90; shift; phase=resolve; fi' \
+  'while [[ "$#" -gt 0 ]]; do' \
+  '  case "$1" in' \
+  '    --disable-keychain) keychain_enabled=false; shift ;;' \
+  '    --enable-keychain) keychain_enabled=true; shift ;;' \
+  '    --package-path) package_path="$2"; shift 2 ;;' \
+  '    --triple) triple="$2"; shift 2 ;;' \
+  '    -c) configuration="$2"; shift 2 ;;' \
+  '    *) echo "unexpected SwiftPM argument: $1" >&2; exit 90 ;;' \
+  '  esac' \
+  'done' \
+  '[[ "$package_path" == Desktop ]] || exit 90' \
+  'if [[ "$phase" == build ]]; then' \
+  '  [[ "$configuration" == release ]] || exit 90' \
+  '  case "$triple" in arm64-apple-macosx|x86_64-apple-macosx) phase="$triple" ;; *) exit 90 ;; esac' \
+  'else [[ "$phase" == resolve && -z "$triple" ]] || exit 90; fi' \
+  'printf "%s\n" "$phase" >> "${TEST_SWIFTPM_TRACE:?}"' \
+  'if [[ "$keychain_enabled" == true ]]; then' \
+  '  echo "Failed to find credentials for https://github.com in keychain: status -25308" >&2; exit 1' \
+  'fi' \
+  '[[ "$phase" != "${TEST_SWIFTPM_REJECT_PHASE:-}" ]] || exit 23' \
+  'if [[ "$phase" != resolve ]]; then' \
+  '  mkdir -p "Desktop/.build/$triple/release"' \
+  '  printf "compiled fixture\n" > "Desktop/.build/$triple/release/Omi Computer"' \
+  'fi'
+make_executable "$build_mock_bin/lipo" \
+  '[[ "${1:-}" == -create ]] || exit 90' \
+  'printf "%s\n" packaging >> "${TEST_SWIFTPM_TRACE:?}"' \
+  'exit 79'
+build_trace="$TMP_ROOT/swiftpm-trace.txt"
+build_env=(
+  "${release_env[@]}"
+  "PATH=$build_mock_bin:$mock_bin:$PATH"
+  "BUILD_DIR=$TMP_ROOT/swiftpm-build"
+  "VERSION=1.2.3"
+  "BUILD_NUMBER=1002003"
+  "SOURCE_SHA=$preview_sha"
+  "TEST_WEBP_PREFIX=$TMP_ROOT/webp"
+  "TEST_SWIFTPM_TRACE=$build_trace"
+)
+if (cd "$build_fixture" && env "${build_env[@]}" bash scripts/codemagic-release.sh build) \
+  >"$TMP_ROOT/swiftpm-build.out" 2>"$TMP_ROOT/swiftpm-build.err"; then
+  fail "build fixture unexpectedly passed its packaging stop"
+else
+  build_exit=$?
+fi
+[[ "$build_exit" == 79 ]] || {
+  cat "$TMP_ROOT/swiftpm-build.err" >&2
+  fail "public SwiftPM downloads did not reach universal packaging (exit $build_exit)"
+}
+[[ "$(cat "$build_trace")" == $'resolve\narm64-apple-macosx\nx86_64-apple-macosx\npackaging' ]] ||
+  fail "universal build did not resolve and compile both architectures without Keychain lookup"
+
+expected_build_trace=""
+for rejected_phase in resolve arm64-apple-macosx x86_64-apple-macosx; do
+  expected_build_trace="${expected_build_trace:+$expected_build_trace$'\n'}$rejected_phase"
+  : > "$build_trace"
+  if (cd "$build_fixture" && env "${build_env[@]}" TEST_SWIFTPM_REJECT_PHASE="$rejected_phase" \
+    bash scripts/codemagic-release.sh build) >"$TMP_ROOT/swiftpm-rejected.out" 2>"$TMP_ROOT/swiftpm-rejected.err"; then
+    fail "build ignored SwiftPM failure at $rejected_phase"
+  else
+    build_exit=$?
+  fi
+  [[ "$build_exit" == 23 ]] || fail "build masked SwiftPM failure at $rejected_phase"
+  [[ "$(cat "$build_trace")" == "$expected_build_trace" ]] ||
+    fail "build continued after SwiftPM failure at $rejected_phase"
+done
+
 # Execute the real provider smoke phase against a controlled artifact inspector.
 # This proves the producer requests the callbacks its qualification consumer
 # requires, and preserves each inspector failure without building a signed app.
