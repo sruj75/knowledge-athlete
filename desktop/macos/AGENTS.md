@@ -88,8 +88,9 @@ Stable is manual:
 tag or approves an exact preview SHA, then observes/dispatches the provider workflow. The
 protected groups hold owned inputs. Publication mints a one-hour `sruj75/knowledge-athlete` Contents-write
 token (implicit Metadata read), bound to 30s and never `CM_ENV`; its App key retains all App permissions.
-Unexpected returned authority/lifetime fails closed. Import the saved PKCS#12 with `security import -f pkcs12`;
-builds still require exact-main checks and deliberate dispatch.
+Unexpected authority/lifetime fails closed. Import PKCS#12 with `security import -f pkcs12`.
+SwiftPM resolve/both builds use `--disable-keychain` for public downloads (#98); signing/notary credentials,
+checksums, exact-main checks and deliberate dispatch remain required.
 Live `notarytool history` authenticated, but no new artifact has been notarized.
 
 ## Firebase Connection

@@ -495,9 +495,11 @@ build() {
   "$SCRIPT_DIR/prepare-agent-runtime.sh" --universal-node
   prepare_link_time_libwebp
   unset TOOLCHAINS
-  xcrun swift package resolve --package-path Desktop
-  xcrun swift build -c release --package-path Desktop --triple arm64-apple-macosx
-  xcrun swift build -c release --package-path Desktop --triple x86_64-apple-macosx
+  # Public binary downloads must not consult the headless signing Keychain (#98).
+  # This SwiftPM-only option leaves codesign/notary credentials and checks intact.
+  xcrun swift package resolve --disable-keychain --package-path Desktop
+  xcrun swift build --disable-keychain -c release --package-path Desktop --triple arm64-apple-macosx
+  xcrun swift build --disable-keychain -c release --package-path Desktop --triple x86_64-apple-macosx
 
   local arm_binary x86_binary resource_bundle app_plist firebase_plist
   arm_binary="Desktop/.build/arm64-apple-macosx/release/$BINARY_NAME"
