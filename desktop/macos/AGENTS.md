@@ -172,6 +172,7 @@ do not hand-edit those paths to match a specific machine.
 
 ### Swift test quality
 
+- Await owner-fixture restoration in async XCTest teardown, never `defer { Task { ... } }`; late cleanup can revoke the next test's owner.
 - Behavior fixes require tests that call the production API and assert outcomes.
   Reading a production `.swift` file and asserting that it contains a function
   name or implementation string is not behavioral coverage.
