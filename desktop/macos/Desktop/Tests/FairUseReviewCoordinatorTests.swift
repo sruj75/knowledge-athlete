@@ -95,8 +95,8 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
   @MainActor
   func testOneCapturedAuthorizationCarriesBoundedEvidenceIntoOneSubmission() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
+    addTeardownBlock { @MainActor in await fixture.restore() }
     await fixture.establish(authOwnerID: "fair-use-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let evidence = FairUseConversationEvidence(
       conversationId: "22222222-2222-4222-8222-222222222222",
@@ -124,8 +124,8 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
   @MainActor
   func testRevocationAfterLocalReadPreventsSubmissionAndTelemetry() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
+    addTeardownBlock { @MainActor in await fixture.restore() }
     await fixture.establish(authOwnerID: "fair-use-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let gate = FairUseAuthorizationGate()
     let reader = FairUseEvidenceReaderStub(evidence: []) { gate.revoke() }
@@ -148,8 +148,8 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
   @MainActor
   func testTransientSubmissionFailureRetriesWithoutAnotherSocketEvent() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
+    addTeardownBlock { @MainActor in await fixture.restore() }
     await fixture.establish(authOwnerID: "fair-use-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let reader = FairUseEvidenceReaderStub(evidence: [])
     let submitter = FlakyFairUseSubmitterStub()
@@ -183,8 +183,8 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
   @MainActor
   func testRejectedPresentationRetriesBeforeReviewIsCompleted() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
+    addTeardownBlock { @MainActor in await fixture.restore() }
     await fixture.establish(authOwnerID: "fair-use-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let reader = FairUseEvidenceReaderStub(evidence: [])
     let submitter = FairUseSubmitterStub()
@@ -216,8 +216,8 @@ final class FairUseReviewCoordinatorTests: XCTestCase {
   @MainActor
   func testPermanentSubmissionFailureDoesNotEnterRetryLoop() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
+    addTeardownBlock { @MainActor in await fixture.restore() }
     await fixture.establish(authOwnerID: "fair-use-owner-a")
-    defer { Task { @MainActor in await fixture.restore() } }
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let reader = FairUseEvidenceReaderStub(evidence: [])
     let submitter = PermanentlyFailingFairUseSubmitterStub()
