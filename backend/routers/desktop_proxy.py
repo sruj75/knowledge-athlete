@@ -13,12 +13,15 @@ from utils.llm.desktop_llm_stub import (
     stub_gemini_proxy_json,
 )
 from utils.other.endpoints import get_current_participant_uid
+from utils.observability.fallback import record_fallback
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
 
 _ALLOWED_ACTIONS = frozenset({"generateContent", "embedContent", "batchEmbedContents"})
-_ALLOWED_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-embedding-001"})
+_ALLOWED_MODELS = frozenset({"gemini-3.7-flash", "gemini-embedding-001"})
+# External wire compatibility for already-installed Beta A/B (#102), not in-tree callers.
+_SHIPPED_TEXT_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview"})
 _MAX_BODY_BYTES = 5 * 1024 * 1024
 _MAX_OUTPUT_TOKENS = 8192
 _DEFAULT_THINKING_BUDGET = 1024
@@ -27,12 +30,13 @@ _DAILY_HARD_LIMIT = 1500
 
 
 def _path_parts(path: str) -> tuple[str, str, str]:
-    path = path.replace("gemini-3-flash-preview", "gemini-2.5-flash")
     prefix, separator, action = path.partition(":")
     model = prefix.removeprefix("models/") if separator and prefix.startswith("models/") else ""
+    if model in _SHIPPED_TEXT_MODELS:
+        model = "gemini-3.7-flash"
     if action not in _ALLOWED_ACTIONS or model not in _ALLOWED_MODELS:
         raise HTTPException(status_code=403, detail="Gemini model or action is not allowed")
-    return path, model, action
+    return f"models/{model}:{action}", model, action
 
 
 def _as_nonnegative_int(value: Any) -> int | None:
@@ -141,6 +145,7 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
     body = await request.body()
     if len(body) > _MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="Request body is too large")
+    requested_path = path
     path, model, action = _path_parts(path)
     if llm_stub_enabled():
         body_text = body.decode("utf-8", errors="replace")
@@ -153,6 +158,14 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
     _, model, action = _path_parts(path)
     body = _sanitize(body, action)
     url, headers, params = _upstream(path, dict(request.query_params))
+    if path != requested_path:
+        record_fallback(
+            component="gemini_proxy",
+            from_mode=requested_path.partition(":")[0].removeprefix("models/"),
+            to_mode=model,
+            reason="capability_mismatch",
+            outcome="degraded",
+        )
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(240, connect=10)) as client:
             response = await client.post(

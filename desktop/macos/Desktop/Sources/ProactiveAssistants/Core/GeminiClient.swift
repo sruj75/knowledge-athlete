@@ -322,8 +322,19 @@ actor GeminiClient {
   /// Optional model to retry with if the primary model keeps failing transiently
   /// (e.g. Pro overloaded → fall back to Flash). Nil or equal-to-primary = no fallback.
   private let fallbackModel: String?
+  private let session: URLSession
+  private let authHeaderProvider: @Sendable () async throws -> String
 
-  init(apiKey: String? = nil, model: String = ModelQoS.Gemini.proactive, fallbackModel: String? = nil) throws {
+  init(
+    apiKey: String? = nil,
+    model: String = ModelQoS.Gemini.proactive,
+    fallbackModel: String? = nil,
+    session: URLSession = .shared,
+    authHeaderProvider: @escaping @Sendable () async throws -> String = {
+      let authService = await MainActor.run { AuthService.shared }
+      return try await authService.getAuthHeader()
+    }
+  ) throws {
     // BREAKING CHANGE (issue #5861): apiKey parameter is ignored.
     // All Gemini requests now route through the backend proxy which supplies
     // the key server-side. Defaults through the canonical backend resolver.
@@ -333,12 +344,13 @@ actor GeminiClient {
     }
     self.model = model
     self.fallbackModel = fallbackModel
+    self.session = session
+    self.authHeaderProvider = authHeaderProvider
   }
 
   /// Get Firebase auth header for proxy requests
   private func authHeader() async throws -> String {
-    let authService = await MainActor.run { AuthService.shared }
-    return try await authService.getAuthHeader()
+    try await authHeaderProvider()
   }
 
   private func authorizedAuthHeader(
@@ -545,7 +557,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = requestBody
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -624,7 +636,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = timeout
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -700,7 +712,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -1009,7 +1021,7 @@ extension GeminiClient {
           urlRequest.timeoutInterval = 300
           urlRequest.httpBody = requestBody
 
-          let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+          let (data, urlResponse) = try await session.data(for: urlRequest)
           try requireCurrentAuthorization(authorizationSnapshot)
           try checkHTTPStatus(urlResponse, data: data)
 

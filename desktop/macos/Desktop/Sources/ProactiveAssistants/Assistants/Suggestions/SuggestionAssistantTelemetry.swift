@@ -44,14 +44,12 @@ enum SuggestionAssistantTelemetry {
   }
 
   enum Model: String, CaseIterable, Sendable {
-    case gemini25FlashLite = "gemini_2_5_flash_lite"
-    case gemini25Flash = "gemini_2_5_flash"
+    case gemini37Flash = "gemini_3_7_flash"
     case other
 
     init(configuredModel: String) {
       switch configuredModel {
-      case "gemini-2.5-flash-lite": self = .gemini25FlashLite
-      case "gemini-2.5-flash": self = .gemini25Flash
+      case "gemini-3.7-flash": self = .gemini37Flash
       default: self = .other
       }
     }

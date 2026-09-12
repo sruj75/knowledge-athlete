@@ -9,7 +9,7 @@ import XCTest
 final class SuggestionAssistantTelemetryTests: XCTestCase {
   private func shape() -> SuggestionAssistantTelemetry.EvaluationShape {
     SuggestionAssistantTelemetry.EvaluationShape(
-      model: .gemini25FlashLite,
+      model: .gemini37Flash,
       previewData: Data([0x00, 0x01, 0x02]),
       grounding: SuggestionGrounding(
         memories: ["memory content must never leave the device"],
@@ -58,7 +58,7 @@ final class SuggestionAssistantTelemetryTests: XCTestCase {
       ])
     )
     XCTAssertEqual(payload["evaluation_id"] as? String, "00000000-0000-0000-0000-000000000001")
-    XCTAssertEqual(payload["model"] as? String, "gemini_2_5_flash_lite")
+    XCTAssertEqual(payload["model"] as? String, "gemini_3_7_flash")
     XCTAssertEqual(payload["image_width_bucket"] as? String, "undecodable")
     XCTAssertEqual(payload["image_bytes_bucket"] as? String, "0_256kb")
     XCTAssertEqual(payload["grounding_source_count"] as? Int, 3)
@@ -178,7 +178,7 @@ final class SuggestionAssistantTelemetryBoundaryTests: XCTestCase {
   func testEvaluationAndNotificationEventsPreserveTheSameOpaqueJoinKeys() throws {
     let identity = SuggestionAssistantTelemetry.Identity().withSuggestion()
     let shape = SuggestionAssistantTelemetry.EvaluationShape(
-      model: .gemini25Flash,
+      model: .gemini37Flash,
       previewData: Data([0x00]),
       grounding: SuggestionGrounding(memories: ["never sent"])
     )

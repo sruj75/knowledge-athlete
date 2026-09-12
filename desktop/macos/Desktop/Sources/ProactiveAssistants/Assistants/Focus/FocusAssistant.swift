@@ -96,7 +96,7 @@ actor FocusAssistant: ProactiveAssistant {
     onRefocus: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil,
     onDistraction: (@Sendable (RuntimeOwnerAuthorizationSnapshot) -> Void)? = nil
   ) throws {
-    self.geminiClient = try GeminiClient(apiKey: apiKey, fallbackModel: "gemini-2.5-flash")
+    self.geminiClient = try GeminiClient(apiKey: apiKey)
     self.analysisOverride = nil
     self.focusSessionPersister = { record, authorization in
       try await ProactiveStorage.shared.insertFocusSession(

@@ -113,7 +113,7 @@ actor InsightAssistant: ProactiveAssistant {
     }
   ) throws {
     self.geminiClient = try GeminiClient(
-      apiKey: apiKey, model: ModelQoS.Gemini.insight, fallbackModel: "gemini-2.5-flash")
+      apiKey: apiKey, model: ModelQoS.Gemini.insight)
     self.languageLoader = languageLoader
 
     let (stream, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
