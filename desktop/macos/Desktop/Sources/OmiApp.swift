@@ -248,6 +248,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
   private var floatingBarPlanFetchTask: Task<Void, Never>?
   private var appLifecycleMaintenanceTask: Task<Void, Never>?
   private let startupSystemMaintenanceSink: StartupSystemMaintenanceSink
+  /// Recording rows created after this delegate existed belong to the current launch.
+  private let transcriptionRecoveryLaunchCutoff = Date()
 
   override init() {
     startupSystemMaintenanceSink = .live
@@ -1359,7 +1361,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @unchecked S
       guard !Task.isCancelled else { return }
 
       await measurePerfAsync("AppDelegate: Transcription retry recovery") {
-        await TranscriptionRetryService.shared.recoverPendingTranscriptions()
+        await TranscriptionRetryService.shared.recoverPendingTranscriptions(
+          launchCutoff: transcriptionRecoveryLaunchCutoff)
         await MainActor.run {
           TranscriptionRetryService.shared.start()
         }

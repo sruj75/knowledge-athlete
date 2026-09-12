@@ -1,0 +1,3 @@
+{
+  "change": "Fixed background recovery interrupting active recordings and preventing new transcript segments from being saved"
+}

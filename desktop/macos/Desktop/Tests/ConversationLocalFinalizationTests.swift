@@ -93,7 +93,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
       ])
 
     let report = try await owner.storage.recoverLocalFinalization(
-      now: old.addingTimeInterval(60), minimumRecordingAge: 30)
+      launchCutoff: old.addingTimeInterval(60))
 
     XCTAssertEqual(report.finalizedConversationIds, [nonempty.conversationId])
     XCTAssertEqual(report.deletedEmptyConversationIds, [empty.conversationId])
@@ -101,6 +101,218 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let removed = try await owner.storage.conversationDetail(id: empty.conversationId)
     XCTAssertEqual(recovered?.status, .finalizing)
     XCTAssertNil(removed)
+  }
+
+  func testPeriodicRecoveryLeavesAgedRecordingOpenForItsFirstSegment() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+    let handle = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: startedAt)
+    let finalization = ConversationFinalizationService(
+      storage: owner.storage,
+      discard: .shared,
+      structure: .shared,
+      actionItems: .shared)
+
+    await finalization.recoverPendingFinalizations()
+    try await owner.storage.upsertSegments(
+      sessionId: handle.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: nil,
+          speakerId: 0,
+          text: "first retained segment",
+          startTime: 60,
+          endTime: 61,
+          isUser: true,
+          translations: [])
+      ])
+
+    let conversation = try await owner.storage.conversationDetail(id: handle.conversationId)
+    XCTAssertEqual(conversation?.status, .recording)
+    XCTAssertEqual(conversation?.segments.map(\.text), ["first retained segment"])
+  }
+
+  func testLaunchRecoveryDeletesAbandonedEmptyRecordingWithoutStealingAtOrAfterLaunchRecordings() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+    let launchCutoff = startedAt.addingTimeInterval(60)
+    let abandoned = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: startedAt)
+    let atLaunchBoundary = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: launchCutoff)
+    let active = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: launchCutoff.addingTimeInterval(60))
+    let finalization = ConversationFinalizationService(
+      storage: owner.storage,
+      discard: .shared,
+      structure: .shared,
+      actionItems: .shared)
+
+    await finalization.recoverAbandonedRecordingsAfterLaunch(launchCutoff: launchCutoff)
+    try await owner.storage.upsertSegments(
+      sessionId: atLaunchBoundary.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: nil,
+          speakerId: 0,
+          text: "launch-boundary recording survives launch recovery",
+          startTime: 0,
+          endTime: 1,
+          isUser: true,
+          translations: [])
+      ])
+    try await owner.storage.upsertSegments(
+      sessionId: active.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: nil,
+          speakerId: 0,
+          text: "active recording survives launch recovery",
+          startTime: 60,
+          endTime: 61,
+          isUser: true,
+          translations: [])
+      ])
+
+    let removed = try await owner.storage.conversationDetail(id: abandoned.conversationId)
+    let retainedAtBoundary = try await owner.storage.conversationDetail(id: atLaunchBoundary.conversationId)
+    let retained = try await owner.storage.conversationDetail(id: active.conversationId)
+    XCTAssertNil(removed)
+    XCTAssertEqual(retainedAtBoundary?.status, .recording)
+    XCTAssertEqual(
+      retainedAtBoundary?.segments.map(\.text),
+      ["launch-boundary recording survives launch recovery"])
+    XCTAssertEqual(retained?.status, .recording)
+    XCTAssertEqual(retained?.segments.map(\.text), ["active recording survives launch recovery"])
+  }
+
+  func testLaunchRecoveryDoesNotStrandYoungPreLaunchRecording() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let launchCutoff = Date()
+    let abandoned = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: launchCutoff.addingTimeInterval(-5))
+    let finalization = ConversationFinalizationService(
+      storage: owner.storage,
+      discard: .shared,
+      structure: .shared,
+      actionItems: .shared)
+
+    await finalization.recoverAbandonedRecordingsAfterLaunch(launchCutoff: launchCutoff)
+
+    let removed = try await owner.storage.conversationDetail(id: abandoned.conversationId)
+    XCTAssertNil(removed)
+  }
+
+  func testPeriodicRetryReusesLaunchCutoffAfterTransientStorageFailure() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let launchCutoff = Date()
+    let abandoned = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: launchCutoff.addingTimeInterval(-5))
+    let currentLaunch = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: launchCutoff)
+    let finalization = ConversationFinalizationService(
+      storage: owner.storage,
+      discard: .shared,
+      structure: .shared,
+      actionItems: .shared)
+    let retry = TranscriptionRetryService(finalization: finalization)
+    try await owner.pool.write { database in
+      try database.execute(
+        sql: "ALTER TABLE transcription_segments RENAME TO unavailable_transcription_segments")
+    }
+
+    await retry.recoverPendingTranscriptions(launchCutoff: launchCutoff)
+    try await owner.pool.write { database in
+      try database.execute(
+        sql: "ALTER TABLE unavailable_transcription_segments RENAME TO transcription_segments")
+    }
+    await retry.retryPendingTranscriptions()
+    try await owner.storage.upsertSegments(
+      sessionId: currentLaunch.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: nil,
+          speakerId: 0,
+          text: "retained launch-boundary recording",
+          startTime: 0,
+          endTime: 1,
+          isUser: true,
+          translations: [])
+      ])
+
+    let removed = try await owner.storage.conversationDetail(id: abandoned.conversationId)
+    let retained = try await owner.storage.conversationDetail(id: currentLaunch.conversationId)
+    XCTAssertNil(removed)
+    XCTAssertEqual(retained?.status, .recording)
+    XCTAssertEqual(retained?.segments.map(\.text), ["retained launch-boundary recording"])
+  }
+
+  func testPeriodicRecoveryProcessesAlreadyClosedDurableWork() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
+    let handle = try await owner.storage.beginConversation(
+      configuration: .testDefault,
+      startedAt: startedAt)
+    try await owner.storage.upsertSegments(
+      sessionId: handle.sessionId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: nil,
+          speakerId: 0,
+          text: "closed durable work",
+          startTime: 0,
+          endTime: 1,
+          isUser: true,
+          translations: [])
+      ])
+    _ = try await owner.storage.finishConversation(
+      sessionId: handle.sessionId,
+      reason: .userStop,
+      finishedAt: startedAt.addingTimeInterval(1))
+    let computer = PeriodicRecoveryDiscardComputer()
+    let finalization = ConversationFinalizationService(
+      storage: owner.storage,
+      discard: ConversationDiscardAdmission(
+        storage: owner.storage,
+        computer: computer,
+        requiresOwnerAuthorization: false),
+      structure: .shared,
+      actionItems: .shared)
+
+    await finalization.recoverPendingFinalizations()
+
+    let removed = try await owner.storage.conversationDetail(id: handle.conversationId)
+    let computeCallCount = await computer.callCount()
+    XCTAssertNil(removed)
+    XCTAssertEqual(computeCallCount, 1)
   }
 
   func testRecoveryFailKeepsStaleRunningDiscardAndAdmitsDownstreamWork() async throws {
@@ -273,4 +485,18 @@ private actor FinalizationProjectionRecorder {
   }
 
   func values() -> [String] { recorded }
+}
+
+private actor PeriodicRecoveryDiscardComputer: ConversationDiscardComputing {
+  private var calls = 0
+
+  func computeDiscard(
+    _ request: ConversationDiscardComputeRequest,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+  ) async throws -> ConversationDiscardComputeResponse {
+    calls += 1
+    return ConversationDiscardComputeResponse(generationId: request.generationId, discard: true)
+  }
+
+  func callCount() -> Int { calls }
 }

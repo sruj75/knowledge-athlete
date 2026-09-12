@@ -2,8 +2,10 @@ import Foundation
 
 /// Background service for recovering local finalization and enrichment work.
 class TranscriptionRetryService: @unchecked Sendable {
-  static let shared = TranscriptionRetryService()
+  static let shared = TranscriptionRetryService(finalization: .shared)
 
+  private let finalization: ConversationFinalizationService
+  private var launchRecoveryCutoff: Date?
   private var retryTimer: Timer?
   private var isProcessing = false
   private let retryInterval: TimeInterval = 60  // Check every 60 seconds
@@ -11,7 +13,9 @@ class TranscriptionRetryService: @unchecked Sendable {
   private let maxConsecutiveDBFailures = 3
   private var isPausedForDBErrors = false
 
-  private init() {}
+  init(finalization: ConversationFinalizationService) {
+    self.finalization = finalization
+  }
 
   // MARK: - Service Lifecycle
 
@@ -49,9 +53,22 @@ class TranscriptionRetryService: @unchecked Sendable {
 
   /// Recover pending transcriptions on app launch
   /// Call this after database initialization
-  func recoverPendingTranscriptions() async {
+  func recoverPendingTranscriptions(launchCutoff: Date) async {
     log("TranscriptionRetryService: Checking local conversation work...")
-    await ConversationFinalizationService.shared.recoverPendingFinalizations()
+    if launchRecoveryCutoff == nil {
+      launchRecoveryCutoff = launchCutoff
+    }
+    await retryPendingTranscriptions()
+  }
+
+  /// Retry launch residue with the original launch boundary, then already-closed durable work.
+  func retryPendingTranscriptions() async {
+    if let launchRecoveryCutoff {
+      await finalization.recoverAbandonedRecordingsAfterLaunch(
+        launchCutoff: launchRecoveryCutoff)
+    } else {
+      await finalization.recoverPendingFinalizations()
+    }
   }
 
   // MARK: - Retry Queue Processing
@@ -78,7 +95,7 @@ class TranscriptionRetryService: @unchecked Sendable {
         isPausedForDBErrors = false
         start()
       }
-      await ConversationFinalizationService.shared.recoverPendingFinalizations()
+      await retryPendingTranscriptions()
 
     } catch {
       consecutiveDBFailures += 1

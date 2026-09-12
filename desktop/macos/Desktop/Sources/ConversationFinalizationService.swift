@@ -111,9 +111,21 @@ actor ConversationFinalizationService {
     }
   }
 
+  /// Launch recovery may close recording rows abandoned before this app launch. Recording
+  /// rows created by the current launch remain authoritative regardless of their age.
+  func recoverAbandonedRecordingsAfterLaunch(launchCutoff: Date) async {
+    do {
+      _ = try await storage.recoverLocalFinalization(launchCutoff: launchCutoff)
+    } catch {
+      logError("ConversationFinalization: Local launch recovery failed", error: error)
+      return
+    }
+    await recoverPendingFinalizations()
+  }
+
+  /// Periodic retry owns only already-closed durable work. Recording rows belong to live capture.
   func recoverPendingFinalizations() async {
     do {
-      _ = try await storage.recoverLocalFinalization()
       let work = try await storage.recoverAndListPendingEnrichmentWork()
       let discardIds = Set(work.filter { $0.kind == .discard }.map(\.conversationId))
       for conversationId in discardIds {
