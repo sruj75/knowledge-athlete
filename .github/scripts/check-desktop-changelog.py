@@ -41,6 +41,8 @@ EXEMPT_DESKTOP_PATHS = {
     # Lease transport for the same qualification runner: it only moves
     # machine-readable lease evidence and never ships in the desktop app.
     "desktop/macos/scripts/qualification-lease-command.sh",
+    # Canonical desktop ownership adapter for this same internal runner (#110).
+    "desktop/macos/scripts/qualification-desktop-command.py",
     # Pre-tag readiness gate script: internal release infrastructure (runs on the
     # trusted M1 before tagging), no user-facing app surface.
     "desktop/macos/scripts/pre-tag-readiness.sh",
