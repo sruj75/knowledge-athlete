@@ -6,7 +6,7 @@
 checks:
   - id: dev-harness-unit-tests
     command: ["bash", "scripts/dev-harness/run-tests.sh"]
-    triggers: ["Makefile", ".conductor/settings.toml", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
+    triggers: ["Makefile", ".conductor/settings.toml", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/qualification-desktop-command.py", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the hermetic dev-harness stack backs release qualification; its reduced retained-service lifecycle must stay behaviorally covered"
   - id: dev-init-setup-ownership
@@ -543,7 +543,7 @@ checks:
     reason: "owner-manual Beta admission keeps GitHub-hosted source/byte verification separate from owner-attested Mac checks and from pointer promotion"
   - id: desktop-qualification-bootstrap-contract
     command: ["bash", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh"]
-    triggers: [".github/workflows/desktop_qualify_beta.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/prepare-qualification-profile.sh", "desktop/macos/scripts/qualification-cache-reclaim.py", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/scripts/qualification-swift-cache.sh", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh", ".github/checks-manifest.yaml"]
+    triggers: [".github/workflows/desktop_qualify_beta.yml", "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/prepare-qualification-profile.sh", "desktop/macos/scripts/qualification-cache-reclaim.py", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/scripts/qualification-swift-cache.sh", "desktop/macos/scripts/qualification-desktop-command.py", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/tests/test-qualify-desktop-beta-contract.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     platforms: ["macos"]
     reason: "Owner-manual qualification requires an exact-tag source, isolated named bundle, unchanged behavioral gates, content-addressed receipts, and no persistent Mac runner"

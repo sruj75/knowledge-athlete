@@ -61,7 +61,7 @@ verification and admission are implemented; publication credentials and endpoint
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
 3. Never register an everyday Mac as a GitHub Actions runner. From an isolated exact-tag checkout run
    `scripts/collect-owner-manual-beta-qualification.sh --output-directory <private-dir> <tag>`. It launches downloaded signed Stable/Beta artifacts and a named source qualification bundle, emits `owner-manual-qualification-<sha>-<digest>.zip`, and never uploads/promotes.
-   Verify `gh api user` is `sruj75`/`120443863`, upload once without replacement, then dispatch `desktop_qualify_beta.yml` with the exact tag and asset name.
+   Verify `gh api user` is `sruj75`/`120443863`, upload once without replacement, then dispatch `desktop_qualify_beta.yml` with the exact tag and asset name. `qualification-desktop-command.py` delegates admission/stop to the exact-tag Dev owner: no second token/signal; require healthy clean exact-SHA ownership before T2, then stop/settle before lease release. Reviewed controller repairs may qualify unchanged candidate source/bytes, never reuse failed T2/fault receipts.
 4. Root `codemagic.yaml` owns app `6a8ff0296fc70d39540cb56a` and workflows `intentive-macos-release` / `intentive-macos-preview`. Beta requires signing/notary, publication and backend/feed inputs—not preview readiness.
    Owned Stable/Beta Firebase, PostHog, Sparkle and Sentry inputs are protected; public/legal URLs are stored. The tracked PostHog fingerprint must match the token. Never substitute Omi values or bundle PostHog overrides.
 5. Do not dispatch candidate/promotion/rollback workflows until their required owned inputs in `OWNER-PROVIDER-DECISIONS.md` are configured.

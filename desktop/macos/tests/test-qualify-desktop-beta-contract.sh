@@ -52,21 +52,20 @@ require_text 'defaults write "$BUNDLE_ID" transcriptionEnabled -bool false' "$PR
 require_text '"$SCRIPT_DIR/prepare-qualification-profile.sh" "$BUNDLE"' "$QUALIFIER"
 require_text 'OMI_SEED_FROM_CANONICAL_DEV=0'
 require_text 'make desktop-run-local DESKTOP_APP_NAME="$BUNDLE" DESKTOP_USER=alice'
-# omi-test-quality: source-inspection -- static contract: detached qualification
-# launches must persist token-bound provenance and can never fall back to broad
-# bundle-id/app-name termination; an isolated live macOS launcher is not portable.
-require_text 'OMI_DESKTOP_LAUNCH_TOKEN="$DESKTOP_LAUNCH_TOKEN"'
-require_text 'secrets.token_urlsafe(24)'
-require_text 'record_owned_qualification_desktop'
-require_text 'validated_qualification_desktop_pid'
-require_text 'stop_recorded_qualification_desktop'
-require_text 'stat.S_IMODE(signal.stat().st_mode) != 0o600'
-require_text 'target.chmod(0o600)'
-require_text 'command_sha256'
+# omi-test-quality: source-inspection -- wiring tripwire for incident #107.
+# Behavioral owner/foreign-process checks live in dev-harness lifecycle tests;
+# qualification must use that owner, not create a competing signal/capability.
+require_text 'qualification-desktop-command.py'
+require_text '"${OMI_QUALIFICATION_PYTHON:-$WORKTREE/backend/.venv/bin/python}"'
+require_text 'qualification_desktop_command inspect'
+require_text 'qualification_desktop_command stop'
 require_text 'lsof -nP -iTCP:"$AUTOMATION_PORT" -sTCP:LISTEN'
 require_text 'qualification automation port remains bound after owned app cleanup'
-require_text 'kill -KILL "$pid"'
-require_text 'refusing unproven qualification app cleanup'
+require_text 'canonical desktop launcher has not settled; preserving lease'
+if grep -Eq 'DESKTOP_LAUNCH_TOKEN|LAUNCH_SIGNAL_FILE|DESKTOP_LAUNCH_RECORD|kill -[A-Z]+' "$QUALIFIER"; then
+  echo "FAIL: qualification must delegate app ownership to the canonical Dev launcher" >&2
+  exit 1
+fi
 require_text 'cleanup failed (non-gating after behavioral pass); continuing to evidence registration'
 require_text 'cleanup failed (non-gating on EXIT); preserving residual lease for later reclaim'
 if grep -Eq 'osascript|pkill|kill_process_tree|quit app id' "$QUALIFIER"; then
@@ -74,10 +73,14 @@ if grep -Eq 'osascript|pkill|kill_process_tree|quit app id' "$QUALIFIER"; then
   exit 1
 fi
 require_order "$QUALIFIER" \
-  'if ! record_owned_qualification_desktop; then' \
+  'if ! wait_for_desktop_launch; then' \
   './scripts/desktop-core-harness.sh --tier 2' \
   'if ! run_qualification_cleanup; then' \
   'if [[ "$GITHUB_ACTIONS_ARTIFACT" -eq 1 ]]'
+require_order "$QUALIFIER" \
+  'qualification_desktop_command stop || return 1' \
+  'wait "$DESKTOP_LAUNCH_PID"' \
+  'if ! "$LEASE_COMMAND" release'
 require_text 'automation bridge healthy on port $port (authenticated; token=$token_file)'
 require_text 'automation_token_lib'
 require_text 'OMI_AUTOMATION_TOKEN_FILE' "$RUN_SH"
@@ -122,8 +125,8 @@ require_text 'derive_omi_app_config "$BUNDLE"' "$CORE_HARNESS"
 require_text 'wrong bundle on port' "$CORE_HARNESS"
 
 # Static timing contract: cold preparation has its own bounded phase (env-
-# overridable via OMI_QUALIFY_PREPARE_WAIT_SECS) and run.sh explicitly signals
-# successful launch dispatch before the separate 900-second bridge readiness
+# overridable via OMI_QUALIFY_PREPARE_WAIT_SECS). Canonical source-bound launch
+# admission completes before the separate 900-second authenticated bridge readiness
 # phase starts. Default preparation budget 5400s; combined bound 6300s.
 # History: 1800s (compiling stalled at 1107/1182, run 29904736566) → 3600s,
 # which STILL expired at 1139/1190 on a cold M1 self-hosted build (run
@@ -138,12 +141,10 @@ if [[ "$prepare_wait_secs" -ne 5400 || "$bridge_wait_secs" -ne 900 \
   echo "FAIL: qualification timing bounds must remain 5400s preparation + 900s bridge = 6300s total" >&2
   exit 1
 fi
-require_text 'OMI_DESKTOP_LAUNCH_SIGNAL_FILE="$LAUNCH_SIGNAL_FILE"'
 require_text 'signal_desktop_launch' "$RUN_SH"
 require_order "$QUALIFIER" \
-  'rm -f "$LAUNCH_SIGNAL_FILE"' \
   'DESKTOP_LAUNCH_PID=$!' \
-  'wait_for_desktop_launch "$LAUNCH_SIGNAL_FILE"' \
+  'if ! wait_for_desktop_launch; then' \
   'SECONDS=0' \
   'wait_for_bridge "$AUTOMATION_PORT"'
 # The middle needle carries the env-forwarding expansion added by 4a68e31c83,

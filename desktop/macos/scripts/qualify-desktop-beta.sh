@@ -132,10 +132,7 @@ VERSION="${VERSION%-macos}"
 BUNDLE="omi-qualification-${VERSION}"
 WORKTREE=""
 LAUNCH_LOG=""
-LAUNCH_SIGNAL_FILE=""
 DESKTOP_LAUNCH_PID=""
-DESKTOP_LAUNCH_TOKEN=""
-DESKTOP_LAUNCH_RECORD=""
 DESKTOP_LAUNCH_REQUESTED=0
 QUALIFICATION_CLEANUP_DONE=0
 QUALIFICATION_CLEANUP_STATUS="not-acquired"
@@ -395,11 +392,6 @@ print(value)
 LEASE_JSON="$("$LEASE_COMMAND" acquire "$WORKTREE" "$QUALIFICATION_LEASE_ID" "$$" "$QUALIFICATION_PORT_OFFSET" "$QUALIFICATION_RETAINED_RUNS")"
 QUALIFICATION_LEASE_TOKEN="$(qualification_lease_field token "$LEASE_JSON")"
 QUALIFICATION_LOG_DIR="$(qualification_lease_field log_dir "$LEASE_JSON")"
-# This capability is distinct from the lease token. It is passed only to the
-# launched named app and binds the detached LaunchServices process to this run.
-DESKTOP_LAUNCH_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
-DESKTOP_LAUNCH_RECORD="$QUALIFICATION_LOG_DIR/desktop-app.json"
-LAUNCH_SIGNAL_FILE="$QUALIFICATION_LOG_DIR/desktop-launch.signal"
 if [[ -n "$QUALIFICATION_CLEANUP_CONTEXT" ]]; then
   umask 077
   python3 - "$QUALIFICATION_CLEANUP_CONTEXT" "$QUALIFICATION_LEASE_ID" "$QUALIFICATION_LEASE_TOKEN" "$WORKTREE" "$QUALIFICATION_RETAINED_RUNS" "$QUALIFICATION_RETENTION_AGE_SECONDS" "$SHA" "$QUALIFICATION_CACHE_LEASE_ID" "$$" "$QUALIFICATION_CACHE_LEASE_TOKEN" <<'PY'
@@ -449,118 +441,10 @@ derive_bundle_id() {
   printf '%s\n' "$BUNDLE_ID"
 }
 
-record_owned_qualification_desktop() {
-  local bundle_id app_path executable_path
-  bundle_id="$(derive_bundle_id "$BUNDLE")"
-  app_path="/Applications/${BUNDLE}.app"
-  executable_path="$app_path/Contents/MacOS/Omi Computer"
-  umask 077
-  python3 - "$DESKTOP_LAUNCH_RECORD" "$LAUNCH_SIGNAL_FILE" "$DESKTOP_LAUNCH_TOKEN" "$BUNDLE" "$bundle_id" "$app_path" "$executable_path" "$AUTOMATION_PORT" <<'PY'
-import hashlib
-import json
-import os
-import stat
-import subprocess
-import sys
-from pathlib import Path
-
-record_path, signal_path, token, bundle, bundle_id, app_path, executable_path, port = sys.argv[1:]
-signal = Path(signal_path)
-if not signal.is_file() or signal.stat().st_uid != os.getuid() or stat.S_IMODE(signal.stat().st_mode) != 0o600:
-    raise SystemExit("qualification launch signal is missing or not owner-only")
-fields = {}
-for line in signal.read_text(encoding="utf-8").splitlines():
-    if "=" not in line:
-        raise SystemExit("qualification launch signal is malformed")
-    key, value = line.split("=", 1)
-    if key in fields:
-        raise SystemExit("qualification launch signal has duplicate fields")
-    fields[key] = value
-expected_signal = {
-    "schema_version": "1", "bundle_id": bundle_id, "app_path": app_path,
-    "executable_path": executable_path, "launch_token": token,
-}
-if any(fields.get(key) != value for key, value in expected_signal.items()):
-    raise SystemExit("qualification launch signal does not bind this run")
-if fields.get("launch_transport") not in {"open", "direct"}:
-    raise SystemExit("qualification launch signal has unknown transport")
-proc = subprocess.run(["ps", "-axo", "pid=,lstart=,command="], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
-matches = []
-for line in proc.stdout.splitlines():
-    parts = line.split(None, 6)
-    if len(parts) != 7 or not parts[0].isdigit():
-        continue
-    pid, started, command = int(parts[0]), " ".join(parts[1:6]), parts[6]
-    if executable_path in command and f"--omi-launch-token={token}" in command:
-        matches.append((pid, started, command))
-if len(matches) != 1:
-    raise SystemExit(f"qualification launch ownership is ambiguous (matching processes={len(matches)})")
-pid, started, command = matches[0]
-payload = {
-    "schema_version": 1,
-    "launch_token": token,
-    "bundle": bundle,
-    "bundle_id": bundle_id,
-    "app_path": app_path,
-    "executable_path": executable_path,
-    "automation_port": int(port),
-    "launch_transport": fields["launch_transport"],
-    "launch_pid": pid,
-    "process_start": started,
-    "command_sha256": hashlib.sha256(command.encode()).hexdigest(),
-}
-target = Path(record_path)
-target.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
-target.chmod(0o600)
-PY
-}
-
-validated_qualification_desktop_pid() {
-  local bundle_id
-  [[ -n "$DESKTOP_LAUNCH_RECORD" && -f "$DESKTOP_LAUNCH_RECORD" ]] || return 1
-  bundle_id="$(derive_bundle_id "$BUNDLE")"
-  python3 - "$DESKTOP_LAUNCH_RECORD" "$DESKTOP_LAUNCH_TOKEN" "$BUNDLE" "$bundle_id" "$AUTOMATION_PORT" <<'PY'
-import hashlib
-import json
-import os
-import stat
-import subprocess
-import sys
-from pathlib import Path
-
-path, token, bundle, bundle_id, port = sys.argv[1:]
-target = Path(path)
-if target.stat().st_uid != os.getuid() or stat.S_IMODE(target.stat().st_mode) != 0o600:
-    raise SystemExit("qualification app record is not owner-only")
-payload = json.loads(target.read_text(encoding="utf-8"))
-expected = {
-    "schema_version": 1,
-    "launch_token": token,
-    "bundle": bundle,
-    "bundle_id": bundle_id,
-    "app_path": f"/Applications/{bundle}.app",
-    "executable_path": f"/Applications/{bundle}.app/Contents/MacOS/Omi Computer",
-    "automation_port": int(port),
-}
-if any(payload.get(key) != value for key, value in expected.items()):
-    raise SystemExit("qualification app record does not bind this run")
-if payload.get("launch_transport") not in {"open", "direct"}:
-    raise SystemExit("qualification app record has unknown transport")
-if not isinstance(payload.get("launch_pid"), int) or payload["launch_pid"] <= 0 or not isinstance(payload.get("process_start"), str) or not isinstance(payload.get("command_sha256"), str):
-    raise SystemExit("qualification app record has no launch metadata")
-pid = str(payload["launch_pid"])
-proc = subprocess.run(["ps", "-p", pid, "-o", "lstart=,command="], text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
-line = proc.stdout.strip()
-if not line:
-    raise SystemExit(3)
-parts = line.split(None, 5)
-if len(parts) != 6:
-    raise SystemExit("qualification process metadata cannot be parsed")
-started, command = " ".join(parts[:5]), parts[5]
-if started != payload["process_start"] or payload["executable_path"] not in command or f"--omi-launch-token={token}" not in command or hashlib.sha256(command.encode()).hexdigest() != payload["command_sha256"]:
-    raise SystemExit("qualification process no longer matches launch provenance")
-print(pid)
-PY
+qualification_desktop_command() {
+  "${OMI_QUALIFICATION_PYTHON:-$WORKTREE/backend/.venv/bin/python}" \
+    "$SCRIPT_DIR/qualification-desktop-command.py" "$1" \
+    --worktree "$WORKTREE" --bundle "$BUNDLE" --source-sha "$SHA"
 }
 
 automation_port_is_bound() {
@@ -578,68 +462,39 @@ wait_for_automation_port_release() {
   return 1
 }
 
-stop_recorded_qualification_desktop() {
-  local pid status
-  set +e
-  pid="$(validated_qualification_desktop_pid)"
-  status=$?
-  set -e
-  if [[ "$status" -eq 3 ]]; then
-    return 0
-  fi
-  if [[ "$status" -ne 0 || ! "$pid" =~ ^[1-9][0-9]*$ ]]; then
-    echo "qualification failed: refusing unproven qualification app cleanup" >&2
-    return 1
-  fi
-  kill -TERM "$pid" 2>/dev/null || return 1
-  for _ in $(seq 1 50); do
-    set +e
-    validated_qualification_desktop_pid >/dev/null
-    status=$?
-    set -e
-    [[ "$status" -eq 3 ]] && return 0
-    if [[ "$status" -ne 0 ]]; then
-      echo "qualification failed: qualification app ownership changed during TERM cleanup" >&2
-      return 1
+terminate_qualification_desktop() {
+  qualification_desktop_command stop || return 1
+  wait_for_automation_port_release || return 1
+  # The canonical launcher supervises the app. Let it settle before releasing
+  # its service lease; never kill a launcher/app by name or an unproven PID.
+  # Canonical launch supervision reserves 10s for successor recovery. This
+  # 15s bounded settlement gives that owner time to finish its full allowance.
+  for _ in $(seq 1 150); do
+    if [[ -z "$DESKTOP_LAUNCH_PID" ]] || ! kill -0 "$DESKTOP_LAUNCH_PID" 2>/dev/null; then
+      if [[ -n "$DESKTOP_LAUNCH_PID" ]]; then
+        wait "$DESKTOP_LAUNCH_PID" 2>/dev/null || true
+      fi
+      return 0
     fi
     sleep 0.1
   done
-  # Escalate only after fresh provenance validation of this exact owned process.
-  pid="$(validated_qualification_desktop_pid)" || {
-    echo "qualification failed: qualification app ownership changed before KILL cleanup" >&2
-    return 1
-  }
-  kill -KILL "$pid" 2>/dev/null || return 1
-  for _ in $(seq 1 50); do
-    set +e
-    validated_qualification_desktop_pid >/dev/null
-    status=$?
-    set -e
-    [[ "$status" -eq 3 ]] && return 0
-    if [[ "$status" -ne 0 ]]; then
-      echo "qualification failed: qualification app ownership changed during KILL cleanup" >&2
-      return 1
-    fi
-    sleep 0.1
-  done
-  echo "qualification failed: owned qualification app did not stop; preserving lease evidence" >&2
+  echo "qualification failed: canonical desktop launcher has not settled; preserving lease" >&2
   return 1
 }
 
-terminate_qualification_desktop() {
-  if ! stop_recorded_qualification_desktop; then
-    return 1
-  fi
-  wait_for_automation_port_release
-}
-
 wait_for_desktop_launch() {
-  local signal_file="$1"
+  local status
   local deadline=$((SECONDS + DESKTOP_PREPARE_WAIT_SECS))
   while (( SECONDS < deadline )); do
-    if [[ -f "$signal_file" ]]; then
-      echo "desktop launch dispatched after bounded preparation"
+    if qualification_desktop_command inspect; then
+      echo "canonical desktop launch admitted with exact clean candidate source"
       return 0
+    else
+      status=$?
+    fi
+    if [[ "$status" -ne 3 ]]; then
+      echo "qualification failed: canonical desktop ownership does not match this run" >&2
+      return 1
     fi
     if [[ -n "$DESKTOP_LAUNCH_PID" ]] && ! kill -0 "$DESKTOP_LAUNCH_PID" 2>/dev/null; then
       echo "qualification failed: desktop launch process exited during preparation" >&2
@@ -647,7 +502,7 @@ wait_for_desktop_launch() {
     fi
     sleep 5
   done
-  echo "qualification failed: desktop launch not dispatched within ${DESKTOP_PREPARE_WAIT_SECS}s" >&2
+  echo "qualification failed: desktop launch not admitted within ${DESKTOP_PREPARE_WAIT_SECS}s" >&2
   return 1
 }
 
@@ -835,7 +690,6 @@ fi
 
 phase_begin "desktop-preparation" "runner-hygiene-cleanup"
 "$SCRIPT_DIR/prepare-qualification-profile.sh" "$BUNDLE"
-rm -f "$LAUNCH_SIGNAL_FILE"
 
 DESKTOP_LAUNCH_REQUESTED=1
 # Run dev-up first in its own tracked subshell so the dev stack (backend,
@@ -870,15 +724,13 @@ source "$SCRIPT_DIR/automation-token-path.sh"
 export OMI_AUTOMATION_TOKEN_FILE="${OMI_AUTOMATION_TOKEN_FILE:-$(omi_automation_token_file "$AUTOMATION_PORT")}"
 (
   cd "$WORKTREE"
-    OMI_DESKTOP_LAUNCH_SIGNAL_FILE="$LAUNCH_SIGNAL_FILE" \
-    OMI_DESKTOP_LAUNCH_TOKEN="$DESKTOP_LAUNCH_TOKEN" \
     OMI_AUTOMATION_TOKEN_FILE="$OMI_AUTOMATION_TOKEN_FILE" \
     OMI_SEED_FROM_CANONICAL_DEV=0 \
     make desktop-run-local DESKTOP_APP_NAME="$BUNDLE" DESKTOP_USER=alice
 ) >>"$LAUNCH_LOG" 2>&1 &
 DESKTOP_LAUNCH_PID=$!
 
-if ! wait_for_desktop_launch "$LAUNCH_SIGNAL_FILE"; then
+if ! wait_for_desktop_launch; then
   phase_end failed
   echo "--- last 80 lines of $LAUNCH_LOG ---" >&2
   tail -n 80 "$LAUNCH_LOG" >&2 || true
@@ -896,11 +748,6 @@ if ! wait_for_bridge "$AUTOMATION_PORT"; then
   phase_end failed
   echo "--- last 80 lines of $LAUNCH_LOG ---" >&2
   tail -n 80 "$LAUNCH_LOG" >&2 || true
-  exit 1
-fi
-if ! record_owned_qualification_desktop; then
-  phase_end failed
-  echo "qualification failed: could not establish owner-only desktop launch provenance" >&2
   exit 1
 fi
 phase_end passed
