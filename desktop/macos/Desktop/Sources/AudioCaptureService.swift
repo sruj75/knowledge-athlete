@@ -78,19 +78,21 @@ class AudioCaptureService: @unchecked Sendable {
   private let overrideDeviceID: AudioDeviceID?
 
   /// Default initializer — opens the system default input device.
-  init() {
+  init(audioLevelDelivery: AudioLevelDelivery = AudioLevelDelivery()) {
     self.overrideDeviceID = nil
+    self.audioLevelDelivery = audioLevelDelivery
   }
 
   /// Initializer that binds to an explicit CoreAudio device (e.g. built-in mic after
   /// a silent-mic fallback). Pass `kAudioObjectUnknown` to disable the override.
   init(overrideDeviceID: AudioDeviceID) {
     self.overrideDeviceID = (overrideDeviceID == kAudioObjectUnknown) ? nil : overrideDeviceID
+    self.audioLevelDelivery = AudioLevelDelivery()
   }
 
   private var onAudioChunk: AudioChunkHandler?
   private var onAudioLevel: AudioLevelHandler?
-  private let audioLevelDelivery = AudioLevelDelivery()
+  private let audioLevelDelivery: AudioLevelDelivery
 
   /// Called when the mic has been alive-but-silent for `silentMicWindowThreshold`
   /// windows. By default this is limited to Bluetooth inputs, where macOS can feed
@@ -268,6 +270,7 @@ class AudioCaptureService: @unchecked Sendable {
     }
 
     resetSilentMicWatchdog()
+    let meterCapture = audioLevelDelivery.invalidate()
 
     // All CoreAudio HAL calls (AudioObjectGetPropertyData, AudioDeviceStart, etc.) are
     // synchronous IPC to coreaudiod via mach_msg. After wake from sleep the daemon can
@@ -284,6 +287,7 @@ class AudioCaptureService: @unchecked Sendable {
         }
         self.onAudioChunk = onAudioChunk
         self.onAudioLevel = onAudioLevel
+        self.audioLevelDelivery.activate(meterCapture)
         do {
           try self.startCaptureOnQueue()
           continuation.resume()
@@ -375,6 +379,7 @@ class AudioCaptureService: @unchecked Sendable {
 
   /// Stop capturing audio
   func stopCapture() {
+    audioLevelDelivery.invalidate()
     resetSilentMicWatchdog()
     guard isCapturing else { return }
 
@@ -408,7 +413,6 @@ class AudioCaptureService: @unchecked Sendable {
       guard let self else { return }
       self.onAudioChunk = nil
       self.onAudioLevel = nil
-      self.audioLevelDelivery.reset()
       self.audioConverter = nil
       self.inputFormat = nil
       self.targetFormat = nil

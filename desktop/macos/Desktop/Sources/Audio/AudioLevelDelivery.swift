@@ -9,6 +9,9 @@ final class AudioLevelDelivery: @unchecked Sendable {
   private var latest: (Float, Handler)?
   private var scheduled = false
   private var generation: UInt64 = 0
+  private var acceptingSamples = false
+
+  struct Capture: Sendable { fileprivate let generation: UInt64 }
 
   init(schedule: @escaping Schedule = { work in DispatchQueue.main.async { work() } }) {
     self.schedule = schedule
@@ -16,6 +19,7 @@ final class AudioLevelDelivery: @unchecked Sendable {
 
   func submit(_ level: Float, to handler: @escaping Handler) {
     let admittedGeneration: UInt64? = lock.withLock {
+      guard acceptingSamples else { return nil }
       latest = (level, handler)
       guard !scheduled else { return nil }
       scheduled = true
@@ -25,11 +29,23 @@ final class AudioLevelDelivery: @unchecked Sendable {
     schedule { [weak self] in self?.drain(generation: admittedGeneration) }
   }
 
-  func reset() {
+  /// Invalidates queued and still-arriving samples synchronously at Stop.
+  /// A new capture may activate this receipt only after the old HAL has quiesced.
+  @discardableResult
+  func invalidate() -> Capture {
     lock.withLock {
       generation &+= 1
+      acceptingSamples = false
       latest = nil
       scheduled = false
+      return Capture(generation: generation)
+    }
+  }
+
+  func activate(_ capture: Capture) {
+    lock.withLock {
+      guard generation == capture.generation else { return }
+      acceptingSamples = true
     }
   }
 

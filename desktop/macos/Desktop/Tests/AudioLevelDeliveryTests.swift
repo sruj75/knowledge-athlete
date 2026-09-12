@@ -18,6 +18,7 @@ final class AudioLevelDeliveryTests: XCTestCase {
   func testBusyUIKeepsOnlyOnePendingMeterDeliveryAndTheLatestValue() {
     let queue = ManualAudioLevelQueue()
     let delivery = AudioLevelDelivery(schedule: queue.schedule)
+    delivery.activate(delivery.invalidate())
     for value in 0..<1000 { delivery.submit(Float(value), to: queue.record) }
     XCTAssertEqual(queue.pending, 1)
     queue.runNext()
@@ -31,12 +32,31 @@ final class AudioLevelDeliveryTests: XCTestCase {
   func testStopInvalidatesQueuedOldCaptureWithoutDiscardingRestartedCapture() {
     let queue = ManualAudioLevelQueue()
     let delivery = AudioLevelDelivery(schedule: queue.schedule)
+    delivery.activate(delivery.invalidate())
     delivery.submit(1, to: queue.record)
-    delivery.reset()
+    let nextCapture = delivery.invalidate()
+    delivery.submit(99, to: queue.record)  // HAL may still be winding down.
+    delivery.activate(nextCapture)
     delivery.submit(2, to: queue.record)
     queue.runNext()
     XCTAssertTrue(queue.delivered.isEmpty)
     queue.runNext()
     XCTAssertEqual(queue.delivered, [2])
+  }
+
+  func testProductionStopInvalidatesMeterBeforeEarlyReturnOrPhysicalTeardown() {
+    let queue = ManualAudioLevelQueue()
+    let delivery = AudioLevelDelivery(schedule: queue.schedule)
+    let capture = delivery.invalidate()
+    delivery.activate(capture)
+    let service = AudioCaptureService(audioLevelDelivery: delivery)
+    delivery.submit(1, to: queue.record)
+    service.stopCapture()
+    // A pending start cannot reopen delivery after stop invalidates its receipt.
+    delivery.activate(capture)
+    delivery.submit(99, to: queue.record)
+    XCTAssertEqual(queue.pending, 1)
+    queue.runNext()
+    XCTAssertTrue(queue.delivered.isEmpty)
   }
 }
