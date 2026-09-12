@@ -348,7 +348,7 @@ def _candidate():
         "path": ".github/workflows/desktop_qualify_beta.yml",
         "head_branch": TAG,
         "head_sha": SHA,
-        "name": "Qualify Desktop Beta Candidate",
+        "name": f"Qualify desktop beta {TAG}",
         "updated_at": "2026-07-21T12:01:00Z",
     }
     return release, evidence_bytes, run

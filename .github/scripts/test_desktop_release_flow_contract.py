@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -98,6 +99,7 @@ class DesktopReleaseFlowContractTests(unittest.TestCase):
         gh = bin_dir / "gh"
         gh.write_text(
             """#!/usr/bin/env python3
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -114,7 +116,19 @@ elif args[:2] == ["release", "download"]:
 elif args[:2] == ["release", "view"]:
     print(os.environ.get("FAKE_EXISTING_QUALIFICATION_COUNT", "0"))
 elif args[:2] == ["release", "upload"]:
-    Path(os.environ["FAKE_UPLOAD_LOG"]).write_text(json.dumps(args), encoding="utf-8")
+    source = Path(args[-1].split("#", 1)[0])
+    content = source.read_bytes()
+    Path(os.environ["FAKE_UPLOAD_LOG"]).write_text(
+        json.dumps(
+            {
+                "args": args,
+                "asset_name": source.name,
+                "content": content.decode("utf-8"),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
 else:
     raise SystemExit("unexpected fake gh invocation: " + repr(args))
 """,
@@ -226,7 +240,10 @@ else:
             bin_dir, fake_env = self._install_fake_gh(root, self._release_payload())
             stage = root / "stage"
             stage.mkdir()
-            (stage / "qualification-evidence.json").write_text('{"passed":true}\n', encoding="utf-8")
+            evidence_content = '{"passed":true}\n'
+            (stage / "qualification-evidence.json").write_text(evidence_content, encoding="utf-8")
+            evidence_digest = hashlib.sha256(evidence_content.encode()).hexdigest()
+            evidence_asset = f"qualification-evidence-{TARGET_SHA}-{evidence_digest}.json"
             output = root / "github-output"
             env = {
                 **os.environ,
@@ -242,8 +259,10 @@ else:
             accepted = self._run_workflow_script("Attach immutable qualification evidence", cwd=root, env=env)
             self.assertEqual(accepted.returncode, 0, accepted.stderr)
             upload = json.loads(Path(fake_env["FAKE_UPLOAD_LOG"]).read_text(encoding="utf-8"))
-            self.assertEqual(upload[:4], ["release", "upload", RELEASE_TAG, "--repo"])
-            self.assertIn(f"qualification-evidence-{TARGET_SHA}-", upload[-1])
+            self.assertEqual(upload["args"][:4], ["release", "upload", RELEASE_TAG, "--repo"])
+            self.assertEqual(upload["asset_name"], evidence_asset)
+            self.assertEqual(upload["content"], evidence_content)
+            self.assertEqual(upload["sha256"], evidence_digest)
             self.assertEqual(output.read_text(encoding="utf-8"), "qualified=true\n")
 
         with tempfile.TemporaryDirectory() as directory:

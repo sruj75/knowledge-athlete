@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import signal
@@ -16,6 +17,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dev_harness import cli, config, desktop_profile, safety
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+QUALIFICATION_DESKTOP_COMMAND_PATH = REPO_ROOT / "desktop" / "macos" / "scripts" / "qualification-desktop-command.py"
+
+
+def _qualification_desktop_command():
+    module_name = "qualification_desktop_command_for_lifecycle_test"
+    spec = importlib.util.spec_from_file_location(module_name, QUALIFICATION_DESKTOP_COMMAND_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _qualification_inspect_argv(cfg: config.HarnessConfig, bundle: str, source_sha: str) -> list[str]:
+    return [
+        "inspect",
+        "--worktree",
+        str(cfg.repo_root),
+        "--bundle",
+        bundle,
+        "--source-sha",
+        source_sha,
+    ]
 
 
 def _config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, instance: str = "workspace-a") -> config.HarnessConfig:
@@ -91,6 +115,262 @@ def _write_signal(path: Path, profile: desktop_profile.DesktopLocalProfile, toke
         encoding="utf-8",
     )
     path.chmod(0o600)
+
+
+def test_qualification_inspection_accepts_canonical_source_bound_desktop_without_outer_token_or_signal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    source_sha = "a" * 40
+    token = "workspaceA_launch_token_123456"
+    signal_path = cfg.layout.state_root / "manifests" / "desktop-launch.signal"
+    snapshot = _snapshot(40901, profile, token)
+    _write_signal(signal_path, profile, token)
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (snapshot,))
+    monkeypatch.setattr(safety, "process_snapshot", lambda pid: snapshot if pid == snapshot.pid else None)
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (snapshot.pid,) if port == cfg.automation_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == snapshot.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": snapshot.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+            "sourceGitSHA": source_sha,
+            "sourceTreeDirty": False,
+        },
+    )
+
+    registered = cli.register_desktop_launch(cfg, profile, signal_path=signal_path, launch_token=token)
+    bound = cli.bind_desktop_source_provenance(cfg, registered)
+    signal_path.unlink()
+    monkeypatch.delenv("OMI_DESKTOP_LAUNCH_TOKEN", raising=False)
+
+    assert bound["source_git_sha"] == source_sha
+    assert qualification_desktop.inspect_desktop(cfg, bundle, source_sha) is None
+
+
+def test_qualification_inspection_reports_a_missing_canonical_desktop_as_pending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+
+    with pytest.raises(qualification_desktop.DesktopPending, match="missing"):
+        qualification_desktop.inspect_desktop(cfg, "omi-source-qualification", "a" * 40)
+
+
+def test_qualification_command_classifies_a_missing_canonical_desktop_as_pending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    token = "workspaceA_launch_token_must_remain_private"
+
+    result = qualification_desktop.main(_qualification_inspect_argv(cfg, "omi-source-qualification", "a" * 40))
+
+    captured = capsys.readouterr()
+    assert result == 3
+    assert token not in captured.out + captured.err
+    assert "launch_token" not in captured.out + captured.err
+
+
+@pytest.mark.parametrize(
+    ("record_source_sha", "expected_result", "expected_stderr"),
+    (
+        ("a" * 40, 0, ""),
+        ("b" * 40, 2, "qualification desktop inspect refused: SafetyError\n"),
+    ),
+    ids=("healthy", "stale-source"),
+)
+def test_qualification_command_classifies_source_bound_desktop_without_disclosing_its_record(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    record_source_sha: str,
+    expected_result: int,
+    expected_stderr: str,
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    token = "workspaceA_launch_token_must_remain_private"
+    snapshot = _snapshot(40907, profile, token)
+    record = _record(cfg, profile, snapshot, token)
+    record.update({"source_git_sha": record_source_sha, "source_tree_dirty": False})
+    cli._save_manifests(cfg, [record])
+    monkeypatch.setattr(safety, "process_snapshot", lambda pid: snapshot if pid == snapshot.pid else None)
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (snapshot.pid,) if port == cfg.automation_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == snapshot.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": snapshot.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+            "sourceGitSHA": record_source_sha,
+            "sourceTreeDirty": False,
+        },
+    )
+
+    result = qualification_desktop.main(_qualification_inspect_argv(cfg, bundle, "a" * 40))
+
+    captured = capsys.readouterr()
+    emitted = captured.out + captured.err
+    assert result == expected_result
+    assert captured.out == ""
+    assert captured.err == expected_stderr
+    assert token not in emitted
+    assert json.dumps(record, sort_keys=True) not in emitted
+    assert "launch_token" not in emitted
+
+
+def test_qualification_inspection_reports_a_canonical_launch_attempt_as_pending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    attempt = cli.DesktopLaunchAttempt(
+        instance=cfg.instance,
+        automation_port=cfg.automation_port,
+        app_name=profile.app_name,
+        bundle_id=profile.bundle_id,
+        app_path=cli.desktop_app_path(profile),
+        executable_path=cli.desktop_executable_path(profile),
+        profile_root=cli.desktop_profile_root(profile),
+        state_root=cfg.layout.state_root,
+        launch_token="workspaceA_launch_token_123456",
+        attempted_at="2026-09-08T10:11:12Z",
+    ).as_record()
+    cli._save_manifests(cfg, [attempt])
+
+    with pytest.raises(qualification_desktop.DesktopPending, match="attempt"):
+        qualification_desktop.inspect_desktop(cfg, bundle, "a" * 40)
+
+
+def test_qualification_inspection_reports_healthy_desktop_without_bound_source_as_pending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(40902, profile, token)
+    record = _record(cfg, profile, snapshot, token)
+    cli._save_manifests(cfg, [record])
+    monkeypatch.setattr(safety, "process_snapshot", lambda pid: snapshot if pid == snapshot.pid else None)
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (snapshot.pid,) if port == cfg.automation_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == snapshot.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": snapshot.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+        },
+    )
+
+    with pytest.raises(qualification_desktop.DesktopPending, match="source"):
+        qualification_desktop.inspect_desktop(cfg, bundle, "a" * 40)
+
+
+def test_qualification_inspection_rejects_a_source_bound_desktop_from_another_revision(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(40903, profile, token)
+    record = _record(cfg, profile, snapshot, token)
+    record.update({"source_git_sha": "b" * 40, "source_tree_dirty": False})
+    cli._save_manifests(cfg, [record])
+    monkeypatch.setattr(safety, "process_snapshot", lambda pid: snapshot if pid == snapshot.pid else None)
+    monkeypatch.setattr(safety, "listening_pids", lambda port: (snapshot.pid,) if port == cfg.automation_port else ())
+    monkeypatch.setattr(safety, "is_descendant_of", lambda pid, ancestor: pid == ancestor == snapshot.pid)
+    monkeypatch.setattr(
+        cli,
+        "_desktop_bridge_payload",
+        lambda _port: {
+            "ok": True,
+            "bundleIdentifier": profile.bundle_id,
+            "processID": snapshot.pid,
+            "bridgePort": cfg.automation_port,
+            "backendURL": cfg.backend_url,
+            "sourceGitSHA": "b" * 40,
+            "sourceTreeDirty": False,
+        },
+    )
+
+    with pytest.raises(safety.SafetyError, match="source"):
+        qualification_desktop.inspect_desktop(cfg, bundle, "a" * 40)
+
+
+def test_qualification_stop_refuses_wrong_bundle_then_stops_exact_app_and_preserves_foreign_scope(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualification_desktop = _qualification_desktop_command()
+    cfg = _config(monkeypatch, tmp_path)
+    bundle = "omi-source-qualification"
+    profile = _profile(cfg, bundle)
+    token = "workspaceA_launch_token_123456"
+    snapshot = _snapshot(40904, profile, token)
+    desktop_record = _record(cfg, profile, snapshot, token)
+    desktop_record.update({"source_git_sha": "a" * 40, "source_tree_dirty": False})
+    backend_record = {
+        "service": "backend",
+        "pid": 40905,
+        "ownership_marker": cli._marker(cfg, "backend"),
+        "port": cfg.backend_port,
+    }
+    monkeypatch.setattr(safety, "process_exists", lambda pid: pid == backend_record["pid"])
+    cli._save_manifests(cfg, [backend_record, desktop_record])
+    assert desktop_record["app_path"] == f"/Applications/{bundle}.app"
+    current: safety.ProcessSnapshot | None = snapshot
+    foreign = safety.ProcessSnapshot(40906, "Tue Sep  8 10:11:12 2026", "/usr/bin/foreign-service")
+    monkeypatch.setattr(
+        safety,
+        "process_snapshot",
+        lambda pid: current if current is not None and pid == current.pid else None,
+    )
+    monkeypatch.setattr(safety, "process_snapshots", lambda: (current, foreign) if current is not None else (foreign,))
+    monkeypatch.setattr(safety, "listening_pids", lambda _port: ())
+    signalled: list[tuple[int, signal.Signals]] = []
+
+    def stop_exact(pid: int, sig: signal.Signals) -> None:
+        nonlocal current
+        if current is None or pid != current.pid:
+            pytest.fail("qualification cleanup must not signal another process")
+        signalled.append((pid, sig))
+        current = None
+
+    monkeypatch.setattr(os, "kill", stop_exact)
+
+    with pytest.raises(safety.SafetyError, match="different workspace or app"):
+        qualification_desktop.stop_desktop(cfg, "omi-other-qualification")
+
+    assert signalled == []
+    assert cli._process_records(cfg) == [backend_record, desktop_record]
+    assert qualification_desktop.stop_desktop(cfg, bundle) is None
+    assert signalled == [(snapshot.pid, signal.SIGTERM)]
+    assert cli._process_records(cfg) == [backend_record]
 
 
 @pytest.mark.parametrize("user_install", [False, True])

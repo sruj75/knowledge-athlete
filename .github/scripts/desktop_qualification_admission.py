@@ -27,7 +27,7 @@ def validate_qualification_run(
         "path": ".github/workflows/desktop_qualify_beta.yml",
         "head_branch": release_tag,
         "head_sha": candidate_sha,
-        "name": "Qualify Desktop Beta Candidate",
+        "name": f"Qualify desktop beta {release_tag}",
     }
     for key, expected in required.items():
         if run.get(key) != expected:

@@ -220,7 +220,8 @@ jobs:
           test "$existing" = 0
           digest=$(sha256sum "$STAGE/qualification-evidence.json" | awk '{print $1}')
           asset="qualification-evidence-${TARGET_SHA}-${digest}.json"
-          gh release upload "$RELEASE_TAG" --repo "$REPO" "$STAGE/qualification-evidence.json#$asset"
+          cp "$STAGE/qualification-evidence.json" "$STAGE/$asset"
+          gh release upload "$RELEASE_TAG" --repo "$REPO" "$STAGE/$asset"
           echo "qualified=true" >> "$GITHUB_OUTPUT"
 
   verdict:

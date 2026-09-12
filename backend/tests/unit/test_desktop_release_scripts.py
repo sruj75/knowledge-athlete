@@ -119,10 +119,16 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
         "path": ".github/workflows/desktop_qualify_beta.yml",
         "head_branch": tag,
         "head_sha": candidate_sha,
-        "name": "Qualify Desktop Beta Candidate",
+        # Observed Actions REST run 34697214109 uses the rendered run-name.
+        "name": "Qualify desktop beta v0.12.64+12064-macos",
     }
 
     admission.validate_qualification_run(trusted_tag_run, "sruj75/knowledge-athlete", tag, candidate_sha)
+    for wrong_name in ("Qualify Desktop Beta Candidate", "Qualify desktop beta v0.0.4+4-macos"):
+        with pytest.raises(ValueError, match="name must equal"):
+            admission.validate_qualification_run(
+                {**trusted_tag_run, "name": wrong_name}, "sruj75/knowledge-athlete", tag, candidate_sha
+            )
     owner_run = {
         **trusted_tag_run,
         "actor": {"login": "sruj75", "id": 120443863},
@@ -148,6 +154,8 @@ def test_qualification_workflow_binds_immutable_controls_and_candidate_identity(
         admission.validate_qualification_run(drifted_main_run, "sruj75/knowledge-athlete", tag, candidate_sha)
 
     qualification = QUALIFY_BETA_WORKFLOW.read_text(encoding="utf-8")
+    # Static wiring tripwire for promotion incident #109; behavior is exercised above.
+    assert "run-name: Qualify desktop beta ${{ inputs.release_tag }}" in qualification
     assert 'ref: ${{ inputs.release_tag }}' in qualification
     assert "owner_manual_desktop_qualification.py verify" in qualification
     assert "runs-on: ubuntu-latest" in qualification
@@ -523,7 +531,8 @@ def test_qualification_publishes_the_single_artifact_pair_and_immutable_evidence
     assert "--qualification-run-id \"$GITHUB_RUN_ID\"" in qualification
     assert "gh release upload" in qualification
     assert 'asset="qualification-evidence-${TARGET_SHA}-${digest}.json"' in qualification
-    assert '"$STAGE/qualification-evidence.json#$asset"' in qualification
+    assert '"$STAGE/$asset"' in qualification
+    assert 'qualification-evidence.json#$asset' not in qualification
     assert "git tag -l 'v*-macos' --sort=-v:refname | head -1" not in qualification
 
 
