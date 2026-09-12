@@ -2,8 +2,9 @@ import Foundation
 
 // MARK: - Thinking Budget Configuration
 
-/// Controls how many tokens retained Gemini Flash models spend on internal reasoning.
-/// Budget 0 disables thinking (cheapest). Budget -1 = dynamic (model decides).
+/// Legacy numeric request hint, retained through Gemini's budget compatibility.
+/// Gemini 3.7 has no thinking-off mode; zero does not guarantee zero reasoning or cost.
+/// https://ai.google.dev/gemini-api/docs/generate-content/thinking
 struct ThinkingConfig: Encodable {
   let thinkingBudget: Int
 
@@ -965,7 +966,7 @@ extension GeminiClient {
   /// Retries up to 2 times for transient errors.
   /// - Parameter thinkingBudget: Token budget for model reasoning. Tool-calling features that need
   ///   multi-step reasoning (e.g. InsightAssistant SQL generation, TaskAssistant screen analysis)
-  ///   should pass a reasonable budget (e.g. 1024). Default 0 = minimal thinking.
+  ///   use the retained 1024 hint. Default 0 is not a thinking-off guarantee on 3.7.
   func sendImageToolLoop(
     contents: [GeminiImageToolRequest.Content],
     systemPrompt: String,

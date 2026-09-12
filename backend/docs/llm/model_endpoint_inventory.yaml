@@ -67,10 +67,9 @@ workloads:
 adjacent_direct_surfaces:
   - surface: desktop_gemini_generation
     provider_models:
-      - gemini/gemini-2.5-flash
-      - gemini/gemini-2.5-flash-lite
+      - gemini/gemini-3.7-flash
     owner: authenticated desktop proxy
-    contract: non-stream generation only; Pro is rejected
+    contract: non-stream generation only; Pro is rejected; shipped Beta 2.5 Flash/Flash-Lite and legacy 3 Flash Preview model IDs map to 3.7 Flash
   - surface: desktop_gemini_embeddings
     provider_model: gemini/gemini-embedding-001
     owner: authenticated desktop proxy
