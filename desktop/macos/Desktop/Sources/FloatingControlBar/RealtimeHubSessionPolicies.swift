@@ -241,6 +241,17 @@ enum RealtimeHubCloseClassifier {
     hasActiveTurn: Bool = false,
     provider: ManagedInferenceProvider = .gemini
   ) -> RealtimeHubCloseCategory? {
+    // DESKTOP-MACOS-7: an aged, idle Network.framework socket can surface
+    // teardown as ECONNRESET/ENOTCONN instead of a WebSocket close frame.
+    // Keep fast failures, active turns and other transport errors actionable.
+    if !hasActiveTurn, aliveFor >= idleTeardownThreshold,
+      failure.kind == .receive || failure.kind == .send,
+      failure.systemDomain == "posix",
+      failure.systemCode == Int(POSIXErrorCode.ECONNRESET.rawValue)
+        || failure.systemCode == Int(POSIXErrorCode.ENOTCONN.rawValue)
+    {
+      return .expectedIdleTeardown
+    }
     switch failure.kind {
     case .localAddressUnavailable:
       return .localAddressUnavailable
