@@ -22,7 +22,7 @@ These rules apply to GitHub Actions workflows and custom actions under `.github/
 - Build and push only the full commit-SHA Artifact Registry tag, capture its digest, smoke that published digest, and deploy the resulting `tag@sha256:...` identity. A short SHA is display-only for Cloud Run revision suffixes.
 - Dev acceptance uses short-lived probe credentials, never service-account keys in runtime or images.
 - Auto scope proves compare `url`/`base_commit.sha` (not `head_commit`; `ahead` = newer HEAD) before cloud auth; retain behavioral tests and exact-main admission. `AUTO_DEV_DEPLOYMENT_MODE: manual-only` keeps eligibility automatic but requires protected `gcp_backend.yml` deployment; no path exceptions.
-- Use `backend/scripts/deploy_status_report.py` as a strict gate on success paths; use it with `|| true` only after a primary rollout/traffic command already failed.
+- `backend/scripts/deploy_status_report.py` must pass; `|| true` is allowed only after a rollout/traffic failure.
 - Full backend deploys must derive one immutable canonical Cloud Run release
   vector and run `backend/scripts/verify_backend_release_vector.py` after
   traffic promotion; a mixed or partially applied serving vector must fail the
@@ -30,4 +30,4 @@ These rules apply to GitHub Actions workflows and custom actions under `.github/
 - Locked deploy order: candidate health/no-traffic acceptance, traffic snapshot/promotion, serving verification/smoke, conditional rollback. Service + run/attempt tag must fit 46 characters (boundary fixtures).
 - Backend deploy workflows may only run Firestore index readiness with `--check-only` against `RUNTIME_GCP_PROJECT_ID`; run it in an isolated job from the approved commit with `GCP_FIRESTORE_READONLY_SERVICE_ACCOUNT`, and bind manual deploys to the exact checked candidate SHA. A failed gate may upload only a locally revalidated, bounded, redacted schema proposal artifact; Firestore index writes use the separate `GCP_FIRESTORE_WRITER_SERVICE_ACCOUNT` in the manual, main-scoped `gcp_firestore_indexes.yml` workflow and share the backend-stack lock.
 - `backend/deploy/runtime_env.yaml` owns Cloud Run shape and the redacted foundation contract. Both deploy workflows must consume its renderer outputs, take the stable `run.app` URL as an explicit environment input for fresh-service bootstrap, verify the discovered URL after deploy, and bind exact Secret Manager versions. The manual `foundation-readiness` mode is read-only describe/drift evidence; `artifact-cleanup-dry-run` never deletes. Resource existence is never inferred from the tracked declaration.
-- Keep `actionlint` in CI. Policy/owner-flow manifest checks and their owner-test child run with `python3 -I -S`.
+- CI runs `actionlint` and policy/owner checks/tests with `python3 -I -S`. Internal qualifier helpers need changelog CLI coverage; PR labels cannot exempt main.

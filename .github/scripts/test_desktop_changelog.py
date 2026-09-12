@@ -11,6 +11,9 @@ on every platform.
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 import unittest.mock
@@ -68,6 +71,58 @@ class EncodingTests(unittest.TestCase):
 
 
 class ChangelogRequirementTests(unittest.TestCase):
+    def test_qualification_helper_push_without_pr_label_preserves_product_gate(self) -> None:
+        # PR #110 passed with the internal-only label, then its main push failed.
+        # Exercise the actual CLI over Git commits: no label or --skip is present.
+        script = Path(__file__).with_name("check-desktop-changelog.py").resolve()
+        env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        for include_product_source in (False, True):
+            with (
+                self.subTest(include_product_source=include_product_source),
+                tempfile.TemporaryDirectory() as tmp,
+            ):
+                root = Path(tmp)
+
+                def git(*args: str) -> str:
+                    return subprocess.check_output(
+                        [
+                            "git", "-c", "user.name=CI Test",
+                            "-c", "user.email=ci@example.invalid",
+                            "-c", "commit.gpgsign=false",
+                            "-c", "core.hooksPath=/dev/null", *args,
+                        ],
+                        cwd=root,
+                        env=env,
+                        text=True,
+                        stderr=subprocess.PIPE,
+                    ).strip()
+
+                git("init", "--quiet")
+                git("commit", "--quiet", "--allow-empty", "-m", "baseline")
+                base = git("rev-parse", "HEAD")
+                helper = root / "desktop/macos/scripts/qualification-desktop-command.py"
+                helper.parent.mkdir(parents=True)
+                helper.write_text("# Internal qualification controller\n", encoding="utf-8")
+                if include_product_source:
+                    source = root / "desktop/macos/Desktop/Sources/AppDelegate.swift"
+                    source.parent.mkdir(parents=True)
+                    source.write_text("// User-facing application change\n", encoding="utf-8")
+                git("add", ".")
+                git("commit", "--quiet", "-m", "change")
+                result = subprocess.run(
+                    [sys.executable, str(script), "--base", base, "--head", "HEAD"],
+                    cwd=root,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertEqual(result.returncode, 1 if include_product_source else 0, result.stderr)
+                if include_product_source:
+                    self.assertIn("AppDelegate.swift", result.stderr)
+                    self.assertNotIn("qualification-desktop-command.py", result.stderr)
+                else:
+                    self.assertIn("No desktop changes require a changelog entry.", result.stdout)
+
     def test_internal_release_controls_are_exempt_but_product_source_is_not(self) -> None:
         for path in (
             # Local Dev entrypoints are not included in signed Beta/Stable;
