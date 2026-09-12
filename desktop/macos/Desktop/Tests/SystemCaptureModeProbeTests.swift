@@ -55,6 +55,7 @@ final class SystemCaptureModeProbeTests: XCTestCase {
   }
 
   func testExpiredBlockedSnapshotCannotPauseCaptureForever() async {
+    let clock = WindowProbeClock()
     let receipt = WindowQueryReceipt()
     let started = expectation(description: "second lookup started")
     let gate = DispatchSemaphore(value: 0)
@@ -65,12 +66,15 @@ final class SystemCaptureModeProbeTests: XCTestCase {
         started.fulfill()
         gate.wait()
         return false
-      }, onFallback: { fallbackCount += 1 })
+      }, now: clock.now, onFallback: { fallbackCount += 1 })
     await probe.refresh().value
     let task = probe.refresh()
     await fulfillment(of: [started], timeout: 2)
-    XCTAssertFalse(probe.blocksCapture(frontmostBundleID: "test.app", now: Date().addingTimeInterval(10)))
-    XCTAssertFalse(probe.blocksCapture(frontmostBundleID: "test.app", now: Date().addingTimeInterval(11)))
+    // Monotonic time is independent of wall-clock corrections and includes sleep.
+    clock.advance(by: .seconds(10))
+    XCTAssertFalse(probe.blocksCapture(frontmostBundleID: "test.app"))
+    clock.advance(by: .seconds(1))
+    XCTAssertFalse(probe.blocksCapture(frontmostBundleID: "test.app"))
     XCTAssertEqual(fallbackCount, 1)
     gate.signal()
     await task.value
@@ -107,4 +111,11 @@ final class SystemCaptureModeProbeTests: XCTestCase {
     namedDock[kCGWindowName as String] = "ordinary window"
     XCTAssertFalse(SystemCaptureModeProbe.containsBlockingOverlay([namedDock]))
   }
+}
+
+private final class WindowProbeClock: @unchecked Sendable {
+  private let lock = NSLock()
+  private var instant = ContinuousClock.now
+  func now() -> ContinuousClock.Instant { lock.withLock { instant } }
+  func advance(by duration: Duration) { lock.withLock { instant = instant.advanced(by: duration) } }
 }

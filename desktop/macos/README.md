@@ -56,8 +56,8 @@ Named bundles derive an isolated bundle ID and OAuth callback URL scheme from `O
 ## Runtime reliability boundaries
 
 - Background Gemini clients use `ModelQoS`'s account-available Flash route; do not restore the 2.5 defaults/fallbacks rejected by the owned account (#102). `GeminiBackgroundRoutingTests` exercises authenticated request construction without real credentials. The backend proxy and shipped-client mapping must deploy before a Mac candidate requiring the new route.
-- Special-mode detection uses `SystemCaptureModeProbe`: one off-main window query, a bounded boolean cache, and nonblocking capture ticks (#103). Never move WindowServer enumeration back onto `MainActor`; permission, owner, and lock-screen gates remain independent.
-- Microphone meter callbacks enter `MainActor` through `AudioLevelDelivery`, with one pending latest-value delivery and reset on capture stop. Do not add another task/queue hop inside its callers; PCM delivery is separate and never coalesced.
+- Special-mode detection uses `SystemCaptureModeProbe`: one off-main window query, a monotonic-clock-bounded boolean cache, and nonblocking capture ticks (#103). Never move WindowServer enumeration back onto `MainActor`; permission, owner, and lock-screen gates remain independent.
+- Microphone meter callbacks enter `MainActor` through `AudioLevelDelivery`, with one pending latest-value delivery. Stop invalidates queued and incoming samples immediately; the next capture activates its generation only on the serial audio queue after old HAL work quiesces. Do not add another task/queue hop inside callers; PCM delivery is separate and never coalesced.
 - Aged idle voice POSIX resets/disconnections use the existing rewarm policy. Active-turn/fast failures and failed token mints remain observable; an idle-close classification is not proof of successful recovery.
 
 ## License

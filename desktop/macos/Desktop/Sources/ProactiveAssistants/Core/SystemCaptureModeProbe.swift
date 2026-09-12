@@ -6,30 +6,34 @@ import Foundation
 final class SystemCaptureModeProbe {
   private let lookup: @Sendable () -> Bool?
   private let onFallback: @MainActor () -> Void
+  private let now: @Sendable () -> ContinuousClock.Instant
   private var refreshTask: Task<Void, Never>?
-  private var refreshStartedAt: Date?
-  private var snapshot: (blocked: Bool, at: Date)?
+  private var refreshStartedAt: ContinuousClock.Instant?
+  private var snapshot: (blocked: Bool, at: ContinuousClock.Instant)?
   private var reportedPendingFallback = false
-  private let refreshInterval: TimeInterval = 1
-  private let cacheLifetime: TimeInterval = 5
+  private let refreshInterval: Duration = .seconds(1)
+  private let cacheLifetime: Duration = .seconds(5)
 
   init(
     lookup: @escaping @Sendable () -> Bool? = SystemCaptureModeProbe.queryWindowServer,
+    now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now },
     onFallback: @escaping @MainActor () -> Void = {}
   ) {
     self.lookup = lookup
     self.onFallback = onFallback
+    self.now = now
   }
 
-  func blocksCapture(frontmostBundleID: String?, now: Date = Date()) -> Bool {
+  func blocksCapture(frontmostBundleID: String?) -> Bool {
     if frontmostBundleID == "com.apple.dock" { return true }
-    if now.timeIntervalSince(snapshot?.at ?? .distantPast) >= refreshInterval {
+    let instant = now()
+    if snapshot.map({ $0.at.duration(to: instant) >= refreshInterval }) ?? true {
       refresh()
     }
-    if let snapshot, now.timeIntervalSince(snapshot.at) <= cacheLifetime {
+    if let snapshot, snapshot.at.duration(to: instant) <= cacheLifetime {
       return snapshot.blocked
     }
-    if let refreshStartedAt, now.timeIntervalSince(refreshStartedAt) > cacheLifetime,
+    if let refreshStartedAt, refreshStartedAt.duration(to: instant) > cacheLifetime,
       !reportedPendingFallback
     {
       reportedPendingFallback = true
@@ -43,7 +47,7 @@ final class SystemCaptureModeProbe {
   @discardableResult
   func refresh() -> Task<Void, Never> {
     if let refreshTask { return refreshTask }
-    refreshStartedAt = Date()
+    refreshStartedAt = now()
     reportedPendingFallback = false
     let lookup = lookup
     // A Task inheriting MainActor still blocks the UI inside the synchronous
@@ -58,7 +62,7 @@ final class SystemCaptureModeProbe {
 
   private func complete(_ result: Bool?) {
     if let result {
-      snapshot = (result, Date())
+      snapshot = (result, now())
     } else {
       onFallback()
     }
