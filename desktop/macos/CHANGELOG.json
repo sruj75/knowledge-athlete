@@ -2,6 +2,13 @@
   "unreleased": [],
   "releases": [
     {
+      "version": "0.0.4",
+      "date": "2026-09-12",
+      "changes": [
+        "Fixed background recovery interrupting active recordings and preventing new transcript segments from being saved"
+      ]
+    },
+    {
       "version": "0.0.3",
       "date": "2026-09-10",
       "changes": [
@@ -5701,13 +5708,6 @@
         "Track focus alert and rewind search analytics",
         "Track app enabled/disabled analytics events",
         "Show version number in window title"
-      ]
-    },
-    {
-      "version": "0.0.4",
-      "date": "2026-01-30",
-      "changes": [
-        "Bug fixes and stability improvements"
       ]
     }
   ]

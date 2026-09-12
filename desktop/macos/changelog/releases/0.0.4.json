@@ -1,0 +1,7 @@
+{
+  "version": "0.0.4",
+  "date": "2026-09-12",
+  "changes": [
+    "Fixed background recovery interrupting active recordings and preventing new transcript segments from being saved"
+  ]
+}
