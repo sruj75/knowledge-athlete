@@ -402,9 +402,7 @@ extension AppState {
         },
         onAudioLevel: { level in
           // Use dedicated monitor to avoid triggering AppState re-renders
-          Task { @MainActor in
-            AudioLevelMonitor.shared.updateMicrophoneLevel(level)
-          }
+          AudioLevelMonitor.shared.updateMicrophoneLevel(level)
         }
       )
       // The HAL setup above is async and can be slow. If recording stopped — or the service was

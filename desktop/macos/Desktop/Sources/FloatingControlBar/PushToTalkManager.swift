@@ -1919,15 +1919,13 @@ class PushToTalkManager: ObservableObject {
             }
           },
           onAudioLevel: { [weak self] level in
-            Task { @MainActor [weak self] in
-              guard let self, self.micCaptureGeneration == generation,
-                self.voiceTurnCoordinator.activeTurnID == turnID,
-                self.shouldKeepMicCaptureAlive
-              else { return }
-              // Feed the floating-bar mic waveform (VoiceWaveformBars). Throttled to ~5 Hz
-              // inside the monitor; used only for visualization.
-              AudioLevelMonitor.shared.updateMicrophoneLevel(level)
-            }
+            guard let self, self.micCaptureGeneration == generation,
+              self.voiceTurnCoordinator.activeTurnID == turnID,
+              self.shouldKeepMicCaptureAlive
+            else { return }
+            // Meter delivery already enters MainActor once; do not enqueue a
+            // second task for every captured audio buffer.
+            AudioLevelMonitor.shared.updateMicrophoneLevel(level)
           }
         )
         let isCurrentGeneration = self.micCaptureGeneration == generation

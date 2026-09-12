@@ -22,7 +22,7 @@ class AudioCaptureService: @unchecked Sendable {
   typealias AudioChunkHandler = @Sendable (Data) -> Void
 
   /// Callback for receiving audio levels (0.0 - 1.0)
-  typealias AudioLevelHandler = @Sendable (Float) -> Void
+  typealias AudioLevelHandler = AudioLevelDelivery.Handler
 
   enum SilentMicRecoveryAction {
     case fallbackToBuiltIn
@@ -90,6 +90,7 @@ class AudioCaptureService: @unchecked Sendable {
 
   private var onAudioChunk: AudioChunkHandler?
   private var onAudioLevel: AudioLevelHandler?
+  private let audioLevelDelivery = AudioLevelDelivery()
 
   /// Called when the mic has been alive-but-silent for `silentMicWindowThreshold`
   /// windows. By default this is limited to Bluetooth inputs, where macOS can feed
@@ -407,6 +408,7 @@ class AudioCaptureService: @unchecked Sendable {
       guard let self else { return }
       self.onAudioChunk = nil
       self.onAudioLevel = nil
+      self.audioLevelDelivery.reset()
       self.audioConverter = nil
       self.inputFormat = nil
       self.targetFormat = nil
@@ -734,9 +736,7 @@ class AudioCaptureService: @unchecked Sendable {
       }
 
       let level = min(Float(1.0), smoothedLevel)
-      DispatchQueue.main.async {
-        levelHandler(level)
-      }
+      audioLevelDelivery.submit(level, to: levelHandler)
     }
 
     // Send to callback
