@@ -211,7 +211,7 @@ do not hand-edit those paths to match a specific machine.
 
 ### User Subcollections (Firestore)
 - `users/{uid}/conversations` - callerless S-25 drain residue; never Mac/listen authority
-- Capture creates its UUID before ingestion; reads and mutations stay local.
+- Capture creates its UUID before ingestion; reads/mutations stay local. Recovery/retries select only rows strictly before the fixed app-launch cutoff, never by age alone.
 - `/v4/listen` returns untrusted local candidates; Mac UI/authority stays local. Retired: Daily Summary, hosted assistant/notification/Mentor/Focus/AI Profile routes.
 - `MemoryStorage` owns Memory/Insight tips; compute/embeddings leave the Mac, owner/revision-fenced.
 - `ActionItemStorage`/`GoalStorage` own task/goal CRUD; reminders and assistant/notification prefs stay local.

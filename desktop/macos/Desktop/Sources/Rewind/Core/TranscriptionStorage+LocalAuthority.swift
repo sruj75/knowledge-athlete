@@ -992,23 +992,20 @@ extension TranscriptionStorage {
     }
   }
 
-  func recoverLocalFinalization(
-    now: Date = Date(),
-    minimumRecordingAge: TimeInterval = 30
-  ) async throws -> ConversationRecoveryReport {
+  func recoverLocalFinalization(launchCutoff: Date) async throws -> ConversationRecoveryReport {
     let db = try await localAuthorityDatabase()
     return try await db.write { database in
-      let cutoff = now.addingTimeInterval(-minimumRecordingAge)
+      let now = Date()
       let rows = try Row.fetchAll(
         database,
         sql: """
           SELECT s.*,
                  (SELECT COUNT(*) FROM transcription_segments seg WHERE seg.sessionId = s.id) AS segmentCount
           FROM transcription_sessions s
-          WHERE s.status = ? AND s.createdAt <= ?
+          WHERE s.status = ? AND s.createdAt < ?
           ORDER BY s.createdAt, s.id
           """,
-        arguments: [ConversationLifecycleState.recording.rawValue, cutoff])
+        arguments: [ConversationLifecycleState.recording.rawValue, launchCutoff])
       var finalized: [String] = []
       var deleted: [String] = []
       for row in rows {
