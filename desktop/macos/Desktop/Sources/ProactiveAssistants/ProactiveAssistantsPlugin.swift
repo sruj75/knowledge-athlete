@@ -10,6 +10,11 @@ public class ProactiveAssistantsPlugin: NSObject {
   public static let shared = ProactiveAssistantsPlugin()
   // MARK: - Properties
   private var screenCaptureService: ScreenCaptureService?
+  private let systemCaptureModeProbe = SystemCaptureModeProbe(onFallback: {
+    DesktopDiagnosticsManager.shared.recordFallback(
+      area: "screen_capture", from: "special_mode_lookup", to: "capture_error_handling",
+      reason: "other", outcome: .degraded)
+  })
   private var windowMonitor: WindowMonitor?
   private var focusAssistant: FocusAssistant?
 
@@ -1419,51 +1424,8 @@ public class ProactiveAssistantsPlugin: NSObject {
   /// When in these modes, ScreenCaptureKit returns "user declined TCCs" error
   /// even though permission is actually granted. This is a transient state.
   private func isInSpecialSystemMode() -> Bool {
-    // Check if Dock is the frontmost app (indicates Exposé/Mission Control)
-    if let frontApp = NSWorkspace.shared.frontmostApplication {
-      if frontApp.bundleIdentifier == "com.apple.dock" {
-        log("SpecialModeDetection: Dock is frontmost app (Exposé/Mission Control active)")
-        return true
-      }
-    }
-
-    // Check for Mission Control windows using CGWindowList
-    // When Mission Control is active, Dock creates a window with no name
-    guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
-      return false
-    }
-
-    for window in windowList {
-      guard let ownerName = window[kCGWindowOwnerName as String] as? String else {
-        continue
-      }
-
-      // Dock window with no name indicates Mission Control/Exposé
-      if ownerName == "Dock" {
-        let windowName = window[kCGWindowName as String] as? String
-        if windowName == nil || windowName?.isEmpty == true {
-          // Check if it's a large window (Mission Control overlay)
-          if let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-            let width = bounds["Width"],
-            let height = bounds["Height"],
-            width > 500 && height > 300
-          {
-            log(
-              "SpecialModeDetection: Dock overlay window detected (\(Int(width))x\(Int(height))) - Mission Control/Exposé"
-            )
-            return true
-          }
-        }
-      }
-
-      // Notification Center active
-      if ownerName == "NotificationCenter" {
-        log("SpecialModeDetection: Notification Center is active")
-        return true
-      }
-    }
-
-    return false
+    systemCaptureModeProbe.blocksCapture(
+      frontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
   }
 
   /// Get the current frontmost app for logging

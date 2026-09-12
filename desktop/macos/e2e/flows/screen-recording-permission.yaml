@@ -20,6 +20,7 @@ covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryExtractionModels.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ScreenCaptureTargetPolicy.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemCaptureModeProbe.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/CapturedFrame.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveExternalCaptureYield.swift
@@ -79,7 +80,7 @@ steps:
 
   - id: S7
     name: Return to Home
-    do: "Click Home in the top bar to return to the Home page."
+    do: "Click Home in the top bar to return to the Home page. With Capture enabled and permission granted, enter and exit Mission Control and open then dismiss Notification Center. Verify the app stays responsive and capture resumes after the system overlay closes; permission, owner, and lock-screen gates must still apply."
     expect:
       interactive_count: { min: 5 }
       text_visible:
