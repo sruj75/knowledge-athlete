@@ -649,50 +649,7 @@ extension RealtimeHubController {
     // If PTT muted music/system output while listening, make sure the model's
     // reply is audible even if capture teardown restore is delayed by hardware.
     SystemAudioMuteController.shared.restore()
-    guard let pcmPlayer, pcmPlayer.enqueue(pcm24k) else {
-      // The coordinator reserves the output lease before the physical enqueue.
-      // Only a previously scheduled chunk means playback actually started.
-      let playbackAlreadyStarted = audioReceivedThisTurn
-      switch RealtimeNativeAudioScheduleFailureAction.decide(
-        playbackAlreadyStarted: playbackAlreadyStarted)
-      {
-      case .keepTextFallback:
-        log(
-          "RealtimeHub[\(providerTag)]: first native audio chunk could not be scheduled; keeping text fallback armed"
-        )
-        DesktopDiagnosticsManager.shared.recordFallback(
-          area: "realtime_hub",
-          from: "native_realtime",
-          to: "selected_voice_fallback",
-          reason: "enqueue_failed",
-          outcome: .degraded,
-          extra: ["user_visible": false])
-        VoiceTurnCoordinator.shared.publish(
-          .playbackDrainedScoped(
-            turnID: lease.turnID,
-            identity: lease.identity,
-            leaseID: lease.id))
-      case .failTurnAfterPartialPlayback:
-        log(
-          "RealtimeHub[\(providerTag)]: native audio stream failed after playback started; refusing duplicate full-text fallback"
-        )
-        VoiceTurnCoordinator.shared.publish(
-          .playbackFailedScoped(
-            turnID: lease.turnID,
-            identity: lease.identity,
-            leaseID: lease.id,
-            message: "native PCM enqueue failed"))
-      }
-      return
-    }
-    audioReceivedThisTurn = true
-    realtimePlaybackEpoch = pcmPlayer.playbackEpoch
-    // The reducer's drain deadline is an inactivity watchdog. Refresh it only
-    // after this exact PCM chunk reached the player, so long healthy native
-    // replies are not cut off at a fixed duration while a stalled stream still
-    // fails closed.
-    _ = VoiceTurnCoordinator.shared.noteOutputProgress(lease)
-    responseGlowGate.markPlaybackActive(lease: lease)
+    enqueueNativeAudio(pcm24k, identity: identity, source: source, lease: lease)
   }
 
   func hubDidEmitText(
@@ -702,6 +659,13 @@ extension RealtimeHubController {
     source: RealtimeHubSession
   ) {
     guard acceptsTurnEvent(identity, source: source), let identity else { return }
+    if isFinal, let pcmPlayer, pcmPlayer.hasPendingEnqueues {
+      pcmPlayer.afterPendingEnqueues { [weak self, weak source] in
+        guard let self, let source else { return }
+        self.hubDidEmitText(text, isFinal: isFinal, identity: identity, source: source)
+      }
+      return
+    }
     guard
       RealtimeProviderOutputPresentationPolicy.decide(
         screenGroundingState: screenGroundingState,
@@ -892,6 +856,13 @@ extension RealtimeHubController {
 
   func hubDidFinishTurn(identity: RealtimeHubEventIdentity?, source: RealtimeHubSession) {
     guard acceptsTurnEvent(identity, source: source), let identity else { return }
+    if let pcmPlayer, pcmPlayer.hasPendingEnqueues {
+      pcmPlayer.afterPendingEnqueues { [weak self, weak source] in
+        guard let self, let source else { return }
+        self.hubDidFinishTurn(identity: identity, source: source)
+      }
+      return
+    }
     let transportMode = source.transportMode
     hubReconnectStrikes = 0  // a completed provider cycle proves the hub works.
     if let turnID = VoiceTurnCoordinator.shared.activeTurnID {

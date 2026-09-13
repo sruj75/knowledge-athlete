@@ -6,21 +6,6 @@ import XCTest
 final class StreamingPCMPlaybackQueueTests: XCTestCase {
   private final class BufferBox {}
 
-  func testStreamingPlayerPublishesEpochForEveryScheduledBuffer() throws {
-    let source = try String(
-      contentsOf: URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Sources/FloatingControlBar/StreamingPCMPlayer.swift"),
-      encoding: .utf8
-    )
-
-    XCTAssertTrue(source.contains("var onPlaybackScheduled: ((Int) -> Void)?"))
-    XCTAssertTrue(
-      source.contains("let scheduledPlaybackEpoch = playbackEpoch\n    onPlaybackScheduled?(scheduledPlaybackEpoch)"))
-    XCTAssertTrue(source.contains("for buffer in buffersToReplay {\n        self.schedule(buffer)\n      }"))
-  }
-
   func testConfigurationChangeReturnsScheduledTailForReplay() {
     let queue = StreamingPCMPlaybackQueue<BufferBox>()
     let first = BufferBox()

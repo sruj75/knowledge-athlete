@@ -1099,9 +1099,11 @@ import XCTest
     let hubSource = try realtimeHubControllerSource()
     let playerSource = try streamingPCMPlayerSource()
 
-    XCTAssertTrue(playerSource.contains("private func ensureRunning() -> Bool"))
-    XCTAssertTrue(playerSource.contains("@discardableResult\n  func enqueue(_ data: Data) -> Bool"))
-    XCTAssertTrue(hubSource.contains("guard let pcmPlayer, pcmPlayer.enqueue(pcm24k) else"))
+    // omi-test-quality: source-inspection -- static wiring tripwire; hardware acceptance and failure are exercised by StreamingPCMPlayerLifecycleTests.
+    XCTAssertTrue(playerSource.contains("completion: @escaping @MainActor @Sendable (Bool) -> Void"))
+    XCTAssertTrue(hubSource.contains("guard accepted else {"))
+    XCTAssertTrue(hubSource.contains("self.handleNativeAudioScheduleFailure(lease: lease)"))
+    XCTAssertTrue(hubSource.contains("VoiceTurnCoordinator.shared.outputSnapshot.activeLease == lease"))
     XCTAssertTrue(hubSource.contains("keeping text fallback armed"))
     XCTAssertTrue(hubSource.contains("RealtimeNativeAudioScheduleFailureAction.decide("))
     XCTAssertTrue(hubSource.contains("VoiceTurnCoordinator.shared.noteOutputProgress(lease)"))
@@ -1144,10 +1146,11 @@ import XCTest
     XCTAssertTrue(
       source.contains("let bargeIn = providerResponseInFlight || reducerNativePlaybackActive || voicePlaybackActive"))
     XCTAssertTrue(source.contains("if bargeIn {\n      pcmPlayer?.stop()"))
-    XCTAssertTrue(source.contains("audioReceivedThisTurn = true\n    realtimePlaybackEpoch = pcmPlayer.playbackEpoch"))
+    XCTAssertTrue(
+      source.contains("self.audioReceivedThisTurn = true\n      self.realtimePlaybackEpoch = pcmPlayer.playbackEpoch"))
     XCTAssertTrue(source.contains("var realtimePlaybackEpoch = 0"))
     XCTAssertTrue(source.contains("player.onPlaybackScheduled = { [weak self] playbackEpoch in"))
-    XCTAssertTrue(source.contains("self.realtimePlaybackEpoch = playbackEpoch"))
+    XCTAssertTrue(source.contains("self?.realtimePlaybackEpoch = playbackEpoch"))
     XCTAssertTrue(source.contains("player.onPlaybackIdle = { [weak self] playbackEpoch in"))
     XCTAssertTrue(source.contains("guard let self, self.realtimePlaybackEpoch == playbackEpoch else { return }"))
     XCTAssertTrue(source.contains("realtimePlaybackEpoch = pcmPlayer.playbackEpoch"))

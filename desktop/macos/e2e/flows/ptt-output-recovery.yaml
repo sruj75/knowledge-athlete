@@ -1,0 +1,28 @@
+version: 2
+name: ptt-output-recovery
+tier: manual
+description: Streaming PTT output device recovery and Stop fencing; separate from ambient microphone capture
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/FloatingControlBar/StreamingPCMPlayer.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/StreamingPCMAudioOutput.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+VoiceOutput.swift
+preconditions:
+  - auth_ready
+
+steps:
+  - id: S1
+    name: Request spoken output
+    do: "In the named non-production app, request a spoken PTT response and confirm native managed voice is playing. Record missing permissions or provider access as a limitation, not a pass."
+    expect:
+      interactive_count: { min: 1 }
+  - id: S2
+    name: Recover output after a device change
+    do: "During playback, change the selected output device when another device is available. Verify the interface remains responsive and unplayed speech continues without repeating completed speech. Record unavailable hardware as a limitation, not a pass."
+    expect:
+      interactive_count: { min: 1 }
+  - id: S3
+    name: Stop and start a new response
+    do: "Stop the spoken response, then make a new request. Verify stopped speech never resumes, the new response plays, and its speaking indicator clears when playback drains."
+    expect:
+      interactive_count: { min: 1 }

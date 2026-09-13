@@ -8,28 +8,71 @@ extension RealtimeHubController {
   func makePCMPlayer() -> StreamingPCMPlayer {
     let player = StreamingPCMPlayer(sampleRate: 24000)
     player.onPlaybackScheduled = { [weak self] playbackEpoch in
-      Task { @MainActor in
-        guard let self else { return }
-        self.realtimePlaybackEpoch = playbackEpoch
-      }
+      self?.realtimePlaybackEpoch = playbackEpoch
     }
     player.onPlaybackIdle = { [weak self] playbackEpoch in
-      Task { @MainActor in
-        guard let self, self.realtimePlaybackEpoch == playbackEpoch else { return }
-        if let lease = VoiceTurnCoordinator.shared.outputSnapshot.activeLease,
-          lease.lane == .nativeRealtime
-        {
-          if VoiceTurnCoordinator.shared.releaseOutput(lease) {
-            if VoiceTurnCoordinator.shared.model.turn?.phase.isTerminal == true {
-              self.exitVoiceUI()
-              self.applyPendingSessionRefreshIfIdle()
-            }
+      guard let self, self.realtimePlaybackEpoch == playbackEpoch else { return }
+      if let lease = VoiceTurnCoordinator.shared.outputSnapshot.activeLease,
+        lease.lane == .nativeRealtime
+      {
+        if VoiceTurnCoordinator.shared.releaseOutput(lease) {
+          if VoiceTurnCoordinator.shared.model.turn?.phase.isTerminal == true {
+            self.exitVoiceUI()
+            self.applyPendingSessionRefreshIfIdle()
           }
         }
-        self.clearResponseGlowIfRealtimeAudioIdle()
       }
+      self.clearResponseGlowIfRealtimeAudioIdle()
+    }
+    player.onPlaybackFailed = { [weak self] playbackEpoch in
+      guard let self, self.realtimePlaybackEpoch == playbackEpoch,
+        let lease = VoiceTurnCoordinator.shared.outputSnapshot.activeLease,
+        lease.lane == .nativeRealtime
+      else { return }
+      self.handleNativeAudioScheduleFailure(lease: lease)
     }
     return player
+  }
+
+  func enqueueNativeAudio(
+    _ data: Data, identity: RealtimeHubEventIdentity, source: RealtimeHubSession, lease: VoiceOutputLease
+  ) {
+    guard let pcmPlayer else {
+      handleNativeAudioScheduleFailure(lease: lease)
+      return
+    }
+    pcmPlayer.enqueue(data) { [weak self, weak source, weak pcmPlayer] accepted in
+      guard let self, let source, let pcmPlayer, self.pcmPlayer === pcmPlayer,
+        self.acceptsTurnEvent(identity, source: source),
+        VoiceTurnCoordinator.shared.outputSnapshot.activeLease == lease
+      else { return }
+      guard accepted else {
+        self.handleNativeAudioScheduleFailure(lease: lease)
+        return
+      }
+      self.audioReceivedThisTurn = true
+      self.realtimePlaybackEpoch = pcmPlayer.playbackEpoch
+      // Refresh the inactivity watchdog only after the hardware accepted PCM.
+      _ = VoiceTurnCoordinator.shared.noteOutputProgress(lease)
+      self.responseGlowGate.markPlaybackActive(lease: lease)
+    }
+  }
+
+  func handleNativeAudioScheduleFailure(lease: VoiceOutputLease) {
+    switch RealtimeNativeAudioScheduleFailureAction.decide(playbackAlreadyStarted: audioReceivedThisTurn) {
+    case .keepTextFallback:
+      log("RealtimeHub: first native audio chunk could not be scheduled; keeping text fallback armed")
+      DesktopDiagnosticsManager.shared.recordFallback(
+        area: "realtime_hub", from: "native_realtime", to: "selected_voice_fallback",
+        reason: "enqueue_failed", outcome: .degraded, extra: ["user_visible": false])
+      VoiceTurnCoordinator.shared.publish(
+        .playbackDrainedScoped(turnID: lease.turnID, identity: lease.identity, leaseID: lease.id))
+    case .failTurnAfterPartialPlayback:
+      log("RealtimeHub: native audio stream failed after playback started; refusing duplicate full-text fallback")
+      VoiceTurnCoordinator.shared.publish(
+        .playbackFailedScoped(
+          turnID: lease.turnID, identity: lease.identity, leaseID: lease.id, message: "native PCM enqueue failed"))
+    }
   }
 
   /// A verified, fail-closed screen result supersedes provider narration for
