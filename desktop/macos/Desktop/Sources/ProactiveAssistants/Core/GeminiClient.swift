@@ -2,8 +2,9 @@ import Foundation
 
 // MARK: - Thinking Budget Configuration
 
-/// Controls how many tokens retained Gemini Flash models spend on internal reasoning.
-/// Budget 0 disables thinking (cheapest). Budget -1 = dynamic (model decides).
+/// Legacy numeric request hint, retained through Gemini's budget compatibility.
+/// Gemini 3.7 has no thinking-off mode; zero does not guarantee zero reasoning or cost.
+/// https://ai.google.dev/gemini-api/docs/generate-content/thinking
 struct ThinkingConfig: Encodable {
   let thinkingBudget: Int
 
@@ -322,8 +323,19 @@ actor GeminiClient {
   /// Optional model to retry with if the primary model keeps failing transiently
   /// (e.g. Pro overloaded → fall back to Flash). Nil or equal-to-primary = no fallback.
   private let fallbackModel: String?
+  private let session: URLSession
+  private let authHeaderProvider: @Sendable () async throws -> String
 
-  init(apiKey: String? = nil, model: String = ModelQoS.Gemini.proactive, fallbackModel: String? = nil) throws {
+  init(
+    apiKey: String? = nil,
+    model: String = ModelQoS.Gemini.proactive,
+    fallbackModel: String? = nil,
+    session: URLSession = .shared,
+    authHeaderProvider: @escaping @Sendable () async throws -> String = {
+      let authService = await MainActor.run { AuthService.shared }
+      return try await authService.getAuthHeader()
+    }
+  ) throws {
     // BREAKING CHANGE (issue #5861): apiKey parameter is ignored.
     // All Gemini requests now route through the backend proxy which supplies
     // the key server-side. Defaults through the canonical backend resolver.
@@ -333,12 +345,13 @@ actor GeminiClient {
     }
     self.model = model
     self.fallbackModel = fallbackModel
+    self.session = session
+    self.authHeaderProvider = authHeaderProvider
   }
 
   /// Get Firebase auth header for proxy requests
   private func authHeader() async throws -> String {
-    let authService = await MainActor.run { AuthService.shared }
-    return try await authService.getAuthHeader()
+    try await authHeaderProvider()
   }
 
   private func authorizedAuthHeader(
@@ -545,7 +558,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = requestBody
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -624,7 +637,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = timeout
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -700,7 +713,7 @@ actor GeminiClient {
         urlRequest.timeoutInterval = 300
         urlRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await session.data(for: urlRequest)
         try requireCurrentAuthorization(authorizationSnapshot)
         try checkHTTPStatus(urlResponse, data: data)
 
@@ -953,7 +966,7 @@ extension GeminiClient {
   /// Retries up to 2 times for transient errors.
   /// - Parameter thinkingBudget: Token budget for model reasoning. Tool-calling features that need
   ///   multi-step reasoning (e.g. InsightAssistant SQL generation, TaskAssistant screen analysis)
-  ///   should pass a reasonable budget (e.g. 1024). Default 0 = minimal thinking.
+  ///   use the retained 1024 hint. Default 0 is not a thinking-off guarantee on 3.7.
   func sendImageToolLoop(
     contents: [GeminiImageToolRequest.Content],
     systemPrompt: String,
@@ -1009,7 +1022,7 @@ extension GeminiClient {
           urlRequest.timeoutInterval = 300
           urlRequest.httpBody = requestBody
 
-          let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+          let (data, urlResponse) = try await session.data(for: urlRequest)
           try requireCurrentAuthorization(authorizationSnapshot)
           try checkHTTPStatus(urlResponse, data: data)
 

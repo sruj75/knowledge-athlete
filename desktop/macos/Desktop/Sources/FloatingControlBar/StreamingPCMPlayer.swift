@@ -1,12 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
 
-/// `AVAudioPCMBuffer` is not Sendable; this box lets a scheduled-buffer
-/// completion carry the buffer across to the main-actor bookkeeping hop.
-private struct PCMBufferBox: @unchecked Sendable {
-  let buffer: AVAudioPCMBuffer
-}
-
 /// Tracks buffers that AVAudioPlayerNode owns but has not reported as played yet.
 ///
 /// `AVAudioPlayerNode.stop()` discards every scheduled buffer. Route/sample-rate
@@ -55,139 +49,87 @@ final class StreamingPCMPlaybackQueue<Buffer: AnyObject> {
 /// spoken response as it streams in.
 ///
 /// Retained from Omi's proven streaming voice playback path.
-final class StreamingPCMPlayer: @unchecked Sendable {
-  private let engine = AVAudioEngine()
-  private let player = AVAudioPlayerNode()
-  private let format: AVAudioFormat
-  private var configObserver: NSObjectProtocol?
-  private let playbackQueue = StreamingPCMPlaybackQueue<AVAudioPCMBuffer>()
-  private(set) var playbackEpoch = 0
-  var onPlaybackScheduled: ((Int) -> Void)?
-  var onPlaybackIdle: ((Int) -> Void)?
+@MainActor
+final class StreamingPCMPlayer {
+  typealias OutputFactory =
+    @Sendable (
+      @escaping @Sendable () -> Void, @escaping @Sendable (Float) -> Void
+    ) -> any StreamingPCMAudioOutput
 
-  init(sampleRate: Double = 24000) {
-    // Float32 mono at the source rate; the mixer resamples to the device rate.
-    format = AVAudioFormat(
-      commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false)!
-    engine.attach(player)
-    engine.connect(player, to: engine.mainMixerNode, format: format)
-    // Output-level tap for the notch speaking animation. Tapping the mixer
-    // (not enqueue-time RMS) keeps the visual in sync with what is audibly
-    // playing rather than leading it by the scheduled-queue depth. The tap
-    // callback runs on an audio thread; only the cheap RMS math happens there.
-    engine.mainMixerNode.installTap(
-      onBus: 0, bufferSize: 1024, format: engine.mainMixerNode.outputFormat(forBus: 0)
-    ) { buffer, _ in
-      let level = Self.rmsLevel(of: buffer)
-      DispatchQueue.main.async {
-        AudioLevelMonitor.shared.updateVoicePlaybackLevel(level)
-      }
-    }
-    // An audio configuration change (another process grabbing the audio device, a
-    // device/sample-rate change, a Bluetooth A2DP↔HFP flip, etc.) STOPS the engine
-    // mid-stream — that's what cuts the reply off and can leave the engine in a
-    // half-dead state (isRunning=true but no output) that silences later turns.
-    // Fully tear down + rebuild the node graph and restart so playback always
-    // recovers. (The PTT path also avoids the BT flip by capturing from the
-    // built-in mic when output is Bluetooth — see PushToTalkManager.)
-    configObserver = NotificationCenter.default.addObserver(
-      forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
-    ) { [weak self] _ in
-      guard let self = self else { return }
-      log("StreamingPCMPlayer: audio config changed — rebuilding engine")
-      let buffersToReplay = self.playbackQueue.buffersToReplayAfterConfigurationChange()
-      self.player.stop()
-      self.engine.stop()
-      self.engine.disconnectNodeOutput(self.player)
-      self.engine.connect(self.player, to: self.engine.mainMixerNode, format: self.format)
-      _ = self.ensureRunning()
-      for buffer in buffersToReplay {
-        self.schedule(buffer)
+  private let authority = PCMPlaybackAuthority()
+  private let levels = AudioLevelDelivery()
+  private let worker: PCMPlaybackWorker
+  private var meterCapture: AudioLevelDelivery.Capture
+  private var pendingEnqueues = 0
+  private var enqueueWaiters: [@MainActor @Sendable () -> Void] = []
+  var hasPendingEnqueues: Bool { pendingEnqueues > 0 }
+  private(set) var playbackEpoch = 0
+  var onPlaybackScheduled: (@MainActor @Sendable (Int) -> Void)?
+  var onPlaybackIdle: (@MainActor @Sendable (Int) -> Void)?
+  var onPlaybackFailed: (@MainActor @Sendable (Int) -> Void)?
+
+  init(sampleRate: Double = 24000, makeOutput: OutputFactory? = nil) {
+    meterCapture = levels.invalidate()
+    worker = PCMPlaybackWorker(
+      authority: authority, levels: levels,
+      makeOutput: makeOutput ?? { changed, level in
+        AVFoundationStreamingPCMOutput(
+          sampleRate: sampleRate, configurationChanged: changed, level: level)
+      })
+    worker.setEventHandler { [weak self] token, event in
+      guard let self, self.authority.current == token else { return }
+      switch event {
+      case .scheduled(let epoch):
+        self.playbackEpoch = epoch
+        self.onPlaybackScheduled?(epoch)
+      case .idle(let epoch):
+        guard !self.hasPendingEnqueues, self.playbackEpoch == epoch else { return }
+        self.onPlaybackIdle?(epoch)
+      case .failed(let epoch): self.onPlaybackFailed?(epoch)
       }
     }
   }
 
   deinit {
-    if let observer = configObserver {
-      NotificationCenter.default.removeObserver(observer)
-    }
+    authority.invalidate()
+    levels.invalidate()
+    worker.stop()
   }
 
-  /// Ensure the engine + player are actually running before scheduling. Checking
-  /// the real `isRunning`/`isPlaying` state (not a one-shot flag) is what makes
-  /// playback survive past the first turn: AVAudioEngine auto-suspends when idle
-  /// after a reply finishes, so later turns must restart it.
-  private func ensureRunning() -> Bool {
-    if !engine.isRunning {
-      engine.prepare()
-      do {
-        try engine.start()
-        log(
-          "StreamingPCMPlayer: engine started, isRunning=\(engine.isRunning), outRate=\(engine.outputNode.outputFormat(forBus: 0).sampleRate)"
-        )
-      } catch {
-        log("StreamingPCMPlayer: engine start FAILED: \(error.localizedDescription)")
-        return false
-      }
-    }
-    if !player.isPlaying {
-      player.play()
-    }
-    return player.isPlaying
-  }
-
-  /// `data` = little-endian Int16 PCM, mono, at the configured sample rate.
-  @discardableResult
-  func enqueue(_ data: Data) -> Bool {
-    let sampleCount = data.count / 2
-    guard sampleCount > 0,
-      let buffer = AVAudioPCMBuffer(
-        pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleCount))
-    else { return false }
-    buffer.frameLength = AVAudioFrameCount(sampleCount)
-    let channel = buffer.floatChannelData![0]
-    data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-      let src = raw.bindMemory(to: Int16.self)
-      for i in 0..<sampleCount {
-        channel[i] = max(-1.0, min(1.0, Float(src[i]) / 32768.0))
-      }
-    }
-    guard ensureRunning() else { return false }
-    schedule(buffer)
-    return true
-  }
-
-  private func schedule(_ buffer: AVAudioPCMBuffer) {
-    playbackEpoch += 1
-    let scheduledPlaybackEpoch = playbackEpoch
-    onPlaybackScheduled?(scheduledPlaybackEpoch)
-    let generation = playbackQueue.appendScheduled(buffer)
-    // AVAudioPCMBuffer is not Sendable; box it so the main-actor completion hop
-    // can carry it across the concurrency boundary.
-    let bufferBox = PCMBufferBox(buffer: buffer)
-    player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-      guard let self else { return }
-      DispatchQueue.main.async {
-        let didMarkPlayed = self.playbackQueue.markPlayed(bufferBox.buffer, generation: generation)
-        if didMarkPlayed, self.playbackQueue.isEmpty {
-          self.onPlaybackIdle?(scheduledPlaybackEpoch)
-        }
+  /// Completion means the audio SDK accepted this chunk, not just that it was
+  /// placed on a work queue. Stop invalidates this and all older callbacks.
+  func enqueue(_ data: Data, completion: @escaping @MainActor @Sendable (Bool) -> Void) {
+    let token = authority.current
+    pendingEnqueues += 1
+    worker.enqueue(data, token: token, meterCapture: meterCapture) { [weak self] accepted in
+      guard let self, self.authority.current == token else { return }
+      self.pendingEnqueues -= 1
+      completion(accepted)
+      if self.pendingEnqueues == 0 {
+        let waiters = self.enqueueWaiters
+        self.enqueueWaiters.removeAll()
+        for waiter in waiters where self.authority.current == token { waiter() }
       }
     }
   }
 
-  func stop() {
-    playbackEpoch += 1
-    playbackQueue.clearForExplicitStop()
-    player.stop()
-    engine.stop()
-    DispatchQueue.main.async {
-      AudioLevelMonitor.shared.updateVoicePlaybackLevel(0)
-    }
+  /// Provider text/end events must not overtake physical enqueue acceptance.
+  /// Stop discards the old turn's waiters along with its audio callbacks.
+  func afterPendingEnqueues(_ action: @escaping @MainActor @Sendable () -> Void) {
+    if hasPendingEnqueues { enqueueWaiters.append(action) } else { action() }
+  }
+
+  func stop(completion: @escaping @MainActor @Sendable () -> Void = {}) {
+    playbackEpoch = authority.invalidate()
+    meterCapture = levels.invalidate()
+    pendingEnqueues = 0
+    enqueueWaiters.removeAll()
+    AudioLevelMonitor.shared.updateVoicePlaybackLevel(0)
+    worker.stop(completion: completion)
   }
 
   /// Root-mean-square level of a float PCM buffer across all channels, 0…1.
-  static func rmsLevel(of buffer: AVAudioPCMBuffer) -> Float {
+  nonisolated static func rmsLevel(of buffer: AVAudioPCMBuffer) -> Float {
     guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return 0 }
     let channelCount = Int(buffer.format.channelCount)
     let frames = Int(buffer.frameLength)
@@ -200,5 +142,180 @@ final class StreamingPCMPlayer: @unchecked Sendable {
       }
     }
     return min(1, sqrt(sum / Float(frames * channelCount)))
+  }
+}
+
+private struct PCMPlaybackToken: Sendable, Equatable { let generation: UInt64 }
+
+/// Only cancellation/epoch counters cross queues. Never hold this lock while
+/// calling the audio SDK: Stop must remain immediate even if hardware stalls.
+private final class PCMPlaybackAuthority: @unchecked Sendable {
+  private let lock = NSLock()
+  private var generation: UInt64 = 0
+  private var epoch = 0
+  var current: PCMPlaybackToken { lock.withLock { PCMPlaybackToken(generation: generation) } }
+  @discardableResult
+  func invalidate() -> Int {
+    lock.withLock {
+      generation &+= 1
+      epoch += 1
+      return epoch
+    }
+  }
+  func nextEpoch(for token: PCMPlaybackToken) -> Int? {
+    lock.withLock {
+      guard generation == token.generation else { return nil }
+      epoch += 1
+      return epoch
+    }
+  }
+}
+
+/// All graph, scheduled-tail and completion mutation is confined to queue.
+/// SDK callbacks enqueue work; UI notifications carry only immutable values.
+private final class PCMPlaybackWorker: @unchecked Sendable {
+  enum Event: Sendable {
+    case scheduled(Int)
+    case idle(Int)
+    case failed(Int)
+  }
+  private final class Buffer: Sendable {
+    let data: Data
+    init(_ data: Data) { self.data = data }
+  }
+  private let queue = DispatchQueue(label: "com.heyintentive.streaming-pcm", qos: .userInitiated)
+  private let authority: PCMPlaybackAuthority
+  private let levels: AudioLevelDelivery
+  private let makeOutput: StreamingPCMPlayer.OutputFactory
+  private var output: (any StreamingPCMAudioOutput)?
+  private let pending = StreamingPCMPlaybackQueue<Buffer>()
+  private var lastEpoch = 0
+  private var failedToken: PCMPlaybackToken?
+  private var activeToken: PCMPlaybackToken?
+  private var events: (@MainActor @Sendable (PCMPlaybackToken, Event) -> Void)?
+
+  init(
+    authority: PCMPlaybackAuthority, levels: AudioLevelDelivery, makeOutput: @escaping StreamingPCMPlayer.OutputFactory
+  ) {
+    self.authority = authority
+    self.levels = levels
+    self.makeOutput = makeOutput
+  }
+
+  func setEventHandler(_ handler: @escaping @MainActor @Sendable (PCMPlaybackToken, Event) -> Void) {
+    // The facade queues this before playback; all reads and writes stay here.
+    queue.async { self.events = handler }
+  }
+
+  func enqueue(
+    _ data: Data, token: PCMPlaybackToken, meterCapture: AudioLevelDelivery.Capture,
+    completion: @escaping @MainActor @Sendable (Bool) -> Void
+  ) {
+    queue.async {
+      guard self.authority.current == token else { return }
+      guard self.failedToken != token else {
+        DispatchQueue.main.async { completion(false) }
+        return
+      }
+      if self.activeToken != token {
+        self.stopOnQueue()
+        self.activeToken = token
+      }
+      if self.output == nil {
+        self.output = self.makeOutput(
+          { [weak self] in self?.configurationChanged() },
+          { [levels = self.levels] level in
+            levels.submit(level) { AudioLevelMonitor.shared.updateVoicePlaybackLevel($0) }
+          })
+      }
+      guard data.count >= 2, data.count.isMultiple(of: 2), self.output?.ensureRunning() == true else {
+        self.failedToken = token
+        DispatchQueue.main.async { completion(false) }
+        return
+      }
+      guard self.authority.current == token else {
+        self.stopOnQueue()
+        return
+      }
+      self.levels.activate(meterCapture)
+      let accepted = self.schedule(Buffer(data), token: token)
+      if !accepted { self.failedToken = token }
+      DispatchQueue.main.async { completion(accepted) }
+    }
+  }
+
+  func stop(completion: @escaping @MainActor @Sendable () -> Void = {}) {
+    queue.async {
+      self.stopOnQueue()
+      DispatchQueue.main.async { completion() }
+    }
+  }
+
+  private func stopOnQueue() {
+    activeToken = nil
+    pending.clearForExplicitStop()
+    output?.stop()
+  }
+
+  private func configurationChanged() {
+    queue.async {
+      guard let token = self.activeToken, self.authority.current == token, self.failedToken != token else { return }
+      log("StreamingPCMPlayer: audio config changed — rebuilding off-main")
+      let replay = self.pending.buffersToReplayAfterConfigurationChange()
+      self.output?.rebuild()
+      // An idle device notification must not restart playback or revive a stop.
+      guard !replay.isEmpty, self.authority.current == token else { return }
+      guard self.output?.ensureRunning() == true else {
+        self.failedToken = token
+        self.stopOnQueue()
+        self.emit(.failed(self.lastEpoch), token: token)
+        return
+      }
+      guard self.authority.current == token else {
+        self.stopOnQueue()
+        return
+      }
+      for buffer in replay {
+        guard self.schedule(buffer, token: token) else {
+          self.failedToken = token
+          self.stopOnQueue()
+          self.emit(.failed(self.lastEpoch), token: token)
+          return
+        }
+      }
+    }
+  }
+
+  private func schedule(_ buffer: Buffer, token: PCMPlaybackToken) -> Bool {
+    guard let epoch = authority.nextEpoch(for: token) else { return false }
+    let generation = pending.appendScheduled(buffer)
+    guard
+      output?.schedule(
+        buffer.data,
+        completion: { [weak self] in
+          guard let self else { return }
+          self.queue.async {
+            guard self.authority.current == token,
+              self.pending.markPlayed(buffer, generation: generation), self.pending.isEmpty
+            else { return }
+            self.emit(.idle(self.lastEpoch), token: token)
+          }
+        }) == true
+    else {
+      _ = pending.markPlayed(buffer, generation: generation)
+      return false
+    }
+    guard authority.current == token else {
+      stopOnQueue()
+      return false
+    }
+    lastEpoch = epoch
+    emit(.scheduled(epoch), token: token)
+    return true
+  }
+
+  private func emit(_ event: Event, token: PCMPlaybackToken) {
+    let handler = events
+    DispatchQueue.main.async { handler?(token, event) }
   }
 }

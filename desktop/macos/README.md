@@ -53,6 +53,14 @@ After a successful full launch, `run.sh` automatically uses its fast lane for or
 
 Named bundles derive an isolated bundle ID and OAuth callback URL scheme from `OMI_APP_NAME`. `Intentive Dev` uses `com.heyintentive.intentive.dev` / `heyintentive-dev`, while `OMI_APP_NAME="omi-subagent-test"` uses `com.heyintentive.intentive.dev.omi-subagent-test` / `heyintentive-omi-subagent-test`. The app reads that scheme from `CFBundleURLTypes`, so parallel development bundles cannot claim the canonical callback.
 
+## Runtime reliability boundaries
+
+- Background Gemini clients use `ModelQoS`'s account-available Flash route; do not restore the 2.5 defaults/fallbacks rejected by the owned account (#102). `GeminiBackgroundRoutingTests` exercises authenticated request construction without real credentials. The backend proxy and shipped-client mapping must deploy before a Mac candidate requiring the new route.
+- Special-mode detection uses `SystemCaptureModeProbe`: one off-main window query, a monotonic-clock-bounded boolean cache, and nonblocking capture ticks (#103). Never move WindowServer enumeration back onto `MainActor`; permission, owner, and lock-screen gates remain independent.
+- Microphone meter callbacks enter `MainActor` through `AudioLevelDelivery`, with one pending latest-value delivery. Stop invalidates queued and incoming samples immediately; the next capture activates its generation only on the serial audio queue after old HAL work quiesces. Do not add another task/queue hop inside callers; PCM delivery is separate and never coalesced.
+- Streaming voice playback owns AVFoundation on a serial worker, never the UI thread. SDK scheduling acknowledgement gates native playback progress, final text, and provider completion; Stop invalidates pending callbacks immediately. Configuration recovery replays only the current unplayed tail, never stopped speech. `StreamingPCMPlayerLifecycleTests` covers stalled hardware, recovery, and controller acknowledgement ordering.
+- Aged idle voice POSIX resets/disconnections use the existing rewarm policy. Active-turn/fast failures and failed token mints remain observable; an idle-close classification is not proof of successful recovery.
+
 ## License
 
 MIT

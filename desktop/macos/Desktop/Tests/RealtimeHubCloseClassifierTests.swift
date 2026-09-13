@@ -1,8 +1,41 @@
+import Network
 import XCTest
 
 @testable import Omi_Computer
 
 final class RealtimeHubCloseClassifierTests: XCTestCase {
+  func testAgedIdleTypedResetAndDisconnectedSocketUseExistingRewarmPolicy() {
+    // DESKTOP-MACOS-7: POSIX reset 54 after 926 seconds, with no active turn.
+    for code in [POSIXErrorCode.ECONNRESET, .ENOTCONN] {
+      let failure = RealtimeHubTransportFailure.system(
+        NSError(domain: NSPOSIXErrorDomain, code: Int(code.rawValue)), phase: .receive)
+      let category = RealtimeHubCloseClassifier.category(
+        failure: failure, aliveFor: 926, hasActiveTurn: false, provider: .gemini)
+      XCTAssertEqual(category, .expectedIdleTeardown)
+      XCTAssertFalse(RealtimeHubCloseClassifier.shouldReportToSentry(category))
+    }
+  }
+
+  func testTypedResetRemainsReportableDuringAnActiveTurnOrFastFailure() {
+    let failure = RealtimeHubTransportFailure.system(
+      NSError(domain: NSPOSIXErrorDomain, code: Int(POSIXErrorCode.ECONNRESET.rawValue)), phase: .receive)
+    for (age, active) in [(926.0, true), (3.0, false)] {
+      let category = RealtimeHubCloseClassifier.category(
+        failure: failure, aliveFor: age, hasActiveTurn: active, provider: .gemini)
+      XCTAssertEqual(category, .transportReceive)
+      XCTAssertTrue(RealtimeHubCloseClassifier.shouldReportToSentry(category))
+    }
+  }
+
+  func testNetworkFrameworkPOSIXResetRetainsNumericIdentityForIdleRecovery() {
+    let failure = RealtimeHubTransportFailure.system(NWError.posix(.ECONNRESET), phase: .receive)
+    XCTAssertEqual(failure.systemDomain, "posix")
+    XCTAssertEqual(failure.systemCode, Int(POSIXErrorCode.ECONNRESET.rawValue))
+    XCTAssertEqual(
+      RealtimeHubCloseClassifier.category(failure: failure, aliveFor: 926, hasActiveTurn: false),
+      .expectedIdleTeardown)
+  }
+
   func testClassifiesTypedPOSIXAddressFailureWithoutParsingLocalizedText() {
     let systemError = NSError(
       domain: NSPOSIXErrorDomain,

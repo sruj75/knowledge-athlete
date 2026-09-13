@@ -8,6 +8,7 @@ covers:
   - desktop/macos/Desktop/Sources/TranscriptionService.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift
   - desktop/macos/Desktop/Sources/AudioCaptureService.swift
+  - desktop/macos/Desktop/Sources/Audio/AudioLevelDelivery.swift
   - desktop/macos/Desktop/Sources/AudioMixer.swift
   - desktop/macos/Desktop/Sources/AppState.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarUsageLimiter.swift
@@ -45,7 +46,7 @@ steps:
 
   - id: S4
     name: Verify recording or permission state
-    do: "After toggling Listening, verify its top-bar state changed truthfully. If permission recovery was required, verify the Permissions page shows the microphone grant/reset actions."
+    do: "After toggling Listening, verify its top-bar state changed truthfully. While speaking, verify the audio meter follows current levels without replaying a backlog, and stops updating after Listening is stopped. If permission recovery was required, verify the Permissions page shows the microphone grant/reset actions."
     expect:
       interactive_count: { min: 1 }
 

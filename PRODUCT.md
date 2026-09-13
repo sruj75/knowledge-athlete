@@ -87,6 +87,11 @@ Normal Chat uses the bundled native Gemini adapter and the authenticated Gemini
 the backend owns the provider key and preserves native Gemini content, tools,
 images, thinking, and thought signatures end to end.
 
+Desktop background notes, screenshot analysis, task extraction, Insights, and
+Suggestions use the same account-available Gemini 3.7 Flash model. Their existing
+frequency limits and grounding boundaries remain unchanged; they must not fall
+back to account-unavailable 2.5 models.
+
 Realtime voice is Gemini Live only. Same-provider reconnect remains the first
 recovery step. If Live cannot complete a turn, the Mac retains the bounded PCM
 buffer and turn identity until release, then uses the existing silence gate and

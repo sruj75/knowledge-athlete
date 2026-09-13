@@ -46,7 +46,7 @@ When debugging issues for a specific user, check Sentry dashboard for crashes an
   non-production debugging capability only.
 
 ### Fallback / resilience telemetry
-Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.recordFallback(area:from:to:reason:outcome:)` (PostHog `desktop_health_event` / `fallback_triggered`) or Rust `fallback::record_fallback`. Same field contract as root `AGENTS.md` → Fallback / resilience telemetry. Do not invent new health-event enum cases or product “Recording Error” events for successful heals (`outcome=recovered`).
+Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.recordFallback(area:from:to:reason:outcome:)` (PostHog `desktop_health_event` / `fallback_triggered`) or Rust `fallback::record_fallback`. Never invent health-event cases or product “Recording Error” events for successful heals. See [README.md](README.md#runtime-reliability-boundaries) for model, window-query, meter, and idle-voice contracts.
 
 ## Repository
 - This is the `desktop/macos/` subfolder of the `sruj75/knowledge-athlete` repository

@@ -130,7 +130,10 @@ struct RealtimeHubTransportFailure: Equatable, Sendable {
 
   private static func boundedSystemDomain(_ error: Error?) -> String? {
     guard let error else { return nil }
-    if error is NWError { return "network" }
+    if let networkError = error as? NWError {
+      if case .posix = networkError { return "posix" }
+      return "network"
+    }
     let domain = (error as NSError).domain
     if domain == NSPOSIXErrorDomain { return "posix" }
     if domain == NSURLErrorDomain { return "url" }

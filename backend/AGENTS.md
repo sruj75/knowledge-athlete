@@ -136,6 +136,12 @@ settings mirrors, Daily Summary, personalized purchase/quota push generation,
 or a notifications cron job. Cloud FCM delivery is retired; authoritative
 fair-use facts are presented by the Mac through fixed in-app and local OS copy.
 Managed Gemini remains transient compute and owns no product records.
+The bounded `/v1/proxy/gemini` background route admits Gemini 3.7 Flash and
+`gemini-embedding-001`. Exact legacy text model IDs from already-installed Beta
+clients map to 3.7 Flash at this wire boundary (#102); current Mac callers use
+3.7 directly. Keep `ModelQoS.swift`, proxy admission, and the behavioral legacy-client
+tests in `test_desktop_proxy.py` aligned. This routing change does not relax auth,
+participant admission, request/token limits, or usage meters.
 
 Backend runtime and foundation contract: `backend/deploy/runtime_env.yaml` is the single redacted declaration for exact WIF claim inputs, ADC/secret bindings, Cloud Run, network/Redis, Firestore, retained GCS, Tasks, Artifact Registry, logging, alerts, and budgets. Development and production use public egress plus the shared `intentive-development` Upstash free database and a 1-vCPU/2-GiB request-throttled, zero-to-one-instance Cloud Run profile; their environment identities, runtime services, and exact secret-version inputs remain separate. Keep the claim-policy evaluator, renderer, validator, preflight, and both deploy workflows aligned. Manual `foundation-readiness` performs read-only sanitized GCP drift checks; its external-Upstash fields are declarations whose connectivity is proved separately by the existing runtime TLS probe. `artifact-cleanup-dry-run` only records candidates; neither declaration nor dry run proves a resource was created or authorizes mutation. Run `backend/scripts/pre-deploy-check.sh` after runtime, foundation, or deploy-workflow changes.
 

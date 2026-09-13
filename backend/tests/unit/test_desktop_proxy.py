@@ -17,6 +17,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from routers import desktop_proxy
+import main
 
 
 @pytest.mark.parametrize('api_key', ['managed-gemini-key', 'managed-gemini-key\n', ' \tmanaged-gemini-key\r\n'])
@@ -76,7 +77,12 @@ def test_proxy_rejects_absent_or_whitespace_only_managed_credential(monkeypatch,
     assert error.value.detail == 'Gemini is not configured'
 
 
-def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(monkeypatch):
+@pytest.mark.parametrize(
+    'model', ['gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview']
+)
+def test_gemini_proxy_routes_current_and_shipped_beta_models_to_managed_external_adapter(monkeypatch, model):
+    """#102: shipped Beta A/B must reach the available model without new client credentials."""
+
     async def immediate(_executor, function, *args, **kwargs):
         return function(*args, **kwargs)
 
@@ -97,29 +103,31 @@ def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(m
             return httpx.Response(200, content=b'{"managed":true}', headers={'content-type': 'application/json'})
 
     meter = MagicMock(side_effect=[(True, 1, 60), (True, 1, 86_400)])
+    fallback = MagicMock()
     monkeypatch.setenv('GEMINI_API_KEY', 'managed-gemini-key')
     monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
     monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', meter)
     monkeypatch.setattr(desktop_proxy, 'llm_stub_enabled', lambda: False)
     monkeypatch.setattr(desktop_proxy.httpx, 'AsyncClient', FakeAsyncClient)
+    monkeypatch.setattr(desktop_proxy, 'record_fallback', fallback)
 
-    app = FastAPI()
-    app.include_router(desktop_proxy.router)
-    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'managed-user'
+    # Exercise the assembled app's actual route binding; external auth/provider
+    # boundaries are controlled without running the live startup services.
+    monkeypatch.setitem(main.app.dependency_overrides, desktop_proxy._authorized_desktop_user, lambda: 'managed-user')
+    client = TestClient(main.app)
     try:
-        with TestClient(app) as client:
-            response = client.post(
-                '/v1/proxy/gemini/models/gemini-2.5-flash:generateContent?key=legacy-customer-key',
-                headers={'X-BYOK-Gemini': 'legacy-customer-key'},
-                json={'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}]},
-            )
+        response = client.post(
+            f'/v1/proxy/gemini/models/{model}:generateContent?key=legacy-customer-key',
+            headers={'X-BYOK-Gemini': 'legacy-customer-key'},
+            json={'contents': [{'role': 'user', 'parts': [{'text': 'hello'}]}]},
+        )
     finally:
-        app.dependency_overrides.clear()
+        client.close()
 
     assert response.status_code == 200
     assert response.json() == {'managed': True}
     assert outbound['url'] == (
-        'https://generativelanguage.googleapis.com/v1beta/' 'models/gemini-2.5-flash:generateContent'
+        'https://generativelanguage.googleapis.com/v1beta/' 'models/gemini-3.7-flash:generateContent'
     )
     assert 'key' not in outbound['params']
     assert outbound['headers']['x-goog-api-key'] == 'managed-gemini-key'
@@ -129,6 +137,16 @@ def test_gemini_proxy_routes_legacy_customer_input_to_managed_external_adapter(m
         'generationConfig': {'thinkingConfig': {'thinkingBudget': 1024}},
     }
     assert meter.call_count == 2
+    if model == 'gemini-3.7-flash':
+        fallback.assert_not_called()
+    else:
+        fallback.assert_called_once_with(
+            component='gemini_proxy',
+            from_mode=model,
+            to_mode='gemini-3.7-flash',
+            reason='capability_mismatch',
+            outcome='degraded',
+        )
 
 
 def test_sanitize_caps_generation_and_normalizes_system_content():
@@ -153,8 +171,8 @@ def test_sanitize_rejects_multiple_candidates_and_path_is_allowlisted():
     with pytest.raises(HTTPException, match="candidate_count"):
         desktop_proxy._sanitize(b'{"candidateCount": 2}', "generateContent")
     assert desktop_proxy._path_parts("models/gemini-3-flash-preview:generateContent") == (
-        "models/gemini-2.5-flash:generateContent",
-        "gemini-2.5-flash",
+        "models/gemini-3.7-flash:generateContent",
+        "gemini-3.7-flash",
         "generateContent",
     )
     with pytest.raises(HTTPException):
@@ -187,11 +205,11 @@ def test_streaming_proxy_route_is_absent():
     assert response.status_code == 404
 
 
-def test_desktop_live_suggestions_model_is_allowed_on_the_developer_api():
-    """Desktop live suggestions run on Flash-Lite (ModelQoS.suggestions), so the proxy must forward it."""
+def test_shipped_beta_suggestions_model_maps_to_the_available_managed_model():
+    """Older installed clients still name Flash-Lite; do not send it to the provider."""
     assert desktop_proxy._path_parts("models/gemini-2.5-flash-lite:generateContent") == (
-        "models/gemini-2.5-flash-lite:generateContent",
-        "gemini-2.5-flash-lite",
+        "models/gemini-3.7-flash:generateContent",
+        "gemini-3.7-flash",
         "generateContent",
     )
 
@@ -206,15 +224,30 @@ def test_every_proxy_model_the_desktop_client_ships_is_proxy_allowlisted():
     qos = BACKEND_DIR.parent / "desktop/macos/Desktop/Sources/ModelQoS.swift"
     if not qos.exists():  # partial checkouts (backend-only forks) have no desktop tree
         pytest.skip("desktop sources are not present in this checkout")
-    proxy_models = set(
+    proxy_roles = dict(
         re.findall(
-            r'static let (?:proactive|taskExtraction|insight|suggestions|embedding) = "(gemini-[^"]+)"',
+            r'static let (proactive|taskExtraction|insight|suggestions|embedding) = "(gemini-[^"]+)"',
             qos.read_text(),
         )
     )
-    assert proxy_models
-    assert proxy_models <= desktop_proxy._ALLOWED_MODELS
-    assert "gemini-3.7-flash" not in desktop_proxy._ALLOWED_MODELS
+    assert set(proxy_roles) == {"proactive", "taskExtraction", "insight", "suggestions", "embedding"}
+    assert set(proxy_roles.values()) <= desktop_proxy._ALLOWED_MODELS
+
+
+@pytest.mark.parametrize(
+    'path',
+    [
+        'models/gemini-2.5-flash-extra:generateContent',
+        'models/gemini-3-flash-preview/other:generateContent',
+        'models/gemini-2.5-flash:deleteModel',
+        'models/gemini-3.7-flash:streamGenerateContent',
+        'gemini-2.5-flash:generateContent',
+    ],
+)
+def test_legacy_model_mapping_does_not_expand_path_or_action_admission(path):
+    with pytest.raises(HTTPException) as error:
+        desktop_proxy._path_parts(path)
+    assert error.value.status_code == 403
 
 
 @pytest.mark.asyncio

@@ -32,6 +32,16 @@ returns an authorized command.
 shortcut gates, while `Automation/DesktopAutomationPTTActions` only registers
 the external test/control surface that drives those production owners.
 
+`StreamingPCMPlayer` is the main-actor playback facade. Its serial worker owns
+the scheduled PCM tail and every `StreamingPCMAudioOutput` operation, including
+AVFoundation start, configuration recovery, and stop. Stop invalidates the
+turn generation immediately; delayed hardware callbacks cannot revive it.
+Enqueue acknowledgement means the SDK accepted audio, not merely that work was
+queued. The controller defers final text and provider completion until those
+acknowledgements settle, preserving native-output ownership and fallback order.
+`StreamingPCMPlayerLifecycleTests` exercises the real facade/controller with a
+controllable audio-SDK boundary; it does not replace live microphone testing.
+
 ## Notifications
 
 `FloatingControlBarManager` owns notification queueing and physical card
