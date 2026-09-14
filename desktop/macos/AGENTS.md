@@ -54,8 +54,7 @@ Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.
 
 ## Release Pipeline
 
-No Intentive candidate exists yet. Owned identities, artifact names, signed smoke, nested libwebp
-verification and admission are implemented; publication credentials and endpoint bindings remain incomplete:
+The owner Beta path is operational: signed/notarized `v0.0.4+4-macos` reached Beta on 2026-09-12 through Codemagic, owner-manual qualification, and Sparkle. Each later repair needs fresh exact-SHA evidence; Stable and Preview remain deferred:
 
 1. The MVP release repository is exactly `sruj75/knowledge-athlete`.
 2. The owned Apple Team is `24D6NXS6H7`; candidate smoke and qualification must match it.
@@ -91,7 +90,7 @@ token (implicit Metadata read), bound to 30s and never `CM_ENV`; its App key ret
 Unexpected authority/lifetime fails closed. Import PKCS#12 with `security import -f pkcs12`.
 SwiftPM resolve/both builds use `--disable-keychain` for public downloads (#98); signing/notary credentials,
 checksums, exact-main checks and deliberate dispatch remain required.
-Live `notarytool history` authenticated, but no new artifact has been notarized.
+Initial notary access was verified; signed/notarized owner Beta followed on 2026-09-12.
 
 ## Firebase Connection
 Firebase project `knowledge-athlete` owns the new product's authentication/Firestore boundary.
@@ -211,7 +210,7 @@ do not hand-edit those paths to match a specific machine.
 
 ### User Subcollections (Firestore)
 - `users/{uid}/conversations` - callerless S-25 drain residue; never Mac/listen authority
-- Capture creates its UUID before ingestion; reads/mutations stay local. Recovery/retries select only rows strictly before the fixed app-launch cutoff, never by age alone.
+- Capture creates its UUID locally; recovery selects rows strictly before the launch cutoff. `LocalTranscriptFormatter` sorts live/archive segments by start then first arrival before merging; same-ID corrections keep ties and translations.
 - `/v4/listen` returns untrusted local candidates; Mac UI/authority stays local. Retired: Daily Summary, hosted assistant/notification/Mentor/Focus/AI Profile routes.
 - `MemoryStorage` owns Memory/Insight tips; compute/embeddings leave the Mac, owner/revision-fenced.
 - `ActionItemStorage`/`GoalStorage` own task/goal CRUD; reminders and assistant/notification prefs stay local.
@@ -225,11 +224,9 @@ do not hand-edit those paths to match a specific machine.
 - Apple Sign-In: Only one Services ID per Firebase project
 
 ## API Endpoints
-- Production: unconfigured; signed production builds fail closed until
-  `IntentiveProductionAPIURL` is supplied by the owned release provider
-- Owned public-ingress development service: `https://knowledge-athlete-dev-sbgrr24rwa-uw.a.run.app`
-  (protected routes require the owned Firebase user's bearer token)
-- Local: `http://localhost:8080`
+- Local Dev: workspace-owned localhost ports from `scripts/dev-instance.sh`
+- Owner Beta: hosted `knowledge-athlete-dev`; exact addresses/source are in `OWNER-PROVIDER-DECISIONS.md`
+- Stable/Preview have separate fail-closed release configurations
 
 ## Credentials
 Connection details come from your local agent configuration; they are deliberately not
@@ -247,7 +244,7 @@ checked in. Ask the user for anything you are missing rather than guessing an en
 - **Local Python backend**: `./run.sh` reuses a healthy worktree-owned backend when Python source/config are unchanged. Before first launch, run `cd ../../backend && ./scripts/sync-python-deps.sh`.
 - **Agent runtime preparation cache**: local `./run.sh` reuses `.harness/agent-runtime` only when its inputs and every packaged output still match; CI and `--skip-npm` bypass it. Logs say `HIT`, `MISS`, or `BYPASS`; force a rebuild with `OMI_AGENT_RUNTIME_FORCE_REBUILD=1`. Never copy this worktree-local cache or treat it as a release artifact. Checksum-verified universal Node archives are shared at `~/Library/Caches/heyintentive-desktop/node-archives` (override with `OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR`) and revalidated before staging.
 - **Managed agent boundary**: Chat/Pills use `pi-mono`, Gemini 3.7 Flash, and the owned Unix socket; realtime voice uses Gemini Live separately. Public inputs cannot select providers, models, or working directories; tests may register an internal fake adapter.
-- **Release builds**: root `codemagic.yaml` plus `scripts/codemagic-release.sh` are the only artifact builder. They remain fail-closed until the remaining protected provider-group fields and exact production/public inputs in `OWNER-PROVIDER-DECISIONS.md` are configured; GitHub controls tag, observe, qualify, promote, or recover but never build.
+- **Release builds**: only root `codemagic.yaml` plus `scripts/codemagic-release.sh` build artifacts. Owned Beta inputs work; missing identity-specific inputs still fail closed. Stable/Preview remain deferred. GitHub owns tag/observe/qualify/promote/recover, never builds.
 - **DO NOT** use bare `swift build` — it will fail with SDK version mismatch
 - **DO NOT** use `xcodebuild` — there is no `.xcodeproj`
 - **DO NOT** launch the app directly from `build/` — always use `./run.sh`. The canonical build installs to `/Applications/Intentive Dev.app`; named builds install to `/Applications/<OMI_APP_NAME>.app`. This is required for macOS "Quit & Reopen" to find the correct binary.

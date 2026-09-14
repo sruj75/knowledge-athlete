@@ -1,22 +1,18 @@
 # Desktop release
 
-No Intentive release lane is executable yet. Root `codemagic.yaml` now owns Codemagic app
-`6a8ff0296fc70d39540cb56a`, workflow `intentive-macos-release`, and workflow
-`intentive-macos-preview`; it delegates the ordered release boundary to the checked-in driver and
-fails before building when a required protected input is missing. The owned Stable/Beta Firebase
-plists, Sparkle keypair, and Sentry upload token are already stored in their protected groups.
-Candidate creation remains blocked until Apple signing/notarization and preview inputs, remaining
-protected publication credentials, the trusted runner, website destinations, and the production
-backend/feed are configured.
-See the complete checklist in
+The owner Beta release path is operational. On 2026-09-12, Codemagic built and published
+signed/notarized `v0.0.4+4-macos`; owner-manual qualification admitted the exact artifacts, Beta
+promotion completed, and the installed owner app later updated from 0.0.3 to 0.0.4 through
+Sparkle. This dated receipt proves the owned Beta machinery and credentials, not any later source
+or candidate. Stable and Preview remain deferred. See the complete checklist in
 [`../../../OWNER-PROVIDER-DECISIONS.md`](../../../OWNER-PROVIDER-DECISIONS.md).
 
-After those blockers are closed, the intended normal path is deliberate and manual: a
-maintainer runs `Build Desktop Release Candidate`, the planner binds one immutable
-`v*-macos` tag to the exact admitted `main` SHA, the owned Codemagic tag workflow builds and
-publishes signed candidate assets, the trusted Intentive M1 lane qualifies the exact digests,
-and only then may the backend advance Beta. There is no push or schedule trigger that creates
-candidates automatically.
+Each Beta repair follows the same deliberate path: after the repair reaches `main` and its
+exact-SHA release checks pass, a maintainer runs `Build Desktop Release Candidate`. The planner
+binds one immutable `v*-macos` tag to the exact admitted `main` SHA, the owned Codemagic tag
+workflow builds and publishes signed candidate assets, and owner-manual qualification admits the
+exact digests before Beta promotion. There is no push or schedule trigger that creates candidates
+automatically.
 
 For bounded, read-only candidate status polling, run from the repository root:
 

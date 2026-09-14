@@ -7,7 +7,36 @@ Repository-tracked operator handoff. This file records account ownership and
 provider boundaries, but must never contain passwords, tokens, private keys,
 certificate contents, API keys, recovery codes, or secret values.
 
-Last updated: 2026-09-08. Individual verification dates are recorded below.
+Last updated: 2026-09-14. Individual verification dates are recorded below.
+
+## Confirmed delivery checkpoint (2026-09-14)
+
+- Installed owner Beta is `com.heyintentive.intentive.beta`, version 0.0.4/build 4,
+  source `80475aab8488d226fffca2025ba96f1a3183294a`. The owner completed the real
+  Sparkle 0.0.3 → 0.0.4 update on September 12, then relaunched it. Login, existing
+  Chat and recording data survived. Empty Memory/task/goal/folder stores in that
+  receipt are not evidence for preservation of populated stores.
+- Apple signing/notarization, Codemagic artifact publication, owner-manual
+  qualification and the Beta feed have worked. They are not unfinished account
+  setup. No permanent runner was registered on the everyday Mac.
+- The existing hosted `knowledge-athlete-dev` service serves the owner Beta;
+  its last retained deployment receipt is source `4a6e943c`. This dated receipt
+  is not a fresh cloud inventory. Routine Dev uses isolated local emulators,
+  Redis and synthetic identities; main merges do not deploy the shared service.
+- The starting main baseline for this repair is `ee48ed972ab0eb33a09261cc001ece0fcdc96aaa`,
+  including the newer Sentry repairs. At this checkpoint PR #113 still reports open and
+  this SHA lacks push-triggered CI; scheduled qualification-retry runs are not
+  that missing release proof. Merged source, deployed backend, installed Beta,
+  and live acceptance must be reported separately. Later repair PRs and their
+  exact CI/release receipts supersede this starting Git snapshot.
+- Account-deletion acceptance and transcript chronology are the current narrow
+  repair work. Natural voice/recording recovery and representative populated-data
+  checks remain open; four friends have not been admitted or contacted. Billing
+  stays disabled. Stable, Windows and broader preview work remain deferred.
+
+The September 8 destination and older checklist below preserve dated decisions,
+not current claims that all listed credentials are still missing. Detailed tests,
+run receipts and historical investigation belong in `.context`.
 
 ## Current Dev and Beta destination (owner decision, 2026-09-08)
 
@@ -24,16 +53,17 @@ These are the target boundaries, not a claim that the transition is complete.
   owner-only copies in ignored `backend/.env.local-dev` for those explicit tests.
   This grants no Firebase/GCP administration to the local stack; never copy cloud
   administration credentials or Beta authentication into workspace launch defaults.
-- Reuse of the existing hosted stack for Beta is a transition to prepare, not an
-  already-deployed Beta. Main merges must not become automatic updates to the
+- Reuse of the existing hosted stack for the owner Beta is now in effect, as
+  recorded above. Main merges must not become automatic updates to the
   group's desktop or backend. Separate Firebase app registrations and Cloud Run
   names do not isolate shared Auth, Firestore, or Redis data.
 - Preserve Beta/Omi installations, histories, permissions, and credentials. Dev
   launch/stop/archive must own exact workspace artifacts and processes. No permanent
   runner registration, cloud access/traffic change, purchase, or friend publication
   is implied by local implementation approval.
-- Reuse Codemagic/Sparkle; propose manual Mac qualification before changing release
-  policy. A real signed/notarized A-to-B update and preserved state remain required.
+- Reuse Codemagic/Sparkle and the implemented owner-manual qualification policy.
+  The owner A-to-B update is complete; each later repair still needs its own
+  artifact qualification and applicable data-preservation evidence.
   Older checklist entries below retain their dated evidence; they are not all
   prerequisites for useful local Dev progress or proof that Beta is ready.
 
@@ -63,7 +93,7 @@ These are the target boundaries, not a claim that the transition is complete.
   - Owned Apple Team ID: `24D6NXS6H7`.
   - Membership confirmed 2026-09-08: the owned Apple account shows renewal on 2027-09-09. The owner accepted the updated Program License Agreement, and its warning cleared on readback; neither renewal nor acceptance is notarization or release proof.
   - Installed signing identity reverified 2026-09-08: `Developer ID Application: Srujan Gowda (24D6NXS6H7)`, valid through 2030-11-18. The current Dev app uses certificate fingerprint `C47A7CD975D1D3B4CC7AEC1DD65D188D0102CDC8`; reuse this specific identity, not an export of every Keychain identity.
-  - The supplied `.p12` is password-protected and remains under ignored `.context/`; never commit it. Codemagic still needs its password or a separately approved secure re-export of the existing identity. This verification performed no private-key export or upload.
+  - The supplied `.p12` is password-protected and remains under ignored `.context/`; never commit it. The September 8 inspection performed no private-key export/upload. Subsequently Codemagic received owned signing credentials and produced the installed signed/notarized Beta; that setup is complete.
 - GitHub account: `sruj75`; GitHub email: `srujan24@icloud.com`.
 - Codemagic account login: `srujan24@icloud.com`, connected to the repository owner account `sruj75`.
   - Codemagic login does not have to match the Apple Developer Apple ID.
@@ -162,8 +192,8 @@ These are the target boundaries, not a claim that the transition is complete.
   in Firebase, but native Apple sign-in is owner-deferred and must remain unavailable
   until its Apple identifier/capability is configured.
 - This defers only the Apple sign-in method, as the owner explicitly requested.
-  Membership is confirmed, but distribution signing and notarization still block
-  the first real candidate. Google-only sign-in does not bypass those requirements.
+  Distribution signing and notarization were completed for the installed Beta;
+  Google-only sign-in does not remove those requirements for future artifacts.
 - The retained backend separately requires Firestore.
 - Existing project `knowledge-athlete` is the development Firebase/data project; do not create another development Firebase project.
 - Created 2026-08-27: the `(default)` Firestore database in `us-west1` (Oregon), Standard edition.
@@ -243,7 +273,7 @@ already done. An unchecked item is still required before the corresponding live 
 - [x] Admit public Cloud Run invocation while retaining Firebase authentication on protected routes, and point development desktop defaults at the discovered owned URL.
 - [x] Enable the Cloud Billing Budget API and configure the owner-approved INR 100 monthly alerts at 50%, 80%, and 100%. Alerts are not a hard cap; retain scale-to-zero and maximum one instance regardless.
 
-### Needed before Codemagic can build a signed candidate
+### Candidate setup checklist (historical; first signed Beta delivered)
 
 - [x] Connect `sruj75/knowledge-athlete` from the `srujan24@icloud.com` Codemagic account and record the selected application ID `6a8ff0296fc70d39540cb56a`.
 - [x] Create and record exact repository workflow IDs `intentive-macos-release` and `intentive-macos-preview`; GitHub dispatch and observation use those owned IDs.
@@ -273,14 +303,14 @@ already done. An unchecked item is still required before the corresponding live 
   The preview group remains unconfigured and is not a five-person Beta prerequisite.
   Populate only names validated by `desktop/macos/scripts/codemagic-release.sh`;
   never commit credentials or fill missing destinations with fake working URLs.
-- [x] Re-export the exact owned Developer ID identity and save its P12/password as masked Codemagic `intentive_macos_signing` secrets. Verified 2026-09-08: P12 password/MAC, certificate fingerprint/team/expiry, and private-key/public-certificate agreement passed; saved values persisted after a page reload. Only protected local/provider copies hold the secret bytes. A Codemagic import/build has not run yet.
+- [x] Re-export the exact owned Developer ID identity and save its P12/password as masked Codemagic `intentive_macos_signing` secrets. Verified 2026-09-08: P12 password/MAC, certificate fingerprint/team/expiry, and private-key/public-certificate agreement passed; saved values persisted after a page reload. Only protected local/provider copies hold the secret bytes. That credential check preceded the later successful Codemagic candidate builds.
 - [x] Confirm Apple Developer Program membership for team `24D6NXS6H7`: verified 2026-09-08, next renewal 2027-09-09. The owner accepted the updated license agreement; the account warning cleared on readback.
-- [x] Configure Apple notarization credentials. The owner accepted API access and supplied the replacement `Intentive Codemagic Notary 2` Developer-role key after the first download was unavailable. On 2026-09-08, OpenSSL key validation and live read-only `notarytool history` authentication passed. Key/issuer/ID are masked Codemagic `intentive_macos_signing` values; the local key copy is private and gitignored. Existing keys were not revoked. This proves access, not a newly notarized candidate.
-- [ ] Register the stable, Beta, development, and preview identifiers/schemes with Apple/provider services where registration is required.
+- [x] Configure Apple notarization credentials. The owner accepted API access and supplied the replacement `Intentive Codemagic Notary 2` Developer-role key after the first download was unavailable. On 2026-09-08, OpenSSL key validation and live read-only `notarytool history` authentication passed. Key/issuer/ID are masked Codemagic `intentive_macos_signing` values; the local key copy is private and gitignored. Existing keys were not revoked. That initial check proved access only; later notarized Beta delivery is recorded in the current checkpoint.
+- [x] Complete the provider registrations needed by the shipped Google-sign-in Beta and isolated Dev. Native Apple sign-in and future Stable/Preview-specific registrations remain deferred; they do not block the existing signed Beta path.
 - [x] Generate a new Sparkle EdDSA keypair, store it under the separate `heyintentive` Keychain account, configure the public key in Codemagic, and record its public-key fingerprint above.
 - [x] Add the Sparkle private key only to Codemagic's protected `intentive_macos_release` group.
 - [x] Configure protected Codemagic variable `SENTRY_AUTH_TOKEN` in `intentive_macos_release` for dSYM upload to `heyintentive/desktop-macos`. The Sentry organization token is named `intentive-macos-release-symbols`, has only the `org:ci` scope, and was verified against Sentry's debug-files endpoint before storage. The token value must never be committed.
-- [ ] Complete the protected GitHub Beta environment's matching API/origin and promotion-token bindings. The Codemagic release group's five candidate addresses above are approved and saved; this does not approve public Stable or configure Preview. Missing environment-specific authority must continue to block that operation.
+- [x] Configure the protected Beta API/origin and promotion authority used by the September 12 owner release. This does not configure or approve public Stable or Preview. Missing environment-specific authority must continue to block those separate operations.
 - [x] Configure the owned `Intentive Release` GitHub App (`intentive-release`,
   app ID `4838294`, installation `159216850`), installed only on
   `sruj75/knowledge-athlete`. Its ID/private key are protected GitHub secrets.
@@ -288,23 +318,26 @@ already done. An unchecked item is still required before the corresponding live 
   Actions/Contents/Pull requests are write-enabled, Checks/Metadata read-only.
   The ephemeral verification token was revoked; no tag or release was created.
   Codemagic's separate protected Release App private-key input was populated and
-  read back masked on 2026-09-09; no installation token or release was created.
+  read back masked on 2026-09-09; that inspection created no release. Later
+  candidate builds and the September 12 owner Beta publication exercised it.
 - [ ] Protect `main` through the existing required CI checks and PR-only merges.
   Verified 2026-09-05: neither branch protection nor a ruleset is configured.
-- [ ] Exercise the owner-manual qualification path on an exact signed candidate. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates the owner-uploaded evidence and exact artifacts.
+- [x] Exercise owner-manual qualification on the signed owner Beta candidate, completed before the September 12 promotion. Do not register the everyday Mac as a permanent, ephemeral, or JIT Actions runner; GitHub independently validates each later candidate's owner-uploaded evidence and exact artifacts.
 
-### Needed before Beta or Stable publication
+### Remaining acceptance and separately deferred public release work
 
-- [ ] Create production Cloud Run/backend resources and public release endpoints only after the owner gives a new explicit release-stage authorization. No current development service should be mistaken for production authority.
-- [ ] Configure the release/preview object bucket, public origin, Firestore release documents, service identities, and protected GitHub environments against owned resources.
+- [ ] Separately authorize any future Stable backend/public endpoints. Owner Beta already uses the shared `knowledge-athlete-dev` hosted stack; creating a second server is not a prerequisite for its repair updates.
+- [x] Configure the Beta artifact/feed publication resources and protected identities used for the owner OTA. Additional Preview/Stable resources are deferred and require their own authority.
 - [x] Identify the already-published `heyintentive.com` landing page and its Vercel/GitHub owners above.
 - [x] Publish development Privacy, Terms, and Support subdomains under the owner's
   delegated approval, using `srujan@heyintentive.com` and leaving the apex unchanged.
-- [ ] Add approved download/preview destinations and repair `www` TLS only after
+- [x] Publish the owned Beta download used for the installed app.
+- [ ] Add broader preview destinations and repair `www` TLS only after
   separate authorization; no `support@heyintentive.com` or `privacy@heyintentive.com` alias exists.
 - [ ] Re-review Terms and Privacy before a public Mac release. The current operator
   is an individual, not a registered company; do not invent a legal company name.
-- [ ] Run one signed/notarized candidate, trusted-Mac qualification, clean-install/update exercise, and Beta/Stable recovery drill with evidence tied to the exact source SHA and artifact digests.
-- [ ] Give fresh explicit authorization before any candidate, Beta, Stable, paid artifact,
-  additional DNS/legal publication, or production resource. The three policy/support
-  subdomains were separately authorized; their publication is not app-release approval.
+- [x] Complete the signed/notarized owner Beta install, owner-manual qualification and real 0.0.3 → 0.0.4 Sparkle update, bound to exact artifacts.
+- [ ] Complete current-version natural voice/recording recovery and preservation of representative non-empty stores before expanding to the friends. Stable recovery/public-launch qualification remains separate.
+- [ ] Obtain explicit authorization for actions outside the current repair milestone:
+  Stable/paid publication, additional DNS/legal publication, new production resources
+  or friend invitations. Existing Beta repair approvals do not authorize those actions.

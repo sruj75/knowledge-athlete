@@ -11,9 +11,12 @@ Snapshot (no history) of a subset of [BasedHardware/omi](https://github.com/Base
 | Snapshot date | 2026-07-30 |
 | Upstream license | MIT |
 
-This fork has not shipped an application build or public API contract and has
-no existing product users. The upstream tag records code provenance only; it
-does not create a released-client compatibility population for this product.
+The upstream tag records code provenance, not Intentive release qualification.
+Intentive now has an installed, signed and notarized Beta: the owner completed
+the real Sparkle 0.0.3 → 0.0.4 update on 2026-09-12, preserving populated Chat
+and recording data. Preservation of other populated stores still needs proof.
+Keep existing client contracts, login and permissions intact. A source merge is not
+proof that the installed app or hosted backend has received that source.
 
 Upstream paths were preserved verbatim, so a future `git diff` against upstream at
 this SHA is meaningful and cherry-picking upstream commits still applies cleanly.
@@ -57,7 +60,10 @@ and Langfuse for tracing/prompt management. Their credentials belong in
 `desktop/macos/run.sh --yolo` skips the local backend and targets the owned
 `knowledge-athlete-dev` Cloud Run URL recorded in `OWNER-PROVIDER-DECISIONS.md`. Cloud Run
 admits internet traffic so native clients can reach FastAPI; protected routes still require
-the owned Firebase user's bearer token. The local emulator path remains the hermetic default.
+the owned Firebase user's bearer token. This service also serves the installed owner
+Beta; its historical `-dev` name is not permission to use everyday accounts or mutate
+shared data during development. Routine Dev uses local emulators and synthetic accounts.
+Main merges do not deploy it: backend releases are deliberate and protected.
 
 Prerequisites: Xcode + an Apple signing identity, `brew install webp`, Node 22.x
 (`>=22.19 <23`), pnpm, Python 3.11 + `uv`, JDK 21+ (the Firebase emulators need it),
@@ -85,7 +91,7 @@ and the current external-resource handoff are recorded in
 | Stable / Beta / canonical development bundles | `com.heyintentive.intentive`, `com.heyintentive.intentive.beta`, `com.heyintentive.intentive.dev` |
 | Named development / preview prefixes | `com.heyintentive.intentive.dev.`, `com.heyintentive.intentive.preview.` |
 | Google Cloud project | existing Firebase/GCP project `knowledge-athlete`; billing active, with a permanent-Free-Tier operating constraint |
-| Development Cloud Run service | public-ingress `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; protected routes enforce Firebase authentication and development desktop defaults target its discovered URL |
+| Hosted Cloud Run service | public-ingress `knowledge-athlete-dev` in `knowledge-athlete/us-west1`; serves the owner Beta, enforces Firebase authentication and participant admission; routine Dev uses isolated local services |
 | Container repository | `knowledge-athlete/us-west1/intentive/backend`; the active development revision uses an owned immutable digest and no longer reads a cross-project recovery image |
 | Firebase project | existing `knowledge-athlete` for owned development Auth and Firestore |
 | Sentry | organization `heyintentive`, macOS project `desktop-macos` |
@@ -105,10 +111,10 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
 - The retained Mac backend update resolver and release manifests use
   `sruj75/knowledge-athlete` and Intentive asset names. Windows release ownership is
   intentionally unchanged because S-29 excludes Windows.
-- The deny-all Firestore database and owned development Firebase app exist. The public-ingress
-  `knowledge-athlete-dev` bootstrap service and free Upstash Redis are verified, including
+- The deny-all Firestore database and owned Firebase apps exist. The public-ingress
+  `knowledge-athlete-dev` hosted service and free Upstash Redis are verified, including
   per-route Firebase rejection, Firebase-authenticated Firestore write/read, and Redis
-  coordination. Development desktop defaults target it; it is not production authority.
+  coordination. It serves the owner Beta; routine Dev must not target its shared data.
 - Sentry runtime ingestion and dSYM publication target owned organization
   `heyintentive`, project `desktop-macos`.
 - PostHog product analytics targets the owned `Intentive Desktop` US project.
@@ -121,31 +127,35 @@ used for product URLs, support/privacy addresses, bundle identity, or public cop
   backgrounds are installed and their source/derivation is recorded in
   `desktop/macos/ASSET-PROVENANCE.md`; caller-free inherited Omi brand assets were deleted.
 
-### Remaining release blockers
+### Current release boundary
 
 - The inherited provisioning profiles are evidence of upstream configuration, not
   shippable Intentive credentials. Owned profiles and Apple capability/provider
   identifiers must replace them; agents must never cosmetically edit inherited
   credentials.
-- Apple Team `24D6NXS6H7` has an installed Developer ID Application identity valid
-  through 2030-11-18; membership was confirmed on 2026-09-08 with renewal on
-  2027-09-09. Codemagic still needs the supplied `.p12` password or an approved
-  re-export of that identity, plus notarization credentials. The owner accepted
-  the updated Program License Agreement; its account warning cleared on readback.
+- Apple Team `24D6NXS6H7` supplies the owned signing identity. Codemagic signing,
+  notarization, installer creation and GitHub Release App publication have produced
+  the installed Beta. Do not restart provider or certificate setup as a prerequisite
+  for another repair release.
 - Root `codemagic.yaml` owns Codemagic application `6a8ff0296fc70d39540cb56a` and workflows
   `intentive-macos-release` / `intentive-macos-preview`. The owned Firebase plists, PostHog
   client configuration, Sparkle keypair, and Sentry token are protected, and the four public
-  website/legal URLs are stored. Apple signing and preview/release publication remain incomplete. The owned
-  GitHub Release App is installed and verified, but Codemagic's publication token,
-  trusted Intentive M1 runner, and production backend/feed remain unconfigured.
+  website/legal URLs are stored. Beta publication and the Sparkle feed have been
+  exercised. The protected owner-manual qualification path replaces a permanent
+  runner on the everyday Mac. Stable launch and broader preview readiness are deferred.
 - The existing `heyintentive.com` landing page is hosted by Vercel project
   `intentive-tally-landing-page` from the same-named `sruj75` repository. Do not
   create a replacement site. Privacy, Terms, and Support subdomains are live over HTTPS;
-  the apex/Tally page is unchanged. Download/preview destinations and `www` TLS remain outstanding.
+  the apex/Tally page is unchanged. Beta has a published download; broader preview
+  destinations and `www` TLS are not prerequisites for the private repair milestone.
 - The approved Intentive app icon, mark, menu-bar art, sign-in backdrop, and DMG backgrounds
   are installed; visual-asset ownership is no longer a candidate blocker.
 - The complete beginner-facing checklist and account map are tracked in
   [`OWNER-PROVIDER-DECISIONS.md`](OWNER-PROVIDER-DECISIONS.md).
+- Remaining acceptance is behavioral: managed natural voice, recording recovery,
+  and preservation of representative non-empty data. The completed owner OTA test
+  does not prove four-friend admission or all historical slice acceptance. Detailed
+  run receipts and historical research stay in `.context`.
 
 ### Signing & distribution
 
@@ -247,13 +257,13 @@ name with no direct user-visible identity.
   traffic changes, and cleanup require separately authorized operator evidence.
 - GitHub retains candidate tagging and intake observation plus qualification,
   preview, promotion, retry, recovery, and rollback controls. The new Mac provider
-  definition owns build/sign/notarize/package/smoke/publish but stays fail-closed until
-  the remaining protected provider-group fields and production/public inputs are configured.
+  definition owns build/sign/notarize/package/smoke/publish and fails closed for
+  missing protected inputs; the owned Beta has already exercised this path.
 - The universal dylibs in `desktop/macos/vendor/libwebp/` now have checked-in
   checksum/architecture/install-name/deployment-target/dependency verification,
   a pinned source-rebuild fallback, and nested-signing preparation scripts.
-  Those repository contracts and the provider definition are not proof that a signed
-  artifact has been produced or accepted by Apple.
+  These source checks do not replace per-artifact signing and Apple notarization
+  evidence, even though the installed Beta has passed both.
 - `.github/workflows/desktop-core-contracts.yml` keeps the independent
   `desktop-core-e2e-t0` self-check. S-10 removed conversation parity and S-12
   removed the final hosted Memory parity contract, fixture, job, discovery
@@ -308,7 +318,7 @@ owner-local, app-managed files.
 
 ### Local Memory authority and exact handoffs
 
-The macOS app is authoritative for Memories in its effective-owner `omi.db`.
+The macOS app is authoritative for Memories in its effective-owner `heyintentive.db`.
 `MemoryStorage` owns all durable reads, mutations, lifecycle leases,
 transition receipts, provenance, and local vectors. The Memories page, local
 automation, Chat/PTT/Pi tools, screenshot and proactive writers, and profile or

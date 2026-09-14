@@ -19,11 +19,11 @@ approval, or ownership of a live external destination.
 | User direction, 2026-09-02 | Finish the code cycles with visual placeholders, do not alter inherited Omi assets, then request one consolidated Intentive asset pack. |
 | User asset handoff, 2026-09-03 | Canonical Intentive icon, moss-garden source, experimental grass-material Dock reference, and Claude-style DMG reference approved; generate clean slideshow frames, preserve the complete moss source, evaluate the Dock treatment at native size, and delete caller-free inherited assets. Native-size review rejected the grass treatment because it read as flat green; the Dock returned to canonical black-and-white. |
 
-The repository has no released Intentive client population. Current in-tree
-producers and consumers therefore move atomically to the owned external values;
-no dual-name compatibility aliases are introduced. Production Omi applications,
-live provider configuration, DNS, email, signing, publication, and customer data
-are outside this execution boundary.
+At the original S-30 execution there was no released Intentive client population;
+in-tree producers and consumers moved atomically without dual-name aliases.
+This is historical authorization, not permission to reset today's installed Beta
+or its data. The September 12 owner OTA established a released-client population.
+Production apps/data and external provider changes remain separately protected.
 
 ## External identity migration map
 
@@ -96,7 +96,7 @@ packet do not prove it.
 | Swift module/type names including `OmiApp`, `OmiSupport`, `OmiMarkdown`, `OmiFont` | Compiler-only identifiers | Internal | No renderer/payload/bundle/service/log/analytics effect after caller review | Retain; behavioral tests and final caller searches cover reachable surfaces |
 | Swift package/executable/resource bundle names needed by the current build | Build tooling | Internal | Renaming has no external S-30 benefit and creates broad dependency churn | Retain; debug build and package tests |
 | `OMI_*` environment variables and `omi-ctl` / `omi-harness` / `omi-*` developer scripts | Existing private development interfaces | Internal/operator compatibility | Explicitly retained by predecessor contracts; not customer-visible product identity | Retain; current docs explain their purpose |
-| local Memory database filename `omi.db` | Existing local persistence | Protected storage identity | Renaming/importing risks old-state takeover or loss; S-30 must not redesign storage | Retain; PRODUCT local-authority fence |
+| local Memory database filename `heyintentive.db` | `DesktopProductIdentity.databaseFilename` | Owned storage identity | S-30 identity owner replaced the inherited `omi.db` filename; do not import another profile's data or rename the owned store | Retain current owned filename; PRODUCT local-authority fence |
 | old bundle/URL/service values inside rejection, migration, foreign-app, and safety tests | Test-only | Explicit old-value rejection/migration | Needed to prove inherited identity is rejected and no state is imported | Retain; tests assert the negative boundary |
 | `omi-wave6-s30` | Test bundle display slug | Assignment exception | Exact temporary name required by S-30; resolved bundle ID is `com.heyintentive.intentive.dev.omi-wave6-s30` | Retain for acceptance evidence only |
 | `/tmp/omi-*` qualification/runtime paths and POSIX/container user `omi` | Machine-local internals | Internal | No user-visible, protocol, service, metric, log, or external ownership meaning | Retain after caller/context review |
@@ -128,16 +128,16 @@ The S-30 execution originally recorded PostHog ownership and the next full
 development deployment as open inputs. The dated reconciliation below preserves
 that historical fact while separating it from current status.
 
-### Currently open
+### External reconciliation — 2026-09-14
 
 | Missing input / resource | Current safe repository behavior | Closure owner |
 |---|---|---|
 | Owned Figma file/page destination for any future onboarding sync | Destination-mutating local LaunchAgent scripts are absent. A manual GitHub workflow can still export and publish the repository onboarding bundle, including Figma's capture helper, but it does not select or mutate an external design file. | Product/design owner |
-| Published `heyintentive.com` product/download/preview/Terms/Privacy/support destinations | Website/Terms entries are absent unless an owned HTTPS URL is injected; Privacy & Data remains local; Help Center is absent | Product/legal/release owner |
+| Published `heyintentive.com` destinations | Product, Privacy, Terms, Support and the owner Beta download are published; signed bundles require owned HTTPS inputs. Broader Preview destinations remain deferred | Product/legal/release owner |
 | Approved support/privacy contacts | No guessed `support@heyintentive.com` or `privacy@heyintentive.com` ships | Product/legal owner |
-| Approved Terms/Privacy text and legal operator name | No invented company or affirmative legal promise ships | Legal/product owner |
-| Production Cloud Run and public release endpoints | Production remains unconfigured/fail closed; development resource names remain accurate | Infrastructure/release owner with fresh authorization |
-| Complete Codemagic Apple signing/notarization/preview secrets and trusted runner | Repository dry-run fixtures only; no signing/publication/promotion performed | Release owner with fresh authorization |
+| Terms/Privacy text and legal operator | Basic owner-authorized pages are live for the individual operator; public-launch legal review remains open, with no invented registered company | Legal/product owner |
+| Hosted Beta versus future Stable resources | Owner Beta uses the existing shared `knowledge-athlete-dev` service with deliberate deployment. Separate Stable infrastructure is deferred, not a private-Beta prerequisite | Infrastructure/release owner |
+| Codemagic Apple signing/notarization and qualification | Signed/notarized owner Beta and real Sparkle update completed; owner-manual qualification requires no permanent everyday-Mac runner. Broader Preview/Stable work remains deferred | Release owner; exact later artifacts still require qualification |
 
 ### Resolved after the historical S-30 execution — 2026-09-04
 
