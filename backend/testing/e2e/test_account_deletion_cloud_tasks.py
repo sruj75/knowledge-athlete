@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sys
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 import pytest
@@ -19,6 +22,18 @@ _INVOKER_SERVICE_ACCOUNT = "account-deletion-worker@example.invalid"
 _LEGACY_HANDLER_URL = "https://backend-sync.example.test/v1/users/account-deletion-wipes/run"
 _LEGACY_INVOKER_SERVICE_ACCOUNT = "legacy-account-deletion-worker@example.invalid"
 _LOCAL_TASK_TOKEN = "local-account-deletion-cloud-task"
+
+
+@pytest.fixture
+def deletion_service(client):
+    # The assembled app fixture must install fake SDK boundaries BEFORE these
+    # production modules load. Reuse that exact module, without an early import.
+    return sys.modules["services.users.account_deletion"]
+
+
+@pytest.fixture
+def deletion_router(client):
+    return sys.modules["routers.users"]
 
 
 class _CapturedCloudTasksClient:
@@ -291,10 +306,12 @@ def test_queue_not_found_preserves_auth_and_reconciles_from_the_marker(
     monkeypatch.setattr(account_deletion.auth, "delete_account", lambda uid: auth_deletions.append(uid))
     cloud_tasks_client.create_error = NotFound("account-deletion queue is absent")
 
-    accepted = client.delete("/v1/users/delete-account", headers=auth_headers)
+    rejected = client.delete("/v1/users/delete-account", headers=auth_headers)
 
-    assert accepted.status_code == 200, accepted.text
-    assert accepted.json() == {"status": "ok", "message": "Account deletion started"}
+    # S25's acceptance boundary requires a confirmed durable queue handoff.
+    # A recoverable Firestore intent alone must not tell the Mac to sign out.
+    assert rejected.status_code == 500, rejected.text
+    assert rejected.json() == {"detail": "Could not delete account. Please try again."}
     assert auth_deletions == []
     assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "failed"
     assert fake_firestore.collection("users").document(test_uid).get().exists
@@ -316,6 +333,237 @@ def test_queue_not_found_preserves_auth_and_reconciles_from_the_marker(
     assert auth_deletions == [test_uid]
     assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "completed"
     _assert_user_data_deleted(fake_firestore, test_uid)
+
+
+def test_failed_queue_handoff_can_be_retried_without_a_reconciler(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client
+):
+    """Retry the real API with a fresh legacy principal and no background timer."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    cloud_tasks_client.create_error = NotFound("queue unavailable")
+
+    failed = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert failed.status_code == 500, failed.text
+    job_id = _read_marker(fake_firestore, test_uid)["wipe_job_id"]
+    assert cloud_tasks_client.create_calls == []
+
+    cloud_tasks_client.create_error = None
+    retried = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert retried.status_code == 200, retried.text
+    assert len(cloud_tasks_client.create_calls) == 1
+    payload = json.loads(cloud_tasks_client.create_calls[0][1].http_request.body)
+    assert payload == {"job_id": job_id}
+
+    repeated = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert repeated.status_code == 200, repeated.text
+    assert len(cloud_tasks_client.create_calls) == 1
+
+    completed = client.post(
+        "/v1/users/account-deletion-wipes/run", json=payload, headers=_worker_headers(retry_count=0)
+    )
+    assert completed.status_code == 200, completed.text
+    _assert_user_data_deleted(fake_firestore, test_uid)
+
+
+def test_overlapping_request_waits_for_confirmed_queue_handoff(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client
+):
+    """A second HTTP request cannot acknowledge the first request's unqueued intent."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    overlapping_responses = []
+
+    def before_create_task_returns(_job_id: str) -> None:
+        overlapping_responses.append(client.delete("/v1/users/delete-account", headers=auth_headers))
+
+    cloud_tasks_client._assert_pending_marker = before_create_task_returns
+    accepted = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert accepted.status_code == 200, accepted.text
+    assert len(overlapping_responses) == 1
+    assert overlapping_responses[0].status_code == 500, overlapping_responses[0].text
+    assert len(cloud_tasks_client.create_calls) == 1
+
+    repeated = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert repeated.status_code == 200, repeated.text
+    assert len(cloud_tasks_client.create_calls) == 1
+
+
+def test_stale_legacy_pending_request_recovers_without_background_wakeup(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client
+):
+    """Old jobs without dispatch receipts must have a safe explicit retry path."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    job_id = uuid.uuid4().hex
+    fake_firestore.collection("account_deletions").document(test_uid).set(
+        {
+            "wipe_job_id": job_id,
+            "wipe_status": "pending",
+            "wipe_queued_at": datetime.now(timezone.utc) - timedelta(minutes=11),
+        }
+    )
+
+    accepted = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert accepted.status_code == 200, accepted.text
+    assert len(cloud_tasks_client.create_calls) == 1
+    assert json.loads(cloud_tasks_client.create_calls[0][1].http_request.body) == {"job_id": job_id}
+
+
+def test_lost_queue_acknowledgement_cannot_reopen_completed_deletion(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client
+):
+    """Queue delivery may finish before its create-task acknowledgement is lost."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    create_task = cloud_tasks_client.create_task
+
+    def deliver_then_lose_acknowledgement(*, parent, task):
+        create_task(parent=parent, task=task)
+        delivered = client.post(
+            "/v1/users/account-deletion-wipes/run",
+            json=json.loads(task.http_request.body),
+            headers=_worker_headers(retry_count=0),
+        )
+        assert delivered.status_code == 200, delivered.text
+        raise TimeoutError("create-task acknowledgement lost after delivery")
+
+    monkeypatch.setattr(cloud_tasks_client, "create_task", deliver_then_lose_acknowledgement)
+    response = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert _read_marker(fake_firestore, test_uid)["wipe_status"] == "completed"
+    _assert_user_data_deleted(fake_firestore, test_uid)
+
+
+def test_reconciliation_cannot_reuse_a_previous_dispatch_receipt(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client, deletion_service
+):
+    """A failed prior delivery does not prove the next attempt has been queued."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    assert client.delete("/v1/users/delete-account", headers=auth_headers).status_code == 200
+    fake_firestore.collection("account_deletions").document(test_uid).update({"wipe_status": "failed"})
+    overlapping_responses = []
+
+    def before_create_task_returns(_job_id: str) -> None:
+        overlapping_responses.append(client.delete("/v1/users/delete-account", headers=auth_headers))
+
+    cloud_tasks_client._assert_pending_marker = before_create_task_returns
+    assert deletion_service.reconcile_pending_deletion_wipes() == {"requeued": 1, "skipped": 0}
+    assert len(overlapping_responses) == 1
+    assert overlapping_responses[0].status_code == 500, overlapping_responses[0].text
+    assert client.delete("/v1/users/delete-account", headers=auth_headers).status_code == 200
+    assert len(cloud_tasks_client.create_calls) == 2
+
+
+@pytest.mark.parametrize("old_ack_fails", [False, True])
+def test_delayed_dispatch_response_cannot_overwrite_a_newer_attempt(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client, old_ack_fails
+):
+    """A lease may expire while the SDK is waiting; the newer lease stays authoritative."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    create_task = cloud_tasks_client.create_task
+    newer_marker = []
+
+    def delayed_response(*, parent, task):
+        fake_firestore.collection("account_deletions").document(test_uid).update(
+            {"wipe_queued_at": datetime.now(timezone.utc) - timedelta(minutes=11)}
+        )
+        monkeypatch.setattr(cloud_tasks_client, "create_task", create_task)
+        retried = client.delete("/v1/users/delete-account", headers=auth_headers)
+        assert retried.status_code == 200, retried.text
+        newer_marker.append(_read_marker(fake_firestore, test_uid))
+        if old_ack_fails:
+            raise TimeoutError("expired attempt's acknowledgement lost")
+        return create_task(parent=parent, task=task)
+
+    monkeypatch.setattr(cloud_tasks_client, "create_task", delayed_response)
+    response = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert _read_marker(fake_firestore, test_uid) == newer_marker[0]
+
+
+def test_worker_claim_is_delivery_proof_before_cleanup_starts(
+    client,
+    fake_firestore,
+    monkeypatch,
+    account_deletion_identity,
+    cloud_tasks_client,
+    deletion_service,
+    deletion_router,
+):
+    """A lost queue response cannot revoke a real HTTP worker's pre-cleanup claim."""
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    create_task = cloud_tasks_client.create_task
+    worker_observations = []
+
+    def cleanup_pending(uid, retry_count, terminal):
+        marker = _read_marker(fake_firestore, uid)
+        assert marker["wipe_status"] == "retrying"
+        # Replay a delayed dispatch failure while the real handler owns its
+        # Redis lock and Firestore claim, before the cleanup thread runs.
+        deletion_service._mark_wipe_failed_after_enqueue_error(
+            uid, TimeoutError("lost acknowledgement"), marker["wipe_job_id"], dispatch_attempt[0]
+        )
+        worker_observations.append(client.delete("/v1/users/delete-account", headers=auth_headers))
+        assert _read_marker(fake_firestore, uid)["wipe_status"] == "retrying"
+        return deletion_service.background_wipe_user_data(uid, retry_count, terminal)
+
+    dispatch_attempt = []
+
+    def deliver(*, parent, task):
+        dispatch_attempt.append(_read_marker(fake_firestore, test_uid).get("wipe_dispatch_id"))
+        create_task(parent=parent, task=task)
+        delivered = client.post(
+            "/v1/users/account-deletion-wipes/run",
+            json=json.loads(task.http_request.body),
+            headers=_worker_headers(retry_count=0),
+        )
+        assert delivered.status_code == 200, delivered.text
+        raise TimeoutError("lost acknowledgement")
+
+    monkeypatch.setattr(deletion_router, "background_wipe_user_data", cleanup_pending)
+    monkeypatch.setattr(cloud_tasks_client, "create_task", deliver)
+    response = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert worker_observations[0].status_code == 200, worker_observations[0].text
+    assert len(cloud_tasks_client.create_calls) == 1
+    _assert_user_data_deleted(fake_firestore, test_uid)
+
+
+@pytest.mark.parametrize("status", ["running", "completed"])
+def test_legacy_worker_record_is_not_reset_by_an_authenticated_repeat(
+    client, fake_firestore, monkeypatch, account_deletion_identity, cloud_tasks_client, status
+):
+    test_uid, auth_headers = account_deletion_identity
+    _configure_durable_account_deletion(monkeypatch)
+    _stub_external_deletion_boundaries(monkeypatch)
+    _seed_deletable_user(fake_firestore, test_uid)
+    marker_ref = fake_firestore.collection("account_deletions").document(test_uid)
+    marker_ref.set({"wipe_status": status})
+
+    repeated = client.delete("/v1/users/delete-account", headers=auth_headers)
+    assert repeated.status_code == 200, repeated.text
+    marker = marker_ref.get().to_dict()
+    assert marker["wipe_status"] == status
+    assert marker["wipe_job_id"]
+    assert cloud_tasks_client.create_calls == []
 
 
 def test_repeated_delete_request_joins_running_wipe_without_requeueing(

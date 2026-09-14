@@ -127,7 +127,7 @@ def _run_claim(data, stale_after=timedelta(minutes=10), running_stale_after=time
         def get(self, transaction=None):
             return snapshot
 
-    result = raw_fn(txn, FakeDocRef(), stale_after, running_stale_after)
+    result = raw_fn(txn, FakeDocRef(), stale_after, running_stale_after, 'dispatch-1')
     return result, txn._updates
 
 
@@ -257,9 +257,11 @@ def test_claim_txn_reclaims_stale_retrying_claim():
     }
     result, updates = _run_claim(data)
     assert result == 'uid1'
-    # Only updates wipe_claimed_at (doesn't re-set wipe_status, already retrying)
-    assert 'wipe_status' not in updates[0][1]
+    # Re-claiming reserves a new queue attempt, not proof of its delivery.
+    assert updates[0][1]['wipe_status'] == 'retrying'
     assert 'wipe_claimed_at' in updates[0][1]
+    assert updates[0][1]['wipe_dispatch_id'] == 'dispatch-1'
+    assert updates[0][1]['wipe_dispatched_at'] is None
 
 
 def test_claim_txn_returns_none_for_missing_doc():

@@ -89,7 +89,7 @@ Managed STT is fixed to Modulate. `config/stt_provider_policy.py` owns its langu
 - **Deployment authority** — main Release Eligibility remains automatic, but `gcp_backend_auto_dev.yml` is `manual-only`; apply shared Dev backend changes through the existing protected `gcp_backend.yml` dispatcher. Desktop Beta promotion re-fetches the exact GitHub run, canonical Actions evidence, owner-uploaded content-addressed qualification bundle, signed Stable/Beta bytes, and owner identity before any pointer mutation. Qualification admission binds the rendered Actions run name (`Qualify desktop beta <release_tag>`), not the workflow's display name; tag/SHA, repository, path, success, and owner checks remain mandatory.
 - **Fair-use review** — `/v4/listen` owns speech meters, thresholds, cooldown, enforcement, and the restricted managed-cloud budget. It requests one content-free review from the authenticated owner Mac; `POST /v1/fair-use/reviews/{review_id}/classify` accepts only the bounded seven-day local evidence projection, invokes Gemini 3.7 Flash transiently, and persists only content-free classifier/enforcement facts. Conversation evidence never becomes backend authority or durable case data.
 - **modulate** — The fixed managed STT adapter for configured languages. Called by transcription-capable services through their `MODULATE_API_KEY` binding.
-- **account deletion** — `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and the complete dedicated `ACCOUNT_DELETION_*` bindings enqueue opaque job IDs to the canonical backend's OIDC handler. Startup rejects inline or incomplete configuration, reconciliation only re-dispatches tasks, and API success follows persisted deletion intent plus durable enqueue. A bounded legacy audience/payload branch remains only because no live queue-drain proof was authorized for S-25.
+- **account deletion** — `ACCOUNT_DELETION_DISPATCH_MODE=cloud_tasks` and the complete dedicated `ACCOUNT_DELETION_*` bindings enqueue opaque job IDs to the canonical backend's OIDC handler. Startup rejects inline or incomplete configuration. Success requires confirmed queue dispatch or observed worker execution; an unqueued intent returns the existing retryable HTTP 500 without instructing the Mac to sign out. Failed dispatch retries retain the job ID; stale unconfirmed records use the existing 10-minute pending/6-hour retrying leases. Receipt/failure writes require the exact job and dispatch-attempt ID. The worker claim records delivery and retires that attempt before cleanup; delayed responses cannot reset its state or overwrite a newer retry. Legacy running/completed records keep their status during job-ID backfill. Startup/periodic reconciliation is best-effort, not a wall-clock guarantee under request CPU/scale-to-zero. A bounded legacy audience/payload branch remains until live queue-drain proof.
 
 ### macOS conversation boundary
 
@@ -119,7 +119,7 @@ correlation metadata only and never restores backend session ownership.
 
 ### macOS Memory boundary
 
-The effective owner's `omi.db` is the sole durable Memory authority. The backend exposes only
+The effective owner's `heyintentive.db` is the sole durable Memory authority. The backend exposes only
 `POST /v1/memory/compute/{extract,normalize,consolidate}`: authenticated, bounded, stateless
 proposal computation pinned to Gemini 3.7 Flash. These modules must not import Firestore,
 Redis, hosted vectors, product Memory stores, or log request/response bodies. The retained Gemini

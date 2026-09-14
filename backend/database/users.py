@@ -4,7 +4,7 @@ from typing import Literal, Optional, TypedDict
 
 from google.cloud import firestore
 from google.cloud.firestore_v1 import transactional
-from ._client import db, delete_collection_recursive
+from ._client import db, delete_collection_recursive, get_firestore_client
 from database.firestore_cache import CachePolicy, get_or_fetch, invalidate
 from database.read_boundary import parse_snapshot_strict
 from database.redis_db import try_acquire_client_device_write_lock, try_acquire_user_platform_write_lock
@@ -236,24 +236,37 @@ def mark_user_deletion_wipe_running(uid: str):
     )
 
 
+def _deletion_wipe_needs_dispatch(data: dict, now: datetime) -> bool:
+    """A failed or abandoned unconfirmed handoff may be retried by its owner."""
+    status = data.get('wipe_status')
+    if status in {'deleting_auth', 'failed'}:
+        return True
+    if status not in {'pending', 'retrying'} or isinstance(data.get('wipe_dispatched_at'), datetime):
+        return False
+    timestamp = data.get('wipe_queued_at' if status == 'pending' else 'wipe_claimed_at')
+    stale_after = timedelta(minutes=10) if status == 'pending' else DELETION_WIPE_RUNNING_STALE_AFTER
+    return not isinstance(timestamp, datetime) or timestamp < now - stale_after
+
+
 @transactional
 def _mark_user_deletion_wipe_intent_txn(transaction, doc_ref, wipe_job_id: str) -> DeletionWipeIntent:
     snapshot = doc_ref.get(transaction=transaction)
     if snapshot.exists:
         data = snapshot.to_dict() or {}
         existing_job_id = data.get('wipe_job_id')
-        # A repeat request must join the existing durable deletion authority,
-        # never reset a claimed/running/completed job backwards.
+        if not isinstance(existing_job_id, str) or not existing_job_id:
+            # Legacy tasks may already own this record. Backfill identity,
+            # never replace their running/completed state with a fresh intent.
+            if data.get('wipe_status') in {'pending', 'retrying', 'running', 'completed', 'failed', 'deleting_auth'}:
+                transaction.update(doc_ref, {'wipe_job_id': wipe_job_id})
+                existing_job_id = wipe_job_id
+        # Preserve the job identity. Only a failed or stale unconfirmed handoff
+        # can be promoted again; an active worker remains authoritative.
         if isinstance(existing_job_id, str) and existing_job_id:
             status = data.get('wipe_status')
-            # A retry can recover a request that crashed after intent was
-            # committed but before it promoted that exact job to pending. The
-            # promotion below is itself job-id-fenced and transactional, so
-            # concurrent retries can race safely: exactly one gets ``True``
-            # and dispatches.
-            if status == 'deleting_auth':
+            if _deletion_wipe_needs_dispatch(data, datetime.now(timezone.utc)):
                 return {'wipe_job_id': existing_job_id, 'dispatch_claimed': True}
-            if status in {'pending', 'retrying', 'running', 'failed', 'completed'}:
+            if status in {'pending', 'retrying', 'running', 'completed'}:
                 return {'wipe_job_id': existing_job_id, 'dispatch_claimed': False}
     transaction.set(
         doc_ref,
@@ -270,12 +283,10 @@ def _mark_user_deletion_wipe_intent_txn(transaction, doc_ref, wipe_job_id: str) 
 def mark_user_deletion_wipe_intent(uid: str) -> DeletionWipeIntent:
     """Create or join the durable account-deletion authority.
 
-    Repeated requests reuse an existing active job id rather than moving a
-    claimed, running, failed, or completed wipe backwards. An existing
-    ``deleting_auth`` intent remains eligible for the job-id-fenced promotion
-    so a retry can recover a crash before queue acceleration; exactly one
-    concurrent request can win that promotion. The claimed worker is the only
-    path that deletes Firebase Auth or user data.
+    Repeated requests preserve the job id and may retry failed or stale
+    unconfirmed dispatch. Promotion rechecks that eligibility transactionally;
+    a running or completed worker is never reset. Only the claimed worker
+    deletes Firebase Auth or user data.
 
     ``deleting_auth`` remains a legacy recovery state for records written by
     older workers; new request handling promotes it immediately.
@@ -287,31 +298,95 @@ def mark_user_deletion_wipe_intent(uid: str) -> DeletionWipeIntent:
 
 
 @transactional
-def _mark_user_deletion_wipe_started_txn(transaction, doc_ref, wipe_job_id: str) -> bool:
-    """Promote a newly-created intent to pending exactly once.
+def _mark_user_deletion_wipe_started_txn(transaction, doc_ref, wipe_job_id: str, dispatch_id: str) -> bool:
+    """Claim one new, failed, or abandoned dispatch attempt.
 
     The status and opaque job id are checked in the same transaction as the
-    write. This fences a retry/repeated request from moving an already claimed,
-    running, failed, or completed wipe backwards before it can enqueue again.
+    write. Overlapping requests cannot both win the fresh pending lease or
+    move a running/completed wipe backwards.
     """
     snapshot = doc_ref.get(transaction=transaction)
     if not snapshot.exists:
         return False
     data = snapshot.to_dict() or {}
-    if data.get('wipe_status') != 'deleting_auth' or data.get('wipe_job_id') != wipe_job_id:
+    if data.get('wipe_job_id') != wipe_job_id or not _deletion_wipe_needs_dispatch(data, datetime.now(timezone.utc)):
         return False
     transaction.update(
         doc_ref,
-        {'wipe_status': 'pending', 'wipe_queued_at': datetime.now(timezone.utc)},
+        {
+            'wipe_status': 'pending',
+            'wipe_queued_at': datetime.now(timezone.utc),
+            'wipe_dispatched_at': None,
+            'wipe_dispatch_id': dispatch_id,
+        },
     )
     return True
 
 
-def mark_user_deletion_wipe_started(uid: str, wipe_job_id: str) -> bool:
+def mark_user_deletion_wipe_started(uid: str, wipe_job_id: str, dispatch_id: str) -> bool:
     """Atomically promote one newly-created wipe intent to queue-pending."""
     doc_ref = db.collection('account_deletions').document(uid)
     transaction = db.transaction()
-    return _mark_user_deletion_wipe_started_txn(transaction, doc_ref, wipe_job_id)
+    return _mark_user_deletion_wipe_started_txn(transaction, doc_ref, wipe_job_id, dispatch_id)
+
+
+@transactional
+def _mark_deletion_wipe_dispatched_txn(transaction, doc_ref, wipe_job_id: str, dispatch_id: str) -> None:
+    snapshot = doc_ref.get(transaction=transaction)
+    data = snapshot.to_dict() or {} if snapshot.exists else {}
+    if data.get('wipe_job_id') != wipe_job_id:
+        raise RuntimeError('Deletion job changed before dispatch acknowledgement')
+    if data.get('wipe_dispatch_id') != dispatch_id:
+        return
+    # Delivery may already have started or completed. A queue acknowledgement
+    # records scheduling only and must never move the worker's state backwards.
+    if data.get('wipe_status') in {'pending', 'retrying'}:
+        transaction.update(doc_ref, {'wipe_dispatched_at': datetime.now(timezone.utc)})
+
+
+def mark_deletion_wipe_dispatched(uid: str, wipe_job_id: str, dispatch_id: str, *, firestore_client=None) -> None:
+    """Record a confirmed queue handoff under the same durable job authority."""
+    client = firestore_client if firestore_client is not None else get_firestore_client()
+    doc_ref = client.collection('account_deletions').document(uid)
+    _mark_deletion_wipe_dispatched_txn(client.transaction(), doc_ref, wipe_job_id, dispatch_id)
+
+
+def require_deletion_wipe_dispatch(uid: str, wipe_job_id: str, *, firestore_client=None) -> None:
+    """Reject joining an intent until dispatch or worker execution is proven."""
+    client = firestore_client if firestore_client is not None else get_firestore_client()
+    snapshot = client.collection('account_deletions').document(uid).get()
+    data = snapshot.to_dict() or {} if snapshot.exists else {}
+    if data.get('wipe_job_id') == wipe_job_id:
+        if data.get('wipe_status') in {'running', 'completed'}:
+            return
+        if data.get('wipe_status') in {'pending', 'retrying'} and isinstance(data.get('wipe_dispatched_at'), datetime):
+            return
+    raise RuntimeError('Deletion queue handoff is not confirmed; retry the request')
+
+
+@transactional
+def _mark_deletion_wipe_dispatch_failed_txn(transaction, doc_ref, wipe_job_id: str | None, dispatch_id: str) -> None:
+    snapshot = doc_ref.get(transaction=transaction)
+    data = snapshot.to_dict() or {} if snapshot.exists else {}
+    if wipe_job_id is not None and data.get('wipe_job_id') != wipe_job_id:
+        return
+    if data.get('wipe_dispatch_id') != dispatch_id:
+        return
+    # A lost create-task response can arrive after delivery. Never overwrite
+    # an executing/completed worker with the request's weaker observation.
+    if data.get('wipe_status') in {'pending', 'retrying'}:
+        transaction.update(
+            doc_ref, {'wipe_status': 'failed', 'wipe_failed_at': datetime.now(timezone.utc), 'wipe_dispatched_at': None}
+        )
+
+
+def mark_deletion_wipe_dispatch_failed(
+    uid: str, wipe_job_id: str | None, dispatch_id: str, *, firestore_client=None
+) -> None:
+    """Fence dispatch failure to its job without reopening an executing wipe."""
+    client = firestore_client if firestore_client is not None else get_firestore_client()
+    doc_ref = client.collection('account_deletions').document(uid)
+    _mark_deletion_wipe_dispatch_failed_txn(client.transaction(), doc_ref, wipe_job_id, dispatch_id)
 
 
 def mark_user_deletion_wipe_completed(uid: str):
@@ -530,7 +605,7 @@ def get_pending_deletion_wipes(
 
 @transactional
 def _claim_deletion_wipe_txn(
-    transaction, doc_ref, stale_after: timedelta, running_stale_after: timedelta
+    transaction, doc_ref, stale_after: timedelta, running_stale_after: timedelta, dispatch_id: str
 ) -> str | None:
     """Atomically claim a wipe for re-enqueueing inside a Firestore transaction.
 
@@ -549,6 +624,12 @@ def _claim_deletion_wipe_txn(
     data = snapshot.to_dict()
     status = data.get('wipe_status')
     now = datetime.now(timezone.utc)
+    dispatch_claim = {
+        'wipe_status': 'retrying',
+        'wipe_claimed_at': now,
+        'wipe_dispatched_at': None,
+        'wipe_dispatch_id': dispatch_id,
+    }
     if status == 'deleting_auth':
         # Recoverable only after the caller verified the Firebase auth user is
         # gone. Re-validate the age inside the transaction so a fresh intent
@@ -556,7 +637,7 @@ def _claim_deletion_wipe_txn(
         intent_at = data.get('wipe_intent_at')
         if intent_at and intent_at >= now - stale_after:
             return None
-        transaction.update(doc_ref, {'wipe_status': 'retrying', 'wipe_claimed_at': now})
+        transaction.update(doc_ref, dispatch_claim)
         return snapshot.id
     if status == 'pending':
         # Re-validate the pending marker age *inside* the transaction. The
@@ -566,7 +647,7 @@ def _claim_deletion_wipe_txn(
         queued_at = data.get('wipe_queued_at')
         if queued_at and queued_at >= now - stale_after:
             return None
-        transaction.update(doc_ref, {'wipe_status': 'retrying', 'wipe_claimed_at': now})
+        transaction.update(doc_ref, dispatch_claim)
         return snapshot.id
     if status == 'running':
         # A ``running`` marker means the worker started executing. Only reclaim
@@ -576,10 +657,10 @@ def _claim_deletion_wipe_txn(
         running_at = data.get('wipe_running_at')
         if running_at and running_at >= now - running_stale_after:
             return None
-        transaction.update(doc_ref, {'wipe_status': 'retrying', 'wipe_claimed_at': now})
+        transaction.update(doc_ref, dispatch_claim)
         return snapshot.id
     if status == 'failed':
-        transaction.update(doc_ref, {'wipe_status': 'retrying', 'wipe_claimed_at': now})
+        transaction.update(doc_ref, dispatch_claim)
         return snapshot.id
     if status == 'retrying':
         claimed_at = data.get('wipe_claimed_at')
@@ -591,13 +672,14 @@ def _claim_deletion_wipe_txn(
         # another copy every pass, causing duplicate wipes to race.
         if claimed_at and claimed_at < now - running_stale_after:
             # Stale claim (worker probably crashed). Re-claim it.
-            transaction.update(doc_ref, {'wipe_claimed_at': now})
+            transaction.update(doc_ref, dispatch_claim)
             return snapshot.id
     return None
 
 
 def claim_deletion_wipe(
     uid: str,
+    dispatch_id: str,
     stale_after: timedelta = timedelta(minutes=10),
     running_stale_after: timedelta = DELETION_WIPE_RUNNING_STALE_AFTER,
 ) -> str | None:
@@ -609,7 +691,7 @@ def claim_deletion_wipe(
     """
     doc_ref = db.collection('account_deletions').document(uid)
     transaction = db.transaction()
-    return _claim_deletion_wipe_txn(transaction, doc_ref, stale_after, running_stale_after)
+    return _claim_deletion_wipe_txn(transaction, doc_ref, stale_after, running_stale_after, dispatch_id)
 
 
 @transactional
@@ -639,7 +721,17 @@ def _claim_deletion_wipe_task_txn(transaction, doc_ref, running_stale_after: tim
             return 'running'
 
     if status in ('pending', 'retrying', 'failed', 'running'):
-        transaction.update(doc_ref, {'wipe_status': 'retrying', 'wipe_claimed_at': now})
+        # Delivery itself is stronger proof than a create-task response. Retire
+        # the dispatch lease so a delayed response cannot clobber this claim.
+        transaction.update(
+            doc_ref,
+            {
+                'wipe_status': 'retrying',
+                'wipe_claimed_at': now,
+                'wipe_dispatched_at': now,
+                'wipe_dispatch_id': None,
+            },
+        )
         return 'claimed'
 
     return 'not_actionable'

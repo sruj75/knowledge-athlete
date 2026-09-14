@@ -240,13 +240,17 @@ def test_persisted_wipe_recovers_after_enqueue_crash_and_handler_runs_once(monke
         state['job_id'] = 'job-1'
         return {'wipe_job_id': state['job_id'], 'dispatch_claimed': True}
 
-    def mark_started(_uid, job_id):
+    def mark_started(_uid, job_id, _dispatch_id):
         assert job_id == state['job_id']
         state['status'] = 'pending'
         return True
 
-    def mark_failed(_uid):
+    def mark_failed(_uid, _job_id, _dispatch_id):
         state['status'] = 'failed'
+
+    def require_dispatch(_uid, _job_id):
+        if state['status'] == 'failed':
+            raise RuntimeError('not dispatched')
 
     def enqueue_task(job_id):
         assert job_id == state['job_id']
@@ -257,19 +261,22 @@ def test_persisted_wipe_recovers_after_enqueue_crash_and_handler_runs_once(monke
     users_db = types.SimpleNamespace(
         mark_user_deletion_wipe_intent=persist_intent,
         mark_user_deletion_wipe_started=mark_started,
-        mark_user_deletion_wipe_failed=mark_failed,
+        mark_deletion_wipe_dispatch_failed=mark_failed,
+        require_deletion_wipe_dispatch=require_dispatch,
         get_user_subscription=lambda _uid: None,
         get_pending_deletion_wipes=lambda limit=100: [
             {'uid': 'uid1', 'wipe_status': state['status'], 'wipe_job_id': state['job_id']}
         ],
-        claim_deletion_wipe=lambda _uid: 'uid1',
+        claim_deletion_wipe=lambda _uid, _dispatch_id: 'uid1',
+        mark_deletion_wipe_dispatched=lambda _uid, _job_id, _dispatch_id: None,
     )
     monkeypatch.setitem(service_globals, 'users_db', users_db)
     monkeypatch.setitem(service_globals, 'auth', types.SimpleNamespace(delete_account=lambda _uid: None))
     monkeypatch.setitem(service_globals, 'is_account_deletion_dispatch_enabled', lambda: True)
     monkeypatch.setitem(service_globals, 'enqueue_account_deletion_wipe', enqueue_task)
 
-    assert users_router.start_account_deletion('uid1')['status'] == 'ok'
+    with pytest.raises(RuntimeError, match='lost create-task acknowledgement'):
+        users_router.start_account_deletion('uid1')
 
     assert state == {'status': 'failed', 'job_id': 'job-1', 'enqueue_attempts': 1, 'wipe_runs': 0}
 

@@ -100,7 +100,7 @@ provider only, with the existing macOS system-voice fallback.
 
 ## macOS Memory authority
 
-The Mac owns its Memory archive in the same owner-scoped local `omi.db` boundary
+The Mac owns its Memory archive in the same owner-scoped local `heyintentive.db` boundary
 as conversations. Add, edit, delete/Undo, bulk deletion, page/search queries,
 source provenance, lifecycle transitions, and semantic vectors commit through
 `MemoryStorage`; they do not reconcile with or fall back to a hosted Memory
@@ -173,6 +173,10 @@ billing cancellation, Firebase Authentication deletion, and recursive retained
 Firestore deletion. It does not restore cleanup clients for retired recordings,
 People/voice identity, phone calling, notifications, hosted search, or hosted
 product data.
+The Mac treats deletion as accepted only after confirmed durable dispatch or
+observed worker execution. Queue failure preserves the intent and authenticated
+retry path; an explicit retry must not rely on an idle backend timer. Repeated
+requests cannot reset a running or completed deletion.
 
 ## macOS update installation
 

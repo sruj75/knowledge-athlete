@@ -91,6 +91,8 @@
       "checks": [],
       "invariants": [
         "irreversible auth deletion has a durable recovery marker",
+        "API success requires confirmed dispatch or worker execution; failed and stale unconfirmed handoffs retain an explicit authenticated retry path",
+        "dispatch failure and retry cannot reset an executing or completed deletion, and each attempt invalidates the previous queue receipt",
         "required retained-owner cleanup failures cannot be marked completed",
         "production deletion requests can only dispatch through a complete Cloud Tasks configuration",
         "an account-deletion task identifies exactly one persisted wipe job and never exposes a user ID"
