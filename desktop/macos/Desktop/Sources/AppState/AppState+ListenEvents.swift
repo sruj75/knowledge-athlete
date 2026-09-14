@@ -18,8 +18,13 @@ extension AppState {
       let translations = segment.translations.map {
         SegmentTranslation(lang: $0.lang, text: $0.text)
       }
+      let existingIdx = speakerSegments.firstIndex(where: { $0.segmentId == segment.segmentId })
+      let arrivalOrder =
+        existingIdx.map { speakerSegments[$0].arrivalOrder }
+        ?? ((speakerSegments.map(\.arrivalOrder).max() ?? -1) + 1)
       let newSeg = SpeakerSegment(
         segmentId: segment.segmentId,
+        arrivalOrder: arrivalOrder,
         speaker: speakerId,
         text: segment.text,
         start: segment.start,
@@ -29,7 +34,7 @@ extension AppState {
       )
 
       // Upsert: if we already have a segment with this ID, update it; otherwise append
-      if let existingIdx = speakerSegments.firstIndex(where: { $0.segmentId == segment.segmentId }) {
+      if let existingIdx {
         // Adjust word count: subtract old words, add new words
         let oldWords = speakerSegments[existingIdx].text.split(separator: " ").count
         totalWordCount += newSeg.text.split(separator: " ").count - oldWords
@@ -47,6 +52,9 @@ extension AppState {
         log("Transcript [ADD] Speaker \(speakerId)")
       }
     }
+
+    speakerSegments = LocalTranscriptFormatter.chronologicallyOrdered(
+      speakerSegments, by: \.start, thenBy: \.arrivalOrder)
 
     // Sliding window: trim old segments from memory (they're already persisted in SQLite)
     if speakerSegments.count > maxInMemorySegments {

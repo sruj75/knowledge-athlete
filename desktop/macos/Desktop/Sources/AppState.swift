@@ -43,6 +43,7 @@ struct SpeakerSegment: Identifiable {
   /// Stable identity uses the persisted segment UUID when available.
   var id: String { segmentId ?? "\(speaker)-\(start)" }
   var segmentId: String?
+  var arrivalOrder: Int = 0
   var speaker: Int
   var text: String
   var start: Double

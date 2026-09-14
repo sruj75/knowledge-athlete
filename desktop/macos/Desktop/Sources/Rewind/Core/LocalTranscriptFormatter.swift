@@ -9,6 +9,24 @@ enum LocalTranscriptFormatter {
 
   private static let sentenceEnders = CharacterSet(charactersIn: ".?!。！？؟۔।॥")
 
+  static func chronologicallyOrdered<Element>(
+    _ segments: [Element],
+    by startTime: (Element) -> Double,
+    thenBy originalOrder: (Element) -> Int
+  ) -> [Element] {
+    segments.enumerated().sorted { lhs, rhs in
+      let lhsStart = startTime(lhs.element)
+      let rhsStart = startTime(rhs.element)
+      if lhsStart < rhsStart { return true }
+      if lhsStart > rhsStart { return false }
+      let lhsOrder = originalOrder(lhs.element)
+      let rhsOrder = originalOrder(rhs.element)
+      if lhsOrder < rhsOrder { return true }
+      if lhsOrder > rhsOrder { return false }
+      return lhs.offset < rhs.offset
+    }.map(\.element)
+  }
+
   static func normalize(
     existing: [LocalTranscriptSegment],
     incoming: [LocalTranscriptSegment]

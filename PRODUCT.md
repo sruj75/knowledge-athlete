@@ -44,6 +44,11 @@ write that local authority. The desktop does not project conversations to
 Firestore, reconcile server snapshots, or fall back to hosted conversation
 data.
 
+Final transcript segments follow spoken start time, not network arrival order.
+Equal-time segments retain their original arrival order across corrections;
+the live view and local archive use that same rule before merging adjacent
+speaker fragments. Corrected segments retain their identity and translations.
+
 The backend remains a transient managed-compute boundary for live speech, the
 three candidate-only conversation operations (discard, structure, and
 action-item extraction), and fair-use classification. Conversation operations

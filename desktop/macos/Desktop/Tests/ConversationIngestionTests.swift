@@ -5,6 +5,152 @@ import XCTest
 @testable import Omi_Computer
 
 final class ConversationIngestionTests: XCTestCase {
+  func testFinalSegmentsPersistChronologicallyAcrossArrivalBatchesAndRestart() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let conversation = try await owner.storage.beginConversation(configuration: .testDefault)
+    let earlyId = "70000000-0000-4000-8000-000000000001"
+    let continuationId = "70000000-0000-4000-8000-000000000002"
+    let lateId = "70000000-0000-4000-8000-000000000003"
+    let equalLateId = "70000000-0000-4000-8000-000000000004"
+    let translation = ConversationSegmentTranslation(language: "es", text: "Hola corregido mundo.")
+
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: lateId, speakerId: 1, text: "Later.", startTime: 15, endTime: 16,
+          isUser: false, translations: [])
+      ])
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: continuationId, speakerId: 0, text: "world.", startTime: 3, endTime: 4,
+          isUser: false, translations: []),
+        ConversationSegmentInput(
+          segmentId: earlyId, speakerId: 0, text: "Hello", startTime: 2, endTime: 3,
+          isUser: false, translations: [translation]),
+        ConversationSegmentInput(
+          segmentId: equalLateId, speakerId: 2, text: "Also later.", startTime: 15, endTime: 17,
+          isUser: false, translations: []),
+      ])
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: earlyId, speakerId: 0, text: "Hello corrected", startTime: 2, endTime: 3,
+          isUser: false, translations: [])
+      ])
+
+    try owner.pool.close()
+    let reopenedPool = try DatabasePool(path: owner.directory.appendingPathComponent("omi.db").path)
+    defer { try? reopenedPool.close() }
+    let restarted = TranscriptionStorage(databasePool: reopenedPool)
+    let loaded = try await restarted.conversationDetail(id: conversation.conversationId)
+    let detail = try XCTUnwrap(loaded)
+
+    XCTAssertEqual(detail.segments.map(\.segmentId), [earlyId, lateId, equalLateId])
+    XCTAssertEqual(detail.segments.map(\.text), ["Hello corrected world.", "Later.", "Also later."])
+    XCTAssertEqual(detail.segments.map(\.startTime), [2, 15, 15])
+    XCTAssertEqual(detail.segments.first(where: { $0.segmentId == earlyId })?.translations, [translation])
+  }
+
+  @MainActor
+  func testEqualTimeCorrectionKeepsOriginalArrivalTieInLiveAndReopenedStorage() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let monitor = LiveTranscriptMonitor.shared
+    monitor.clear()
+    monitor.clearSaved()
+    defer {
+      monitor.clear()
+      monitor.clearSaved()
+    }
+
+    let conversation = try await owner.storage.beginConversation(configuration: .testDefault)
+    let state = AppState()
+    let firstArrivalId = "71000000-0000-4000-8000-000000000001"
+    let secondArrivalId = "71000000-0000-4000-8000-000000000002"
+    let translation = ConversationSegmentTranslation(language: "es", text: "Primero.")
+
+    await state.handleBackendSegments([
+      TranscriptionService.BackendSegment(
+        segmentId: firstArrivalId,
+        speakerId: 1,
+        text: "First arrival.",
+        isUser: false,
+        start: 15,
+        end: 16,
+        translations: [.init(lang: translation.language, text: translation.text)])
+    ])
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: firstArrivalId, speakerId: 1, text: "First arrival.", startTime: 15, endTime: 16,
+          isUser: false, translations: [translation])
+      ])
+
+    await state.handleBackendSegments([
+      TranscriptionService.BackendSegment(
+        segmentId: secondArrivalId,
+        speakerId: 2,
+        text: "Second arrival.",
+        isUser: false,
+        start: 2,
+        end: 3)
+    ])
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: secondArrivalId, speakerId: 2, text: "Second arrival.", startTime: 2, endTime: 3,
+          isUser: false, translations: [])
+      ])
+
+    await state.handleBackendSegments([
+      TranscriptionService.BackendSegment(
+        segmentId: firstArrivalId,
+        speakerId: 1,
+        text: "First arrival corrected.",
+        isUser: false,
+        start: 2,
+        end: 3)
+    ])
+    try await owner.storage.upsertSegments(
+      conversationId: conversation.conversationId,
+      segments: [
+        ConversationSegmentInput(
+          segmentId: firstArrivalId, speakerId: 1, text: "First arrival corrected.", startTime: 2, endTime: 3,
+          isUser: false, translations: [])
+      ])
+
+    try owner.pool.close()
+    let reopenedPool = try DatabasePool(path: owner.directory.appendingPathComponent("omi.db").path)
+    defer { try? reopenedPool.close() }
+    let reopenedStorage = TranscriptionStorage(databasePool: reopenedPool)
+    let reopenedDetail = try await reopenedStorage.conversationDetail(id: conversation.conversationId)
+    let reopened = try XCTUnwrap(reopenedDetail)
+    let expectedIds = [firstArrivalId, secondArrivalId]
+    let liveIds = state.speakerSegments.compactMap(\.segmentId)
+
+    XCTAssertEqual(liveIds, expectedIds)
+    XCTAssertEqual(monitor.segments.compactMap(\.segmentId), expectedIds)
+    XCTAssertEqual(reopened.segments.map(\.segmentId), expectedIds)
+    XCTAssertEqual(liveIds, reopened.segments.map(\.segmentId))
+    XCTAssertEqual(
+      state.speakerSegments.first(where: { $0.segmentId == firstArrivalId })?.translations.map(\.lang), ["es"])
+    XCTAssertEqual(
+      reopened.segments.first(where: { $0.segmentId == firstArrivalId })?.translations, [translation])
+  }
+
   func testAudioSinkBuffersAcrossProducerHandoffAndReplaysToOnlyTheNewProducer() {
     let sink = LocalTranscriptionAudioSink()
     let previous = LocalAudioReceiverStub()
