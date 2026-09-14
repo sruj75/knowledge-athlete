@@ -6315,7 +6315,7 @@ No code deletion is authorized yet.
 
 ## IR-189 - Sign out after deletion is durably accepted, before the worker finishes
 
-### Exact current behavior from the code
+### Historical scaffold behavior before the September 14 acceptance repair
 
 When the user confirms deletion, the Python request does not wait for Dodo/Firebase/Firestore destruction to finish. It first makes the request durable:
 
@@ -6325,11 +6325,11 @@ attempt to queue the protected background worker
 return "Account deletion started"
 ```
 
-Even if the immediate Cloud Tasks enqueue fails, the endpoint can return success after recording a recoverable failed job because the reconciler can enqueue it later.
+The inherited endpoint could return success even if the immediate Cloud Tasks enqueue failed, after recording a recoverable failed job for the reconciler. This was an observed implementation defect, not sufficient evidence of durable acceptance: a process-local reconciler does not guarantee execution while the Cloud Run service is idle or scaled to zero. S-25 and the September 14 repair require confirmed queue handoff or observed worker delivery before success.
 
 As soon as the Mac receives that accepted response, it stops transcription and proactive monitoring, performs ordinary Sign Out, and returns to the sign-in experience. It does not poll deletion status, show a waiting screen, or remain signed in until the background worker reports `completed`.
 
-Therefore **accepted** means “the server has durably committed to completing deletion,” not “Dodo, Firebase Auth, and Firestore have all already finished.” The current sign-out-failure message says “Your account was deleted,” which is stronger than the actual response, but the overall UI has no post-acceptance completion state.
+Therefore **accepted** means “the server has durably committed to completing deletion,” not “Dodo, Firebase Auth, and Firestore have all already finished.” The inherited sign-out-failure message said “Your account was deleted,” which was stronger than the actual response; the overall UI has no post-acceptance completion state.
 
 ### Requirement materialized by this behavior
 
@@ -6357,7 +6357,9 @@ Should the Mac keep signing the user out immediately after the server durably ac
 
 Retain the current accepted-job response, immediate capture shutdown, ordinary Sign Out, and no polling/completion screen. The durable Cloud Tasks worker and reconciliation remain responsible for finishing Dodo cancellation, Firebase Auth deletion, and retained Firestore cleanup independently of the Mac.
 
-No code deletion is authorized yet.
+**Acceptance clarification, September 14, 2026:** return success only after a confirmed Cloud Tasks handoff or durable evidence that the worker has claimed/completed the same job. Persisted intent alone is not acceptance. An unconfirmed enqueue failure returns the existing HTTP error so the Mac remains signed in and can retry; retries retain the job identity, and dispatch-attempt fencing prevents late callbacks from overwriting a newer attempt or worker. No waiting/polling UI or synchronous wipe is added. The owning contract is the account-deletion section of `PRODUCT.md` and `backend/services/users/account_deletion.py`, with regressions through the assembled HTTP route, transactional job state, and worker handler.
+
+The original decision authorized no code deletion; implementation and release status are recorded separately in `FORK.md` and the owner handoff.
 
 ## IR-190 - Indefinite completed account-deletion job records
 
