@@ -5,7 +5,7 @@ description: Explain evidence gates and existing harnesses; link authored open c
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-15T13:39:11.738Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -13,7 +13,7 @@ sources:
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
     resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+generated: { by: "codex", at: "2026-09-15T13:39:11.738Z" }
 ---
 # Qualification and open obligations
 
@@ -36,6 +36,8 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 [Unresolved commitments](../../INSTRUCTIONS.md#unresolved-commitments) retain BL-001, BL-002 and BL-003 with their dated status and exit evidence. Provider availability did not close final continuity qualification. An initial read-only infrastructure inventory did not complete classification, recovery or rollback acceptance. Broad local evidence did not close final-source hosted verification.
 
 The accepted IR decisions name their original owner/evidence groups. The signed-release and billing handoffs remain distinct. This page explains the mechanics; it does not mark any of those obligations complete or replace their original per-slice acceptance records.
+
+The [authored REP acceptance requirements](../../INSTRUCTIONS.md#accepted-requirements) retain classified source-residue searches and retained-owner behavioral evidence, together with diff hygiene, `make preflight` and PR preflight. Migrated wiki checks cover documentation; they do not replace those source-cleanup or per-slice obligations.
 
 Use [desktop E2E](../testing/desktop-e2e.md) to select a test surface and [releases](releases.md) to understand candidate delivery. Keep commands, source SHA, artifact identity and outcomes together when reporting evidence.
 

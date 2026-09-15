@@ -40,6 +40,11 @@ Generated codebase pages describe implementation; they do not override this guid
   maintenance is performed during Codex work, with no scheduled generation.
 - Update this brief only for explicitly authorized rule or product-decision changes.
   Keep date-bound evidence and unresolved commitments distinct from current proof.
+- Write rules mechanically so an agent can apply them without judgment; prefer
+  a script or CI check with a clear failure message over an unenforced request.
+- When a defect ships because guidance was misread or missing, tighten the
+  guidance in the same fix PR so the misreading cannot recur, or add a check
+  that catches it.
 - Every factual generated page cites source and tests outside the wiki. Authored
   policy and archived decisions are not machine-verified repository Claims.
 - Source packages above the existing twelve-file threshold need a substantive wiki
@@ -822,7 +827,17 @@ When debugging issues for a specific user, check Sentry dashboard for crashes an
   non-production debugging capability only.
 
 ##### Fallback / resilience telemetry
-Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.recordFallback(area:from:to:reason:outcome:)` (PostHog `desktop_health_event` / `fallback_triggered`) or Rust `fallback::record_fallback`. Never invent health-event cases or product “Recording Error” events for successful heals. See [README.md](codebase/architecture/overview.md) for model, window-query, meter, and idle-voice contracts.
+Provider/mode switches and fail-open paths must call `DesktopDiagnosticsManager.recordFallback(area:from:to:reason:outcome:)` (PostHog `desktop_health_event` / `fallback_triggered`) or Rust `fallback::record_fallback`. Never invent health-event cases or product “Recording Error” events for successful heals. Read the [runtime reliability boundaries](#runtime-reliability-boundaries) for model, window-query, meter, playback, and idle-voice contracts.
+
+#### Runtime reliability boundaries
+
+Preserved from the [desktop reliability guide](https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/desktop/macos/README.md#runtime-reliability-boundaries).
+
+- Background Gemini clients use `ModelQoS`'s account-available Flash route; do not restore the 2.5 defaults/fallbacks rejected by the owned account (#102). `GeminiBackgroundRoutingTests` exercises authenticated request construction without real credentials. The backend proxy and shipped-client mapping must deploy before a Mac candidate requiring the new route.
+- Special-mode detection uses `SystemCaptureModeProbe`: one off-main window query, a monotonic-clock-bounded boolean cache, and nonblocking capture ticks (#103). Never move WindowServer enumeration back onto `MainActor`; permission, owner, and lock-screen gates remain independent.
+- Microphone meter callbacks enter `MainActor` through `AudioLevelDelivery`, with one pending latest-value delivery. Stop invalidates queued and incoming samples immediately; the next capture activates its generation only on the serial audio queue after old HAL work quiesces. Do not add another task/queue hop inside callers; PCM delivery is separate and never coalesced.
+- Streaming voice playback owns AVFoundation on a serial worker, never the UI thread. SDK scheduling acknowledgement gates native playback progress, final text, and provider completion; Stop invalidates pending callbacks immediately. Configuration recovery replays only the current unplayed tail, never stopped speech. `StreamingPCMPlayerLifecycleTests` covers stalled hardware, recovery, and controller acknowledgement ordering.
+- Aged idle voice POSIX resets/disconnections use the existing rewarm policy. Active-turn/fast failures and failed token mints remain observable; an idle-close classification is not proof of successful recovery.
 
 #### Repository
 - This is the `desktop/macos/` subfolder of the `sruj75/knowledge-athlete` repository
@@ -2963,7 +2978,14 @@ Rollback means restoring `BILLING_MODE=disabled`, removing purchasable catalog e
 714 final decisions from the [pinned requirements record](https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/bootstrap-scaffold/requirements-challenge.md).
 Detailed acceptance requirements and the PROV/INV/REL evidence boundaries are retained in the
 [pinned per-decision acceptance matrix](https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/bootstrap-scaffold/wave-6/s-31-acceptance-matrix.md).
-REQ is now this decision register plus the pinned final Decision; REP uses the migrated wiki checks.
+REQ is now this decision register plus the pinned final Decision; the planning-ledger validator is retired.
+REP retains the [S-31 section 13 classified source-residue searches](https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/bootstrap-scaffold/wave-6/s-31%20tdd.md#13-repository-residue-search-strategy),
+`git diff --check`, `make preflight`, and `scripts/pr-preflight --pr-body-file <body>`.
+Classify every search hit, verify each retained owner still exists and passes its
+behavioral tests, and leave no unexplained rejected product/provider/runtime or
+other section 13 residue. Update retired documentation paths and documentation
+checks to the wiki structure; wiki validation does not replace source-residue
+classification or per-slice acceptance evidence.
 BE/MAC retain their component commands. PROV, INV and REL are not closed by documentation migration.
 BILL remains disabled until its separately authorized handoff.
 
