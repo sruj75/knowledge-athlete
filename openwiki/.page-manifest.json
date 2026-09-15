@@ -93,11 +93,11 @@
       "completedRunId": "9b71446d-543a-41fb-9c53-25a3c49a843d"
     },
     "/openwiki/codebase/testing/contracts.md": {
+      "gitHead": "b76483f178846588961c3edcdc96e23aa086e56b",
+      "sourceFingerprint": "sha256:38acdcf410596944c62306f16c0cc169ed3dc778daff17d504b757e703a6d14c",
       "pageVersion": "sha256:b63273a6446a7556749cecfe8208a24ba79f12608a8811d32d240a8968adc1b1",
       "completedBy": "codex",
-      "completedRunId": "f7be998f-76c8-45e7-ac29-2de7eb195ae9",
-      "gitHead": "b76483f178846588961c3edcdc96e23aa086e56b",
-      "sourceFingerprint": "sha256:38acdcf410596944c62306f16c0cc169ed3dc778daff17d504b757e703a6d14c"
+      "completedRunId": "f7be998f-76c8-45e7-ac29-2de7eb195ae9"
     },
     "/openwiki/codebase/testing/desktop-e2e.md": {
       "gitHead": "65575837b1f1a18fe9e23eb8bb65071089aed270",
