@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:4d0a09e22bbcbb6da661b99a547b9ba4f2b035331c2924aeccbd9ce6a6943357",
+  "pageVersion": "sha256:b63273a6446a7556749cecfe8208a24ba79f12608a8811d32d240a8968adc1b1",
   "claims": [
     {
       "id": "claim_a15c40aa331e4669b9cd04381539f009",
@@ -49,10 +49,46 @@
           "version": "repo-file-v1:sha256:16c7db60875a8f861d60ca03f9733fa747f0295926a04fd6d53462d4c055e03e"
         }
       ]
+    },
+    {
+      "id": "claim_fe285d5e650043b880abcc2f9a0575a0",
+      "statement": "Main-push Hygiene and Release Eligibility run shared changelog enforcement through the deterministic check manifest without the PR-only no-changelog-needed label waiver.",
+      "evidence": [
+        {
+          "resource": "repo://.github/actions/release-eligibility/action.yml#L48-L59",
+          "version": "repo-lines-v1:sha256:74cbf7d07ac8dcf0bc59e82686f483ee4cd2c73fd24ff2d0caf4ff0d8c87108b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMzE2NWNjOGZlYWY4ZWFiNjk4YTg3ZjEyOGY2MjMxZTM2YjZiYzBkMTdjMGViN2Y1NTI0YWQzNDM2Y2Y3YTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwZjI0MTJmYWI0MjE1NTBiN2VmYjNjOGMyNzEwYWYwZmVhYTY1MWQyM2E5NWEzODEzZDQ2OGY4M2M4YzAwNjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU4ODFmOTBhNGMzYzA0ZWM3Yzc0NTRmZTQ0Zjg5ZDFjYzE5ZWI2ZWQyZTkzNzgyMDE1YjQ3ZWU5OTg0ZmVmODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/pr_preflight.py#L247-L251",
+          "version": "repo-lines-v1:sha256:0f4540367491471c708030927c8c0013b0dd1c04c9fb0abd0f49224dc3cea2d2:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiY2JkOWQ0NDk4M2QwNThiOWMzNDQzOTVjMWYzMDBmMDFlZDJjYWVlY2ExMDFlNmQ4M2UwZWM5M2YxZmEwYTJmNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzY2NWQyZDViMWJhZjIzZWQwOTcxMDA1Zjk1ODFmYWY1ZTkyNGU3YmZiZjM3MWU3NmJhYjI5NDY1Y2ExNzE0YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg5NmY4OTdjNTA4ODgzYjU0NWJlYTkyZDFiZGEwNDZhMjEzMWFlMjBjMGMyNzQ4ZWYxNzJjMTY3M2IwZmJiOSJ9"
+        },
+        {
+          "resource": "repo://.github/workflows/repo-checks.yml#L136-L149",
+          "version": "repo-lines-v1:sha256:3857ecec4bf10699a974469b1dac784eae2bfd2369810e0ea5e6ddd3edff0dc7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhMDc4NmM2OTNjNjBmYTk1ZTBlOTliOTBmMDg2OTczMTU1Njk5ODNiYWQ0NWRiMDUxMmVkMWFiODhjOTkxNGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlkZGQ5NjAwMWNjM2QxNTE2M2IyZmFiMjI0MmE2NTMwMzljYzNmYTkwMTFiOTk5OWRkYzY2OTk3YmUzMTBhZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyNjE2NWEyZjMwYWUzMjJkMWVkZWRlNzAxODY3NjkxMTVlN2I4NjU0ZTBmMmZlYTZlYzBlYzA2ZGJkNzYzNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA2ODg1Y2RlMWIwZjUzMmVhMWVmYjdkYTM0YjFkYjFmMjU2OGFhNTUyMGEzNmFkNzFkYjBiNmRhMDJjZTc1ZDMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3879d59e5cc84775b6bd56e715b7a356",
+      "statement": "The desktop changelog checker exempts the internal source-layout tool and narrowly recognizes removal of Markdown exclude entries whose documents are deleted in the same comparison; other package and product changes remain gated, with regression coverage through the real CLI over Git commits.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/check-desktop-changelog.py#L121-L171",
+          "version": "repo-lines-v1:sha256:419eb1c317b8f07f4077cd470c6f596fdefcbdcd7c65d1e93601f075491b9bce:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ZjdjMDUwZTBjNjc0NzYwYmE5MzZhYzE1NGY3ZDhiM2NjNmY3N2I1Mzg0MTNhZDAwZWU0N2EyYzA1NWFkYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlNzU3NWMzYjc3NzZjZjJmOWMyYmZiY2E0NGYyMTQ4MTNhNzgyN2VhYTljMzg0NTRjNzAzYjY4OWE3NDQzODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwMTEzY2I0OTkzMmU1YjA1NDZhNjE5ZThhMmYxMDZhNzFkYWZlNTBjYTgyNjEzZjQ1YWNkYjQ2MzgwOWMwYzgifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/check-desktop-changelog.py#L73-L74",
+          "version": "repo-lines-v1:sha256:ec4d003bed55d269e15b822593becd3281d00dfd1be9577bec1a441691fae4d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYwMDY0NTIyZjQ4ODEzNTFkYzg0YWFhZDJjMTIyNTkxYjQzYWYwYmM4OWU2YmI5NGQ4NDVlZmM0OGM2NzRmZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWQ2YTE0MGNlODcxNTBjZWZkM2UyMzA2NDc1YjU2NzI1YTMyYjZiMzY1YjdiMTYyZmIyZTJiODBlZWNmZmQ1NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDljMzc2MDkyODYzMGJjODZlYTY2Njc0ZmRkNjhiNzI5Y2QyZGZhZDgwYmFmYzA3MzQxOWViZDg3ZjdhYjE1YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThjM2NkYzVjMWFjM2MwNTlkZDk4NDA5YjQ0OTgxMzQ5MjRjODNkZjRlZmExZWY1NzNmYzY4MTdhMmFkOTJlNSJ9"
+        },
+        {
+          "resource": "repo://.github/scripts/test_desktop_changelog.py#L74-L157",
+          "version": "repo-lines-v1:sha256:5f5e47854f961f536ba26987eb5e677fd52869a1ac9c472c4898ca9cf399f351:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzOWEzNWM2MTkwN2RmOTBlMGNlYWU0MDViZjUyODRhNmE3MjNhMThhYmU0ZDQ0YThiMmMwZDNlZTM5ZDI4MmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiZWRkODUzY2ExOTRkNTQ1YTY5ZDFjZjAxNzU1MTAyYjc0YjRkNWYyZGEwOWViZTdmOTU5ZThjYTIwM2YyNWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhMTYzMDI4ZjBmNTdkYzRiZTkxODgyNGZlODkyZGM5OThkNDY2MjhjYzFmYjRmNzMxYjNkMWM5MjUxMDM5ZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkOGJjOTc1N2E2Y2IzODFlMzc4MzY0OTFmOTgzM2NiMmRhNTMxZDZmYTQ3ODg1NzdhMTEzMDczYzhjZWE2MDgifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-15T16:15:28.553Z"
   }
 }
