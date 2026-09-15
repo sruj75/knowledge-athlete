@@ -23,11 +23,11 @@
       "completedRunId": "4017ff86-c454-4f95-9c13-b3633921b32d"
     },
     "/openwiki/codebase/architecture/overview.md": {
+      "gitHead": "1e41beed9b84c9607290bcbfe524fd0550cf8601",
+      "sourceFingerprint": "sha256:613e29f47dcec3c49b205dce9d0649a903316562e9915baf31a489c1c5cd004f",
       "pageVersion": "sha256:2bd26f8a8c643cd69d4a71ba49b056ebee77741408fe5c80b7eabca5a683fd0f",
       "completedBy": "codex",
-      "completedRunId": "8b18f2dc-1529-410f-9e1c-ded6c750a1de",
-      "gitHead": "1e41beed9b84c9607290bcbfe524fd0550cf8601",
-      "sourceFingerprint": "sha256:613e29f47dcec3c49b205dce9d0649a903316562e9915baf31a489c1c5cd004f"
+      "completedRunId": "8b18f2dc-1529-410f-9e1c-ded6c750a1de"
     },
     "/openwiki/codebase/concepts/product-boundaries.md": {
       "gitHead": "a1f07e4fd404ab2ad26feb3dc5fb36922713ed6f",
@@ -79,11 +79,11 @@
       "completedRunId": "4017ff86-c454-4f95-9c13-b3633921b32d"
     },
     "/openwiki/codebase/operations/qualification.md": {
+      "gitHead": "1e41beed9b84c9607290bcbfe524fd0550cf8601",
+      "sourceFingerprint": "sha256:613e29f47dcec3c49b205dce9d0649a903316562e9915baf31a489c1c5cd004f",
       "pageVersion": "sha256:0c1a6e5fc4a6f24075246937d5547506ff4e6dac3e74d1e2a9bf99ab3254e36b",
       "completedBy": "codex",
-      "completedRunId": "8b18f2dc-1529-410f-9e1c-ded6c750a1de",
-      "gitHead": "1e41beed9b84c9607290bcbfe524fd0550cf8601",
-      "sourceFingerprint": "sha256:613e29f47dcec3c49b205dce9d0649a903316562e9915baf31a489c1c5cd004f"
+      "completedRunId": "8b18f2dc-1529-410f-9e1c-ded6c750a1de"
     },
     "/openwiki/codebase/operations/releases.md": {
       "gitHead": "a1f07e4fd404ab2ad26feb3dc5fb36922713ed6f",
