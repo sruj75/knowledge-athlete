@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:aca1217a5a464860cf3345bb97953a7e720126154de0bba3a88f6d52aa0beac6",
+  "pageVersion": "sha256:1c7aeee85a9a24e2f70ae7a587ded7bb89da1b66fb82a51fc1a8a3d862b6afea",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -25,10 +25,30 @@
           "version": "repo-lines-v1:sha256:3b6a67fe94fc81fc43a176a2db9c67362d271769acd698c9f5ddeaaf01273732:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwMGIzNjkzMTEwZTdjNjg1NThiZDk2ZTIxODQwMzg0ODlkZTY0Yjk4Y2FiNTM1YzUwNThiNmUzMjI3OTVjMjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiMzk5OGEzOTI1MDk2ZjExZjA4YThkNWI3NWFiOTNiMTVkNWZmMmIyYmY3M2NjNzQ3ODIzMTcwNTNkMDBhMDYifQ"
         }
       ]
+    },
+    {
+      "id": "claim_5782c4540f6d452d929201698d109386",
+      "statement": "Desktop-core tiers 1 through 3 require macOS and a non-production bundle; tiers 2 and 3 add the dev stack and spatial-overlay Swift harness, and tier 3 also invokes the continuity gauntlet.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh#L1110-L1205",
+          "version": "repo-lines-v1:sha256:bbc253d7ae4be2342db1b2a958e554f255920ae93d4a0e0e54977bbae2ceac6c:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwNGE0ODA0ZjU1MjQ1NWQ2MmIwZGE2NzEwN2U3MmM3YThiMDI2NTc2NzVmNDIzYjQ5OGNjN2IyNDE5ZGY3ZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyYTI0NmU0ZGM1MDg4ZThjMTRhYjRjODk3ZjYzZDI0OTFhN2ZkMWNmMmQ3MzZmM2Y1ZDliMTA3YTRkMWY0NTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIzNTRkZTFmNTlmYzdhYWMwZWYzYmE5Nzg1ZmZjOGRlZGIzMzExMmUyZDhhN2RhYjBmY2ZhY2M1YTA2MjM3OTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwZGNkNGE5OWVjNTQ2NDUxODNmNWQ1MDE2Mjc0Y2U1YjQzMzU2YzY2MzVmYmRiYmM1NTQ5YjE3YjlhNTZhZGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4e8146b3609d4888953e68c556e83e88",
+      "statement": "omi-ctl selects its loopback bridge by automation port, reads the local per-launch bearer token for state and actions, and uses unauthenticated health identity to obtain backend/runtime diagnostics and the log path.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/omi-ctl#L1-L75",
+          "version": "repo-lines-v1:sha256:d66ea19995217c60ceafa8ec51998fb8ae8c965e3afa73d5a562ef65326bb68c:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxMjNjMWU3OWM2NzZmZDU2YzlkNWYxMDM5YjRkMWU1N2M1YmU2ZWIyNTk1MTllMTQ3MDAzZjVhM2I1MjNjNDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjMDUzOGI3NzRiZWJlNTI1M2ZmMzEzZmQ0NWE1OTgzZGI4MTgzOWQ0NWU0ZmRlNWQzOTk2M2U3OGRiNmQ4ODAifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-15T14:14:00.034Z"
   }
 }

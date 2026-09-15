@@ -5,7 +5,7 @@ description: Explain retained schema/lifecycle migration tools and distinguish t
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-4059e2529808adde0c26d6e6
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
@@ -13,7 +13,7 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationLocalAuthorityMigrationTests.swift
   - id: openwiki-source-c7e93ebfccaee22a4bb9bc34
     resource: repo://scripts/migration/mixpanel_export.sh
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
 ---
 # Data and namespace migrations
 
@@ -23,7 +23,7 @@ Persistent changes belong to the component that owns the data. `RewindDatabase` 
 
 Trace the current pool initialization, migration ordering and owner transition before changing a schema. The [local data guide](../architecture/local-data.md) explains generation fencing; [Memory](../workflows/memory.md) explains revision-bound work. A migration must preserve surviving user behavior, handle previously created databases, and include the behavioral test that exercises the actual old-to-new state transition.
 
-The conversation local-authority migration test is an example of an owning seam. Historical migration discussions and final product decisions remain in the [authored decision register](../../INSTRUCTIONS.md#accepted-requirements). Their old planning ledger validator has been retired with that ledger; it is not a database migration runner.
+The conversation local-authority migration test is an example of an owning seam. Historical migration discussions and full final decisions remain in immutable Git history, reached through the brief’s [accepted-requirements archive links](../../INSTRUCTIONS.md#accepted-requirements). Their old planning ledger validator has been retired with that ledger; it is not a database migration runner.
 
 ## Retained analytics export utility
 

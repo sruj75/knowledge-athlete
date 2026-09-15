@@ -5,10 +5,16 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:07:01.245Z
+    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-7c03237a6b57ffb3e526a51b
     resource: repo://.nvmrc
+  - id: openwiki-source-8fe7ebf00619b8e43f932fa4
+    resource: repo://backend/.python-version
+  - id: openwiki-source-46e5675fdb0a0bc8e230444f
+    resource: repo://backend/scripts/run-unit-ci.sh
+  - id: openwiki-source-d5a3474b416677112c06b1cc
+    resource: repo://backend/scripts/sync-python-deps.sh
   - id: openwiki-source-221ccd7dfd0766ec2939c6ec
     resource: repo://desktop/macos/agent/package.json
   - id: openwiki-source-fd55fa27de60ffa7dc0fc82e
@@ -17,7 +23,11 @@ sources:
     resource: repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
-generated: { by: "codex", at: "2026-09-15T13:07:01.245Z" }
+  - id: openwiki-source-f00382734bf395713169fe50
+    resource: repo://scripts/dev-harness/desktop-run-local.sh
+  - id: openwiki-source-1a71f2c58cd0b293815e7b47
+    resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
+generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
 ---
 # Development and wiki maintenance
 
@@ -29,14 +39,25 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 | --- | --- |
 | Install prerequisites and hooks | `make setup` |
 | Start local/offline services | `PROVIDER_MODE=offline make dev-up` |
-| Check the local harness | `make dev-check USER=alice` |
+| Initialize/check local configuration | `make dev-init`, then `make dev-check` |
+| Launch a named local Mac | `make desktop-run-local DESKTOP_USER=alice DESKTOP_APP_NAME=omi-my-task` |
 | Backend component tests | `backend/test.sh` |
 | Desktop component tests | `desktop/macos/test.sh` |
 | Node runtime checks | `cd desktop/macos/agent && npm run build && npm test` |
 | Shared deterministic contract | `make preflight` |
 | Build and smoke canonical image | `make runtime-image-smoke SERVICE=backend` |
 
-Read [backend](../../INSTRUCTIONS.md#backend-guidance) or [desktop guidance](../../INSTRUCTIONS.md#desktop-guidance) for component prerequisites and named-bundle launch commands. Do not restart a production app to test a documentation or development-tooling change.
+The local launcher requires a valid workspace sentinel and a seeded synthetic user, validates the resolved local profile, then launches through `desktop/macos/run.sh`. The `DESKTOP_USER` selector chooses the synthetic account; `DESKTOP_APP_NAME` gives the bundle its own identity. Start the offline stack before launching. Read the [backend](../../INSTRUCTIONS.md#backend-guidance) and [desktop rules](../../INSTRUCTIONS.md#desktop-guidance) for the policy boundaries.
+
+## Prerequisites and focused checks
+
+The backend dependency synchronizer reads the exact Python version from `backend/.python-version` (currently 3.11.15), selects the platform lock, resolves/installs that interpreter through `uv`, and synchronizes its virtual environment. Refresh it with `bash backend/scripts/sync-python-deps.sh`. Intentional dependency changes use `backend/scripts/update-python-lock.sh`.
+
+The local Mac launcher lists Xcode/`xcrun`, Python, `uv`, Node/npm and codesigning tools among its prerequisites; Cloudflare tooling is needed when its tunnel is selected. The emulator harness checks Node/npm, Java and its other local dependencies through `make dev-check`. Install the local libwebp dependency before packaging; [build/signing](../integrations/build-signing.md) explains that boundary.
+
+From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` for compile-only feedback. Before a runtime/Chat/voice QA bundle, the compact contract command is `./scripts/agent-logic-harness.sh --cross-surface-smoke`. A compile is not a running app: use the named local launcher above, then `./scripts/omi-ctl health`, `./scripts/omi-ctl actions` and `./scripts/omi-ctl log-path` on its configured automation port. The bridge returns runtime/backend identity and the exact private log path; [desktop E2E](../testing/desktop-e2e.md) covers tiered evidence.
+
+`backend/test.sh` executes its selected test-file list. The full CI wrapper `backend/scripts/run-unit-ci.sh` also runs environment preflight and the applicable typecheck before delegating to that executor. These command roles explain why a narrow test run and full component acceptance report different scope.
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
@@ -46,7 +67,7 @@ The [authored maintenance instructions](../../INSTRUCTIONS.md#wiki-maintenance) 
 
 After source and tests stabilize, call native `openwiki_begin` in update mode. If planning is requested, research the changed behavior and submit the affected page plan. For each `openwiki_next_page` assignment, update that page and submit sparse claim decisions. Finish after the queue completes. A no-change result needs no fabricated edit. Use `force: true` for guidance-only regeneration; resume interrupted work through begin and its durable queue.
 
-Initialization replaces generated pages while preserving the instruction brief. Create the empty Company directory after initialization starts and remove the scaffolded scheduled workflow. OpenWiki generates its structural indexes at finalization. Never hand-edit Claims or completion metadata.
+The instruction brief carries current scope and working constraints. Full IR decisions, old tutorials and dated acceptance records are reached through its pinned Git links; they are not copied into generated pages. Initialization replaces generated pages while preserving the instruction brief. Create the empty Company directory after initialization starts and remove the scaffolded scheduled workflow. OpenWiki generates its structural indexes at finalization. Never hand-edit Claims or completion metadata.
 
 Commit wiki changes with the implementation on the current branch. The existing explicit-push rule still governs publishing.
 
@@ -59,5 +80,12 @@ Commit wiki changes with the implementation on the current branch. The existing 
 - [Node package scripts](../../../desktop/macos/agent/package.json#L1-L12)
 - [Runtime stdio fixture](../../../desktop/macos/agent/tests/runtime-stdio-contract.test.ts#L17-L36)
 - [Tool-surface generator](../../../desktop/macos/agent/scripts/generate-tool-surfaces.mjs#L1-L15)
+
+- [Local launch contract](../../../scripts/dev-harness/desktop-run-local.sh#L24-L78)
+- [Named profile safety tests](../../../scripts/dev-harness/tests/test_desktop_profile.py#L34-L62)
+- [Python synchronization](../../../backend/scripts/sync-python-deps.sh#L5-L47)
+- [Local launcher options](../../../desktop/macos/run.sh#L45-L80)
+- [Harness prerequisite checks](../../../scripts/dev-harness/dev_harness/cli.py#L1657-L1690)
+- [Backend CI wrapper](../../../backend/scripts/run-unit-ci.sh#L40-L65)
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

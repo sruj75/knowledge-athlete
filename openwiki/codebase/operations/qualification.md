@@ -5,7 +5,7 @@ description: Explain evidence gates and existing harnesses; link authored open c
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:39:11.738Z
+    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -13,7 +13,7 @@ sources:
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
     resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-generated: { by: "codex", at: "2026-09-15T13:39:11.738Z" }
+generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
 ---
 # Qualification and open obligations
 
@@ -33,7 +33,7 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 
 ## Open authored commitments
 
-[Unresolved commitments](../../INSTRUCTIONS.md#unresolved-commitments) retain BL-001, BL-002 and BL-003 with their dated status and exit evidence. Provider availability did not close final continuity qualification. An initial read-only infrastructure inventory did not complete classification, recovery or rollback acceptance. Broad local evidence did not close final-source hosted verification.
+[Unresolved commitments](../../INSTRUCTIONS.md#unresolved-commitments) summarize BL-001, BL-002 and BL-003 and link their complete dated records and exit evidence in Git history. Provider availability did not close final continuity qualification. An initial read-only infrastructure inventory did not complete classification, recovery or rollback acceptance. Broad local evidence did not close final-source hosted verification.
 
 The accepted IR decisions name their original owner/evidence groups. The signed-release and billing handoffs remain distinct. This page explains the mechanics; it does not mark any of those obligations complete or replace their original per-slice acceptance records.
 

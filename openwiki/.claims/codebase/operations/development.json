@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:c50fd083c12ee54e6b678e2129ca3861acf28dfa3ac33031d3a0c28b5ae228f4",
+  "pageVersion": "sha256:078344ea025e09f8364f967435b859125da38f8c8561ba2d2fc4c721834e7cc0",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -49,10 +49,48 @@
           "version": "repo-lines-v1:sha256:da0f6838c23e815b6a0b475bc8ee6a75c50d28278c1c637fce2ddce3f35fe331:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYjdjZjZmOGI5M2I2MWI4NDEwOWE5OWI1N2RkMGVhZDU2MDVhMjk5OTFhMjllYTc0MWY3ZTVmNDVmNzA1NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczZDhlYjA0OWI0OGRkYjk4Nzg1MTMyM2QzMmYzNzUxNzRkY2ZkYmVhNmU3MDFlZGU3MDVkZGY3Y2M5MmUwZDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYTZiOTNjYTkyZjc2MDcxZGUxN2IyNjg1ODlmNjU2ODdjMzFhMDQzNjViNjA4NDFhMDM0OTFhYzQ5YzdiMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUwYmJjODI1YmY2ZjA1ZjJiNjU2NTI1MjI0MjRmYWE4M2Q1YTViNWUwOGFkN2U5NDEyZjM0YTBhZjU1ZjE2M2QifQ"
         }
       ]
+    },
+    {
+      "id": "claim_e7299839937a4c29b5efeb0893ce0b67",
+      "statement": "The local desktop launcher rejects missing or invalid workspace sentinel and synthetic-user configuration, validates the selected local profile, and delegates the actual Mac launch to the owned launcher.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/dev-harness/desktop-run-local.sh#L24-L103",
+          "version": "repo-lines-v1:sha256:a4bb80ad14e12c78e12ee175cc0f478e0966de110090f3029314a2f76c86dc3f:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5MzRkOTA4YmE1OTIyOWE4MmFkYjM3NDcwYmVhZjZkZmU5NjY2YTY3Y2Y5Yjk5Y2QxMTFiZjNhNmE0Y2U1YTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxYjlhNTM4MmQ0ZjM5YmRhNzNkZjgxNjBhMWZlMmExYTdlNTA0ODA2NDg5M2JjNGQxOTE3NzU5NDA3NzBiNWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2M2FhZmMzNWY3MDY0ZTUyYmQ4NjVmMmNjYmE1MWFjMmRmZDQ2ZDk4YWI5MjA5ZjYyODZkZTkyMmYxYTYwZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/tests/test_desktop_profile.py#L34-L62",
+          "version": "repo-lines-v1:sha256:f31c0f092cd0229dc35b55cebd5933f3d3aa23ce3529d39b79b894b0442ddad3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2ZTY3NzZmZGRmNzNjYjBjZmUwN2VhMzc5ZTVmZDA2NTdmOGIxNGY4ZDRiYzA1ZGJlZTc2ZGMxMWEyMmFjMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZlMWEzNDYzMGZjYWJhNTUzZjVhZDFhZjBkNzhlMmY2OGQxM2Y3NmJhYmVjZWUwMThjZWI4MGQzYmIyYWQ2OTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYWFiYmUzMmU3NzY1NjhjMWU2MDE0ODRmYmM2ZmQ3NGJjZjgzMzI3Mzc5MDZjYTJjZWQxYzcxMzFkYTgxNDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhOTFhNzBkZDUzNzcxNzBkZjczMTAyY2Q2NzJiYzI4NDQ5NTIxMTFkYzhkMTZhYzg4ZGQxMjEyMzMwNzBhMTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_da815022c1994b82851222033adfdc64",
+      "statement": "Backend dependency synchronization resolves the exact checked-in Python version and the host-specific dependency lock through uv before synchronizing the virtual environment.",
+      "evidence": [
+        {
+          "resource": "repo://backend/.python-version",
+          "version": "repo-file-v1:sha256:db82937e1f1830581a9553c7814f5c5fcacb6dfdef8310b43e9a812c887acaf5"
+        },
+        {
+          "resource": "repo://backend/scripts/sync-python-deps.sh#L5-L47",
+          "version": "repo-lines-v1:sha256:6c032cfb531931d85b361e531dd3a2cdcaf8fb68cb3ed962566dc663bd63efa4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1Y2U0ZWFhNWZhZjZlMjY1NDliY2M2ZmUzNDgyODhlOGY3MjAzNjg2NzRjMTc4ZGQ2NDA5MDRkMzYwNzI3MzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjMDk2MjQxMjkxOTVkZmYxNDlmYzMwNGI0ODI3YTljYmRjMWE0MzM5NDA2ODdhZDFjZWU2NDlmOTYzOTQwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyODNlZjdkNjk4OTdhNGU2MGFiYzc5M2ZkNTdlOGIxMmFjMjlkMTI0ZmVmZTc4YWY0MmFiM2QyZjRlYzNiMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7ad6c5b56bbd47d381ed35bcffa8d830",
+      "statement": "The backend CI wrapper runs environment preflight and conditionally runs typechecking before invoking the selected-suite test executor.",
+      "evidence": [
+        {
+          "resource": "repo://backend/scripts/run-unit-ci.sh",
+          "version": "repo-file-v1:sha256:aa20fa47bb62c7a77c7fea903922ba367cde3bf8c0bed270fdf3f996c2428fee"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:07:01.245Z"
+    "at": "2026-09-15T14:14:00.034Z"
   }
 }

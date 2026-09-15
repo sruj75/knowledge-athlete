@@ -5,7 +5,7 @@ description: Explain checked-in identity, signing inputs, assets, clean named bu
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-44eedcfce6140b49b80aa902
     resource: repo://.github/scripts/desktop-release-source-identity.py
@@ -17,7 +17,7 @@ sources:
     resource: repo://desktop/macos/tests/test-prepare-desktop-bundle-native-deps.sh
   - id: openwiki-source-7c87e44d7a9e2fc5525ed3c1
     resource: repo://desktop/macos/tests/test-run-signing-identity.sh
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
 ---
 # Build identity and signing
 
@@ -37,7 +37,7 @@ The [release guide](../operations/releases.md) describes promotion and rollback.
 
 ## Assets and authored approval
 
-The exact owner-supplied asset hashes, approved uses, shipping transformations and rejected grass-icon experiment are in [Asset provenance](../../INSTRUCTIONS.md#asset-provenance). Those are authored provenance facts, not code Claims or a new third-party license. Preserve the repository licenses and the vendored libwebp record in their required locations.
+The compact [Asset provenance guidance](../../INSTRUCTIONS.md#asset-provenance) links the immutable record of owner-supplied hashes, approved uses, shipping transformations and the rejected grass-icon experiment. Those are authored provenance facts, not code Claims or a new third-party license. Preserve the repository licenses and the vendored libwebp record in their required locations.
 
 ## Source evidence
 

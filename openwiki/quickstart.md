@@ -5,7 +5,7 @@ description: Orient contributors to the active Mac product, ownership, local set
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-fcffbe3e28749eaf9a39557c
     resource: repo://backend/main.py
@@ -13,7 +13,7 @@ sources:
     resource: repo://desktop/macos/agent/package.json
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
 ---
 # Start here
 
@@ -21,7 +21,7 @@ Intentive's active codebase is a macOS app with a bundled Node agent runtime and
 
 ## Before changing code
 
-Read the [authored instruction brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Engineering rules and the relevant component section. Product constraints and the accepted IR decision register preserve intentional boundaries; unresolved commitments preserve the original evidence obligations. Generated pages explain implementation and cite source code and tests. They do not override authored decisions or certify a live deployment.
+Read the [compact authored brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Engineering rules and the relevant component constraints. It keeps current rules and unresolved obligations, with targeted links to the full IR decisions and dated records in Git history. Read the applicable historical decision when changing its boundary; the full archive is not startup context. Generated pages hold implementation explanations, operating commands and source/test evidence. They do not override authored decisions or certify a live deployment.
 
 ## Find your task
 
