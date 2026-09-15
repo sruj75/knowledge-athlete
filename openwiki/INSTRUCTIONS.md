@@ -11,7 +11,7 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   under `codebase/`, organized by systems/workflows. Keep `company/` structurally present and empty.
 - Windows is paused: exclude `desktop/windows/` and Windows-only surfaces from research/changes.
 - Honor `.openwikiignore`; exclude credentials, private state, dependencies and build outputs.
-  Leave the independently running Understand Anything analysis and `.ua/` alone.
+  OpenWiki excludes `.ua/`; Understand Anything maintains that separate graph.
 - Generate implemented behavior from source/tests. Authored decisions and dated observations
   are not mechanically verified Claims or proof of deployment, acceptance or release readiness.
 
@@ -30,6 +30,18 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Use standard OKF Markdown and package `resource: repo://<package-path>` metadata. Keep link,
   agent-size and architecture checks in the shared local/CI manifest, not a parallel validator.
 - Change authored policy only with user authorization. Documentation edits close no open obligations.
+- Track the persistent Understand Anything graph, fingerprints, metadata, config and exclusions in
+  `.ua/`; keep `intermediate/`, `tmp/`, `.trash-*` and `diff-overlay.json` ignored. Preserve the last
+  valid baseline until analysis and validation finish. Use `--auto-update` for commit-triggered
+  refreshes through the stock coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
+  for this Conductor worktree's graph. Use GPT-5.6 Luna for semantic-analysis subagents and
+  report the saved baseline and any failures in the active conversation before ending the task.
+- Full scans must pass the bundled `scan-project.mjs --exclude-analysis-data` option so tracked
+  `.ua/` artifacts cannot become input to their own analysis.
+- Include validated graph changes in the normal feature-branch commit/PR workflow. A refresh after
+  a commit produces additional working-tree changes; it does not publish them automatically.
+  Wait for the refresh before staging its persistent files; never commit partial analysis output
+  or advance metadata alone to claim freshness.
 
 ## Engineering rules
 
