@@ -25,8 +25,8 @@
       "Docker"
     ],
     "description": "Intentive is a macOS memory assistant with a bundled Node agent runtime and managed Python backend. This repository derives from Omi, while inherited Windows code is outside the active product. Note: this project has over 100 source files; consider scoping analysis to a subdirectory for faster results.",
-    "analyzedAt": "2026-09-15T16:26:57.359Z",
-    "gitCommitHash": "72e6095e8b4eec285fd299abbb5c196f67b71871"
+    "analyzedAt": "2026-09-15T16:37:41.116Z",
+    "gitCommitHash": "65c9ef98da3e323e5bce7040cb8cc8b68cbee381"
   },
   "nodes": [
     {
