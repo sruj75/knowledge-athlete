@@ -6,7 +6,7 @@ tags: [intentive, codebase]
 resource: repo://backend/utils/billing
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-15T15:29:21.904Z
 sources:
   - id: openwiki-source-a6f429ceca9782f6ae28e139
     resource: repo://backend/tests/unit/test_billing_mode.py

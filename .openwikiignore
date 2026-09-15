@@ -1,6 +1,7 @@
 # Active Intentive product only. Git ignore rules also apply.
 desktop/windows/
 .context/
+firebase-export-*/
 .ua/
 .git/
 .agents/

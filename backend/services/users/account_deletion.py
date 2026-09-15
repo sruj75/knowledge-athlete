@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import time
+import uuid
 from typing import Any, Callable, Literal
 
 from database import users as users_db
@@ -10,6 +11,7 @@ from utils.billing.service import cancel_subscription_for_account_deletion
 from utils.cloud_tasks import enqueue_account_deletion_wipe, is_account_deletion_dispatch_enabled
 from utils.executors import cleanup_executor, submit_with_context
 from utils.log_sanitizer import sanitize
+from utils.observability.fallback import record_fallback
 from utils.other import endpoints as auth
 from utils.posthog_telemetry import emit_posthog_event
 
@@ -146,9 +148,9 @@ def enqueue_deletion_wipe(uid: str, wipe_job_id: str):
     submit_with_context(cleanup_executor, background_wipe_user_data, uid)
 
 
-def _mark_wipe_failed_after_enqueue_error(uid: str, error: Exception):
+def _mark_wipe_failed_after_enqueue_error(uid: str, error: Exception, wipe_job_id: str | None, dispatch_id: str):
     try:
-        users_db.mark_user_deletion_wipe_failed(uid)
+        users_db.mark_deletion_wipe_dispatch_failed(uid, wipe_job_id, dispatch_id)
     except Exception as persist_err:
         logger.error(
             f'delete_account enqueue failure status persist failed for {uid}: {sanitize(str(persist_err))}; '
@@ -224,15 +226,16 @@ def start_account_deletion(uid: str) -> dict[str, str]:
         raise RuntimeError('deletion-wipe intent did not persist a wipe_job_id')
     dispatch_claimed = wipe_intent.get('dispatch_claimed') is True if isinstance(wipe_intent, dict) else False
     if not dispatch_claimed:
-        logger.info('delete_account joined existing durable deletion intent')
+        users_db.require_deletion_wipe_dispatch(uid, wipe_job_id)
+        logger.info('delete_account joined confirmed deletion dispatch')
         return {'status': 'ok', 'message': 'Account deletion started'}
 
-    # The pending marker is persisted before enqueue. A failed enqueue is
-    # recorded as failed and is therefore independently recoverable by the
-    # reconciler; queue delivery accelerates the wipe but is not its only
-    # durability boundary.
+    # Pending reserves dispatch; it does not acknowledge delivery. Persist the
+    # queue receipt only after enqueue succeeds, and allow explicit retries
+    # of failed handoffs without depending on the process-local reconciler.
+    dispatch_id = uuid.uuid4().hex
     pending_transitioned = _retry_firestore_write(
-        lambda: users_db.mark_user_deletion_wipe_started(uid, wipe_job_id),
+        lambda: users_db.mark_user_deletion_wipe_started(uid, wipe_job_id, dispatch_id),
         uid=uid,
         fail_msg='delete_account marker transition to pending failed',
         on_failure='raise',
@@ -240,19 +243,32 @@ def start_account_deletion(uid: str) -> dict[str, str]:
     if pending_transitioned is not True:
         # Another execution owns the durable authority. Do not move its marker
         # backwards or dispatch a duplicate task.
-        logger.info('delete_account queue transition already owned by another request')
+        users_db.require_deletion_wipe_dispatch(uid, wipe_job_id)
+        logger.info('delete_account joined another request confirmed dispatch')
         return {'status': 'ok', 'message': 'Account deletion started'}
 
     try:
         enqueue_deletion_wipe(uid, wipe_job_id)
     except Exception as e:
-        _mark_wipe_failed_after_enqueue_error(uid, e)
-        logger.warning('delete_account queue acceleration failed; durable reconciliation will retry')
-        # The actionable marker is committed. Queue dispatch is only an
-        # acceleration path; reconciliation owns eventual completion.
-        return {'status': 'ok', 'message': 'Account deletion started'}
+        _mark_wipe_failed_after_enqueue_error(uid, e, wipe_job_id, dispatch_id)
+        logger.warning('delete_account queue handoff failed; retaining intent for retry')
+        try:
+            users_db.require_deletion_wipe_dispatch(uid, wipe_job_id)
+        except Exception:
+            # Intent is not proof. Propagate the queue failure unless the
+            # authoritative worker already confirms actual execution.
+            raise e
+        record_fallback(
+            component='account_deletion',
+            from_mode='queue_ack',
+            to_mode='worker_proof',
+            reason='enqueue_failed',
+            outcome='recovered',
+            log=logger,
+        )
 
-    logger.info('delete_account accepted durable deletion intent and queue acceleration')
+    users_db.mark_deletion_wipe_dispatched(uid, wipe_job_id, dispatch_id)
+    logger.info('delete_account accepted durable deletion intent and queue handoff')
     return {'status': 'ok', 'message': 'Account deletion started'}
 
 
@@ -325,8 +341,9 @@ def reconcile_pending_deletion_wipes(limit: int = 100) -> dict[str, int]:
                 continue
         # Atomically claim the wipe to prevent concurrent re-enqueueing by
         # multiple workers. If the claim fails, another worker owns it.
+        dispatch_id = uuid.uuid4().hex
         try:
-            claimed_uid = users_db.claim_deletion_wipe(uid)
+            claimed_uid = users_db.claim_deletion_wipe(uid, dispatch_id)
         except Exception as e:
             logger.error(f'delete_account reconciliation claim failed for {uid}: {sanitize(str(e))}')
             skipped += 1
@@ -346,20 +363,21 @@ def reconcile_pending_deletion_wipes(limit: int = 100) -> dict[str, int]:
                 wipe_job_id = users_db.ensure_deletion_wipe_job_id(uid)
             except Exception as e:
                 logger.error(f'delete_account reconciliation job-id recovery failed for {uid}: {sanitize(str(e))}')
-                _mark_wipe_failed_after_enqueue_error(uid, e)
+                _mark_wipe_failed_after_enqueue_error(uid, e, None, dispatch_id)
                 skipped += 1
                 continue
         if not isinstance(wipe_job_id, str) or not wipe_job_id:
             error = RuntimeError('deletion-wipe job id missing after recovery')
             logger.error(f'delete_account reconciliation cannot dispatch {uid}: {error}')
-            _mark_wipe_failed_after_enqueue_error(uid, error)
+            _mark_wipe_failed_after_enqueue_error(uid, error, None, dispatch_id)
             skipped += 1
             continue
         try:
             enqueue_deletion_wipe(uid, wipe_job_id)
+            users_db.mark_deletion_wipe_dispatched(uid, wipe_job_id, dispatch_id)
         except Exception as e:
             logger.error(f'delete_account reconciliation enqueue failed for {uid}: {sanitize(str(e))}')
-            _mark_wipe_failed_after_enqueue_error(uid, e)
+            _mark_wipe_failed_after_enqueue_error(uid, e, wipe_job_id, dispatch_id)
             skipped += 1
             continue
         requeued += 1

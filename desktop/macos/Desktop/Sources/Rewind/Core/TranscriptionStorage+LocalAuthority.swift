@@ -111,7 +111,11 @@ extension TranscriptionStorage {
             isUser: row["isUser"],
             translations: Self.decodeJSON([ConversationSegmentTranslation].self, from: json) ?? [])
         }
-        let current = LocalTranscriptFormatter.normalize(existing: [], incoming: rawSegments).segments
+        let chronologicalSegments = LocalTranscriptFormatter.chronologicallyOrdered(
+          rawSegments, by: \.startTime, thenBy: \.segmentOrder)
+        let current = LocalTranscriptFormatter.normalize(
+          existing: [], incoming: chronologicalSegments
+        ).segments
 
         try database.execute(
           sql: "DELETE FROM transcription_segments WHERE sessionId = ?", arguments: [sessionId])

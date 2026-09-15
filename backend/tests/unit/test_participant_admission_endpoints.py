@@ -111,6 +111,7 @@ def test_legacy_principal_can_export_delete_real_account_but_not_use_managed_com
         return {"wipe_job_id": "existing-account-wipe", "dispatch_claimed": False}
 
     monkeypatch.setattr(account_deletion.users_db, "mark_user_deletion_wipe_intent", persisted_intent)
+    monkeypatch.setattr(account_deletion.users_db, "require_deletion_wipe_dispatch", lambda _uid, _job_id: None)
 
     client = TestClient(main.app)
     headers = {"Authorization": "Bearer valid-firebase-token"}

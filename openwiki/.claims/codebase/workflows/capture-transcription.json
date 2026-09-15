@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d626fa9c99451263e8706edc38e55a0c97d82abd979a021de8f5c29a2625354d",
+  "pageVersion": "sha256:7067ed0cf2226615649c9ccd91147cbcb6c91bda86c9192d8b24c1e13b5076d1",
   "claims": [
     {
       "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
@@ -44,13 +44,49 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift",
-          "version": "repo-file-v1:sha256:543391007ebdb01c94aea31914b45608833d9e0d7dfbd3c10977476c20ba1b89"
+          "version": "repo-file-v1:sha256:a4c71f80ce6c65497106ee65f88d8e313aeea2e213c9a8d96b8ccfe35dfb9848"
+        }
+      ]
+    },
+    {
+      "id": "claim_eab9fe65955e465487812f23a8b2420f",
+      "statement": "Live transcript projection and persisted normalization share spoken-start-time ordering with original-arrival tie-breaking; storage sorts raw ingestion before joining adjacent fragments and assigning saved display order.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift#L1-L78",
+          "version": "repo-lines-v1:sha256:66a20990c3acf765dd4a2a0039ab8e70c405b5e49870b1ce6063e9ff3bfa29a1:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlZmQxOTg3MWRkOTZjYmM5YTM5Y2RhYmNkZDY1YmUwMjBhODQ0OTRkMzMwNDUxODM1OTNmNGRlMTJmODhlNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4YTI2MGFhYzVjNDk1ZWJlMWQ3MDYwYzYyYzFhYmEyYjdhOTRlZjM3MTc5NTM4MWM4ZTU5YTE5NTFlYTJkMzUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalTranscriptFormatter.swift#L12-L28",
+          "version": "repo-lines-v1:sha256:36039d48583fe93b5e3302780ffd905f7b2bcf96822ea98d9bed82617733c323:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2NGViYzdkN2YwYjFiOGViN2Q5OWQ1NDJkMDMyZDA4ZTllYzJjYjZkZTM3N2E0YWIyNThmMTkwM2FmYzdiYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyMjkxMzdhNzA4MGZkZDc4MjhhZTQ5OWZjZjQ2NmZhYTk0MTU3Y2I5NzMxZmEyOTEwMmU4NjliZjQ3MTBhZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg0MjhmMDE1MWE4YTFjYjM3MmVlNTdhNmU2Y2RhNGM5NzdiZTE2MGM1ZGY0OWEzNWIwN2I2NDkwMTUwZDgyOWQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L58-L142",
+          "version": "repo-lines-v1:sha256:57a23fd4bf60f98ecd1dd45b732ddd164b9f830b9dabdc156ec1e1b3816a981e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmZjM1OTMzY2Q4NTZiNzU5YjRjMzQ3NzRkMDdhMDVhZDg0NTE2MDViZTZhZTk4Yzc1YThkMDM3ZTQ0MTdmOTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlYjI4ZTViM2M3Mzg1YzYzMjYzNzY2NmQ2ZjIyNDgwYWJkNTFkZjczNzcxMWZjY2Q1YzgwZjU4MjA3ODRhMWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2NjU3ODU3ZmFmYzhiNDczOGYzMTA1NzkwNzNjNWVkYzEyODBiMmExMTBlZTc5Y2U5YzU4NGM3OTAwNmFjMWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f41281d5d99946859940491b4797bbff",
+      "statement": "Same-ID corrections retain original arrival tie-breaking and keyed translations; composed AppState/GRDB regression tests prove equal-time corrected live and monitor ordering agrees with closed-and-reopened local storage using synthetic segments.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift#L1-L78",
+          "version": "repo-lines-v1:sha256:66a20990c3acf765dd4a2a0039ab8e70c405b5e49870b1ce6063e9ff3bfa29a1:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlZmQxOTg3MWRkOTZjYmM5YTM5Y2RhYmNkZDY1YmUwMjBhODQ0OTRkMzMwNDUxODM1OTNmNGRlMTJmODhlNDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4YTI2MGFhYzVjNDk1ZWJlMWQ3MDYwYzYyYzFhYmEyYjdhOTRlZjM3MTc5NTM4MWM4ZTU5YTE5NTFlYTJkMzUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L58-L142",
+          "version": "repo-lines-v1:sha256:57a23fd4bf60f98ecd1dd45b732ddd164b9f830b9dabdc156ec1e1b3816a981e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmZjM1OTMzY2Q4NTZiNzU5YjRjMzQ3NzRkMDdhMDVhZDg0NTE2MDViZTZhZTk4Yzc1YThkMDM3ZTQ0MTdmOTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJlYjI4ZTViM2M3Mzg1YzYzMjYzNzY2NmQ2ZjIyNDgwYWJkNTFkZjczNzcxMWZjY2Q1YzgwZjU4MjA3ODRhMWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2NjU3ODU3ZmFmYzhiNDczOGYzMTA1NzkwNzNjNWVkYzEyODBiMmExMTBlZTc5Y2U5YzU4NGM3OTAwNmFjMWIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift#L8-L152",
+          "version": "repo-lines-v1:sha256:d456ad294def65354a1328db423f5e6a710a33472c8b4882b460d0aa3013fc9a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQ1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwNTZmNWFiMWM5NTU2Y2RkNGNjOTFjNWI3ZTg4MzA2Zjg2ZmMxNGJlZWQyMGYyYjdjZjc5OTFjMWJjNTFiNjdjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyNzMwZmZiNjE1ZDViZTk4NzM5YWFiYThhMzkyOWNmOTIzNTkxMTAzN2IxMzdkYzI1ZjUxOTJiYzQ0ZmY0NDJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI2MTUwMDViODdmMGYyZDcwNjRjMWRlYmQ0ZThhYmJiYWJhMDMzMzBmODdiN2ZmYjExMDg0YTk4NWI1MzAxYzU3In0"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-15T15:29:21.904Z"
   }
 }

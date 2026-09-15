@@ -102,6 +102,9 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Speech is Mac-local Parakeet or managed Modulate. `/v4/listen` is one Firebase-authenticated,
   transient fixed mono 16 kHz signed PCM stream with snapshotted language/translation/vocabulary,
   stable UUID segments and numeric speakers. The backend never creates/finalizes a stored conversation.
+- Live and saved transcripts use spoken start time, then original arrival order for ties, before
+  adjacent-speaker normalization. Same-ID corrections preserve that tie and translations; reopening
+  the local store must agree with the live projection (#70).
 - Conversation operations and three Memory compute operations return bounded untrusted candidates;
   commit locally only with current captured owner/input revision. Embedding compute may be remote,
   vectors/search stay local. Fair-use compute retains only content-free enforcement facts.
@@ -117,6 +120,10 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Export deterministic owner-generation-fenced JSON from local authorities and approved settings,
   without network or raw databases/secrets/caches. Backend export is retained account metadata only.
   Durable account deletion confirms billing cancellation before irreversible identity/data deletion.
+- Deletion acceptance requires confirmed durable queue handoff or observed delivery of the same job,
+  not intent persistence alone. Unconfirmed enqueue failure preserves signed-in retry; dispatch-attempt
+  fencing protects newer attempts and claimed workers. Immediate sign-out follows genuine acceptance
+  without a polling screen (IR-189/S-25); a process-local timer is not a scale-to-zero guarantee.
 - Hosted Beta admits configured one-to-five Firebase participants plus the reserved release probe;
   unlisted authenticated accounts retain export/deletion. Dev is isolated, billing disabled, and
   customer provider keys are forbidden. No paid/public launch is implied by implementation approval.
@@ -243,6 +250,8 @@ Read [release operations](codebase/operations/releases.md) and [qualification](c
 
 - Main eligibility is automatic; shared Dev deployment is manual through protected `gcp_backend.yml`.
   Resolve `BACKEND_CLOUD_RUN_SERVICE`; never default to the logical image label `backend`.
+  Dispatch uses the approved environment, `mode=deploy` and exact merged `release_sha`, not `branch`;
+  merging or the RELEASEWITHBACKEND shorthand never implies production approval.
 - Persistent mutations share exact target/environment concurrency with `cancel-in-progress: false`.
   Backend traffic/Firestore migrations share the backend-stack lock; GitHub does not guarantee FIFO.
 - Backend deploys use manifest-owned WIF and exact repository/owner/main/environment/workflow claims,
@@ -277,6 +286,22 @@ Read [release operations](codebase/operations/releases.md) and [qualification](c
 - Preserve the permanent-Free-Tier operating constraint: no Google Memorystore, budget increase or
   prepaid auto-reload by implication. Never invent business identity/documents. Reverify external state
   against the [dated owner/provider handoff][ownership] before acting; old resource snapshots are not current proof.
+
+### September 14 owner-Beta checkpoint
+
+- The owner installed signed/notarized `v0.0.4+4-macos`, source `80475aab8488d226fffca2025ba96f1a3183294a`,
+  and completed the real 0.0.3 → 0.0.4 Sparkle update on September 12. Populated Chat/recording data
+  survived; other populated stores, natural managed voice and friend qualification remain unproven.
+- Owner Beta uses the existing shared `knowledge-athlete-dev` service. Its historical name is not
+  permission for routine Dev to use everyday accounts or modify shared data; use local emulators
+  and synthetic owners. The owned local database is `heyintentive.db`, not an inherited-profile import.
+- Apple signing/notarization, Codemagic owner-Beta inputs, owner-manual qualification and published
+  product/Terms/Privacy/Support destinations were exercised. Stable/Preview and public-launch legal
+  work remain separate; no permanent everyday-Mac runner is required for owner qualification.
+- At that checkpoint, the last successful backend deployment was source `4a6e943cce0d512c462d381c9483ae478a816e47`;
+  repair source `97c88ba2db3117a112b562c62fc38f9aecf68f1b` was pushed but not merged, deployed or installed.
+  These are dated receipts, not a live inventory or permission to combine different-SHA evidence.
+  Preserve the [reconciled owner handoff][repair-ownership] and [fork evidence][repair-provenance].
 
 ## Asset provenance
 
@@ -358,6 +383,8 @@ neither supersedes an accepted decision nor waives an unresolved commitment.
 [additional]: https://github.com/sruj75/knowledge-athlete/blob/65575837b1f1a18fe9e23eb8bb65071089aed270/openwiki/INSTRUCTIONS.md#additional-retained-commitments
 [identity]: https://github.com/sruj75/knowledge-athlete/blob/65575837b1f1a18fe9e23eb8bb65071089aed270/openwiki/INSTRUCTIONS.md#identity-and-legal-handoff
 [billing]: https://github.com/sruj75/knowledge-athlete/blob/65575837b1f1a18fe9e23eb8bb65071089aed270/openwiki/INSTRUCTIONS.md#billing-activation-handoff
-[requirements]: https://github.com/sruj75/knowledge-athlete/blob/65575837b1f1a18fe9e23eb8bb65071089aed270/openwiki/INSTRUCTIONS.md#accepted-requirements
-[acceptance]: https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/bootstrap-scaffold/wave-6/s-31-acceptance-matrix.md
+[requirements]: https://github.com/sruj75/knowledge-athlete/blob/97c88ba2db3117a112b562c62fc38f9aecf68f1b/bootstrap-scaffold/requirements-challenge.md
+[acceptance]: https://github.com/sruj75/knowledge-athlete/blob/97c88ba2db3117a112b562c62fc38f9aecf68f1b/bootstrap-scaffold/wave-6/s-31-acceptance-matrix.md
 [residue]: https://github.com/sruj75/knowledge-athlete/blob/ee48ed972ab0eb33a09261cc001ece0fcdc96aaa/bootstrap-scaffold/wave-6/s-31%20tdd.md#13-repository-residue-search-strategy
+[repair-ownership]: https://github.com/sruj75/knowledge-athlete/blob/97c88ba2db3117a112b562c62fc38f9aecf68f1b/OWNER-PROVIDER-DECISIONS.md
+[repair-provenance]: https://github.com/sruj75/knowledge-athlete/blob/97c88ba2db3117a112b562c62fc38f9aecf68f1b/FORK.md

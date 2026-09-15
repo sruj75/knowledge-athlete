@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:f30ce3c291622f84b72cebd8f6252c85fb2381b692f9e9b60e2e9ff2e36599af",
+  "pageVersion": "sha256:66ed32a31ad97017aa521c3cceca822f659ead349039dd96eb9043bec46dc928",
   "claims": [
     {
       "id": "claim_7d09f9ba3efd4bf1965b959c0cdc7060",
@@ -30,27 +30,81 @@
         },
         {
           "resource": "repo://backend/tests/services/users/test_account_deletion.py",
-          "version": "repo-file-v1:sha256:5faf23dd8f0662508448f513d76feada0cba39f2d591d85e4d93c6868da17b56"
+          "version": "repo-file-v1:sha256:ae9a7c115d0b813f58b6d68163ec14c7f4ea761dea7252074013624cd2b2423a"
         }
       ]
     },
     {
       "id": "claim_52630dd4e46149f2baa6a8483f414919",
-      "statement": "Billing cancellation failure remains a deletion failure rather than being reported as success.",
+      "statement": "The deletion worker fails before Firebase identity destruction when retained billing cancellation is unconfirmed; request acceptance alone does not claim cleanup completion.",
       "evidence": [
         {
-          "resource": "repo://backend/services/users/account_deletion.py#L184-L208",
+          "resource": "repo://backend/services/users/account_deletion.py#L186-L210",
           "version": "repo-lines-v1:sha256:6447752c47c988edc5e62b8a6a928370a49cd6c77172bfdac71d258f06f17bd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiZGY1ZWYzNWYwZTIxM2UxNmUxMmU4MjVlZTM5MzM1MWViNmI4NGZlYTdlZTY1MTQyNDU5MWZmNDkxZTUwZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzYjIyMzQzZTljNzU1OTIzM2RjNDZkY2VhNTg5OTY1OGY2Yzg2YTczMTRmYTQ2MjA5OGYyOTI4YWY2YWQzZjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmYzliY2ZjMDM0OWVkYjk1Zjg1MDUyZjdjN2QxMmFmOWYzYjUwMWM3NDdlMjhiNGIyNzllYzNkMTM0MjIxZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjYzAwZjE2YjI0NzY2YjU3M2M1OWVhZWM4OGE0NGE3NWUxYWFkZmM4MDM2MTZhMGVkMTM3MTNmZDBhMDhiNzcifQ"
         },
         {
-          "resource": "repo://backend/tests/unit/test_delete_account_billing_cancel.py",
-          "version": "repo-file-v1:sha256:e2a25e8c66b41f3399240face6dc1e580ee7df9081ec4a2950a6bbafee49d281"
+          "resource": "repo://backend/services/users/account_deletion.py#L52-L112",
+          "version": "repo-lines-v1:sha256:cecf9a4cda302973a74cb5b7a2b368f071e16e601cca4505e7af951fc1dcf6cd:eyJzZWxlY3RlZExpbmVDb3VudCI6NjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1NjljYjA5MjgwZWUwNzgxOTQ1ZTQ4ZDQwNDFiZDJkZmFhZTY5MWFkMmVhYmY1ZDNjYmEwODQ2YzcyMTZjYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiYjU1MjZjZTAxYjk4NGMzYTEwMTQ2NzcyMmQzMDFhYTRmNWVmZjJhOTRmYzQyZGFlYTFiMGZiYWYwODRkYjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkNmEzMGI5M2JiYTJlNTZhZTJhZDU0Mjk5ZjljOWNmNzkyOTdhMzExYjE5NGY1YjNkOTEzOTAxZWZhMzZjYWUifQ"
+        },
+        {
+          "resource": "repo://backend/tests/services/users/test_account_deletion.py#L396-L450",
+          "version": "repo-lines-v1:sha256:c01892ed17e5a25107f727f5819f754303b66c7fb16833364b374f1dfae60120:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0Njk3ZTExZmZhNDUzNjU2YWQwNzE5M2JkZDM1OGU5NTZhZWM3ODk0NDAyNTM5NDkyOTM0NjBjM2NjYjdmOGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZTg0OWI0NjAxMmFiOGJiOTY4NGE3YWI1MDE1OTRjMzYxOTBlZjY5ODliMjA1MjgwYzNhOGI3OTY2MmJlMWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0YjUwNjMzYmMwOWJiOTUzMzc5ZDQ5NmY1ZGQ0YmVlZjZhMmU2YjJlMTUzZDk3OTkzZjI0OGZjZmY5YzVhNWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYyYzRlYjA5ZmE4MGZhNjY4NjFjMjgyZTFhNjBlODFjZWZkYTc3OTFhM2M1YTQyZDlhZjE4MTM2NjU0MzMwOTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f3d007faf16049b79dad22164687386d",
+      "statement": "Account deletion acceptance requires a successful queue handoff or authoritative dispatch/worker-delivery proof; an unconfirmed enqueue failure propagates instead of acknowledging deletion, while the request leaves billing and identity destruction to the worker.",
+      "evidence": [
+        {
+          "resource": "repo://backend/database/users.py#L354-L364",
+          "version": "repo-lines-v1:sha256:b1813aa74b07beb890ed3b0b5efa6454d4c44826ad9f38e716a32f100198193a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkYTg1ZDM3YjkzMTVkNGJiMzY0NWRkOWM5NjMzY2Y5YTVmZTc5MjdlNjdkMzgzMDNmZDAzOTVlMmQ3MGYzZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5MmI0ODc2NGExZjllNmM1NzQ2NDA1YjIyZjBlMzk5MTM5Mjg3NDUwNjAwYzA0MzczNTBiYjZjNzNjNjU1NjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRjNGZiZWUxMzc1N2ZiMDcxMjU0NTMxODFkODdjYTU4NDYwY2QwM2U0MDVlNDI4MzBjNTIxMDkwZTdiNTllZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkNDg0ZTNkN2ExZmM3NmZhNDAwNzdhMTUwODBiZTFhYjY0M2UzZGUyMGUwZWM3MTYyNThjMzYxZjQ1ZmRhZDcifQ"
+        },
+        {
+          "resource": "repo://backend/routers/users.py#L108-L125",
+          "version": "repo-lines-v1:sha256:b17808dc793ba81ad7685b8d01341353c05427f5cc4672e053e06775ba01d207:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNTA2OGNjMjE4OTI2NTRkYzRhOTgwM2IyMjhmZjUwYmEwMGE2MjA5MTUyOTJiZTVjMzQyYWUzNTk5YzJhMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZTMwNDFmYmQwM2Q3MzcxOGZmNDM0YTFmMmM1ZjEzYTk1ODE4ZGM3ZDExNmMxMDllYWMzM2UwZDU3OTlhYjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwNTBhOTAxNThiMDNiNWM5MGJhZjdkOWE0OTE4NzhhNGY4YzRhNWY4YjNiYTIwYmNhMzdiYzg2MmI1MjNmOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMDA4OTA4ZjA4ZTc0ZWI3YmY5ZGFmOGYzZGVlMDRkYWU3NjI1MzcwZjcxYjllMDQxNzc1Yjc1ZWY3NmFkYWEifQ"
+        },
+        {
+          "resource": "repo://backend/services/users/account_deletion.py#L213-L272",
+          "version": "repo-lines-v1:sha256:d462f421d1541ce520cb5aae7919a8d9be5a69d3dff775ab997dec38cdf7b3e1:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwZTEzNzRiOGQ1NzllZTMyNTc2YmZiY2ViNGU5NDJmMTM4Nzk2ODNmYzU0ZjllNjRmZDdkYzBmZTVhMThhY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzZGFhNTMxYTczYjc5ODI4Njk0NzlmN2UwNjdmZWIwMWUzZmFiYTk2NGMxZDE5Nzg2YWVjODU4N2RlODRmOTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM5ZWZkOWUxNzJlNTE2NDhjYzY1N2RiZWEwNDYxM2ZiNzc5M2Q2ZjZjYmViOTIyZjE2YWVkYTZmZDRhMTlmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2MTY0MGIyY2ExM2FiOWFhYzYxMjYwNGM2MGQ4ZDBlY2JkYmM4MjFmZDE5OTE2MmNjY2ZlNjllZDdmYzY5MGQifQ"
+        },
+        {
+          "resource": "repo://backend/testing/e2e/test_account_deletion_cloud_tasks.py#L291-L369",
+          "version": "repo-lines-v1:sha256:da6df16411814beaa3f631cb657561fb4aa5c9f7396b970b6a7034a51f509ac4:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5YzkyN2EyODA5MTcwODI3NWUyNjY2YThkOTNjZjkxNTc4NWJiYThkZGU4MThmZTA3Yjg0ZmNiZGUxZmJlZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzYzUzZGRjNTVjZThlM2VmYTYzZDJkNzQwZmQyMDRjZjBiOWVjZWM1OTI3NDM4ZmJkMDI4MzExOTVhMzFhYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0M2E2MTU5M2Y3NGZjYThlZTI2NTM1ZTNlMDYwYmM3YWI4MmQwZTVjMmMzYmQ1NTQ0MjA0OTA3Zjc4NGU5MDYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_22f9fefb937b4433859903c1a544363d",
+      "statement": "Deletion retry transactions preserve job identity and fence receipt/failure writes by dispatch-attempt identity, preventing old callbacks from overwriting a newer dispatch or running/completed worker; explicit retries can recover failed or stale unconfirmed handoffs without a reconciler.",
+      "evidence": [
+        {
+          "resource": "repo://backend/database/users.py#L239-L389",
+          "version": "repo-lines-v1:sha256:e42a84b0b19c0e9d6190d3df9ca2999140b64afdb609016030dbeeed44a643d0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIyNzQ4MWZmNTQ3MjUxOGRmZjMyNjY3OGY1NzUxNTI5ZjJkZjMzODE3ZThhYmMwODQyYmVjNzA1OWFhZmEyODczIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJkZjRjMDZjZGI0ODU4NDJkMjFlYjVjODJmZjVhYzQ0NWY5YzBjNGYxNzY3YjNiNWM2Mjg4NzI0ZjJhMjk5NGE3IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3ZGQwZGZmM2VmYmMwMjRhMjBlOTIzZGNjYWU4MGExOTkxNTU4NzJjNjRiODRhOGZkMjJjNTJkZjE0ZjBiMzM2In0"
+        },
+        {
+          "resource": "repo://backend/testing/e2e/test_account_deletion_cloud_tasks.py#L338-L592",
+          "version": "repo-lines-v1:sha256:3adc70ccbc0a7a4a2ca7e7cec8f8f8abaca2d71bfc31a3e51ed02078571343b5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjU1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIyZmE1YWEyZjc5NGZkY2U3NDA3NGUwNzZlYzJmMTAyYTI5Y2JmMDU4YzVlMDdmMjM4MTM4OWZjZDBlNzFkMDczIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4OWFkM2RmZmQ4Yjg5MWQ2OGNhODI1YWVmYTg3YTBlZTRjOWMxMzJjMTJkYmY4ZWFiM2Y2NDJiMzFmMjJjMDEwIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0NTgwYjViYWU4ZTVmM2M2NjYwM2JlNWUyNzQ2MzQwNDYzMGU2N2Q2NzZiMTdlZGIzMTE1MGM3MDAwNDEzY2MxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwOWRjNjBkZmQyYjI2MDU4NmYzMjNkZmUxNTcxY2M3Yzg4YmIxYTUwYWI1NzU1MWQ5MzFhOTYyMWY2NmRlZDllIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_89125c9b3fc84a2f87456f68f3835294",
+      "statement": "The account-deletion regression harness exercises assembled HTTP routes, database transitions and the task worker using controlled external seams for rejected dispatch, retries, overlap and delayed callbacks, not real cloud deletion.",
+      "evidence": [
+        {
+          "resource": "repo://backend/testing/e2e/test_account_deletion_cloud_tasks.py#L1-L227",
+          "version": "repo-lines-v1:sha256:8d320194866a78210e936a7dc1c2000cb19b901b7a445f56920119694b1a270a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjI3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlODJiOGFkNDVkYmJjOTRlMjI0OWFlYjZmYWM4YzQxOWE2ZGRmZTZiZDFkYThiZDU1YmZkZThhMjgzMjZhNTNmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJjYjIyOGU4ZmE5MDc0ZDRlMDgzNGUxNmE0ODdiNGFmZjEyMjNjNWNjMTEzMjUwMjE2OGNlZWI1OTUwNDJlYmNjIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0M2Q0MDU3N2U4NmIxYTZmNTdmZjZkZTI5M2ZmMGUyY2JkNjg5M2Q1ZTJiMzBlNDYzMjQyZjJkMDI0ZmYxMDk1In0"
+        },
+        {
+          "resource": "repo://backend/testing/e2e/test_account_deletion_cloud_tasks.py#L291-L592",
+          "version": "repo-lines-v1:sha256:07569c3dc5d399098ff07525135d505f0d6f7ecf2039adc1b74e341c606215c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIxOWM5MjdhMjgwOTE3MDgyNzVlMjY2NmE4ZDkzY2Y5MTU3ODViYmE4ZGRlODE4ZmUwN2I4NGZjYmRlMWZiZWY3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4OWFkM2RmZmQ4Yjg5MWQ2OGNhODI1YWVmYTg3YTBlZTRjOWMxMzJjMTJkYmY4ZWFiM2Y2NDJiMzFmMjJjMDEwIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjM2M1M2RkYzU1Y2U4ZTNlZmE2M2QyZDc0MGZkMjA0Y2YwYjllY2VjNTkyNzQzOGZiZDAyODMxMTk1YTMxYWExIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwOWRjNjBkZmQyYjI2MDU4NmYzMjNkZmUxNTcxY2M3Yzg4YmIxYTUwYWI1NzU1MWQ5MzFhOTYyMWY2NmRlZDllIn0"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-15T15:29:21.904Z"
   }
 }

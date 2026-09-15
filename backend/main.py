@@ -162,8 +162,9 @@ def _drain_pending_deletion_wipes():
 async def _periodic_deletion_wipe_reconcile(interval_seconds: int = 300):
     """Periodically reconcile orphaned or failed account-deletion wipes.
 
-    Runs every 5 minutes (default) so stale retrying claims and new
-    pending/failed wipes are retried without requiring a restart.
+    Attempts recovery after each 300-second sleep while this process has CPU.
+    Request-based Cloud Run billing and scale-to-zero do not guarantee a
+    wall-clock cadence; accepted requests depend on durable task dispatch.
     """
     while True:
         await asyncio.sleep(interval_seconds)

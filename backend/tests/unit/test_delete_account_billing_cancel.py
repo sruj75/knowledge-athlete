@@ -42,6 +42,8 @@ def users_service():
         "utils.executors": AutoMockModule("utils.executors"),
         "utils.log_sanitizer": AutoMockModule("utils.log_sanitizer"),
         "utils.posthog_telemetry": AutoMockModule("utils.posthog_telemetry"),
+        "utils.observability": _pkg("utils.observability"),
+        "utils.observability.fallback": AutoMockModule("utils.observability.fallback"),
         "utils.other": _pkg("utils.other"),
         "utils.other.endpoints": AutoMockModule("utils.other.endpoints"),
         "utils.other.storage": AutoMockModule("utils.other.storage"),
