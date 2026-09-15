@@ -293,6 +293,7 @@ class SelectionTests(unittest.TestCase):
             names,
             {
                 "check-manifest-contract",
+                "agent-doc-references",
                 "diff-hygiene",
                 "architecture-guardrails",
                 "failure-class-protocol",

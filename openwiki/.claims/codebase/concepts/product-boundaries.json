@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:aa8e479a44ccce9af9875752488c2b87e566ec6c9041e47db6e648879aae0326",
+  "claims": [
+    {
+      "id": "claim_71c8768653304d5c963d19b19d4e10c5",
+      "statement": "Hosted product compute and general authenticated account operations use distinct identity dependencies.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L132-L175",
+          "version": "repo-lines-v1:sha256:2242e40acfd8fdcff3e436506f0fd2a42584c1982e145778c27fcab03bd20658:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNDljODUxMzM1MmI0MDY4ZWYwZTVjYzY2YWFmYzg4YmVjNTFhZTg3ODQzNDVhNDhhNDdlYzUyMDQ2OGU5NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MTU1YjA3OTk1MDU4ODI2MmZmOGEzOWUwOTljNDYxNzY4ZTJiYWIzZDIwNDgzMGZlY2JkYjU1N2ExZGZlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhYjQxOTQzYjQ1Y2Y4Mjg0MzQ2YjRhNWM4NzJiZDEyODI3MWEyZDViN2Q5ODlhZjczYzkyZTUyNGU1NzNhNmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0b70c14d38984104b552bfd1e6ca361b",
+      "statement": "Memory routes return bounded proposals while the Mac owns the local lifecycle commit.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/memory_compute.py",
+          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift#L86-L119",
+          "version": "repo-lines-v1:sha256:ff5f3aee5a8bdd2ffcfe65f7af6e741e1b14eed41cf7c544d5873233b5ad2283:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhmNmY3YTdhMDJmMzQ5ODAxMTNjZDBhZDJjY2UxYWIxMGExM2YyNzFkNjY5MGE3NzI3NzQxNmQ0NjNiYzViNTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViMDVhNDIxN2IyMWYwNzRhMGZiNmQ0NTQ0YzhmYTljMWQ4N2FlNGI3ZWFlZTEzNDNiOGRhNzdkMTYyN2NjMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_01b57e0f408249859d34ee5e1cca7af4",
+      "statement": "Billing defaults to disabled without provider credentials, independently of runtime owner admission.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/billing/config.py",
+          "version": "repo-file-v1:sha256:d4860235bde0442dd80bd6fac284ccbd5f4890f8737bcc24a4d8fb74a6d8fd6c"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/runtime-owner-authority.ts",
+          "version": "repo-file-v1:sha256:dd811081b8a42899bc9f124bccee300ccee0c9a3aa224531d1f5031a4fd0654b"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

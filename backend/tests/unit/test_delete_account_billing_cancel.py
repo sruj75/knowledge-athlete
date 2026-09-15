@@ -9,7 +9,7 @@ deletion if billing cancellation cannot be confirmed.
 users_db`` and the billing service, and those packages pull heavy chains with
 import-time side effects, so the fake ``database``/``utils`` namespaces must be active before the
 module is exec'd. This is the sanctioned Tier-2 "fake must precede import" case: see
-``backend/docs/test_isolation.md`` and ``testing.import_isolation.load_module_fresh``.
+``openwiki/codebase/testing/contracts.md`` and ``testing.import_isolation.load_module_fresh``.
 """
 
 import os

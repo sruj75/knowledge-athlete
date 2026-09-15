@@ -3,7 +3,7 @@
 
 Existing mapless packages are grandfathered at their committed source-file
 count. They emit warnings until documented. A new oversized package, or growth
-past a grandfathered count, fails with guidance to add a package-root map.
+past a grandfathered count, fails with guidance to add a wiki architecture map.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,7 +19,6 @@ from typing import Mapping
 
 ISSUE_URL = "https://github.com/BasedHardware/omi/issues/9446"
 DEFAULT_THRESHOLD = 12
-MAP_NAMES = ("ARCHITECTURE.md", "README.md")
 SOURCE_EXTENSIONS = {
     ".c",
     ".cc",
@@ -74,8 +74,30 @@ def source_count(package_root: Path) -> int:
     return sum(1 for path in package_root.rglob("*") if path.is_file() and source_file(path))
 
 
-def has_architecture_map(package_root: Path) -> bool:
-    return any((package_root / name).is_file() for name in MAP_NAMES)
+def mapped_packages(repo_root: Path) -> set[str]:
+    """Read the standard OKF page resource, never its generated evidence list.
+
+    Repository package URIs are plain or quoted single-line YAML scalars. Only
+    factual pages count; OpenWiki owns the structural index files. This guard
+    checks ownership mapping, while OpenWiki validates the complete page format.
+    """
+    packages: set[str] = set()
+    for page in (repo_root / "openwiki" / "codebase").rglob("*.md"):
+        if page.name == "index.md" or any(part.startswith(".") for part in page.relative_to(repo_root).parts):
+            continue
+        text = page.read_text(encoding="utf-8")
+        match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n(.+)", text, re.DOTALL)
+        if not match or not match[2].strip():
+            continue
+        resources = re.findall(r"^resource:[ \t]*(.*)$", match[1], re.MULTILINE)
+        if len(resources) != 1:
+            continue
+        resource = re.fullmatch(r"(?:repo://([^\s\"'#]+)|\"repo://([^\"\s]+)\"|'repo://([^'\s]+)')[ \t]*(?:#.*)?", resources[0])
+        if resource:
+            path = next(group for group in resource.groups() if group is not None)
+            if path == Path(path).as_posix() and not path.startswith("/") and ".." not in Path(path).parts:
+                packages.add(path)
+    return packages
 
 
 def load_baseline(path: Path) -> dict[str, int]:
@@ -141,12 +163,12 @@ def baseline_change_findings(current: Mapping[str, int], previous: Mapping[str, 
         if previous_count is None:
             message = (
                 f"{package} was added to the architecture-map baseline at {current_count}. New oversized packages "
-                f"must add ARCHITECTURE.md or README.md instead of grandfathering themselves. See {ISSUE_URL}"
+                f"must add a wiki architecture page with package resource metadata instead of grandfathering themselves. See {ISSUE_URL}"
             )
         else:
             message = (
                 f"{package}'s architecture-map baseline increased from {previous_count} to {current_count}. "
-                f"Add ARCHITECTURE.md or README.md instead of raising the baseline. See {ISSUE_URL}"
+                f"Add a wiki architecture page with package resource metadata instead of raising the baseline. See {ISSUE_URL}"
             )
         findings.append(Finding(package, current_count, previous_count, "error", message))
     return findings
@@ -154,28 +176,29 @@ def baseline_change_findings(current: Mapping[str, int], previous: Mapping[str, 
 
 def evaluate_packages(repo_root: Path, baseline: Mapping[str, int], threshold: int) -> list[Finding]:
     findings: list[Finding] = []
+    maps = mapped_packages(repo_root)
     for package_root in package_roots(repo_root):
         relative = package_root.relative_to(repo_root).as_posix()
         count = source_count(package_root)
-        if count <= threshold or has_architecture_map(package_root):
+        if count <= threshold or relative in maps:
             continue
         baseline_count = baseline.get(relative)
         if baseline_count is None:
             message = (
-                f"{relative} has {count} source files (threshold: {threshold}) and no package-root "
-                f"ARCHITECTURE.md or README.md. Add a map before this package grows further. See {ISSUE_URL}"
+                f"{relative} has {count} source files (threshold: {threshold}) and no wiki architecture "
+                f"page with resource: repo://{relative}. Add a map before this package grows further. See {ISSUE_URL}"
             )
             level = "error"
         elif count > baseline_count:
             message = (
                 f"{relative} grew from its grandfathered {baseline_count} source files to {count} without a "
-                f"package-root ARCHITECTURE.md or README.md. Add a map or revert the growth. See {ISSUE_URL}"
+                f"wiki architecture page with resource: repo://{relative}. Add a map or revert the growth. See {ISSUE_URL}"
             )
             level = "error"
         else:
             message = (
                 f"{relative} remains grandfathered without an architecture map at {count} source files "
-                f"(baseline: {baseline_count}); add ARCHITECTURE.md or README.md opportunistically."
+                f"(baseline: {baseline_count}); add a wiki architecture page with resource: repo://{relative}."
             )
             level = "warning"
         findings.append(Finding(relative, count, baseline_count, level, message))
@@ -198,7 +221,7 @@ def write_summary(findings: list[Finding], threshold: int) -> None:
     lines = [
         "## Package architecture maps",
         "",
-        f"Packages over {threshold} source files require a package-root `ARCHITECTURE.md` or `README.md`.",
+        f"Packages over {threshold} source files require a wiki architecture page with `resource: repo://<package-path>`.",
         "",
     ]
     if not findings:

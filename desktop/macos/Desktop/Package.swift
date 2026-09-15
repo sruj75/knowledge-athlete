@@ -82,7 +82,6 @@ let package = Package(
         "Theme",
         "OmiSupport",
         "VoiceTurnDomain",
-        "FloatingControlBar/ARCHITECTURE.md",
       ],
       resources: [
         // Bundles everything under Resources/ (incl. *_logo.png brand marks,

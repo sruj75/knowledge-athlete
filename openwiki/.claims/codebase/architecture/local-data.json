@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:79d625fd6f6192b5e24a93345c49995a0d59373c49ac8d13c7b15df88a3106c8",
+  "claims": [
+    {
+      "id": "claim_653e55c893d04eb989b61a16192bf920",
+      "statement": "Owner-authorized Rewind screenshot writes hold a commit lease, validate owner authority and reject unavailable quarantined video chunks.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase%2BOwnerAuthorization.swift#L4-L31",
+          "version": "repo-lines-v1:sha256:c5e4b61eb9fa5989e9922d4c7cf9c6e2ebf8101a1db3fe11d743715142e8f377:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3Njg5MTQzMTcyNGU1ZWExNjIyYmRkZjQ3OWRjZDg5ZjIyZTMwYjUzYzk4YWM5YWM0MTFkNWU2ZDQ3NGNlNTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNjhhZjJhZmI0YjMzNGVmMzAxYjcwZTRkOGYwN2I5OGIyNWJkODA5NzU3NDMxZWFkMDM1NGZiNWEyMjZhNTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY2YTBhODM5OTMwOGE2ODU4MDkxYTAwZjQwNzUzODQ1MDc3MTkxOTEzN2I3MjVkYmRhYjY3MGI2OGM2NmZlNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiMzcwNWQzMWNmZWUwNmMzYzIyM2EzMTUyOGI1OTg4NDAzNzI3OGNiMThjODViMmRjMzQ0ZGNhMTMwMWEyMWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4ff268cbf8514504bf9b2fcdcfe47acb",
+      "statement": "The database exposes pool-generation snapshots and owner-aware reads for delayed work.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase%2BOwnerAuthorization.swift#L32-L84",
+          "version": "repo-lines-v1:sha256:595bcf0a6a3ec626dbca32db4dfc360e40d3cabf52770794f5ad969b02483980:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkMzVjODYyNTFiZGVkNDc3Y2I2Nzc5OGYwMzQ2N2MzOWQ4YWRiZTFhMDVkOTNmZDM0NmJmZGY1ZjdiZTJhNmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNTlmNWRjYTJlZWI5OWZiZTI2MDllZmU2ZmYxYzM2MjYzNjQ1YmZlZThkYzc3NDA4NzMyMTBjM2Y1ZTFlMzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmNjk0ZTI1ZGNkODA1Y2EzOWE2NGUwNTBhOWZmNTczNDQ5ODc3YWZjMjJhOTYyNjg5ZTdkMWJhMmYwYmIwMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1N2M3M2NkZGFmZTA2YTViN2UyOTY4M2E3NmIxNWEwNjUxMmExYmM1MzllY2M5ZWFjZDA0Y2RkYTZmZTFmMTMifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift#L178-L197",
+          "version": "repo-lines-v1:sha256:a8ea4a576ad7c832c1fae0e1fd3bad336f8b45c246760edbe65cac45e198c94a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmOWY1OWVkZjk4Y2QxNmRhZmYxZjMyNzBiOTQzMWMyY2Y3NDE2M2E2MTMyYWNmMDNlZWI5NmFmNjk5ZDFlMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmZGU4MzdmYmZkZDZjYmZjZTM4NjBhNTI4MGMwZDQ3ZGYyZTRiNDQyYmZhYWQ5ODJhMjMxMWI5NjQ0ODBiNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3ZWVjN2Q4ZjU2ZWZlYTcyNGFiODI2YzkyODc4NDc5MzE3NjQyM2RkYmNlYzZhZDlhZjIxYmMxNTdhMWUxMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3YzEzZmNiOTJkMjc4ZTgyNjJiYTgwYjczMzIyOTE1MDk1NmY2YzUxNTJmY2ZlODg0NWY1YWQ1ZjkwNjIyZTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c726148dd1314840ab8c77d7d638c02d",
+      "statement": "Memories and conversations have dedicated local authority stores and behavioral tests.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+          "version": "repo-file-v1:sha256:48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationRepositoryTests.swift",
+          "version": "repo-file-v1:sha256:d17448f857c0440e5641bf4545ca58f7f9b89db1ed78e50814c89c2aee0e7a07"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/MemoryLocalAuthorityTests.swift",
+          "version": "repo-file-v1:sha256:f7d415592ec4ebc1194b679d96bf49c0d0184f0f38984cc5b80c6c1d51afefa4"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

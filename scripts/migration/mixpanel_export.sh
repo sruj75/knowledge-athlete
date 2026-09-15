@@ -5,7 +5,7 @@
 # Streams /api/2.0/export one UTC day at a time into gzipped JSONL files.
 # Re-running the script skips days already on disk; it is safe to interrupt
 # (Ctrl+C, kill, VM reboot) and re-launch — at most one in-flight day is
-# redone. See scripts/migration/README.md for the full plan.
+# redone. See openwiki/codebase/operations/migrations.md for the full plan.
 #
 # Required env:
 #   MP_SERVICE_USER   — Mixpanel service account username (<name>.<rand>.mp-service-account)

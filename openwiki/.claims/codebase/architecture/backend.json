@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:a5acbcf3d10d36b5a4b74d6d1f087e902bc5f9fffa6a0069db0a4ed6e7016333",
+  "claims": [
+    {
+      "id": "claim_1ae32bfa0ced442c9374eb8dd5b47ab8",
+      "statement": "One FastAPI composition mounts retained desktop, account and transient product-compute routers.",
+      "evidence": [
+        {
+          "resource": "repo://backend/main.py#L76-L119",
+          "version": "repo-lines-v1:sha256:63cd2c4ba748296009a6fef9985c4aa391a91228be70ddec12fa4d7e126463fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2Y2QxZWMzMDIyZDlmYzcxYzMwMmJhYWViOGM4ZTgxOWU5ZTBkMGM5ZmIyNmUyMmQwYjhiYWQwMGNkZGUzMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjNTRmYTA5ZDg3Y2JkYmIyMjUxNDRmMDgxZTVmZGZjMGE4MzIyZjc0MGFkMjI1YWEzOTRiNDVlOWRjNDkzNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_s26_canonical_backend_app.py",
+          "version": "repo-file-v1:sha256:b9ec100bd5def243a87f56e81b9fa006eaa48c35aaf05d63dbae8f9b759b9bff"
+        }
+      ]
+    },
+    {
+      "id": "claim_31f2d5acc2eb4b2799cd94f913959129",
+      "statement": "Memory compute routes authenticate and rate-limit callers and reject invalid provider candidates as 502 responses without taking durable Memory ownership.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/memory_compute.py",
+          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_memory_compute.py",
+          "version": "repo-file-v1:sha256:758614ce7c30b7019cdee3431c8bb6e619a9fe285969e52d141732010906a7f4"
+        }
+      ]
+    },
+    {
+      "id": "claim_9910effacb064200b7250e0954818d2e",
+      "statement": "Conversation candidates carry a generation UUID and bounded validated inputs and outputs.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/conversation_compute.py#L22-L137",
+          "version": "repo-lines-v1:sha256:350d46ecd4696d5513f7ca6d4f8e920250847ce84afb0ae4468279e30c768c05:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0ODY5ZDM0NTkyZjA5OWI4NjUxYmQyODU1ODVmMDVkMWEyYzY5NTUxMjRiYTJlNWM4ODFkNTFmMzhjOTY5NjZkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3YzgxYjlmMjJlODgxMGM3NzdkYWFlMmJkYzg3OGIyYjdiMTQzNGY4YjVkOGE1MjQ5MTIzNzRkNzI1MjdlYjZmIn0"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

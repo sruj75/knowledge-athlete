@@ -10,9 +10,9 @@ Budgets are a ratchet. When a file shrinks, lower its budget in the same PR.
 Never raise a budget to admit detail that has a home one level down:
 
   root AGENTS.md        cross-component rules and the index, nothing else
-  component AGENTS.md   that component's detail
-Component guides are the pressure valve for the root file. Keep deeper detail
-beside the source and executable contract that owns it.
+  CLAUDE.md            pointer to the same entrypoint
+Detailed authored rules live in openwiki/INSTRUCTIONS.md. OpenWiki pages explain
+source and executable contracts.
 """
 
 from __future__ import annotations
@@ -23,19 +23,15 @@ from pathlib import Path
 
 # path -> (max_lines, max_bytes). Ratchet down; never up.
 BUDGETS: dict[str, tuple[int, int]] = {
-    "AGENTS.md": (140, 15_600),
-    ".github/AGENTS.md": (35, 3_900),
-    "backend/AGENTS.md": (337, 38_400),
-    "desktop/macos/AGENTS.md": (540, 44_956),
+    "AGENTS.md": (40, 3_200),
+    "CLAUDE.md": (8, 600),
 }
 
-SKIP_PARTS = {"node_modules", ".build", ".git"}
+SKIP_PARTS = {"node_modules", ".build", ".git", ".context", ".venv", "vendor"}
 
 FAILURE_HINT = (
-    "AGENTS.md files are loaded into agent context every session they apply to.\n"
-    "Move detail down a level instead of growing the file:\n"
-    "  root AGENTS.md      -> the matching component AGENTS.md\n"
-    "  component AGENTS.md -> source-owned executable contracts and nearby guidance\n"
+    "Agent entrypoints are loaded into context every session.\n"
+    "Move detailed rules into openwiki/INSTRUCTIONS.md and link the relevant section.\n"
     "Do not raise a budget to admit detail that has a narrower owner."
 )
 
@@ -58,7 +54,7 @@ def check_file(path: Path, budget: tuple[int, int], label: str) -> list[str]:
 
 
 def discover(repo: Path) -> list[Path]:
-    return sorted(p for p in repo.rglob("AGENTS.md") if not SKIP_PARTS.intersection(p.parts))
+    return sorted(p for name in ("AGENTS.md", "CLAUDE.md") for p in repo.rglob(name) if not SKIP_PARTS.intersection(p.relative_to(repo).parts))
 
 
 def self_test() -> None:

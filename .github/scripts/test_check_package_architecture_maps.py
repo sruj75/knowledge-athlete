@@ -47,13 +47,33 @@ class PackageArchitectureMapTests(unittest.TestCase):
             self.make_package(root, "backend/utils/twelve", 12)
             self.assertEqual(evaluate_packages(root, {}, threshold=12), [])
 
-    def test_package_root_architecture_or_readme_map_passes(self) -> None:
-        for map_name in ("ARCHITECTURE.md", "README.md"):
-            with self.subTest(map_name=map_name), tempfile.TemporaryDirectory() as temp:
+    def test_native_resource_metadata_maps_the_package(self) -> None:
+        for resource in ("repo://backend/utils/mapped", '"repo://backend/utils/mapped"', "'repo://backend/utils/mapped'"):
+            with self.subTest(resource=resource), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
-                package = self.make_package(root, "backend/utils/mapped", 13)
-                (package / map_name).write_text("# Map\n", encoding="utf-8")
+                self.make_package(root, "backend/utils/mapped", 13)
+                wiki = root / "openwiki/codebase/architecture"
+                wiki.mkdir(parents=True)
+                (wiki / "map.md").write_text(
+                    f"---\ntype: Architecture\ntitle: Map\ndescription: Package ownership\nresource: {resource}\n---\n# Map\n\nThe package owns request validation.\n", encoding="utf-8"
+                )
                 self.assertEqual(evaluate_packages(root, {}, threshold=12), [])
+
+    def test_wrong_resource_index_and_body_mentions_do_not_satisfy_map(self) -> None:
+        for name, content in (
+            ("map.md", "---\nresource: repo://backend/utils/mapped/nested\n---\n# Nested\n"),
+            ("index.md", "---\nresource: repo://backend/utils/mapped\n---\n# Files\n"),
+            ("map.md", "# Map\nresource: repo://backend/utils/mapped\n"),
+            ("map.md", "---\nsources:\n  - resource: repo://backend/utils/mapped\n---\n# Evidence only\n"),
+            ("map.md", "---\nresource: repo://backend/utils/mapped\n---\n"),
+        ):
+            with self.subTest(content=content), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                self.make_package(root, "backend/utils/mapped", 13)
+                wiki = root / "openwiki/codebase"
+                wiki.mkdir(parents=True)
+                (wiki / name).write_text(content, encoding="utf-8")
+                self.assertEqual(evaluate_packages(root, {}, threshold=12)[0].level, "error")
 
     def test_nested_map_does_not_satisfy_package_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -88,7 +108,7 @@ class PackageArchitectureMapTests(unittest.TestCase):
             with redirect_stdout(output):
                 result = run(repo_root=root, baseline_path=baseline_path, previous_baseline={})
             self.assertEqual(result, 1)
-            self.assertIn("must add ARCHITECTURE.md or README.md", output.getvalue())
+            self.assertIn("must add a wiki architecture page", output.getvalue())
 
     def test_baseline_cannot_be_raised_to_hide_growth(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

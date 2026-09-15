@@ -86,7 +86,7 @@ def releasable_desktop_changes_since(ref: str | None) -> list[str]:
             continue
         if path == "desktop/macos/CHANGELOG.json":
             continue
-        if path == "desktop/macos/AGENTS.md":
+        if path == "openwiki/INSTRUCTIONS.md":
             continue
         if path.startswith("desktop/macos/changelog/"):
             continue

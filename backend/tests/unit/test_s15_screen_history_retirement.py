@@ -1,6 +1,6 @@
 """S-15 contract: local Rewind has no backend screen-history copy graph.
 
-The changed expectation comes from bootstrap-scaffold/deletion-map.md and the
+The changed expectation comes from openwiki/INSTRUCTIONS.md#accepted-requirements and the
 S-15 TDD plan. Exercise the real production FastAPI app so the retired writer
 cannot survive as a mounted compatibility handler while retained desktop routes
 keep their existing contracts.

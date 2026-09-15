@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b80583d470b338987d4c29623fc8364b22c01a948b8efd99f2cb3887cf30e9dc",
+  "claims": [
+    {
+      "id": "claim_bcfdcf6429f94cc0a0c4863bf55e1407",
+      "statement": "The local launcher signs embedded frameworks, Node with Node entitlements and the final app bundle.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/run.sh#L435-L509",
+          "version": "repo-lines-v1:sha256:81f06ccd0cc382744da4581d28d2abe58d67cadb8633d87a8e9b20389c6179d5:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlYzZiNjc4YWExYzYxMzhjMzlkZDE4NmZjZjQ3NzM3NmM2NzY4YmU2NTAwYTRkM2NkOWNkMzQ2MTY5YjM3MWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExOGIyNzBiNDFiOWJkNDdkZWM0NjFjOWUwMjAyZWMzOTI2MGNiYjEwZmUzNThiNmUyMDIyMWRjYjYyNTIzMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFlMDcxNTg3ZjZiYWMzZTg2OTk5YTBmMjc5ODQwNDcxYzcyZWE0NTdkNmZlMzRmMjFmZWI2MTMwMjEzNGNiZmUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/tests/test-run-signing-identity.sh",
+          "version": "repo-file-v1:sha256:cf6a648e5a71bd0c78e543e3363c4c0a42113b2bcbe8331ba8e47e1765280b8d"
+        }
+      ]
+    },
+    {
+      "id": "claim_82f947bb13bb48d39d9fadf4408a1b19",
+      "statement": "Candidate source identity rejects malformed full SHAs and tags and inspects first-parent history after the planned source.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/desktop-release-source-identity.py#L12-L132",
+          "version": "repo-lines-v1:sha256:731e21bd6c915805766c38c32cfed1cb7743fc779f8b150ffd9191211efc65b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyNmViY2I3OWNkM2I5YTE3YjY1NzRjYjliOTY4YzViNDQwY2M2MWEyNzBhMTU4MzJhMjdlMWE0OTIxMTBkNzU0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlZWZmMDdiNjQ4NzBjZTUyNDUyNzgyYzc4ZWY5OTQyYWRmNzkxMGZmMjk2OTBkNjBkOGJmYzg5Y2UwZDZiZTdhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxMTQ4ZGMyZDkwMWJmNzIyNzc3MmRhMjQzZTNhOTA1MWMzMzQ5ZjJjNGE1MTM4NGI1ZDA3MDkxYTE1NDIyMWQ4In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_739afdbeb04f46b7856fbd26f93e05f3",
+      "statement": "Native dependency preparation and its tests are a separate reusable bundle staging boundary.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/prepare-desktop-bundle-native-deps.sh",
+          "version": "repo-file-v1:sha256:2dd4dd26967f073ded0fecb24997d79761c7baaef7d93ec37e0dd4462509953d"
+        },
+        {
+          "resource": "repo://desktop/macos/tests/test-prepare-desktop-bundle-native-deps.sh",
+          "version": "repo-file-v1:sha256:f3f0ddad2fce718455ba495d1a2ec7f9a6c397a7a1ad6264f5af63df1f5b174e"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T14:14:00.034Z"
+  }
+}
