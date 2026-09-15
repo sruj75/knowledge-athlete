@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:4d0a09e22bbcbb6da661b99a547b9ba4f2b035331c2924aeccbd9ce6a6943357",
+  "claims": [
+    {
+      "id": "claim_a15c40aa331e4669b9cd04381539f009",
+      "statement": "The backend runner uses discovered files, excludes integration/slow markers by default and applies file isolation and local timing budgets.",
+      "evidence": [
+        {
+          "resource": "repo://backend/scripts/select_backend_unit_tests.py",
+          "version": "repo-file-v1:sha256:386770bcf63ecdba6610b3e9b010a648f3d12c9c693808ff18d10108bca50964"
+        },
+        {
+          "resource": "repo://backend/test.sh#L35-L105",
+          "version": "repo-lines-v1:sha256:5ce08b670b36c14843cd3f82cebcf147e987171e3e7059d088a754fe7bc5f39f:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4Y2VjYzkxZTk2MmIyYzI2ODBmMTFlYWFhY2U5ZTcwN2EwZmYzNzA0Y2Q2OGE4N2FhNGVhYWMxZDkyMDBkMjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjZjI1ZDk5YzhmZjVjYTMzMTQxZWIzYjFkMGRhNDI3ZGU5OTkxMTRkMGIwMWRmMzYwM2QwOWZkNTc1NGIyYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxOTVkODMxODFmOGE2OWVjNDBhMjEwMjIyOWQxZWQzODc1YTMyNmI4ZjQxNTRkZTY5NzdmOTk1ODQyZTIyZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiYTUzYjRkYmI0NzliNDE3YTQ5ZTk4N2U5OTU1Mjg0OTgwM2Q0MjAyMjE4NGQ4MzMzZDg5NjZjMzQzNzc0MWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a9d63112e3e84388b4b64f25f64042d8",
+      "statement": "The desktop runner discovers launcher tests, checks E2E flow coverage, runs desktop backend tests and then isolates Swift test suites.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/test.sh",
+          "version": "repo-file-v1:sha256:ef6c007cb85432bf9653c6e09f61d4dc197f960e8d3e43c60430031e3b823064"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a56a22edafc4c6096b3d6689ec27cba",
+      "statement": "The package architecture guard resolves top-level native wiki resource metadata and preserves its baseline growth ratchet.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/check_package_architecture_maps.py",
+          "version": "repo-file-v1:sha256:53121c4ce4f06746b01149dae66219da5e9386da7eaf717de8f773a6e88b8ea0"
+        },
+        {
+          "resource": "repo://.github/scripts/test_check_package_architecture_maps.py",
+          "version": "repo-file-v1:sha256:40b04079133df216fd6d2babc3a5a7bc472a6c718b0f10e98305c0d6cb3e1250"
+        }
+      ]
+    },
+    {
+      "id": "claim_2dadb6d0e46a4f18b5a84b8d6993e46f",
+      "statement": "Scoped backend import substitution restores modules and package attributes after a test.",
+      "evidence": [
+        {
+          "resource": "repo://backend/testing/import_isolation.py",
+          "version": "repo-file-v1:sha256:16c7db60875a8f861d60ca03f9733fa747f0295926a04fd6d53462d4c055e03e"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:992094f31db6eb4684d0076eaac2d1b3ac66a9e2ae732a5b42601143fc6a5599",
+  "claims": [
+    {
+      "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
+      "statement": "The continuity gate checks full source identity, clean source and privacy-safe manifests before accepting local evidence.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh",
+          "version": "repo-file-v1:sha256:f9a3e8c97a4886c51dba9a09c8d0efa027167f6eb339ce842f86dfc18d23594f"
+        },
+        {
+          "resource": "repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh",
+          "version": "repo-file-v1:sha256:bce0234da57591be8abe153694e49a55733dab3d6e516dd7ba18a06fc7924824"
+        }
+      ]
+    },
+    {
+      "id": "claim_374445dd3f514c12af7a7a6aed43412f",
+      "statement": "The shared manifest runs deterministic contracts in named local and CI lanes.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml",
+          "version": "repo-file-v1:sha256:88440cc10fd4d2ea754fb81940780e1fa32a1accc47ccf65222171c229797827"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T14:14:00.034Z"
+  }
+}

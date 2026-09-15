@@ -29,7 +29,7 @@ def _rate_limit_stubs():
     ``database.redis_db`` + ``database.users``. These
     fakes must be active *before* those modules are exec'd, so they live inside a
     ``stub_modules`` block (the sanctioned reserve seam — see
-    ``backend/docs/test_isolation.md`` and DECISIONS D2). The stub ``check_rate_limit``
+    ``openwiki/codebase/testing/contracts.md`` and DECISIONS D2). The stub ``check_rate_limit``
     reproduces the production boundary logic with a mockable Lua callable.
     """
 

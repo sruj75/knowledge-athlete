@@ -10,7 +10,7 @@ several ``database.*`` modules that construct clients / require a Firebase app a
 import time. The module-scoped autouse fixture below installs ``firebase_admin`` and
 ``database`` stubs via the sanctioned ``stub_modules`` reserve helper, exec's
 ``utils.other.endpoints`` against them, and tears everything down on exit so nothing
-leaks to later test files. See ``backend/docs/test_isolation.md`` and DECISIONS D2.
+leaks to later test files. See ``openwiki/codebase/testing/contracts.md`` and DECISIONS D2.
 """
 
 import asyncio

@@ -79,7 +79,7 @@ def main() -> int:
         )
         print(
             "Place new desktop Swift sources in a feature directory under "
-            f"{SOURCES_ROOT}/ instead of the root. See desktop/macos/AGENTS.md.",
+            f"{SOURCES_ROOT}/ instead of the root. See openwiki/INSTRUCTIONS.md.",
             file=sys.stderr,
         )
         print(

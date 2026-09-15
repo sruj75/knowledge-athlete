@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:375649bf436c37f59c46cf8d7879bb0d5a2a69ae6277656533dc18f24ee0462b",
+  "claims": [
+    {
+      "id": "claim_71d9d2ffd3004ff1a4d7b3bb20e1681c",
+      "statement": "Billing defaults to disabled and discards provider configuration; active modes fail when required configuration is incomplete.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_billing_mode.py",
+          "version": "repo-file-v1:sha256:72548d894596c3bac1a86bc16fefe4a67f7388cfa004266c3ec12044a4f4f5a1"
+        },
+        {
+          "resource": "repo://backend/utils/billing/config.py",
+          "version": "repo-file-v1:sha256:d4860235bde0442dd80bd6fac284ccbd5f4890f8737bcc24a4d8fb74a6d8fd6c"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a7de9285df647bc89ef1a2f4b9eb87a",
+      "statement": "The Dodo adapter is imported lazily after active-mode admission rather than during disabled startup.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_billing_mode.py#L47-L86",
+          "version": "repo-lines-v1:sha256:abc874a64f4f3dc2f616bc34ebda92797d72164f44b2d285de82d4ac02876a7e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzYjExMTg0YTg4ZWM4YmYwMmZkNDY2NzhmYjEzOWNmYjRjYTUzMGY0ODQwZGU4NGY2NmMyYmUwMjhiYmIwOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4YzM2OTJkZDQ2ZTMzYzFhZGVjZTJlMGVjN2FmMmIwZTk4YzM0MDdhYjZmNDQyMmZhYzkyNzhhMjA0ZGRlMWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlMDY4NTllZGU4OTliNDEzZjE4N2U4ODdjNTU1OTM3NjVlNWRmZWQ1MDdhNTVjOTdlNTQxZmQyZWNiYmJlZGIifQ"
+        },
+        {
+          "resource": "repo://backend/utils/billing/factory.py",
+          "version": "repo-file-v1:sha256:a6c1c6363835d1869c37b62fc29ff0ac5f109188b09850a44d359bed10638ab8"
+        }
+      ]
+    },
+    {
+      "id": "claim_4ba0af88647d441dba2380449c3ce067",
+      "statement": "Disabled billing refuses to claim cancellation of an existing paid record.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_billing_mode.py#L93-L100",
+          "version": "repo-lines-v1:sha256:72c3a878b61d6ad2cf3f1d5ec9c56a6f518643f47d7e0f7771cb66a1ea5481fd:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWNlMjY5YjgzNmQ1ZGJiOTNiM2YwNzUzNDE1YjNkNGU3ZjVlMjcwZDZhNGUzNzBhNWRlMGJiMjM4ODk4ZmZlMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOTY5YWUwMzFkNTExZGI1ZmFjMDg5ZjE4ZWU0M2YxNDhkMTViMDJkZmJiYzQ1NmI4YjAwZDNlY2RiZGYyMzFhOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGQ2NTUzMTExNjkzZDQ5MTcyZTkzNDZhNTJiMzcxMGY5NGYzNzE2M2Y1ZDBlOWZjZTBhNmEzMjE4NDg1OTVjZCJ9"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_delete_account_billing_cancel.py",
+          "version": "repo-file-v1:sha256:e2a25e8c66b41f3399240face6dc1e580ee7df9081ec4a2950a6bbafee49d281"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

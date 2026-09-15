@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:c34137414f7a66570bf79f988f95d103ee021ec62af2cb6a061f9c65497e1475",
+  "claims": [
+    {
+      "id": "claim_ca8a32d6adf443868d9aa2e6f1a594c5",
+      "statement": "Langfuse construction is lazy, requires a complete credential pair and logs configuration status without exposing keys.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/observability/langfuse.py#L20-L85",
+          "version": "repo-lines-v1:sha256:1da595727c064a0fde05f03ad14e030e7b80d531837310bbc92865fe24606272:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3NTZmMDE4ZGRlMmM1NWRkZDVmZjYwOTY3ODlhY2QzMTVjNDczZDRkOGM5NjEzNDA5M2FkMTAzZTcxZDY5YjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkYTcyOTllMzc3NjFlYzM1YzI0NzEwMGMwNTIyYTYwMmUzZjE3ZjgxM2QwOTg4YzkzMGFlZDkxMTY4MjNmYjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YzFjNDYyZTJhMzlkNzQ3NTlmNWUxYjEyNmY3NjgzYTJiNzMwMTE4ZTE4ZjUxMjJiMDhjZWRlZWI2NTBlMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM2ZjhiYTliYjEyMzczNmZlNTVhYmYzYmZhNzg0N2UwMmQxNGU2YjFlODI4YjA3ZmFlYjIzMzFlNDY1ZTlhYmYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0fc0e662a5bf42559a9734ba6d90a1b7",
+      "statement": "Fallback reporting bounds component/reason/outcome values and records degraded recovery without raising into the caller.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/observability/fallback.py",
+          "version": "repo-file-v1:sha256:6ed2bc79aeff031c3853dabf213c2a04d252b6232038f2d8edbca068c46c8e03"
+        }
+      ]
+    },
+    {
+      "id": "claim_9fe3105b2e5d4315b57c4b603734c0f0",
+      "statement": "Desktop product analytics consent and Sentry before-send sanitization have separate owners.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_posthog_telemetry.py",
+          "version": "repo-file-v1:sha256:8df750e2e58d7f23b5af002102bcc7873a33b9085add2368d995db474f96c042"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Observability/SentryBeforeSendPolicy.swift",
+          "version": "repo-file-v1:sha256:c50f7a8928086688301a25f810331e61514851a0fd1b1cd6f4354ae88c7ddd27"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Privacy/ProductAnalyticsConsentController.swift",
+          "version": "repo-file-v1:sha256:6a22ada03af409e1f103e5ca056a0112b770a85a32573a2016e3e91e21192e52"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

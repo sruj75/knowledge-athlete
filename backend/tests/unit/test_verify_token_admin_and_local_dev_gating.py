@@ -15,7 +15,7 @@ added in the post-disclosure hardening pass:
 Isolation: utils.other.endpoints transitively imports firebase_admin.auth and
 several database.* modules that construct clients / require a Firebase app at
 import time. Follows the same stub_modules pattern as
-test_ws_auth_handshake.py (see backend/docs/test_isolation.md, DECISIONS D2).
+test_ws_auth_handshake.py (see openwiki/codebase/testing/contracts.md, DECISIONS D2).
 """
 
 import importlib

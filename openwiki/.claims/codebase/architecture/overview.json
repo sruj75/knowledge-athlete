@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:2bd26f8a8c643cd69d4a71ba49b056ebee77741408fe5c80b7eabca5a683fd0f",
+  "claims": [
+    {
+      "id": "claim_0bbbdc5863884ad7a83cc11b3640d82f",
+      "statement": "The canonical Python application composes account, desktop, speech and transient product-compute routers.",
+      "evidence": [
+        {
+          "resource": "repo://backend/main.py#L95-L119",
+          "version": "repo-lines-v1:sha256:b5e6f0911340d0775abba0396e3fafc53d5c75bf8cfb3446b2c93b5df97ead25:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwZTcxYjFkZmIwMGJjYWUxMmZkYWY3OTUwMDUwZjU2ZDAxYjQ4MTEwODRiYjRjMzliODNlYmViZWE5NGMzYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2OGY2ODdjODEzODQwZDc2OWRiYTQyZGVjMjAxYjBjZDQzMGM3ZWEwM2M1YjNhYTliYWY1YjQ1Y2FmMzNkYjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b9215978831b462d8e05dd9370b7c91d",
+      "statement": "The Mac owns Memory mutation while the backend exposes authenticated candidate compute.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/memory_compute.py",
+          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+          "version": "repo-file-v1:sha256:48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6"
+        }
+      ]
+    },
+    {
+      "id": "claim_9880dbdb249748589ae0f7511bae49fd",
+      "statement": "The bundled Node adapter invokes managed Pi with the Intentive provider and Gemini model while local journal code owns conversation turns.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/src/adapters/pi-mono.ts#L260-L335",
+          "version": "repo-lines-v1:sha256:402af0a8d37c03830021c2c5526ec4a476c47cedaad1f9afb567b1d24c964b97:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyOTc5ZGUwNmQ1NDM3NGY3NzRjMzgzZWI4NDhjOWI5YzRjYTI2N2VmZDNjMzMxODk1ZWRmZmVlYTFmNjM2OTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYxMmEwNjU5YTc0ODFlZDkwMGZiYzllZjZkMTg5ZjY4NDIxMjViZTY0ZjY4MjczODRkOGRiMWM4MmM0Y2M2MWEifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/conversation-journal.ts",
+          "version": "repo-file-v1:sha256:3cb70cc4969948ad54a6cd9f7ce7e10124048ec66c430c0ab801d663df59c5ec"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:39:11.738Z"
+  }
+}

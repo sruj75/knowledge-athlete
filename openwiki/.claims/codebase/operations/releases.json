@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:eb1728746ce99d75f1bdff5d0cfaeba06259a58286ac90a15b7557ebe79017b9",
+  "claims": [
+    {
+      "id": "claim_0dba16a239c049318e6212ef970fb9ce",
+      "statement": "Manual backend deployment separates deploy, repair, read-only foundation and cleanup-dry-run modes under an environment-scoped non-canceling lock.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/gcp_backend.yml#L1-L95",
+          "version": "repo-lines-v1:sha256:1fff99e5cdde08bdabf6ad2af954879acece94ab9da71c56227415b09673cbb6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkODliODVmYmIxOGIzYzFmNDhhNTM2OGMxZjMwMTY1ZDNjZDBmNDAyZGNkMGQ0NTY4NGM4YTUwYzI5NGNhNmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNTU5NzljZTczMDIwMzNlNmIyZmQ3ZDg4ZjUzN2EzYjhlMDkxZWEzMDVjODExZmZhMTI3NGJmNTc2NGVhNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2NTNiNWNkN2Y4YTQ5NmM4Mjc4NWFmMDE5NTUzNDMwZmY4MDEzYmYyNDM0OGVkNTdkODE5NTQ1ODgwNWU5Y2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_87dd92d43e244bb3b247fa341da8ba74",
+      "statement": "Desktop update installation is admitted using local activity, separately from the persisted relaunch-window restoration policy.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/UpdateRelaunchWindowPolicy.swift",
+          "version": "repo-file-v1:sha256:0c8e5299388bf4313acb0078ca97529d6d7ed4842e6090ef4d816d12c8d6646b"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/UpdaterViewModel.swift#L554-L610",
+          "version": "repo-lines-v1:sha256:028faaa89d7173efcc804008a89840768b650ffec8f5b53d68ab8b8bae0b63fc:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1NmE2ZjdiOGU0NTY3NTdlNTMxNjczNDAwM2U2NDQyYWYxMjQwNzYwYjE0NWEzZTU3M2Y4ZWFjZmFjYTI0NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxMzc1NjI1Y2YzNjEwMDFiNDA5ZjQ0Yzg4NDg1M2NiMjA2YTM5Y2Y1NTA2NmI0MGJiN2Q2OTA1NzY0OTM2NjUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift",
+          "version": "repo-file-v1:sha256:820dda777ac10c21f1ed4505b5cb86a160edbb6df8beb41128143d3e00936e4e"
+        }
+      ]
+    },
+    {
+      "id": "claim_4eca70143c5b488dab63e76f8cdadcf3",
+      "statement": "Desktop candidate provenance requires exact source identities and guards newer first-parent release inputs.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/desktop-release-source-identity.py#L12-L132",
+          "version": "repo-lines-v1:sha256:731e21bd6c915805766c38c32cfed1cb7743fc779f8b150ffd9191211efc65b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyNmViY2I3OWNkM2I5YTE3YjY1NzRjYjliOTY4YzViNDQwY2M2MWEyNzBhMTU4MzJhMjdlMWE0OTIxMTBkNzU0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlZWZmMDdiNjQ4NzBjZTUyNDUyNzgyYzc4ZWY5OTQyYWRmNzkxMGZmMjk2OTBkNjBkOGJmYzg5Y2UwZDZiZTdhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxMTQ4ZGMyZDkwMWJmNzIyNzc3MmRhMjQzZTNhOTA1MWMzMzQ5ZjJjNGE1MTM4NGI1ZDA3MDkxYTE1NDIyMWQ4In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_5f7bf10bc0ce47868063245666f1277a",
+      "statement": "The Mac release and preview workflows share ordered Codemagic validation, build, signing, notarization, Sparkle, symbol, signed-smoke and publication stages; preview has separate protected inputs and no tag trigger.",
+      "evidence": [
+        {
+          "resource": "repo://codemagic.yaml#L1-L106",
+          "version": "repo-lines-v1:sha256:02a2c11e30097520b8aadc44d5c9ead234b332d43d4546c1e04da31b2fba0c38:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1N2NjOWNhMThlMTU2OTlhYmU3ODEwNGE2MTYyOTI0NmU1ZTQ1ZmFlNzYxZjBiNDdlNzQ5YzYwN2RjOTY4MDBiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmOGI3MWRkNmIyNmNiZGU4N2U5N2ZjNjRlMmU1ZGQzNWI5YWI0MjJmMWQ5NDljMzE4ZDBlOTg2ODdiMDhmZTM1IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_0591d6551d694598b7cf6097b195dcf3",
+      "statement": "Manual Beta qualification runs on Ubuntu, rejects a non-owner dispatcher before candidate access, binds the tag to the clean checked-out SHA and requires unique exact artifact and owner-evidence assets.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/test_desktop_release_flow_contract.py#L144-L173",
+          "version": "repo-lines-v1:sha256:48f1c9cc66ac0b9c286ddeb4a22e4d37f1e9f3f51e9e9ac5a6df5e66aa4f985a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQxMDYxZTMwYTNmZmMyMGUwNTA5NmY5Y2E0NGNmNGI2ZmU4YmM3MTNjMWJhNGIzZmUxNTgxMWI0MGE5YTEwYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjOTg1OGVkYmY1MjAwZWFhYjQyMGJjYWI4ZmU2ZTYyNmViZDZiOTYxZjI3ODgyOWFjNzM2OTE0MmMwZGEwZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlNmMxNjkwZDM4Mjc3N2NkNmJlZGZhZTc2OGZmMTY2YjgxMWEwZjcxODNiNTBkYjVhYmRmYzhhZWZlYTYyNzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYwNjE2ZjZjN2EwZDljM2JmOWU1MGY1ODg4ZjM2NDY3YjAzYWQwN2Q4YmNiOTBlMjI3MWQ2OTkzYThjNmU1MTEifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/desktop_qualify_beta.yml#L1-L118",
+          "version": "repo-lines-v1:sha256:fa15a4b8ffd69c009a5f0a89e8b8a1005873544cad50d9ea4eadebe8ae209fc6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIyZTdlODlkMDNjMmJkMmI1NmJkZmFhYjQyODQ0ZGZkNzJlMWVkYTAyYTcwNmMyMjBiM2RlMWVlNzZiMjc2MTUzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MzBiN2UyYjE0ZDU3Mjc4ZWNjZGYyYzM0NzczMmNjMGZhYmNjMTVhNzI5OTJjMzMxZWFiZTQ2NjAyYzFhYjBlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI2YWVlM2RhNDBkZGM1OTNhNWYzZWM2ZWE4ZjAxYmQ1NzYzYzdjYjZlMjA1YzIxMDRkMjU3MjRhMzdhZjNjNzg5In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_aa882557b80c46538e694399a976821e",
+      "statement": "Stable promotion requires manual dispatch with the exact promote-stable confirmation under the protected prod environment, checks the configured production API and selects a successful trusted qualification for the exact release candidate before promotion.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/desktop_promote_prod.yml#L1-L111",
+          "version": "repo-lines-v1:sha256:fd89ca7d93f07da7eb437591e5aed432f11e07793a4a4fe7e9162034d3da06e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJmYzRlYzQ4Y2IzNDlhNDE2NjQ3MDg2YjJlOGEwYTRkNWQ4OWNjZGZmNWVmMTNhNzUyNGUyNTE0NWM1M2QzY2ZjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0NzI2ODY1ODdlYmE1NGYxM2QwMjdjZGZjMWJiNzAyNTM2ODI1NWIwMThlNGQwYTM0ZTllYjc5OGUyZThmYmJiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1N2E3MTkwZDc2ZDFmMGI0NmMwNmYyNGViYmMyMDZlYmVkNGQxOWNlYTRlNDExMjkxY2IwMTAxNzIzYjI2ZjZkIn0"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T14:14:00.034Z"
+  }
+}

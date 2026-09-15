@@ -1,7 +1,7 @@
 """S-01 contract: the rejected cloud Agent VM has no HTTP entrance.
 
-The changed expectation comes from bootstrap-scaffold/deletion-map.md and
-IR-001/IR-002 in bootstrap-scaffold/requirements-challenge.md.  Exercise the
+The changed expectation comes from openwiki/INSTRUCTIONS.md#accepted-requirements and
+IR-001/IR-002 in openwiki/INSTRUCTIONS.md#accepted-requirements.  Exercise the
 real production FastAPI app objects so a leftover router registration cannot
 hide behind source deletion or a compatibility handler.
 """
@@ -9,7 +9,6 @@ hide behind source deletion or a compatibility handler.
 from fastapi.testclient import TestClient
 
 import main
-
 
 _RETIRED_MAIN_ROUTES = (
     ("GET", "/v1/agent/vm-status"),

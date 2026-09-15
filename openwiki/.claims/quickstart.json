@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:3417d980e393978d07a90fd6b86468d9777d4046da53c389d7616d9ed4dcecf9",
+  "claims": [
+    {
+      "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
+      "statement": "The repository composes a canonical FastAPI backend with desktop and transient compute routes and bundles a Node agent with TypeScript build and Vitest test commands.",
+      "evidence": [
+        {
+          "resource": "repo://backend/main.py#L95-L119",
+          "version": "repo-lines-v1:sha256:b5e6f0911340d0775abba0396e3fafc53d5c75bf8cfb3446b2c93b5df97ead25:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwZTcxYjFkZmIwMGJjYWUxMmZkYWY3OTUwMDUwZjU2ZDAxYjQ4MTEwODRiYjRjMzliODNlYmViZWE5NGMzYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2OGY2ODdjODEzODQwZDc2OWRiYTQyZGVjMjAxYjBjZDQzMGM3ZWEwM2M1YjNhYTliYWY1YjQ1Y2FmMzNkYjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/package.json#L1-L22",
+          "version": "repo-lines-v1:sha256:da7bb2587998088d99649c353f144b1e6e838ac96dd001450ce3873e0b69c538:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyZTE0MzJhZmUzOGVjZTZmN2I2OTJkZTNhNWE2NTYwNmZjYzlkODkwOTI0ZDkyMjRiOWUyMmRhYzRmM2ZiNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3ZjBlODBjYTM4NWJkODM2YjI5OTFjNzkxZDFmZmY1N2UzNDJhZDlhNTAyM2U0NzUzMTQ5YmU5ZDlhYzBhYTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1f3aa988e7e747ae9639f8a8a86393c0",
+      "statement": "Root setup installs worktree prerequisites and preflight invokes the shared local check runner against origin/main.",
+      "evidence": [
+        {
+          "resource": "repo://Makefile#L21-L36",
+          "version": "repo-lines-v1:sha256:2863b48bd4dc1172b548a8d43099e7b7ac4e5c9556a2c889c7313d63e700ddf9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4Y2RjOTJmM2Y3OGI2ZGRhNGZmMGJmNWY3YjgyNDg5NTc1MDQ1Y2VjNTBkODJiYzllYTZkYzU4NDE4NjkyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T14:14:00.034Z"
+  }
+}

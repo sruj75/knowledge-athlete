@@ -29,9 +29,11 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
-# Docs whose references must resolve. Component AGENTS.md files are discovered.
-EXTRA_DOCS = ("PRODUCT.md",)
+# Entrypoints and factual wiki pages. OpenWiki's hidden Claims are data, not docs.
+EXTRA_DOCS = ("README.md", "CONTRIBUTING.md", "SECURITY.md", "openwiki")
+SKIP_PARTS = {"node_modules", ".build", ".git", ".context", ".venv", "vendor"}
 
 SOURCE_SUFFIXES = {
     ".md",
@@ -62,7 +64,7 @@ REPO_ROOTS = (
     "scripts/",
 )
 
-MD_LINK = re.compile(r"\[[^\]]*\]\(\s*(?!https?:|mailto:|#)([^)\s#]+)")
+MD_LINK = re.compile(r"\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))")
 BACKTICK = re.compile(r"`([^`\n]+)`")
 
 # Placeholder segments: a path that is illustrative, not a real file.
@@ -71,7 +73,7 @@ PLACEHOLDER = re.compile(r"[<>{}*]|\.\.\.|\bYYYY\b|\bXXXX\b|20260628-short-descr
 
 def is_repo_path(token: str) -> bool:
     """True when a backticked token is a pointer rather than shorthand."""
-    if PLACEHOLDER.search(token) or " " in token:
+    if PLACEHOLDER.search(token) or " " in token or urlsplit(token).scheme:
         return False
     if token.startswith(REPO_ROOTS):
         return True
@@ -108,24 +110,28 @@ def ignored(repo: Path, candidates: list[Path]) -> bool:
 
 def resolve(repo: Path, doc: Path, ref: str) -> bool:
     """A reference resolves if it exists relative to the doc or the repo root."""
-    ref = ref.rstrip("/")
+    parsed = urlsplit(ref)
+    if parsed.scheme and parsed.scheme != "repo":
+        return True
+    ref = unquote((parsed.netloc + parsed.path) if parsed.scheme == "repo" else parsed.path).rstrip("/")
     if not ref:
         return True
-    candidates = [doc.parent / ref, repo / ref]
+    # /openwiki paths belong to OpenWiki's virtual repository filesystem.
+    candidates = [repo / ref.lstrip("/")] if ref.startswith("/openwiki/") or parsed.scheme == "repo" else [doc.parent / ref, repo / ref]
     if any(c.exists() for c in candidates):
         return True
     return ignored(repo, candidates)
 
 
 def collect_docs(repo: Path) -> list[Path]:
-    docs = sorted(p for p in repo.rglob("AGENTS.md") if "node_modules" not in p.parts and ".build" not in p.parts)
+    docs = [p for name in ("AGENTS.md", "CLAUDE.md") for p in repo.rglob(name) if not SKIP_PARTS.intersection(p.relative_to(repo).parts)]
     for extra in EXTRA_DOCS:
         target = repo / extra
         if target.is_dir():
-            docs.extend(sorted(target.rglob("*.md")))
+            docs.extend(p for p in target.rglob("*.md") if not any(part.startswith(".") for part in p.relative_to(target).parts))
         elif target.exists():
             docs.append(target)
-    return docs
+    return sorted(set(docs))
 
 
 def check_doc(repo: Path, doc: Path) -> list[str]:
@@ -134,14 +140,21 @@ def check_doc(repo: Path, doc: Path) -> list[str]:
     errors = []
     seen: set[str] = set()
 
-    for ref in MD_LINK.findall(text):
+    for wrapped, plain in MD_LINK.findall(text):
+        ref = wrapped or plain
         if ref in seen or PLACEHOLDER.search(ref):
             continue
         seen.add(ref)
         if not resolve(repo, doc, ref):
             errors.append(f"{rel}: markdown link -> '{ref}' does not exist")
 
-    for token in BACKTICK.findall(text):
+    # The final-decision archive describes intentionally retired source names.
+    # Current authored operating instructions retain the entrypoint tripwire.
+    if doc == repo / "openwiki" / "INSTRUCTIONS.md":
+        tokens = BACKTICK.findall(text.split("\n## Accepted requirements\n", 1)[0])
+    else:
+        tokens = [] if doc.is_relative_to(repo / "openwiki") else BACKTICK.findall(text)
+    for token in tokens:
         token = token.strip()
         if token in seen or not is_repo_path(token):
             continue
@@ -179,6 +192,25 @@ def self_test() -> None:
         (repo / "backend" / "scripts").mkdir()
         (repo / "backend" / "scripts" / "x.sh").write_text("")
         assert check_doc(repo, repo / "backend" / "AGENTS.md") == [], "component-relative reference must resolve"
+
+        wiki = repo / "openwiki"
+        wiki.mkdir()
+        page = wiki / "quickstart.md"
+        (repo / "backend" / "a file.py").write_text("")
+        page.write_text("[encoded](../backend/a%20file.py#L1) [URI](repo://backend/real.py#L1) [self](/openwiki/quickstart.md) [web](https://example.com)\n")
+        assert check_doc(repo, page) == [], "native wiki and encoded source links must resolve"
+        page.write_text("[retired](../PRODUCT.md) [missing](repo://backend/missing.py)\n")
+        assert len(check_doc(repo, page)) == 2, "wiki links to deleted documents and missing evidence must fail"
+        private = repo / ".context" / "snapshot"
+        private.mkdir(parents=True)
+        (private / "AGENTS.md").write_text("[stale](missing.md)")
+        assert private / "AGENTS.md" not in collect_docs(repo), "ignored snapshots are not entrypoints"
+        assert page in collect_docs(repo), "wiki pages must be checked"
+        brief = wiki / "INSTRUCTIONS.md"
+        brief.write_text("Read `backend/retired-guide.md` before changing code.\n")
+        assert check_doc(repo, brief), "authored operating pointers must not escape validation"
+        brief.write_text("Read `backend/real.py`.\n\n## Accepted requirements\n\nDelete `backend/retired.py`.\n")
+        assert check_doc(repo, brief) == [], "archived retirement names are not current operating pointers"
 
 
 def main() -> int:

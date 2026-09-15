@@ -3,7 +3,7 @@
 ``utils.fair_use`` imports cleanly (its dependencies defer client construction),
 so we patch the Redis factory and ``fair_use_db`` attributes via
 an autouse ``monkeypatch`` fixture instead of mutating ``sys.modules`` at module
-scope. See ``backend/docs/test_isolation.md`` (Tier-2 sanctioned seams).
+scope. See ``openwiki/codebase/testing/contracts.md`` (Tier-2 sanctioned seams).
 """
 
 from datetime import datetime, timedelta

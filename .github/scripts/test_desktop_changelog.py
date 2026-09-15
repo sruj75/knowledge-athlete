@@ -131,7 +131,7 @@ class ChangelogRequirementTests(unittest.TestCase):
             "desktop/macos/scripts/omi-dev",
             "desktop/macos/scripts/bundle-size-harness.sh",
             "desktop/macos/scripts/desktop-core-harness.sh",
-            "desktop/macos/docs/release.md",
+            "openwiki/codebase/operations/releases.md",
             "desktop/macos/scripts/qualify-desktop-beta.sh",
             "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh",
             "desktop/macos/scripts/codemagic-release.sh",
@@ -145,7 +145,7 @@ class ChangelogRequirementTests(unittest.TestCase):
             # The continuity gauntlet and its flow definitions are internal
             # qualification infrastructure; PR labels cannot protect main push CI.
             "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
-            "desktop/macos/e2e/CORE_E2E.md",
+            "openwiki/codebase/testing/desktop-e2e.md",
             "desktop/macos/e2e/flows/agent-continuity.yaml",
             # Test files are never user-facing app changes (EXEMPT_DESKTOP_PATH_PREFIXES).
             # #10374's timeout bump touched this file; without the exemption the

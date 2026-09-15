@@ -52,7 +52,7 @@ def chat():
     clients) that cannot run in a hermetic unit process. The fakes below
     short-circuit that chain so only the pure ``resolve_voice_message_language``
     logic is exercised. The fake must precede the import — see
-    ``backend/docs/test_isolation.md`` and ``testing/import_isolation``.
+    ``openwiki/codebase/testing/contracts.md`` and ``testing/import_isolation``.
     """
     redis_db = MagicMock()
     redis_db.try_acquire_user_platform_write_lock = MagicMock()

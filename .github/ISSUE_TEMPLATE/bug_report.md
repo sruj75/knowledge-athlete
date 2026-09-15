@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-**Product impact** (see [PRODUCT.md](https://github.com/sruj75/knowledge-athlete/blob/main/PRODUCT.md))
+**Product impact** (see [openwiki/INSTRUCTIONS.md#product-constraints](https://github.com/sruj75/knowledge-athlete/blob/main/openwiki/INSTRUCTIONS.md#product-constraints))
 
 - Primary loop layer (pick one): Capture / Understand / Memory / Intelligence / Retrieval-Action / UX-Polish / Docs-Tooling
 - [ ] Involves data loss, failed capture, or broken sync/trust (call this out clearly below)

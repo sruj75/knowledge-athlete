@@ -4,7 +4,7 @@ WHY this exists: the backend unit suite must run in a single pytest process, and
 old pattern (mutating ``sys.modules`` at module scope) leaks fakes across tests. This
 module provides the *only* sanctioned mechanisms for the rare residual cases where
 faking a dependency is genuinely required after Tier-1 (import purity) has done its
-job. See ``backend/docs/test_isolation.md`` and
+job. See ``openwiki/codebase/testing/contracts.md`` and
 ``.coordination/test-isolation/DECISIONS.md`` D2.
 
 TWO mechanisms, in priority order:

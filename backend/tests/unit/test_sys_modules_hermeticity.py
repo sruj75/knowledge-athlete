@@ -9,7 +9,7 @@ afterward is the REAL module (has a ``__file__`` under ``backend/`` or is a pack
 with a real ``__path__``), never a bare ``types.ModuleType``/``AutoMockModule`` stub.
 
 The subset starts empty and grows monotonically as files are migrated; while empty
-this test is skipped. See ``backend/docs/test_isolation.md`` and
+this test is skipped. See ``openwiki/codebase/testing/contracts.md`` and
 ``.coordination/test-isolation/PLAN.md`` P5.
 """
 

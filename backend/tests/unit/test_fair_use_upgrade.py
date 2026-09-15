@@ -17,7 +17,7 @@ from models.users import PlanType, SubscriptionStatus, Subscription
 
 # Module-level fakes for the db/redis singletons utils.fair_use binds at import.
 # Wired into utils.fair_use per-test by the autouse fixture below (sanctioned
-# monkeypatch.setattr seam — see backend/docs/test_isolation.md).
+# monkeypatch.setattr seam — see openwiki/codebase/testing/contracts.md).
 _fair_use_db = MagicMock()
 _mock_redis = MagicMock()
 

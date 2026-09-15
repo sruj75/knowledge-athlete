@@ -169,7 +169,7 @@ def test_windows_bash_resolution_uses_the_active_git_installation(tmp_path: Path
 
 
 def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None:
-    desktop_sha = _commit(git_repo, 'desktop/macos/README.md')
+    desktop_sha = _commit(git_repo, 'openwiki/codebase/architecture/overview.md')
 
     outputs, summary = _run_scope(git_repo, desktop_sha)
 

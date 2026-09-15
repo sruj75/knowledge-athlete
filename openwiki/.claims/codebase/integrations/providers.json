@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:6bdb88c213b3c2c9e8a97948c2e85d53936a28b53e6616dc11a1486157277ef6",
+  "claims": [
+    {
+      "id": "claim_13783c2d5b6c412c840eb0045df11b2b",
+      "statement": "Managed workloads explicitly record provider, model, caller, result owner and failure policy rather than an environment-selected global profile.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/llm/model_config.py",
+          "version": "repo-file-v1:sha256:1fdef77734c512217d2df4845a270a50048502a1a6898c3b6d7da915935b6b68"
+        }
+      ]
+    },
+    {
+      "id": "claim_51caa4e0859c45b681271786582257b4",
+      "statement": "The Gemini provider factory uses server-held credentials, caches clients by workload-relevant options, attaches usage/error callbacks and rejects unknown providers.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/llm/providers.py",
+          "version": "repo-file-v1:sha256:8664a66493fd3536a698aa16d79cb0690bb291241bc7c72fcf21f9c65cbc8b6d"
+        }
+      ]
+    },
+    {
+      "id": "claim_562072f6a81f42c5a6c1a79e7605f686",
+      "statement": "Desktop proxy allowlists Gemini text and embedding models; realtime, STT and TTS have separate pinned provider contracts.",
+      "evidence": [
+        {
+          "resource": "repo://backend/config/stt_provider_policy.py#L12-L22",
+          "version": "repo-lines-v1:sha256:a9955028baf3446bd9c1ba060327118dd0d65d9bb3eeb2f02f07662daeb11d3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyZGQ2ZjBlZjZhYTk0ZTNhYzc5ZmZmNzc2YjQ2YjhjYjEwYzRiMzU3MzAyOTM3NzdlOWViNjYyZjY5MDk1MjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlZjQ1NTZmZTM0MzE1Y2FiYmYzNTJhZjA1YmJiMTI2NTE1Y2RiNjNiZThiMTgwMzE2MjAyYjBjZTQ0ZjBlMTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJjNjdlYTgxNzkwNTA0Zjg4YzFjNDY4ZjVkYTlhZDNlYTA4NmY5ZTlhOTJjYjQ3YWIyMjIzMzQ1NDY3YmRlYWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4ZDljNzI2ZGU4ZjQwYzI0YjBkZGI1YWYxNzFhYzRlMDMxZGNjODM2NDcwZjAxZWZmY2RhMzJhNjViNDg4NWUifQ"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_proxy.py#L20-L45",
+          "version": "repo-lines-v1:sha256:883fa707ac6c44d29339747f23dbd2c942dcb0bde22c452d4c5ca3aeaaf9f1e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiNGY4Y2FhODE3M2Q4MDdjZWI0N2NiMmM3Nzg3NzFmZGI0ZGM3N2YxY2M1ZjdkMDJjM2E0YjRkZGNjMmEyZjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5YjNhODc1NzIyYzJiOWVjN2IwYmFmYzFkZDE5ZjY5Yzg3MmE2ZGU2ZmY4MmY4ZjI3NjU0OTE1NzJlYTQxMmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExYWYyMjI2MTU1MTc3OTNmYjlkMDczMTlmMDllODEwYWE2NDllZjMyYWIyZmY4MGQ5YjFlNmJlZmEzOTE3YmYifQ"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L20-L30",
+          "version": "repo-lines-v1:sha256:4b197d38535a4a9422b7f07fb0eaa8488db2e3531414e44a512bfcd680394512:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3MGJlYmFiMjUwN2ZmNzllOTVhMGRkNGI0YjZlNjM0NGI2MTc4YTAxZjkyMDMyNzZiNWVmNjQwYjdhZTBmNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmMDBhZjhkZTMwMDhkMTQ0M2I4ZWRiZmIxZmRlMzJiMmJkMmZjNzA4NjdlYzYyNDYwZDY2M2UyMDYwNDU4NzcifQ"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_tts_updates.py#L18-L30",
+          "version": "repo-lines-v1:sha256:bad22f09ac5108be6b01ce827d59ed30e7314afd5031220d1b9414a337e42b2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyNjA0MjYxYWM4MGM5ZDIzYjk2ZmNmMjZjOTVmNDNmMzMxZWY5NTU2NjJlNWYyNjY1ZmVhYmVjYjM4YzVmNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5NTRmZWVhMTRhYzczYTAzYTMyMDQ4MTI5ZDUwMGZjOTBjZmM2ODJlZjI2MmQ5MTU2YTI1NzQ2NTE4NDBjNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmYjZhOTI5MmI0ZWZiZjgxZDcwNzNkMmVjMDMyNDU2YzFiNDZiODNiNTgwMmZmNTY1OWNhZjI2OGQzYzk0OGUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}
