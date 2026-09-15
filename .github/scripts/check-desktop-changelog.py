@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Require desktop user-facing PRs to add an unreleased changelog fragment."""
+"""Require desktop user-facing changes to add an unreleased changelog fragment."""
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
+import re
 import subprocess
 import sys
+from pathlib import PurePosixPath
 
 UNRELEASED_CHANGELOG_PREFIX = "desktop/macos/changelog/unreleased/"
 CHANGELOG_PREFIX = "desktop/macos/changelog/"
@@ -67,6 +70,8 @@ EXEMPT_DESKTOP_PATHS = {
     "desktop/macos/scripts/desktop_flow_contract.py",
     # Internal continuity qualification harness; it never ships in the app.
     "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
+    # PR #115: this repository layout checker never ships in the app.
+    "desktop/macos/scripts/check-sources-root-layout.py",
 }
 # Test and release-infra changes are likewise never user-facing app notes; the
 # `no-changelog-needed` PR label only satisfies the PR run, so post-merge push
@@ -111,6 +116,59 @@ def is_desktop_change_requiring_changelog(path: str) -> bool:
     if any(path.startswith(prefix) for prefix in EXEMPT_DESKTOP_PATH_PREFIXES):
         return False
     return True
+
+
+def is_retired_documentation_exclusion_cleanup(path: str, base_ref: str, head_ref: str) -> bool:
+    """Recognize only deleted Markdown entries in plain SwiftPM exclude arrays.
+
+    PR #115 retired a guide and its exclusion together. Package.swift remains
+    gated for every other edit, including dependency, resource and source-list
+    changes. Unrecognized Swift syntax falls back to requiring a changelog.
+    """
+    if path != "desktop/macos/Desktop/Package.swift":
+        return False
+    ancestor = run_git(["merge-base", base_ref, head_ref])
+    if subprocess.run(
+        ["git", "cat-file", "-e", f"{ancestor}:{path}"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ).returncode:
+        return False
+    before = run_git(["show", f"{ancestor}:{path}"])
+    after = run_git(["show", f"{head_ref}:{path}"])
+    # Do not mistake examples in block comments or multiline strings for code.
+    code_lines = "\n".join(line for line in before.splitlines() if not line.lstrip().startswith("//"))
+    if "/*" in code_lines or '"""' in code_lines:
+        return False
+    package_prefix = str(PurePosixPath(path).parent) + "/"
+    deleted_docs = {
+        item for item in run_git([
+            "diff", "--name-only", "--no-renames", "--diff-filter=D", f"{ancestor}..{head_ref}",
+        ]).splitlines()
+        if item.startswith(package_prefix) and item.endswith(".md")
+    }
+    allowed_lines: set[int] = set()
+    arrays = re.finditer(
+        r'^[ \t]*exclude:[ \t]*\[\n(?P<entries>(?:[ \t]*"[^"\\\n]*",[ \t]*\n)+)[ \t]*\]',
+        before, re.MULTILINE,
+    )
+    for array in arrays:
+        start_line = before.count("\n", 0, array.start("entries"))
+        for offset, line in enumerate(array["entries"].splitlines()):
+            entry = re.fullmatch(r'[ \t]*"([^"\\]+\.md)",[ \t]*', line)
+            if not entry:
+                continue
+            relative = PurePosixPath(entry[1])
+            if relative.is_absolute() or ".." in relative.parts:
+                continue
+            if any(item.endswith("/" + entry[1]) for item in deleted_docs):
+                allowed_lines.add(start_line + offset)
+    changes = difflib.SequenceMatcher(
+        a=before.splitlines(keepends=True), b=after.splitlines(keepends=True), autojunk=False,
+    ).get_opcodes()
+    return any(tag == "delete" for tag, *_ in changes) and all(
+        tag == "equal" or (tag == "delete" and set(range(start, end)) <= allowed_lines)
+        for tag, start, end, _, _ in changes
+    )
 
 
 def validate_unreleased_fragment(head_ref: str, path: str) -> None:
@@ -164,7 +222,11 @@ def main() -> int:
         return 0
 
     files = changed_files(args.base, args.head)
-    requiring_changelog = [path for path in files if is_desktop_change_requiring_changelog(path)]
+    requiring_changelog = [
+        path for path in files
+        if is_desktop_change_requiring_changelog(path)
+        and not is_retired_documentation_exclusion_cleanup(path, args.base, args.head)
+    ]
 
     if not requiring_changelog:
         print("No desktop changes require a changelog entry.")

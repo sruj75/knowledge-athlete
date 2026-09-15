@@ -71,6 +71,91 @@ class EncodingTests(unittest.TestCase):
 
 
 class ChangelogRequirementTests(unittest.TestCase):
+    def test_documentation_migration_push_preserves_product_and_package_gates(self) -> None:
+        # PR #115 passed with a PR label, then both main-push gates rejected
+        # removal of a deleted Markdown exclusion and a checker guide update.
+        script = Path(__file__).with_name("check-desktop-changelog.py").resolve()
+        env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        manifest = '''// swift-tools-version: 6.0
+import PackageDescription
+// Resource examples include Resources/Fonts/*.ttf.
+let package = Package(
+  name: "Example",
+  dependencies: [.package(url: "https://example.invalid/library", from: "1.0.0")],
+  targets: [.target(
+    name: "Example",
+    path: "Sources",
+    exclude: [
+      "Retained.swift",
+      "Docs/guide.md",
+    ]
+  )]
+)
+'''
+        for case in (
+            "retired-documentation", "retained-documentation", "dependency-change",
+            "swift-exclusion", "product-source", "resource-change", "multiline-string",
+            "block-comment", "new-package",
+        ):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+
+                def git(*args: str) -> str:
+                    return subprocess.check_output(
+                        ["git", "-c", "user.name=CI Test", "-c", "user.email=ci@example.invalid",
+                         "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+                        cwd=root, env=env, text=True, stderr=subprocess.PIPE,
+                    ).strip()
+
+                package = root / "desktop/macos/Desktop/Package.swift"
+                doc = package.parent / "Sources/Docs/guide.md"
+                helper = root / "desktop/macos/scripts/check-sources-root-layout.py"
+                doc.parent.mkdir(parents=True)
+                helper.parent.mkdir(parents=True)
+                before = manifest
+                if case == "resource-change":
+                    before = before.replace('      "Docs/guide.md",\n', '')
+                    before += '\nlet resource = "Docs/guide.md"\n'
+                    after = before.replace('let resource = "Docs/guide.md"', 'let resource = "Other.md"')
+                elif case == "multiline-string":
+                    before = 'let example = """\n' + manifest + '"""\n'
+                    after = before.replace('      "Docs/guide.md",\n', '')
+                elif case == "block-comment":
+                    before = '/*\n' + manifest + '*/\n'
+                    after = before.replace('      "Docs/guide.md",\n', '')
+                else:
+                    after = before.replace('      "Docs/guide.md",\n', '')
+                if case == "dependency-change":
+                    after = after.replace('from: "1.0.0"', 'from: "2.0.0"')
+                if case == "swift-exclusion":
+                    after = after.replace('      "Retained.swift",\n', '')
+                if case != "new-package":
+                    package.write_text(before, encoding="utf-8")
+                doc.write_text("# Retired guide\n", encoding="utf-8")
+                helper.write_text("# Read the old guide\n", encoding="utf-8")
+                git("init", "--quiet")
+                git("add", ".")
+                git("commit", "--quiet", "-m", "baseline")
+                base = git("rev-parse", "HEAD")
+                package.write_text(after, encoding="utf-8")
+                helper.write_text("# Read OpenWiki\n", encoding="utf-8")
+                if case != "retained-documentation":
+                    doc.unlink()
+                if case == "product-source":
+                    (package.parent / "Sources/App.swift").write_text("print(42)\n", encoding="utf-8")
+                git("add", "-A")
+                git("commit", "--quiet", "-m", "documentation migration")
+                result = subprocess.run(
+                    [sys.executable, str(script), "--base", base, "--head", "HEAD"],
+                    cwd=root, env=env, text=True, capture_output=True,
+                )
+                self.assertEqual(result.returncode, 0 if case == "retired-documentation" else 1, result.stderr)
+                self.assertNotIn("check-sources-root-layout.py", result.stderr)
+                if case == "product-source":
+                    self.assertIn("App.swift", result.stderr)
+                elif case != "retired-documentation":
+                    self.assertIn("Package.swift", result.stderr)
+
     def test_qualification_helper_push_without_pr_label_preserves_product_gate(self) -> None:
         # PR #110 passed with the internal-only label, then its main push failed.
         # Exercise the actual CLI over Git commits: no label or --skip is present.
@@ -142,6 +227,7 @@ class ChangelogRequirementTests(unittest.TestCase):
             # alter the desktop application users receive.
             "desktop/macos/scripts/desktop-flow-lint.py",
             "desktop/macos/scripts/desktop_flow_contract.py",
+            "desktop/macos/scripts/check-sources-root-layout.py",
             # The continuity gauntlet and its flow definitions are internal
             # qualification infrastructure; PR labels cannot protect main push CI.
             "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
@@ -168,6 +254,7 @@ class ChangelogRequirementTests(unittest.TestCase):
         # Note the hand-written Sources file is NOT under Sources/Generated/.
         for path in (
             "desktop/macos/Desktop/Sources/AppDelegate.swift",
+            "desktop/macos/Desktop/Package.swift",
             "desktop/macos/scripts/some-user-facing-script.sh",
             "desktop/macos/scripts/prepare-release-libwebp.sh",
             "desktop/macos/agent/src/runtime/control-tools.ts",
