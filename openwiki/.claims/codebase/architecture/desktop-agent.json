@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:395e62c0fafa58e7cd3e7f83a31aa8ca7da457d050a8d8fa73ea68fa79948058",
+  "claims": [
+    {
+      "id": "claim_02a03e80983b44df890f24442d8c3322",
+      "statement": "The managed Pi adapter launches an RPC subprocess with built-in tools and arbitrary extensions disabled and scrubs provider keys before forwarding Firebase identity.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/src/adapters/pi-mono.ts#L260-L335",
+          "version": "repo-lines-v1:sha256:402af0a8d37c03830021c2c5526ec4a476c47cedaad1f9afb567b1d24c964b97:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyOTc5ZGUwNmQ1NDM3NGY3NzRjMzgzZWI4NDhjOWI5YzRjYTI2N2VmZDNjMzMxODk1ZWRmZmVlYTFmNjM2OTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYxMmEwNjU5YTc0ODFlZDkwMGZiYzllZjZkMTg5ZjY4NDIxMjViZTY0ZjY4MjczODRkOGRiMWM4MmM0Y2M2MWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_88d6668083304852ba72d27c52a8af99",
+      "statement": "Runtime owner admission requires an established owner; replacement requires revoke and a fresh process, and revocation commits inert authority before callbacks.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/runtime-owner-authority.ts",
+          "version": "repo-file-v1:sha256:dd811081b8a42899bc9f124bccee300ccee0c9a3aa224531d1f5031a4fd0654b"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/runtime-owner-authority.test.ts",
+          "version": "repo-file-v1:sha256:654920e9c2973c783d783a9329fc959bdd54812acd8d767e4722ff8aa60b3bfc"
+        }
+      ]
+    },
+    {
+      "id": "claim_9999713319b949a3b72f36d32bf23c85",
+      "statement": "The local runtime persists owner-scoped sessions and conversation turns in its SQLite store and journal.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/conversation-journal.ts",
+          "version": "repo-file-v1:sha256:3cb70cc4969948ad54a6cd9f7ce7e10124048ec66c430c0ab801d663df59c5ec"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/sqlite-store.ts#L98-L135",
+          "version": "repo-lines-v1:sha256:e113064105e8ddc8ccfac2d648db0b29cfd746abe1f995d8eecc6982bd83ce72:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyNmM0MGIyYzI3MDUxYTk4NzZjN2NmMWRjMjkxMzM2MWVjZDJjZDgwODVkMDdkYjU3NDU4NzRkNjhlYmNlYTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwMjgyN2U4ZDM4NGM2Yzc4YWQxODdjNWRiNTk4N2MwYWQxNGJmODI4ZThmMmNmNzRiMTE3YjkzY2U0NjlmYzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzYjFhM2RmZjQwOTA4YWYzZWRiNDA1MWFkY2E3NTgyNTI5MDkzMmRlNTMxMjg0OWM0MTExZjMwOWNmNTNmNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljMzZkNGRhNmZkZTAyYTcwYjgyMmVmZGM2Yzg2MDVkYWU2Y2M1MmYzODE3YzNiMTgxOGE3NTc3YzY3NDNiOTkifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/conversation-journal.test.ts",
+          "version": "repo-file-v1:sha256:18d72ad3dff202d6da0feb3c38fdd17f8701b1f4f3cfcefc8be6b8d950066350"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

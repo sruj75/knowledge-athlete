@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:221cce1a8a84f9879d4cee099760c3201e8f2bacec258af8f464ed68be0ebceb",
+  "claims": [
+    {
+      "id": "claim_a27d784147154d4482309535c1bb46f4",
+      "statement": "The local Memory runner recovers durable work and processes bounded normalization, extraction, embedding and consolidation under a captured pool generation.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift#L82-L131",
+          "version": "repo-lines-v1:sha256:67fa35c016964a0dfdbc369c43b51cb34d401598df23c676c30b9e7a61d47be4:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMGQxYjQ2M2NmYTA3OGEwMTcyYWJjMjFkNmIxMGMzZjQ3YTBlODkxZTU3YTQxNWE1NDA2ODEwZWY1ZDVmNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkZTRiOTQ2NzAzZDg1OWM4ZGI2NTdkOGJmNmYzNGYwNmMzZGE3ZDc0Y2JlNDc1YjhhM2FhNjRhNjBlODM2N2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmOGFjNmU1MWQ3OWE4MTVmNDhjOGM4YTU0MDk4YTI3MDZjYzk1ODk4YTY0OWYxNjNiOGZhNDZhOGRlYmVmM2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJjYzVmYmE1MTQzYzEwYjEwNGI3NWFmY2M3NDM2ZjEzZmY1NGRhOWViYzEwYjVhZWRmNzlhZTdmZWI0ZWViYzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7eb084550592474f9f824c1065455d58",
+      "statement": "Normalization validates request and revision before committing through the local store with owner generation and receipt identity.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift#L133-L174",
+          "version": "repo-lines-v1:sha256:7e6b5b1433e8fe67a79090aae1ccb57f1b68d79e7028fe1d7def952d62b58ead:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlNWZmNjljNmQyNDFkNmViZjc1YTQxZmUwYjJlNjk2MmM3MTBkYWZhZDFlNmZiMjgwNjhiOTIxMzlmYmVmZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyODczOTdmZmUzNzdiZWQ5YzRlOTRkOGFjMjkyMGYzMjVkZjgyMzkwNTI4N2U4NGNiOTMwNDhlNmIxY2I4MGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmYTNhNjA3ZjU1ZjA3YzE1MmQzYzZiZjRhOTU5Y2ZjMmQyYmMzNWE5YjIwZWMyMjU2ZDVhZGYzYWNiYWVhM2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyNjBkOTcwNTEwOGIwNGQ3YTdiYTU0ZTE1YWVmYWU1ZTM4YTUzNTA2NTg5MmYxN2IzYWEzOWIxMTk3ODQ2Y2MifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/LocalMemoryLifecycleRunnerTests.swift",
+          "version": "repo-file-v1:sha256:b4539950ebce761225620d47a6cf9d2ae64b05c42c3a85ebf1a3c3eb234018cf"
+        }
+      ]
+    },
+    {
+      "id": "claim_fdafde63dd8c46b8beebc31b1c6afd22",
+      "statement": "Backend Memory routes return validated authenticated proposals rather than owning the local archive.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/memory_compute.py",
+          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_memory_compute.py",
+          "version": "repo-file-v1:sha256:758614ce7c30b7019cdee3431c8bb6e619a9fe285969e52d141732010906a7f4"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d626fa9c99451263e8706edc38e55a0c97d82abd979a021de8f5c29a2625354d",
+  "claims": [
+    {
+      "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
+      "statement": "The Mac admits a local conversation before choosing local Parakeet or cloud transcription and quiesces capture for owner transitions.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L150-L226",
+          "version": "repo-lines-v1:sha256:ce3fe97dac178773b770272f98cd1e8f5ed60d6a4a89d7a46da9edad102bbc5d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNGRhNTM3MTk1OTc3ZDA5ZGQ4YzBlMDBjYzIyY2VkMTJlZDIzMDUzYjM5Njk0Yjg5NWY0ZjEzNDA5NDBlMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE4NDJiMmRlOTUzODc4MTFiZjk4ZDFhOGRkNDliNzcyZGNlNjE2ODMwYjJmYTMzZTEyYjFiODhmZGVkZWU4MTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmYTA3NWE3MzMxOTdkNmIxZjBkZDhjYjA5ODU1M2E0NzhiMDE4MjU5ZjNlNWVlYTdiNDk0NWQ2NzUwYTllNTEifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L67-L115",
+          "version": "repo-lines-v1:sha256:8bd9f25b3a744c2808e4b3fa49f59399dfd90efdcb175e197588a87ee4e33620:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiOTNkYjA3YWU0NDQyZjlkYzk3ODkxZmUxMWQ4OWQyNGE2NGU1MmU5ODA1MDBlZmMwMDFlNGE4MDk1ZmM3ZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI0MzgxNDkwM2NhZGMwMDQzNTE0MjYyNzhhYTUyZDc4M2ViZDY2Y2JkZjBjNzA1NDRiY2NiYmU5ZTk4N2E3YmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_45c6a34582d142d1ac3c7728f18d0884",
+      "statement": "The listen route rejects retired query ownership fields and emits transient canonical segments plus keyed translation without product persistence.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/listen/runtime.py#L57-L111",
+          "version": "repo-lines-v1:sha256:9b87fe6b57970ce2d5e28b407d0a4b0fa592acb44ddd5bd93386b7b0b516cf54:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxZmZmN2Y3ZGQzNjA4ZWZiNTE1M2UyMmQ1MzgwNjY4NDAzMTM0NTE3YmMxODdhZjFjZTQxNjg2YWJiNTY2NDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjMTBmMDNiYWQxN2FiYjlkMTIxMDcwOWU5MGY4ODhkZWMxYmQ4YzBmM2NiMzkwYmQyNzEzN2ZjMzUxMDRiMGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YzFjNDYyZTJhMzlkNzQ3NTlmNWUxYjEyNmY3NjgzYTJiNzMwMTE4ZTE4ZjUxMjJiMDhjZWRlZWI2NTBlMjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYxODlhYWQ0MjViNGFlOTUzYWRmYjYzYmM2YWRkMWIwNzQxNTMxNzEwYTc2MjgxNjJiNWY2NDY0N2NhMjY0YTMifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_listen_transient_contract.py#L120-L247",
+          "version": "repo-lines-v1:sha256:4b8c5dc681c93f3cff00e09973c61a25e48159e34a90bf37e7b6c50139965cb2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3NDZmNDZlZjcxMjkzMDdhYzRhYmMyZjJiMjQzNGM4NTY2YTQ5MzkyMzEyMTIzM2MyMmQ1MWNjNDBkNGE2YWJjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI1NjgwYjBmMjkyOGFjMGRiZjNkZDRhMzFkNWMxNmU5MTk4YTI5YTYwODZkMzljZmI1N2MyMGY2MGJlMzNhNjVkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIzZWY2NjQxYzY1YTljZmQ0ZGFhYmRiZmZiNGQzMTk5ZmI1MTQ4ZDZiMjE2ZTNjNWFiNDc3NTBhODcwYWI5MDNiIn0"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_listen_transient_contract.py#L376-L425",
+          "version": "repo-lines-v1:sha256:74cd4cc4f2d9be3d7ee869b4331478bea1c04de341881798539043c86e7c86a7:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmMTBkZTJmMzQxMWEwYzYwNTI3YTI2ZThlZmM0Njk3YWM3OTBmZWUwYjI1OTYxMTI0NTQ1NTM2ZjU3Mzc5ZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExNGE3ZmM5YjRlNTk4N2IyZjExZGFiODQ5NGNiMmMwMDMyZmIxOGFmZTViYTU3ZTU2NTU4MzBhMmE0NWUxNDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2MWMzOTk1NzBlMjgyNTMwNDAwNzU1NjQxOGM5NjQ3ODNiNGE3YmYzYWY3ZDIwOTJhMTFlZDU3OWFhN2Y4ZjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_169defabc64f4f5eb5bbb793d81f6ae4",
+      "statement": "Local conversation finalization is a Mac service independent of transient listen runtime identity.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ConversationFinalizationService.swift",
+          "version": "repo-file-v1:sha256:3ee45ae0ee8e9b161b52cb832df9434f477f4e5f868699b63faa48d7f01c6f4a"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift",
+          "version": "repo-file-v1:sha256:543391007ebdb01c94aea31914b45608833d9e0d7dfbd3c10977476c20ba1b89"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

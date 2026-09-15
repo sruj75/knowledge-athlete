@@ -20,9 +20,9 @@ EXEMPT_DESKTOP_PATHS = {
     "desktop/macos/scripts/bundle-size-harness.sh",
     "desktop/macos/scripts/desktop-core-harness.sh",
     "desktop/macos/CHANGELOG.json",
-    "desktop/macos/AGENTS.md",
-    "desktop/macos/docs/release.md",
-    "desktop/macos/docs/qualification-environment.md",
+    "openwiki/INSTRUCTIONS.md",
+    "openwiki/codebase/operations/releases.md",
+    "openwiki/codebase/operations/qualification.md",
     "desktop/macos/scripts/qualify-desktop-beta.sh",
     # Owner-local evidence collection is release infrastructure, not app code.
     "desktop/macos/scripts/collect-owner-manual-beta-qualification.sh",
@@ -55,9 +55,9 @@ EXEMPT_DESKTOP_PATHS = {
     "desktop/macos/scripts/release-keyvalue.py",
     # Internal qualification environment documentation for CI runners; not a
     # user-facing app note.
-    "desktop/macos/docs/qualification-environment.md",
+    "openwiki/codebase/operations/qualification.md",
     # Manual cleanup inventory for deprecated per-version host qual artifacts.
-    "desktop/macos/docs/qualification-cleanup.md",
+    "openwiki/codebase/operations/qualification.md",
     # Portable tag-arg qualification babysitter: host-local release
     # infrastructure, never ships in the desktop app.
     "desktop/macos/scripts/qualify-desktop-beta-service.py",

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:08e4147144d06b1bba78aecf3959f47d4c8562f52a326ea6823b48aa40ad01fd",
+  "claims": [
+    {
+      "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
+      "statement": "Swift Chat presents a timeline whose accepted turns and catalog metadata belong to the Node journal authority.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift#L914-L946",
+          "version": "repo-lines-v1:sha256:2fa1e85cd375e328b00bbaaaf88fa9966df890597cb2e14724eb5d591d08f114:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhMDNkMmY0ZDAxY2YxYWFiNmYwYzJiNDc5YzNkYTNhNTYwNWIyYzUyZjMzNDJlZmUzODI1NjFjOWVmYWYwYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZhNjFiNmRhNGFhMDViMjhjMmY0YjlhNjJkMjM1MmIzMzg1MTUxOGE3OWU5NjUyNWZlYjFlYTIzNGU4MDVjYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjZjQ0OGVlOGE2YjUzYzRmNGY5ZjRkZjNjM2EzMWFmNzljMTc4MmU1MmRlOWQyZmY0OWNlNmI2MzI1MzBmN2QifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/src/runtime/conversation-journal.ts",
+          "version": "repo-file-v1:sha256:3cb70cc4969948ad54a6cd9f7ce7e10124048ec66c430c0ab801d663df59c5ec"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/conversation-journal.test.ts",
+          "version": "repo-file-v1:sha256:18d72ad3dff202d6da0feb3c38fdd17f8701b1f4f3cfcefc8be6b8d950066350"
+        }
+      ]
+    },
+    {
+      "id": "claim_ded9ac27129f4e12ba84ac13bb4a98a6",
+      "statement": "PTT batch recovery checks authorization around transcription and retries an empty specific-language result once using multi with fallback reporting.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/PTTBatchTranscriptionPolicy.swift",
+          "version": "repo-file-v1:sha256:a8869f56a9253b263a150f72e2e38ce923dbd595563e8d0ad34e5035dd92239c"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/PTTBatchLanguagePolicyTests.swift",
+          "version": "repo-file-v1:sha256:da207aebc6acd715a1ea9d85e6fb6b26f601555985a2307e4b48471ff42cfb09"
+        }
+      ]
+    },
+    {
+      "id": "claim_1419a5d9ba194bd4b7f887c837102b53",
+      "statement": "Realtime reconnect buffers are bound to turn identity and preserved through release only for an admitted context.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BPushToTalk.swift",
+          "version": "repo-file-v1:sha256:299a22b77be9571fb08a7389fd23c0baca0897fb43860d0f28cece604556a3d2"
+        }
+      ]
+    },
+    {
+      "id": "claim_93d4b651df0f42d0a3b2d58d0d922dbb",
+      "statement": "Task and goal writes are rejected by the raw SQL path and routed through typed local tools.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift#L820-L838",
+          "version": "repo-lines-v1:sha256:e52e4feb90b339f77a9d2ea2fc907ad0f7c1e89a0a1c55bd7900434e1a7e4726:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTNhYTFhN2RlOTFjNjMyN2EyNDgxMzU0M2Q4YTZkYzJhNGE1MTU3Zjc4ZmEyOTliNjBiMmQ4MmQ1ODgxZTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwNmIyMTI0YzgyODI5OTA0NzNjNTJkZjU3OWVkN2M3YTM0OTg3MmEwYmU0YzNmZWZkNTk3YjZkY2E3NjRiM2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiMzc4ODU2MTc2YTQ0NzhkNjYxNjVjNjY2ZjMyYjUzOGZiNzg4YzdmYWZiYzU1YzJjYTcwNGZkOTgwNDYxZTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzMjIwYjlkZDVlZTQ2OTk1YjAzYTAzMmU0YjMzMDY0MTljMjRlZmZhMDkyNTkxYmE2MDU5MDNhOTM0ZTM4ZWQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

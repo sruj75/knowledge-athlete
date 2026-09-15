@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f30ce3c291622f84b72cebd8f6252c85fb2381b692f9e9b60e2e9ff2e36599af",
+  "claims": [
+    {
+      "id": "claim_7d09f9ba3efd4bf1965b959c0cdc7060",
+      "statement": "Local export revalidates owner authorization and holds a commit lease around deterministic atomic JSON output.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift#L267-L344",
+          "version": "repo-lines-v1:sha256:d16c842eb47971df89fbe553990260c54251af7d0368806e985d4a292cb54e04:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5YjQ4MTRhNGUzODUwZTllZDgzYjAwMjVlNmQ5ODI2OGU4MDQyZTkyNzg5YmI2ZWZhMGI2NGRiMDRkNzhhOTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhN2QwNzAzMTVjZDVjMjE5NGY1ZGMxOTlmYTMxZGIzYWI1ZTEzZTZkNzZiNThlMzRjZmFiN2VmNTY5ZWUyY2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmMWM4OTQ4NDM1NDQ3NTJkZjMxMjAyMjFkMDJjYmY5ZGI2M2MzMmVkNzRiNDI0YWJiOWQwODVmNmY1NGNkYTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhjYjY2NGMxZWIyNDQxYzk3ZDdhMmVhZjcxZDllODE4MTc4ODcyNjJiM2Q3NWFlOGNlMGVjY2ExYTJiYjBlZDIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/LocalUserDataExportTests.swift",
+          "version": "repo-file-v1:sha256:c80b9b0275256bf0524d0e3c3e2779988dd3d888806bbe911b34826fe418400c"
+        }
+      ]
+    },
+    {
+      "id": "claim_82d9e0c5e2674f1986b6c4950bb8d08f",
+      "statement": "Account deletion starts through authenticated user routing and executes billing, Firebase Auth and Firestore cleanup behind a durable worker running marker.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/users.py#L108-L125",
+          "version": "repo-lines-v1:sha256:b17808dc793ba81ad7685b8d01341353c05427f5cc4672e053e06775ba01d207:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmNTA2OGNjMjE4OTI2NTRkYzRhOTgwM2IyMjhmZjUwYmEwMGE2MjA5MTUyOTJiZTVjMzQyYWUzNTk5YzJhMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZTMwNDFmYmQwM2Q3MzcxOGZmNDM0YTFmMmM1ZjEzYTk1ODE4ZGM3ZDExNmMxMDllYWMzM2UwZDU3OTlhYjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwNTBhOTAxNThiMDNiNWM5MGJhZjdkOWE0OTE4NzhhNGY4YzRhNWY4YjNiYTIwYmNhMzdiYzg2MmI1MjNmOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMDA4OTA4ZjA4ZTc0ZWI3YmY5ZGFmOGYzZGVlMDRkYWU3NjI1MzcwZjcxYjllMDQxNzc1Yjc1ZWY3NmFkYWEifQ"
+        },
+        {
+          "resource": "repo://backend/services/users/account_deletion.py#L52-L112",
+          "version": "repo-lines-v1:sha256:6ffbfd9c3f4eeae1a4c7bb1c221ed0f470e253151a3ec0e397e0cda6dbef3473:eyJzZWxlY3RlZExpbmVDb3VudCI6NjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkOWMzYmIzNzViMzUzNTE0NzY0NTc2NDJjZTA0NDU1NTI4Mjc5Njk0NjE3NWE3MTNkZTc3MjJiYTZjNWQwOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNjODRlY2ZiNDBlZjU5OTgyNTE4NzVmMWE4OGU2NWFhNjA0YmFiNzkwNjA5YjdmN2FhYmYyMzE2OGNmOWYyNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkOWIxNGVkNDRiZGZiYTVjNTJmMDE4ZThkNjM3NjA0YjQwMmU0ODk3OGM1MTMwODljYjBkOTUwNzM2ZTViYWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgwN2MyM2YwMWJiOTJhMGI5MjkyNjJjOTljOTc5YTFmMjU4YjdjNThkNDQ5YzVhYWIzOGIzYThjZTRhNWJlYzQifQ"
+        },
+        {
+          "resource": "repo://backend/tests/services/users/test_account_deletion.py",
+          "version": "repo-file-v1:sha256:5faf23dd8f0662508448f513d76feada0cba39f2d591d85e4d93c6868da17b56"
+        }
+      ]
+    },
+    {
+      "id": "claim_52630dd4e46149f2baa6a8483f414919",
+      "statement": "Billing cancellation failure remains a deletion failure rather than being reported as success.",
+      "evidence": [
+        {
+          "resource": "repo://backend/services/users/account_deletion.py#L184-L208",
+          "version": "repo-lines-v1:sha256:6447752c47c988edc5e62b8a6a928370a49cd6c77172bfdac71d258f06f17bd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiZGY1ZWYzNWYwZTIxM2UxNmUxMmU4MjVlZTM5MzM1MWViNmI4NGZlYTdlZTY1MTQyNDU5MWZmNDkxZTUwZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzYjIyMzQzZTljNzU1OTIzM2RjNDZkY2VhNTg5OTY1OGY2Yzg2YTczMTRmYTQ2MjA5OGYyOTI4YWY2YWQzZjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmYzliY2ZjMDM0OWVkYjk1Zjg1MDUyZjdjN2QxMmFmOWYzYjUwMWM3NDdlMjhiNGIyNzllYzNkMTM0MjIxZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjYzAwZjE2YjI0NzY2YjU3M2M1OWVhZWM4OGE0NGE3NWUxYWFkZmM4MDM2MTZhMGVkMTM3MTNmZDBhMDhiNzcifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_delete_account_billing_cancel.py",
+          "version": "repo-file-v1:sha256:e2a25e8c66b41f3399240face6dc1e580ee7df9081ec4a2950a6bbafee49d281"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

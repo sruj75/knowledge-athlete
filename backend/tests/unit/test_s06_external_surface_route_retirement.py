@@ -1,13 +1,12 @@
 """S-06 contract: rejected external product surfaces have no HTTP entrance.
 
-The changed expectation comes from bootstrap-scaffold/deletion-map.md and the
+The changed expectation comes from openwiki/INSTRUCTIONS.md#accepted-requirements and the
 S-06 TDD plan. Exercise the real production FastAPI app so deleted products
 cannot survive as mounted compatibility handlers while retained product routes
 remain registered.
 """
 
 import main
-
 
 _RETIRED_ROUTES = (
     ("GET", "/v1/apps"),

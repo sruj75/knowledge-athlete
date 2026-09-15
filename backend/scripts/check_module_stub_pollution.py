@@ -5,7 +5,7 @@ WHY: a single pytest process across all backend unit files fails during collecti
 because ~100 test files mutate ``sys.modules`` at module scope to paper over
 import-time side effects in production code. That mutation is a *symptom*; the
 *disease* is production import-time side effects (see
-``backend/docs/test_isolation.md``). This checker enforces the test-side discipline
+``openwiki/codebase/testing/contracts.md``). This checker enforces the test-side discipline
 while the production-side cause is fixed incrementally.
 
 WHAT IT DETECTS (at module scope only — fixtures/functions are untouched):
@@ -245,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nModule-scope sys.modules mutation is banned in backend tests.", file=sys.stderr)
         print("Fix the production import-time side effect (Tier 1) or use", file=sys.stderr)
         print("monkeypatch.setattr / FastAPI dependency_overrides (Tier 2).", file=sys.stderr)
-        print("See backend/docs/test_isolation.md.\n", file=sys.stderr)
+        print("See openwiki/codebase/testing/contracts.md.\n", file=sys.stderr)
         for v in violations:
             print(f"  {v}", file=sys.stderr)
         return 1

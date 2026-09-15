@@ -3,7 +3,7 @@
 
 ``utils.fair_use`` imports cleanly; we toggle ``FAIR_USE_ENABLED`` per-test via
 ``patch.object`` and drive the pure detection functions with injected
-``speech_totals`` so no Redis is touched. See backend/docs/test_isolation.md.
+``speech_totals`` so no Redis is touched. See openwiki/codebase/testing/contracts.md.
 """
 
 from unittest.mock import patch

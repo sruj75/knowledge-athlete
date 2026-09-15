@@ -37,4 +37,4 @@ def test_typecheck_predicate_accepts_every_typed_boundary_input():
 
 def test_typecheck_predicate_skips_unrelated_changed_paths():
     assert not _needs_typecheck(['docs/doc/developer/Contribution.mdx'])
-    assert not _needs_typecheck(['backend/docs/test_isolation.md'])
+    assert not _needs_typecheck(['openwiki/codebase/testing/contracts.md'])

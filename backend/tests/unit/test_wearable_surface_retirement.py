@@ -1,7 +1,7 @@
 """S-02 contract: direct wearable HTTP surfaces are retired.
 
 The changed expectation is authorized by IR-012/IR-013/IR-014/IR-359/IR-823
-in bootstrap-scaffold/requirements-challenge.md and the S-02 deletion map.
+in openwiki/INSTRUCTIONS.md#accepted-requirements and the S-02 deletion map.
 Exercise the real production FastAPI app so deleted handlers cannot survive as
 mounted compatibility shells.
 """
@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 import main
 from utils.llm.model_config import get_all_configured_features
 from utils.llm.usage_tracker import Features
-
 
 _RETIRED_ROUTES = (
     ("POST", "/v1/sync-local-files"),

@@ -127,7 +127,7 @@ def read_text_at_revision(revision: str) -> Callable[[str], str | None]:
 def _is_releasable_desktop_path(path: str) -> bool:
     if path.startswith("desktop/macos/changelog/"):
         return False
-    if path in {"desktop/macos/CHANGELOG.json", "desktop/macos/AGENTS.md"}:
+    if path in {"desktop/macos/CHANGELOG.json", "openwiki/INSTRUCTIONS.md"}:
         return False
     return path.startswith("desktop/macos/") or path in {
         ".github/scripts/plan-desktop-release.py",

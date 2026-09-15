@@ -10,7 +10,7 @@ seen — ``Counter._metrics`` is a plain dict that only grows for the life of
 the process — so every distinct ``error=`` value an attacker sends creates a
 brand-new, permanent time series on ``auth_flow_events_total``. That is
 exactly the "Prometheus labels: static low-cardinality only ... never
-uid/session_id"-style violation backend/AGENTS.md calls out, just carried by
+uid/session_id"-style violation openwiki/INSTRUCTIONS.md calls out, just carried by
 a free-form provider error string instead of a uid.
 
 The fix bounds the echoed value to the closed RFC 6749 §4.1.2.1 OAuth error
@@ -29,7 +29,7 @@ from fastapi import HTTPException
 
 os.environ.setdefault("OPENAI_API_KEY", "sk-fake")
 
-# Sanctioned pattern (backend/docs/test_isolation.md): import the router module
+# Sanctioned pattern (openwiki/codebase/testing/contracts.md): import the router module
 # normally at module scope. No sys.modules mutation, no import-hook stubbing —
 # routers.auth is import-pure and its real deps (firebase_admin, jwt,
 # cryptography) are already installed.

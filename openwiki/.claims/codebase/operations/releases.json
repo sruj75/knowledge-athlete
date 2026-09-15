@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:7e2add06a790506e2f853195d4fa1a85325ee865d1a0295743767e4117f68cae",
+  "claims": [
+    {
+      "id": "claim_0dba16a239c049318e6212ef970fb9ce",
+      "statement": "Manual backend deployment separates deploy, repair, read-only foundation and cleanup-dry-run modes under an environment-scoped non-canceling lock.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/gcp_backend.yml#L1-L95",
+          "version": "repo-lines-v1:sha256:1fff99e5cdde08bdabf6ad2af954879acece94ab9da71c56227415b09673cbb6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkODliODVmYmIxOGIzYzFmNDhhNTM2OGMxZjMwMTY1ZDNjZDBmNDAyZGNkMGQ0NTY4NGM4YTUwYzI5NGNhNmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmNTU5NzljZTczMDIwMzNlNmIyZmQ3ZDg4ZjUzN2EzYjhlMDkxZWEzMDVjODExZmZhMTI3NGJmNTc2NGVhNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2NTNiNWNkN2Y4YTQ5NmM4Mjc4NWFmMDE5NTUzNDMwZmY4MDEzYmYyNDM0OGVkNTdkODE5NTQ1ODgwNWU5Y2EifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_87dd92d43e244bb3b247fa341da8ba74",
+      "statement": "Desktop update installation is admitted using local activity, separately from the persisted relaunch-window restoration policy.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/UpdateRelaunchWindowPolicy.swift",
+          "version": "repo-file-v1:sha256:0c8e5299388bf4313acb0078ca97529d6d7ed4842e6090ef4d816d12c8d6646b"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/UpdaterViewModel.swift#L554-L610",
+          "version": "repo-lines-v1:sha256:028faaa89d7173efcc804008a89840768b650ffec8f5b53d68ab8b8bae0b63fc:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1NmE2ZjdiOGU0NTY3NTdlNTMxNjczNDAwM2U2NDQyYWYxMjQwNzYwYjE0NWEzZTU3M2Y4ZWFjZmFjYTI0NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxMzc1NjI1Y2YzNjEwMDFiNDA5ZjQ0Yzg4NDg1M2NiMjA2YTM5Y2Y1NTA2NmI0MGJiN2Q2OTA1NzY0OTM2NjUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift",
+          "version": "repo-file-v1:sha256:820dda777ac10c21f1ed4505b5cb86a160edbb6df8beb41128143d3e00936e4e"
+        }
+      ]
+    },
+    {
+      "id": "claim_4eca70143c5b488dab63e76f8cdadcf3",
+      "statement": "Desktop candidate provenance requires exact source identities and guards newer first-parent release inputs.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/desktop-release-source-identity.py#L12-L132",
+          "version": "repo-lines-v1:sha256:731e21bd6c915805766c38c32cfed1cb7743fc779f8b150ffd9191211efc65b2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyNmViY2I3OWNkM2I5YTE3YjY1NzRjYjliOTY4YzViNDQwY2M2MWEyNzBhMTU4MzJhMjdlMWE0OTIxMTBkNzU0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlZWZmMDdiNjQ4NzBjZTUyNDUyNzgyYzc4ZWY5OTQyYWRmNzkxMGZmMjk2OTBkNjBkOGJmYzg5Y2UwZDZiZTdhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxMTQ4ZGMyZDkwMWJmNzIyNzc3MmRhMjQzZTNhOTA1MWMzMzQ5ZjJjNGE1MTM4NGI1ZDA3MDkxYTE1NDIyMWQ4In0"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

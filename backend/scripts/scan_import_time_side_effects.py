@@ -5,7 +5,7 @@ WHY: the root cause of the backend unit suite's inability to run in a single pyt
 process is production modules performing side effects at import time (constructing
 credentialled clients, downloading artifacts, reading env that can raise). Tests then
 mutate ``sys.modules`` to paper over it. This scanner enforces *import purity* at the
-source so the disease is not regenerated. See ``backend/docs/test_isolation.md`` and
+source so the disease is not regenerated. See ``openwiki/codebase/testing/contracts.md`` and
 ``.coordination/test-isolation/PLAN.md`` (Tier 1, conviction P2).
 
 WHAT IT DETECTS (at module scope only — inside functions/classes is allowed):
@@ -406,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
     if violations:
         print("\nImport-time side effects are banned in backend production code.", file=sys.stderr)
         print("Defer resource construction into a lazy getter or app startup.", file=sys.stderr)
-        print("See backend/docs/test_isolation.md (Tier 1) and PLAN.md P2.\n", file=sys.stderr)
+        print("See openwiki/codebase/testing/contracts.md (Tier 1) and PLAN.md P2.\n", file=sys.stderr)
         for v in violations:
             print(f"  {v}", file=sys.stderr)
         return 1

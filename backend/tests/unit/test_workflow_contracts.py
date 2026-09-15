@@ -59,7 +59,7 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
         assert "backend/charts/monitoring" not in contents, path
         assert "verify_pusher_dev_observability" not in contents, path
 
-    current_operator_docs = (BACKEND_DIR / "AGENTS.md",)
+    current_operator_docs = (REPO_DIR / "openwiki/INSTRUCTIONS.md",)
     deleted_operator_surfaces = (
         "charts/monitoring",
         "Grafana → Parakeet ASR Monitoring",
@@ -69,7 +69,9 @@ def test_standalone_monitoring_product_is_absent_from_the_deploy_graph():
         "deployed LLM Gateway rules",
     )
     for path in current_operator_docs:
-        contents = path.read_text(encoding="utf-8")
+        contents = (
+            path.read_text(encoding="utf-8").split("## Backend guidance\n", 1)[1].split("\n## Desktop guidance", 1)[0]
+        )
         for deleted_surface in deleted_operator_surfaces:
             assert deleted_surface not in contents, (path, deleted_surface)
 
@@ -144,7 +146,7 @@ def test_selector_docs_and_flat_utils_do_not_force_full_suite_via_globs(selector
     """Docs/AGENTS skip selection; metrics is not a FULL_RUN_GLOBS hit."""
     selector, all_tests = selector_and_all_tests
 
-    for path in ("backend/AGENTS.md",):
+    for path in ("openwiki/INSTRUCTIONS.md",):
         selected, reason = selector.tests_for_changed_paths([path], all_tests)
         assert selected == [], path
         assert reason == "no backend files changed", (path, reason)

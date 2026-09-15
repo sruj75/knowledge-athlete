@@ -1,7 +1,7 @@
 """S-07 contract: customer BYOK has no backend account entrance.
 
 The changed expectation is authorized by IR-058 and IR-062 in
-bootstrap-scaffold/requirements-challenge.md and the S-07 deletion map. The
+openwiki/INSTRUCTIONS.md#accepted-requirements and the S-07 deletion map. The
 test exercises the assembled production app so the retired enrollment API
 cannot survive as a compatibility handler while managed account access stays
 mounted.

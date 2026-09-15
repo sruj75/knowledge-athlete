@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-**Product fit** (see [PRODUCT.md](https://github.com/sruj75/knowledge-athlete/blob/main/PRODUCT.md))
+**Product fit** (see [openwiki/INSTRUCTIONS.md#product-constraints](https://github.com/sruj75/knowledge-athlete/blob/main/openwiki/INSTRUCTIONS.md#product-constraints))
 
 - [ ] Fits the memory-first loop: Capture → Understand → Remember → Retrieve → Act
 - Primary loop layer (pick one): Capture / Understand / Memory / Intelligence / Retrieval-Action / UX-Polish / Docs-Tooling

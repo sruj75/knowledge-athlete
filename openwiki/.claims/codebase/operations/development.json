@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:c50fd083c12ee54e6b678e2129ca3861acf28dfa3ac33031d3a0c28b5ae228f4",
+  "claims": [
+    {
+      "id": "claim_9780f5b0e5e84bb9affec1037163c790",
+      "statement": "The root setup target refreshes main, installs hooks and synchronizes backend dependencies while leaving app runtime setup opt-in.",
+      "evidence": [
+        {
+          "resource": "repo://Makefile#L21-L36",
+          "version": "repo-lines-v1:sha256:2863b48bd4dc1172b548a8d43099e7b7ac4e5c9556a2c889c7313d63e700ddf9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4Y2RjOTJmM2Y3OGI2ZGRhNGZmMGJmNWY3YjgyNDg5NTc1MDQ1Y2VjNTBkODJiYzllYTZkYzU4NDE4NjkyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c047ac9b9b1f43f48881d89ac4a14729",
+      "statement": "The root Makefile exposes local harness, preflight and canonical image-smoke entrypoints.",
+      "evidence": [
+        {
+          "resource": "repo://Makefile#L35-L55",
+          "version": "repo-lines-v1:sha256:f58b53a4f0addbff3f42e0be50351a7833bbd0fd90d450c0c4664208b6f28207:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhmYTIwODEzZDhiYTM2NzM3NTE3MmU2YmQwYmJmOWFjYzBjYzIzMTc2YjI4MWU5NjlkODg1OTlmMWI2NGZiN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiM2E2MmUwNWRlYjc4ZmU5MWM4Y2RhYWIwMDFlZDdhZGIwZDU0NDQ1ZWJiYTYwNzc3M2JmMDJmYzU1ODhmZmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIxZjM1MTdlZDBmNWI4NGNhMjliMmM0NTc3MWYwMWU1YjUxZDdkY2ZiMzYxZDE5ODMwZGZkYjVjMDdjNTdjNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5MmYyOGY3ZmYzZTI5NTBhNGIyZGIxNDc2MTY5MzFkNzBhYjgzYzNhYWNkZjBkNTJiMjMyYmJiMDg4NDExOGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8bb64f6e3f22440a8b6b373f9de807cc",
+      "statement": "The repository pins development Node 22.22.0.",
+      "evidence": [
+        {
+          "resource": "repo://.nvmrc",
+          "version": "repo-file-v1:sha256:4137094e7792cb49fe1afddc3f87208f0ef4adfef7d3acd1def0198786d393c2"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5b9f01405ef4beca1e20cae67e49238",
+      "statement": "The Node stdio test fixture executes dist/index.js and the tool-surface generator imports the compiled manifest, so the Node runtime must be built before these tests run.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/package.json#L1-L12",
+          "version": "repo-lines-v1:sha256:4ae6d5baf5c2c1e2f4c5452d762e7315cba57e68b3ebec554b4233398fc90d70:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhM2I0NjlkOWUwOTc1NzIyNDY2NjczNGM5ZWY3YjI1NGQ4ODUzNGY1ZDViYjcwOTg5NjA4MDVjNTUzZGMzMDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2ZWRhYTNiMGE5Zjk0YjFiYWY5MjgwZjk3ZGMzNmJmM2QxZTk3ZDNiNmQzNTM5OTkxMjAwZjJhOGEzNzQxMmIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/scripts/generate-tool-surfaces.mjs#L1-L15",
+          "version": "repo-lines-v1:sha256:a7aadf8998151c4e3b624ef3aef9501d86da90209c245044b6df59ce2833f594:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwZjA5ZmRhNTEzZjFlYjMwM2U5MTg1ZGJlMDhlZmE2MjRjNjJlYzkxNjMwOGVkNmU4MjI5MGNlMGY0OWQ5NDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmNjVkOTJkMTQ0ZThiZmUyNmY4MzVmNGRjOWQ3M2NmZGY3OWE5MjlmNTY5NWNmMmJmMmFiNjE4ZmI2ODVkMTYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts#L17-L36",
+          "version": "repo-lines-v1:sha256:da0f6838c23e815b6a0b475bc8ee6a75c50d28278c1c637fce2ddce3f35fe331:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYjdjZjZmOGI5M2I2MWI4NDEwOWE5OWI1N2RkMGVhZDU2MDVhMjk5OTFhMjllYTc0MWY3ZTVmNDVmNzA1NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczZDhlYjA0OWI0OGRkYjk4Nzg1MTMyM2QzMmYzNzUxNzRkY2ZkYmVhNmU3MDFlZGU3MDVkZGY3Y2M5MmUwZDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYTZiOTNjYTkyZjc2MDcxZGUxN2IyNjg1ODlmNjU2ODdjMzFhMDQzNjViNjA4NDFhMDM0OTFhYzQ5YzdiMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUwYmJjODI1YmY2ZjA1ZjJiNjU2NTI1MjI0MjRmYWE4M2Q1YTViNWUwOGFkN2U5NDEyZjM0YTBhZjU1ZjE2M2QifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:07:01.245Z"
+  }
+}

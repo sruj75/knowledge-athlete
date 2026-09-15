@@ -334,7 +334,7 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
         for path in (
             "desktop/macos/changelog/2026-07-25.json",
             "desktop/macos/CHANGELOG.json",
-            "desktop/macos/AGENTS.md",
+            "openwiki/INSTRUCTIONS.md",
         ):
             with self.subTest(path=path):
                 self.assertFalse(resolve_impact([path], event="push").includes("desktop-ci-only"))

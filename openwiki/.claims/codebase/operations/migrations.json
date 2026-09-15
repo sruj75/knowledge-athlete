@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:46ff5328aa2ad53d950ad2a387ef8742154d1cae4246d7bb6a11c6c8d35fd664",
+  "claims": [
+    {
+      "id": "claim_2b6f946fad5d464d8a25cee9332eb026",
+      "statement": "Rewind schema evolution is implemented through named GRDB migrations on the database pool.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift#L1074-L1168",
+          "version": "repo-lines-v1:sha256:66e27a70c99cc8d5c1527f0fd9c6635bb0cca7b3620ac55b7ca7dc572d0118ad:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmODU2ZmNjNzM2Mjc0N2JmOWIzZGJjMDc0OTA3NGZiZDVjM2Y3OGU0ZDM2YzEwODZhMjRiM2RmNjFhYmZjOWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmNWRmYmQwNWE4NzI0M2Y3MTIyNmNlZjIxMWI1YzgyM2YyNGY0YTcyNGE0MmJhZTczZDkzZjUzZDkwNTY0ZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1ODU3MDQ1YjE1ZjdiZTQzZWYxZjVlNTcwOTQ4ODhmZWZhM2VkYmIzMWM3NzM0NGZiNWNiODAyMTIxYjRkYTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM5NjkxNTc2MGJjZjExYjkwNDJmMTg3MGEyYmQ3Nzc5NDc3NDcwMTM3NDNmMmVhODMyNWRhMGMzNTY3OTgxNTYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationLocalAuthorityMigrationTests.swift",
+          "version": "repo-file-v1:sha256:81f953ac40c788e7d945b6cc587a87d42b226356ad7870811d813dbadae97907"
+        }
+      ]
+    },
+    {
+      "id": "claim_f3be13e5f4764c5b8bb777d5b582cc7a",
+      "statement": "The retained Mixpanel export script requires credentials, exports daily resumable chunks and guards concurrent execution with a lock.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/migration/mixpanel_export.sh#L1-L80",
+          "version": "repo-lines-v1:sha256:c0e0aaa1a4c0eeb796ad2d9fd6a21056d439e323452b68c820acbaadb86b5743:eyJzZWxlY3RlZExpbmVDb3VudCI6ODAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkOTVmYzA0YTgwYzk1MmY0OWNlNDE4ODYyN2M1M2IwZmJlOGM0NDA0MWI5NTJkNTkyYWNkMWRlOTk4NjE0NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyMmVhZjc5NTFlZTdjYzJmZmMwMTUxNWE1MTBhMjZmNjZhMmNjMWZiYmY0MjQ0YzJhYjNiZjM3N2VkOWEyNDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjOTVmODQ5ZDgyOTUwNTNmYTFhOWNlZjNhYTAwNmIyMTYyMzZkMjBjNGRhYjI1NGIyYzdmZTA2NzhiYzQzNmUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}

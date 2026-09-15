@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:aca1217a5a464860cf3345bb97953a7e720126154de0bba3a88f6d52aa0beac6",
+  "claims": [
+    {
+      "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
+      "statement": "The desktop-core harness distinguishes named and fault bundles and validates source identity and offline provider-mode evidence.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh",
+          "version": "repo-file-v1:sha256:244e7c4bdd12a51faed4e04fa228afdadbd552542f8cf3d1c81d7a0c74acf20c"
+        }
+      ]
+    },
+    {
+      "id": "claim_7770e407af074483bfeb6c99b8a76d55",
+      "statement": "The official desktop runner invokes strict E2E flow coverage and discovers shell tests.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/check-e2e-flow-coverage.py",
+          "version": "repo-file-v1:sha256:a99b2996a0a2b50f9c8565796b7acaa146aed51bf80d1a20fac67953b66c65ad"
+        },
+        {
+          "resource": "repo://desktop/macos/test.sh#L1-L21",
+          "version": "repo-lines-v1:sha256:3b6a67fe94fc81fc43a176a2db9c67362d271769acd698c9f5ddeaaf01273732:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmOTI4NTQ2YWVlNzg1NWNiMWRiOWFmYzhhYjNmMWE4YTM0ZDQzZGU1YmJkNjJmNzA3NmQ3YmE5ZjM5MTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwMGIzNjkzMTEwZTdjNjg1NThiZDk2ZTIxODQwMzg0ODlkZTY0Yjk4Y2FiNTM1YzUwNThiNmUzMjI3OTVjMjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiMzk5OGEzOTI1MDk2ZjExZjA4YThkNWI3NWFiOTNiMTVkNWZmMmIyYmY3M2NjNzQ3ODIzMTcwNTNkMDBhMDYifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-15T13:05:19.246Z"
+  }
+}
