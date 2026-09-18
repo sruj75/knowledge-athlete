@@ -24,10 +24,10 @@ sources:
     resource: repo://scripts/ua_graph_validate.mjs
   - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
     resource: repo://scripts/ua_graph.py
-generated: { by: "codex", at: "2026-09-18T08:35:08.780Z" }
+generated: { by: "codex", at: "2026-09-18T08:55:03.537Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:35:08.780Z
+    at: 2026-09-18T08:55:03.537Z
 ---
 # Understand Anything across workspaces
 
@@ -35,7 +35,9 @@ The graph travels with the code in the same PR. Conductor's Create PR prompt fin
 
 ## One owner finishes the workspace
 
-The closeout prompt resolves the pinned plugin with `scripts/ua-graph root` and passes that path explicitly as `CLAUDE_PLUGIN_ROOT`, together with `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. It preserves the existing analysis scope, language and auto-update setting and requires Luna semantic-analysis agents. One session owns the worktree's `.ua`: a hook request and explicit closeout are coalesced into the same update, and the session waits for analysis and finalization before staging persistent output.
+The closeout prompt selects the enabled Codex `understand-anything@understand-anything` system fork and resolves its active skill directory, together with `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. It preserves system maps, the existing analysis scope, language and auto-update setting and requires Luna semantic-analysis agents. One session owns the worktree's `.ua`: a hook request and explicit closeout are coalesced into the same update, and the session waits for analysis and finalization before staging persistent output. The authored procedure requires honoring the analyzer's project lease rather than starting a competing writer or adopting another session's token.
+
+The generation plugin is separate from the pinned offline checking runtime returned by `scripts/ua-graph root`. If the system fork is unavailable, closeout reports the missing installation rather than running stock generation over the product maps. Installing a fork does not itself prove that a graph has been generated or accepted; the validated persistent output must still be saved and checked.
 
 If the old analysis commit is unavailable, generation performs a full analysis with the saved settings. Advancing metadata alone is not completion. Failed or partial analysis stops publication and leaves the saved baseline available for diagnosis. Create PR does not merge the PR or archive the workspace. When newer main changes analyzed inputs, integrating that base requires another refresh before merge.
 

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:565c12286da0759877bc9f7b5ba7f3b18af256128630d4d1c1d83cbfa1309c7b",
+  "pageVersion": "sha256:fc4555478f7741feced8df74beb383265eaeaf34c1790312f1f4f2faa68a92a3",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -104,21 +104,21 @@
     },
     {
       "id": "claim_515cf3fa4ea24ad491cb7ada68bfaea0",
-      "statement": "Conductor Create PR finishes source and native wiki work, waits for the worktree's graph analysis, commits persistent graph artifacts and checks the committed candidate before publishing.",
+      "statement": "Conductor Create PR finishes source and native wiki work, selects the enabled Codex system fork to preserve system maps during semantic generation, waits for analysis, commits persistent graph artifacts and checks the committed candidate with the separate pinned runtime before publishing.",
       "evidence": [
         {
-          "resource": "repo://.conductor/settings.toml#L5-L24",
-          "version": "repo-lines-v1:sha256:a6c1249925373230addfe6f88dda7ec796f22c802df7f6c91520b18dbc3ad72d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
+          "resource": "repo://.conductor/settings.toml#L5-L27",
+          "version": "repo-lines-v1:sha256:4a38957af2cedaf7519dc53105eaf0570f7226ae6bc69fd1fa0a2c994955d44b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
         },
         {
           "resource": "repo://scripts/ua_graph.py#L308-L351",
-          "version": "repo-lines-v1:sha256:7c41cd472eb70e205e5a8211599b1bfc79ba67e855f30b9f96551d94017cbefd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0Mzk5ZThmMThkZmI1YmIwNWRhZjlmODNiN2U2ZTAzODE4MjExNDUzMTEyMWIxN2U1YWM0MGE3ZmE1NGY1Y2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiMzk3OTMzYTI0YTgwMWVlOTIzMzI3YmQ2OWEwMTA0OWMwNzc5MTUwMjFjZjJlYzM5ZGRhNGY4MWFhODM3ZTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1OWQ0NGRmOGE2N2E0ZDEyNTJjN2YyOTc3YTM2MzI0YWVhODM2Yjg5MTc1NDIxYTBlZDIyZGYzNTk4ZGMzZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyYzcwMzExMmUxOTdlMDFkZjdlMzk1YjYxNWFmMTRiNTc4ODczNmEzMzY3OTFiYzg1YTJmZWMxM2I2Y2Q4ZGEifQ"
+          "version": "repo-lines-v1:sha256:a53af5354c78cacaf5b764272c3983347a15690e5a9e84f89588a1e972e0bc38:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1MDJkMzM5MWYwYmNmZWNmZWNkYTQ2MzFkYjQxMTkzOGYxODYzMDVhYWY3NzMxNDliZGVlMWU4OGM0ZjdhNmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZlODk5MmYwMTM1N2QyOWM2NjkwNWMyNDY3NTI1NDJkNDgwYWU0NGRiNDQ3ZDQ2YWQyNTQ3NzQyN2YzYzk3NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyMWRlNDkxYmE1NzU1ZjhhYjViZWJiMGZiMDI0ZTExNWUyY2U3MWNmMjA5OGRkODZiNGM3MjA3Mzk5YjE5NzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJlZTRjYWExZmE2NmQzODlkZGZiYTE4ZTBlYWU1ZTRjYTRkMjgwZmU2ZmY3ZTliYTMwYTMzYWZlNjEzZDg0ZTEifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-18T08:36:01.897Z"
+    "at": "2026-09-18T08:55:03.537Z"
   }
 }

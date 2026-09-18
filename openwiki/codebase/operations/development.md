@@ -5,7 +5,7 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:36:01.897Z
+    at: 2026-09-18T08:55:03.537Z
 sources:
   - id: openwiki-source-311b902b81b9fbe111c8359f
     resource: repo://.conductor/settings.toml
@@ -31,7 +31,7 @@ sources:
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
   - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
     resource: repo://scripts/ua_graph.py
-generated: { by: "codex", at: "2026-09-18T08:35:08.780Z" }
+generated: { by: "codex", at: "2026-09-18T08:55:03.537Z" }
 ---
 # Development and wiki maintenance
 
@@ -67,9 +67,9 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The graph analysis runtime has a separate external cache keyed by its upstream revision, lockfile, Node/pnpm versions, operating system and architecture. Explicit setup installs the stock skill's dependencies and builds core, then verifies that scanning, batching and incremental helpers can load. `root` and `check` only validate and use an existing runtime. They fail with setup instructions when it is unavailable or incomplete. The checker reads the requested commit, so a newer unstaged graph cannot make an older committed graph pass.
+The pinned graph checking runtime has a separate external cache keyed by its upstream revision, lockfile, Node/pnpm versions, operating system and architecture. Explicit setup installs the stock skill's dependencies and builds core, then verifies that scanning, batching and incremental helpers can load. `root` and `check` only validate and use an existing runtime. They fail with setup instructions when it is unavailable or incomplete. The checker reads the requested commit, so a newer unstaged graph cannot make an older committed graph pass.
 
-Conductor's Create PR prompt finishes source/tests and the native wiki update before the final graph refresh, waits for analysis, commits the persistent graph, and runs the committed-content check before publishing. See [Understand Anything across workspaces](understand-anything.md) for the complete handoff and the separate report-publisher rollout.
+Conductor's Create PR prompt finishes source/tests and the native wiki update before the final graph refresh. It selects the enabled Codex system fork for semantic generation, preserves the system maps and saved project settings, waits for analysis, commits the persistent graph, and runs the pinned committed-content check before publishing. The generator resolves its own active skill directory; `scripts/ua-graph root` locates the separate offline checker runtime. A missing fork is reported rather than replaced with stock generation. See [Understand Anything across workspaces](understand-anything.md) for the complete handoff and the separate report-publisher rollout.
 
 ## Native OpenWiki lifecycle
 
@@ -85,7 +85,7 @@ Commit wiki changes with the implementation on the current branch. The existing 
 
 - [Makefile](../../../Makefile#L21-L39)
 - [Graph runtime and checker](../../../scripts/ua_graph.py)
-- [Conductor Create PR sequence](../../../.conductor/settings.toml#L5-L24)
+- [Conductor Create PR sequence](../../../.conductor/settings.toml#L5-L27)
 - [.nvmrc](../../../.nvmrc)
 
 - [Node package scripts](../../../desktop/macos/agent/package.json#L1-L12)

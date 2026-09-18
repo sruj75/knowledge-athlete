@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:cf320008dace76546cb4c778b902854802027caed9218a702bfa3d0e544a7c3e",
+  "pageVersion": "sha256:60291bb4986f7234c619aeea5a60a780b8ce68fb1e52183f60301f3560e83b86",
   "claims": [
     {
       "id": "claim_52e74e4f78634cacb26bd1ba9bc15376",
-      "statement": "Conductor Create PR finishes and commits source/wiki before a single owned stock Understand Anything refresh, using the explicit pinned plugin root, worktree redirect suppression and Luna analysis; it commits and checks persistent graph output before publishing and stops on failures.",
+      "statement": "Conductor Create PR finishes and commits source/wiki before a single owned refresh through the enabled Codex system fork, preserving system maps and saved settings with worktree redirect suppression and Luna analysis; the separate pinned runtime checks committed graph output before publication, and a missing fork or failed analysis stops closeout.",
       "evidence": [
         {
-          "resource": "repo://.conductor/settings.toml#L5-L24",
-          "version": "repo-lines-v1:sha256:a6c1249925373230addfe6f88dda7ec796f22c802df7f6c91520b18dbc3ad72d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
+          "resource": "repo://.conductor/settings.toml#L5-L27",
+          "version": "repo-lines-v1:sha256:4a38957af2cedaf7519dc53105eaf0570f7226ae6bc69fd1fa0a2c994955d44b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
         }
       ]
     },
@@ -91,6 +91,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-18T08:35:08.780Z"
+    "at": "2026-09-18T08:55:03.537Z"
   }
 }

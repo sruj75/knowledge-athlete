@@ -33,7 +33,7 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Track the persistent Understand Anything graph, fingerprints, metadata, config and exclusions in
   `.ua/`; keep `intermediate/`, `tmp/`, `.trash-*` and `diff-overlay.json` ignored. Preserve the last
   valid baseline until analysis and validation finish. Use `--auto-update` for commit-triggered
-  refreshes through the stock coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
+  refreshes through the installed coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
   for this Conductor worktree's graph. Use GPT-5.6 Luna for semantic-analysis subagents and
   report the saved baseline and any failures in the active conversation before ending the task.
 - Full scans must pass the bundled `scan-project.mjs --exclude-analysis-data` option so tracked
@@ -50,12 +50,16 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   a later refresh in an archived worktree cannot join an already-merged PR (the PR #117 handoff).
 - One coding-agent session owns this worktree's `.ua` refresh. Coalesce stock hook requests and PR
   closeout into one pending update; await its analysis subagents and successful finalization before
-  staging. Stock hooks provide no cross-session lock, so do not run another writer in this worktree.
-- `make setup` prepares the pinned scanner; `scripts/ua-graph root` prints its verified plugin root.
-  Pass that root explicitly as `CLAUDE_PLUGIN_ROOT` when following the stock Understand Anything
-  update instructions, with `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Preserve the saved scope, language
-  and auto-update setting. If the old baseline commit is unavailable, run a full analysis with
-  those settings; never repair freshness by changing metadata alone.
+  staging. Honor the analyzer's project lease; never start a competing writer or adopt its token.
+- Generate with the enabled Codex `understand-anything@understand-anything` system fork
+  (`2.9.7-system.1` or a verified successor), resolving its active skill directory. Preserve the
+  versioned `system` section and use its normal analysis/publication workflow, with
+  `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Keep scope, English output and auto-update settings.
+  `make setup` and `scripts/ua-graph root` prepare/locate the pinned upstream runtime for offline
+  committed-content checks; that runtime is not the semantic generation plugin. If the system
+  fork is unavailable, report the missing installation rather than regenerate with stock code.
+  If the old baseline commit is unavailable, run a full analysis with the saved settings;
+  never repair freshness by changing metadata alone.
 - Validate the completed graph, commit its persistent files with all intended source/wiki changes,
   and run `scripts/ua-graph check --ref HEAD` plus the required PR preflights. The checker reads the
   committed candidate, so fresh unstaged files cannot repair a stale commit. Integrate newer main

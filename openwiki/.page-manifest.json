@@ -65,11 +65,11 @@
       "completedRunId": "4017ff86-c454-4f95-9c13-b3633921b32d"
     },
     "/openwiki/codebase/operations/development.md": {
-      "gitHead": "77865269c7ea30ae8cb01fe6243052868043d776",
-      "sourceFingerprint": "sha256:56c71090234d6d56eaf987726d6b22d8b1381bfe8449424782e96720187ff846",
-      "pageVersion": "sha256:565c12286da0759877bc9f7b5ba7f3b18af256128630d4d1c1d83cbfa1309c7b",
+      "pageVersion": "sha256:fc4555478f7741feced8df74beb383265eaeaf34c1790312f1f4f2faa68a92a3",
       "completedBy": "codex",
-      "completedRunId": "cc51d564-c91c-4458-b0ef-c53dba60e653"
+      "completedRunId": "406272ac-2b99-4c6b-a5ed-50a532907e31",
+      "gitHead": "d46ccd0fa9da4df5418b0c565dddf07595b9ac4f",
+      "sourceFingerprint": "sha256:816f73a811d74d22e48be2b25011dc126814dca877cebe1cb37c07b18088e5b6"
     },
     "/openwiki/codebase/operations/migrations.md": {
       "gitHead": "65575837b1f1a18fe9e23eb8bb65071089aed270",
@@ -93,11 +93,11 @@
       "completedRunId": "9b71446d-543a-41fb-9c53-25a3c49a843d"
     },
     "/openwiki/codebase/operations/understand-anything.md": {
-      "gitHead": "77865269c7ea30ae8cb01fe6243052868043d776",
-      "sourceFingerprint": "sha256:ab316c13e1f86dd9881ef305c17a69c0b88cf1b205ed2e6f3c61e5019c7e6f38",
-      "pageVersion": "sha256:cf320008dace76546cb4c778b902854802027caed9218a702bfa3d0e544a7c3e",
+      "pageVersion": "sha256:60291bb4986f7234c619aeea5a60a780b8ce68fb1e52183f60301f3560e83b86",
       "completedBy": "codex",
-      "completedRunId": "5553a176-8775-4a4c-86d9-0de41bb2ba58"
+      "completedRunId": "406272ac-2b99-4c6b-a5ed-50a532907e31",
+      "gitHead": "d46ccd0fa9da4df5418b0c565dddf07595b9ac4f",
+      "sourceFingerprint": "sha256:816f73a811d74d22e48be2b25011dc126814dca877cebe1cb37c07b18088e5b6"
     },
     "/openwiki/codebase/testing/contracts.md": {
       "gitHead": "b76483f178846588961c3edcdc96e23aa086e56b",

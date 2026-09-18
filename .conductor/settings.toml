@@ -7,9 +7,12 @@ create_pr = """
 Follow PR closeout, Wiki maintenance and Engineering rules in openwiki/INSTRUCTIONS.md. On the
 current branch, inspect all intended changes, finish source/tests and the native
 OpenWiki update, then commit the source/wiki changes before the final UA refresh.
-Use scripts/ua-graph root to resolve the pinned plugin; pass it explicitly as
-CLAUDE_PLUGIN_ROOT with UNDERSTAND_NO_WORKTREE_REDIRECT=1 when following the stock
-Understand Anything update instructions. Preserve the saved scope, language and
+Use the enabled Codex understand-anything@understand-anything system fork, resolving
+its active skill directory, with UNDERSTAND_NO_WORKTREE_REDIRECT=1. Preserve its
+system maps through the normal analysis/publication workflow; scripts/ua-graph root
+locates only the pinned offline checker runtime, not the semantic generation plugin.
+If the fork is unavailable, report that instead of regenerating with stock code.
+Preserve the saved scope, language and
 auto-update setting and use the required Luna semantic-analysis subagents. One
 session owns this worktree's .ua: coalesce hook and closeout requests into one update
 and wait for all analysis and successful finalization before staging its persistent
