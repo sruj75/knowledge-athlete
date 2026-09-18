@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b3191752e4aa23ad149702b97b5da55a913692af9c9810f14a81fd32e715c19a",
+  "pageVersion": "sha256:565c12286da0759877bc9f7b5ba7f3b18af256128630d4d1c1d83cbfa1309c7b",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -90,15 +90,15 @@
     },
     {
       "id": "claim_ee12f55801f54387bbb386b488b1bc60",
-      "statement": "UA setup owns network installation of an external runtime keyed by the pinned source and lockfile, Node/pnpm versions, OS and architecture; root and check validate existing tools instead of installing them.",
+      "statement": "UA setup owns network installation of an external runtime keyed by pinned source and lockfile, Node/pnpm versions, OS and architecture; it installs stock skill dependencies and verifies helper imports, while root and check validate existing tools without installation.",
       "evidence": [
         {
-          "resource": "repo://scripts/ua_graph.py#L109-L215",
-          "version": "repo-lines-v1:sha256:f51d2f5360719cb548f478eda7443be3d2d7f66a23efdd152d6c89a051084182:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4YmViN2ZlNDUzZjg0M2RjMGMxYWRiM2VmYzFmOGE3OTIwOTVkMWMxZDM5M2VhNWFhMDUxYWQ2OTRlNjI2NWQ4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiMmIzZWI2NDU4ZDBhZTlkNGIwNDk1Yjg3YmY5YTVhMDM0ZGQ5ZmJkNDYzOTRlYzFhMzE0N2QyM2QxMDhmZjRkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2YjA2MzQwOGI4NjBiNTc4ODkwNDcwMjc2OGM4MTU1N2ZlNzlhN2IxZTBjODBmZGQwOGZiZGQzOTZmYTQ0M2FkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0Yjc4MDA5NDgwNDA3MGQyNmMwZDk5YmFiZWEzN2FmOWQ5NTUzOGQ4OTk4YmYzYWRiOTkzM2UxZDAyYWNiMWUwIn0"
+          "resource": "repo://scripts/ua_graph.py#L112-L228",
+          "version": "repo-lines-v1:sha256:667efc4213e271a239315aeffca66434302f7c440682f3584e38714c4e90fa1c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1ODgwN2I0ZTAyNTFkNzVlYTdlMDY2YzFmNDQ3N2Y1YTk0ZTM5NWY0ZWZjYjA3NzZlNzJmY2Q3Y2ZmM2YzNDNjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJhZWY3YjBkMWM2MmQzNDZkNjMzMGI3NWEwYzdlMmM1M2Y3MTUxYTAwYzMyZTU4ZTgyYmVmODRjNmIzYjcyY2MxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxZmU4ODQ3OGI4MGMwYTk4NzU1MGJiZTM5ZjdhMjk1NmYzMDk5MDk0YWU1N2I5NGJiNjhlN2U5MDk2N2MxMmY2In0"
         },
         {
-          "resource": "repo://scripts/ua_graph.py#L17-L50",
-          "version": "repo-lines-v1:sha256:4e329c1439a22a33c87b88b68543e41834544501739eae05f25c8e833c82c2d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMDg2ZmI2Y2Q1MGU3MzBmZjFkY2MzYmY1OTZjY2ZkMmM0MTAyNDY3MDdmMzRmMWI3MGM5YTYzMGU2NjQ0MzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZmUwMWI4YTljM2JhZWE2NTVhOTFjNGRjYzIzYTI4YzVhNTUyNmJiMDVlYmQ0NTkyYjY3Mjk2NDJjYTc5NGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5MmZhYjUxYjQ3ODg1YzA2NWUwOGUzYmI3ZDY2MWFkYWQ1ZGJiOTE4ZDk5MGE5NTgwNGZjOWY5M2UzNzBkMjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0OTM0MzAyOWE5ZDkxYmI1MGE0MzQ5YjY2MGRiZjg1NmE5NDNlZjRkMGYxNTE3NzM2ODkzZDdjNDlmZTU0OTgifQ"
+          "resource": "repo://scripts/ua_graph.py#L17-L57",
+          "version": "repo-lines-v1:sha256:1d65eeabd1bc393a99af4ea6bb6495c15993d854bcc61dcbecd718718b54e5fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMDg2ZmI2Y2Q1MGU3MzBmZjFkY2MzYmY1OTZjY2ZkMmM0MTAyNDY3MDdmMzRmMWI3MGM5YTYzMGU2NjQ0MzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZmUwMWI4YTljM2JhZWE2NTVhOTFjNGRjYzIzYTI4YzVhNTUyNmJiMDVlYmQ0NTkyYjY3Mjk2NDJjYTc5NGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5MmZhYjUxYjQ3ODg1YzA2NWUwOGUzYmI3ZDY2MWFkYWQ1ZGJiOTE4ZDk5MGE5NTgwNGZjOWY5M2UzNzBkMjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0OTM0MzAyOWE5ZDkxYmI1MGE0MzQ5YjY2MGRiZjg1NmE5NDNlZjRkMGYxNTE3NzM2ODkzZDdjNDlmZTU0OTgifQ"
         }
       ]
     },
@@ -119,6 +119,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-18T08:30:00.218Z"
+    "at": "2026-09-18T08:36:01.897Z"
   }
 }

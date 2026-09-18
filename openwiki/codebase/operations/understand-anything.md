@@ -24,10 +24,10 @@ sources:
     resource: repo://scripts/ua_graph_validate.mjs
   - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
     resource: repo://scripts/ua_graph.py
-generated: { by: "codex", at: "2026-09-18T08:30:00.218Z" }
+generated: { by: "codex", at: "2026-09-18T08:35:08.780Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:30:00.218Z
+    at: 2026-09-18T08:35:08.780Z
 ---
 # Understand Anything across workspaces
 
@@ -51,7 +51,7 @@ scripts/ua-graph root
 scripts/ua-graph check --ref HEAD
 ```
 
-Setup downloads and builds an external cached runtime pinned to Understand Anything commit `6df3065f1d8ddc2ce3615314d1d493f36d6b1c80` (version 2.9.7), Node 22.22.0 and pnpm 10.6.2. It verifies the frozen upstream lockfile and scanner source and records built JavaScript hashes. The cache identity includes platform and architecture. An exclusive setup lock prevents competing cache preparations.
+Setup downloads and builds an external cached runtime pinned to Understand Anything commit `6df3065f1d8ddc2ce3615314d1d493f36d6b1c80` (version 2.9.7), Node 22.22.0 and pnpm 10.6.2. It installs the upstream skill workspace and its dependencies with the frozen lockfile, builds core, verifies scanner source and records built JavaScript and helper hashes. Readiness also loads the stock batching and incremental helpers without executing generation; a scanner-only installation is incomplete. The cache identity includes platform and architecture. An exclusive setup lock prevents competing cache preparations.
 
 `root` exposes a verified plugin directory. `check` uses that prepared runtime without downloads, model calls or repository source changes. Missing or damaged preparation produces a setup error. CI uses the same preparation action before graph freshness, Hygiene, metadata preflight and release eligibility.
 

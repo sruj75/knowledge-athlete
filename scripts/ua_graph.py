@@ -17,6 +17,7 @@ import tempfile
 REVISION = "6df3065f1d8ddc2ce3615314d1d493f36d6b1c80"
 NODE_VERSION = "22.22.0"
 PNPM_VERSION = "10.6.2"
+READINESS_VERSION = 2
 LOCK_HASH = "20342fbb10c311a3259a4f7acb367cc79b2b2ad565ede2c3e1704a797d32ed96"
 SCAN_HASH = "62f075686400959d3fb6634f73798485b82b89c743f9deecc62a601ce398ebb3"
 PLATFORM = f"{sys.platform}-{platform.machine().lower()}"
@@ -25,6 +26,12 @@ PLUGIN_PATH = Path("source/understand-anything-plugin")
 SCAN_PATH = PLUGIN_PATH / "skills/understand/scan-project.mjs"
 UPSTREAM = "https://github.com/Egonex-AI/Understand-Anything.git"
 ARTIFACTS = ("knowledge-graph.json", "fingerprints.json", "meta.json", "config.json", ".understandignore")
+READINESS_MODULES = (
+    "packages/core/dist/index.js",
+    "skills/understand/compute-batches.mjs",
+    "skills/understand/prepare-incremental.mjs",
+    "skills/understand/finalize-incremental.mjs",
+)
 
 
 class GraphError(Exception):
@@ -102,10 +109,19 @@ def git(arguments: list[str], *, cwd: Path | None = None) -> str:
     return run(["git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", *arguments], cwd=cwd)
 
 
+def verify_runtime_imports(plugin: Path, node: Path) -> None:
+    # These stock modules guard their CLI entrypoints. Imports resolve dependencies
+    # without preparing a plan, writing graph artifacts, or invoking models.
+    modules = [(plugin / relative).as_uri() for relative in READINESS_MODULES]
+    run([str(node), "--input-type=module", "-e", f"for (const url of {json.dumps(modules)}) await import(url);"])
+
+
 def runtime_root() -> Path:
     runtime = cache_directory() / RUNTIME_KEY
     try:
         receipt = json.loads((runtime / "ready.json").read_text())
+        if not isinstance(receipt, dict) or receipt.get("readinessVersion") != READINESS_VERSION:
+            raise ValueError("runtime readiness contract is outdated")
         if (
             receipt["revision"] != REVISION
             or receipt["nodeVersion"] != NODE_VERSION
@@ -117,10 +133,11 @@ def runtime_root() -> Path:
             raise ValueError("scanner integrity mismatch")
         if sha256(runtime / "source/pnpm-lock.yaml") != LOCK_HASH:
             raise ValueError("lockfile integrity mismatch")
-        if str(PLUGIN_PATH / "packages/core/dist/index.js") not in receipt["runtimeFiles"]:
+        if any(str(PLUGIN_PATH / relative) not in receipt["runtimeFiles"] for relative in READINESS_MODULES):
             raise ValueError("incomplete runtime receipt")
         for relative, digest in receipt["runtimeFiles"].items():
-            if not relative.startswith(str(PLUGIN_PATH / "packages/core/dist") + "/") or ".." in Path(relative).parts:
+            prefixes = (str(PLUGIN_PATH / "packages/core/dist") + "/", str(PLUGIN_PATH / "skills/understand") + "/")
+            if not relative.startswith(prefixes) or ".." in Path(relative).parts:
                 raise ValueError("invalid runtime receipt path")
             if sha256(runtime / relative) != digest:
                 raise ValueError(f"runtime integrity mismatch: {relative}")
@@ -128,14 +145,7 @@ def runtime_root() -> Path:
         raise GraphError(f"Pinned UA runtime is missing or invalid; run scripts/ua-graph setup. ({error})") from error
     plugin = runtime / PLUGIN_PATH
     try:
-        run(
-            [
-                str(node_binary()),
-                "--input-type=module",
-                "-e",
-                f"await import({json.dumps((plugin / 'packages/core/dist/index.js').as_uri())})",
-            ]
-        )
+        verify_runtime_imports(plugin, node_binary())
     except GraphError as error:
         raise GraphError(f"Pinned UA runtime cannot load; run scripts/ua-graph setup. ({error})") from error
     return plugin
@@ -179,23 +189,32 @@ def setup() -> None:
             git(["-C", str(source), "checkout", "--quiet", "--detach", REVISION])
             if sha256(source / "pnpm-lock.yaml") != LOCK_HASH or sha256(staging / SCAN_PATH) != SCAN_HASH:
                 raise GraphError("Pinned upstream scanner or lockfile failed its SHA-256 check")
-            print("Building pinned Understand Anything core (network is used only by setup)...", flush=True)
+            print("Building pinned Understand Anything analysis runtime (network is used only by setup)...", flush=True)
             pnpm = [str(node), str(corepack.resolve()), "pnpm"]
             if run([*pnpm, "--version"], cwd=source, environment=environment) != PNPM_VERSION:
                 raise GraphError("Corepack did not resolve the pinned pnpm version")
             run(
-                [*pnpm, "--filter", "@understand-anything/core...", "install", "--frozen-lockfile", "--ignore-scripts"],
+                [
+                    *pnpm,
+                    "--filter",
+                    "@understand-anything/skill...",
+                    "install",
+                    "--frozen-lockfile",
+                    "--ignore-scripts",
+                ],
                 cwd=source,
                 environment=environment,
             )
             run([*pnpm, "--filter", "@understand-anything/core", "build"], cwd=source, environment=environment)
             dist = staging / PLUGIN_PATH / "packages/core/dist"
-            run(
-                [str(node), "--input-type=module", "-e", f"await import({json.dumps((dist / 'index.js').as_uri())})"],
-                environment=environment,
-            )
-            files = {str(path.relative_to(staging)): sha256(path) for path in sorted(dist.rglob("*.js"))}
+            verify_runtime_imports(staging / PLUGIN_PATH, node)
+            helpers = staging / PLUGIN_PATH / "skills/understand"
+            files = {
+                str(path.relative_to(staging)): sha256(path)
+                for path in sorted([*dist.rglob("*.js"), *helpers.glob("*.mjs")])
+            }
             receipt = dict(
+                readinessVersion=READINESS_VERSION,
                 revision=REVISION,
                 nodeVersion=NODE_VERSION,
                 pnpmVersion=PNPM_VERSION,

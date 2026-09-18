@@ -407,20 +407,7 @@ class CommittedGraphTests(unittest.TestCase):
 
 
 class RuntimeBoundaryTests(unittest.TestCase):
-    def test_missing_runtime_fails_without_installing(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            cache = Path(directory) / "not-installed"
-            environment = dict(os.environ, UA_GRAPH_CACHE_DIR=str(cache))
-            result = subprocess.run([str(CLI), "root"], capture_output=True, text=True, env=environment)
-            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-            self.assertIn("scripts/ua-graph setup", result.stderr)
-            self.assertFalse(cache.exists(), "An offline command must not create its cache")
-
-    def test_setup_is_idempotent_and_resolves_installed_nvm_node(self) -> None:
-        ready = subprocess.run([str(CLI), "root"], capture_output=True, text=True)
-        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
-        receipt = Path(ready.stdout.strip()).parents[1] / "ready.json"
-        before = receipt.stat().st_mtime_ns
+    def pinned_node(self) -> Path:
         candidates = [shutil.which("node")]
         if os.environ.get("NVM_DIR"):
             candidates.append(str(Path(os.environ["NVM_DIR"]) / "versions/node/v22.22.0/bin/node"))
@@ -435,6 +422,115 @@ class RuntimeBoundaryTests(unittest.TestCase):
             None,
         )
         self.assertIsNotNone(node, "Run scripts/ua-graph setup with the pinned Node first")
+        return node
+
+    def test_ready_runtime_runs_stock_generation_helper(self) -> None:
+        ready = subprocess.run([str(CLI), "root"], capture_output=True, text=True)
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        plugin = Path(ready.stdout.strip())
+        node = self.pinned_node()
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            project = temporary / "project"
+            project.mkdir()
+            (project / "library.ts").write_text("export function value() { return 1; }\n")
+            (project / "app.ts").write_text(
+                'import { value } from "./library";\nexport function start() { return value(); }\n'
+            )
+            scan = temporary / "scan.json"
+            scanned = subprocess.run(
+                [
+                    str(node),
+                    str(plugin / "skills/understand/scan-project.mjs"),
+                    str(project),
+                    str(scan),
+                    "--exclude-analysis-data",
+                ],
+                capture_output=True,
+                text=True,
+                env=environment(),
+            )
+            self.assertEqual(scanned.returncode, 0, scanned.stdout + scanned.stderr)
+            data = json.loads(scan.read_text())
+            data["importMap"] = {"app.ts": ["library.ts"]}
+            scan.write_text(json.dumps(data))
+            batches = temporary / "batches.json"
+            result = subprocess.run(
+                [
+                    str(node),
+                    str(plugin / "skills/understand/compute-batches.mjs"),
+                    str(project),
+                    f"--scan-result={scan}",
+                    f"--output={batches}",
+                ],
+                capture_output=True,
+                text=True,
+                env=environment(),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn("Warning:", result.stderr)
+            output = json.loads(batches.read_text())
+            self.assertEqual(
+                {item["path"] for batch in output["batches"] for item in batch["files"]}, {"app.ts", "library.ts"}
+            )
+            self.assertIn("start", output["exportsByPath"]["app.ts"])
+            self.assertIn("value", output["exportsByPath"]["library.ts"])
+
+    def test_legacy_core_only_receipt_is_not_reported_ready(self) -> None:
+        ready = subprocess.run([str(CLI), "root"], capture_output=True, text=True)
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        runtime = Path(ready.stdout.strip()).parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            copied = cache / runtime.name
+            copied.mkdir()
+            (copied / "source").symlink_to(runtime / "source", target_is_directory=True)
+            receipt = json.loads((runtime / "ready.json").read_text())
+            receipt.pop("readinessVersion", None)
+            (copied / "ready.json").write_text(json.dumps(receipt))
+            env = dict(os.environ, UA_GRAPH_CACHE_DIR=str(cache))
+            result = subprocess.run([str(CLI), "root"], capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("readiness", result.stderr)
+            self.assertIn("scripts/ua-graph setup", result.stderr)
+
+    def test_missing_helper_dependency_is_not_reported_ready(self) -> None:
+        ready = subprocess.run([str(CLI), "root"], capture_output=True, text=True)
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        plugin = Path(ready.stdout.strip())
+        runtime = plugin.parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            copied = cache / runtime.name
+            partial_plugin = copied / "source/understand-anything-plugin"
+            partial_plugin.mkdir(parents=True)
+            (copied / "source/pnpm-lock.yaml").symlink_to(runtime / "source/pnpm-lock.yaml")
+            (partial_plugin / "packages").symlink_to(plugin / "packages", target_is_directory=True)
+            (partial_plugin / "package.json").symlink_to(plugin / "package.json")
+            shutil.copytree(plugin / "skills/understand", partial_plugin / "skills/understand")
+            shutil.copy2(runtime / "ready.json", copied / "ready.json")
+            # Core still loads through its installed package; skill dependencies are absent.
+            env = dict(os.environ, UA_GRAPH_CACHE_DIR=str(cache))
+            result = subprocess.run([str(CLI), "root"], capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("graphology", result.stderr)
+            self.assertIn("scripts/ua-graph setup", result.stderr)
+
+    def test_missing_runtime_fails_without_installing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "not-installed"
+            environment = dict(os.environ, UA_GRAPH_CACHE_DIR=str(cache))
+            result = subprocess.run([str(CLI), "root"], capture_output=True, text=True, env=environment)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("scripts/ua-graph setup", result.stderr)
+            self.assertFalse(cache.exists(), "An offline command must not create its cache")
+
+    def test_setup_is_idempotent_and_resolves_installed_nvm_node(self) -> None:
+        ready = subprocess.run([str(CLI), "root"], capture_output=True, text=True)
+        self.assertEqual(ready.returncode, 0, ready.stdout + ready.stderr)
+        receipt = Path(ready.stdout.strip()).parents[1] / "ready.json"
+        before = receipt.stat().st_mtime_ns
+        node = self.pinned_node()
         with tempfile.TemporaryDirectory() as directory:
             temporary = Path(directory)
             wrong = temporary / "bin/node"

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8a0de46501e59c354ac9bbf4b0ebc69e9fcba4a9e2373222a580ed50b2e8e1cd",
+  "pageVersion": "sha256:cf320008dace76546cb4c778b902854802027caed9218a702bfa3d0e544a7c3e",
   "claims": [
     {
       "id": "claim_52e74e4f78634cacb26bd1ba9bc15376",
@@ -14,15 +14,15 @@
     },
     {
       "id": "claim_bb7ac61dbea84c09ae45ff4f5588f786",
-      "statement": "The UA runtime is explicitly prepared outside the repository with pinned upstream revision, Node, pnpm and frozen lockfile; root and check require a verified existing runtime.",
+      "statement": "The external UA runtime installs the pinned upstream skill workspace and dependencies with Node, pnpm and frozen lockfile pins, builds core and verifies stock batching/incremental helper imports; root and check require this verified existing runtime.",
       "evidence": [
         {
           "resource": "repo://Makefile#L21-L39",
           "version": "repo-lines-v1:sha256:9835af03570154c382f01d978934ed18d62bdf4d31ff1965ab8db9baba2a52c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNGNlMDc1ZTg2ODczMTJkODRiZDRjYzBiYzQ0NGU1ZDEwZGUwYmVlZTFhNTIzMzNkMGJiNWY0NzE4YWU4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
         },
         {
-          "resource": "repo://scripts/ua_graph.py#L17-L207",
-          "version": "repo-lines-v1:sha256:fcd542fc98d333a1406cc169602249e8fb4af5977d871cb85d180680ec81f8ad:eyJzZWxlY3RlZExpbmVDb3VudCI6MTkxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZjA4NmZiNmNkNTBlNzMwZmYxZGNjM2JmNTk2Y2NmZDJjNDEwMjQ2NzA3ZjM0ZjFiNzBjOWE2MzBlNjY0NDM0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxNzQwMGU5Mjc0MDYwNWVjNGFmY2I5YWE2NGViYzExZWYzMWIyNzlhNDUzNTUyNDU3NmU1OWM0NTUzZmFiNGQxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0OTJmYWI1MWI0Nzg4NWMwNjVlMDhlM2JiN2Q2NjFhZGFkNWRiYjkxOGQ5OTBhOTU4MDRmYzlmOTNlMzcwZDI5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJjZDczMGZiZTA1Y2UzMTk1OThmZjU2MGY1YzM1NjE5NTJhN2M2NzE1YmE4ZTI1NjcxMDc4OTNjN2VmYjUzNzEwIn0"
+          "resource": "repo://scripts/ua_graph.py#L17-L228",
+          "version": "repo-lines-v1:sha256:ac67ed9741fe9152bcaad01416adbb3406de1fcdec692de1e23fe5908c94a113:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZjA4NmZiNmNkNTBlNzMwZmYxZGNjM2JmNTk2Y2NmZDJjNDEwMjQ2NzA3ZjM0ZjFiNzBjOWE2MzBlNjY0NDM0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0OTJmYWI1MWI0Nzg4NWMwNjVlMDhlM2JiN2Q2NjFhZGFkNWRiYjkxOGQ5OTBhOTU4MDRmYzlmOTNlMzcwZDI5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxZmU4ODQ3OGI4MGMwYTk4NzU1MGJiZTM5ZjdhMjk1NmYzMDk5MDk0YWU1N2I5NGJiNjhlN2U5MDk2N2MxMmY2In0"
         }
       ]
     },
@@ -31,7 +31,7 @@
       "statement": "Committed graph validation exports the requested commit, scans its saved scope canonically and checks exact content fingerprints, raw graph references, coverage and consistent metadata without requiring the historical baseline object or equality to HEAD.",
       "evidence": [
         {
-          "resource": "repo://scripts/ua_graph.py#L242-L348",
+          "resource": "repo://scripts/ua_graph.py#L261-L367",
           "version": "repo-lines-v1:sha256:2126d90f2b58c780a8defa462f025fbf77f2e63a0b2b0a6c1c395f5988054949:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2ZTNlZTA1ODRhYmY4N2FiOTFkNTZhOTA4YTNmNTViNzU4YjMxNGVmMDRkYWJhNDVlNWUwM2I3OGQyMzM1MTBiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJkYmNmNjU5ODM2N2QxNTAwMjU1ZGVkMjhjY2VhMjUyZGViOTM5NmU4YzhkZDdmMjRjZTIzMTQ0NDBhMDgzZWUyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiNGE1NDgwN2E2NDljODQ3OGZhMTU3ODVhYmIwNDA2NThhOTcyN2RiYWE0OTNmNmMyZDBlYWVkYjQ0ZmQ3ODJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NDhkNzQ4M2QwNjBmMTcyMmUyNDUzNjg4ODMzNDI1NmI1NDkwZThiYmU4Njk4MjA2NzZjYTllYWYzNTA5Y2M5In0"
         },
         {
@@ -91,6 +91,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-18T08:30:00.218Z"
+    "at": "2026-09-18T08:35:08.780Z"
   }
 }
