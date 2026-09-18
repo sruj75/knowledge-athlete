@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:3417d980e393978d07a90fd6b86468d9777d4046da53c389d7616d9ed4dcecf9",
+  "pageVersion": "sha256:3b61dab552aabf41131ea93ecb5ebe593503d72f142623a4477552c5f16bf5a1",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
@@ -18,17 +18,21 @@
     },
     {
       "id": "claim_1f3aa988e7e747ae9639f8a8a86393c0",
-      "statement": "Root setup installs worktree prerequisites and preflight invokes the shared local check runner against origin/main.",
+      "statement": "Root setup installs worktree prerequisites and the pinned UA scanner; preflight invokes the shared local check runner against origin/main, including committed graph freshness.",
       "evidence": [
         {
-          "resource": "repo://Makefile#L21-L36",
-          "version": "repo-lines-v1:sha256:2863b48bd4dc1172b548a8d43099e7b7ac4e5c9556a2c889c7313d63e700ddf9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4Y2RjOTJmM2Y3OGI2ZGRhNGZmMGJmNWY3YjgyNDg5NTc1MDQ1Y2VjNTBkODJiYzllYTZkYzU4NDE4NjkyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+          "resource": "repo://.github/checks-manifest.yaml#L9-L23",
+          "version": "repo-lines-v1:sha256:ff3548c631fa043a63e450e0cbe1b5044a74e2a9c613908ec454d1a7db40559b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmNDZlNDM2Y2Y2ZmE2MjE3ZDljMjIwMWUxNmRhNjRhYWY3NTZhOTQzZTg1Y2JiMzM3OGM0MDFmMjU4NmY3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MjM3NDY1ZWM1MWMwMTkzYjA2NWQyYzcwMDAzODA1YjIwNDBlNzRiNGVhZDRlNGM1NDc0ZjM3ZjE5NWYxZmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwMmZkMmIwMWUxZDdiZDU4Y2EyM2ExNzVjYmNlZWE2ODRlYTViYzdmZTRkZDEwNzJiY2MyOTkzYjE1NWU1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkOTkwNGYzYzU3ZmExOTM1NGQ1OWEwYjcxZTM1YmQzMTRjYWQ1NTZmMmMxNmQ5NzBjZjE2YTk0MTg4ZDAyMGUifQ"
+        },
+        {
+          "resource": "repo://Makefile#L21-L39",
+          "version": "repo-lines-v1:sha256:9835af03570154c382f01d978934ed18d62bdf4d31ff1965ab8db9baba2a52c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNGNlMDc1ZTg2ODczMTJkODRiZDRjYzBiYzQ0NGU1ZDEwZGUwYmVlZTFhNTIzMzNkMGJiNWY0NzE4YWU4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T14:14:00.034Z"
+    "at": "2026-09-18T08:23:57.133Z"
   }
 }

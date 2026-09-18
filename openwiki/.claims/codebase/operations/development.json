@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:078344ea025e09f8364f967435b859125da38f8c8561ba2d2fc4c721834e7cc0",
+  "pageVersion": "sha256:b3191752e4aa23ad149702b97b5da55a913692af9c9810f14a81fd32e715c19a",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
-      "statement": "The root setup target refreshes main, installs hooks and synchronizes backend dependencies while leaving app runtime setup opt-in.",
+      "statement": "The root setup target refreshes main, installs hooks, synchronizes backend dependencies and prepares the pinned UA scanner while leaving app runtime setup opt-in.",
       "evidence": [
         {
-          "resource": "repo://Makefile#L21-L36",
-          "version": "repo-lines-v1:sha256:2863b48bd4dc1172b548a8d43099e7b7ac4e5c9556a2c889c7313d63e700ddf9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4Y2RjOTJmM2Y3OGI2ZGRhNGZmMGJmNWY3YjgyNDg5NTc1MDQ1Y2VjNTBkODJiYzllYTZkYzU4NDE4NjkyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+          "resource": "repo://Makefile#L21-L39",
+          "version": "repo-lines-v1:sha256:9835af03570154c382f01d978934ed18d62bdf4d31ff1965ab8db9baba2a52c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNGNlMDc1ZTg2ODczMTJkODRiZDRjYzBiYzQ0NGU1ZDEwZGUwYmVlZTFhNTIzMzNkMGJiNWY0NzE4YWU4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
         }
       ]
     },
@@ -87,10 +87,38 @@
           "version": "repo-file-v1:sha256:aa20fa47bb62c7a77c7fea903922ba367cde3bf8c0bed270fdf3f996c2428fee"
         }
       ]
+    },
+    {
+      "id": "claim_ee12f55801f54387bbb386b488b1bc60",
+      "statement": "UA setup owns network installation of an external runtime keyed by the pinned source and lockfile, Node/pnpm versions, OS and architecture; root and check validate existing tools instead of installing them.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/ua_graph.py#L109-L215",
+          "version": "repo-lines-v1:sha256:f51d2f5360719cb548f478eda7443be3d2d7f66a23efdd152d6c89a051084182:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4YmViN2ZlNDUzZjg0M2RjMGMxYWRiM2VmYzFmOGE3OTIwOTVkMWMxZDM5M2VhNWFhMDUxYWQ2OTRlNjI2NWQ4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiMmIzZWI2NDU4ZDBhZTlkNGIwNDk1Yjg3YmY5YTVhMDM0ZGQ5ZmJkNDYzOTRlYzFhMzE0N2QyM2QxMDhmZjRkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2YjA2MzQwOGI4NjBiNTc4ODkwNDcwMjc2OGM4MTU1N2ZlNzlhN2IxZTBjODBmZGQwOGZiZGQzOTZmYTQ0M2FkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0Yjc4MDA5NDgwNDA3MGQyNmMwZDk5YmFiZWEzN2FmOWQ5NTUzOGQ4OTk4YmYzYWRiOTkzM2UxZDAyYWNiMWUwIn0"
+        },
+        {
+          "resource": "repo://scripts/ua_graph.py#L17-L50",
+          "version": "repo-lines-v1:sha256:4e329c1439a22a33c87b88b68543e41834544501739eae05f25c8e833c82c2d6:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmMDg2ZmI2Y2Q1MGU3MzBmZjFkY2MzYmY1OTZjY2ZkMmM0MTAyNDY3MDdmMzRmMWI3MGM5YTYzMGU2NjQ0MzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1ZmUwMWI4YTljM2JhZWE2NTVhOTFjNGRjYzIzYTI4YzVhNTUyNmJiMDVlYmQ0NTkyYjY3Mjk2NDJjYTc5NGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5MmZhYjUxYjQ3ODg1YzA2NWUwOGUzYmI3ZDY2MWFkYWQ1ZGJiOTE4ZDk5MGE5NTgwNGZjOWY5M2UzNzBkMjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0OTM0MzAyOWE5ZDkxYmI1MGE0MzQ5YjY2MGRiZjg1NmE5NDNlZjRkMGYxNTE3NzM2ODkzZDdjNDlmZTU0OTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_515cf3fa4ea24ad491cb7ada68bfaea0",
+      "statement": "Conductor Create PR finishes source and native wiki work, waits for the worktree's graph analysis, commits persistent graph artifacts and checks the committed candidate before publishing.",
+      "evidence": [
+        {
+          "resource": "repo://.conductor/settings.toml#L5-L24",
+          "version": "repo-lines-v1:sha256:a6c1249925373230addfe6f88dda7ec796f22c802df7f6c91520b18dbc3ad72d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
+        },
+        {
+          "resource": "repo://scripts/ua_graph.py#L308-L351",
+          "version": "repo-lines-v1:sha256:7c41cd472eb70e205e5a8211599b1bfc79ba67e855f30b9f96551d94017cbefd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg0Mzk5ZThmMThkZmI1YmIwNWRhZjlmODNiN2U2ZTAzODE4MjExNDUzMTEyMWIxN2U1YWM0MGE3ZmE1NGY1Y2IiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiMzk3OTMzYTI0YTgwMWVlOTIzMzI3YmQ2OWEwMTA0OWMwNzc5MTUwMjFjZjJlYzM5ZGRhNGY4MWFhODM3ZTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1OWQ0NGRmOGE2N2E0ZDEyNTJjN2YyOTc3YTM2MzI0YWVhODM2Yjg5MTc1NDIxYTBlZDIyZGYzNTk4ZGMzZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyYzcwMzExMmUxOTdlMDFkZjdlMzk1YjYxNWFmMTRiNTc4ODczNmEzMzY3OTFiYzg1YTJmZWMxM2I2Y2Q4ZGEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T14:14:00.034Z"
+    "at": "2026-09-18T08:30:00.218Z"
   }
 }

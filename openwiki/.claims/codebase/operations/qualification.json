@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:992094f31db6eb4684d0076eaac2d1b3ac66a9e2ae732a5b42601143fc6a5599",
+  "pageVersion": "sha256:48bd11ef1004ccc267276c9bcdaffecd85fb201abfd476c1b2f313d524394f60",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -22,13 +22,31 @@
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml",
-          "version": "repo-file-v1:sha256:88440cc10fd4d2ea754fb81940780e1fa32a1accc47ccf65222171c229797827"
+          "version": "repo-file-v1:sha256:e561b65eb5d186f7f8fd033c38017f7a5f325229b31b2aa1257cee2ee490f472"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec9f378d6b534829af3f8f9b726148e6",
+      "statement": "The shared manifest selects committed UA freshness in both lanes for every diff, while pre-push checks pushed commit IDs and an independent unconditional Repo Checks job exposes the UA Graph Freshness status.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml#L9-L23",
+          "version": "repo-lines-v1:sha256:ff3548c631fa043a63e450e0cbe1b5044a74e2a9c613908ec454d1a7db40559b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmNDZlNDM2Y2Y2ZmE2MjE3ZDljMjIwMWUxNmRhNjRhYWY3NTZhOTQzZTg1Y2JiMzM3OGM0MDFmMjU4NmY3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MjM3NDY1ZWM1MWMwMTkzYjA2NWQyYzcwMDAzODA1YjIwNDBlNzRiNGVhZDRlNGM1NDc0ZjM3ZjE5NWYxZmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwMmZkMmIwMWUxZDdiZDU4Y2EyM2ExNzVjYmNlZWE2ODRlYTViYzdmZTRkZDEwNzJiY2MyOTkzYjE1NWU1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkOTkwNGYzYzU3ZmExOTM1NGQ1OWEwYjcxZTM1YmQzMTRjYWQ1NTZmMmMxNmQ5NzBjZjE2YTk0MTg4ZDAyMGUifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/repo-checks.yml#L25-L45",
+          "version": "repo-lines-v1:sha256:479f3ca7f681ea36b21d48b71ededaefb89363aa3cb234fb3e8fa462e7e59fbc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZDgwMTU0ZWQ0MmZjNWM3NzliMTMzMTU3OGI1OGI4OWM4MDFlYWNlNzRmMjRjZDQ4ZWI0YTIzNTc5NDBhOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3OThiMmQxNWUyYWFlZjcxM2ZiOWZjZWFiZjRhNzU0YmIwY2YyMmU2YTY4N2QwOWVkMjdkMGZmYjAzMDk2ZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMxOGViNzQwNGY5YTJkYzE0NGQ4Y2FjODMxYThlOTAzZWRjMzY1NTA1NGE4ZmJkYjhmYWJhMmY2YzJiOGI5NmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjNGI5YmQ5MWIxNDFjZDk2MTE0ODczMmZmMTZkM2NhYzQyOWRlZjU5YmU3ZGM1OTEwOWZjYmRhNGU5N2IwNmEifQ"
+        },
+        {
+          "resource": "repo://scripts/pre-push#L190-L218",
+          "version": "repo-lines-v1:sha256:ec32fbc87ce0f467b90275531bd095f4b752a2e54851a33ba8097779738d305a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzZGRiZDU4OGI2YTY1NDU1MjQ5N2ViYjVlNTcwNGIzNWI1MDk0ZTQyZjcxYTNkNTk4Njk4YmNlMzY3NmJhYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZjE4ZGNlYzQ0NDdmYTRhN2E0OWM2ZjY0N2FlOTEwZjNhZGE0OTc4MjQwNzE0ZmNhNWY5MDg4YjBhYzk0NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5NDIzZDY5MTkyNDhmYmY3YWM1MTc3YjQ4NTg4ZWVmYzA5YTllMTkyMWJmZGE2MjcwOGY4NTEyYzAwNWI2MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExYTllOGMyZGE1YjBmMTE3ZTVlNTZhNDI5NDBmYTI2NmRjZTFiMWEwZTZiMDk0ZWMxZjg5YWM0N2VlNTdiNjIifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T14:14:00.034Z"
+    "at": "2026-09-18T08:23:57.133Z"
   }
 }

@@ -5,8 +5,10 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T14:14:00.034Z
+    at: 2026-09-18T08:30:00.218Z
 sources:
+  - id: openwiki-source-311b902b81b9fbe111c8359f
+    resource: repo://.conductor/settings.toml
   - id: openwiki-source-7c03237a6b57ffb3e526a51b
     resource: repo://.nvmrc
   - id: openwiki-source-8fe7ebf00619b8e43f932fa4
@@ -27,11 +29,13 @@ sources:
     resource: repo://scripts/dev-harness/desktop-run-local.sh
   - id: openwiki-source-1a71f2c58cd0b293815e7b47
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
-generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
+  - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
+    resource: repo://scripts/ua_graph.py
+generated: { by: "codex", at: "2026-09-18T08:23:57.133Z" }
 ---
 # Development and wiki maintenance
 
-Start at the repository root. `make setup` refreshes the main baseline, installs worktree-safe Git hooks and synchronizes the backend environment. It deliberately leaves the desktop runtime and app environment opt-in. The repository pins development Node to 22.22.0 in `.nvmrc`.
+Start at the repository root. `make setup` refreshes the main baseline, installs worktree-safe Git hooks, synchronizes the backend environment and prepares the pinned Understand Anything scanner. It deliberately leaves the desktop runtime and app environment opt-in. The repository pins development Node to 22.22.0 in `.nvmrc`.
 
 ## Local commands
 
@@ -45,6 +49,8 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 | Desktop component tests | `desktop/macos/test.sh` |
 | Node runtime checks | `cd desktop/macos/agent && npm run build && npm test` |
 | Shared deterministic contract | `make preflight` |
+| Prepare the pinned graph scanner | `scripts/ua-graph setup` |
+| Check the committed graph | `scripts/ua-graph check --ref HEAD` |
 | Build and smoke canonical image | `make runtime-image-smoke SERVICE=backend` |
 
 The local launcher requires a valid workspace sentinel and a seeded synthetic user, validates the resolved local profile, then launches through `desktop/macos/run.sh`. The `DESKTOP_USER` selector chooses the synthetic account; `DESKTOP_APP_NAME` gives the bundle its own identity. Start the offline stack before launching. Read the [backend](../../INSTRUCTIONS.md#backend-guidance) and [desktop rules](../../INSTRUCTIONS.md#desktop-guidance) for the policy boundaries.
@@ -61,6 +67,10 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
+The graph scanner has a separate external cache keyed by its upstream revision, lockfile, Node/pnpm versions, operating system and architecture. Explicit setup downloads and builds it; `root` and `check` only validate and use an existing runtime. They fail with setup instructions when it is unavailable. The checker reads the requested commit, so a newer unstaged graph cannot make an older committed graph pass.
+
+Conductor's Create PR prompt finishes source/tests and the native wiki update before the final graph refresh, waits for analysis, commits the persistent graph, and runs the committed-content check before publishing. See [Understand Anything across workspaces](understand-anything.md) for the complete handoff and the separate report-publisher rollout.
+
 ## Native OpenWiki lifecycle
 
 The [authored maintenance instructions](../../INSTRUCTIONS.md#wiki-maintenance) select stock OpenWiki 0.5.2. With Node 22.22.0 active, install it using `npm install -g openwiki@0.5.2`, then `openwiki integrations install codex --project .`. A fresh Codex session discovers the project MCP and skill. It uses the host model session; this documentation integration needs no additional model account or tracing service.
@@ -73,8 +83,9 @@ Commit wiki changes with the implementation on the current branch. The existing 
 
 ## Source evidence
 
-- [Makefile](../../../Makefile#L21-L36)
-- [Makefile](../../../Makefile#L35-L55)
+- [Makefile](../../../Makefile#L21-L39)
+- [Graph runtime and checker](../../../scripts/ua_graph.py)
+- [Conductor Create PR sequence](../../../.conductor/settings.toml#L5-L24)
 - [.nvmrc](../../../.nvmrc)
 
 - [Node package scripts](../../../desktop/macos/agent/package.json#L1-L12)

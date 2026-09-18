@@ -1,9 +1,26 @@
-# Single source of truth for deterministic, diff-scoped, stdlib-or-repo-only checks.
+# Single source of truth for deterministic, diff-scoped checks. Checks use stdlib,
+# repository dependencies, or the pinned UA scanner prepared by explicit setup.
+# UA validation is offline; runtime downloads belong only to setup, never checks.
 # Values use JSON scalars/lists within this stdlib-parsed YAML subset.
 # Add new checks here with both local and ci lanes; never hardcode them in workflow YAML.
 # Checks that consume PR metadata declare `requires_pr_body: true`; post-merge
 # push runs exclude only that category because no authoritative PR body is available.
 checks:
+  - id: ua-graph-freshness
+    command: ["python3", "scripts/ua-graph", "check", "--ref", "{head}"]
+    triggers: ["all"]
+    lanes: ["local", "ci"]
+    reason: "each committed candidate must carry its matching persistent UA graph before the Conductor workspace is archived"
+  - id: ua-graph-wiring-tests
+    command: ["python3", ".github/scripts/test_ua_graph_wiring.py"]
+    triggers: ["Makefile", "scripts/pre-push", "scripts/ua-graph", ".github/scripts/test_ua_graph_wiring.py", ".github/scripts/run_checks.py", ".github/actions/setup-ua-graph/**", ".github/actions/release-eligibility/**", ".github/workflows/repo-checks.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "real pushes must validate the actual pushed commits even under the broad preflight hatch; every manifest CI caller must prepare the same scanner"
+  - id: ua-graph-checker-tests
+    command: ["python3", "scripts/test_ua_graph.py"]
+    triggers: ["scripts/ua-graph", "scripts/ua_graph*", "scripts/test_ua_graph.py", ".ua/**", ".nvmrc", ".github/actions/setup-ua-graph/**", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the offline committed-graph checker must reject stale or partial baselines and preserve matching graphs across isolated workspaces"
   - id: dev-harness-unit-tests
     command: ["bash", "scripts/dev-harness/run-tests.sh"]
     triggers: ["Makefile", ".conductor/settings.toml", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/qualification-desktop-command.py", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]
@@ -66,7 +83,7 @@ checks:
     reason: "S-31 commit b229d599 exposed local Black 24.8 formatting differently from CI Black 26.5.1 while pre-commit ignored formatter failures; every commit and CI must use one checked-in version owner"
   - id: setup-pre-push-prerequisites
     command: ["bash", "scripts/test-make-setup.sh"]
-    triggers: ["Makefile", "backend/scripts/sync-python-deps.sh", "scripts/dev-harness/dev-init.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
+    triggers: ["Makefile", ".nvmrc", "scripts/ua-graph", "scripts/ua_graph*", "backend/scripts/sync-python-deps.sh", "scripts/dev-harness/dev-init.sh", "scripts/pre-push", "scripts/repair-git-primary-worktree.sh", "scripts/setup-refresh-main.sh", "scripts/test-make-setup.sh", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "make setup must provision the minimal, rerunnable backend environment required by selected pre-push checks"
   - id: desktop-release-process-guards
@@ -582,6 +599,11 @@ checks:
     triggers: [".github/scripts/guardrail_pulse.py", ".github/scripts/test_guardrail_pulse.py", ".github/workflows/guardrail-baseline-pulse.yml", ".github/guardrail-pulse-history.jsonl", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "#9454 weekly baseline health pulse parsing, JSONL record, and 30-day staleness detection"
+  - id: guardrail-pulse-publication-tests
+    command: ["python3", ".github/scripts/test_publish_guardrail_pulse.py"]
+    triggers: [".github/scripts/publish_guardrail_pulse.py", ".github/scripts/test_publish_guardrail_pulse.py", ".github/scripts/guardrail_pulse.py", ".github/workflows/guardrail-baseline-pulse.yml", ".github/guardrail-pulse-history.jsonl", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the dedicated reporting bot may push only an appended history row, with bounded fast-forward retries and no unrelated file mutations"
 
 exempt:
   - path: ".github/scripts/guardrail_pulse.py"

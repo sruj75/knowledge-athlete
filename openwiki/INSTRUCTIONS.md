@@ -43,6 +43,26 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   Wait for the refresh before staging its persistent files; never commit partial analysis output
   or advance metadata alone to claim freshness.
 
+### PR closeout
+
+- Finish source/tests and the native OpenWiki update before the final graph refresh. Complete both
+  generated artifacts in this feature PR so the next Conductor workspace inherits them from main;
+  a later refresh in an archived worktree cannot join an already-merged PR (the PR #117 handoff).
+- One coding-agent session owns this worktree's `.ua` refresh. Coalesce stock hook requests and PR
+  closeout into one pending update; await its analysis subagents and successful finalization before
+  staging. Stock hooks provide no cross-session lock, so do not run another writer in this worktree.
+- `make setup` prepares the pinned scanner; `scripts/ua-graph root` prints its verified plugin root.
+  Pass that root explicitly as `CLAUDE_PLUGIN_ROOT` when following the stock Understand Anything
+  update instructions, with `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Preserve the saved scope, language
+  and auto-update setting. If the old baseline commit is unavailable, run a full analysis with
+  those settings; never repair freshness by changing metadata alone.
+- Validate the completed graph, commit its persistent files with all intended source/wiki changes,
+  and run `scripts/ua-graph check --ref HEAD` plus the required PR preflights. The checker reads the
+  committed candidate, so fresh unstaged files cannot repair a stale commit. Integrate newer main
+  before merging and refresh again only when the analyzed inputs changed.
+- Publish only when requested. Report the saved baseline and check results, or the specific failure
+  while preserving the last valid baseline. Create PR does not merge or archive the workspace.
+
 ## Engineering rules
 
 - Behavior changes need production-seam regression tests or core/error-path tests. Exercise the real
@@ -73,6 +93,9 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Wire checks into both lanes of `.github/checks-manifest.yaml`; repair manifest omissions rather
   than adding one-off workflow gates. Pre-push remains bounded to 40 broadly selected backend files
   and desktop debug compilation; full suites/release builds retain their existing CI/acceptance lanes.
+- UA freshness is a shared, offline committed-content check using the scanner pinned by
+  `scripts/ua-graph`. Only explicit setup downloads/builds that dependency; checks never install
+  tools or call models. Keep the local pushed-ref check and required CI status on this same primitive.
 - Keep rules mechanical. A guidance-caused defect needs corrected guidance or a guard in the same
   fix PR. Product/operational docs move with code. Ratchet baselines only decrease.
 - Use the installed formatting wrappers; retain Black's `--skip-string-normalization` and exclude
@@ -247,6 +270,22 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 ## Delivery guidance
 
 Read [release operations](codebase/operations/releases.md) and [qualification](codebase/operations/qualification.md).
+
+- Normal code lands through up-to-date regular-merge PRs with the `UA Graph Freshness` GitHub Actions
+  check required on main. Activate the rule only after the implementation and refreshed baseline
+  pass on main and the dedicated weekly publisher is provisioned; local implementation alone is
+  not evidence that remote enforcement is active.
+- The weekly guardrail report may append its history directly to main through the dedicated
+  `Intentive Guardrail Pulse` App. Install it only on this repository with Contents write and
+  Metadata read, and keep its credentials in the `guardrail-pulse-publisher` environment restricted
+  to main (`GUARDRAIL_PULSE_APP_CLIENT_ID` variable and `GUARDRAIL_PULSE_APP_PRIVATE_KEY` secret).
+  Only that App receives an audited `always` ruleset bypass; never grant the shared GitHub Actions
+  or release App this exception. GitHub cannot scope an App bypass to one file, so the publisher
+  must enforce append-only changes to `.github/guardrail-pulse-history.jsonl`, validate the complete
+  candidate, retry competing pushes at most three times from fresh main and never force-push.
+  Report-only changes are outside the UA scope and require no model refresh. Preserve issue updates
+  using the existing `GITHUB_TOKEN`. Provisioning, publication, merge and rule activation belong to
+  the explicitly requested publication rollout.
 
 - Main eligibility is automatic; shared Dev deployment is manual through protected `gcp_backend.yml`.
   Resolve `BACKEND_CLOUD_RUN_SERVICE`; never default to the logical image label `backend`.
