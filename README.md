@@ -8,7 +8,6 @@ preserve that history. Inherited Windows code is outside the active product.
 Start with the [OpenWiki quickstart](openwiki/quickstart.md) for architecture,
 development, testing, and delivery. [Authored guidance](openwiki/INSTRUCTIONS.md)
 owns product constraints, engineering rules, and unresolved commitments.
-[Company](openwiki/company/index.md) is reserved and empty.
 
 See [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), and
 [agent instructions](AGENTS.md) before making changes.

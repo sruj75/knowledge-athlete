@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:60291bb4986f7234c619aeea5a60a780b8ce68fb1e52183f60301f3560e83b86",
+  "claims": [
+    {
+      "id": "claim_52e74e4f78634cacb26bd1ba9bc15376",
+      "statement": "Conductor Create PR finishes and commits source/wiki before a single owned refresh through the enabled Codex system fork, preserving system maps and saved settings with worktree redirect suppression and Luna analysis; the separate pinned runtime checks committed graph output before publication, and a missing fork or failed analysis stops closeout.",
+      "evidence": [
+        {
+          "resource": "repo://.conductor/settings.toml#L5-L27",
+          "version": "repo-lines-v1:sha256:4a38957af2cedaf7519dc53105eaf0570f7226ae6bc69fd1fa0a2c994955d44b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_bb7ac61dbea84c09ae45ff4f5588f786",
+      "statement": "The external UA runtime installs the pinned upstream skill workspace and dependencies with Node, pnpm and frozen lockfile pins, builds core and verifies stock batching/incremental helper imports; root and check require this verified existing runtime.",
+      "evidence": [
+        {
+          "resource": "repo://Makefile#L21-L39",
+          "version": "repo-lines-v1:sha256:9835af03570154c382f01d978934ed18d62bdf4d31ff1965ab8db9baba2a52c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNGNlMDc1ZTg2ODczMTJkODRiZDRjYzBiYzQ0NGU1ZDEwZGUwYmVlZTFhNTIzMzNkMGJiNWY0NzE4YWU4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+        },
+        {
+          "resource": "repo://scripts/ua_graph.py#L17-L228",
+          "version": "repo-lines-v1:sha256:ac67ed9741fe9152bcaad01416adbb3406de1fcdec692de1e23fe5908c94a113:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZjA4NmZiNmNkNTBlNzMwZmYxZGNjM2JmNTk2Y2NmZDJjNDEwMjQ2NzA3ZjM0ZjFiNzBjOWE2MzBlNjY0NDM0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0OTJmYWI1MWI0Nzg4NWMwNjVlMDhlM2JiN2Q2NjFhZGFkNWRiYjkxOGQ5OTBhOTU4MDRmYzlmOTNlMzcwZDI5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxZmU4ODQ3OGI4MGMwYTk4NzU1MGJiZTM5ZjdhMjk1NmYzMDk5MDk0YWU1N2I5NGJiNjhlN2U5MDk2N2MxMmY2In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb14a8af3b3e4713a066cd992fcfa28d",
+      "statement": "Committed graph validation exports the requested commit, scans its saved scope canonically and checks exact content fingerprints, raw graph references, coverage and consistent metadata without requiring the historical baseline object or equality to HEAD.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/ua_graph.py#L261-L367",
+          "version": "repo-lines-v1:sha256:2126d90f2b58c780a8defa462f025fbf77f2e63a0b2b0a6c1c395f5988054949:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2ZTNlZTA1ODRhYmY4N2FiOTFkNTZhOTA4YTNmNTViNzU4YjMxNGVmMDRkYWJhNDVlNWUwM2I3OGQyMzM1MTBiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJkYmNmNjU5ODM2N2QxNTAwMjU1ZGVkMjhjY2VhMjUyZGViOTM5NmU4YzhkZDdmMjRjZTIzMTQ0NDBhMDgzZWUyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiNGE1NDgwN2E2NDljODQ3OGZhMTU3ODVhYmIwNDA2NThhOTcyN2RiYWE0OTNmNmMyZDBlYWVkYjQ0ZmQ3ODJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NDhkNzQ4M2QwNjBmMTcyMmUyNDUzNjg4ODMzNDI1NmI1NDkwZThiYmU4Njk4MjA2NzZjYTllYWYzNTA5Y2M5In0"
+        },
+        {
+          "resource": "repo://scripts/ua_graph_validate.mjs#L25-L88",
+          "version": "repo-lines-v1:sha256:e0f20d659c8e69fe269dcda0c4e0e14bbbdb53fec50795d8c6002160b0f8806e:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhNTNiYTM1MDk2Njc2YzUyNDBjYzA4NDQ4M2ZlMDM1NjE3Zjk0ZjA5MGMyYTA5YTI4NjdjMDQwYWEzNjE5ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzYmNjMzI4ZDEyZWJhZGYyNjQ5ZDlmNTYyOTBjMzMxOWYxYmE2ZjQzNzM4NjM5MjhiNTA3MmM4MmUzZWYzYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxYTE4MmQyNTgzODEzYzQ0OGJjMDIyMDFjMWU1YzZlNmRiNDY2ZDY1Yjc4M2MzNmE1ZTg5NTg5NzczNDE4NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzYjNmYWFhMmUwNmY2NDg4ZDEwNTc4NmU0ZDE4MjY0ODI0YmEzNjljMzMwNWRjYWY3NDdmNGE0N2EwN2Q5ZTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7c9db36a041a4f69bae3f7c533b55765",
+      "statement": "Graph freshness runs for all candidates in both manifest lanes, validates actual pushed commits despite broader shortcuts and has an unconditional PR/main Actions job using the shared setup action.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml#L9-L23",
+          "version": "repo-lines-v1:sha256:ff3548c631fa043a63e450e0cbe1b5044a74e2a9c613908ec454d1a7db40559b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmNDZlNDM2Y2Y2ZmE2MjE3ZDljMjIwMWUxNmRhNjRhYWY3NTZhOTQzZTg1Y2JiMzM3OGM0MDFmMjU4NmY3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MjM3NDY1ZWM1MWMwMTkzYjA2NWQyYzcwMDAzODA1YjIwNDBlNzRiNGVhZDRlNGM1NDc0ZjM3ZjE5NWYxZmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwMmZkMmIwMWUxZDdiZDU4Y2EyM2ExNzVjYmNlZWE2ODRlYTViYzdmZTRkZDEwNzJiY2MyOTkzYjE1NWU1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkOTkwNGYzYzU3ZmExOTM1NGQ1OWEwYjcxZTM1YmQzMTRjYWQ1NTZmMmMxNmQ5NzBjZjE2YTk0MTg4ZDAyMGUifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/repo-checks.yml#L3-L45",
+          "version": "repo-lines-v1:sha256:f8b96c8b3c52879560e892b443de094fe3edfdddf0e813e9569ca2558dff14c7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5NmRjNDgxNDlmNWE4M2QxZWQ2ZGJiMzliYmM3ZTJiOTAyYWEzZDM0ZDZiZDVhZTRiMjkxYjY4ZGYwY2E3OWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3OThiMmQxNWUyYWFlZjcxM2ZiOWZjZWFiZjRhNzU0YmIwY2YyMmU2YTY4N2QwOWVkMjdkMGZmYjAzMDk2ZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3MDY5NDEzNzI0NTNhNThjOGE2MWRiYWUwZWI0NWI3MTc1MzQzYTEyNmVlN2FhODRlOTBhZTAyMGVhODAxNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVjNGI5YmQ5MWIxNDFjZDk2MTE0ODczMmZmMTZkM2NhYzQyOWRlZjU5YmU3ZGM1OTEwOWZjYmRhNGU5N2IwNmEifQ"
+        },
+        {
+          "resource": "repo://scripts/pre-push#L190-L218",
+          "version": "repo-lines-v1:sha256:ec32fbc87ce0f467b90275531bd095f4b752a2e54851a33ba8097779738d305a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzZGRiZDU4OGI2YTY1NDU1MjQ5N2ViYjVlNTcwNGIzNWI1MDk0ZTQyZjcxYTNkNTk4Njk4YmNlMzY3NmJhYzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZjE4ZGNlYzQ0NDdmYTRhN2E0OWM2ZjY0N2FlOTEwZjNhZGE0OTc4MjQwNzE0ZmNhNWY5MDg4YjBhYzk0NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5NDIzZDY5MTkyNDhmYmY3YWM1MTc3YjQ4NTg4ZWVmYzA5YTllMTkyMWJmZGE2MjcwOGY4NTEyYzAwNWI2MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExYTllOGMyZGE1YjBmMTE3ZTVlNTZhNDI5NDBmYTI2NmRjZTFiMWEwZTZiMDk0ZWMxZjg5YWM0N2VlNTdiNjIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9d509014db9043d18cee9c111b9934ff",
+      "statement": "Checker tests cover committed versus uncommitted output, changed inventories and exclusions, missing baselines and independently inherited graph validation after removing the first worktree.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/test_ua_graph.py#L139-L222",
+          "version": "repo-lines-v1:sha256:0c309e5e39bc7e35634cbe981a0827a807881b357e9a86cb53a5a0aed9b5afb4:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0ZTcwOGMxYzc2NDY1YzJlMmFlMzQzMjk5M2JkZDU5MWFjY2I0YjdhNjNlNzNiYjc0YjkxYzI3MTI3NGI1NWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhYWFiYzc1Zjg0OGU4NzU1NTcwYjVkMmJkYWUyYjJmYjllOTI0MTc2N2M5YzgyYWYyOTYyOWZmYTRkMzM5MDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2MWExYWQ5NzA3NDZiMzE4N2U2OWJjMzMzN2U4MDdmYjZjNTNiYzJjZGFiNjQxYWQ2N2RkZWUwNTY2NzIxZGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkNzFmNTAzYzBhZTY1NDRkYTczNGEzN2FmZWMzMjAyNGQyY2Q5MGM5ZWVlMzQzYWI4ZmZhZDc2MTFmMGMxZTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8bdbe1d6f6c940d3a25603b4cb4e0519",
+      "statement": "The weekly report workflow runs only on main, serializes publication and uses an environment-provided dedicated App token for history publication while preserving GITHUB_TOKEN for issue reporting.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/guardrail-baseline-pulse.yml#L14-L101",
+          "version": "repo-lines-v1:sha256:29409b927937e81049cc205c4d2cf41f47d01bb78af9e1094c67e61bdf5ca30e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5ZWNlZGMxOGVjYWYxZGFmOWU3YmVmYjlmZDc5ZTJjM2NmMTU1OTllNTNlNzljZGJkOTAxZWU2ZTJjOTc5ZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3ODkyMTE0ZjczZTBjZmUyZmQ1OTJiMGEyNDFkMzFlZmFjNjg4OGZhNTNkMzIxOTExMDNkMDZjN2EwMmU5NDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzYzk2YmQ5NmRkNTg3ZWQ3NGY2YWY4N2MxNzNhMjQzYTdmYmM2MGYxM2U1ZDMxYmNiMzQyMGUwNWM1MzFhMTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkODk4MDdlYWY0MjQ3OTQ3ZDNhN2Y0MGI5MTgxOWVhZWRjZmU1N2FlZDAzNjUxMDRjNDNhNmU0ZjA0YjQzODQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ad20094260854ed8bf302d5c9a900c6e",
+      "statement": "The report publisher requires exactly one appended valid history row and a clean single-commit candidate, rejects other changes and retries a competing main push with regeneration at most three times without force pushing.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/publish_guardrail_pulse.py#L24-L162",
+          "version": "repo-lines-v1:sha256:2bdeb322fcea49fe2d017f8807bfc1b1731848eecba028c7dd4c08414f3d76fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTM5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0OTIzZTE0ZTRmNTNiMjkzZWU0YWEyZDJmOTRiZTg5NjJmYmNhNjY3YTFhMTVlMmMxOGJkNjgxODdjY2Q2YTA1IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJkNzNjMWM5YzY1NjZjZTFhNzZiY2ZiYjAwMGE5ZTE4ZWJiNGNhOTRiNDVmNjBiZDY5NzVhZWU4NjI1MzJhODljIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlMTUyNmE1NTc0OGNjYTg3ODI3ZDE1NjJmNTY1M2YxNjEyMDg2ZmM3YjA0ZmViOTkwNjQxMWI1ZmM5MDQ5NDgxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0ZDA4ZDE3YWI4NTBjMDdiMzMwOWI1NzA0OWM3NTkyOTkyNTdlNzNiYjhiMzA0YjI0YmM4ZWUwN2VmNDE5MWNlIn0"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-18T08:55:03.537Z"
+  }
+}

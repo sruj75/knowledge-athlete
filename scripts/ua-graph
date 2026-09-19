@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Public entrypoint for the pinned Understand Anything toolchain."""
+
+from ua_graph import main
+
+raise SystemExit(main())

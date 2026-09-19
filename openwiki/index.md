@@ -9,4 +9,3 @@ okf_version: "0.2"
 # Directories
 
 - [codebase](codebase/)
-- [company](company/)

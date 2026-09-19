@@ -1,0 +1,19 @@
+name: Prepare Understand Anything runtime
+description: Prepare the pinned scanner before running offline manifest checks.
+runs:
+  using: composite
+  steps:
+    - name: Set up pinned Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+
+    - name: Restore pinned UA runtime
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/intentive/ua-graph
+        key: ua-graph-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.nvmrc', 'scripts/ua_graph.py') }}
+
+    - name: Bootstrap pinned UA scanner
+      shell: bash
+      run: scripts/ua-graph setup

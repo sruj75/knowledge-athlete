@@ -43,12 +43,20 @@ printf '%s\n' "backend-setup" >> setup-order.txt
 EOF
 chmod +x "$TMPDIR/repo/backend/scripts/sync-python-deps.sh"
 
+cat >"$TMPDIR/repo/scripts/ua-graph" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = setup
+printf '%s\n' "ua-setup" >> setup-order.txt
+EOF
+chmod +x "$TMPDIR/repo/scripts/ua-graph"
+
 (
   cd "$TMPDIR/repo"
   make setup >/dev/null
 )
 
-expected=$'setup-refresh-main.sh\ninstall-git-hooks.sh\nbackend-setup'
+expected=$'setup-refresh-main.sh\ninstall-git-hooks.sh\nbackend-setup\nua-setup'
 actual="$(cat "$TMPDIR/repo/setup-order.txt")"
 if [ "$actual" != "$expected" ]; then
   echo "FAIL: make setup did not provision baseline pre-push prerequisites in order." >&2

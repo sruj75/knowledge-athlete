@@ -8,7 +8,8 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 
 - Use unmodified OpenWiki 0.5.2, its project-scoped Codex integration and Node 22.22.0.
 - Document active macOS, its Node runtime, the canonical Python backend, tests and delivery
-  under `codebase/`, organized by systems/workflows. Keep `company/` structurally present and empty.
+  under `codebase/`, organized by systems/workflows. `codebase/` is the complete wiki scope
+  and the default destination for generated pages.
 - Windows is paused: exclude `desktop/windows/` and Windows-only surfaces from research/changes.
 - Honor `.openwikiignore`; exclude credentials, private state, dependencies and build outputs.
   OpenWiki excludes `.ua/`; Understand Anything maintains that separate graph.
@@ -23,8 +24,8 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - After source/tests stabilize, complete the native skill's begin → plan → page queue → finish
   lifecycle. Include affected wiki changes with code; use `force: true` for brief-only changes.
 - Resume interrupted runs. Never hand-edit Claims, generated indexes, checkpoints or completion metadata.
-- Init preserves this brief; other wiki content is generated state. Reserve Company after init begins
-  and remove any scaffolded scheduled workflow before committing. Updates happen during Codex work.
+- Init preserves this brief; other wiki content is generated state. Remove any scaffolded scheduled
+  workflow before committing. Updates happen during Codex work.
 - Keep only active instructions here. Generated pages own source-backed explanations/commands;
   Git owns full decision histories, old tutorials and dated receipts. Do not copy the archive back in.
 - Use standard OKF Markdown and package `resource: repo://<package-path>` metadata. Keep link,
@@ -33,7 +34,7 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Track the persistent Understand Anything graph, fingerprints, metadata, config and exclusions in
   `.ua/`; keep `intermediate/`, `tmp/`, `.trash-*` and `diff-overlay.json` ignored. Preserve the last
   valid baseline until analysis and validation finish. Use `--auto-update` for commit-triggered
-  refreshes through the stock coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
+  refreshes through the installed coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
   for this Conductor worktree's graph. Use GPT-5.6 Luna for semantic-analysis subagents and
   report the saved baseline and any failures in the active conversation before ending the task.
 - Full scans must pass the bundled `scan-project.mjs --exclude-analysis-data` option so tracked
@@ -42,6 +43,30 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   a commit produces additional working-tree changes; it does not publish them automatically.
   Wait for the refresh before staging its persistent files; never commit partial analysis output
   or advance metadata alone to claim freshness.
+
+### PR closeout
+
+- Finish source/tests and the native OpenWiki update before the final graph refresh. Complete both
+  generated artifacts in this feature PR so the next Conductor workspace inherits them from main;
+  a later refresh in an archived worktree cannot join an already-merged PR (the PR #117 handoff).
+- One coding-agent session owns this worktree's `.ua` refresh. Coalesce stock hook requests and PR
+  closeout into one pending update; await its analysis subagents and successful finalization before
+  staging. Honor the analyzer's project lease; never start a competing writer or adopt its token.
+- Generate with the enabled Codex `understand-anything@understand-anything` system fork
+  (`2.9.7-system.1` or a verified successor), resolving its active skill directory. Preserve the
+  versioned `system` section and use its normal analysis/publication workflow, with
+  `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Keep scope, English output and auto-update settings.
+  `make setup` and `scripts/ua-graph root` prepare/locate the pinned upstream runtime for offline
+  committed-content checks; that runtime is not the semantic generation plugin. If the system
+  fork is unavailable, report the missing installation rather than regenerate with stock code.
+  If the old baseline commit is unavailable, run a full analysis with the saved settings;
+  never repair freshness by changing metadata alone.
+- Validate the completed graph, commit its persistent files with all intended source/wiki changes,
+  and run `scripts/ua-graph check --ref HEAD` plus the required PR preflights. The checker reads the
+  committed candidate, so fresh unstaged files cannot repair a stale commit. Integrate newer main
+  before merging and refresh again only when the analyzed inputs changed.
+- Publish only when requested. Report the saved baseline and check results, or the specific failure
+  while preserving the last valid baseline. Create PR does not merge or archive the workspace.
 
 ## Engineering rules
 
@@ -73,6 +98,9 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Wire checks into both lanes of `.github/checks-manifest.yaml`; repair manifest omissions rather
   than adding one-off workflow gates. Pre-push remains bounded to 40 broadly selected backend files
   and desktop debug compilation; full suites/release builds retain their existing CI/acceptance lanes.
+- UA freshness is a shared, offline committed-content check using the scanner pinned by
+  `scripts/ua-graph`. Only explicit setup downloads/builds that dependency; checks never install
+  tools or call models. Keep the local pushed-ref check and required CI status on this same primitive.
 - Keep rules mechanical. A guidance-caused defect needs corrected guidance or a guard in the same
   fix PR. Product/operational docs move with code. Ratchet baselines only decrease.
 - Use the installed formatting wrappers; retain Black's `--skip-string-normalization` and exclude
@@ -247,6 +275,22 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 ## Delivery guidance
 
 Read [release operations](codebase/operations/releases.md) and [qualification](codebase/operations/qualification.md).
+
+- Normal code lands through up-to-date regular-merge PRs with the `UA Graph Freshness` GitHub Actions
+  check required on main. Activate the rule only after the implementation and refreshed baseline
+  pass on main and the dedicated weekly publisher is provisioned; local implementation alone is
+  not evidence that remote enforcement is active.
+- The weekly guardrail report may append its history directly to main through the dedicated
+  `Intentive Guardrail Pulse` App. Install it only on this repository with Contents write and
+  Metadata read, and keep its credentials in the `guardrail-pulse-publisher` environment restricted
+  to main (`GUARDRAIL_PULSE_APP_CLIENT_ID` variable and `GUARDRAIL_PULSE_APP_PRIVATE_KEY` secret).
+  Only that App receives an audited `always` ruleset bypass; never grant the shared GitHub Actions
+  or release App this exception. GitHub cannot scope an App bypass to one file, so the publisher
+  must enforce append-only changes to `.github/guardrail-pulse-history.jsonl`, validate the complete
+  candidate, retry competing pushes at most three times from fresh main and never force-push.
+  Report-only changes are outside the UA scope and require no model refresh. Preserve issue updates
+  using the existing `GITHUB_TOKEN`. Provisioning, publication, merge and rule activation belong to
+  the explicitly requested publication rollout.
 
 - Main eligibility is automatic; shared Dev deployment is manual through protected `gcp_backend.yml`.
   Resolve `BACKEND_CLOUD_RUN_SERVICE`; never default to the logical image label `backend`.

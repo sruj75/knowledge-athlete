@@ -11,24 +11,56 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   issues: write
+
+concurrency:
+  group: guardrail-pulse-publisher-main
+  cancel-in-progress: false
 
 jobs:
   pulse:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: guardrail-pulse-publisher
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Allow the job to push the recorded history line back to main.
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create dedicated report publisher token
+        id: publisher-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.GUARDRAIL_PULSE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GUARDRAIL_PULSE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Configure report publisher identity
+        env:
+          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
+          APP_SLUG: ${{ steps.publisher-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          APP_USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
+          gh auth setup-git
 
       - name: Run pulse and record snapshot
         id: pulse
+        env:
+          GH_TOKEN: ${{ steps.publisher-token.outputs.token }}
         run: |
           set -euo pipefail
-          python3 .github/scripts/guardrail_pulse.py --json --record | tee /tmp/pulse.json
+          python3 .github/scripts/publish_guardrail_pulse.py | tee /tmp/pulse.json
           set +e
           python3 .github/scripts/guardrail_pulse.py --check-staleness > /tmp/staleness.txt
           status=$?
@@ -48,19 +80,6 @@ jobs:
             cat /tmp/staleness.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Commit history snapshot
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- .github/guardrail-pulse-history.jsonl; then
-            echo "No history change to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/guardrail-pulse-history.jsonl
-          git commit -m "chore: record weekly guardrail baseline pulse"
-          git push
 
       - name: Open or update staleness tracking issue
         if: steps.pulse.outputs.staleness_exit == '1'
