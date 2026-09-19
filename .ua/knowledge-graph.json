@@ -25,8 +25,8 @@
       "Docker"
     ],
     "description": "Intentive is a macOS memory assistant with a bundled Node agent runtime and managed Python backend. This repository derives from Omi, while inherited Windows code is outside the active product. Note: this project has over 100 source files; consider scoping analysis to a subdirectory for faster results.",
-    "analyzedAt": "2026-09-19T09:51:56.724Z",
-    "gitCommitHash": "3bc610b80d5e23394d7b246ef437e96c41f4d580"
+    "analyzedAt": "2026-09-19T10:56:12.059Z",
+    "gitCommitHash": "07c9c2f7a62415a6c7050a59cf51a94fa8e3b0b7"
   },
   "nodes": [
     {
@@ -85370,21 +85370,6 @@
       "complexity": "moderate"
     },
     {
-      "id": "config:openwiki/.claims/codebase/architecture/overview.json",
-      "type": "config",
-      "name": "overview.json",
-      "filePath": "openwiki/.claims/codebase/architecture/overview.json",
-      "summary": "Cross-cutting OpenWiki architecture claim ledger. It connects canonical backend router composition, Mac-owned memory mutation versus backend candidate compute, and the managed Pi adapter with the local conversation journal.",
-      "tags": [
-        "claims",
-        "architecture",
-        "overview",
-        "evidence",
-        "verification"
-      ],
-      "complexity": "simple"
-    },
-    {
       "id": "config:openwiki/.claims/codebase/integrations/build-signing.json",
       "type": "config",
       "name": "build-signing.json",
@@ -85423,20 +85408,6 @@
         "claims",
         "telemetry",
         "privacy"
-      ],
-      "complexity": "simple"
-    },
-    {
-      "id": "config:openwiki/.claims/codebase/operations/migrations.json",
-      "type": "config",
-      "name": "migrations.json",
-      "filePath": "openwiki/.claims/codebase/operations/migrations.json",
-      "summary": "OpenWiki claims cover two operational migrations: named GRDB migrations evolve the Rewind database, while a credentialed Mixpanel export emits resumable daily chunks under a concurrency lock.",
-      "tags": [
-        "configuration",
-        "claims",
-        "migration",
-        "data-export"
       ],
       "complexity": "simple"
     },
@@ -144147,21 +144118,6 @@
       "complexity": "moderate"
     },
     {
-      "id": "config:openwiki/.claims/codebase/operations/development.json",
-      "type": "config",
-      "name": "development.json",
-      "filePath": "openwiki/.claims/codebase/operations/development.json",
-      "summary": "OpenWiki claim manifest describing development setup and local operating contracts, including pinned runtimes, dependency synchronization, launcher validation, CI wrappers, UA runtime preparation, and PR closeout behavior.",
-      "tags": [
-        "configuration",
-        "development",
-        "tooling",
-        "verification",
-        "openwiki"
-      ],
-      "complexity": "complex"
-    },
-    {
       "id": "config:openwiki/.claims/codebase/operations/qualification.json",
       "type": "config",
       "name": "qualification.json",
@@ -145168,11 +145124,56 @@
       "complexity": "moderate"
     },
     {
+      "id": "config:openwiki/.claims/codebase/architecture/overview.json",
+      "type": "config",
+      "name": "overview.json",
+      "filePath": "openwiki/.claims/codebase/architecture/overview.json",
+      "summary": "OpenWiki architecture claim ledger recording evidence-backed statements about router composition, memory ownership versus backend compute, and the managed Pi adapter alongside local conversation journaling.",
+      "tags": [
+        "claims",
+        "architecture",
+        "evidence",
+        "verification"
+      ],
+      "complexity": "simple",
+      "languageNotes": "JSON configuration with schema, page-version, claim, and verification sections."
+    },
+    {
+      "id": "config:openwiki/.claims/codebase/operations/development.json",
+      "type": "config",
+      "name": "development.json",
+      "filePath": "openwiki/.claims/codebase/operations/development.json",
+      "summary": "OpenWiki claim manifest for development operations, capturing repository setup, pinned runtimes, dependency synchronization, launcher and CI checks, UA preparation, and PR closeout contracts.",
+      "tags": [
+        "configuration",
+        "development",
+        "tooling",
+        "verification",
+        "openwiki"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:openwiki/.claims/codebase/operations/migrations.json",
+      "type": "config",
+      "name": "migrations.json",
+      "filePath": "openwiki/.claims/codebase/operations/migrations.json",
+      "summary": "OpenWiki claim manifest describing retained migration operations: named GRDB migrations for Rewind schema evolution and a credentialed, resumable Mixpanel export protected by a concurrency lock.",
+      "tags": [
+        "configuration",
+        "claims",
+        "migration",
+        "data-export",
+        "openwiki"
+      ],
+      "complexity": "simple"
+    },
+    {
       "id": "config:openwiki/.claims/quickstart.json",
       "type": "config",
       "name": "quickstart.json",
       "filePath": "openwiki/.claims/quickstart.json",
-      "summary": "Stores verified OpenWiki quickstart claims about the canonical FastAPI backend, desktop and transient compute routes, and the TypeScript Node agent build and test surface.",
+      "summary": "Stores verified OpenWiki claims about the repository's canonical FastAPI backend, desktop and transient compute routes, Node agent build and test surface, and setup checks. Each claim carries source evidence and a verification record.",
       "tags": [
         "configuration",
         "documentation",
@@ -145186,7 +145187,7 @@
       "type": "config",
       "name": ".last-update.json",
       "filePath": "openwiki/.last-update.json",
-      "summary": "Records the latest OpenWiki update timestamp, command, Git head, model, completion status, and output language.",
+      "summary": "Records the most recent OpenWiki update metadata, including timestamp, command, Git head, model, completion status, and output language.",
       "tags": [
         "configuration",
         "openwiki",
@@ -145200,7 +145201,7 @@
       "type": "config",
       "name": ".page-manifest.json",
       "filePath": "openwiki/.page-manifest.json",
-      "summary": "Maps generated OpenWiki page paths to source fingerprints, page versions, Git heads, and completion metadata used to track documentation freshness.",
+      "summary": "Maps generated OpenWiki page paths to source fingerprints, page versions, Git heads, completion authors, and run identifiers so documentation freshness can be tracked.",
       "tags": [
         "configuration",
         "openwiki",
@@ -225628,27 +225629,6 @@
       "weight": 0.6
     },
     {
-      "source": "config:openwiki/.claims/codebase/architecture/backend.json",
-      "target": "config:openwiki/.claims/codebase/architecture/overview.json",
-      "type": "related",
-      "direction": "forward",
-      "weight": 0.5
-    },
-    {
-      "source": "config:openwiki/.claims/codebase/architecture/desktop-agent.json",
-      "target": "config:openwiki/.claims/codebase/architecture/overview.json",
-      "type": "related",
-      "direction": "forward",
-      "weight": 0.5
-    },
-    {
-      "source": "config:openwiki/.claims/codebase/architecture/local-data.json",
-      "target": "config:openwiki/.claims/codebase/architecture/overview.json",
-      "type": "related",
-      "direction": "forward",
-      "weight": 0.5
-    },
-    {
       "source": "config:openwiki/.claims/codebase/architecture/desktop-agent.json",
       "target": "config:openwiki/.claims/codebase/architecture/local-data.json",
       "type": "related",
@@ -269364,6 +269344,13 @@
       "direction": "forward",
       "weight": 0.7,
       "recoveredFromImportMap": true
+    },
+    {
+      "source": "config:openwiki/.claims/codebase/operations/development.json",
+      "target": "config:openwiki/.claims/codebase/operations/migrations.json",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
     }
   ],
   "layers": [
@@ -270327,7 +270314,7 @@
   ],
   "system": {
     "schemaVersion": 1,
-    "revision": "8400b1d3-a35d-4292-8311-c9b462af60b1",
+    "revision": "aaab1bfa-70e6-4949-934e-6f7ed1531db3",
     "rootMapId": "map:product",
     "components": [
       {
@@ -270981,7 +270968,7 @@
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
             "lineRange": [
               314,
-              361
+              360
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
@@ -271173,7 +271160,7 @@
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
             "lineRange": [
               543,
-              621
+              620
             ],
             "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
             "kind": "source"
@@ -271410,7 +271397,7 @@
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Stores/TasksStore.swift",
             "lineRange": [
               766,
-              837
+              836
             ],
             "contentHash": "900ffa4b67a18f07bdc35f37819c5170340af42f230ca82fb6f14f64c787690b",
             "kind": "source"
@@ -271516,7 +271503,7 @@
             "fileNodeId": "file:desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBarNotificationPolicy.swift",
             "lineRange": [
               1,
-              66
+              65
             ],
             "contentHash": "c0ad571a5f60b7ddbabe9d5d32e5495bdc930b6345cd591412093997c063899d",
             "kind": "source"

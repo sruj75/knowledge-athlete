@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "gitCommitHash": "3bc610b80d5e23394d7b246ef437e96c41f4d580",
-  "generatedAt": "2026-09-19T09:51:56.344Z",
+  "gitCommitHash": "07c9c2f7a62415a6c7050a59cf51a94fa8e3b0b7",
+  "generatedAt": "2026-09-19T10:56:13.078Z",
   "files": {
     ".agents/skills/openwiki/.openwiki-install.json": {
       "filePath": ".agents/skills/openwiki/.openwiki-install.json",
@@ -143978,7 +143978,7 @@
     },
     "openwiki/.claims/codebase/architecture/overview.json": {
       "filePath": "openwiki/.claims/codebase/architecture/overview.json",
-      "contentHash": "24ed69afc79aa970b5bbca4d218b6cae2985dab71cc28f9dc9cf6711cb2a8cd6",
+      "contentHash": "b58afd30bf77d506e449d46eba7000626961fbb5dfdbbe6675d5124247ddd264",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -144038,7 +144038,7 @@
     },
     "openwiki/.claims/codebase/operations/development.json": {
       "filePath": "openwiki/.claims/codebase/operations/development.json",
-      "contentHash": "059ae644258955e85202c32760131efa9435acba248ea82a67a9f0a472cff0ff",
+      "contentHash": "476e2de3c6bf5dbb26684a7a4d3bd4db23252a6cc1eb215346193e1c444ac858",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -144048,7 +144048,7 @@
     },
     "openwiki/.claims/codebase/operations/migrations.json": {
       "filePath": "openwiki/.claims/codebase/operations/migrations.json",
-      "contentHash": "7a0b5303d155ae8f05a9d30ff04966f4f6a1e5564ce098c66196ee74eb307e67",
+      "contentHash": "9ca1c6d8fc08bb6408c01a3d9b1b538cc3fbf535bbb4cb8c3d106318b2bcd940",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -144128,7 +144128,7 @@
     },
     "openwiki/.claims/quickstart.json": {
       "filePath": "openwiki/.claims/quickstart.json",
-      "contentHash": "1a49d311aeea007268622b654f804fa9b1696198fe074b4c6bcabaf7643b6a5e",
+      "contentHash": "5734468177c36673898a62e7ef6680b6329ea3797a68016842fcd694480f8b7b",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -144138,7 +144138,7 @@
     },
     "openwiki/.last-update.json": {
       "filePath": "openwiki/.last-update.json",
-      "contentHash": "a09086ce0ddf4972058a8e565d2d9269e75fa549759a95d4296cc7c035a43f52",
+      "contentHash": "da135ac92e423b833b2f14f60a15ea5766abc0e568a1ae072bb27e826feae299",
       "functions": [],
       "classes": [],
       "imports": [],
@@ -144148,7 +144148,7 @@
     },
     "openwiki/.page-manifest.json": {
       "filePath": "openwiki/.page-manifest.json",
-      "contentHash": "11bb4480fbb7b367be2659233e1b9dfacdf788865dbe7a1de6690c0244eb9689",
+      "contentHash": "231cc1ba5a35317484dc051e80cda1c4eb8bed8a346cf34dd476cef9f52a35df",
       "functions": [],
       "classes": [],
       "imports": [],
