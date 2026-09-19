@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "gitCommitHash": "aee96cb5a7e2a1c8b6212869aea8c62e8997c8af",
-  "generatedAt": "2026-09-19T08:59:05.154Z",
+  "gitCommitHash": "3bc610b80d5e23394d7b246ef437e96c41f4d580",
+  "generatedAt": "2026-09-19T09:51:56.344Z",
   "files": {
     ".agents/skills/openwiki/.openwiki-install.json": {
       "filePath": ".agents/skills/openwiki/.openwiki-install.json",
@@ -85149,20 +85149,103 @@
           "name": "exportMyData",
           "params": [],
           "exported": false,
-          "lineCount": 341
+          "lineCount": 22
+        },
+        {
+          "name": "trialFeatureRow",
+          "params": [
+            "text"
+          ],
+          "returnType": "some View",
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "trialCountdownText",
+          "params": [
+            "remaining"
+          ],
+          "returnType": "String",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "trialTimeColor",
+          "params": [
+            "remaining"
+          ],
+          "returnType": "Color",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "trialProgress",
+          "params": [
+            "trial"
+          ],
+          "returnType": "CGFloat",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "chatUsageQuotaValueText",
+          "params": [
+            "q"
+          ],
+          "returnType": "String",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "chatUsageQuotaDescription",
+          "params": [
+            "q"
+          ],
+          "returnType": "String",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "chatUsageQuotaResetText",
+          "params": [
+            "q"
+          ],
+          "returnType": "String?",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "chatUsageBarColor",
+          "params": [
+            "q"
+          ],
+          "returnType": "Color",
+          "exported": true,
+          "lineCount": 5
         }
       ],
       "classes": [
         {
           "name": "extension SettingsContentView",
           "methods": [
-            "exportMyData"
+            "exportMyData",
+            "trialFeatureRow",
+            "trialCountdownText",
+            "trialTimeColor",
+            "trialProgress",
+            "chatUsageQuotaValueText",
+            "chatUsageQuotaDescription",
+            "chatUsageQuotaResetText",
+            "chatUsageBarColor"
           ],
           "properties": [
-            "accountSection"
+            "accountSection",
+            "trialCountdownCard",
+            "planUsageSection",
+            "chatUsageQuotaCard"
           ],
           "exported": false,
-          "lineCount": 468
+          "lineCount": 467
         }
       ],
       "imports": [
@@ -85198,7 +85281,18 @@
         }
       ],
       "exports": [
-        "accountSection"
+        "accountSection",
+        "trialCountdownCard",
+        "trialFeatureRow",
+        "trialCountdownText",
+        "trialTimeColor",
+        "trialProgress",
+        "planUsageSection",
+        "chatUsageQuotaCard",
+        "chatUsageQuotaValueText",
+        "chatUsageQuotaDescription",
+        "chatUsageQuotaResetText",
+        "chatUsageBarColor"
       ],
       "totalLines": 474,
       "hasStructuralAnalysis": true
@@ -97995,6 +98089,22 @@
           "lineCount": 31
         },
         {
+          "name": "TaskAssistant.init",
+          "params": [
+            "apiKey"
+          ],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "TaskAssistant.init",
+          "params": [
+            "extractionOverride"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
           "name": "startProcessing",
           "params": [],
           "exported": false,
@@ -98209,13 +98319,23 @@
           "lineCount": 64
         },
         {
+          "name": "executeVectorSearch",
+          "params": [
+            "query",
+            "authorizationSnapshot"
+          ],
+          "returnType": "[TaskSearchResult]",
+          "exported": false,
+          "lineCount": 49
+        },
+        {
           "name": "executeKeywordSearch",
           "params": [
             "query",
             "authorizationSnapshot"
           ],
           "returnType": "[TaskSearchResult]",
-          "exported": true,
+          "exported": false,
           "lineCount": 51
         }
       ],
@@ -98230,6 +98350,66 @@
           ],
           "exported": false,
           "lineCount": 4
+        },
+        {
+          "name": "TaskAssistant",
+          "methods": [
+            "discoveryEnabled",
+            "shouldAdmit",
+            "storedProvenance",
+            "init",
+            "init",
+            "startProcessing",
+            "processLoop",
+            "startFallbackTimer",
+            "testAnalyze",
+            "shouldAnalyze",
+            "analyze",
+            "armFastFallbackIfNeeded",
+            "handleResult",
+            "handleResultWithScreenshot",
+            "saveTaskLocally",
+            "onAppSwitch",
+            "onContextSwitch",
+            "analyzedKey",
+            "normalizedWindowTitle",
+            "pruneStaleDedupeEntries",
+            "clearPendingWork",
+            "clearPendingWorkForOwnerReset",
+            "resetForOwnerChange",
+            "stop",
+            "processFrame",
+            "extractTaskSingleStage",
+            "contextEvidencePrompt",
+            "validateTaskTitle",
+            "refreshContext",
+            "executeVectorSearch",
+            "executeKeywordSearch"
+          ],
+          "properties": [
+            "identifier",
+            "displayName",
+            "isEnabled",
+            "geminiClient",
+            "extractionOverride",
+            "isRunning",
+            "previousTasks",
+            "maxPreviousTasks",
+            "currentApp",
+            "processingTask",
+            "triggerStream",
+            "triggerContinuation",
+            "latestFrame",
+            "fallbackTimerTask",
+            "lastAnalyzedByKey",
+            "messagingFastPathApps",
+            "messagingFastPathDelay",
+            "systemPrompt",
+            "extractionInterval",
+            "minConfidence"
+          ],
+          "exported": true,
+          "lineCount": 1486
         },
         {
           "name": "TriggerEvent",
@@ -98251,9 +98431,14 @@
         }
       ],
       "exports": [
+        "identifier",
+        "displayName",
         "discoveryEnabled",
         "shouldAdmit",
         "storedProvenance",
+        "isEnabled",
+        "TaskAssistant.init",
+        "TaskAssistant.init",
         "testAnalyze",
         "shouldAnalyze",
         "analyze",
@@ -98266,7 +98451,7 @@
         "stop",
         "processFrame",
         "contextEvidencePrompt",
-        "executeKeywordSearch"
+        "TaskAssistant"
       ],
       "totalLines": 1498,
       "hasStructuralAnalysis": true
@@ -114840,7 +115025,54 @@
           ],
           "returnType": "String?",
           "exported": false,
-          "lineCount": 195
+          "lineCount": 43
+        },
+        {
+          "name": "createConversationAuthorityTables",
+          "params": [
+            "db"
+          ],
+          "exported": false,
+          "lineCount": 130
+        },
+        {
+          "name": "uniqueUUID",
+          "params": [
+            "used"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "value",
+          "params": [
+            "row",
+            "column"
+          ],
+          "returnType": "T?",
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "string",
+          "params": [
+            "row",
+            "column"
+          ],
+          "returnType": "String?",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "bool",
+          "params": [
+            "row",
+            "column"
+          ],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 3
         }
       ],
       "classes": [
@@ -114848,11 +115080,16 @@
           "name": "extension RewindDatabase",
           "methods": [
             "registerConversationsLocalAuthoritativeMigration",
-            "migrateLegacyEvents"
+            "migrateLegacyEvents",
+            "createConversationAuthorityTables",
+            "uniqueUUID",
+            "value",
+            "string",
+            "bool"
           ],
           "properties": [],
           "exported": false,
-          "lineCount": 494
+          "lineCount": 493
         },
         {
           "name": "MigratedCommitment",
@@ -118901,7 +119138,212 @@
           ],
           "returnType": "Bool",
           "exported": false,
-          "lineCount": 604
+          "lineCount": 64
+        },
+        {
+          "name": "finalizeCurrentChunk",
+          "params": [],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 65
+        },
+        {
+          "name": "joinInFlightFinalization",
+          "params": [
+            "reservation"
+          ],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "resolveInFlightFinalization",
+          "params": [
+            "reservation",
+            "result"
+          ],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "resetCurrentChunkState",
+          "params": [
+            "expectedReservation"
+          ],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "resetStalenessTimer",
+          "params": [],
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "finalizeStaleChunkIfNeeded",
+          "params": [
+            "reservation"
+          ],
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "finalizeStaleChunkForTesting",
+          "params": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "generateChunkPath",
+          "params": [
+            "timestamp",
+            "uniqueID"
+          ],
+          "returnType": "String",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "hasSignificantAspectRatioChange",
+          "params": [
+            "oldSize",
+            "newSize"
+          ],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "calculateOutputSize",
+          "params": [
+            "size"
+          ],
+          "returnType": "CGSize",
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "estimatedHEVCBitrate",
+          "params": [
+            "width",
+            "height"
+          ],
+          "returnType": "Int",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "createPixelBuffer",
+          "params": [
+            "image",
+            "size",
+            "adaptor"
+          ],
+          "returnType": "CVPixelBuffer",
+          "exported": false,
+          "lineCount": 63
+        },
+        {
+          "name": "finishWriting",
+          "params": [
+            "writer"
+          ],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "waitForWriterInputReady",
+          "params": [
+            "input",
+            "reservation"
+          ],
+          "returnType": "Bool",
+          "exported": false,
+          "lineCount": 19
+        },
+        {
+          "name": "writerStatusDescription",
+          "params": [
+            "status"
+          ],
+          "returnType": "String",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "cancel",
+          "params": [],
+          "returnType": "RewindVideoChunkCancellationResult",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "resetForUserSwitch",
+          "params": [],
+          "returnType": "RewindVideoChunkCancellationResult",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "clearConfigurationAfterUserSwitch",
+          "params": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "forceCancelAfterStorageFallback",
+          "params": [
+            "reservation"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "emergencyReset",
+          "params": [
+            "reason"
+          ],
+          "returnType": "RewindAbandonedVideoChunkError?",
+          "exported": false,
+          "lineCount": 33
+        },
+        {
+          "name": "cancelCurrentChunkAfterRecordingAbandonment",
+          "params": [],
+          "returnType": "RewindVideoChunkCancellationResult",
+          "exported": false,
+          "lineCount": 15
+        },
+        {
+          "name": "recordAbandonment",
+          "params": [
+            "reservation"
+          ],
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "cancelCurrentChunkState",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "diagnosticCountBucket",
+          "params": [
+            "count"
+          ],
+          "returnType": "String",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "getBufferStatus",
+          "params": [],
+          "returnType": "EncoderStatus",
+          "exported": true,
+          "lineCount": 20
         },
         {
           "name": "AssetWriterBox.init",
@@ -119025,7 +119467,32 @@
             "hevcVideoSettings",
             "framePresentationSeconds",
             "chunkPresentationFrameRate",
-            "writeFrame"
+            "writeFrame",
+            "finalizeCurrentChunk",
+            "joinInFlightFinalization",
+            "resolveInFlightFinalization",
+            "resetCurrentChunkState",
+            "resetStalenessTimer",
+            "finalizeStaleChunkIfNeeded",
+            "finalizeStaleChunkForTesting",
+            "generateChunkPath",
+            "hasSignificantAspectRatioChange",
+            "calculateOutputSize",
+            "estimatedHEVCBitrate",
+            "createPixelBuffer",
+            "finishWriting",
+            "waitForWriterInputReady",
+            "writerStatusDescription",
+            "cancel",
+            "resetForUserSwitch",
+            "clearConfigurationAfterUserSwitch",
+            "forceCancelAfterStorageFallback",
+            "emergencyReset",
+            "cancelCurrentChunkAfterRecordingAbandonment",
+            "recordAbandonment",
+            "cancelCurrentChunkState",
+            "diagnosticCountBucket",
+            "getBufferStatus"
           ],
           "properties": [
             "shared",
@@ -119067,7 +119534,7 @@
             "finishWritingFailuresForTesting"
           ],
           "exported": true,
-          "lineCount": 1224
+          "lineCount": 1151
         },
         {
           "name": "EncodedFrame",
@@ -119099,6 +119566,28 @@
           ],
           "exported": false,
           "lineCount": 4
+        },
+        {
+          "name": "EncoderStatus",
+          "methods": [],
+          "properties": [
+            "frameCount",
+            "maxBufferFrames",
+            "oldestFrameAge",
+            "currentChunkAge",
+            "isEncoderRunning",
+            "consecutiveWriteFailures",
+            "encoderRestartCount",
+            "emergencyResetCount",
+            "writerNotReadyCount",
+            "lifecyclePhase",
+            "queueBucket",
+            "isInitialized",
+            "hasStalenessTimer",
+            "finalizationWaiterBucket"
+          ],
+          "exported": true,
+          "lineCount": 16
         },
         {
           "name": "AssetWriterBox",
@@ -119204,6 +119693,14 @@
         "hevcVideoSettings",
         "framePresentationSeconds",
         "chunkPresentationFrameRate",
+        "finalizeStaleChunkForTesting",
+        "generateChunkPath",
+        "cancel",
+        "resetForUserSwitch",
+        "clearConfigurationAfterUserSwitch",
+        "forceCancelAfterStorageFallback",
+        "diagnosticCountBucket",
+        "getBufferStatus",
         "VideoChunkEncoder",
         "videoChunkPath",
         "frameOffset",
@@ -119212,6 +119709,21 @@
         "videoChunkPath",
         "frames",
         "ChunkFlushResult",
+        "frameCount",
+        "maxBufferFrames",
+        "oldestFrameAge",
+        "currentChunkAge",
+        "isEncoderRunning",
+        "consecutiveWriteFailures",
+        "encoderRestartCount",
+        "emergencyResetCount",
+        "writerNotReadyCount",
+        "lifecyclePhase",
+        "queueBucket",
+        "isInitialized",
+        "hasStalenessTimer",
+        "finalizationWaiterBucket",
+        "EncoderStatus",
         "startActiveChunk",
         "withActiveChunk",
         "finishActiveChunk",
@@ -121918,6 +122430,12 @@
       "contentHash": "3347460f1dc6254ee0326a9ff66d233643aad1ecdd30657631ab0c7ee6f3041c",
       "functions": [
         {
+          "name": "RewindViewModel.init",
+          "params": [],
+          "exported": true,
+          "lineCount": 25
+        },
+        {
           "name": "refreshTimelineIfViewingToday",
           "params": [],
           "exported": false,
@@ -121948,6 +122466,87 @@
           "lineCount": 3
         },
         {
+          "name": "performSearch",
+          "params": [
+            "query"
+          ],
+          "exported": false,
+          "lineCount": 96
+        },
+        {
+          "name": "publishSearchResults",
+          "params": [
+            "results",
+            "authorizationSnapshot"
+          ],
+          "returnType": "Bool",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "filterByApp",
+          "params": [
+            "app"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "filterByDate",
+          "params": [
+            "date"
+          ],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "loadScreenshotsForDate",
+          "params": [
+            "date",
+            "authorizationSnapshot"
+          ],
+          "exported": false,
+          "lineCount": 45
+        },
+        {
+          "name": "silentLoadScreenshotsForDate",
+          "params": [
+            "date",
+            "authorizationSnapshot"
+          ],
+          "exported": false,
+          "lineCount": 44
+        },
+        {
+          "name": "selectScreenshot",
+          "params": [
+            "screenshot"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "selectNextScreenshot",
+          "params": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "selectPreviousScreenshot",
+          "params": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "contextSnippet",
+          "params": [
+            "screenshot"
+          ],
+          "returnType": "String?",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
           "name": "matchingBlocks",
           "params": [
             "screenshot"
@@ -121971,7 +122570,60 @@
           "lineCount": 9
         }
       ],
-      "classes": [],
+      "classes": [
+        {
+          "name": "RewindViewModel",
+          "methods": [
+            "init",
+            "refreshTimelineIfViewingToday",
+            "updateStatsOnly",
+            "loadInitialData",
+            "dismissRecoveryBanner",
+            "refresh",
+            "performSearch",
+            "publishSearchResults",
+            "filterByApp",
+            "filterByDate",
+            "loadScreenshotsForDate",
+            "silentLoadScreenshotsForDate",
+            "selectScreenshot",
+            "selectNextScreenshot",
+            "selectPreviousScreenshot",
+            "contextSnippet",
+            "matchingBlocks",
+            "deleteScreenshot",
+            "refreshStats"
+          ],
+          "properties": [
+            "screenshots",
+            "selectedScreenshot",
+            "searchQuery",
+            "selectedApp",
+            "selectedDate",
+            "availableApps",
+            "isLoading",
+            "isSearching",
+            "errorMessage",
+            "stats",
+            "activeSearchQuery",
+            "didRecoverFromCorruption",
+            "recoveredRecordCount",
+            "showRecoveryBanner",
+            "isRebuilding",
+            "rebuildProgress",
+            "searchGroupingTimeWindow",
+            "groupedSearchResults",
+            "totalScreenshotCount",
+            "searchTask",
+            "activeSearchOperationID",
+            "cancellables",
+            "isInitialized",
+            "isTranscriptExpanded"
+          ],
+          "exported": true,
+          "lineCount": 520
+        }
+      ],
       "imports": [
         {
           "source": "Combine",
@@ -121993,12 +122645,41 @@
         }
       ],
       "exports": [
+        "screenshots",
+        "selectedScreenshot",
+        "searchQuery",
+        "selectedApp",
+        "selectedDate",
+        "availableApps",
+        "isLoading",
+        "isSearching",
+        "errorMessage",
+        "stats",
+        "activeSearchQuery",
+        "didRecoverFromCorruption",
+        "recoveredRecordCount",
+        "showRecoveryBanner",
+        "isRebuilding",
+        "rebuildProgress",
+        "searchGroupingTimeWindow",
+        "groupedSearchResults",
+        "totalScreenshotCount",
+        "isTranscriptExpanded",
+        "RewindViewModel.init",
         "loadInitialData",
         "dismissRecoveryBanner",
         "refresh",
+        "publishSearchResults",
+        "filterByApp",
+        "filterByDate",
+        "selectScreenshot",
+        "selectNextScreenshot",
+        "selectPreviousScreenshot",
+        "contextSnippet",
         "matchingBlocks",
         "deleteScreenshot",
-        "refreshStats"
+        "refreshStats",
+        "RewindViewModel"
       ],
       "totalLines": 526,
       "hasStructuralAnalysis": true
@@ -143395,6 +144076,16 @@
       "totalLines": 83,
       "hasStructuralAnalysis": false
     },
+    "openwiki/.claims/codebase/operations/understand-anything.json": {
+      "filePath": "openwiki/.claims/codebase/operations/understand-anything.json",
+      "contentHash": "acce3721c5b82d7b8d62b2a7885039b4a498b806211f587a7e2c741a61250f40",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 97,
+      "hasStructuralAnalysis": false
+    },
     "openwiki/.claims/codebase/workflows/account-lifecycle.json": {
       "filePath": "openwiki/.claims/codebase/workflows/account-lifecycle.json",
       "contentHash": "8d1054fcee8020f142d0753d30506bfc70c58c48be373c9aebac2dff0354b738",
@@ -143483,16 +144174,6 @@
       "imports": [],
       "exports": [],
       "totalLines": 78,
-      "hasStructuralAnalysis": false
-    },
-    "openwiki/.claims/codebase/operations/understand-anything.json": {
-      "filePath": "openwiki/.claims/codebase/operations/understand-anything.json",
-      "contentHash": "acce3721c5b82d7b8d62b2a7885039b4a498b806211f587a7e2c741a61250f40",
-      "functions": [],
-      "classes": [],
-      "imports": [],
-      "exports": [],
-      "totalLines": 97,
       "hasStructuralAnalysis": false
     }
   }

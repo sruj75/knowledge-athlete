@@ -25,8 +25,8 @@
       "Docker"
     ],
     "description": "Intentive is a macOS memory assistant with a bundled Node agent runtime and managed Python backend. This repository derives from Omi, while inherited Windows code is outside the active product. Note: this project has over 100 source files; consider scoping analysis to a subdirectory for faster results.",
-    "analyzedAt": "2026-09-19T08:59:03.691Z",
-    "gitCommitHash": "aee96cb5a7e2a1c8b6212869aea8c62e8997c8af"
+    "analyzedAt": "2026-09-19T09:51:56.724Z",
+    "gitCommitHash": "3bc610b80d5e23394d7b246ef437e96c41f4d580"
   },
   "nodes": [
     {
@@ -270327,7 +270327,7 @@
   ],
   "system": {
     "schemaVersion": 1,
-    "revision": "1b7ff63e-a6d8-4076-9e69-dd0a67ac54d5",
+    "revision": "8400b1d3-a35d-4292-8311-c9b462af60b1",
     "rootMapId": "map:product",
     "components": [
       {
@@ -270337,7 +270337,8 @@
         "implementationNodeIds": [
           "class:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin@6",
           "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.startMonitoring",
-          "class:desktop/macos/Desktop/Sources/ScreenCaptureService.swift:ScreenCaptureService"
+          "class:desktop/macos/Desktop/Sources/ScreenCaptureService.swift:ScreenCaptureService",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.captureFrame"
         ],
         "evidence": [
           {
@@ -270366,6 +270367,15 @@
             ],
             "contentHash": "85558f10196f206d00824e6f53ceef46eb6997f12230ef05cc38807f07e9d57c",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+            "lineRange": [
+              855,
+              965
+            ],
+            "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
           }
         ]
       },
@@ -270377,7 +270387,8 @@
           "class:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift:RewindIndexer",
           "function:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift:RewindIndexer.processFrame",
           "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
-          "function:desktop/macos/Desktop/Sources/Rewind/UI/RewindViewModel.swift:refresh"
+          "function:desktop/macos/Desktop/Sources/Rewind/UI/RewindViewModel.swift:refresh",
+          "class:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift:RewindDatabase"
         ],
         "evidence": [
           {
@@ -270414,6 +270425,15 @@
               300
             ],
             "contentHash": "3347460f1dc6254ee0326a9ff66d233643aad1ecdd30657631ab0c7ee6f3041c",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift",
+            "lineRange": [
+              340,
+              455
+            ],
+            "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
             "kind": "source"
           }
         ]
@@ -270528,10 +270548,11 @@
       },
       {
         "id": "component:a-monitoring-admission",
-        "name": "Monitoring admission and privacy policy",
+        "name": "Monitoring admission",
         "summary": "Checks paywall, permission, notification and startup races before monitoring; bounded retries revisit permission without prompting on non-user paths.",
         "implementationNodeIds": [
-          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.startMonitoring"
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.startMonitoring",
+          "class:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin@6"
         ],
         "evidence": [
           {
@@ -270539,6 +270560,15 @@
             "lineRange": [
               242,
               337
+            ],
+            "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+            "lineRange": [
+              855,
+              912
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
             "kind": "source"
@@ -270550,7 +270580,8 @@
         "name": "Active-window capture engine",
         "summary": "Resolves the active window and captures through ScreenCaptureKit or the supported fallback while enforcing recording permission and capture capability.",
         "implementationNodeIds": [
-          "class:desktop/macos/Desktop/Sources/ScreenCaptureService.swift:ScreenCaptureService"
+          "class:desktop/macos/Desktop/Sources/ScreenCaptureService.swift:ScreenCaptureService",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.captureFrame"
         ],
         "evidence": [
           {
@@ -270561,15 +270592,25 @@
             ],
             "contentHash": "85558f10196f206d00824e6f53ceef46eb6997f12230ef05cc38807f07e9d57c",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+            "lineRange": [
+              858,
+              900
+            ],
+            "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:a-frame-distribution",
         "name": "Gated frame distribution",
-        "summary": "Applies privacy, idle, context and owner checks, then sends one accepted frame to live assistants and Rewind with recovery around transient failures.",
+        "summary": "Applies privacy, idle, context and owner checks, then sends one accepted frame to live assistants and Rewind with recovery around transient failures. Rewind separately drops frames while its encoder is busy; assistant tasks have their own per-assistant backpressure.",
         "implementationNodeIds": [
-          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.continueStartMonitoring"
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift:ProactiveAssistantsPlugin.continueStartMonitoring",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift:AssistantCoordinator.distributeFrame"
         ],
         "evidence": [
           {
@@ -270579,6 +270620,15 @@
               825
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
+            "lineRange": [
+              164,
+              229
+            ],
+            "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
           }
         ]
@@ -270596,6 +270646,15 @@
             "lineRange": [
               338,
               390
+            ],
+            "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift",
+            "lineRange": [
+              365,
+              370
             ],
             "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
             "kind": "source"
@@ -270618,15 +270677,25 @@
             ],
             "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift",
+            "lineRange": [
+              372,
+              438
+            ],
+            "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:a-rewind-database",
-        "name": "Rewind records & retention",
+        "name": "Rewind records and retention",
         "summary": "Stores screenshot metadata and video references, performs local FTS/search and retention cleanup, and supports transactional chunk rebuild.",
         "implementationNodeIds": [
-          "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift"
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
+          "function:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift:updateScreenshotEmbedding"
         ],
         "evidence": [
           {
@@ -270637,15 +270706,26 @@
             ],
             "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
+            "lineRange": [
+              3057,
+              3068
+            ],
+            "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:a-rewind-retrieval",
-        "name": "Rewind local retrieval projection",
-        "summary": "Combines local FTS and local embedding similarity for timeline/search presentation and exposes selected results to chat tools.",
+        "name": "Rewind local retrieval",
+        "summary": "Combines local FTS and local embedding similarity for timeline/search presentation and exposes selected results to chat tools. Semantic queries call remote embedContent, then score owner-local embedding blobs locally; raw OCR/vector records are not a hosted search authority.",
         "implementationNodeIds": [
-          "function:desktop/macos/Desktop/Sources/Rewind/UI/RewindViewModel.swift:refresh"
+          "function:desktop/macos/Desktop/Sources/Rewind/UI/RewindViewModel.swift:refresh",
+          "function:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift:search",
+          "function:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift:readEmbeddingBatch"
         ],
         "evidence": [
           {
@@ -270655,6 +270735,24 @@
               300
             ],
             "contentHash": "3347460f1dc6254ee0326a9ff66d233643aad1ecdd30657631ab0c7ee6f3041c",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
+            "lineRange": [
+              3098,
+              3129
+            ],
+            "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
+            "lineRange": [
+              3441,
+              3495
+            ],
+            "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
             "kind": "source"
           }
         ]
@@ -270836,7 +270934,8 @@
         "summary": "Owner-bound macOS orchestration for Focus, Insights, Memory, Tasks and Suggestions. It gates captured frames locally, applies cadence and backpressure, uses transient model analysis where needed, and routes accepted outcomes to local authorities or notifications.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
+          "class:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift:AssistantCoordinator@9"
         ],
         "evidence": [
           {
@@ -270847,16 +270946,26 @@
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
+            "lineRange": [
+              164,
+              229
+            ],
+            "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:b-scheduler",
-        "name": "Assistant scheduler and capture cadence",
+        "name": "Assistant scheduler",
         "summary": "Registers assistants and distributes owner-authorized frames. Each assistant gets one authorization slot; stale owners, disabled assistants and duplicate work are rejected, while reset and stop cancel pending work.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift:AssistantCoordinator.distributeFrame"
         ],
         "evidence": [
           {
@@ -270876,16 +270985,27 @@
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
+            "lineRange": [
+              170,
+              225
+            ],
+            "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:b-focus",
-        "name": "Focus assistant and projection",
+        "name": "Focus assistant",
         "summary": "Analyzes supplied screenshots against local profile, goals, tasks and memories, persists only authorized focus status transitions, and exposes a bounded local projection with owner reset and notification feedback.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusStorage.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusStorage.swift",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift:processFrame",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift:saveFocusSessionToSQLite"
         ],
         "evidence": [
           {
@@ -270905,16 +271025,27 @@
             ],
             "contentHash": "d8c709525fa0d00ec2f2f25694c46ff312e40fc3bd55e4bd938a8833fe7fe250",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              589,
+              620
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:b-insights",
-        "name": "Insights assistant and tips projection",
-        "summary": "Builds local activity context and prior tips, asks transient image/tool analysis for bounded advice, then stores accepted advice as tagged interesting Memory rows. InsightStorage reads and mutates those rows rather than owning a second database.",
+        "name": "Insights assistant",
+        "summary": "Builds local activity context and prior tips, asks transient image/tool analysis for bounded advice, then stores accepted advice as tagged interesting Memory rows. InsightStorage reads and mutates those rows rather than owning a second database. A bounded text/tool investigation precedes a screenshot/tool advice phase; provider tool calls are executed and interpreted locally before accepted advice is stored.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift:InsightAssistant.extractAdvice",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift:InsightAssistant.saveInsightToSQLite"
         ],
         "evidence": [
           {
@@ -270943,13 +271074,31 @@
             ],
             "contentHash": "b1921b1f37539ab7d05a2b1bad2905d3d5cfbd4ff41a69a2d609e95f4691acff",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              342,
+              364
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              497,
+              515
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:b-memory-assistant",
         "name": "Memory extraction assistant",
-        "summary": "Screenshots are classified into at most one bounded memory candidate per analysis; acceptance is handed to local MemoryStorage, while owner changes and cooldowns discard stale work.",
+        "summary": "Consumes owner-authorized captured frames after exclusion, cadence, settings and confidence gates. Screen analysis is blocked unless both assistant settings and notifications are enabled; accepted candidates are persisted locally as screenshot provenance and do not enter the lifecycle worker as conversation extraction.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift"
         ],
@@ -270957,8 +271106,17 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
             "lineRange": [
+              17,
+              35
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
               162,
-              230
+              185
             ],
             "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
             "kind": "source"
@@ -270967,9 +271125,18 @@
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
             "lineRange": [
               381,
-              507
+              505
             ],
             "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantSettings.swift",
+            "lineRange": [
+              162,
+              180
+            ],
+            "contentHash": "c0ff3c6f83045ec1ce31e97e9a4560bc21117463b5ac25884aececca549b7a6a",
             "kind": "source"
           }
         ]
@@ -270979,7 +271146,9 @@
         "name": "Suggestion assistant",
         "summary": "Grounds a settled screen context in local tasks, memories and Rewind history, then applies ownership, duplicate, cooldown, settings and daily-budget gates around a transient suggestion before notification delivery.",
         "implementationNodeIds": [
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift:SuggestionAssistant.evaluate",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift:SuggestionAssistant.handleResult"
         ],
         "evidence": [
           {
@@ -271008,13 +271177,22 @@
             ],
             "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
             "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
+            "lineRange": [
+              340,
+              381
+            ],
+            "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
+            "kind": "source"
           }
         ]
       },
       {
         "id": "component:memory",
         "name": "Memory",
-        "summary": "SQLite-backed owner-local memory lifecycle for Short-term, Long-term, Archive and tips records. It validates and commits bounded candidates, supports read/correct/delete/undo, and coordinates lifecycle work and provenance.",
+        "summary": "Owner-local GRDB authority for Memory assertions, Short-term/Long-term/Archive layers, expiry, dismissal, deletion/Undo, provenance and local reads. It admits bounded candidates and records durable processing work; remote services never become the Memory store.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
           "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift"
@@ -271023,8 +271201,17 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
             "lineRange": [
-              155,
-              270
+              154,
+              220
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              619,
+              698
             ],
             "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
             "kind": "source"
@@ -271034,7 +271221,7 @@
       {
         "id": "component:b-memory-storage",
         "name": "Memory acceptance and lifecycle",
-        "summary": "Trims and accepts assertions, assigns expiry, records evidence, queues normalization/consolidation/embedding, and enforces optimistic revision plus a four-second pending-delete/undo/finalize lifecycle.",
+        "summary": "Trims assertions, assigns 30-day Short-term expiry, creates provenance and durable normalize/embed/consolidate work, and commits proposals only when work lease, owner generation and input revision still match. Extraction admissions are bounded, unique and idempotent.",
         "implementationNodeIds": [
           "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift"
         ],
@@ -271042,8 +271229,8 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
             "lineRange": [
-              155,
-              190
+              78,
+              135
             ],
             "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
             "kind": "source"
@@ -271051,8 +271238,8 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
             "lineRange": [
-              405,
-              470
+              788,
+              930
             ],
             "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
             "kind": "source"
@@ -271060,8 +271247,8 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
             "lineRange": [
-              620,
-              700
+              964,
+              1138
             ],
             "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
             "kind": "source"
@@ -271071,18 +271258,37 @@
       {
         "id": "component:b-memory-semantic",
         "name": "Local semantic memory retrieval",
-        "summary": "Queries current-revision local embeddings with finite equal-dimensional vector checks, excludes expired/dismissed/pending-delete rows, and deterministically ranks cosine matches; remote embedding is only compute input.",
+        "summary": "Authorized local Memory recall embeds the query through managed compute, reads revision-matched local vectors, filters pending-delete/dismissed/expired rows, checks dimensions and ranks cosine matches locally. Background assistants separately use local list/literal reads.",
         "implementationNodeIds": [
-          "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift"
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
+          "file:desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift"
         ],
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
             "lineRange": [
-              66,
-              152
+              5,
+              64
             ],
             "contentHash": "f05a5a1c9378c998c184f13b915dd48348d9bdeb75eccf67446c3fa72898ff2c",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
+            "lineRange": [
+              80,
+              137
+            ],
+            "contentHash": "f05a5a1c9378c998c184f13b915dd48348d9bdeb75eccf67446c3fa72898ff2c",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift",
+            "lineRange": [
+              7,
+              22
+            ],
+            "contentHash": "4fe416b8f305c727368dcce212d41e7cd3af9ed88446aa0592641162f16a3e23",
             "kind": "source"
           }
         ]
@@ -271109,10 +271315,12 @@
       },
       {
         "id": "component:b-task-assistant",
-        "name": "Task extraction assistant",
+        "name": "Task assistant",
         "summary": "Classifies screenshot context into task candidates, grounds against local FTS/vector tasks, rejects duplicates and non-deliverable candidates, then inserts accepted records with screenshot and provenance evidence.",
         "implementationNodeIds": [
-          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift"
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift:analyze",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift:saveTaskLocally"
         ],
         "evidence": [
           {
@@ -271129,6 +271337,24 @@
             "lineRange": [
               654,
               730
+            ],
+            "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+            "lineRange": [
+              262,
+              304
+            ],
+            "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+            "lineRange": [
+              448,
+              478
             ],
             "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
             "kind": "source"
@@ -271358,12 +271584,15 @@
       {
         "id": "component:managed-inference",
         "name": "Managed inference",
-        "summary": "Authenticated backend routes validate desktop model requests, enforce quota, call Gemini with server-held credentials, stream SSE responses, mint Live tokens, proxy allowed Gemini actions, and provide bounded OpenAI TTS fallback.",
+        "summary": "Authenticated remote compute services for native Chat streaming, background Gemini generation and embeddings, bounded Memory/conversation candidates, managed transcription, Live token minting and spoken-output fallback. Routes have distinct admission/transport behavior; product records remain local.",
         "implementationNodeIds": [
           "function:backend/routers/desktop_chat.py:stream_generate_content",
           "function:backend/routers/desktop_realtime.py:mint_session",
           "function:backend/routers/desktop_proxy.py:gemini_proxy",
-          "function:backend/routers/desktop_tts_updates.py:tts_synthesize"
+          "function:backend/routers/desktop_tts_updates.py:tts_synthesize",
+          "file:backend/routers/desktop_proxy.py",
+          "file:backend/routers/memory_compute.py",
+          "file:backend/routers/conversation_compute.py"
         ],
         "evidence": [
           {
@@ -271391,6 +271620,33 @@
               235
             ],
             "contentHash": "4e5db4f46341f1995d4fbe9b72f451c5ffd0db5a9c9cbedd8558dee56f4495cc",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              144,
+              193
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/memory_compute.py",
+            "lineRange": [
+              28,
+              86
+            ],
+            "contentHash": "e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              215
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
             "kind": "source"
           }
         ]
@@ -271733,11 +271989,10 @@
       },
       {
         "id": "component:c-provider-execution",
-        "name": "Managed provider execution",
-        "summary": "The backend constructs the server-authenticated Gemini upstream request and streams the provider response through managed transport while classifying provider failures and recording usage.",
+        "name": "Chat provider streaming",
+        "summary": "The native Chat backend constructs the server-authenticated Gemini streaming request, observes returned events/usage, and handles cancellation/provider failures. The non-streaming background/embedding proxy is a separate route.",
         "implementationNodeIds": [
-          "function:backend/routers/desktop_chat.py:_stream_native_gemini",
-          "function:backend/routers/desktop_proxy.py:_proxy"
+          "function:backend/routers/desktop_chat.py:_stream_native_gemini"
         ],
         "evidence": [
           {
@@ -271747,15 +272002,6 @@
               322
             ],
             "contentHash": "524980db03edfb6e656b8eba94914e55fcdf72b0db0cf53d1ad5a39a2dc573f2",
-            "kind": "source"
-          },
-          {
-            "fileNodeId": "file:backend/routers/desktop_proxy.py",
-            "lineRange": [
-              144,
-              182
-            ],
-            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
             "kind": "source"
           }
         ]
@@ -272410,6 +272656,533 @@
             "kind": "source"
           }
         ]
+      },
+      {
+        "id": "component:managed-gemini-proxy",
+        "name": "Managed Gemini proxy",
+        "summary": "Remote authenticated non-streaming compute proxy for background generation and text embeddings. Participant/paywall checks, model/action allowlist, request bounds and burst/daily limits precede the server-key provider request. Returns provider bytes/status; it does not own local product records.",
+        "implementationNodeIds": [
+          "file:backend/routers/desktop_proxy.py"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              21,
+              39
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              109,
+              193
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:managed-memory-compute",
+        "name": "Memory candidate compute",
+        "summary": "Remote stateless extract, normalize and consolidate routes require participant authentication and per-operation rate limits. Managed Gemini output is parsed and grounded/validated into bounded proposals; the Mac owns durable jobs, revision checks and record mutation.",
+        "implementationNodeIds": [
+          "file:backend/routers/memory_compute.py",
+          "file:backend/utils/llm/memory_compute.py"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/memory_compute.py",
+            "lineRange": [
+              28,
+              86
+            ],
+            "contentHash": "e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              86,
+              130
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              202,
+              220
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:managed-conversation-compute",
+        "name": "Conversation candidate compute",
+        "summary": "Remote authenticated discard, structure and action-item computation accepts a bounded transcript packet and returns generation-tagged candidates. Errors propagate to local retry/fallback; these routes do not finalize or store the local conversation.",
+        "implementationNodeIds": [
+          "file:backend/routers/conversation_compute.py"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              215
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              218,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:managed-gemini-provider",
+        "name": "Gemini model service",
+        "summary": "External Google Gemini generation and embedding APIs. Repository code shows the remote calls and parsing; provider internals and live execution are outside this map. Backend credentials authorize requests; local product storage remains separately owned.",
+        "implementationNodeIds": [],
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              109,
+              117
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              169,
+              182
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/providers.py",
+            "lineRange": [
+              47,
+              71
+            ],
+            "contentHash": "8664a66493fd3536a698aa16d79cb0690bb291241bc7c72fcf21f9c65cbc8b6d",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/desktop_chat.py",
+            "lineRange": [
+              289,
+              311
+            ],
+            "contentHash": "524980db03edfb6e656b8eba94914e55fcdf72b0db0cf53d1ad5a39a2dc573f2",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:simple-goals",
+        "name": "Simple goals",
+        "summary": "Owner-local GoalStorage authority for active and completed simple goals; profile generation reads active goal titles from this store.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift",
+            "lineRange": [
+              18,
+              61
+            ],
+            "contentHash": "3674b482703ce9c8dc70f880e8206c60459608ae3c3a7a9b398e5193cc239720",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:ai-profile",
+        "name": "AI user profile",
+        "summary": "Mac-local AI profile authority that assembles bounded Memory, task/goal, conversation, and Chat journal context, requests a factual two-stage Gemini profile, and stores owner-authorized profile history for local consumers.",
+        "implementationNodeIds": [
+          "class:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService@63"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              63,
+              75
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:ai-profile-inputs",
+        "name": "Profile input assembly",
+        "summary": "Loads bounded owner-local memories, action items, active goals, completed conversations from the last seven days, and the recent local Chat journal; failed individual loaders contribute an empty section.",
+        "implementationNodeIds": [
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchDataSources",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchMemories",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchTasks",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchGoals",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchConversations",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.fetchJournalMessages"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              491,
+              512
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              515,
+              613
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:ai-profile-generation",
+        "name": "Profile generation",
+        "summary": "Admits one generation at a time, rejects empty input, builds the factual prompt for the current bounded inputs, and performs the owner-fenced initial profile synthesis.",
+        "implementationNodeIds": [
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.generateProfile",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.performAuthorizedTextRequest",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.buildPrompt",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.buildConsolidationPrompt"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              332,
+              369
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              372,
+              487
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:ai-profile-consolidation",
+        "name": "Profile consolidation",
+        "summary": "Reads the newly synthesized profile plus up to five prior local profiles, asks Gemini to reconcile current and historical facts, and bounds the consolidated text before local persistence.",
+        "implementationNodeIds": [
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.generateProfile",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.buildConsolidationPrompt"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              422,
+              487
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:ai-profile-history",
+        "name": "Profile history store",
+        "summary": "Uses the shared owner-local GRDB database to read the newest or bounded history and to insert, edit, delete, or clear profile records, fencing reads and writes with authorization and database generation.",
+        "implementationNodeIds": [
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.ensureDB",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.getLatestProfile",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.getAllProfiles",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.deleteProfile",
+          "function:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift:AIUserProfileService.updateProfileText"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              126,
+              135
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              167,
+              197
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              468,
+              487
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-lifecycle-worker",
+        "name": "Local Memory lifecycle worker",
+        "summary": "A local actor cadence loop recovers durable work, leases bounded batches, calls stateless normalize/extract/consolidate compute or embedding compute, validates returned identity and grounding, retries failed work with bounded backoff, and commits only through MemoryStorage owner/revision fences.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              22,
+              118
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              121,
+              297
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              299,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-work-claim-retry",
+        "name": "Memory work claim and retry",
+        "summary": "The runner recovers unfinished rows, claims due work under owner generation and retries failures with bounded backoff before terminal state.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              79,
+              117
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              384,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-normalize-operation",
+        "name": "Memory normalization",
+        "summary": "Leased manual or corrected assertions are sent to normalize compute and accepted only with matching request ID and input revision.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              121,
+              177
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-extract-operation",
+        "name": "Conversation memory extraction",
+        "summary": "A leased conversation packet is bounded to 500 segments and one content generation; returned candidates must quote exactly one source segment before local admission.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              180,
+              240
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              421,
+              485
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-embed-operation",
+        "name": "Memory embedding operation",
+        "summary": "Leased current content is batch embedded through the Gemini proxy and stored only when response count and input revisions align.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              242,
+              297
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              113,
+              180
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:memory-consolidate-operation",
+        "name": "Memory consolidation",
+        "summary": "Leased Short-term candidates receive complete, grounded decisions; promotion, archive, review and rejection are locally fenced, with Long-term targets archived only on valid replacement or merge.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              299,
+              381
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              487,
+              577
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:screen-memory-gate",
+        "name": "Screen Memory admission gate",
+        "summary": "Screen analysis requires both the Memory assistant setting and notificationsEnabled; UserDefaults registers notifications disabled by default.",
+        "implementationNodeIds": [
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+          "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantSettings.swift"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              20,
+              35
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantSettings.swift",
+            "lineRange": [
+              162,
+              169
+            ],
+            "contentHash": "c0ff3c6f83045ec1ce31e97e9a4560bc21117463b5ac25884aececca549b7a6a",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "component:a-ocr-embedding-worker",
+        "name": "OCR embedding worker",
+        "summary": "Queues OCR, batches/deduplicates, fences owner generation, requeues ordinary failures, drops expected backend gates and commits local vectors.",
+        "implementationNodeIds": [
+          "function:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift:embedScreenshot",
+          "function:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift:flushPendingEmbeddings"
+        ],
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              124,
+              168
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              218,
+              280
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
       }
     ],
     "connections": [
@@ -272418,13 +273191,13 @@
         "source": "component:screen-capture",
         "target": "component:background-assistants",
         "type": "publishes",
-        "label": "Allowed live frame → assistants",
+        "label": "Allowed owner-bound frame to assistants",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
             "lineRange": [
-              1251,
-              1410
+              912,
+              933
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
             "kind": "source"
@@ -272436,13 +273209,13 @@
         "source": "component:screen-capture",
         "target": "component:rewind",
         "type": "publishes",
-        "label": "Allowed screen pixels → Rewind",
+        "label": "Allowed frame to Rewind",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
             "lineRange": [
-              1450,
-              1545
+              936,
+              963
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
             "kind": "source"
@@ -272597,7 +273370,7 @@
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
             "lineRange": [
-              76,
+              180,
               201
             ],
             "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
@@ -272606,7 +273379,16 @@
           {
             "fileNodeId": "file:backend/routers/conversation_compute.py",
             "lineRange": [
-              133,
+              188,
+              215
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              218,
               250
             ],
             "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
@@ -272625,10 +273407,28 @@
           {
             "fileNodeId": "file:backend/routers/conversation_compute.py",
             "lineRange": [
-              31,
-              132
+              188,
+              215
             ],
             "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              218,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              180,
+              201
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
             "kind": "source"
           }
         ]
@@ -272710,13 +273510,13 @@
         "source": "component:a-video-ocr-indexer",
         "target": "component:a-rewind-database",
         "type": "writes_to",
-        "label": "Video reference, OCR text/bounds and screenshot metadata",
+        "label": "Video/OCR screenshot row",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift",
             "lineRange": [
-              414,
-              452
+              417,
+              438
             ],
             "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
             "kind": "source"
@@ -272727,14 +273527,23 @@
         "id": "connection:a-database-retrieval",
         "source": "component:a-rewind-database",
         "target": "component:a-rewind-retrieval",
-        "type": "publishes",
-        "label": "Local FTS rows and embedding-search candidates",
+        "type": "reads_from",
+        "label": "Local FTS and vector rows",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
             "lineRange": [
-              3045,
-              3159
+              3098,
+              3129
+            ],
+            "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift",
+            "lineRange": [
+              3441,
+              3495
             ],
             "contentHash": "1d03d4ac33a42324d31055ab82c26f2918d2b83ae4cde9e9d318867b5b1cd6e2",
             "kind": "source"
@@ -272944,13 +273753,13 @@
         "source": "component:b-scheduler",
         "target": "component:b-insights",
         "type": "calls",
-        "label": "Registered InsightAssistant receives newest owner-authorized frames on its extraction cadence",
+        "label": "Cadenced frame",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
             "lineRange": [
-              166,
-              224
+              170,
+              211
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
@@ -272980,13 +273789,13 @@
         "source": "component:b-scheduler",
         "target": "component:b-task-assistant",
         "type": "calls",
-        "label": "Registered TaskAssistant receives context-switch and timer-fallback triggers with newest-only backpressure",
+        "label": "Newest frame with backpressure",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
             "lineRange": [
-              166,
-              224
+              170,
+              211
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
@@ -272998,13 +273807,13 @@
         "source": "component:b-scheduler",
         "target": "component:b-suggestion-assistant",
         "type": "calls",
-        "label": "Registered SuggestionAssistant receives settled context events subject to dwell and cooldown gates",
+        "label": "Settled context frame",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
             "lineRange": [
-              166,
-              224
+              131,
+              141
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
@@ -273016,13 +273825,13 @@
         "source": "component:screen-capture",
         "target": "component:b-scheduler",
         "type": "publishes",
-        "label": "Owner-bound captured frames and context changes enter assistant scheduling",
+        "label": "Frame enters scheduling",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
             "lineRange": [
-              696,
-              760
+              921,
+              933
             ],
             "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
             "kind": "source"
@@ -273052,13 +273861,13 @@
         "source": "component:b-scheduler",
         "target": "component:b-focus",
         "type": "calls",
-        "label": "Focus receives normal and delay frames subject to its own cadence",
+        "label": "Admitted frame",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
             "lineRange": [
-              194,
-              270
+              170,
+              211
             ],
             "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
             "kind": "source"
@@ -273070,15 +273879,24 @@
         "source": "component:b-memory-assistant",
         "target": "component:b-memory-storage",
         "type": "calls",
-        "label": "Accepted bounded extraction candidates enter local MemoryStorage",
+        "label": "Gated screenshot candidate enters local Memory",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
             "lineRange": [
-              438,
-              507
+              381,
+              417
             ],
             "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift",
+            "lineRange": [
+              200,
+              231
+            ],
+            "contentHash": "487e3cb7a2b0616555a980a76d53476a4b11d6d32cf8d2bc313823cd39c929c7",
             "kind": "source"
           }
         ]
@@ -273088,13 +273906,22 @@
         "source": "component:b-insights",
         "target": "component:b-memory-storage",
         "type": "writes_to",
-        "label": "Accepted insight advice is persisted as interesting tips Memory assertions",
+        "label": "Persist accepted insight as local tips Memory",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
             "lineRange": [
-              342,
-              430
+              395,
+              428
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              478,
+              518
             ],
             "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
             "kind": "source"
@@ -273120,24 +273947,6 @@
         ]
       },
       {
-        "id": "connection:b-memory-retrieval-to-assistants",
-        "source": "component:b-memory-semantic",
-        "target": "component:background-assistants",
-        "type": "reads_from",
-        "label": "Local literal and vector memory recall grounds Focus, Insights, Suggestions and task deduplication",
-        "evidence": [
-          {
-            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
-            "lineRange": [
-              66,
-              120
-            ],
-            "contentHash": "f05a5a1c9378c998c184f13b915dd48348d9bdeb75eccf67446c3fa72898ff2c",
-            "kind": "source"
-          }
-        ]
-      },
-      {
         "id": "connection:b-assistant-to-tasks",
         "source": "component:b-task-assistant",
         "target": "component:b-task-storage",
@@ -273151,42 +273960,6 @@
               730
             ],
             "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
-            "kind": "source"
-          }
-        ]
-      },
-      {
-        "id": "connection:b-memory-acceptance-to-semantic-work",
-        "source": "component:b-memory-storage",
-        "target": "component:b-memory-semantic",
-        "type": "publishes",
-        "label": "Accepted memory rows enqueue normalization, consolidation and embedding work for local semantic retrieval",
-        "evidence": [
-          {
-            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
-            "lineRange": [
-              155,
-              190
-            ],
-            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
-            "kind": "source"
-          }
-        ]
-      },
-      {
-        "id": "connection:b-semantic-results-to-memory",
-        "source": "component:b-memory-semantic",
-        "target": "component:memory",
-        "type": "publishes",
-        "label": "Deterministically ranked local vector matches return to the Memory authority for grounded reads",
-        "evidence": [
-          {
-            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
-            "lineRange": [
-              66,
-              120
-            ],
-            "contentHash": "f05a5a1c9378c998c184f13b915dd48348d9bdeb75eccf67446c3fa72898ff2c",
             "kind": "source"
           }
         ]
@@ -273232,13 +274005,13 @@
         "source": "component:b-focus",
         "target": "component:b-notification-routing",
         "type": "publishes",
-        "label": "Focus distraction/refocus outcomes are eligible for local notification policy",
+        "label": "Notify accepted distraction/refocus transitions",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
             "lineRange": [
-              848,
-              950
+              651,
+              731
             ],
             "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
             "kind": "source"
@@ -273286,13 +274059,22 @@
         "source": "component:b-focus",
         "target": "component:local-swift-store",
         "type": "writes_to",
-        "label": "Authorized Focus status transitions persist focus_sessions rows in ProactiveStorage",
+        "label": "Persist accepted focus transitions",
         "evidence": [
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
             "lineRange": [
-              905,
-              935
+              587,
+              620
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              908,
+              938
             ],
             "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
             "kind": "source"
@@ -273484,13 +274266,22 @@
         "source": "component:conversation-enrichment",
         "target": "component:b-memory-storage",
         "type": "calls",
-        "label": "Conversation extraction commits bounded unique candidates with provenance and generation checks",
+        "label": "Finalization queues extraction at content generation",
         "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ConversationFinalizationService.swift",
+            "lineRange": [
+              161,
+              175
+            ],
+            "contentHash": "3ee45ae0ee8e9b161b52cb832df9434f477f4e5f868699b63faa48d7f01c6f4a",
+            "kind": "source"
+          },
           {
             "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
             "lineRange": [
-              1018,
-              1120
+              755,
+              784
             ],
             "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
             "kind": "source"
@@ -275264,6 +276055,2515 @@
             "kind": "source"
           }
         ]
+      },
+      {
+        "id": "connection:managed-proxy-provider",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:managed-gemini-provider",
+        "type": "calls",
+        "label": "Generation or embedding request",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              109,
+              117
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              144,
+              173
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-provider-proxy",
+        "source": "component:managed-gemini-provider",
+        "target": "component:managed-gemini-proxy",
+        "type": "publishes",
+        "label": "Provider bytes and status",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_proxy.py",
+            "lineRange": [
+              169,
+              182
+            ],
+            "contentHash": "43de5e93d6f122006294c82b8ffe67072813d665eb814a6c416b50be859448c3",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-memory-provider",
+        "source": "component:managed-memory-compute",
+        "target": "component:managed-gemini-provider",
+        "type": "calls",
+        "label": "Bounded Memory proposal prompt",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              86,
+              98
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/model_config.py",
+            "lineRange": [
+              152,
+              183
+            ],
+            "contentHash": "1fdef77734c512217d2df4845a270a50048502a1a6898c3b6d7da915935b6b68",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/providers.py",
+            "lineRange": [
+              47,
+              71
+            ],
+            "contentHash": "8664a66493fd3536a698aa16d79cb0690bb291241bc7c72fcf21f9c65cbc8b6d",
+            "kind": "source"
+          }
+        ],
+        "transport": "Gemini SDK"
+      },
+      {
+        "id": "connection:managed-provider-memory",
+        "source": "component:managed-gemini-provider",
+        "target": "component:managed-memory-compute",
+        "type": "publishes",
+        "label": "Proposal text for validation",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              79,
+              90
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              101,
+              130
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/memory_compute.py",
+            "lineRange": [
+              202,
+              220
+            ],
+            "contentHash": "3a4ee42545f437999d5b832995d2340fa7f2ac52faafa732d81755f83ea5c060",
+            "kind": "source"
+          }
+        ],
+        "transport": "Gemini SDK"
+      },
+      {
+        "id": "connection:managed-conversation-provider",
+        "source": "component:managed-conversation-compute",
+        "target": "component:managed-gemini-provider",
+        "type": "calls",
+        "label": "Discard, structure or task prompt",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              139,
+              149
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              394,
+              395
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              434,
+              446
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              613,
+              635
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/model_config.py",
+            "lineRange": [
+              63,
+              94
+            ],
+            "contentHash": "1fdef77734c512217d2df4845a270a50048502a1a6898c3b6d7da915935b6b68",
+            "kind": "source"
+          }
+        ],
+        "transport": "Gemini SDK"
+      },
+      {
+        "id": "connection:managed-provider-conversation",
+        "source": "component:managed-gemini-provider",
+        "target": "component:managed-conversation-compute",
+        "type": "publishes",
+        "label": "Parsed conversation candidates",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              139,
+              149
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              434,
+              446
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/utils/llm/conversation_processing.py",
+            "lineRange": [
+              613,
+              635
+            ],
+            "contentHash": "d750e3a1ef31bdfb4b75135bba73f847791166f2f8cc1412af5697b4889ed9d7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              188,
+              215
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "Gemini SDK"
+      },
+      {
+        "id": "connection:managed-chat-provider",
+        "source": "component:c-provider-execution",
+        "target": "component:managed-gemini-provider",
+        "type": "calls",
+        "label": "Native Chat payload",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_chat.py",
+            "lineRange": [
+              289,
+              300
+            ],
+            "contentHash": "524980db03edfb6e656b8eba94914e55fcdf72b0db0cf53d1ad5a39a2dc573f2",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS SSE"
+      },
+      {
+        "id": "connection:managed-provider-chat",
+        "source": "component:managed-gemini-provider",
+        "target": "component:c-provider-execution",
+        "type": "publishes",
+        "label": "Streaming model events",
+        "evidence": [
+          {
+            "fileNodeId": "file:backend/routers/desktop_chat.py",
+            "lineRange": [
+              293,
+              322
+            ],
+            "contentHash": "524980db03edfb6e656b8eba94914e55fcdf72b0db0cf53d1ad5a39a2dc573f2",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS SSE"
+      },
+      {
+        "id": "connection:managed-a-discard-admission-request",
+        "source": "component:a-discard-admission",
+        "target": "component:managed-conversation-compute",
+        "type": "calls",
+        "label": "Discard compute request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              168,
+              177
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-a-discard-admission-return",
+        "source": "component:managed-conversation-compute",
+        "target": "component:a-discard-admission",
+        "type": "publishes",
+        "label": "Discard candidate result",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              168,
+              177
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-a-structure-enrichment-request",
+        "source": "component:a-structure-enrichment",
+        "target": "component:managed-conversation-compute",
+        "type": "calls",
+        "label": "Structure compute request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              180,
+              189
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-a-structure-enrichment-return",
+        "source": "component:managed-conversation-compute",
+        "target": "component:a-structure-enrichment",
+        "type": "publishes",
+        "label": "Structure candidate result",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              180,
+              189
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-a-action-item-enrichment-request",
+        "source": "component:a-action-item-enrichment",
+        "target": "component:managed-conversation-compute",
+        "type": "calls",
+        "label": "Action-item compute request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              192,
+              201
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:managed-a-action-item-enrichment-return",
+        "source": "component:managed-conversation-compute",
+        "target": "component:a-action-item-enrichment",
+        "type": "publishes",
+        "label": "Action-item candidate result",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ConversationCompute.swift",
+            "lineRange": [
+              192,
+              201
+            ],
+            "contentHash": "3994abb1ad903421deb70dc25df1853ce1e040bdb1c25ccc4fc523da8f67d608",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:backend/routers/conversation_compute.py",
+            "lineRange": [
+              172,
+              250
+            ],
+            "contentHash": "1030f378f2ab981ae6afe2be3aaa4f7690f5234474fa4ab99a4e9360015026fb",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:ai-profile-inputs",
+        "source": "component:ai-profile-inputs",
+        "target": "component:memory",
+        "type": "reads_from",
+        "label": "Read bounded local memories",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              515,
+              527
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inputs-tasks",
+        "source": "component:ai-profile-inputs",
+        "target": "component:tasks",
+        "type": "reads_from",
+        "label": "Read bounded local tasks",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              529,
+              559
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inputs-goals",
+        "source": "component:ai-profile-inputs",
+        "target": "component:simple-goals",
+        "type": "reads_from",
+        "label": "Read active local goal titles",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              547,
+              555
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inputs-conversations",
+        "source": "component:ai-profile-inputs",
+        "target": "component:a-conversation-store",
+        "type": "reads_from",
+        "label": "Read recent completed conversation summaries",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              561,
+              579
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inputs-chat",
+        "source": "component:ai-profile-inputs",
+        "target": "component:local-agent-store",
+        "type": "reads_from",
+        "label": "Read recent local Chat journal turns",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              582,
+              612
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inputs-generation",
+        "source": "component:ai-profile-inputs",
+        "target": "component:ai-profile-generation",
+        "type": "transforms",
+        "label": "Bounded source sections become profile prompt",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              355,
+              378
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-generation-inference",
+        "source": "component:ai-profile-generation",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Owner-authorized initial Gemini profile synthesis",
+        "transport": "GeminiClient proxy generateContent HTTP request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              86,
+              93
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              417,
+              419
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              601,
+              657
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-inference-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:ai-profile-generation",
+        "type": "transforms",
+        "label": "Candidate text response",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              640,
+              657
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-consolidation-inference",
+        "source": "component:ai-profile-consolidation",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Owner-authorized historical consolidation request",
+        "transport": "GeminiClient proxy generateContent HTTP request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              457,
+              461
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              601,
+              657
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-consolidation-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:ai-profile-consolidation",
+        "type": "transforms",
+        "label": "Consolidated candidate profile text",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              640,
+              657
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-generation-history",
+        "source": "component:ai-profile-consolidation",
+        "target": "component:ai-profile-history",
+        "type": "writes_to",
+        "label": "Owner-fenced profile history record",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              464,
+              482
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-local-store",
+        "source": "component:ai-profile-history",
+        "target": "component:local-swift-store",
+        "type": "writes_to",
+        "label": "Write ai_user_profiles through shared GRDB pool",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              126,
+              135
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              468,
+              481
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-chat",
+        "source": "component:ai-profile-history",
+        "target": "component:chat",
+        "type": "publishes",
+        "label": "Latest profile becomes Chat prompt context",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
+            "lineRange": [
+              2861,
+              2888
+            ],
+            "contentHash": "ba61c255903b8142407b631679d0692d6ace40abf6fff34080dba88188ba13ca",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-focus",
+        "source": "component:ai-profile-history",
+        "target": "component:b-focus",
+        "type": "publishes",
+        "label": "Latest profile for Focus context",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              757,
+              765
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-insights",
+        "source": "component:ai-profile-history",
+        "target": "component:b-insights",
+        "type": "publishes",
+        "label": "Latest profile for Insight context",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              774,
+              780
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-task",
+        "source": "component:ai-profile-history",
+        "target": "component:b-task-assistant",
+        "type": "publishes",
+        "label": "Latest profile for task extraction context",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+            "lineRange": [
+              755,
+              763
+            ],
+            "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-settings-trigger",
+        "source": "component:interface",
+        "target": "component:ai-profile-generation",
+        "type": "calls",
+        "label": "Explicit Settings regeneration",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/SettingsContentView+BillingHelpers.swift",
+            "lineRange": [
+              424,
+              443
+            ],
+            "contentHash": "da03c529bbfa58f815f18e2f960225581bc59a84e95787a879673d1baa4c7849",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-consolidation",
+        "source": "component:ai-profile-history",
+        "target": "component:ai-profile-consolidation",
+        "type": "publishes",
+        "label": "Up to five prior profiles for consolidation",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              422,
+              430
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-history-selected-context",
+        "source": "component:ai-profile-history",
+        "target": "component:c-selected-context",
+        "type": "publishes",
+        "label": "Latest profile is loaded and formatted into selected Chat context",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
+            "lineRange": [
+              2861,
+              2888
+            ],
+            "contentHash": "ba61c255903b8142407b631679d0692d6ace40abf6fff34080dba88188ba13ca",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-memory",
+        "source": "component:memory",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Profile reads bounded Memory facts",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              519,
+              522
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-tasks",
+        "source": "component:tasks",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Profile reads local tasks",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              533,
+              540
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-goals",
+        "source": "component:local-archive",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Profile reads active local goals",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              547,
+              555
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-conversations",
+        "source": "component:local-archive",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Profile reads recent conversation summaries",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              565,
+              575
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-chat",
+        "source": "component:chat",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Profile reads recent local Chat turns",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              594,
+              607
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-inference",
+        "source": "component:ai-profile",
+        "target": "component:managed-inference",
+        "type": "calls",
+        "label": "Profile synthesis uses managed Gemini compute",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              417,
+              461
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-chat-consumer",
+        "source": "component:ai-profile",
+        "target": "component:chat",
+        "type": "publishes",
+        "label": "Latest local profile grounds Chat",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
+            "lineRange": [
+              2876,
+              2888
+            ],
+            "contentHash": "ba61c255903b8142407b631679d0692d6ace40abf6fff34080dba88188ba13ca",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-background-consumers",
+        "source": "component:ai-profile",
+        "target": "component:background-assistants",
+        "type": "publishes",
+        "label": "Latest local profile grounds background assistant prompts",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              759,
+              764
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-settings",
+        "source": "component:interface",
+        "target": "component:ai-profile",
+        "type": "calls",
+        "label": "Settings explicitly regenerates profile",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Components/SettingsContentView+BillingHelpers.swift",
+            "lineRange": [
+              424,
+              443
+            ],
+            "contentHash": "da03c529bbfa58f815f18e2f960225581bc59a84e95787a879673d1baa4c7849",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-synthesis-consolidation",
+        "source": "component:ai-profile-generation",
+        "target": "component:ai-profile-consolidation",
+        "type": "transforms",
+        "label": "New profile enters historical merge",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              417,
+              430
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-overview-result",
+        "source": "component:managed-inference",
+        "target": "component:ai-profile",
+        "type": "publishes",
+        "label": "Candidate profile text",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              417,
+              461
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:ai-profile-generation-loads-inputs",
+        "source": "component:ai-profile-generation",
+        "target": "component:ai-profile-inputs",
+        "type": "calls",
+        "label": "Owner admitted; load source facts",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+            "lineRange": [
+              333,
+              360
+            ],
+            "contentHash": "c1faa633836e702017280e06e0365c3188b83069858d542993f3a977bb158e3f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:simple-goals-local-storage",
+        "source": "component:simple-goals",
+        "target": "component:local-swift-store",
+        "type": "writes_to",
+        "label": "Read and write local goal state",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift",
+            "lineRange": [
+              31,
+              60
+            ],
+            "contentHash": "3674b482703ce9c8dc70f880e8206c60459608ae3c3a7a9b398e5193cc239720",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/GoalStorage.swift",
+            "lineRange": [
+              76,
+              105
+            ],
+            "contentHash": "3674b482703ce9c8dc70f880e8206c60459608ae3c3a7a9b398e5193cc239720",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-claims-work",
+        "source": "component:memory-work-claim-retry",
+        "target": "component:b-memory-storage",
+        "type": "calls",
+        "label": "Claims due work under owner generation",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              93,
+              105
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              851,
+              898
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              121,
+              131
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-dispatches-normalize",
+        "source": "component:memory-work-claim-retry",
+        "target": "component:memory-normalize-operation",
+        "type": "calls",
+        "label": "Dispatches leased normalize work",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              106,
+              108
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-dispatches-extract",
+        "source": "component:memory-work-claim-retry",
+        "target": "component:memory-extract-operation",
+        "type": "calls",
+        "label": "Dispatches leased extraction work",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              109,
+              111
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-dispatches-embed",
+        "source": "component:memory-work-claim-retry",
+        "target": "component:memory-embed-operation",
+        "type": "calls",
+        "label": "Dispatches leased embedding work",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              112,
+              114
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-dispatches-consolidate",
+        "source": "component:memory-work-claim-retry",
+        "target": "component:memory-consolidate-operation",
+        "type": "calls",
+        "label": "Dispatches leased consolidation work",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              115,
+              117
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-normalize-requests-compute",
+        "source": "component:memory-normalize-operation",
+        "target": "component:managed-memory-compute",
+        "type": "calls",
+        "label": "Sends normalize proposal request",
+        "transport": "APIClient POST v1/memory/compute/normalize",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              144,
+              155
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+MemoryCompute.swift",
+            "lineRange": [
+              209,
+              216
+            ],
+            "contentHash": "5052a4d554a2431fd83ae3c60bbfc173531f0ea9d9d6410f4cee027571c6af08",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:managed-memory-compute-returns-normalize",
+        "source": "component:managed-memory-compute",
+        "target": "component:memory-normalize-operation",
+        "type": "publishes",
+        "label": "Returns normalized proposal",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              155,
+              168
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-extract-requests-compute",
+        "source": "component:memory-extract-operation",
+        "target": "component:managed-memory-compute",
+        "type": "calls",
+        "label": "Sends bounded conversation extraction",
+        "transport": "APIClient POST v1/memory/compute/extract",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              203,
+              220
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+MemoryCompute.swift",
+            "lineRange": [
+              218,
+              225
+            ],
+            "contentHash": "5052a4d554a2431fd83ae3c60bbfc173531f0ea9d9d6410f4cee027571c6af08",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:managed-memory-compute-returns-extract",
+        "source": "component:managed-memory-compute",
+        "target": "component:memory-extract-operation",
+        "type": "publishes",
+        "label": "Returns grounded extraction candidates",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              216,
+              231
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-extract-gets-conversation",
+        "source": "component:memory-extract-operation",
+        "target": "component:a-conversation-store",
+        "type": "reads_from",
+        "label": "Reads source conversation at queued generation",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              196,
+              207
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:conversation-finalization-queues-extract",
+        "source": "component:conversation-enrichment",
+        "target": "component:memory-extract-operation",
+        "type": "calls",
+        "label": "Queues extraction after conversation finalization",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ConversationFinalizationService.swift",
+            "lineRange": [
+              161,
+              175
+            ],
+            "contentHash": "3ee45ae0ee8e9b161b52cb832df9434f477f4e5f868699b63faa48d7f01c6f4a",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-embed-requests-gemini",
+        "source": "component:memory-embed-operation",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Batch embeds current Memory content",
+        "transport": "POST /v1/proxy/gemini/models/{model}:batchEmbedContents",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              113,
+              157
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:gemini-returns-memory-embeddings",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:memory-embed-operation",
+        "type": "publishes",
+        "label": "Returns one embedding per input",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              169,
+              180
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-consolidate-requests-compute",
+        "source": "component:memory-consolidate-operation",
+        "target": "component:managed-memory-compute",
+        "type": "calls",
+        "label": "Sends candidate reconciliation request",
+        "transport": "APIClient POST v1/memory/compute/consolidate",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              324,
+              365
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Services/APIClient/APIClient+MemoryCompute.swift",
+            "lineRange": [
+              227,
+              234
+            ],
+            "contentHash": "5052a4d554a2431fd83ae3c60bbfc173531f0ea9d9d6410f4cee027571c6af08",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:managed-memory-compute-returns-consolidate",
+        "source": "component:managed-memory-compute",
+        "target": "component:memory-consolidate-operation",
+        "type": "publishes",
+        "label": "Returns complete reconciliation decisions",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              360,
+              372
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:screen-memory-gate-admits-assistant",
+        "source": "component:screen-memory-gate",
+        "target": "component:b-memory-assistant",
+        "type": "validates",
+        "label": "Requires settings and notifications enabled",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              20,
+              35
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:b-memory-assistant-to-gemini",
+        "source": "component:b-memory-assistant",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Sends gated screenshot extraction request",
+        "transport": "GeminiClient generateContent proxy request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              438,
+              504
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              511,
+              558
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-query-to-gemini",
+        "source": "component:b-memory-semantic",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Embeds semantic search query",
+        "transport": "EmbeddingService embedContent proxy request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift",
+            "lineRange": [
+              7,
+              15
+            ],
+            "contentHash": "4fe416b8f305c727368dcce212d41e7cd3af9ed88446aa0592641162f16a3e23",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              52,
+              87
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:gemini-returns-query-vector",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-memory-semantic",
+        "type": "publishes",
+        "label": "Returns query vector for local scoring",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              87,
+              110
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift",
+            "lineRange": [
+              12,
+              22
+            ],
+            "contentHash": "4fe416b8f305c727368dcce212d41e7cd3af9ed88446aa0592641162f16a3e23",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-chat-tool-recall",
+        "source": "component:c-tool-local-operations",
+        "target": "component:b-memory-semantic",
+        "type": "reads_from",
+        "label": "Chat search requests local Memory matches",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift",
+            "lineRange": [
+              1721,
+              1735
+            ],
+            "contentHash": "152b4e628d466e92ad40bdab488a4e44b38a50d6537d10e24b91dddb31d58461",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Providers/MemorySemanticRecall.swift",
+            "lineRange": [
+              7,
+              22
+            ],
+            "contentHash": "4fe416b8f305c727368dcce212d41e7cd3af9ed88446aa0592641162f16a3e23",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage+Semantic.swift",
+            "lineRange": [
+              5,
+              63
+            ],
+            "contentHash": "f05a5a1c9378c998c184f13b915dd48348d9bdeb75eccf67446c3fa72898ff2c",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-worker-enters-cadence",
+        "source": "component:memory-lifecycle-worker",
+        "target": "component:memory-work-claim-retry",
+        "type": "calls",
+        "label": "Recover, expire deletions and claim due work",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              63,
+              118
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-queued-work-wakes-worker",
+        "source": "component:b-memory-storage",
+        "target": "component:memory-lifecycle-worker",
+        "type": "publishes",
+        "label": "Durable work polled by local cadence",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              109,
+              135
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              63,
+              105
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-normalize-commit",
+        "source": "component:memory-normalize-operation",
+        "target": "component:b-memory-storage",
+        "type": "writes_to",
+        "label": "Commit at matching input revision",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              146,
+              175
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-normalize-retry",
+        "source": "component:memory-normalize-operation",
+        "target": "component:memory-work-claim-retry",
+        "type": "publishes",
+        "label": "Failure schedules bounded retry",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              146,
+              175
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              384,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              901,
+              930
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-extract-commit",
+        "source": "component:memory-extract-operation",
+        "target": "component:b-memory-storage",
+        "type": "writes_to",
+        "label": "Admit grounded conversation candidates",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              196,
+              237
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-extract-retry",
+        "source": "component:memory-extract-operation",
+        "target": "component:memory-work-claim-retry",
+        "type": "publishes",
+        "label": "Failure schedules bounded retry",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              196,
+              237
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              384,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              901,
+              930
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-embed-commit",
+        "source": "component:memory-embed-operation",
+        "target": "component:b-memory-storage",
+        "type": "writes_to",
+        "label": "Store revision-bound local vectors",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              270,
+              295
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-embed-retry",
+        "source": "component:memory-embed-operation",
+        "target": "component:memory-work-claim-retry",
+        "type": "publishes",
+        "label": "Failure schedules bounded retry",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              270,
+              295
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              384,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              901,
+              930
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-consolidate-commit",
+        "source": "component:memory-consolidate-operation",
+        "target": "component:b-memory-storage",
+        "type": "writes_to",
+        "label": "Apply atomic lifecycle decisions",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              358,
+              379
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-consolidate-retry",
+        "source": "component:memory-consolidate-operation",
+        "target": "component:memory-work-claim-retry",
+        "type": "publishes",
+        "label": "Failure schedules bounded retry",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              358,
+              379
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              384,
+              395
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
+            "lineRange": [
+              901,
+              930
+            ],
+            "contentHash": "48874445d39ab5c91239043479275ddca77a9152c4861b5f01f3dde816d978e6",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-screen-candidate-return",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-memory-assistant",
+        "type": "publishes",
+        "label": "Decoded screen-memory candidate",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              496,
+              504
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              561,
+              584
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:memory-scheduler-gate",
+        "source": "component:b-scheduler",
+        "target": "component:screen-memory-gate",
+        "type": "calls",
+        "label": "Check screen-memory admission",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/AssistantCoordinator.swift",
+            "lineRange": [
+              188,
+              210
+            ],
+            "contentHash": "1e82a9d0a240a1941dcef039d4ac661d87c15dd6ee1142325270b52b311c89a7",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              20,
+              35
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistant.swift",
+            "lineRange": [
+              381,
+              399
+            ],
+            "contentHash": "453b567a64140eb658bca6dcdd91aa6abbd825c8b5dae9c2c5d58c36d5553e60",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-focus-reads",
+        "source": "component:b-focus",
+        "target": "component:b-memory-storage",
+        "type": "reads_from",
+        "label": "Read current local memories",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              817,
+              838
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-insight-reads",
+        "source": "component:b-insights",
+        "target": "component:b-memory-storage",
+        "type": "reads_from",
+        "label": "Read existing local memories",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              150,
+              176
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-suggestion-reads",
+        "source": "component:b-suggestion-assistant",
+        "target": "component:b-memory-storage",
+        "type": "reads_from",
+        "label": "Read literal local Memory matches",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
+            "lineRange": [
+              254,
+              280
+            ],
+            "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-overview-request",
+        "source": "component:memory",
+        "target": "component:managed-inference",
+        "type": "calls",
+        "label": "Compute lifecycle proposals and vectors",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              146,
+              168
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              270,
+              285
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              358,
+              371
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:memory-overview-result",
+        "source": "component:managed-inference",
+        "target": "component:memory",
+        "type": "publishes",
+        "label": "Return proposals for local acceptance",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              146,
+              168
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              270,
+              285
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+            "lineRange": [
+              358,
+              371
+            ],
+            "contentHash": "2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-frame-distribution-internal",
+        "source": "component:screen-capture",
+        "target": "component:a-frame-distribution",
+        "type": "calls",
+        "label": "Track and distribute frame",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+            "lineRange": [
+              921,
+              933
+            ],
+            "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-rewind-drop",
+        "source": "component:screen-capture",
+        "target": "component:a-video-ocr-indexer",
+        "type": "calls",
+        "label": "Admit frame only while encoder is idle",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift",
+            "lineRange": [
+              936,
+              963
+            ],
+            "contentHash": "6b6ba143c0f996cbbb3da30b3d93e7627a5b740e7d3474912572735af9e57fd4",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-ocr-queue",
+        "source": "component:a-video-ocr-indexer",
+        "target": "component:a-ocr-embedding-worker",
+        "type": "calls",
+        "label": "Nonempty OCR queued",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/RewindIndexer.swift",
+            "lineRange": [
+              441,
+              451
+            ],
+            "contentHash": "570734885c609b9251c5859a05ad74c5cd0e6879bcd2115474bd9d6f44d1d0d0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-ocr-embedding-request",
+        "source": "component:a-ocr-embedding-worker",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Batch embedding request",
+        "transport": "authenticated HTTPS",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              212,
+              223
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-ocr-embedding-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:a-ocr-embedding-worker",
+        "type": "publishes",
+        "label": "Returned embedding vectors",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              218,
+              236
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:a-ocr-worker-commit",
+        "source": "component:a-ocr-embedding-worker",
+        "target": "component:a-rewind-database",
+        "type": "writes_to",
+        "label": "Owner-fenced local vector commit",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              224,
+              251
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:b-focus-request",
+        "source": "component:b-focus",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Focus image/context request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              848,
+              899
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              548,
+              565
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-focus-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-focus",
+        "type": "publishes",
+        "label": "Decoded focus status candidate",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              561,
+              584
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              891,
+              899
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-insights-request",
+        "source": "component:b-insights",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Investigation or screenshot/tool request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              830,
+              855
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              1023,
+              1056
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1015,
+              1029
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-insights-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-insights",
+        "type": "publishes",
+        "label": "Tool calls for local investigation/advice",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1025,
+              1063
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              1055,
+              1063
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              1351,
+              1374
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-task-request",
+        "source": "component:b-task-assistant",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Task image/tool request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+            "lineRange": [
+              905,
+              920
+            ],
+            "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1015,
+              1029
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-task-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-task-assistant",
+        "type": "publishes",
+        "label": "Tool calls for local task validation",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1025,
+              1063
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/TaskExtraction/TaskAssistant.swift",
+            "lineRange": [
+              913,
+              954
+            ],
+            "contentHash": "1ab1be7ae9c4fdf1b52cd1beec36f48690e57161a4f9742be72ed314a911d6d2",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-suggestion-request",
+        "source": "component:b-suggestion-assistant",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Grounded suggestion request",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
+            "lineRange": [
+              331,
+              361
+            ],
+            "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              548,
+              565
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:b-suggestion-result",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:b-suggestion-assistant",
+        "type": "publishes",
+        "label": "Decoded suggestion candidate",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              561,
+              584
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Suggestions/SuggestionAssistant.swift",
+            "lineRange": [
+              355,
+              381
+            ],
+            "contentHash": "687b64d93c3c835125f2c16dbf8640790ff52c612fe65f90ee50475cdbb726b6",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON via authenticated Gemini proxy"
+      },
+      {
+        "id": "connection:a-rewind-query-embedding",
+        "source": "component:a-rewind-retrieval",
+        "target": "component:managed-gemini-proxy",
+        "type": "calls",
+        "label": "Embed Rewind search query",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              457,
+              481
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              72,
+              87
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:a-rewind-query-vector",
+        "source": "component:managed-gemini-proxy",
+        "target": "component:a-rewind-retrieval",
+        "type": "publishes",
+        "label": "Query vector for local cosine scoring",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift",
+            "lineRange": [
+              99,
+              110
+            ],
+            "contentHash": "1ae9b4fefb2789664888b33a03765f86d3300a304d7e7abfe8533d1e4565c368",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              478,
+              526
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ],
+        "transport": "HTTPS JSON"
+      },
+      {
+        "id": "connection:rewind-overview-request",
+        "source": "component:rewind",
+        "target": "component:managed-inference",
+        "type": "calls",
+        "label": "Embed OCR and search queries",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              193,
+              251
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              457,
+              526
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:rewind-overview-result",
+        "source": "component:managed-inference",
+        "target": "component:rewind",
+        "type": "publishes",
+        "label": "Return vectors for local storage/search",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              193,
+              251
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/Rewind/Services/OCREmbeddingService.swift",
+            "lineRange": [
+              457,
+              526
+            ],
+            "contentHash": "e99c7a54ffec7b6132f7a3e36ac3af0d0bcbf576c93ef96bf93dbea30ff91b2f",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:background-assistants-overview-request",
+        "source": "component:background-assistants",
+        "target": "component:managed-inference",
+        "type": "calls",
+        "label": "Request background model analysis",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              891,
+              899
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              830,
+              855
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              1023,
+              1056
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1015,
+              1063
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
+      },
+      {
+        "id": "connection:background-assistants-overview-result",
+        "source": "component:managed-inference",
+        "target": "component:background-assistants",
+        "type": "publishes",
+        "label": "Return candidates for local decisions",
+        "evidence": [
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Focus/FocusAssistant.swift",
+            "lineRange": [
+              891,
+              899
+            ],
+            "contentHash": "10fb67c6f03a20394348955512454be69b450fed5001ac4da445d99cc4e233e4",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              830,
+              855
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightAssistant.swift",
+            "lineRange": [
+              1023,
+              1056
+            ],
+            "contentHash": "43331e0d2e2d8c9ae3b59102300701c597249c9160d11cff5016309b4ac3031e",
+            "kind": "source"
+          },
+          {
+            "fileNodeId": "file:desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift",
+            "lineRange": [
+              1015,
+              1063
+            ],
+            "contentHash": "681029f106ffef3d83e81dfaa402404d56d5c09615dd6a5cb6f2ef105369b0c0",
+            "kind": "source"
+          }
+        ]
       }
     ],
     "maps": [
@@ -275285,7 +278585,8 @@
           "component:authorized-tools",
           "component:interface",
           "component:account-permissions",
-          "component:local-archive"
+          "component:local-archive",
+          "component:ai-profile"
         ],
         "connectionIds": [
           "connection:a-capture-assistants",
@@ -275329,7 +278630,23 @@
           "connection:product-interface-voice",
           "connection:product-interface-listen",
           "connection:product-voice-tools",
-          "connection:product-tools-voice"
+          "connection:product-tools-voice",
+          "connection:ai-profile-overview-memory",
+          "connection:ai-profile-overview-tasks",
+          "connection:ai-profile-overview-goals",
+          "connection:ai-profile-overview-conversations",
+          "connection:ai-profile-overview-chat",
+          "connection:ai-profile-overview-inference",
+          "connection:ai-profile-overview-chat-consumer",
+          "connection:ai-profile-overview-background-consumers",
+          "connection:ai-profile-overview-settings",
+          "connection:ai-profile-overview-result",
+          "connection:memory-overview-request",
+          "connection:memory-overview-result",
+          "connection:rewind-overview-request",
+          "connection:rewind-overview-result",
+          "connection:background-assistants-overview-request",
+          "connection:background-assistants-overview-result"
         ]
       },
       {
@@ -275350,7 +278667,9 @@
           "connection:b-capture-to-scheduler",
           "connection:d-interface-capture",
           "connection:d-permission-gates-capture",
-          "connection:d-shell-capture-controls"
+          "connection:d-shell-capture-controls",
+          "connection:a-frame-distribution-internal",
+          "connection:a-rewind-drop"
         ]
       },
       {
@@ -275361,7 +278680,8 @@
           "component:a-frame-dedupe",
           "component:a-video-ocr-indexer",
           "component:a-rewind-database",
-          "component:a-rewind-retrieval"
+          "component:a-rewind-retrieval",
+          "component:a-ocr-embedding-worker"
         ],
         "connectionIds": [
           "connection:a-capture-rewind",
@@ -275372,7 +278692,16 @@
           "connection:a-indexer-database",
           "connection:a-database-retrieval",
           "connection:a-rewind-cleanup",
-          "connection:d-interface-rewind"
+          "connection:d-interface-rewind",
+          "connection:a-rewind-drop",
+          "connection:a-ocr-queue",
+          "connection:a-ocr-embedding-request",
+          "connection:a-ocr-embedding-result",
+          "connection:a-ocr-worker-commit",
+          "connection:a-rewind-query-embedding",
+          "connection:a-rewind-query-vector",
+          "connection:rewind-overview-request",
+          "connection:rewind-overview-result"
         ]
       },
       {
@@ -275394,7 +278723,9 @@
           "connection:a-managed-segments-ordering",
           "connection:a-ordering-store",
           "connection:a-store-finalization",
-          "connection:product-interface-listen"
+          "connection:product-interface-listen",
+          "connection:ai-profile-inputs-conversations",
+          "connection:memory-extract-gets-conversation"
         ]
       },
       {
@@ -275422,7 +278753,14 @@
           "connection:a-guards-archive",
           "connection:b-conversation-enrichment-to-tasks",
           "connection:b-conversation-enrichment-to-memory",
-          "connection:product-archive-enrichment"
+          "connection:product-archive-enrichment",
+          "connection:managed-a-discard-admission-request",
+          "connection:managed-a-discard-admission-return",
+          "connection:managed-a-structure-enrichment-request",
+          "connection:managed-a-structure-enrichment-return",
+          "connection:managed-a-action-item-enrichment-request",
+          "connection:managed-a-action-item-enrichment-return",
+          "connection:conversation-finalization-queues-extract"
         ]
       },
       {
@@ -275435,7 +278773,8 @@
           "component:b-insights",
           "component:b-memory-assistant",
           "component:b-task-assistant",
-          "component:b-suggestion-assistant"
+          "component:b-suggestion-assistant",
+          "component:screen-memory-gate"
         ],
         "connectionIds": [
           "connection:a-capture-assistants",
@@ -275449,7 +278788,6 @@
           "connection:b-assistants-to-memory",
           "connection:b-insight-to-memory",
           "connection:b-memory-to-insights",
-          "connection:b-memory-retrieval-to-assistants",
           "connection:b-assistant-to-tasks",
           "connection:b-focus-to-notifications",
           "connection:b-assistant-to-notifications",
@@ -275459,7 +278797,28 @@
           "connection:b-background-to-memory",
           "connection:b-background-to-tasks",
           "connection:b-background-to-archive",
-          "connection:b-archive-to-background"
+          "connection:b-archive-to-background",
+          "connection:ai-profile-history-focus",
+          "connection:ai-profile-history-insights",
+          "connection:ai-profile-history-task",
+          "connection:ai-profile-overview-background-consumers",
+          "connection:screen-memory-gate-admits-assistant",
+          "connection:b-memory-assistant-to-gemini",
+          "connection:memory-screen-candidate-return",
+          "connection:memory-scheduler-gate",
+          "connection:memory-focus-reads",
+          "connection:memory-insight-reads",
+          "connection:memory-suggestion-reads",
+          "connection:b-focus-request",
+          "connection:b-focus-result",
+          "connection:b-insights-request",
+          "connection:b-insights-result",
+          "connection:b-task-request",
+          "connection:b-task-result",
+          "connection:b-suggestion-request",
+          "connection:b-suggestion-result",
+          "connection:background-assistants-overview-request",
+          "connection:background-assistants-overview-result"
         ]
       },
       {
@@ -275468,18 +278827,36 @@
         "ownerComponentId": "component:memory",
         "componentIds": [
           "component:b-memory-storage",
-          "component:b-memory-semantic"
+          "component:b-memory-semantic",
+          "component:memory-lifecycle-worker",
+          "component:screen-memory-gate"
         ],
         "connectionIds": [
           "connection:b-assistants-to-memory",
           "connection:b-insight-to-memory",
           "connection:b-memory-to-insights",
-          "connection:b-memory-retrieval-to-assistants",
-          "connection:b-memory-acceptance-to-semantic-work",
-          "connection:b-semantic-results-to-memory",
           "connection:b-background-to-memory",
           "connection:b-conversation-enrichment-to-memory",
-          "connection:b-memory-to-archive"
+          "connection:b-memory-to-archive",
+          "connection:ai-profile-inputs",
+          "connection:ai-profile-overview-memory",
+          "connection:memory-worker-claims-work",
+          "connection:screen-memory-gate-admits-assistant",
+          "connection:memory-query-to-gemini",
+          "connection:gemini-returns-query-vector",
+          "connection:memory-chat-tool-recall",
+          "connection:memory-worker-enters-cadence",
+          "connection:memory-queued-work-wakes-worker",
+          "connection:memory-normalize-commit",
+          "connection:memory-extract-commit",
+          "connection:memory-embed-commit",
+          "connection:memory-consolidate-commit",
+          "connection:memory-scheduler-gate",
+          "connection:memory-focus-reads",
+          "connection:memory-insight-reads",
+          "connection:memory-suggestion-reads",
+          "connection:memory-overview-request",
+          "connection:memory-overview-result"
         ]
       },
       {
@@ -275499,7 +278876,12 @@
           "connection:b-background-to-tasks",
           "connection:b-conversation-enrichment-to-tasks",
           "connection:b-chat-tools-to-tasks",
-          "connection:b-tasks-to-archive"
+          "connection:b-tasks-to-archive",
+          "connection:ai-profile-inputs-tasks",
+          "connection:ai-profile-history-task",
+          "connection:ai-profile-overview-tasks",
+          "connection:b-task-request",
+          "connection:b-task-result"
         ]
       },
       {
@@ -275565,7 +278947,11 @@
           "connection:d-interface-chat",
           "connection:d-owner-quiesces-producers",
           "connection:d-agent-journal-surface",
-          "connection:product-archive-chat"
+          "connection:product-archive-chat",
+          "connection:ai-profile-history-chat",
+          "connection:ai-profile-history-selected-context",
+          "connection:ai-profile-overview-chat",
+          "connection:ai-profile-overview-chat-consumer"
         ]
       },
       {
@@ -275607,7 +278993,11 @@
           "component:c-gateway-admission",
           "component:c-provider-execution",
           "component:c-gateway-stream",
-          "component:c-live-token-service"
+          "component:c-live-token-service",
+          "component:managed-gemini-proxy",
+          "component:managed-memory-compute",
+          "component:managed-conversation-compute",
+          "component:managed-gemini-provider"
         ],
         "connectionIds": [
           "connection:a-ambient-managed-listen",
@@ -275626,7 +279016,57 @@
           "connection:c-token-session",
           "connection:c-gateway-pi-return",
           "connection:c-pi-admission",
-          "connection:c-session-token"
+          "connection:c-session-token",
+          "connection:managed-proxy-provider",
+          "connection:managed-provider-proxy",
+          "connection:managed-memory-provider",
+          "connection:managed-provider-memory",
+          "connection:managed-conversation-provider",
+          "connection:managed-provider-conversation",
+          "connection:managed-chat-provider",
+          "connection:managed-provider-chat",
+          "connection:managed-a-discard-admission-request",
+          "connection:managed-a-discard-admission-return",
+          "connection:managed-a-structure-enrichment-request",
+          "connection:managed-a-structure-enrichment-return",
+          "connection:managed-a-action-item-enrichment-request",
+          "connection:managed-a-action-item-enrichment-return",
+          "connection:ai-profile-generation-inference",
+          "connection:ai-profile-inference-result",
+          "connection:ai-profile-consolidation-inference",
+          "connection:ai-profile-consolidation-result",
+          "connection:ai-profile-overview-inference",
+          "connection:ai-profile-overview-result",
+          "connection:memory-normalize-requests-compute",
+          "connection:managed-memory-compute-returns-normalize",
+          "connection:memory-extract-requests-compute",
+          "connection:managed-memory-compute-returns-extract",
+          "connection:memory-embed-requests-gemini",
+          "connection:gemini-returns-memory-embeddings",
+          "connection:memory-consolidate-requests-compute",
+          "connection:managed-memory-compute-returns-consolidate",
+          "connection:b-memory-assistant-to-gemini",
+          "connection:memory-query-to-gemini",
+          "connection:gemini-returns-query-vector",
+          "connection:memory-screen-candidate-return",
+          "connection:memory-overview-request",
+          "connection:memory-overview-result",
+          "connection:a-ocr-embedding-request",
+          "connection:a-ocr-embedding-result",
+          "connection:b-focus-request",
+          "connection:b-focus-result",
+          "connection:b-insights-request",
+          "connection:b-insights-result",
+          "connection:b-task-request",
+          "connection:b-task-result",
+          "connection:b-suggestion-request",
+          "connection:b-suggestion-result",
+          "connection:a-rewind-query-embedding",
+          "connection:a-rewind-query-vector",
+          "connection:rewind-overview-request",
+          "connection:rewind-overview-result",
+          "connection:background-assistants-overview-request",
+          "connection:background-assistants-overview-result"
         ]
       },
       {
@@ -275655,7 +279095,8 @@
           "connection:product-tools-archive",
           "connection:c-authority-admission",
           "connection:product-voice-tools",
-          "connection:product-tools-voice"
+          "connection:product-tools-voice",
+          "connection:memory-chat-tool-recall"
         ]
       },
       {
@@ -275685,7 +279126,9 @@
           "connection:d-draft-bridge-node",
           "connection:d-permission-audio-authority",
           "connection:product-interface-voice",
-          "connection:product-interface-listen"
+          "connection:product-interface-listen",
+          "connection:ai-profile-settings-trigger",
+          "connection:ai-profile-overview-settings"
         ]
       },
       {
@@ -275724,7 +279167,8 @@
         "componentIds": [
           "component:local-swift-store",
           "component:local-agent-store",
-          "component:d-export-delete"
+          "component:d-export-delete",
+          "component:simple-goals"
         ],
         "connectionIds": [
           "connection:a-rewind-local-store",
@@ -275757,7 +279201,96 @@
           "connection:d-export-swift-store",
           "connection:product-archive-chat",
           "connection:product-archive-enrichment",
-          "connection:product-tools-archive"
+          "connection:product-tools-archive",
+          "connection:ai-profile-inputs-goals",
+          "connection:ai-profile-inputs-chat",
+          "connection:ai-profile-history-local-store",
+          "connection:ai-profile-overview-goals",
+          "connection:ai-profile-overview-conversations",
+          "connection:simple-goals-local-storage"
+        ]
+      },
+      {
+        "id": "map:ai-profile",
+        "title": "AI profile generation and local consumers",
+        "ownerComponentId": "component:ai-profile",
+        "componentIds": [
+          "component:ai-profile-inputs",
+          "component:ai-profile-generation",
+          "component:ai-profile-consolidation",
+          "component:ai-profile-history"
+        ],
+        "connectionIds": [
+          "connection:ai-profile-inputs",
+          "connection:ai-profile-inputs-tasks",
+          "connection:ai-profile-inputs-goals",
+          "connection:ai-profile-inputs-conversations",
+          "connection:ai-profile-inputs-chat",
+          "connection:ai-profile-inputs-generation",
+          "connection:ai-profile-generation-inference",
+          "connection:ai-profile-inference-result",
+          "connection:ai-profile-consolidation-inference",
+          "connection:ai-profile-consolidation-result",
+          "connection:ai-profile-generation-history",
+          "connection:ai-profile-history-local-store",
+          "connection:ai-profile-history-chat",
+          "connection:ai-profile-history-focus",
+          "connection:ai-profile-history-insights",
+          "connection:ai-profile-history-task",
+          "connection:ai-profile-settings-trigger",
+          "connection:ai-profile-history-consolidation",
+          "connection:ai-profile-history-selected-context",
+          "connection:ai-profile-overview-memory",
+          "connection:ai-profile-overview-tasks",
+          "connection:ai-profile-overview-goals",
+          "connection:ai-profile-overview-conversations",
+          "connection:ai-profile-overview-chat",
+          "connection:ai-profile-overview-inference",
+          "connection:ai-profile-overview-chat-consumer",
+          "connection:ai-profile-overview-background-consumers",
+          "connection:ai-profile-overview-settings",
+          "connection:ai-profile-synthesis-consolidation",
+          "connection:ai-profile-overview-result",
+          "connection:ai-profile-generation-loads-inputs"
+        ]
+      },
+      {
+        "id": "map:memory-lifecycle-worker",
+        "title": "Memory lifecycle worker",
+        "ownerComponentId": "component:memory-lifecycle-worker",
+        "componentIds": [
+          "component:memory-work-claim-retry",
+          "component:memory-normalize-operation",
+          "component:memory-extract-operation",
+          "component:memory-embed-operation",
+          "component:memory-consolidate-operation"
+        ],
+        "connectionIds": [
+          "connection:memory-worker-claims-work",
+          "connection:memory-worker-dispatches-normalize",
+          "connection:memory-worker-dispatches-extract",
+          "connection:memory-worker-dispatches-embed",
+          "connection:memory-worker-dispatches-consolidate",
+          "connection:memory-normalize-requests-compute",
+          "connection:managed-memory-compute-returns-normalize",
+          "connection:memory-extract-requests-compute",
+          "connection:managed-memory-compute-returns-extract",
+          "connection:memory-extract-gets-conversation",
+          "connection:conversation-finalization-queues-extract",
+          "connection:memory-embed-requests-gemini",
+          "connection:gemini-returns-memory-embeddings",
+          "connection:memory-consolidate-requests-compute",
+          "connection:managed-memory-compute-returns-consolidate",
+          "connection:memory-worker-enters-cadence",
+          "connection:memory-queued-work-wakes-worker",
+          "connection:memory-normalize-commit",
+          "connection:memory-normalize-retry",
+          "connection:memory-extract-commit",
+          "connection:memory-extract-retry",
+          "connection:memory-embed-commit",
+          "connection:memory-embed-retry",
+          "connection:memory-consolidate-commit",
+          "connection:memory-consolidate-retry"
         ]
       }
     ]
