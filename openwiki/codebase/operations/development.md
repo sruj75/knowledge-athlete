@@ -5,7 +5,7 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:55:03.537Z
+    at: 2026-09-19T10:43:39.596Z
 sources:
   - id: openwiki-source-311b902b81b9fbe111c8359f
     resource: repo://.conductor/settings.toml
@@ -31,7 +31,7 @@ sources:
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
   - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
     resource: repo://scripts/ua_graph.py
-generated: { by: "codex", at: "2026-09-18T08:55:03.537Z" }
+generated: { by: "codex", at: "2026-09-19T10:43:39.596Z" }
 ---
 # Development and wiki maintenance
 
@@ -77,7 +77,7 @@ The [authored maintenance instructions](../../INSTRUCTIONS.md#wiki-maintenance) 
 
 After source and tests stabilize, call native `openwiki_begin` in update mode. If planning is requested, research the changed behavior and submit the affected page plan. For each `openwiki_next_page` assignment, update that page and submit sparse claim decisions. Finish after the queue completes. A no-change result needs no fabricated edit. Use `force: true` for guidance-only regeneration; resume interrupted work through begin and its durable queue.
 
-The instruction brief carries current scope and working constraints. Full IR decisions, old tutorials and dated acceptance records are reached through its pinned Git links; they are not copied into generated pages. Initialization replaces generated pages while preserving the instruction brief. Create the empty Company directory after initialization starts and remove the scaffolded scheduled workflow. OpenWiki generates its structural indexes at finalization. Never hand-edit Claims or completion metadata.
+The instruction brief carries current scope and working constraints. Full IR decisions, old tutorials and dated acceptance records are reached through its pinned Git links; they are not copied into generated pages. Initialization replaces generated pages while preserving the instruction brief. Remove the scaffolded scheduled workflow before committing. OpenWiki generates its structural indexes at finalization. Never hand-edit Claims or completion metadata.
 
 Commit wiki changes with the implementation on the current branch. The existing explicit-push rule still governs publishing.
 

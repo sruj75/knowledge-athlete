@@ -8,7 +8,8 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 
 - Use unmodified OpenWiki 0.5.2, its project-scoped Codex integration and Node 22.22.0.
 - Document active macOS, its Node runtime, the canonical Python backend, tests and delivery
-  under `codebase/`, organized by systems/workflows. Keep `company/` structurally present and empty.
+  under `codebase/`, organized by systems/workflows. `codebase/` is the complete wiki scope
+  and the default destination for generated pages.
 - Windows is paused: exclude `desktop/windows/` and Windows-only surfaces from research/changes.
 - Honor `.openwikiignore`; exclude credentials, private state, dependencies and build outputs.
   OpenWiki excludes `.ua/`; Understand Anything maintains that separate graph.
@@ -23,8 +24,8 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - After source/tests stabilize, complete the native skill's begin → plan → page queue → finish
   lifecycle. Include affected wiki changes with code; use `force: true` for brief-only changes.
 - Resume interrupted runs. Never hand-edit Claims, generated indexes, checkpoints or completion metadata.
-- Init preserves this brief; other wiki content is generated state. Reserve Company after init begins
-  and remove any scaffolded scheduled workflow before committing. Updates happen during Codex work.
+- Init preserves this brief; other wiki content is generated state. Remove any scaffolded scheduled
+  workflow before committing. Updates happen during Codex work.
 - Keep only active instructions here. Generated pages own source-backed explanations/commands;
   Git owns full decision histories, old tutorials and dated receipts. Do not copy the archive back in.
 - Use standard OKF Markdown and package `resource: repo://<package-path>` metadata. Keep link,

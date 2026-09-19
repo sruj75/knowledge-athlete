@@ -12,14 +12,14 @@ sources:
     resource: repo://desktop/macos/agent/package.json
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
-generated: { by: "codex", at: "2026-09-18T08:23:57.133Z" }
+generated: { by: "codex", at: "2026-09-19T10:43:39.596Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:23:57.133Z
+    at: 2026-09-19T10:43:39.596Z
 ---
 # Start here
 
-Intentive's active codebase is a macOS app with a bundled Node agent runtime and a managed Python backend. Begin with the [system architecture](codebase/architecture/overview.md), then follow the task map below. Company is reserved structure and has no content or ingestion configuration.
+Intentive's active codebase is a macOS app with a bundled Node agent runtime and a managed Python backend. OpenWiki documents this repository's codebase only, with `codebase/` as the default destination for generated pages. Begin with the [system architecture](codebase/architecture/overview.md), then follow the task map below.
 
 ## Before changing code
 
@@ -45,7 +45,7 @@ Read the [compact authored brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Eng
 
 At the repository root, activate the Node version in `.nvmrc`, run `make setup`, then select the component commands in the development guide. Setup also prepares the pinned Understand Anything scanner outside the repository. `make preflight` runs the shared local governance lane, including committed graph freshness. Tests and actual user-path evidence are both required by the authored engineering guide; report unavailable or failed evidence explicitly.
 
-After source and tests stabilize, run the native OpenWiki update and include its pages and metadata in the same local change. Native finalization owns all structural indexes; the empty Company index is created there. Initialization preserves the brief and replaces generated state, so reserve Company again after init begins. Publishing still requires explicit user instruction.
+After source and tests stabilize, run the native OpenWiki update and include its pages and metadata in the same local change. Native finalization owns all structural indexes. Initialization preserves the brief and replaces generated state. Publishing still requires explicit user instruction.
 
 The [pre-migration provenance](INSTRUCTIONS.md#provenance-and-ownership) and commit-pinned archive references retain historical rationale. Inherited Windows code is outside this active-product documentation.
 

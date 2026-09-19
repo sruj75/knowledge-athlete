@@ -5,7 +5,7 @@ description: Trace the Mac, Node runtime and managed backend and the boundaries 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:39:11.738Z
+    at: 2026-09-19T10:43:39.596Z
 sources:
   - id: openwiki-source-fcffbe3e28749eaf9a39557c
     resource: repo://backend/main.py
@@ -17,7 +17,7 @@ sources:
     resource: repo://desktop/macos/agent/src/runtime/conversation-journal.ts
   - id: openwiki-source-589f41062c2e58cbb24b065e
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
-generated: { by: "codex", at: "2026-09-15T13:39:11.738Z" }
+generated: { by: "codex", at: "2026-09-19T10:43:39.596Z" }
 ---
 # System architecture
 
@@ -57,7 +57,7 @@ The distinction matters on failure: an unavailable compute provider can prevent 
 
 Before changing capture, metering, playback or voice recovery, read the [authored runtime reliability boundaries](../../INSTRUCTIONS.md#runtime-reliability-boundaries). They preserve the required model routing, threading, delivery, acknowledgement and recovery rules.
 
-[Provenance and product constraints](../../INSTRUCTIONS.md#provenance-and-ownership) are authored decisions. Inherited Windows sources are excluded from this active-product wiki. The Company section is reserved structure only. Source code proves implementation, not production readiness; open qualification obligations remain in the brief.
+[Provenance and product constraints](../../INSTRUCTIONS.md#provenance-and-ownership) are authored decisions. Inherited Windows sources are excluded from this active-product wiki. Source code proves implementation, not production readiness; open qualification obligations remain in the brief.
 
 ## Source evidence
 
