@@ -16,12 +16,12 @@ PYTHON_RUNNER := $(BASH) scripts/dev-harness/run-python.sh
 DESKTOP_USER ?= alice
 DESKTOP_APP_NAME ?=
 
-.PHONY: setup setup-main setup-hooks setup-backend setup-ua preflight runtime-image-source-closure runtime-image-smoke dev-check dev-up dev-status dev-summary dev-reset dev-down dev-logs dev dev-desktop dev-init dev-verify desktop-run-local
+.PHONY: setup setup-main setup-hooks setup-backend preflight runtime-image-source-closure runtime-image-smoke dev-check dev-up dev-status dev-summary dev-reset dev-down dev-logs dev dev-desktop dev-init dev-verify desktop-run-local
 
 # Baseline setup is deliberately limited to prerequisites that the default
 # pre-push gate may require; app and desktop runtime environments stay opt-in.
-setup: setup-main setup-hooks setup-backend setup-ua
-	@echo "Worktree setup complete: hooks, backend pre-push environment and pinned UA scanner ready."
+setup: setup-main setup-hooks setup-backend
+	@echo "Worktree setup complete: hooks and backend pre-push environment ready."
 
 setup-main:
 	@$(BASH) scripts/setup-refresh-main.sh
@@ -31,9 +31,6 @@ setup-hooks:
 
 setup-backend:
 	@$(BASH) backend/scripts/sync-python-deps.sh
-
-setup-ua:
-	@scripts/ua-graph setup
 
 preflight:
 	$(PYTHON_RUNNER) .github/scripts/pr_preflight.py --lane local --base origin/main

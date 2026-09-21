@@ -4,4 +4,3 @@
 - [Data and namespace migrations](migrations.md) - Explain retained schema/lifecycle migration tools and distinguish them from retired planning validation.
 - [Qualification and open obligations](qualification.md) - Explain evidence gates and existing harnesses; link authored open commitments without claiming qualification.
 - [Delivery and updates](releases.md) - Trace backend exact-SHA deployment and desktop qualification, promotion, signed artifacts and idle relaunch.
-- [Understand Anything across workspaces](understand-anything.md) - Explain committed graph freshness, Conductor closeout, the pinned scanner and the restricted weekly report publisher.

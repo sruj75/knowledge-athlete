@@ -4,26 +4,13 @@ file_include_globs = "!**"
 
 [prompts]
 create_pr = """
-Follow PR closeout, Wiki maintenance and Engineering rules in openwiki/INSTRUCTIONS.md. On the
-current branch, inspect all intended changes, finish source/tests and the native
-OpenWiki update, then commit the source/wiki changes before the final UA refresh.
-Use the enabled Codex understand-anything@understand-anything system fork, resolving
-its active skill directory, with UNDERSTAND_NO_WORKTREE_REDIRECT=1. Preserve its
-system maps through the normal analysis/publication workflow; scripts/ua-graph root
-locates only the pinned offline checker runtime, not the semantic generation plugin.
-If the fork is unavailable, report that instead of regenerating with stock code.
-Preserve the saved scope, language and
-auto-update setting and use the required Luna semantic-analysis subagents. One
-session owns this worktree's .ua: coalesce hook and closeout requests into one update
-and wait for all analysis and successful finalization before staging its persistent
-files. If the saved baseline commit is unavailable, perform a full analysis with
-the same settings; never advance metadata alone or publish partial output.
-Commit the validated persistent .ua files, run scripts/ua-graph check --ref HEAD and
-the required PR preflights, then push and create or update the PR against the
-configured target branch using the repository PR template. Integrate newer main and
-revalidate before merge; refresh when analyzed inputs changed. Stop and report any
-failure with the saved baseline. Do not merge the PR or archive the workspace as
-part of Create PR.
+Follow PR closeout, Wiki maintenance and Engineering rules in openwiki/INSTRUCTIONS.md.
+On the current branch, inspect all intended changes, finish source/tests and the native
+OpenWiki update. Update the tracked Mermaid product map when relevant flows change.
+Commit intended source, tests and documentation, run the required PR preflights, then
+push and create or update the PR against the configured target branch using the
+repository PR template. Integrate newer main and revalidate before merge. Stop and
+report failures. Do not merge the PR or archive the workspace as part of Create PR.
 """
 
 [scripts]

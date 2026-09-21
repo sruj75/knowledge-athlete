@@ -187,34 +187,6 @@ if ci_prediction_selected "windows-kgworker-native-closure"; then
   ci_prediction_note_deferred "Windows packaged build and real asar worker proof"
 fi
 
-check_ua_graph_freshness() {
-  local update local_oid remote_oid remote_ref checked_oid already_checked
-  local -a checked_oids=()
-
-  if [ "${#PUSH_UPDATES[@]}" -eq 0 ]; then
-    # A deletion publishes no candidate. An interactive/manual invocation still
-    # checks HEAD, preserving the existing pre-push command-line behavior.
-    [ "$PUSH_INPUT_SEEN" -eq 0 ] || return 0
-    "$PYTHON_EXECUTABLE" .github/scripts/run_checks.py --root "$PWD" \
-      --lane local --base HEAD --head HEAD --check-id ua-graph-freshness
-  else
-    for update in "${PUSH_UPDATES[@]}"; do
-      IFS=: read -r local_oid remote_oid remote_ref <<<"$update"
-      already_checked=0
-      for checked_oid in "${checked_oids[@]}"; do
-        [ "$checked_oid" != "$local_oid" ] || already_checked=1
-      done
-      [ "$already_checked" -eq 0 ] || continue
-      # The same manifest contract CI runs; never substitute the checked-out
-      # HEAD for a different branch/ref being pushed, and never honor a hatch.
-      "$PYTHON_EXECUTABLE" .github/scripts/run_checks.py --root "$PWD" \
-        --lane local --base "$local_oid" --head "$local_oid" --check-id ua-graph-freshness
-      checked_oids+=("$local_oid")
-    done
-  fi
-  ci_prediction_note_verified "committed UA graph for every pushed candidate"
-}
-
 check_pr_preflight() {
   local has_supplied_pr_body=0
   local update local_oid remote_oid remote_ref diff_base head_branch
@@ -651,7 +623,6 @@ check_gauntlet_evidence_if_needed() {
   desktop/macos/scripts/check-gauntlet-evidence-at-head.sh block
 }
 
-run_step check_ua_graph_freshness
 run_step check_pr_preflight
 run_step "$PYTHON_EXECUTABLE" .github/scripts/check-desktop-prod-promotion-policy.py
 run_step "$PYTHON_EXECUTABLE" .github/scripts/check-deployment-concurrency.py --self-test

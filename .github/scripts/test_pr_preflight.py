@@ -292,9 +292,6 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
-                # Every committed candidate is checked; excluded documentation
-                # does not require graph regeneration when the inventory matches.
-                "ua-graph-freshness",
                 "check-manifest-contract",
                 "agent-doc-references",
                 "diff-hygiene",

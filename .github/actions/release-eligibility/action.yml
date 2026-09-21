@@ -45,8 +45,10 @@ runs:
         enable-cache: true
         cache-dependency-glob: backend/openapi-requirements.txt
 
-    - name: Prepare UA runtime
-      uses: ./.github/actions/setup-ua-graph
+    - name: Set up Node.js for manifest-selected agent checks
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
 
     - name: Run canonical deterministic CI preflight
       shell: bash

@@ -6,18 +6,18 @@ tags: [intentive, codebase]
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
-  - id: openwiki-source-525cd1c034c50a5bed667e46
-    resource: repo://.github/workflows/repo-checks.yml
+  - id: openwiki-source-2086e730056d335da93dacd1
+    resource: repo://.github/scripts/publish_guardrail_pulse.py
+  - id: openwiki-source-54e240f9ab6a71a2b90a1c33
+    resource: repo://.github/workflows/guardrail-baseline-pulse.yml
   - id: openwiki-source-bcd362fbbe23cf1c0d8329bd
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
     resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-  - id: openwiki-source-f6dfb300ae1aff0b8b4f105b
-    resource: repo://scripts/pre-push
-generated: { by: "codex", at: "2026-09-18T08:23:57.133Z" }
+generated: { by: "codex", at: "2026-09-21T15:07:48.183Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-18T08:23:57.133Z
+    at: 2026-09-21T15:07:48.183Z
 ---
 # Qualification and open obligations
 
@@ -29,14 +29,21 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 | --- | --- |
 | Component and contract tests | Controlled behavior of the checked-out implementation |
 | Hermetic E2E | Wiring and lifecycle under deterministic local dependencies |
-| Committed UA freshness | Matching analyzed inputs, fingerprints and structurally valid graph in the candidate commit |
 | Named-bundle manifests | Behavior of the actual identified test binary |
 | Natural PTT/provider continuity | Physical capture and retained live-provider behavior |
 | Deployment/release records | Exact serving source or signed artifact and operational transitions |
 
 `check-gauntlet-evidence-at-head.sh` validates source identity and rejects incomplete, dirty or privacy-unsafe records. Its stricter final-closeout requirements are branch-sensitive; do not infer universal green coverage from a nonblocking branch invocation. The underlying continuity harness and source-evidence tests own the concrete row contract.
 
-The shared deterministic manifest selects `ua-graph-freshness` in both local and CI lanes, including report-only or empty diffs. Pre-push checks the actual pushed commit IDs, and the independent `UA Graph Freshness` job runs for each supported Repo Checks event. It has no dependency on the conditional Hygiene job. Scanner installation is an explicit preparation step; checking the committed content makes no model calls. This proves graph handoff evidence, not the semantic accuracy of every generated explanation or product acceptance. See [the workspace handoff guide](understand-anything.md) for failure handling and the separate GitHub activation prerequisite.
+The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
+
+## Weekly guardrail report
+
+The weekly/manual Guardrail baseline pulse remains separate from the product map. Its main-only, serialized workflow uses a dedicated App token from the `guardrail-pulse-publisher` environment to publish history; issue reporting uses `GITHUB_TOKEN`.
+
+The publisher fetches fresh main and accepts only one append-only change to `.github/guardrail-pulse-history.jsonl`, containing one valid report row. It rejects unrelated files, modified prefixes, deletions, renames, mode changes, extra commits and dirty-checkout output. A competing push causes a fresh fetch, regeneration and validation, with at most three attempts and no force-push.
+
+The [authored delivery rules](../../INSTRUCTIONS.md#delivery-guidance) preserve the Intentive Guardrail Pulse App and its narrowly intended report access. Repository code does not establish the live GitHub ruleset or credential state; verify those separately when changing publication settings.
 
 ## Open authored commitments
 
@@ -53,7 +60,8 @@ Use [desktop E2E](../testing/desktop-e2e.md) to select a test surface and [relea
 - [desktop/macos/scripts/check-gauntlet-evidence-at-head.sh](../../../desktop/macos/scripts/check-gauntlet-evidence-at-head.sh)
 - [desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh](../../../desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh)
 - [.github/checks-manifest.yaml](../../../.github/checks-manifest.yaml)
-- [UA status job](../../../.github/workflows/repo-checks.yml#L25-L45)
-- [Pushed-candidate checks](../../../scripts/pre-push#L190-L218)
+- [Pushed-candidate checks](../../../scripts/pre-push)
+- [Weekly report workflow](../../../.github/workflows/guardrail-baseline-pulse.yml)
+- [Append-only report publisher](../../../.github/scripts/publish_guardrail_pulse.py)
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

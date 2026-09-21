@@ -14,8 +14,7 @@ permissions:
 concurrency:
   # Metadata events (edited/labeled/unlabeled) and code events (push/synchronize)
   # run different broad job sets: `metadata-preflight` for the former,
-  # `changes`/`hygiene` for the latter. UA freshness runs in both lanes so a
-  # skipped metadata job cannot replace its required result. Sharing one group let a PR-title/body edit
+  # `changes`/`hygiene` for the latter. Sharing one group let a PR-title/body edit
   # cancel an in-flight code run it shares no work with, and cancelled jobs render
   # as red "fail" checks on the PR — flaky red with no code cause. Key the group by
   # lane so newer-cancels-older still holds within each lane, but never across them.
@@ -23,27 +22,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ua-graph-freshness:
-    name: UA Graph Freshness
-    runs-on: ubuntu-latest
-    steps:
-      # Default PR checkout is GitHub's merge candidate, including current main.
-      - name: Checkout candidate
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version-file: backend/.python-version
-
-      - name: Prepare UA runtime
-        uses: ./.github/actions/setup-ua-graph
-
-      - name: Check committed UA graph
-        run: python3 .github/scripts/run_checks.py --lane ci --base HEAD --head HEAD --check-id ua-graph-freshness
-
   metadata-preflight:
     name: PR Metadata Preflight
     if: github.event_name == 'pull_request' && contains(fromJSON('["edited", "labeled", "unlabeled"]'), github.event.action)
@@ -65,9 +43,6 @@ jobs:
           node-version-file: .nvmrc
           cache: 'npm'
           cache-dependency-path: desktop/macos/agent/package-lock.json
-
-      - name: Prepare UA runtime
-        uses: ./.github/actions/setup-ua-graph
 
       # The preflight can select uv-backed checks (e.g. backend-route-policy-baseline
       # runs the OpenAPI runner) whenever a PR touches backend routes, so this job
@@ -140,9 +115,6 @@ jobs:
           node-version-file: .nvmrc
           cache: 'npm'
           cache-dependency-path: desktop/macos/agent/package-lock.json
-
-      - name: Prepare UA runtime
-        uses: ./.github/actions/setup-ua-graph
 
       - name: Set up uv
         uses: astral-sh/setup-uv@ecd24dd710f2fb0dca1693a67af11fc4a5c5ec84

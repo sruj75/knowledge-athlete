@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7555e2c95b927123f521eaebb2d67fb6c9875ab020fe05f2fe0f3f7ae1fdc989",
+  "pageVersion": "sha256:222cfd231d98779a0bd00cbcbc7879a6b5b354964b7cb034d47ffba091eee466",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
@@ -18,21 +18,31 @@
     },
     {
       "id": "claim_1f3aa988e7e747ae9639f8a8a86393c0",
-      "statement": "Root setup installs worktree prerequisites and the pinned UA scanner; preflight invokes the shared local check runner against origin/main, including committed graph freshness.",
+      "statement": "Root setup refreshes main, installs hooks and synchronizes backend prerequisites; preflight invokes the shared local check runner against origin/main.",
       "evidence": [
         {
-          "resource": "repo://.github/checks-manifest.yaml#L9-L23",
-          "version": "repo-lines-v1:sha256:ff3548c631fa043a63e450e0cbe1b5044a74e2a9c613908ec454d1a7db40559b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmNDZlNDM2Y2Y2ZmE2MjE3ZDljMjIwMWUxNmRhNjRhYWY3NTZhOTQzZTg1Y2JiMzM3OGM0MDFmMjU4NmY3NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0MjM3NDY1ZWM1MWMwMTkzYjA2NWQyYzcwMDAzODA1YjIwNDBlNzRiNGVhZDRlNGM1NDc0ZjM3ZjE5NWYxZmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYwMmZkMmIwMWUxZDdiZDU4Y2EyM2ExNzVjYmNlZWE2ODRlYTViYzdmZTRkZDEwNzJiY2MyOTkzYjE1NWU1NTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkOTkwNGYzYzU3ZmExOTM1NGQ1OWEwYjcxZTM1YmQzMTRjYWQ1NTZmMmMxNmQ5NzBjZjE2YTk0MTg4ZDAyMGUifQ"
+          "resource": "repo://Makefile#L21-L36",
+          "version": "repo-lines-v1:sha256:8920bffd45e84afd2d0f9e395cf903e6231d81639b51b51d5af8ff32cd0b448d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4Y2RjOTJmM2Y3OGI2ZGRhNGZmMGJmNWY3YjgyNDg5NTc1MDQ1Y2VjNTBkODJiYzllYTZkYzU4NDE4NjkyYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_44ba14ab6e7f451eae807cc8b52139ad",
+      "statement": "The tracked Mermaid product map is maintained through reviewed edits as relevant product flows change.",
+      "evidence": [
+        {
+          "resource": "repo://.conductor/settings.toml#L5-L16",
+          "version": "repo-lines-v1:sha256:43a4df30e28c92abc43a96db761b0a46cd660e7826603af962c13481587a3912:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyZTJiODAxMWUxYmRkYTBjYmQzYzIyYTVlYTRmZjdlNzA4ODZjNWNkMmQ2NmI2OTNlOTk2ODE1OGE5YjU5YjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMwMTJkMzQyMjQ1NjFkOTc0N2E5YTg1NTg2YTFlZjRmM2U3YjY4YmZhY2M5MzBiMDQ3NmY2YjE0MmI4NjhiYTEifQ"
         },
         {
-          "resource": "repo://Makefile#L21-L39",
-          "version": "repo-lines-v1:sha256:9835af03570154c382f01d978934ed18d62bdf4d31ff1965ab8db9baba2a52c4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczNzJkMmMzYjUxNjUyNDk2ODUyMDg4ZmFmNzY4MzViODNkZWRmNGUzNWYwYzI3MjIyMWZmNzZiOTE0NjRkY2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNTVjZDEzZWU5OTg2NzljNjhmM2MyMWZmMmFhNDhmYmY1ODU2MmFkMjM4ZWJlZjRjMjM2ZDJhZTkyZmY0MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNGNlMDc1ZTg2ODczMTJkODRiZDRjYzBiYzQ0NGU1ZDEwZGUwYmVlZTFhNTIzMzNkMGJiNWY0NzE4YWU4Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzNjgzYzgwYWQ3NmQ0YWEyZGQ3MGIyN2VlZTM3ODJiNDI0Nzk2OTdlNmQ4YTkwMjAzY2E5MDRkNjc5OWJjMjkifQ"
+          "resource": "repo://README.md#L8-L9",
+          "version": "repo-lines-v1:sha256:ab9849eae4d43d3c180a0f857635bb3f69a4fe0e61b7daf20b115cf754f07266:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzdiMGQzY2Y3MWZiMzk4ODNjY2MwZTdiZWIzOGI4YzIzZGQwOGRmNGZjODBhYTQxZGIwZDYwYmQ5MzU1MzI3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ2OTJmODY0ZTJiZmJiNDFhZGIxODc5YTI3YTk3MjY4MDI1MWZiMGNiODUwMDIyNmIwODE5ZDEyYWNhODY3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTlmZTZiZDhhODBjOWFmZDMzMWJmMTc3NjU1YjBkNWViZTcwNmI0ZjYxN2UyODU0ZjE2ZTNlYzdkMjAzMmQ2MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmQ1YWJhNzExZGVjNDA5OTE4ZDFhODYxNWY4ZTU2NWY3OTg0MjY2ZGZhNWUxOGQ0NTUwNDFlMjI5OGI3NzU2NCJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-19T10:43:39.596Z"
+    "at": "2026-09-21T15:07:48.183Z"
   }
 }

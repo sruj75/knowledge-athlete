@@ -12,7 +12,6 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   and the default destination for generated pages.
 - Windows is paused: exclude `desktop/windows/` and Windows-only surfaces from research/changes.
 - Honor `.openwikiignore`; exclude credentials, private state, dependencies and build outputs.
-  OpenWiki excludes `.ua/`; Understand Anything maintains that separate graph.
 - Generate implemented behavior from source/tests. Authored decisions and dated observations
   are not mechanically verified Claims or proof of deployment, acceptance or release readiness.
 
@@ -31,42 +30,17 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Use standard OKF Markdown and package `resource: repo://<package-path>` metadata. Keep link,
   agent-size and architecture checks in the shared local/CI manifest, not a parallel validator.
 - Change authored policy only with user authorization. Documentation edits close no open obligations.
-- Track the persistent Understand Anything graph, fingerprints, metadata, config and exclusions in
-  `.ua/`; keep `intermediate/`, `tmp/`, `.trash-*` and `diff-overlay.json` ignored. Preserve the last
-  valid baseline until analysis and validation finish. Use `--auto-update` for commit-triggered
-  refreshes through the installed coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
-  for this Conductor worktree's graph. Use GPT-5.6 Luna for semantic-analysis subagents and
-  report the saved baseline and any failures in the active conversation before ending the task.
-- Full scans must pass the bundled `scan-project.mjs --exclude-analysis-data` option so tracked
-  `.ua/` artifacts cannot become input to their own analysis.
-- Include validated graph changes in the normal feature-branch commit/PR workflow. A refresh after
-  a commit produces additional working-tree changes; it does not publish them automatically.
-  Wait for the refresh before staging its persistent files; never commit partial analysis output
-  or advance metadata alone to claim freshness.
+- The tracked product map is `docs/architecture/intentive-codeflow.mmd`. Maintain it through
+  reviewed edits when relevant product flows change; no automatic graph refresh is required.
 
 ### PR closeout
 
-- Finish source/tests and the native OpenWiki update before the final graph refresh. Complete both
-  generated artifacts in this feature PR so the next Conductor workspace inherits them from main;
-  a later refresh in an archived worktree cannot join an already-merged PR (the PR #117 handoff).
-- One coding-agent session owns this worktree's `.ua` refresh. Coalesce stock hook requests and PR
-  closeout into one pending update; await its analysis subagents and successful finalization before
-  staging. Honor the analyzer's project lease; never start a competing writer or adopt its token.
-- Generate with the enabled Codex `understand-anything@understand-anything` system fork
-  (`2.9.7-system.1` or a verified successor), resolving its active skill directory. Preserve the
-  versioned `system` section and use its normal analysis/publication workflow, with
-  `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Keep scope, English output and auto-update settings.
-  `make setup` and `scripts/ua-graph root` prepare/locate the pinned upstream runtime for offline
-  committed-content checks; that runtime is not the semantic generation plugin. If the system
-  fork is unavailable, report the missing installation rather than regenerate with stock code.
-  If the old baseline commit is unavailable, run a full analysis with the saved settings;
-  never repair freshness by changing metadata alone.
-- Validate the completed graph, commit its persistent files with all intended source/wiki changes,
-  and run `scripts/ua-graph check --ref HEAD` plus the required PR preflights. The checker reads the
-  committed candidate, so fresh unstaged files cannot repair a stale commit. Integrate newer main
-  before merging and refresh again only when the analyzed inputs changed.
-- Publish only when requested. Report the saved baseline and check results, or the specific failure
-  while preserving the last valid baseline. Create PR does not merge or archive the workspace.
+- Finish source/tests and the native OpenWiki update in this feature PR so the next Conductor
+  workspace inherits the code and documentation together.
+- Review the Mermaid product map when affected flows change. Commit intended source, tests and
+  documentation, then run the required PR preflights. Integrate newer main and revalidate before merge.
+- Publish only when requested. Report check results and any failures. Create PR does not merge
+  or archive the workspace.
 
 ## Engineering rules
 
@@ -98,9 +72,6 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Wire checks into both lanes of `.github/checks-manifest.yaml`; repair manifest omissions rather
   than adding one-off workflow gates. Pre-push remains bounded to 40 broadly selected backend files
   and desktop debug compilation; full suites/release builds retain their existing CI/acceptance lanes.
-- UA freshness is a shared, offline committed-content check using the scanner pinned by
-  `scripts/ua-graph`. Only explicit setup downloads/builds that dependency; checks never install
-  tools or call models. Keep the local pushed-ref check and required CI status on this same primitive.
 - Keep rules mechanical. A guidance-caused defect needs corrected guidance or a guard in the same
   fix PR. Product/operational docs move with code. Ratchet baselines only decrease.
 - Use the installed formatting wrappers; retain Black's `--skip-string-normalization` and exclude
@@ -276,10 +247,8 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 
 Read [release operations](codebase/operations/releases.md) and [qualification](codebase/operations/qualification.md).
 
-- Normal code lands through up-to-date regular-merge PRs with the `UA Graph Freshness` GitHub Actions
-  check required on main. Activate the rule only after the implementation and refreshed baseline
-  pass on main and the dedicated weekly publisher is provisioned; local implementation alone is
-  not evidence that remote enforcement is active.
+- Normal code lands through regular-merge PRs with the repository's retained checks. Remote
+  protection settings must be verified separately; local implementation is not proof of enforcement.
 - The weekly guardrail report may append its history directly to main through the dedicated
   `Intentive Guardrail Pulse` App. Install it only on this repository with Contents write and
   Metadata read, and keep its credentials in the `guardrail-pulse-publisher` environment restricted
