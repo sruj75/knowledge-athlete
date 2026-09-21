@@ -45,6 +45,9 @@ runs:
         enable-cache: true
         cache-dependency-glob: backend/openapi-requirements.txt
 
+    - name: Prepare UA runtime
+      uses: ./.github/actions/setup-ua-graph
+
     - name: Run canonical deterministic CI preflight
       shell: bash
       env:

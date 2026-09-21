@@ -5,7 +5,7 @@ description: Explain retained schema/lifecycle migration tools and distinguish t
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T14:14:00.034Z
+    at: 2026-09-19T10:43:39.596Z
 sources:
   - id: openwiki-source-4059e2529808adde0c26d6e6
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/RewindDatabase.swift
@@ -13,7 +13,7 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationLocalAuthorityMigrationTests.swift
   - id: openwiki-source-c7e93ebfccaee22a4bb9bc34
     resource: repo://scripts/migration/mixpanel_export.sh
-generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
+generated: { by: "codex", at: "2026-09-19T10:43:39.596Z" }
 ---
 # Data and namespace migrations
 
@@ -27,7 +27,7 @@ The conversation local-authority migration test is an example of an owning seam.
 
 ## Retained analytics export utility
 
-`scripts/migration/mixpanel_export.sh` is an inherited resumable analytics utility, separate from app schema migration and Company documentation. It exports one UTC day at a time to compressed JSONL, skips completed chunks, keeps a manifest/failure log, and uses an exclusive lock. It requires explicit service-account credentials and a project ID. Optional GCS mirroring is a real external operation. This OpenWiki adoption neither configures nor runs it.
+`scripts/migration/mixpanel_export.sh` is an inherited resumable analytics utility, separate from app schema migration. It exports one UTC day at a time to compressed JSONL, skips completed chunks, keeps a manifest/failure log, and uses an exclusive lock. It requires explicit service-account credentials and a project ID. Optional GCS mirroring is a real external operation. This OpenWiki adoption neither configures nor runs it.
 
 Its shell uses GNU-style date operations, `flock`, `sha256sum`, `curl`, `gzip` and `jq`; inspect the executable before selecting a host. Do not assume the script's inherited example project identifies a currently owned destination. Credentials, exports and personal data remain outside wiki research and Git.
 

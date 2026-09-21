@@ -13,7 +13,7 @@ component guidance in the same preserved instruction brief:
 
 [OpenWiki quickstart](openwiki/quickstart.md) locates implementation explanations
 and source evidence. Authored rules live only in the preserved brief. Generated
-pages do not override them. Company is an empty future section.
+pages do not override them.
 
 After source and tests stabilize, use the installed OpenWiki skill and native
 MCP update lifecycle, finish it, and include the wiki changes with the code.
