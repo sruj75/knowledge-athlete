@@ -135,11 +135,11 @@
       "completedRunId": "4017ff86-c454-4f95-9c13-b3633921b32d"
     },
     "/openwiki/quickstart.md": {
-      "pageVersion": "sha256:4c93a93d3b8bbf43ad8b0f7f455ed078c9c1533b5dd9ba4b0b8f92de30ebe1e8",
+      "pageVersion": "sha256:4013459571e4bb32a53e86b519ae760f84695d0e4ca54cd3df16dc961bd8bd7f",
       "completedBy": "codex",
-      "completedRunId": "e4be2155-80c1-4973-995c-fefe2b7e70c6",
-      "gitHead": "3c88d54d5967e8a92c71742d497a6a267fa9ea45",
-      "sourceFingerprint": "sha256:41fbc7d128d90ee79d7e7e597281e8d426fb16a4e81c39267242a0b54f98588c"
+      "completedRunId": "723bcf0a-b024-4564-9111-018972ddacf6",
+      "gitHead": "c9a12d287b2e9945109f3f4d023a90f742356996",
+      "sourceFingerprint": "sha256:a4eaad090185ec3f0f7dec46f4417468cf2c1af7e0e4048395e2c79f0d823651"
     }
   }
 }

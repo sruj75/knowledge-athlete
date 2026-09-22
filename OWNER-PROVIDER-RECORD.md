@@ -32,15 +32,15 @@ this cleanup. Secret values belong in the credential stores below.
 | Apple Developer | `22btrsn071@gmail.com` | Team `24D6NXS6H7` | App identifiers, signing, and notarization |
 | Vercel | Workspace `srujxx`; login email not recorded | `intentive-tally-landing-page` | Product website and policy/support pages |
 
-Langfuse's April 21, 2026 signup welcome email to `srujantriples@gmail.com` was
-checked on September 22. Current membership of the `Intentive` project has not
-been confirmed through an authenticated Langfuse session.
+The September 22 account lookup identified Langfuse's signup email as
+`srujantriples@gmail.com` and separately confirmed API access to the `Intentive`
+project. Project membership for that email was not queried.
 
 ## Operating modes
 
 | Mode | Configuration |
 | --- | --- |
-| Local Dev | Named workspace app, local Firebase Auth/Firestore emulators, local Redis, and synthetic users. Offline providers by default; real AI uses explicit local configuration. |
+| Local Dev | Named workspace app, local Firebase Auth/Firestore emulators, local Redis, and synthetic users. The harness defaults to `PROVIDER_MODE=real`, using local provider credentials; automated desktop tests explicitly select `PROVIDER_MODE=offline`. |
 | Owner Beta | `Intentive Beta.app` uses the shared `knowledge-athlete-dev` backend and configured Firebase participants. |
 | Customer billing | `BILLING_MODE=disabled` |
 | Cloud authentication | Operator CLI: browser OAuth. Hosted runtime: service-account ADC. GitHub deployment: Workload Identity Federation. |
@@ -112,6 +112,8 @@ Recorded WIF provider:
 | Local development | Gitignored `backend/.env.local-dev` for explicit provider tests; Sparkle private key in the macOS login Keychain |
 
 Configuration sources: [runtime manifest](backend/deploy/runtime_env.yaml),
+[local provider modes](scripts/dev-harness/dev_harness/providers.py),
+[automated desktop harness](desktop/macos/scripts/desktop-core-harness.sh),
 [managed workloads](backend/utils/llm/model_config.py),
 [desktop generation/embeddings](backend/routers/desktop_proxy.py),
 [realtime voice](backend/routers/desktop_realtime.py),
