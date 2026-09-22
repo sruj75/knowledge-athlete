@@ -8,7 +8,9 @@ final class OnboardingExitPolicyTests: XCTestCase {
 
     XCTAssertEqual(plan.analyticsOutcome, .skipped)
     XCTAssertEqual(plan.persistedOutcome, .skipped)
+    XCTAssertNil(plan.systemAudioCaptureMode)
     XCTAssertFalse(plan.transcriptionIntentEnabled)
+    XCTAssertFalse(plan.shouldStartTranscriptionSession)
     XCTAssertTrue(plan.shouldStopTranscriptionSession)
     XCTAssertFalse(plan.screenAnalysisIntentEnabled)
     XCTAssertTrue(plan.shouldStopScreenMonitoring)
@@ -17,28 +19,15 @@ final class OnboardingExitPolicyTests: XCTestCase {
     XCTAssertFalse(plan.shouldMarkJustCompleted)
   }
 
-  func testMeetingOnlyCompletionArmsOneMeetingGatedTranscriptionSession() {
-    let plan = OnboardingExitPolicy.plan(for: .completed(.onlyDuringMeetings))
+  func testCompletionAlwaysEnablesAllDayListening() {
+    let plan = OnboardingExitPolicy.plan(for: .completed)
 
-    XCTAssertEqual(plan.systemAudioCaptureMode, .onlyDuringMeetings)
-    XCTAssertTrue(plan.transcriptionIntentEnabled)
-    XCTAssertTrue(plan.shouldStartTranscriptionSession)
-    XCTAssertFalse(plan.shouldCaptureWithoutActiveMeeting)
-  }
-
-  func testContinuousCompletionArmsOneImmediatelyCapturingTranscriptionSession() {
-    let plan = OnboardingExitPolicy.plan(for: .completed(.continuous))
-
+    XCTAssertEqual(plan.analyticsOutcome, .completed)
+    XCTAssertEqual(plan.persistedOutcome, .completed)
     XCTAssertEqual(plan.systemAudioCaptureMode, .always)
     XCTAssertTrue(plan.transcriptionIntentEnabled)
     XCTAssertTrue(plan.shouldStartTranscriptionSession)
-    XCTAssertTrue(plan.shouldCaptureWithoutActiveMeeting)
-  }
-
-  func testListeningChoiceDoesNotDependOnCalendarOrPermissionInputs() {
-    XCTAssertEqual(
-      OnboardingExitPolicy.plan(for: .completed(.onlyDuringMeetings)),
-      OnboardingExitPolicy.plan(for: .completed(.onlyDuringMeetings)))
+    XCTAssertFalse(plan.shouldStopTranscriptionSession)
   }
 
   func testAnalyticsOutcomeNamesAreBoundedAndContentFree() {

@@ -36,20 +36,21 @@ flowchart TD
   end
 
   subgraph AREA_04["04 · Ambient audio capture and transcription · Mac"]
-    LISTEN["User starts ambient listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
-    CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1706"]
-    MEETING{"Meetings-only / system-audio admission<br/>reconcileCapture<br/>AppState+Transcription.swift:486"}
+    LISTEN["Finish setup or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
+    CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1614"]
+    AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:475"}
     MIC["Microphone capture and resampling<br/>AudioCaptureService<br/>AudioCaptureService.swift:9"]
     SYSTEMAUDIO["System audio process tap<br/>SystemAudioCaptureService<br/>SystemAudioCaptureService.swift:15"]
+    SLEEPCAPTURE["Mac sleep pauses / wake restores enabled listening<br/>NSWorkspace lifecycle observers<br/>AppState.swift:493"]
     LOCALSTT["Local Parakeet<br/>separate mic and system decoders<br/>LocalTranscriptionService.swift:89"]
     MIXER["Cloud route: combine mic and system PCM<br/>AudioMixer<br/>AudioMixer.swift:10"]
     AMBIENTWS["Stream mono 16 kHz PCM<br/>TranscriptionService /v4/listen<br/>TranscriptionService.swift:8"]
-    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:799"]
-    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:856"]
+    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:713"]
+    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:770"]
     SEGMENTS["Upsert by segment ID; order by spoken time<br/>handleBackendSegments<br/>AppState+ListenEvents.swift:8"]
     LIVEUI["Publish current transcript<br/>LiveTranscriptMonitor<br/>LiveTranscriptMonitor.swift:6"]
     SEGSTORE[("Persist segments in local conversation<br/>TranscriptionStorage.upsertSegments<br/>TranscriptionStorage+LocalAuthority.swift:41")]
-    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1730"]
+    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1638"]
   end
 
   subgraph AREA_05["05 · Conversation enrichment and live notes · Mac"]
@@ -220,8 +221,8 @@ flowchart TD
 
   subgraph AREA_19["19 · Product controls, onboarding and user data"]
     ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:48"]
-    ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:591"}
-    ONBOARDEXIT["Finish / skip → selected capture intent<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:117"]
+    ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:577"}
+    ONBOARDEXIT["Finish → all-day / Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:114"]
     PREFS[("Local capture, assistant, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
     CONVACTIONS["Folders, stars, titles, speakers and deletion<br/>ConversationRepository<br/>ConversationRepository.swift:240"]
     GOALSUI["Personalized Home question chips<br/>HomeSuggestionsStore<br/>HomeSuggestionsStore.swift:80"]
@@ -340,7 +341,9 @@ flowchart TD
   CONVACTIONS -->|"Owner-authorized local transactions"| CONVSTORE
   CONVAPI -->|"Returned candidates"| CONVCOMMIT
   CONVAPI -->|"Structured generation"| GOOGLE
-  CONVBEGIN -->|"Arm capture policy"| MEETING
+  CONVBEGIN -->|"Arm capture policy"| AUDIOCAPTURE
+  SLEEPCAPTURE -->|"Stop on sleep"| FINISH
+  SLEEPCAPTURE -->|"Previously active and still enabled on wake"| LISTEN
   CONVBEGIN -->|"Local session before input"| CONVSTORE
   CONVBEGIN -->|"Start session and load existing notes"| NOTES
   CONVCOMMIT -->|"Accepted task changes"| TASKSTORE
@@ -466,8 +469,8 @@ flowchart TD
   LIVEUI -->|"Transcript changes"| NOTES
   LOCALSTT -->|"Local model failure"| STTRECOVER
   LOCALSTT -->|"Timed speaker segments"| SEGMENTS
-  MEETING -->|"Capture when policy permits"| MIC
-  MEETING -->|"macOS 14.4+, consent, enabled mode and meeting policy"| SYSTEMAUDIO
+  AUDIOCAPTURE -->|"Microphone while listening"| MIC
+  AUDIOCAPTURE -->|"macOS 14.4+, consent and System Audio enabled"| SYSTEMAUDIO
   MEMAPI -->|"Local validation then revision-fenced commit"| MEMSTORE
   MEMAPI -->|"Memory proposal compute"| GOOGLE
   MEMDELETE -->|"Pending, restored or finalized record"| MEMSTORE
@@ -524,10 +527,10 @@ flowchart TD
   ONBOARD -->|"Isolated onboarding chat surface"| TEXT
   ONBOARD -->|"User finishes or skips"| ONBOARDEXIT
   ONBOARDEXIT -->|"Finish journal handoff then show Home"| HOME
-  ONBOARDEXIT -->|"Persist selected listening/capture intent"| PREFS
-  ONBOARDEXIT -->|"Selected intent"| ONBOARDGATE
+  ONBOARDEXIT -->|"Persist completion or inactive Skip intent"| PREFS
+  ONBOARDEXIT -->|"Completion requests capture"| ONBOARDGATE
   ONBOARDGATE -->|"Screen intent plus quota, key and permission gates pass"| MONITOR
-  ONBOARDGATE -->|"Selected listening then reconcile capture"| LISTEN
+  ONBOARDGATE -->|"Listening passes account and microphone permission gates"| LISTEN
   OPENAI -->|"MP3 response"| TTSAPI
   OSSPEECH -->|"Synthesized system speech"| SPEAKER
   OUTPUTLEASE -->|"Only current output owner"| PCM
@@ -539,7 +542,7 @@ flowchart TD
   PLANAPI -->|"Returned plan and trial state"| PLANUI
   PLANUI -.->|"Quota/paywall presentation"| CHATGATE
   PREFS -.->|"Capture and assistant controls"| MONITOR
-  PREFS -.->|"Listening and system-audio mode"| MEETING
+  PREFS -.->|"Listening on/off and optional system audio"| AUDIOCAPTURE
   PREFS -.->|"Master/frequency/assistant notice controls"| NOTIFY
   PREFS -.->|"Memory feature plus notification admission"| MEMEX
   PREFS -.->|"Selected voice and speech settings"| TTSQUEUE
@@ -693,7 +696,7 @@ flowchart TD
     classDef cloud fill:#ecfdf5,stroke:#047857,color:#111827;
     classDef gap fill:#fef2f2,stroke:#b91c1c,color:#111827;
     class SHOT,SEGSTORE,CONVCOMMIT,NOTESTORE,DB,MEMSTORE,TASKSTORE,GOALSTORE,FOCUSSTORE,CONVSTORE,NODEDB,DELETIONMARK,ACCOUNTDATA,AUTHCACHE,PREFS,ADVICEDB store;
-    class DUPLICATE,PERM,OWNER,CAPTURE,MEETING,DISCARD,TASKGATE,MEMGATE,SUGGESTGATE,SUGGESTRESULT,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
+    class DUPLICATE,PERM,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,TASKGATE,MEMGATE,SUGGESTGATE,SUGGESTRESULT,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
     class SETTINGS,REWINDUI,LIVEUI,HOME,DASH,MEMUI,CONVUI,TASKUI,FOCUSUI,INSIGHTUI,CARD,SYSTEMNOTICE,TEXT,CHATUI,PTT,SPEAKER,PLANUI,FAIRNOTICE,ONBOARD,GOALSUI,MEMORYACTIONS,DELETEUI,RESOURCES,UPDATEPOLICY,FEEDBACK surface;
     class SERVER,CHATAPI,PROXY,CONVAPI,MEMAPI,TOKENAPI,STTAPI,TTSAPI,GREETING,GOOGLE,GOOGLELIVE,MODULATE,OPENAI,LISTENAPI,LISTENRUN,RECEIVER,TRANSIENT,TRANSLATE,LISTENDRAIN,OAUTH,TOKENEXCHANGE,FIREBASE,PLANAPI,CHECKOUT,BILLING,WEBHOOK,USAGE,REVIEWAPI,DELETEAPI,WIPE,DELETERETRY,SERVEREXPORT,APPCAST,REPORTAPI cloud;
     class ARTIFACTQUEUE,ADVICEAPI gap;

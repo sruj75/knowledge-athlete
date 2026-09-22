@@ -3,7 +3,7 @@ name: onboarding-flow
 tier: manual
 description: >
   Walk the retained conversational setup in a disposable named bundle. Verify identity answers,
-  permission consent, shortcut practice, the screen-and-voice demo, and both listening choices without
+  permission consent, shortcut practice, the screen-and-voice demo, and all-day listening completion without
   restoring retired role, connector, Full Disk Access, BYOK, Goal, or Tasks stages.
 app: non-prod
 covers:
@@ -59,7 +59,7 @@ steps:
 
   - id: S4
     name: Permissions never start capture
-    do: "For Microphone, System audio, Screen Recording, and Accessibility, grant or choose 'Skip for now'. After each stage, verify transcription is not running and screen monitoring is not running. Granting consent may update the checkmark but must not start either capture owner before the final listening choice."
+    do: "For Microphone, System audio, Screen Recording, and Accessibility, grant or choose 'Skip for now'. After each stage, verify transcription is not running and screen monitoring is not running. Granting consent may update the checkmark but must not start either capture owner before Finish setup."
 
   - id: S5
     name: Shortcut and demo stages stay skippable
@@ -69,20 +69,19 @@ steps:
         - "Skip for now"
 
   - id: S6
-    name: Only retained listening choices finish setup
-    do: "At the final disclosure verify the only choices are 'Only during meetings' and 'Start listening — continuously'. Confirm the disclosure names Launch at Login, listening, and screen analysis. Verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared anywhere in the run."
+    name: One action finishes setup with all-day listening
+    do: "At the final disclosure verify 'Finish setup' is the single completion action, with no listening-mode choice. Confirm the disclosure names Launch at Login, all-day listening every day, screen analysis, and sleep/wake behavior. Verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared anywhere in the run."
     expect:
       text_visible:
-        - "Only during meetings"
-        - "Start listening — continuously"
+        - "Finish setup"
 
   - id: S7
-    name: Complete with the selected mode and relaunch
-    do: "Choose the run's assigned listening mode. Verify Home appears, completion owns the listening and screen-analysis intents, the setup-only journal is gone, and normal Chat remains. Quit and relaunch the same named bundle; verify it returns to Home without replaying setup."
+    name: Complete with all-day listening and relaunch
+    do: "Choose 'Finish setup'. Verify Home appears, completion enables all-day listening and screen-analysis intents, the setup-only journal is gone, and normal Chat remains. With permission and account access available, verify listening starts without an active meeting. Quit and relaunch the same named bundle; verify it returns to Home without replaying setup and restores enabled listening."
 
   - id: S8
-    name: Repeat with the other genuine exit
-    do: "Run S1-S7 a second consecutive time after reset_onboarding, choosing the other listening mode at S7. The first run uses 'Only during meetings'; the second uses 'Start listening — continuously'. Preserve both run reports as S-17 evidence."
+    name: Repeat genuine completion after reset
+    do: "Run S1-S7 a second consecutive time after reset_onboarding. Verify 'Finish setup' enables all-day listening again without a mode choice or inherited answers. Preserve both run reports."
 
   - id: S9
     name: Visible Skip stays neutral but does not ban later consent
@@ -102,3 +101,7 @@ steps:
   - id: S12
     name: Last-window lifecycle respects the onboarding boundary
     do: "Before completion, close the last main window and verify the named-bundle PID exits and its automation bridge disconnects. Relaunch that same named bundle externally and verify the persisted onboarding stage returns with capture still off. After genuine completion, close the last window and reopen it from the surviving status item; verify Home returns without replaying setup, duplicating the opener, or starting a second capture owner."
+
+  - id: S13
+    name: All-day listening follows sleep and explicit pause
+    do: "With all-day listening enabled and existing permission/account gates satisfied, sleep and wake the Mac and verify listening stops during sleep and resumes after wake without duplicate capture. If available, close the laptop lid while an external display keeps the Mac awake and verify lid closure alone does not pause listening. Pause Listening explicitly from Home, sleep and wake again, and verify listening stays paused."

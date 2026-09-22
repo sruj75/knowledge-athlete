@@ -132,6 +132,24 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Before changing a boundary, locate owning code/tests and its applicable archived IR decision.
   Cite the applicable principle or concrete guard when declining a product change.
 
+### All-day listening decision
+
+Accepted product requirements:
+
+- All-day listening means ongoing ambient audio listening every day, with no 24-hour expiry.
+- Remove the meetings-only listening feature. Genuine onboarding completion defaults to all-day
+  listening without a listening-mode choice, superseding the earlier IR-143 two-choice requirement.
+- Finish setup enables microphone and system audio subject to permission/account access, preserves
+  screen-analysis and Launch at Login behavior, and is idempotent. Global Skip stays inactive,
+  including after relaunch, without a completion opener.
+- Keep Listening on/off and independent System Audio on/off; System Audio defaults on and turning
+  it off leaves microphone listening available. The completion opener describes configuration,
+  not a claim that unavailable capture has started.
+- Capture pauses when the Mac sleeps and retains the existing wake-resume behavior when listening
+  was enabled. Lid closure alone does not pause listening if an external display keeps the Mac awake.
+- This is a bootstrap scaffold with no existing users: delete the retired feature directly, without
+  a legacy-mode migration, compatibility path or one-time transition prompt.
+
 ## Backend guidance
 
 Read [backend architecture](codebase/architecture/backend.md), [development](codebase/operations/development.md)

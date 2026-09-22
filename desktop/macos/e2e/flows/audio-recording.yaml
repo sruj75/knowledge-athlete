@@ -69,3 +69,9 @@ steps:
       interactive_count: { min: 5 }
       text_visible:
         - Home
+
+  - id: S8
+    name: System Audio can be disabled independently
+    do: "With Listening on, open Settings > General and turn System Audio off. Speak and verify microphone levels/transcription continue. Turn System Audio back on, then pause Listening and verify both audio sources stop."
+    expect:
+      interactive_count: { min: 1 }

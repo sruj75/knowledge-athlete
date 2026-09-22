@@ -16,24 +16,19 @@ struct CaptureListeningControls: View {
 
   @AppStorage("screenAnalysisEnabled") private var screenAnalysisEnabled = true
   @AppStorage("transcriptionEnabled") private var transcriptionEnabled = true
-  @AppStorage("systemAudioCaptureMode") private var systemAudioCaptureModeRaw =
-    AssistantSettings.SystemAudioCaptureMode.onlyDuringMeetings.rawValue
 
   var body: some View {
     HStack(spacing: OmiSpacing.sm) {
       captureButton
 
-      HomeListeningStatusButton(
+      HomeStatusButton(
         title: transcriptionUnavailable ? "Transcription unavailable" : "Listening",
         systemImage: transcriptionUnavailable
           ? "exclamationmark.triangle.fill"
           : (appState.isTranscribing ? "waveform.circle.fill" : "mic.circle"),
         status: transcriptionUnavailable ? .blocked : (appState.isTranscribing ? .active : .inactive),
-        modeTitle: listeningModeTitle,
-        isMeetingsOnly: listeningCaptureMode == .onlyDuringMeetings,
         isToggling: isTogglingListening,
-        action: toggleListening,
-        modeAction: toggleListeningMode
+        action: toggleListening
       )
     }
     .onAppear(perform: syncCaptureState)
@@ -105,23 +100,11 @@ struct CaptureListeningControls: View {
     CaptureListeningLogic.isCaptureLive(isCaptureMonitoring: isCaptureMonitoring)
   }
 
-  private var listeningCaptureMode: AssistantSettings.SystemAudioCaptureMode {
-    CaptureListeningLogic.listeningCaptureMode(raw: systemAudioCaptureModeRaw)
-  }
-
-  private var listeningModeTitle: String {
-    CaptureListeningLogic.listeningModeTitle(appState: appState, raw: systemAudioCaptureModeRaw)
-  }
-
   // MARK: Actions
 
   private func toggleListening() {
     CaptureListeningLogic.toggleListening(
       appState: appState, transcriptionEnabled: $transcriptionEnabled, isTogglingListening: $isTogglingListening)
-  }
-
-  private func toggleListeningMode() {
-    CaptureListeningLogic.toggleListeningMode(raw: $systemAudioCaptureModeRaw)
   }
 
   private func toggleCapture() {

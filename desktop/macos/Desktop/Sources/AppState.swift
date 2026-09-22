@@ -205,10 +205,6 @@ class AppState: ObservableObject {
     get { servicesCoordinator.audioMixer }
     set { servicesCoordinator.audioMixer = newValue }
   }
-  var meetingDetector: MeetingDetector? {
-    get { servicesCoordinator.meetingDetector }
-    set { servicesCoordinator.meetingDetector = newValue }
-  }
   var captureGateInFlight = false
   var captureReconcilePending = false
   var pendingCoreAudioCaptureRecoveryReason: String?
@@ -216,8 +212,6 @@ class AppState: ObservableObject {
   /// transcription session. This lives above `AudioCaptureService` because each
   /// rebuild creates a fresh service (and therefore a fresh service-local watchdog).
   var silentMicRecoveryAttempts = 0
-  var meetingEndFinalizationInProgress = false
-  @Published var isAwaitingMeeting = false
 
   var effectiveSystemAudioMode: AssistantSettings.SystemAudioCaptureMode {
     if UserDefaults.standard.bool(forKey: "disableSystemAudioCapture") { return .never }
@@ -309,9 +303,6 @@ class AppState: ObservableObject {
   }
 
   var wasTranscribingBeforeSleep = false
-  /// Tracks the observed open side of an only-during-meetings boundary. The close edge must
-  /// finalize even when the only speech is still buffered inside the STT producer.
-  var meetingCaptureWasActive = false
   var lastScreenLockTime: Date?
   var lastScreenUnlockTime: Date?
   nonisolated(unsafe) private var ownerChangeObserver: NSObjectProtocol?

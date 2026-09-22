@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7067ed0cf2226615649c9ccd91147cbcb6c91bda86c9192d8b24c1e13b5076d1",
+  "pageVersion": "sha256:7cd848f4f1f1232063811ea401f29c1940652ac8e6fdc937df8b131fa3c11af9",
   "claims": [
     {
       "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
@@ -83,10 +83,80 @@
           "version": "repo-lines-v1:sha256:d456ad294def65354a1328db423f5e6a710a33472c8b4882b460d0aa3013fc9a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQ1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwNTZmNWFiMWM5NTU2Y2RkNGNjOTFjNWI3ZTg4MzA2Zjg2ZmMxNGJlZWQyMGYyYjdjZjc5OTFjMWJjNTFiNjdjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyNzMwZmZiNjE1ZDViZTk4NzM5YWFiYThhMzkyOWNmOTIzNTkxMTAzN2IxMzdkYzI1ZjUxOTJiYzQ0ZmY0NDJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI2MTUwMDViODdmMGYyZDcwNjRjMWRlYmQ0ZThhYmJiYWJhMDMzMzBmODdiN2ZmYjExMDg0YTk4NWI1MzAxYzU3In0"
         }
       ]
+    },
+    {
+      "id": "claim_f9bf6bd47ac14f97b5b6deeb585398e3",
+      "statement": "Onboarding completes through a parameterless, idempotent Finish setup action whose exit plan enables listening and System Audio, requests Launch at Login and preserves gated screen monitoring; global Skip persists inactivity and omits the completion opener.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L78-L112",
+          "version": "repo-lines-v1:sha256:a6d2191dedcc402233c1ca603144cfac3e8113d55302b09ce3f21edac0fd1874:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTY5NTNlNTNhNGJhZTM2YmMxYmZhOTc4MzgzZDZlYTVlMjMxYTFmMzE0YThhM2JjOTNkNTk4ODg2OTEzZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiMmI2NDgzMmIzNmVhMWUyNzBlMjA5MTY0MTBlNTY0NzQzYTUwMTI1M2U1MjFkOWJhMGQyOWU3OTJiYjI1ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3OWFhZmYzZWQzZDhjODY2Mzg1YmQ5YmIzMWQ4MmNmNzRhOTRkODY3NTJkNzYwZDZlZDFjNmIxOWFhODhkYjkifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L542-L605",
+          "version": "repo-lines-v1:sha256:38b2c95ab4006e4a348a41dc8dd8e4abf458ea389371c2e2b14f568f67eb505b:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4NDc1Zjc4OTFjNTliMTY2ZGIyODk0NzAyN2IwZjAwMDk3MjEzOTMzMjE3ZmM5ZWJiMWY1MzFmNmIyNjM2NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5YjIyMzQ0NDkyNmU3NjEwZTliNDhjMTk3OGMzNGFjZTM4OTUzOWNmY2M1YzU4ZjI2NTFlZjI2NzAyZDM1ZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhMzJiMzk0ZWIwODAwMzg1MjhjNGU3ZDg2NDE5ZmIzNWQ3NTgwODVhZDUzYjA0YWY1YTcxYzY1MzVkMDEwMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5ZmRmZTI0NWU4OGM2MTExNzIyNWJkM2M0NjRlNDg5NWE5NGUwZTY2NDg5MzVkNzJiNzA2MDY5Yzg5MDVkM2IifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift#L550-L569",
+          "version": "repo-lines-v1:sha256:e73503d372ec8e20d4dabb59c99a0f4ceb444ecbd07e083600058fffbaf74b6a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYmUzYWRkN2ZjYjBhODg4OTNhMDUyNGVjNmMzMTY4ZDFhOWFhZTJhNDgwMjBmMzAzNmFjN2VkY2EzNTI0OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2NDdmYTQwZmY1YjY4ZGY2MmI5YTU0Mjg5YzhhZGVjN2IyZGE3ZTk5ZjlhOWMxNThiM2VmYzg2MDA5ZTc2NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzYTQyOWQ2YzRlNTM0YTI3OTExZWYxZWJhNzc3NThhM2EyZjFhOGU4ZDk5NTk4ZTY5ZmEyZmRkYmQ3NDkwZmEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e2de59a3f7d644f383fe46d357be3e3f",
+      "statement": "System Audio defaults to enabled and can be disabled independently of continuous microphone listening; capture reconciliation has no meeting gate and required microphone failure stops the session while optional system-audio failure leaves microphone capture available.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L423-L532",
+          "version": "repo-lines-v1:sha256:8ae44e905bcd032866412daf30352bf80675f188e281771112cec9e8db32d4f0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlN2ViNWM0OTNhY2Y0ODE3OGRjOWFiNGY0OGI2ZjBkMjA5OWZjMzhmOTA4MDM2ZTViNTJiYjgwYzBiNDFjYTYyIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3NGM1MTViNGU1NTVkYjcyZWJhZjRhZWQ0MDNlZmRkNTEyNjBmZGNmZTdhMjhhN2FmZjdjZGVjNzc0YjRhMDMwIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNmU3Njg4YmJmYzg1MTAzNGFhMThmYmVkMWViMThiYzMyYWJjMDg4NzRkMTgyOWQ3MWM2MjMwYzViZjEwZWMzIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift#L8-L60",
+          "version": "repo-lines-v1:sha256:ffe9bbb3f69be48b48847d27455df218baec796b6f65a6cae54affe434825e1d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZTFiYWJjZjBlMzY3OGYwZjYzODYyNGJkNTcyMDRmMmMyZDNhN2I0ZDRlYjhhOWFjNWMzMWY4NTJhYjY3ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3ODExYmY5MzgzMTEwYjY4MzczYzMyNGI0ODFmNzkyNWMyZjA4ZjVlZGNhMjcxOWZhNzMxYmViMDhiMDg4OGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzOWIyNTQzODIwNjU3MGMwYjc5MjkwZWM0OTIxOWNhNmNlMjY5OGFmYmM4MWE5OTAwY2NkZTIzNzUyZDIzNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFiYjM0ZDAyMGIzNzdkMWZlZGYwZDRmYmMxNjUwNDY2OWE0NDJmNjU3NjQ3OTM2NjM0MDMxZWQ4ZmUwNzE0NDkifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L8-L109",
+          "version": "repo-lines-v1:sha256:3c5afe1c7b07ab857085630d3ddc16f7ed40136171ff598290522c60470eb23c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiZTA1MTYwZjAxOTY5ZDU1MGIzZjcyOTVlM2FiZjliMTY3NGQxMzJlYjhmODdkYjlhZWExNWNhN2FlZTAyNGNiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMGM4OWQzMTI1YThmZTkzODZkM2UxMWQzYzg2MjFjYWNhM2M4N2Q3ZmEzZjZjMDIxYjk2YzY4YTg4MzNmZDI1IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlZGI0MDg3M2NmNzI1ZWMwYjdlMDBkNmEyODY0NzE2NTBhMDUwN2Y0NmM0OGVmZDMyOTE2YjAzNjllYWQ5NjI5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxMjI3YzQ4ZDc0MWE3MTU5ZjQwODc2YmE3ZjBmYmE2ZDg1NzA2NTU2Yzc0ZWI1NmU5ZTg0ZjQyYWMzODg0M2IxIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc78d5fe444f44348eccf59f9188cd35",
+      "statement": "The existing Mac sleep observer stops active ambient capture, and the wake observer requests restart only when it was active before sleep and listening remains enabled.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState.swift#L493-L554",
+          "version": "repo-lines-v1:sha256:30e07f93b4dc3c2764206e49c68794237cbbf7500459616671c7307c49d425a9:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkZDY3ZDI4ZTI5ZDIwNDk5NGJmMjViMTNiMzRiNWE0MGJiMWJjNzYyMGUyMGQ0ZTM4ZDhiZGMxOTUyNDA4YTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNhNGZmOWIwZWYyMzk2M2Y3NzAzNTZmNWRlMjE2MzNiMTdlYmEyNzJmN2Q2Y2NjYmZjMDRmNTc4M2IzYWY5MTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI3ZGQwMTg2ZGE5NDg5NGFiNDI5NjY5ZjA4NmMzMmRiNGFmNzY0N2EwNjMwZGYyZjk1ZmQyMjgzY2NiZThhYzQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f416c5fa8cc84d4a9414acb5f488f977",
+      "statement": "Capture reconciliation coalesces overlapping starts and fences awaited hardware completions by recording generation; stale hardware-service identities are stopped, and controlled-completion tests prove old microphone or system-audio startups do not stop or unlock replacement sessions.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L383-L532",
+          "version": "repo-lines-v1:sha256:8adeb437139f1376ce80ad3f722389a298aebe88edb26b5f442e37a65e6ec303:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZGRhMzM3YmIxMTQ0ZmJjOTQ4N2UzMDIwY2Y2ZDIzYTczZGE4NWIyZTU4NTVjNDAwMjU1MWEzOTdmZjQ1YWNjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzZTc3NDg5ZWNiYzk0OTVkMzA5ZGRhZWE4NDJkYzViZTJkZjY3M2Q3ZTQ1N2M2YmM4NDg4ODY5MWYwMjJhZmIyIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNmU3Njg4YmJmYzg1MTAzNGFhMThmYmVkMWViMThiYzMyYWJjMDg4NzRkMTgyOWQ3MWM2MjMwYzViZjEwZWMzIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L30-L140",
+          "version": "repo-lines-v1:sha256:6f9fc4ee9d148eb1b0c4284d3e7503a122ed871611d874a86f8f2324d670bd3d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiZjZiM2UzOWY3ZDY3OWYyNWMyN2U3MjE2NTEwMDE5OGU4NWQ2MGZhMjhmMjg1NTU3NDZlYjgyNmM5MTdiYjAzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI2ZDE3ZGM2M2Q4NjM1MDFkYTI5YTdiN2QxOGY3NmZiZDdmY2M1NDFhZGUzZmRkODBmZDUyY2U4N2Y4MzA2MzgyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkZTNmYmE2NWRhYTgwNmIyMTEwZjE4ODEzZGU4NWU3ZDg1MzkyYWM0NTczNTEwYTI3NzJmOTExOTU4YzdjNmQ4IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJjNjc3YTNlZGIwYjg0NGE0OTU4ZmJlMzZkNmMxYmIyMzYzYjE4YzdlODE1MGE0NjVkZDM1ZGY0NjY1YjU0NTliIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_d301e8308e81450ab66d1e99f641d682",
+      "statement": "The maximum-duration boundary rotates the local conversation and transcription producer while keeping listening active, rather than imposing a one-day listening expiry.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L1078-L1164",
+          "version": "repo-lines-v1:sha256:9f04c9134e0eba5f22cf44a7fa8fbd4aacb413a9bda4c725d3c9c249187cb023:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkZGExYzZkNTdlNDBiYzY1MjE4MTgyYjYwYmQ5NzZhMTFjYmI3YjZkMzc1ODlkMzY3MzBjN2ExZmJiZTQ4ZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5MDExN2MzYWFjZTg1MDhlMjRhNzIxZjM3YjdiYjUxMDJhOWI3MzRmMzhjZjk1YWMxM2ZlYzA5MmQwOTIzNDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMwNTE2NGI2YjAxMzAyNWRkYmNjMTg4ZGJkNmYwNjZjZDk3YjRhYWI1OGM0MTBhYWJhNGEzZDUwZTk5ODZhNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmNmYyOGQ3ZWYyNzdmYTFiZTcwOWE5NzI0ZmIzNWIxY2VjYmU2ZmI1YmJkY2I2YmJhZTFjMWU4ODdhYjhiODYifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T15:29:21.904Z"
+    "at": "2026-09-22T17:08:23.952Z"
   }
 }

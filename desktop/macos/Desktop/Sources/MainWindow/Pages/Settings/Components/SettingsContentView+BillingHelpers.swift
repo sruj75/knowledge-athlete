@@ -370,8 +370,8 @@ extension SettingsContentView {
   func setSystemAudioCaptureMode(_ mode: AssistantSettings.SystemAudioCaptureMode) {
     AnalyticsManager.shared.settingToggled(
       setting: "system_audio_capture_mode_\(mode.rawValue)", enabled: mode != .never)
-    // Persisting posts .systemAudioCaptureModeDidChange; AppState re-applies the gate live for
-    // any in-progress recording.
+    // Persisting posts .systemAudioCaptureModeDidChange; AppState updates system-audio capture
+    // without interrupting the microphone in an in-progress recording.
     AssistantSettings.shared.systemAudioCaptureMode = mode
   }
 

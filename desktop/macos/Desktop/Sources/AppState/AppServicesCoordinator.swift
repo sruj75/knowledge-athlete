@@ -7,7 +7,6 @@ final class AppServicesCoordinator {
   var transcriptionService: TranscriptionService?
   var systemAudioCaptureService: Any?
   var audioMixer: AudioMixer?
-  var meetingDetector: MeetingDetector?
   var vadGateService: VADGateService?
   var localMicService: LocalTranscriptionService?
   var localSystemService: LocalTranscriptionService?

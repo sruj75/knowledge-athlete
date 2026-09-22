@@ -27,20 +27,6 @@ final class DashboardCaptureStateTests: XCTestCase {
       logic.contains("let enabled = !isCaptureLive(isCaptureMonitoring: isCaptureMonitoring.wrappedValue)"))
   }
 
-  func testListeningPillShowsAndTogglesCaptureMode() throws {
-    let source = try captureControlsSource()
-    let logic = try captureLogicSource()
-
-    XCTAssertTrue(source.contains("@AppStorage(\"systemAudioCaptureMode\")"))
-    XCTAssertTrue(source.contains("HomeListeningStatusButton("))
-    XCTAssertTrue(source.contains("modeTitle: listeningModeTitle"))
-    XCTAssertTrue(source.contains("modeAction: toggleListeningMode"))
-    XCTAssertTrue(logic.contains("return \"Meetings Only\""))
-    XCTAssertTrue(logic.contains("return \"Always\""))
-    XCTAssertTrue(logic.contains("AssistantSettings.shared.systemAudioCaptureMode = mode"))
-    XCTAssertFalse(source.contains("OmiColors.purplePrimary"))
-  }
-
   func testRedesignedHomeUsesResponsiveStageSizing() throws {
     let source = try dashboardSource()
 

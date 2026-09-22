@@ -79,14 +79,6 @@ final class OnboardingFlowTests: XCTestCase {
     XCTAssertTrue(source.contains(".keyboardShortcut(.defaultAction)"))
   }
 
-  func testSecondBrainCaptureDefaultsToMeetings() throws {
-    let source = try desktopSourceFile("Onboarding/SecondBrain/SBOnboardingView.swift")
-    let defaultChoice = try XCTUnwrap(
-      source.range(of: "model.capture(SBOnboardingModel.defaultCaptureSelection)"))
-    let continuousChoice = try XCTUnwrap(source.range(of: "model.capture(.continuous)"))
-    XCTAssertLessThan(defaultChoice.lowerBound, continuousChoice.lowerBound)
-  }
-
   private func desktopSourceFile(_ relativePath: String) throws -> String {
     let sourceURL = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()

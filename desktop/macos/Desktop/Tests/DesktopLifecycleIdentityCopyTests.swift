@@ -15,7 +15,6 @@ final class DesktopLifecycleIdentityCopyTests: XCTestCase {
       DesktopLifecycleIdentityCopy.accountDeletedSignOutFailed,
       DesktopLifecycleIdentityCopy.rewindBatteryDetail,
       DesktopLifecycleIdentityCopy.transcriptionLanguageDetail,
-      DesktopLifecycleIdentityCopy.systemAudioMeetingDetail,
       DesktopLifecycleIdentityCopy.insightsEmptyState,
       DesktopLifecycleIdentityCopy.chatLimitDetail,
       DesktopLifecycleIdentityCopy.generalLimitDetail,

@@ -2,7 +2,7 @@ import Foundation
 
 enum SBOnboardingCompletionCopy {
   static let disclosure =
-    "Finish setup requests Launch at Login, starts listening in your chosen mode, and turns on screen analysis when permission and account access allow."
+    "Finish setup requests Launch at Login, enables all-day listening every day, and turns on screen analysis when permission and account access allow. Listening pauses when your Mac sleeps and resumes when it wakes. You can pause listening anytime."
 }
 
 enum OnboardingScreenMonitoringStartPolicy {
@@ -19,7 +19,7 @@ enum OnboardingScreenMonitoringStartPolicy {
 
 enum OnboardingExitOutcome: Equatable {
   case skipped
-  case completed(SBOnboardingModel.CaptureSelection)
+  case completed
 }
 
 enum OnboardingExitAnalyticsOutcome: Equatable {
@@ -67,7 +67,6 @@ struct OnboardingExitPlan: Equatable {
   let transcriptionIntentEnabled: Bool
   let shouldStartTranscriptionSession: Bool
   let shouldStopTranscriptionSession: Bool
-  let shouldCaptureWithoutActiveMeeting: Bool
   let screenAnalysisIntentEnabled: Bool
   let shouldStartScreenMonitoring: Bool
   let shouldStopScreenMonitoring: Bool
@@ -87,22 +86,20 @@ enum OnboardingExitPolicy {
         transcriptionIntentEnabled: false,
         shouldStartTranscriptionSession: false,
         shouldStopTranscriptionSession: true,
-        shouldCaptureWithoutActiveMeeting: false,
         screenAnalysisIntentEnabled: false,
         shouldStartScreenMonitoring: false,
         shouldStopScreenMonitoring: true,
         launchAtLoginRequested: false,
         shouldPresentOpener: false,
         shouldMarkJustCompleted: false)
-    case .completed(let selection):
+    case .completed:
       return OnboardingExitPlan(
         analyticsOutcome: .completed,
         persistedOutcome: .completed,
-        systemAudioCaptureMode: selection.systemAudioCaptureMode,
+        systemAudioCaptureMode: .always,
         transcriptionIntentEnabled: true,
         shouldStartTranscriptionSession: true,
         shouldStopTranscriptionSession: false,
-        shouldCaptureWithoutActiveMeeting: selection.capturesWithoutActiveMeeting,
         screenAnalysisIntentEnabled: true,
         shouldStartScreenMonitoring: true,
         shouldStopScreenMonitoring: false,

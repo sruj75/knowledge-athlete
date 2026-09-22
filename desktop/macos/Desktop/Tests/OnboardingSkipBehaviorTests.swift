@@ -56,6 +56,7 @@ final class OnboardingSkipBehaviorTests: XCTestCase {
 
       model.skip()
       model.skip()
+      model.complete()
       await fulfillment(of: [published], timeout: 1)
 
       XCTAssertEqual(analytics, [.skipped], "step=\(step)")

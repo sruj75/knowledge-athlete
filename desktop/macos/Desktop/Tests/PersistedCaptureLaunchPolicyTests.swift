@@ -3,15 +3,15 @@ import XCTest
 @testable import Omi_Computer
 
 final class PersistedCaptureLaunchPolicyTests: XCTestCase {
-  func testRestoresListeningFromPersistedIntentWithoutWaitingForRemoteKeys() {
+  func testRestoresMicrophoneOnlyListeningWithoutWaitingForRemoteKeys() {
     XCTAssertEqual(
       PersistedCaptureLaunchPolicy.transcriptionModeToRestore(
         intentEnabled: true,
         isTranscribing: false,
-        persistedMode: .onlyDuringMeetings,
+        persistedMode: .never,
         onboardingExitOutcome: .completed
       ),
-      .onlyDuringMeetings
+      .never
     )
   }
 

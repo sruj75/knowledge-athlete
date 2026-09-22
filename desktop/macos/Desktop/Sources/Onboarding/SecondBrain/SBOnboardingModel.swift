@@ -21,7 +21,7 @@ enum SBOnboardingIdentityCopy {
   static let openSourcePrefix = "View the project repository on "
   static let openSourceDetail = "\(openSourcePrefix)GitHub."
   static let privateDataDetail = "Conversations and memories you keep are saved on this Mac."
-  static let userControlDetail = "Choose when Intentive listens and what you keep."
+  static let userControlDetail = "Pause listening anytime and choose what you keep."
 
   static let allText = [
     promise,
@@ -46,24 +46,6 @@ enum SBOnboardingIdentityCopy {
 /// `SBOnboardingModel+Steps.swift`.
 @MainActor
 final class SBOnboardingModel: ObservableObject {
-  enum CaptureSelection: Equatable {
-    case onlyDuringMeetings
-    case continuous
-
-    var systemAudioCaptureMode: AssistantSettings.SystemAudioCaptureMode {
-      switch self {
-      case .onlyDuringMeetings: .onlyDuringMeetings
-      case .continuous: .always
-      }
-    }
-
-    var capturesWithoutActiveMeeting: Bool {
-      self == .continuous
-    }
-  }
-
-  static let defaultCaptureSelection: CaptureSelection = .onlyDuringMeetings
-
   enum Step: Int, CaseIterable {
     case promise = 0
     case name = 1
@@ -201,7 +183,7 @@ final class SBOnboardingModel: ObservableObject {
   private var exitStarted = false
   var streamTask: Task<Void, Never>?
   /// Permission-grant pollers, one per permission key. Keyed so requesting a
-  /// second permission (the meetings "both" mic+system-audio step) never cancels
+  /// second permission never cancels
   /// a still-running poll for the first and strands it on "macOS…".
   var pollTasks: [String: Task<Void, Never>] = [:]
   /// Observes late-arriving names (Apple sends the name only on first auth;
@@ -314,7 +296,7 @@ final class SBOnboardingModel: ObservableObject {
       return "Here's the fun part."
     case .capture:
       return
-        "You're all set, \(name). One last thing: should I listen all the time, or only during your meetings?"
+        "You're all set, \(name). Finish setup to start all-day listening."
     }
   }
 
@@ -555,14 +537,14 @@ final class SBOnboardingModel: ObservableObject {
     pickLanguage(code: code, name: name)
   }
 
-  // MARK: capture choice → completes onboarding
+  // MARK: completion
 
-  func capture(_ selection: CaptureSelection) {
+  func complete() {
     guard !exitStarted else { return }
     exitStarted = true
     teardownAll()
     let executor = exitExecutorOverride ?? makeLiveExitExecutor()
-    executor.execute(OnboardingExitPolicy.plan(for: .completed(selection)), onComplete: onComplete)
+    executor.execute(OnboardingExitPolicy.plan(for: .completed), onComplete: onComplete)
   }
 
   /// Skip the rest of onboarding and land on a neutral Home. Capture, monitoring,

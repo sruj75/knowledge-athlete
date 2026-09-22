@@ -42,14 +42,10 @@ final class OnboardingOpenerComposerTests: XCTestCase {
 
   // MARK: subline
 
-  func testSublineAlways() {
-    let s = OnboardingOpenerComposer.subline(mode: .always)
-    XCTAssertEqual(s, "I'm set up and listening. Ask me anything to start.")
-  }
-
-  func testSublineMeetingsOnly() {
-    let s = OnboardingOpenerComposer.subline(mode: .meetingsOnly)
-    XCTAssertEqual(s, "I'm set up and I'll listen during your meetings. Ask me anything to start.")
+  func testSublineDescribesAllDayListeningSetup() {
+    XCTAssertEqual(
+      OnboardingOpenerComposer.subline,
+      "I'm set up for all-day listening. Ask me anything to start.")
   }
 
   // MARK: starters
@@ -68,10 +64,10 @@ final class OnboardingOpenerComposerTests: XCTestCase {
 
   func testComposeBundlesGreetingSublineAndStarters() {
     let content = OnboardingOpenerComposer.compose(
-      name: "Archit", mode: .always,
+      name: "Archit",
       now: date(hour: 8), baseStarters: ["What should I do today?"], calendar: utcCalendar)
     XCTAssertEqual(content.greeting, "Morning, Archit")
-    XCTAssertEqual(content.subline, "I'm set up and listening. Ask me anything to start.")
+    XCTAssertEqual(content.subline, "I'm set up for all-day listening. Ask me anything to start.")
     XCTAssertEqual(content.starters, ["What should I do today?"])
   }
 
@@ -89,7 +85,7 @@ final class OnboardingOpenerComposerTests: XCTestCase {
 
     let baseStarters = HomeSuggestionComposer.compose(personalized: [])
     let content = OnboardingOpenerComposer.compose(
-      name: "Archit", mode: .meetingsOnly,
+      name: "Archit",
       now: date(hour: 8), baseStarters: baseStarters, calendar: utcCalendar)
 
     XCTAssertFalse(content.greeting.contains(retiredQuestion))
