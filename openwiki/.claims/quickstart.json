@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:4013459571e4bb32a53e86b519ae760f84695d0e4ca54cd3df16dc961bd8bd7f",
+  "pageVersion": "sha256:8a2fd25f5a3abaf7034d9c7275bdd0ef636d61108db3f63f7c317bdfe9fef8fe",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
@@ -39,28 +39,10 @@
           "version": "repo-lines-v1:sha256:ab9849eae4d43d3c180a0f857635bb3f69a4fe0e61b7daf20b115cf754f07266:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzdiMGQzY2Y3MWZiMzk4ODNjY2MwZTdiZWIzOGI4YzIzZGQwOGRmNGZjODBhYTQxZGIwZDYwYmQ5MzU1MzI3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ2OTJmODY0ZTJiZmJiNDFhZGIxODc5YTI3YTk3MjY4MDI1MWZiMGNiODUwMDIyNmIwODE5ZDEyYWNhODY3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTlmZTZiZDhhODBjOWFmZDMzMWJmMTc3NjU1YjBkNWViZTcwNmI0ZjYxN2UyODU0ZjE2ZTNlYzdkMjAzMmQ2MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmQ1YWJhNzExZGVjNDA5OTE4ZDFhODYxNWY4ZTU2NWY3OTg0MjY2ZGZhNWUxOGQ0NTUwNDFlMjI5OGI3NzU2NCJ9"
         }
       ]
-    },
-    {
-      "id": "claim_ff7d0bbf5c2a4946a108dfc82d75b0d2",
-      "statement": "OWNER-PROVIDER-RECORD.md provides account emails, provider roles, operating modes, service/model settings, and credential locations, combining recorded account details with repository configuration without asserting a fresh live-provider audit.",
-      "evidence": [
-        {
-          "resource": "repo://OWNER-PROVIDER-RECORD.md#L1-L6",
-          "version": "repo-lines-v1:sha256:fcf6f9ea80c304c0e48493398046c825edf94bfd957275d99f7c76befe27e8db:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzBkMmNhOGVmYmYzODRmM2RhMDUzM2E0OWY3Y2IyM2RmZTgyMWMxZTczZDcxNzk3Nzk3YzA5ZTBlYTIzN2NlYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTY5ZDg1Y2NkYjgxODE0OTRkZjhmN2VmMTAzNGRkOGYxMTJhYTQyMGJiZTkxYTcyYmRhMzk3NTAwMjI1OWNhNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTBhOWQ0N2UyNGY4NzI0OTk1Y2QyNjFiOWIyNTFjMTc1ZjYzNGE5NjJlZWJjMWZmZTk5OTYxYzg5ZTEyNzU1MiJ9"
-        },
-        {
-          "resource": "repo://OWNER-PROVIDER-RECORD.md#L18-L46",
-          "version": "repo-lines-v1:sha256:b8ce81452644f825325f708957fc1ce47004fccc3761584a4a398a43e4b3ccd2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxOWEzZmZlODk2ZmFiYTg3MzkxZDkxYzhhYmEwY2MwNTQ0NWNlNjQxMjI1Y2IzYjA1OWVlYTk1ZjliMDRmNjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMmYwNTg4MDdmNjBiYmNmMDhhZGM1MDQyMWZlZmNmZmRhNDZhMWI3NjVhMDQ4ZTRkMDNjYjFlOTY5ZDkwNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI1MTI5NTdlZmM4NGNlYTkwY2UxNGUwN2IwZDk1MzgyOTU4YTc1NDU3YmRkZGM5ZWI3YjA3NThhYjEwZGJlOGQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFhZDg1NWEzZWUwZjNiYWVjMjUwZTgzZDFjZDRiMmY0NTMyY2VlYWNiODRkZGRiYTlhODcwNGQ1ODcwNDk2OTYifQ"
-        },
-        {
-          "resource": "repo://OWNER-PROVIDER-RECORD.md#L48-L112",
-          "version": "repo-lines-v1:sha256:8a5bcb7dd8040c8a5fd0dafc71e7b9b7c10c2a4a755b19bdcb2abd16cdbafd39:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0NjU2ZDNjYjQ3Y2Q3ZTNlZGE0ZThhYzMxMzU5ZjJmZDIwZjBhMGYyNjE3MWViNzBmODhlYWVhMjBlYzhhYmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZmNkMmE1MjUzYWI0NzRiNjhiMzMzYzQ5NWFlNzk0N2EzYjVmNjc0ZmZiMDVjYzRhMDBjNTRiYjRhMmNjYjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5ZGJhZDRjMjZjNjU2ODRlNDJhNDAwZGQ1ZTUwZDA0NDIyZWQzY2I1NmY2NjAwZWVlMzIzNjg4ODFiMDIxMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3OWU5MTU5NGY4MmU3NzVkYzk1OGQ0YTIxNTdmZWEyMmE5YjAyMjNiN2E0ZjQ1M2RhZjcxYjc1ODBkZGQwZWYifQ"
-        }
-      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-22T12:15:11.256Z"
+    "at": "2026-09-22T16:32:26.977Z"
   }
 }

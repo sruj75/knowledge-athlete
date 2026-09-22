@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:2dd7785e2e29071dd6a59ae4ee17bab2c4145201aab77ff63df2cca1e50a409b",
+  "claims": [
+    {
+      "id": "claim_7fcdd211685a4b4585c51bac055dec51",
+      "statement": "The local provider harness defaults PROVIDER_MODE to real, while the desktop core test harness requires or starts an offline provider stack.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh#L547-L570",
+          "version": "repo-lines-v1:sha256:fd295c1ceaef99263ef8ebd766ce3b551bdcdf350fe41b3d75a4062ceae80922:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk2MzIyY2M0OGY0ODVhODNiN2EzZjU5MjNhMGQzOTg2OGRjZjAxNmRjMDIxYWJmNjYzZmY3YmFiMjcyZmYwYWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkxYmEyNGFjZjgzZWJmOTY5MmEwMTI4NzkwOGQwYWFjNTlkZjk5YTllNzNjOThiZTgzYmVlMmQ5MDIzMzE0ZDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5MjNiZTIyMjJiMDM5ZDZlZTg0N2NjYTNhZWQ3ZjhkMWZjYzkwOWYxNTU5MDE0ZDAwYTNkNWM5ODNmYjRlYzcifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/providers.py#L185-L190",
+          "version": "repo-lines-v1:sha256:2b1e70e138723931c35125246e65ed66d1b28f09aeda6c9cd8fc9e77b83b80d6:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTI2ODBmMjQwYmY4ZDBkNWNhM2I4YWUyMGRhNjVkNjExYTAwNWRlYTRiNzRmN2FlMTU3MjQ0YmUxMGQyMDgxNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGE4Y2QxYjJhYmQ4ZWE1YmNlZjczYzc1NDAyNTNiMmZjMzhmNzdjNzcxMzE4NDhhNDZhNTU2OTljMzE2NDVmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGNjNGE3ZDFjYzc5NmFiYTNlNDY3MjMzMjdmNTE3ZTlmODExOTgyZDI1MGYwNzAyOTg2ZTRiNTc2NGFkOTU4OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTgxN2NhMDkzN2Q0ZDVhNDUyYTdlNzZkNGYzZjIwNmI0NDEyZmJjZTM4MGNmN2UwZDc0ZTQwMmZkYmMzNzQyNiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_609a9424563e40979b18e55a96ccf2f8",
+      "statement": "The development backend manifest sets BILLING_MODE to disabled.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L162-L164",
+          "version": "repo-lines-v1:sha256:1160ec2f30c13ec075967edd94912bc8485be31baf96fc21637ebaacfcf52b73:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjcwNGNjZDJlNjEzMTIxMzFiZjI4ZDQ5ODllZjgxMTE4NGY5NTJhMDFhMWFmMTA2YTQ1YjI0ZmI1MTcwZWIzZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDdlOGM5YjEwNTUzNjg3MzA3YjY1MzM4ODYzMjIyMjVkNWYzODMxOWYxZDZiNmY0NmJiOTNjY2EzMGZlYzRiZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDJlMmU0Y2U3ZDM4ZDcxZGZlOTU4ZmM1YzUwMDUzMWY0MWE2ZDFmMDMzZDU3NDIxMjMyYjI1NDQyNmE3NjgwNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMmEyZjA3N2E1ZDcwYjY3NDZkNDJiMjQ1ZDdmZTUxNWMyN2QxNDU4OTQzYzhiMjBkNTc5MTUyOWQwMDcyODhiZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_8c65ba9dc6954293a525a1ae79992c60",
+      "statement": "The development Cloud Run manifest declares us-west1, 1 vCPU, 2 GiB memory, concurrency 20, a 3600-second timeout, zero minimum and one maximum instances, and CPU throttling.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L111-L124",
+          "version": "repo-lines-v1:sha256:ec7eabde59c1c063ea8ad51716248237ad11c9d42fe71854a07828bff7039ddf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU1YzgxNzg0MWUyNDI5ODY1OGJlMDRhNGI2OGMwZDM5N2NjYzlhMzc2MmY5YTRhNmVhMTlmMDAxMTQ1MjZhZDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjOTg3Nzk5NmUxNzdjMWNkZjU3NmRjYzEwM2M0MmFlYThkYzdkYzZhZTk4OTVlMzgxOTkzZjNmNmQzNWQxMTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliODA5MjFmMzI2NjJlYzE2MGVhMDZjNTdiZGQ2MjdkMzVhMTYyMTYwODFiY2ZhMGJmNmMwZWRjNTY0NDIwNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU3ZDlmMmQ3NTg0MmY5NTdjOTMzM2UwNTEzMDc3NWJjODE0MzA4MzdlZGVmNzNjYjUzMzE3ZmVhMzM5MDU5ZmIifQ"
+        },
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L3-L8",
+          "version": "repo-lines-v1:sha256:854ed63abfd0493fe8ff548570fd130f8382dd9caaf411dc26eeec053e032b76:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYmJhMzlmZGFlNzRjZTk0ZjNiYmJlNWVmYjc3NzY3MDQ5NjZkYTc0MzY3NmUwZThiY2ZhYzc4MzljNGM5MzI0NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2ExZDU0ODc1ZmUwM2I1NzcxOTQ3YWEyYWI0YzFjYmVhNjI4ODZiZDIzOTViNDc3MjhiYjAwNzQzODA5M2E3YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjNmYWEyNWM1NGIyMmNlZjE0NDI4NTg4Nzk1NzAxMGExNmU2YTc1NzYzOTJlNzAzM2VmZGZmMTJkNWIyNTdjZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzc2Yjk2NGFhYmE1MTc1YTZjYjIzMjJjNjE5NTkyMTMyMjcwMzcxYWQ3NGNlZDRmOWZlYTBkMWRmMjM3Yjc4NyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_e89b554cebad463a9711811b767c7536",
+      "statement": "The development foundation selects the Upstash Free intentive-development Redis database in us-west-2 with authentication and TLS, while the endpoint is supplied through deployment variables.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L33-L43",
+          "version": "repo-lines-v1:sha256:bdfd0c3f429aa9fdbdd4db65303796b6d4df0f1e79e526f1c86902d9ada60ffc:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5MjA0MjU1M2E4ZmU1N2M4ZjRmOTJjNGEwNTNiNzc3Nzg5YjU0YjE3NzE3YmNiZDY0ODRkNjhlMDdlZDZiN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmZGMzZTJjOTFjZGE2MTJjZGYyN2Q3NzQzOGUyOTY0MTA3YmUzOWY1Y2Q0NTU5MjU2NmI4N2Q2MmY1NGQ2MmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzOGQ0NjA2NmIyMmUzN2UyN2ViNWM4NjI2ZGM4MjI2YTY3YTNhZDZkZjBiMDU1OWRhNjc2MTQ1NTJlZWFhMzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhlNTRhYmUyNjE5Mjg4OTRmNzgyYTg1ZTQyNDljYTNlNDI5MWY2M2M5ODdkNjdlNWUwNWNlMWFhMGY5NmNjMjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a0eb1cc8818f456482cc8d57caa53b67",
+      "statement": "The development foundation selects the default Firestore database in the runtime project and declares uniform bucket-level access and enforced public-access prevention for desktop artifact storage.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L44-L58",
+          "version": "repo-lines-v1:sha256:f1c01ba6c308b0a4a3ba7e301db855cfd5d2abe5ebe96039032369e4af2ab8b5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1N2Q2MGQwNTkzMThiOTY3YjVmZjIwYmMyYWZkMTUyOGU1MjdhZGQyZDk4ZWEwNmY3MzZiYjZmNDdjY2Y1NzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4N2E3YThiMTYzZTlhNWY2MGRjNGNkNWU0NjM0ZmUzNzQ5OWJlYmFiZTg4NWM5MTlkZDdhMmUxYWFkMmEzOTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkM2JjZTIyMGE1MjU5NTEyMmE1NTI4MTQ2ODQxNTU0ODgzYzI3Yjk0YTEwN2E0MGQ1M2Y3MTY2N2NiOTVjYzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzMzFjNTMyOWQ4OTQyZGM0MzZlMjQ1ZmM5ZDFkODAyYjg5NjEyYWM4MTI1NDc3MTcwZmQwNzRlNjFkMzA5YWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_54140c3d220c452686f578f348c25dff",
+      "statement": "The development foundation declares the account-deletion Cloud Tasks queue in us-west1 with one concurrent dispatch and five attempts.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L60-L68",
+          "version": "repo-lines-v1:sha256:2a3eab5714dccbd5995a3f2c5f4a720646b0bf963ad3e5708f35df02cac2eb4e:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGY2NzM0NGJiZmY3ODI1MThjNTI3ZGVlYjNjOTM3OGY2M2UwNzE0M2Q4MDgzNDVkNmY5NWFlNTQ1ZDFjZWFjNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMThhNDgyZWZiYzNjNmQwOWY3OGU4MDQwMGIxMTczNTEyMDliYzAwYjIwMGU4N2E3Nzc4MTg4MzA1MWVjMjZjYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMGE0YjJlNGNkYjU1YTkzMzliNTAzODg2ZjdmOWQ3ZDA0MjUyMmViMTQwNjM5MjdmMDMzNTcwZTI2ZDhmNjc2MSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTViM2NmNzE5MDNlNDE2ZjU3ZGZmNjA5OTdhNTQzZTk1ZTk0MmI0NWMxMzQzYzA5M2ZjMTY0YWJiNDAzNzU0MSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5165bceac085459eb53e1a0f4ecf64de",
+      "statement": "The development budget declaration uses alert-only thresholds of 50, 80, and 100 percent; amount, currency and recipients are environment inputs.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L88-L94",
+          "version": "repo-lines-v1:sha256:0e2a9c1a5a966b3a5aeff7cbb5a6abf0b9b329fd0de14783705a5c4ef0e6bc0d:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg0MDg4M2QxM2YxZWNiZjc2YmVlNWUwNzAwMWIzNTQzY2I2MGE2NjliZDg1ZGM3NzFjMzkxYzVlOGQ4YzljNiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTkwOGY0Y2ZiN2FmOTNiNzk1NDRjY2U3YjkwM2UzZDJjYzQzMGRlYjM2ZDAyMzhjZGQzZmE5MDI1MmY0ZDlkMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGJlNWE1MWM1YWEwMDIxNjQ2Mzc2OWY2ZWJhNzA1NzYzY2U2N2QwMGFmYTViYTFjYWVmMDYzMmQ2ZTdkNjhmMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmVkMzk2YzA1NDVlZGFhNjA5ODZhNjIzYWU2ZmIxZDE2MTE2NGJjOWQ1YTlhYjY1NTYyZjA5NzQxNjJiNGIwMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_57bc75d927f84237abf809a067b66c0b",
+      "statement": "The development backend declares US Langfuse, the development tracing environment, intentive-chat-system and a 300-second prompt cache; prompt resolution requests the production label.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L198-L209",
+          "version": "repo-lines-v1:sha256:38f610b3c50bab8919705d5710e79d121b75db8ee3d97d0ca41e3e90106d233f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NTNiNTIxMWIzNmMzNDQxZjI5YTNhMzI5MjQ2YjYyNjFiZGQ0NGQzZjZiZTIyNjJiZDdmODk5NWNlMDIxMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3NjEwMzQ4NzM5YjgyODA4YzExZWRjNzFhYWU3MTRhMTFiY2QzOTVjNzVmOGQyMjdmMTlmZWRjM2EyNTk1MjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4NDNlMTZjZDc5OGYzMjQxNmY3ZTkwNGUxZDEwNTFjMTA5N2I2Y2U0NDQxMzNlOWZiYzA3YzJkZDY1OWFmNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNjJlNWRlOTAwZjMzNjJhNDU4YjJmMjFmZDRhYTc2Yjg3NmUyMGMxOGExM2Q0NDI4NjU0ZGEzNTBkMTk2NTYifQ"
+        },
+        {
+          "resource": "repo://backend/utils/observability/langfuse_prompts.py#L72-L80",
+          "version": "repo-lines-v1:sha256:19c1254beb97cff6da339ddf0fe76525481225aa469eef237be94f8c7acf5752:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmE0ZjEyZjI1Nzg3MmYxZWU4MGYxNDhlNDhjNzJkMmI0ZDRmOTQxMGJlNTMzOGU3OTQ0ZjIwNjNiYmU4NzZkOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWZmZGFjMGI5MjQxYjQ3OGI2ZDY3NjRlYTYzYjZkODc2MThlM2MwYTJiMWFkYjJhOGJhNmY1NjliNmQ3NjY3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTY4ZTAzNDc1MTljMzFjODA3MjJiNzVlYTNkOWQxNzVlNjYxNDIyNDFlNGI2YWJmNDIzZDllNTc0ODhkMDk2NyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3603503e62934048a4ca0b8dc34b2b3f",
+      "statement": "The development backend declares the PostHog US ingestion host https://us.i.posthog.com.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L195-L197",
+          "version": "repo-lines-v1:sha256:1843e16cd798f32416f7e904e1d1051c1097b6ce444133e9fbc07c2dd659af5f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAyYjQzZWMzM2JkM2Q1OTc5ZGI1YjAyNzg3YmZhMTRjZWYyNTI4NzE2MTU5OTViOGJmYzdjYTU3NDgyMzI4NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2VmM2YyOTVlZGUzNTZjNTFmMjE1ZDczMDUyZTZkMTYyZTY1MWU3MTMwNjY3YTgyNjFjYjU5OGE5N2QyNTQyOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTA4M2ZiMWQ5NmRlYTY2YWE2Y2MyZWNlZGJmN2ExZGRiYjgxYWNhYjRhZDAyN2QwMTVmNmMzNDIzZWUyMmZlZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2EyZDc3NzE2NDg1MTFlZGE5NDliMDQwZmFkYjNlNDVlNjAzYmI2ZTQ5ZDE4NjU0MzI1NjhlOGE2YTRmZGY4MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_802ddbb8709b4d7091768a172afb48d3",
+      "statement": "The managed workload registry assigns Chat, greeting, conversation processing, Memory compute and fair-use classification to gemini-3.7-flash, and session titles and segment translation to gemini-2.5-flash-lite.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/llm/model_config.py#L62-L184",
+          "version": "repo-lines-v1:sha256:6e73fe2d0e5b5bbdd0e32a89f6521831510fcfb81477d4424f55f0048ea37137:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIzLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI5M2U1ZDM0MTMwNGZlOWY1NzgzZTkyOWRlYmExMmY1ZjE5YjhkZDgyZjQ0ZGQxMDc2N2ExZDJkMTg0NjZiMzQ0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI3MDJjNDE0YjU0Y2Y4NmRmYjRmOTBkZmU3ZDdiZGJmYTY2NmI3ZGRkZDMyZjEyODZmMjMwYTViNTMyNDE4MThhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwYmJmN2QzMmFkOWM5YzliZDY5YjBhZTIwMmZlMGQ3YzY5ZGViOTViZGExZGI2NjE0Y2Y3NmFkOGJlNWJkNjNhIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_852dac9e0ac344afb4df09f2de1d88d8",
+      "statement": "The desktop Gemini proxy permits gemini-embedding-001 for embedding requests.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_proxy.py#L21-L24",
+          "version": "repo-lines-v1:sha256:1506c710ddb24b8554ae015cb86ccf32728bab645511379f198e3d0ac0bc978e:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNmRmOGRlMzc3ZGI2MTdmMDQ0ODlkYmQ3NzQzNTExZDU5YzBkOGNkNGNmYmY4YjBhYmJhYTkwNjFlNDZmMjkwNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNzUyNzY2Y2IyNjAxYTAwNGIyOGUxMjhmYzIyNDhmZTliY2NjMDBkM2RkYTg3YTk1NWMzNGFkMjdjMWFjZjgyYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmE0ZjhhNmViYTZmMGU5NTYyZmMxZDM3ODQzMTQ4YmMwZjZiYmFiNGE3ZTQ4YTBkZjQwMjdjMDY4MmQ2MGJiNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjljMTAzZjhkYWU0ZDU0YWM2MzdhNTAwMDM0YzJhZTJlNTdlNTY1ZmY0ZGM2MjNjYjYwOGQyMjIwYzI5N2FhNyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4fedcf68be05486daea0f66794766545",
+      "statement": "The desktop realtime route selects models/gemini-3.1-flash-live-preview.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L20-L22",
+          "version": "repo-lines-v1:sha256:d2b1daafbfe06342c4d5cc7090966bf4b4836b574fe14dad53dd59b931486aba:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTIxZGRlYjllZDMzNmJiZmEzZjRiN2ZlOGRlYTc3MzYwZDY5ZDM0MTY3OGUxYTZiN2FiMjk5NDhkMWYyZmNjYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTcwYmViYWIyNTA3ZmY3OWU5NWEwZGQ0YjRiNmU2MzQ0YjYxNzhhMDFmOTIwMzI3NmI1ZWY2NDBiN2FlMGY3NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjcwNzljZTY4MTgxODgxZGY1YjM0MGI5OTlkMGQwOGY1ZDE5ZGQ5Y2JjZDIzNWEwZDEyMjQyNjg1ZGYxZGQyZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_adf147af4eee402a921cf6dbe9cfca8f",
+      "statement": "The desktop speech route uses OpenAI's audio/speech endpoint with gpt-4o-mini-tts.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_tts_updates.py#L20-L21",
+          "version": "repo-lines-v1:sha256:cc5a0c64e68574d43d6e2bb774401730ea9d6ba129708270fdadee3634e63493:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjYxMDAxODQ5M2VhNjMzZTZhNTFlOTUyNTA2NTE1NDk4YTcwMjgyYTQwZGE1MzYyZDUyMmEwMjk5NjU1MjhjZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmI5NjEzY2EwNTRkNjFkMzFmMTUzNjczNDcxYTIwMDkzZTM5NzlhZDNlNGY3ZGY4ODQxYjY2NmRmNDAwZDc5NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmE0ZjhhNmViYTZmMGU5NTYyZmMxZDM3ODQzMTQ4YmMwZjZiYmFiNGE3ZTQ4YTBkZjQwMjdjMDY4MmQ2MGJiNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDM1YmNiMDJlYjJhMzc3NjBkOTRjODg0ZjQ0NTU2ZGQ4OGI5MTI5ZmIwODQ3NzIyZTU1ODUxNTI0MjBjZTM5MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_493d461e6d614b5d95c6316f605599a5",
+      "statement": "Managed Modulate transcription uses velma-2-stt-streaming endpoints for live audio and velma-2-stt-batch for prerecorded audio.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/stt/pre_recorded.py#L85-L94",
+          "version": "repo-lines-v1:sha256:43bcd0b87d00209a0b981d4b6eeafc4cecfe9c4f4b3ac753e81513fff7b11635:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkNjc0OTkxZWQ2MzRhN2RmOTYzM2NhMTJlM2FjZmM5MTQ3MThlZDM1YjYxZGMyNjIwNzAzMWVmZTRhY2E2NmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3YzA4ZTAzNDkyNzY4NDIxYzg4YmZkNmU3MDNjMTVlMGQ1Mzk5YmE1NDBkODE0MWQ0MWVhNDdhZjU1NmFlOTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRlY2QxMDVmMWEyZjcwYmIzNGMwM2I0MmY2ODRhYzAzY2IyZDRlYzM0ZmVlYmEwZTA2NTgwZGQzOGQyM2YzZjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFhNjUyMjc5NGY1OTA0ZTM4NjgwZDg0YzViYzBiYTc2NzhjNzNjNjBkZTIwNGQ3NWNhOGIxNTk5NWZkMTNkNmEifQ"
+        },
+        {
+          "resource": "repo://backend/utils/stt/streaming.py#L446-L450",
+          "version": "repo-lines-v1:sha256:15a2af17d7e2ffbd874bb719585a5f50850d39f4ca90281c75defabbf4ee3159:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDc3ODdjOTdmY2QzZDJlMTRhYmJjM2E4NmY4YjZlZWIwZGMzYzA4NmQ1ZWUzYTAzZjU1YWU1NTJlZjhiZjExZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzBjMWYxODhmMTQyZWQ3YTgyNDY4MGIyMDcxNzJjNTUxOWJjNjE0YTQ4ZmRhN2NmMTY3ZWRiOGRkZjc5OTU2YyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODk3ODI0NDQyYzhhNjA2NGFhZTk3ZmVhMzE0N2U4Y2FkZGM0MDViM2Q3MDYzZGY4NzA2ZjljZTZkYTc3MjdiNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDlmY2U0ZmRlNTZlYTU0NTQ3YTNkZmUyY2Q1MDBlODIxMTBhOTc4MWMzZTE2MjYzZTdjYmUwZTY1MTU4YmU2YSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_eba186c7a5194031be96ee2d226cdcda",
+      "statement": "Development deployment selects the Cloud Run service and runtime identity through BACKEND_CLOUD_RUN_SERVICE and BACKEND_RUNTIME_SERVICE_ACCOUNT, and maps provider, Redis, Firebase and OAuth secrets through exact-version environment variables.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L103-L110",
+          "version": "repo-lines-v1:sha256:97e1670eb19c8c9cf6f5dd228b119cbd97164a21dec6f9ae1e00ce1c0206be9d:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2UzNWVjZmM0NDJmNjI2NDg2MDRlMzQ3NzAwMDg5YmU5N2VkZDEyOGQzNGQyOWU2ZGIzOGU0YzdiZDcxNmE5NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2FmMDAzZmIyNTUwOTI0ZjBlMmJmZTI2NTAyZTA0YTlkNzIyNGFkM2ZiYTY3NTkyZjM1NDQwZjNjZWFiMjk0MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzYxY2UzZmE0OGE1NWI0NTM3NTA4ZTQyMzEzNDI4MTZlZDUzMzY1YzkxMTczZTc0ZTk0MzZiMmMzOWY1ZGFiZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjY4YWZmMzVlNzAyMzgxYWMyZjc0YjY0ZmZjOWEwYWE4MDIxYTNiYjdmY2YzOWVjNzAzMWU1NDMxOTVjNzcxZiJ9"
+        },
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L232-L255",
+          "version": "repo-lines-v1:sha256:5fdb98376b70b05d0962c85457c602690e94efea97e865ef051dd4e45c207115:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk5ZDg2MDIzMjFjNmEyZDZiMzE3OGNjYjYwNzExOWZjMmE0ODk3NjNkYWQxMjY5MTMxZDQwYWUxNzZlNTQ1NDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4NWNiYWM3Y2RmNGE1NGE0MzBjNWM1OTQ1ODhmYTliMmQzYjYwOGYyMDhkNTc1OTI5YWRhMDJhZWUzMzhjZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRjMzc0Y2JjMTY3NTZkNGZmNjU4ZDg3NTdlZjU5ZmI5YTM5NTNiNjgxNTVkMGRhOWQ0ODYwYWIyMmRmNjE4ZDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4ZmM2YjVhODY1YTA1MmQ4ZTJlMzQ2NGZmZWMwZmEwNjJlNDk0ZjUyNmQ0OTMyOGM4OWNiMzAwOTA3ZjAyM2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a7ecd3817bd7454c8a40c37f3c33a40c",
+      "statement": "The Codemagic release workflow uses intentive_macos_signing and intentive_macos_release groups, Apple team 24D6NXS6H7, app 6a8ff0296fc70d39540cb56a, repository sruj75/knowledge-athlete, and Release App ID 4838294 with installation 159216850.",
+      "evidence": [
+        {
+          "resource": "repo://codemagic.yaml#L25-L49",
+          "version": "repo-lines-v1:sha256:20bb036e060a4ff441587c863f3a9a0e5cc5aa6207ead396ca2c2b803189778c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE5NTJiN2ZmNzljOGY4ZDkyMDI5YjI0MjdhYjQ4NTQ5ZmMwMTg4N2NhMjM1MDQ2MDVhM2MxOTM3MGVlY2NhZmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjYzEyODY5MzQyMWM2ZmQ2YzMyZDA4NDViMTdhYzJiYTlkYTBhYTgzNTJkZTU3MzI4MDFlMDgzNWU5OWY2NzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiNDcxNjZkMGQ5ZDFlY2EyZjdjYTA4N2YxYWI0ZTdmY2IyNDcyMmJmNjM1MDliMjMzZjk0ODFiYTkzOTJjZTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjczOWZiZDk0OGIwYzc3YWRlMzM3NTY1MTQzNGEwNGNjYWY4MGFhZDdjYWQ5MDhhNDQ5ZGEwZjgyOGJlMTg1MTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_694bd6e506d748afbe27cc4d5aa241a3",
+      "statement": "The Codemagic release configuration assigns Intentive to com.heyintentive.intentive and Intentive Beta to com.heyintentive.intentive.beta.",
+      "evidence": [
+        {
+          "resource": "repo://codemagic.yaml#L37-L43",
+          "version": "repo-lines-v1:sha256:d961be7cc960a360e6aca3a2429b92ac38738d88b5f66827548d5e0204e82f51:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOGEyOThhYmJjYWQxZTQ1YzBhMmU1ZmE4ZTgwMDUwNjQzNmYyNzEzYzMxZjM3ZGE3NDY3ODhlMjBlNDE0MjcxZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTA0MmY2ZjdlODNlOTJmZWE1OTAzOTM4YTQ1MjFjOTEyMTI1Yjc2ZDk4N2MwZTM2M2EyMWJjYWY0Mzc1ZTYzMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDQ5NGMwM2VlODZiYzkzNmFiNDIxOWQyZjIxZWE3NjcyZWQzMTVhNzFkM2Q4NjhiYjcwODc0NzQzZTkzMDI5YiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWZiOGIyN2NmMzg3ZjQ2MWM1ZjhiZWQ2YzZhNjFlYWIxMzUxZDg1YjI0ODY4MWFlYzVhNTVmODI2OWM5NmQ3NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9ab049ffc50e47d7837908bb28c6be69",
+      "statement": "Development deployment uses a Workload Identity Federation provider with separate deploy and Firestore read/write service-account inputs, constrained by repository identity, main, development and workflow-path claims.",
+      "evidence": [
+        {
+          "resource": "repo://backend/deploy/runtime_env.yaml#L10-L29",
+          "version": "repo-lines-v1:sha256:4845980599e57deb0ff16e2827cd18cd1279f4b4c4eeee82deb39291deafb53c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjNWQxNmViNmYwMzMwMzIzMmJhMzhmYzA2ZTJmMmY1NmQ1ZWNmOGY0MDllOTJjZGQ4YzVlOTczNDJjZjgzZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZDFkMWRiNzQ2NzI3ZDM3YTM1ZDQzMmU5MjVlNmM5MjM2NGE2NTVhODUwODNjNGEwNTYzYWViZjM0N2ZiMmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlNzYzZGFkZTUwN2JiN2I0YmVlY2U1M2I5ZGJhMGZhZTFiMWYyMzExZjIwMzdlNjFlNWU5YTFiNTJkMjBiOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzOGQ0NjA2NmIyMmUzN2UyN2ViNWM4NjI2ZGM4MjI2YTY3YTNhZDZkZjBiMDU1OWRhNjc2MTQ1NTJlZWFhMzgifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-22T16:32:26.977Z"
+  }
+}

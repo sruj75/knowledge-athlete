@@ -12,14 +12,12 @@ sources:
     resource: repo://desktop/macos/agent/package.json
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
-  - id: openwiki-source-2b47a76279b8a833443073fe
-    resource: repo://OWNER-PROVIDER-RECORD.md
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "codex", at: "2026-09-22T12:13:27.371Z" }
+generated: { by: "codex", at: "2026-09-22T16:32:26.977Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-22T12:15:11.256Z
+    at: 2026-09-22T16:32:26.977Z
 ---
 # Start here
 
@@ -34,6 +32,7 @@ Read the [compact authored brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Eng
 | Task | Guide |
 | --- | --- |
 | Understand ownership | [Architecture](codebase/architecture/overview.md), [product boundaries](codebase/concepts/product-boundaries.md) |
+| Look up provider accounts and settings | [Owner and provider record](codebase/operations/owner-provider-record.md) |
 | Trace capture or lost transcript | [Capture and transcription](codebase/workflows/capture-transcription.md) |
 | Change Chat, tools or PTT | [Chat and voice](codebase/workflows/chat-voice.md), [agent runtime](codebase/architecture/desktop-agent.md) |
 | Change Memory processing | [Memory lifecycle](codebase/workflows/memory.md), [local data](codebase/architecture/local-data.md) |
@@ -51,7 +50,7 @@ At the repository root, activate the Node version in `.nvmrc`, run `make setup`,
 
 After source and tests stabilize, run the native OpenWiki update and include its pages and metadata in the same local change. Native finalization owns all structural indexes. Initialization preserves the brief and replaces generated state. Publishing still requires explicit user instruction.
 
-The [owner and provider record](../OWNER-PROVIDER-RECORD.md) lists account emails, provider roles, operating modes, service/model settings, and credential locations. It combines recorded account details with repository configuration; live provider settings are not reverified by documentation edits. Consult the [authored brief](INSTRUCTIONS.md) for active rules.
+For account emails, provider roles, operating modes, service/model settings, and credential locations, use the [owner and provider record](codebase/operations/owner-provider-record.md). Consult the [authored brief](INSTRUCTIONS.md) for active rules.
 
 The [pre-migration provenance](INSTRUCTIONS.md#provenance-and-ownership) and commit-pinned archive references retain historical rationale. Inherited Windows code is outside this active-product documentation.
 

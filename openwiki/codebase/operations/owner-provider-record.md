@@ -1,9 +1,45 @@
+---
+type: Operations reference
+title: Owner and provider record
+description: Look up Intentive account ownership, provider roles, operating modes, service and model settings, and credential locations.
+tags: [intentive, operations, ownership, providers]
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-22T16:32:26.977Z
+sources:
+  - id: openwiki-source-36951cfe9bd99b6b1f9b15ff
+    resource: repo://backend/deploy/runtime_env.yaml
+  - id: openwiki-source-4506f9d22a7ec8a8f8d47ba3
+    resource: repo://backend/routers/desktop_proxy.py
+  - id: openwiki-source-246adce1bd09822e870e6154
+    resource: repo://backend/routers/desktop_realtime.py
+  - id: openwiki-source-f9557f9df695b6659e2ddd5c
+    resource: repo://backend/routers/desktop_tts_updates.py
+  - id: openwiki-source-6439c0b00e9284c12c7afccb
+    resource: repo://backend/utils/llm/model_config.py
+  - id: openwiki-source-63500ad8455656e0ed04a9b7
+    resource: repo://backend/utils/observability/langfuse_prompts.py
+  - id: openwiki-source-789de173853ba5c47c43229b
+    resource: repo://backend/utils/stt/pre_recorded.py
+  - id: openwiki-source-e64cb83f3cc3efdfd935da37
+    resource: repo://backend/utils/stt/streaming.py
+  - id: openwiki-source-dc2e21fd8c87acad5a3f175f
+    resource: repo://codemagic.yaml
+  - id: openwiki-source-1d70e9d198b8f1602d970413
+    resource: repo://desktop/macos/scripts/desktop-core-harness.sh
+  - id: openwiki-source-3ff70d80feb2d0ad64f504ba
+    resource: repo://scripts/dev-harness/dev_harness/providers.py
+generated: { by: "codex", at: "2026-09-22T16:32:26.977Z" }
+---
 # Owner and provider record
 
 Account ownership, provider roles, operating modes, and configuration for Intentive.
-Updated: 2026-09-22. This combines recorded account/console details with
-repository-declared settings. Live provider settings were not re-audited during
-this cleanup. Secret values belong in the credential stores below.
+Account and console details are carried forward from the September 22 ownership
+record in Git commit `8b6146340105d97026891837a11a57438ebb36bb`; unknown login emails
+remain marked as unknown. Repository-backed modes, models, and deployment settings
+are grounded in the source evidence below. OpenWiki verification covers those
+repository Claims, not current sign-in access, IAM permissions, or live balances.
+Secret values belong in the credential stores below.
 
 ## Product identity
 
@@ -111,12 +147,18 @@ Recorded WIF provider:
 | Codemagic `intentive_macos_release` | Beta Firebase configuration, backend/update URLs, Sparkle keys, Sentry upload token, and Release App private key |
 | Local development | Gitignored `backend/.env.local-dev` for explicit provider tests; Sparkle private key in the macOS login Keychain |
 
-Configuration sources: [runtime manifest](backend/deploy/runtime_env.yaml),
-[local provider modes](scripts/dev-harness/dev_harness/providers.py),
-[automated desktop harness](desktop/macos/scripts/desktop-core-harness.sh),
-[managed workloads](backend/utils/llm/model_config.py),
-[desktop generation/embeddings](backend/routers/desktop_proxy.py),
-[realtime voice](backend/routers/desktop_realtime.py),
-[speech output](backend/routers/desktop_tts_updates.py),
-[Langfuse prompts](backend/utils/observability/langfuse_prompts.py),
-[Codemagic](codemagic.yaml), and [current repository guidance](openwiki/INSTRUCTIONS.md).
+Configuration sources: [runtime manifest](../../../backend/deploy/runtime_env.yaml),
+[local provider modes](../../../scripts/dev-harness/dev_harness/providers.py),
+[automated desktop harness](../../../desktop/macos/scripts/desktop-core-harness.sh),
+[managed workloads](../../../backend/utils/llm/model_config.py),
+[desktop generation/embeddings](../../../backend/routers/desktop_proxy.py),
+[realtime voice](../../../backend/routers/desktop_realtime.py),
+[speech output](../../../backend/routers/desktop_tts_updates.py),
+[Langfuse prompts](../../../backend/utils/observability/langfuse_prompts.py),
+[Codemagic](../../../codemagic.yaml), and [current repository guidance](../../INSTRUCTIONS.md).
+
+See [development](development.md) for local setup, [providers](../integrations/providers.md)
+for request routing, [telemetry](../integrations/telemetry.md) for tracing/privacy,
+and [build and signing](../integrations/build-signing.md) for release configuration.
+
+[Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)
