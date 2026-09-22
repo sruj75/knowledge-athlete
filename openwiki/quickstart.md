@@ -12,12 +12,14 @@ sources:
     resource: repo://desktop/macos/agent/package.json
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
+  - id: openwiki-source-0a25f47203362f13c85f543d
+    resource: repo://OWNER-PROVIDER-DECISIONS.md
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "codex", at: "2026-09-21T15:07:48.183Z" }
+generated: { by: "codex", at: "2026-09-22T12:08:32.252Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-21T15:07:48.183Z
+    at: 2026-09-22T12:08:32.252Z
 ---
 # Start here
 
@@ -48,6 +50,8 @@ Read the [compact authored brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Eng
 At the repository root, activate the Node version in `.nvmrc`, run `make setup`, then select the component commands in the development guide. Setup refreshes main, installs Git hooks and synchronizes the backend environment. `make preflight` runs the shared local governance lane. The tracked Mermaid product map is updated through reviewed edits when relevant flows change. Tests and actual user-path evidence are both required by the authored engineering guide; report unavailable or failed evidence explicitly.
 
 After source and tests stabilize, run the native OpenWiki update and include its pages and metadata in the same local change. Native finalization owns all structural indexes. Initialization preserves the brief and replaces generated state. Publishing still requires explicit user instruction.
+
+The restored [owner/provider handoff](../OWNER-PROVIDER-DECISIONS.md) records dated account ownership, cloud/GCP setup, Firebase and Redis topology, and provider decisions. Its historical observations are not current deployment or account-access verification; consult the [authored brief](INSTRUCTIONS.md) for active rules.
 
 The [pre-migration provenance](INSTRUCTIONS.md#provenance-and-ownership) and commit-pinned archive references retain historical rationale. Inherited Windows code is outside this active-product documentation.
 
