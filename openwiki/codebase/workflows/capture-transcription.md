@@ -20,6 +20,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift
   - id: openwiki-source-8b4617ee9e7ec26f1c05bd9c
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift
+  - id: openwiki-source-23883df34f7f1c15cb622684
+    resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel%2BSteps.swift
   - id: openwiki-source-ba8b351f307e1bdf1eb75789
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
   - id: openwiki-source-fa25afaba6337b7634ae58d1
@@ -32,10 +34,12 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
   - id: openwiki-source-5f30adb7a7fdc16ada6d6f6e
     resource: repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift
-generated: { by: "codex", at: "2026-09-22T17:01:49.082Z" }
+  - id: openwiki-source-c5914c9070f6356327633f39
+    resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
+generated: { by: "codex", at: "2026-09-23T07:47:07.190Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-22T17:08:23.952Z
+    at: 2026-09-23T07:47:07.190Z
 ---
 # Capture and transcription
 
@@ -49,7 +53,9 @@ Owner transition quiesces capture, including pending final-tail work, before mov
 
 ## Setup, controls and lifetime
 
-Genuine onboarding has one **Finish setup** action. `SBOnboardingModel.complete()` accepts no mode argument and admits completion only once. Its exit plan enables listening and System Audio, requests Launch at Login and retains screen-analysis activation through existing account, key and permission gates. The completion opener says the app is configured for all-day listening; it does not claim that unavailable capture succeeded.
+Genuine onboarding ends at the existing screen-and-voice demo. Its Continue and demo-local Skip for now actions call `SBOnboardingModel.complete()` directly, with no listening-mode or replacement confirmation stage. Completion accepts no mode argument and is admitted only once. Its exit plan enables listening and System Audio, requests Launch at Login and retains screen-analysis activation through existing account, key and permission gates. The completion opener says the app is configured for all-day listening; it does not claim that unavailable capture succeeded.
+
+Completion tears down the voice demo. A late bridge warmup checks both the current stage and whether exit has started before arming voice, so ending setup while preparation is pending cannot reopen the demo.
 
 Global Skip persists an inactive outcome, stops listening and monitoring, and presents no completion opener. Launch restoration respects that outcome as well as explicitly disabled listening. A later explicit enablement retires the Skip fence. Settings default System Audio to on; turning it off keeps the microphone available. Home retains a single Listening on/off control. There is no meetings-only selection, waiting status or meeting-ended conversation boundary. Shared conferencing detection still throttles screen capture and detects screen sharing.
 
@@ -75,7 +81,7 @@ There is no client-conversation identity in the accepted socket query. The tests
 
 ```mermaid
 flowchart LR
-  Setup[Finish setup or explicit enablement] --> Gate[Account and microphone permission]
+  Setup[Final demo completion or explicit enablement] --> Gate[Account and microphone permission]
   Gate --> Audio[Continuous microphone and optional system audio]
   Audio --> Choice[Transcription selection]
   Choice --> Local[Local Parakeet]
@@ -90,8 +96,9 @@ For a failure, identify whether admission, capture, transport, canonical segment
 
 ## Source evidence
 
-- [Onboarding completion and Skip](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L542-L605)
-- [Completion effects](../../../desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L78-L112)
+- [Onboarding completion and Skip](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L530-L593)
+- [Completion effects](../../../desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L73-L107)
+- [Demo completion and late warmup](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel+Steps.swift#L468-L531)
 - [Capture reconciliation](../../../desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift#L383-L532)
 - [Sleep and wake](../../../desktop/macos/Desktop/Sources/AppState.swift#L493-L554)
 - [Hardware-seam regressions](../../../desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168)

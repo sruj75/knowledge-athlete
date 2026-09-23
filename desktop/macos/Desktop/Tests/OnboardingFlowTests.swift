@@ -9,7 +9,7 @@ final class OnboardingFlowTests: XCTestCase {
       SBOnboardingModel.Step.allCases,
       [
         .promise, .name, .howHeard, .language, .mic, .systemAudio, .screen,
-        .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
+        .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo,
       ]
     )
   }
@@ -32,7 +32,7 @@ final class OnboardingFlowTests: XCTestCase {
   func testRetainedStepGraphDoesNotDependOnAdjacentRawValues() {
     XCTAssertEqual(SBOnboardingModel.Step.language.next, .mic)
     XCTAssertEqual(SBOnboardingModel.Step.mic.previous, .language)
-    XCTAssertEqual(SBOnboardingModel.Step.capture.next, nil)
+    XCTAssertNil(SBOnboardingModel.Step.screenDemo.next)
     XCTAssertEqual(SBOnboardingModel.Step.promise.previous, nil)
   }
 

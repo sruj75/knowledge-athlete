@@ -21,7 +21,8 @@ enum SBOnboardingIdentityCopy {
   static let openSourcePrefix = "View the project repository on "
   static let openSourceDetail = "\(openSourcePrefix)GitHub."
   static let privateDataDetail = "Conversations and memories you keep are saved on this Mac."
-  static let userControlDetail = "Pause listening anytime and choose what you keep."
+  static let userControlDetail =
+    "After setup, listening stays on every day, pauses while your Mac sleeps, and can be paused anytime."
 
   static let allText = [
     promise,
@@ -38,8 +39,8 @@ enum SBOnboardingIdentityCopy {
 /// Drives the Second Brain conversational onboarding: a real chat with Intentive that
 /// streams word-by-word, collects answers, and performs the SAME live side-effects
 /// as the legacy wizard (name/language, retained permissions, the summon
-/// shortcut, a live screen+voice demo, capture,
-/// completion). No fake steps — every widget does real work.
+/// shortcut, and a live screen+voice demo that completes setup).
+/// No fake steps — every widget does real work.
 ///
 /// Core state + lifecycle + copy live here. The heavier per-step behavior
 /// (permissions, shortcut, screen/voice demo) lives in
@@ -61,7 +62,6 @@ final class SBOnboardingModel: ObservableObject {
     case shortcutOpen = 9
     case shortcutTalk = 10
     case screenDemo = 11
-    case capture = 12
 
     var next: Step? {
       guard let index = Self.allCases.firstIndex(of: self) else { return nil }
@@ -180,7 +180,7 @@ final class SBOnboardingModel: ObservableObject {
   /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
   private let onComplete: (@MainActor @Sendable () -> Void)?
-  private var exitStarted = false
+  private(set) var exitStarted = false
   var streamTask: Task<Void, Never>?
   /// Permission-grant pollers, one per permission key. Keyed so requesting a
   /// second permission never cancels
@@ -271,7 +271,6 @@ final class SBOnboardingModel: ObservableObject {
   // MARK: copy
 
   func message(for step: Step) -> String {
-    let name = displayName
     switch step {
     case .promise:
       return SBOnboardingIdentityCopy.promise
@@ -294,18 +293,7 @@ final class SBOnboardingModel: ObservableObject {
       return "And to talk to me, hands-free? Just hold one of these and say something."
     case .screenDemo:
       return "Here's the fun part."
-    case .capture:
-      return
-        "You're all set, \(name). Finish setup to start all-day listening."
     }
-  }
-
-  var displayName: String {
-    let n = nameDraft.trimmingCharacters(in: .whitespaces)
-    let stored = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
-    if !n.isEmpty { return n.components(separatedBy: " ").first ?? n }
-    if !stored.isEmpty { return stored }
-    return "friend"
   }
 
   // MARK: lifecycle

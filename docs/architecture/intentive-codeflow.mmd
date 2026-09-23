@@ -36,7 +36,7 @@ flowchart TD
   end
 
   subgraph AREA_04["04 · Ambient audio capture and transcription · Mac"]
-    LISTEN["Finish setup or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
+    LISTEN["Setup completes or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
     CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1614"]
     AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:475"}
     MIC["Microphone capture and resampling<br/>AudioCaptureService<br/>AudioCaptureService.swift:9"]
@@ -220,9 +220,9 @@ flowchart TD
   end
 
   subgraph AREA_19["19 · Product controls, onboarding and user data"]
-    ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:48"]
-    ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:577"}
-    ONBOARDEXIT["Finish → all-day / Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:114"]
+    ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:49"]
+    ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:565"}
+    ONBOARDEXIT["Final demo Continue or Skip for now → all-day<br/>Global Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:109"]
     PREFS[("Local capture, assistant, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
     CONVACTIONS["Folders, stars, titles, speakers and deletion<br/>ConversationRepository<br/>ConversationRepository.swift:240"]
     GOALSUI["Personalized Home question chips<br/>HomeSuggestionsStore<br/>HomeSuggestionsStore.swift:80"]
@@ -525,7 +525,7 @@ flowchart TD
   OCREMB -->|"Embedding request"| PROXY
   OCREMB -->|"Local OCR vector insert"| DB
   ONBOARD -->|"Isolated onboarding chat surface"| TEXT
-  ONBOARD -->|"User finishes or skips"| ONBOARDEXIT
+  ONBOARD -->|"Final demo exits directly, or global Skip"| ONBOARDEXIT
   ONBOARDEXIT -->|"Finish journal handoff then show Home"| HOME
   ONBOARDEXIT -->|"Persist completion or inactive Skip intent"| PREFS
   ONBOARDEXIT -->|"Completion requests capture"| ONBOARDGATE

@@ -1,10 +1,5 @@
 import Foundation
 
-enum SBOnboardingCompletionCopy {
-  static let disclosure =
-    "Finish setup requests Launch at Login, enables all-day listening every day, and turns on screen analysis when permission and account access allow. Listening pauses when your Mac sleeps and resumes when it wakes. You can pause listening anytime."
-}
-
 enum OnboardingScreenMonitoringStartPolicy {
   static func shouldStart(
     intentEnabled: Bool,

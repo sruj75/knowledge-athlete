@@ -107,11 +107,11 @@
       "completedRunId": "f7be998f-76c8-45e7-ac29-2de7eb195ae9"
     },
     "/openwiki/codebase/testing/desktop-e2e.md": {
-      "pageVersion": "sha256:e99d58de5410f52d005c48d6e451cd539e3dff96097af3973f8821af0d5cce25",
+      "pageVersion": "sha256:2827594a2d333ce4581eae999e21d4c4f9e9c4cda17343a8e048d010d0b7a509",
       "completedBy": "codex",
-      "completedRunId": "73e488e6-2f70-4951-a4e0-9c835bf1faf6",
-      "gitHead": "e20670d4c35e624c3ab9088daab12d5e13d4b7ba",
-      "sourceFingerprint": "sha256:f05dc16d1a09e309901c29e5b9afbe142617fb410f45f3ed52752c4425820069"
+      "completedRunId": "aa95721f-d313-4074-9a81-c19b67acf060",
+      "gitHead": "fe97efe991844018256848450fc3c217e334f68e",
+      "sourceFingerprint": "sha256:25a1a322e1afb0ec7504ce8eb779ee07f426372502edeaac95f1978ebaf64b09"
     },
     "/openwiki/codebase/workflows/account-lifecycle.md": {
       "gitHead": "97c88ba2db3117a112b562c62fc38f9aecf68f1b",
@@ -121,11 +121,11 @@
       "completedRunId": "235f7d95-c25f-439f-b6e6-5d8b7117c01c"
     },
     "/openwiki/codebase/workflows/capture-transcription.md": {
-      "pageVersion": "sha256:7cd848f4f1f1232063811ea401f29c1940652ac8e6fdc937df8b131fa3c11af9",
+      "pageVersion": "sha256:aeee57ee0f2225bba93024de82ba0ee0ebf18eee718a2a884f3fc881a628b8a3",
       "completedBy": "codex",
-      "completedRunId": "73e488e6-2f70-4951-a4e0-9c835bf1faf6",
-      "gitHead": "e20670d4c35e624c3ab9088daab12d5e13d4b7ba",
-      "sourceFingerprint": "sha256:f05dc16d1a09e309901c29e5b9afbe142617fb410f45f3ed52752c4425820069"
+      "completedRunId": "aa95721f-d313-4074-9a81-c19b67acf060",
+      "gitHead": "fe97efe991844018256848450fc3c217e334f68e",
+      "sourceFingerprint": "sha256:25a1a322e1afb0ec7504ce8eb779ee07f426372502edeaac95f1978ebaf64b09"
     },
     "/openwiki/codebase/workflows/chat-voice.md": {
       "gitHead": "a1f07e4fd404ab2ad26feb3dc5fb36922713ed6f",

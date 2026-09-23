@@ -4,7 +4,33 @@ import XCTest
 
 @MainActor
 final class OnboardingCompletionBehaviorTests: XCTestCase {
-  func testDefaultCompletionEnablesAllDayListeningOnlyOnce() async throws {
+  func testContinuingDemoCompletesOnboardingAndEnablesAllDayListeningOnlyOnce() async throws {
+    try await assertCompletion { model in
+      model.screenDemoDone = true
+      model.answerScreenDemo()
+    }
+  }
+
+  func testSkippingDemoCompletesOnboardingWithAllDayListening() async throws {
+    try await assertCompletion { model in
+      model.answerScreenDemo()
+    }
+  }
+
+  func testCompletingDuringDemoWarmupDoesNotRearmVoice() async throws {
+    try await assertCompletion { model in
+      var activated = false
+      await model.activateScreenDemoPTTAfterBridgeWarmup(
+        warmup: {
+          model.answerScreenDemo()
+          return true
+        },
+        activate: { activated = true })
+      XCTAssertFalse(activated, "A late warmup must not rearm the demo after setup completes")
+    }
+  }
+
+  private func assertCompletion(performExit: (SBOnboardingModel) async -> Void) async throws {
     let suiteName = "AllDayOnboarding-\(UUID().uuidString)"
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     let settings = AssistantSettings.shared
@@ -51,10 +77,11 @@ final class OnboardingCompletionBehaviorTests: XCTestCase {
     let model = SBOnboardingModel(
       appState: AppState(), chatProvider: ChatProvider(), exitExecutor: executor, onComplete: nil)
 
-    model.complete()
-    model.complete()
-    model.skip()
+    model.step = .screenDemo
+    await performExit(model)
     await fulfillment(of: [published], timeout: 1)
+    model.answerScreenDemo()
+    model.skip()
 
     XCTAssertEqual(OnboardingExitPersistence.outcome(in: defaults), .completed)
     XCTAssertEqual(settings.systemAudioCaptureMode, .always)
@@ -94,10 +121,4 @@ final class OnboardingCompletionBehaviorTests: XCTestCase {
     }
   }
 
-  func testFinalChoiceDisclosesCompletionSideEffects() {
-    let disclosure = SBOnboardingCompletionCopy.disclosure
-    XCTAssertTrue(disclosure.contains("Launch at Login"))
-    XCTAssertTrue(disclosure.contains("listening"))
-    XCTAssertTrue(disclosure.contains("screen analysis"))
-  }
 }

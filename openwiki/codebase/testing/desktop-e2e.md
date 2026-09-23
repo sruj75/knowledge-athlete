@@ -5,7 +5,7 @@ description: Explain named bundles, flow inventory, tiers, source identity and p
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-22T17:08:23.952Z
+    at: 2026-09-23T07:47:07.190Z
 sources:
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
@@ -29,7 +29,7 @@ sources:
     resource: repo://desktop/macos/scripts/omi-ctl
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-09-22T17:01:49.082Z" }
+generated: { by: "codex", at: "2026-09-23T07:47:07.190Z" }
 ---
 # Desktop end-to-end verification
 
@@ -68,11 +68,11 @@ Physical microphone capture, system permissions, visible UI transitions and real
 
 ## All-day listening coverage
 
-The [capture workflow](../workflows/capture-transcription.md) is covered at three existing boundaries: `SystemAudioCaptureModeSettingsTests` and `PersistedCaptureLaunchPolicyTests` exercise defaults and restoration; `OnboardingCompletionBehaviorTests` and `OnboardingSkipBehaviorTests` exercise completion and neutral Skip; `AmbientCaptureLifecycleTests` drives real `AppState` reconciliation with microphone and system-audio hardware adapters. Controlled completions test stopping and replacement sessions during asynchronous startup. The lifecycle suite also checks independent System Audio disablement, required microphone failure and optional system-audio failure. These tests prove orchestration, not physical audio acquisition.
+The [capture workflow](../workflows/capture-transcription.md) is covered at three existing boundaries: `SystemAudioCaptureModeSettingsTests` and `PersistedCaptureLaunchPolicyTests` exercise defaults and restoration; `OnboardingCompletionBehaviorTests` and `OnboardingSkipBehaviorTests` exercise completion directly from both final-demo controls, repeated completion, late demo warmup and neutral global Skip; `AmbientCaptureLifecycleTests` drives real `AppState` reconciliation with microphone and system-audio hardware adapters. Controlled completions test stopping and replacement sessions during asynchronous startup. The lifecycle suite also checks independent System Audio disablement, required microphone failure and optional system-audio failure. These tests prove orchestration, not physical audio acquisition.
 
 Run affected XCTest suites in separate processes, for example `xcrun swift test --package-path desktop/macos/Desktop --filter 'AmbientCaptureLifecycleTests/'` from the repository root. `desktop/macos/test.sh` includes the unchanged transcript-storage regressions and runs desktop XCTest suites with process isolation.
 
-`onboarding-flow.yaml` is a manual genuine-onboarding flow: Finish setup is the only completion action, repeated setup remains valid, and global Skip leaves capture inactive across relaunch. Its sleep/wake and closed-lid-but-awake checks need an actual Mac configuration. `audio-recording.yaml` separately checks that turning System Audio off leaves microphone listening available and that pausing Listening stops both sources. T2 synthetic transcript injection cannot replace these UI and hardware checks.
+`onboarding-flow.yaml` is a manual genuine-onboarding flow: the existing screen-and-voice demo is the last stage, and its Continue or demo-local Skip for now opens Home directly with all-day listening enabled. There is no listening-mode or replacement confirmation stage. Repeated setup remains valid, and global Skip leaves capture inactive across relaunch. Its sleep/wake and closed-lid-but-awake checks need an actual Mac configuration. `audio-recording.yaml` separately checks that turning System Audio off leaves microphone listening available and that pausing Listening stops both sources. T2 synthetic transcript injection cannot replace these UI and hardware checks.
 
 ## Safe execution
 

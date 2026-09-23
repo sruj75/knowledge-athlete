@@ -137,9 +137,11 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 Accepted product requirements:
 
 - All-day listening means ongoing ambient audio listening every day, with no 24-hour expiry.
-- Remove the meetings-only listening feature. Genuine onboarding completion defaults to all-day
-  listening without a listening-mode choice, superseding the earlier IR-143 two-choice requirement.
-- Finish setup enables microphone and system audio subject to permission/account access, preserves
+- Remove the meetings-only listening feature and its entire onboarding step, with no replacement
+  confirmation screen or Finish setup button. The existing screen-and-voice demo is the last stage;
+  its Continue or demo-local Skip for now action completes onboarding with all-day listening,
+  superseding the earlier IR-143 two-choice requirement.
+- Completion enables microphone and system audio subject to permission/account access, preserves
   screen-analysis and Launch at Login behavior, and is idempotent. Global Skip stays inactive,
   including after relaunch, without a completion opener.
 - Keep Listening on/off and independent System Audio on/off; System Audio defaults on and turning

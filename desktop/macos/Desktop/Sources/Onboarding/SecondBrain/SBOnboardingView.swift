@@ -220,7 +220,6 @@ struct SBOnboardingView: View {
     case .shortcutOpen: shortcutWidget(isTalk: false)
     case .shortcutTalk: shortcutWidget(isTalk: true)
     case .screenDemo: screenDemoWidget
-    case .capture: captureWidget
     }
   }
 
@@ -545,27 +544,6 @@ struct SBOnboardingView: View {
     .frame(maxWidth: 380, alignment: .leading)
   }
 
-  // MARK: capture
-
-  private var captureWidget: some View {
-    VStack(spacing: 8) {
-      Text(SBOnboardingCompletionCopy.disclosure)
-        .geist(size: 12)
-        .foregroundStyle(sb.ink(.w6))
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, 4)
-      Button {
-        model.complete()
-      } label: {
-        Text("Finish setup").geist(size: 14, weight: .semibold).foregroundStyle(sb.inkInverted)
-          .frame(maxWidth: .infinity).padding(.vertical, 11)
-          .background(RoundedRectangle(cornerRadius: 11).fill(sb.ink))
-      }
-      .buttonStyle(.plain)
-      .keyboardShortcut(.defaultAction)
-    }
-    .frame(maxWidth: 340, alignment: .leading)
-  }
 }
 
 /// Wrapping chip row where each chip hugs its content (no wide grid cells that

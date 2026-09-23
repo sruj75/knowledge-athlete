@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:7cd848f4f1f1232063811ea401f29c1940652ac8e6fdc937df8b131fa3c11af9",
+  "pageVersion": "sha256:aeee57ee0f2225bba93024de82ba0ee0ebf18eee718a2a884f3fc881a628b8a3",
   "claims": [
     {
       "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
@@ -86,19 +86,23 @@
     },
     {
       "id": "claim_f9bf6bd47ac14f97b5b6deeb585398e3",
-      "statement": "Onboarding completes through a parameterless, idempotent Finish setup action whose exit plan enables listening and System Audio, requests Launch at Login and preserves gated screen monitoring; global Skip persists inactivity and omits the completion opener.",
+      "statement": "Onboarding ends at the existing screen-and-voice demo: its Continue and demo-local Skip for now call parameterless, idempotent completion directly, with no listening-mode or replacement confirmation stage. The exit plan enables listening and System Audio, requests Launch at Login and preserves gated screen monitoring; global Skip persists inactivity and omits the completion opener.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L78-L112",
-          "version": "repo-lines-v1:sha256:a6d2191dedcc402233c1ca603144cfac3e8113d55302b09ce3f21edac0fd1874:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTY5NTNlNTNhNGJhZTM2YmMxYmZhOTc4MzgzZDZlYTVlMjMxYTFmMzE0YThhM2JjOTNkNTk4ODg2OTEzZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiMmI2NDgzMmIzNmVhMWUyNzBlMjA5MTY0MTBlNTY0NzQzYTUwMTI1M2U1MjFkOWJhMGQyOWU3OTJiYjI1ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM3OWFhZmYzZWQzZDhjODY2Mzg1YmQ5YmIzMWQ4MmNmNzRhOTRkODY3NTJkNzYwZDZlZDFjNmIxOWFhODhkYjkifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L73-L106",
+          "version": "repo-lines-v1:sha256:28032b6dd184e333e2fdac96b88c4b2caab2e2ce3b583bbf5a3e10b11e745e97:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTY5NTNlNTNhNGJhZTM2YmMxYmZhOTc4MzgzZDZlYTVlMjMxYTFmMzE0YThhM2JjOTNkNTk4ODg2OTEzZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiMmI2NDgzMmIzNmVhMWUyNzBlMjA5MTY0MTBlNTY0NzQzYTUwMTI1M2U1MjFkOWJhMGQyOWU3OTJiYjI1ZGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjY2YyZjRkMTVlNjJmYjY1ZjJkNTQwZTg3MGZjNGMyNTlhNjJlZGY2NzRhY2FlMDU3ODY5NmI5ZDVmNjhkMTUifQ"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L542-L605",
-          "version": "repo-lines-v1:sha256:38b2c95ab4006e4a348a41dc8dd8e4abf458ea389371c2e2b14f568f67eb505b:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4NDc1Zjc4OTFjNTliMTY2ZGIyODk0NzAyN2IwZjAwMDk3MjEzOTMzMjE3ZmM5ZWJiMWY1MzFmNmIyNjM2NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5YjIyMzQ0NDkyNmU3NjEwZTliNDhjMTk3OGMzNGFjZTM4OTUzOWNmY2M1YzU4ZjI2NTFlZjI2NzAyZDM1ZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhMzJiMzk0ZWIwODAwMzg1MjhjNGU3ZDg2NDE5ZmIzNWQ3NTgwODVhZDUzYjA0YWY1YTcxYzY1MzVkMDEwMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk5ZmRmZTI0NWU4OGM2MTExNzIyNWJkM2M0NjRlNDg5NWE5NGUwZTY2NDg5MzVkNzJiNzA2MDY5Yzg5MDVkM2IifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel%2BSteps.swift#L525-L531",
+          "version": "repo-lines-v1:sha256:0248fc06092cad6c74b45c8b70c26c2cc3db3b17078d408b9547e25fc65aaf8f:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWU5NmViNjI0MzFjNzRjNGM5M2M3Zjg5YTExODBlNDg0ZDQwN2U3ODMyYWQ3ZGVhODc4YmYxMjE4YWJkOWI4YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGExOTgxOTY0NTkxOTlhNjE5YjE1NmMzNjI0MTQ3NDFhZTU4NjJiN2Q5ZjI3M2RiYTM1YmU4OGIyNzAzMGExNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTFhMmZhYzc0ODFkMzJlMmUwMTg4NGRhYzMwYTRjNTQ2NmJiZmVmMGE0YzU4NTRkOTk5ODAyYThmMWFkZWE5MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSJ9"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift#L550-L569",
-          "version": "repo-lines-v1:sha256:e73503d372ec8e20d4dabb59c99a0f4ceb444ecbd07e083600058fffbaf74b6a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiYmUzYWRkN2ZjYjBhODg4OTNhMDUyNGVjNmMzMTY4ZDFhOWFhZTJhNDgwMjBmMzAzNmFjN2VkY2EzNTI0OTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2NDdmYTQwZmY1YjY4ZGY2MmI5YTU0Mjg5YzhhZGVjN2IyZGE3ZTk5ZjlhOWMxNThiM2VmYzg2MDA5ZTc2NDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzYTQyOWQ2YzRlNTM0YTI3OTExZWYxZWJhNzc3NThhM2EyZjFhOGU4ZDk5NTk4ZTY5ZmEyZmRkYmQ3NDkwZmEifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L530-L594",
+          "version": "repo-lines-v1:sha256:30a3ea70f877a2a27a158b8cab9b5229b337ed599b3934e4df2a3af5a9b7640b:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4NDc1Zjc4OTFjNTliMTY2ZGIyODk0NzAyN2IwZjAwMDk3MjEzOTMzMjE3ZmM5ZWJiMWY1MzFmNmIyNjM2NWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjNjVhOTUwMTExOTlhMjhjMmJkNTVmNWQ1OTM0YmRjNDVkZWY1NGQ0ZTQ1MDk0ODJhNmE2NDQwZDMxMTAyNjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhMzJiMzk0ZWIwODAwMzg1MjhjNGU3ZDg2NDE5ZmIzNWQ3NTgwODVhZDUzYjA0YWY1YTcxYzY1MzVkMDEwMDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3MDZmYjY3ODMxZjBhNGYwMTdhN2QwZTgwY2I4YTFmNWY2OTU3NTkzMmNhYTQxMzQ1Y2Y1NjdmODdmZDkzZGYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift#L524-L542",
+          "version": "repo-lines-v1:sha256:4ecb120d7057433e7622bb77cfbd0f060e21065665ff47832732380df10ad9e6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjNTM5ZmZlOTFiMDliNWUxODBkZWE5NDJmMDJhZmNlNTNjZGJjZGRhMzNmYWJhNTMwNjU4YTk0MDMwZTI4YzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwNDYyMjVmOGY2ZjIwNWJiMWU3NTllNTM4MTUyYjFkNDJiYzllNDEzMmUwODUwNmQ4ODk4ZWU3OGYxOTE5MGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwMzlmNTM0MTAwY2M0N2Q0MmU1NjhmN2NjYTU3YzY0MmRhNjJiMjhkMzZmMDEwMTM2NmFkY2E1MDA0MDkwZDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIyNzQ5ZWI0OWNjNGJlYTA5OGM5NmU0NmNmODVjNzY2YTMwMjFjM2VkNjQ2NTY3MjllYzI3NjFlZWRhYmExNDkifQ"
         }
       ]
     },
@@ -153,10 +157,32 @@
           "version": "repo-lines-v1:sha256:9f04c9134e0eba5f22cf44a7fa8fbd4aacb413a9bda4c725d3c9c249187cb023:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkZGExYzZkNTdlNDBiYzY1MjE4MTgyYjYwYmQ5NzZhMTFjYmI3YjZkMzc1ODlkMzY3MzBjN2ExZmJiZTQ4ZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5MDExN2MzYWFjZTg1MDhlMjRhNzIxZjM3YjdiYjUxMDJhOWI3MzRmMzhjZjk1YWMxM2ZlYzA5MmQwOTIzNDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMwNTE2NGI2YjAxMzAyNWRkYmNjMTg4ZGJkNmYwNjZjZDk3YjRhYWI1OGM0MTBhYWJhNGEzZDUwZTk5ODZhNzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmNmYyOGQ3ZWYyNzdmYTFiZTcwOWE5NzI0ZmIzNWIxY2VjYmU2ZmI1YmJkY2I2YmJhZTFjMWU4ODdhYjhiODYifQ"
         }
       ]
+    },
+    {
+      "id": "claim_b0e8155622d54b60948b76ed259b5242",
+      "statement": "Completing onboarding tears down the voice demo, and late bridge warmup checks the existing exit state as well as the demo stage before arming voice, preventing a pending startup from rearming after completion.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel%2BSteps.swift#L470-L487",
+          "version": "repo-lines-v1:sha256:9ea36c06e1341590191523f9b24721bc5adcf1b693964a0ae4497ad486a4e0ee:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyZWEwNDFkODdiOGQ4MzgyZDI3N2IxMzZiZGM2ZTEyZTFjYmJlMzFlODFhM2NhZGFkMzI4Y2U3MTliZGYyMDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU1M2M1MTBiYWU3NDBjZGUzZGZiYTE2ZTIxNzE3NWJjMjdlMTNkNDg2MDlmMmFhNTI3ZjY0ZWY2YzU3ZjEyYWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlODI3MDI4NTNhOGIxNWRkNTk0N2E4NzA5Y2I0NjhlYWZlYjFiMzQ5OWEzMDFlYWJiMTMyNzFmMmQ3MjVhNjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5YWM2NGFhZWM2ZjRmNTI1MmRiZmU0OWRlMDUyZGRlMzc5MDFjZDFiMzVkMzQ0NjA2OWI5OTE0YzcxZTUzYTkifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L530-L535",
+          "version": "repo-lines-v1:sha256:7d455ec67bc416ce246d5ceb103864d690037a89897fe0e43072d93c5a148f11:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDg0NzVmNzg5MWM1OWIxNjZkYjI4OTQ3MDI3YjBmMDAwOTcyMTM5MzMyMTdmYzllYmIxZjUzMWY2YjI2MzY1ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWRjZDI1MzQ2OWM4N2RjMjUwMmE4NWY4ZmU4YjJiZDhlNjkyMmMyZGI1N2E2ZTc4NGQ1ZDdhNmJhN2I3MzBkMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGEzMmIzOTRlYjA4MDAzODUyOGM0ZTdkODY0MTlmYjM1ZDc1ODA4NWFkNTNiMDRhZjVhNzFjNjUzNWQwMTAwNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGYzNzZjODNlYzFmZTEyY2JiMzVjYmNkNDc2NWYzNjc3M2Q4OTY1YjdjNmE4ZWY3ZjUwMGUzNWRlMGEyNTlkZiJ9"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L598-L605",
+          "version": "repo-lines-v1:sha256:c559c6985f47d03e0d4d469269895fc12a396b4ab871eb052bb7f7a72ff71fc5:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDEzMWJhOTI2YTMxMWJiODIwODQ3NjQzODk5NWE2NjA5ZTlmMDIxODI0NWU1Y2RmYmI5OTRkNzRiYTM1NjU0YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWIxNmE5MzRiMjdkMTBjMjBmZDI0NTI0ODVmY2UwOTZiNjUwYmQ1NWIzM2IyYzFlNDg4ZDUyMGE1NTIwMmNmMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODcwNmZiNjc4MzFmMGE0ZjAxN2E3ZDBlODBjYjhhMWY1ZjY5NTc1OTMyY2FhNDEzNDVjZjU2N2Y4N2ZkOTNkZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGY3MzlhMDZjMWNiYjEyNDRlMzM2M2QzOGJjZjlmYTUwY2U4NGZlZDM5OWMyMTkzYTNjN2YwOGQ1OTkxOGIyYSJ9"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift#L20-L31",
+          "version": "repo-lines-v1:sha256:340b352cd7e4da4a2371cc08aefa2744097d62fa74ebbe2b7037ed51ac151a0e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg5OTA2ZmNjMmYxMGJkN2FmODc1YTc3OWIyNjAxOGNkZTZiNDA2OGFiNGU3Zjg2MGQxODI2MmEyMDhkOTQwNjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlOTk2MjYyNTVhMDE4Y2IyMDJmNDVlYzVlNDczNDMzNDVjNTMxZDlmZDY1NWRlZWUxY2Y1ZWRjNzY4MThmN2QifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-22T17:08:23.952Z"
+    "at": "2026-09-23T07:47:07.190Z"
   }
 }

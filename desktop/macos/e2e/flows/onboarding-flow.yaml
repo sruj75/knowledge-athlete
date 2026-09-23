@@ -3,8 +3,9 @@ name: onboarding-flow
 tier: manual
 description: >
   Walk the retained conversational setup in a disposable named bundle. Verify identity answers,
-  permission consent, shortcut practice, the screen-and-voice demo, and all-day listening completion without
-  restoring retired role, connector, Full Disk Access, BYOK, Goal, or Tasks stages.
+  permission consent, shortcut practice, and completion directly from the screen-and-voice demo.
+  All-day listening starts by default without a listening-mode or replacement completion stage.
+  Retired role, connector, Full Disk Access, BYOK, Goal, and Tasks stages stay absent.
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/Onboarding/OnboardingFlow.swift
@@ -37,7 +38,7 @@ preconditions:
 steps:
   - id: S1
     name: Reset into the retained first stage
-    do: "Run reset_onboarding, wait for the same named bundle to restart, and reconnect its automation port. Verify the promise card begins with 'Hey, I'm Intentive, your second brain', offers 'Set up Intentive →', and keeps a visible global Skip action."
+    do: "Run reset_onboarding, wait for the same named bundle to restart, and reconnect its automation port. Verify the promise card begins with 'Hey, I'm Intentive, your second brain', offers 'Set up Intentive →', and keeps a visible global Skip action. Its existing explanation states that listening stays on every day after setup, pauses during Mac sleep, and can be paused anytime."
     expect:
       text_visible:
         - "Set up Intentive →"
@@ -59,7 +60,7 @@ steps:
 
   - id: S4
     name: Permissions never start capture
-    do: "For Microphone, System audio, Screen Recording, and Accessibility, grant or choose 'Skip for now'. After each stage, verify transcription is not running and screen monitoring is not running. Granting consent may update the checkmark but must not start either capture owner before Finish setup."
+    do: "For Microphone, System audio, Screen Recording, and Accessibility, grant or choose 'Skip for now'. After each stage, verify transcription is not running and screen monitoring is not running. Granting consent may update the checkmark but must not start either capture owner before the final demo is completed or skipped."
 
   - id: S5
     name: Shortcut and demo stages stay skippable
@@ -69,39 +70,32 @@ steps:
         - "Skip for now"
 
   - id: S6
-    name: One action finishes setup with all-day listening
-    do: "At the final disclosure verify 'Finish setup' is the single completion action, with no listening-mode choice. Confirm the disclosure names Launch at Login, all-day listening every day, screen analysis, and sleep/wake behavior. Verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared anywhere in the run."
-    expect:
-      text_visible:
-        - "Finish setup"
+    name: Final demo completes setup directly with all-day listening
+    do: "Exercise the screen-and-voice demo and choose its existing Continue action. Verify it opens Home directly, without a listening-mode choice, Finish setup screen, or additional completion click. Verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared anywhere in the run. Completion enables all-day listening and screen-analysis intents, requests Launch at Login, removes the setup-only journal, and leaves normal Chat available. With permission and account access available, verify listening starts without an active meeting. Quit and relaunch the same named bundle; verify it returns to Home without replaying setup and restores enabled listening."
 
   - id: S7
-    name: Complete with all-day listening and relaunch
-    do: "Choose 'Finish setup'. Verify Home appears, completion enables all-day listening and screen-analysis intents, the setup-only journal is gone, and normal Chat remains. With permission and account access available, verify listening starts without an active meeting. Quit and relaunch the same named bundle; verify it returns to Home without replaying setup and restores enabled listening."
+    name: Repeat genuine completion after reset
+    do: "Run S1-S6 a second consecutive time after reset_onboarding, this time using the final demo's existing 'Skip for now' action. Verify it skips only the demo and opens Home directly with all-day listening enabled again, without a listening-mode choice, Finish setup screen, or inherited answers. Repeat the completion and relaunch checks from S6. Preserve both run reports."
 
   - id: S8
-    name: Repeat genuine completion after reset
-    do: "Run S1-S7 a second consecutive time after reset_onboarding. Verify 'Finish setup' enables all-day listening again without a mode choice or inherited answers. Preserve both run reports."
-
-  - id: S9
     name: Visible Skip stays neutral but does not ban later consent
     do: "Reset again, advance to an intermediate retained stage, and use the visible global Skip action. Verify Home has no completion opener, both capture intents and owners are off, Launch at Login was not requested, and relaunch does not restore capture. Then explicitly enable Listening or Capture from Home, verify that capability can start subject to its normal permission and paywall gates, and relaunch to confirm the historical Skip fence no longer blocks that explicit choice."
 
-  - id: S10
+  - id: S9
     name: Sign-out isolates setup state between owners
     do: "As disposable account A, save a distinctive acquisition answer, leave a resumable setup step, and sign out. If Firebase sign-out is deliberately failed, verify A remains authenticated and capture/default/completion state is unchanged. Complete a successful sign-out, authenticate as disposable account B, and verify B starts at the promise with no A answer, resume step, setup transcript, fallback messages, opener, or running capture owner."
     expect:
       text_visible:
         - "Set up Intentive →"
 
-  - id: S11
+  - id: S10
     name: Both user reset entrances share the capture-safe boundary
     do: "Complete setup, use the confirmed Settings reset, and verify capture stops before the promise appears. Complete again, use the immediate status-menu reset, and verify the same result. For both entrances confirm only the setup journal and retained setup keys are cleared while the S1 normal-data controls survive."
 
-  - id: S12
+  - id: S11
     name: Last-window lifecycle respects the onboarding boundary
     do: "Before completion, close the last main window and verify the named-bundle PID exits and its automation bridge disconnects. Relaunch that same named bundle externally and verify the persisted onboarding stage returns with capture still off. After genuine completion, close the last window and reopen it from the surviving status item; verify Home returns without replaying setup, duplicating the opener, or starting a second capture owner."
 
-  - id: S13
+  - id: S12
     name: All-day listening follows sleep and explicit pause
     do: "With all-day listening enabled and existing permission/account gates satisfied, sleep and wake the Mac and verify listening stops during sleep and resumes after wake without duplicate capture. If available, close the laptop lid while an external display keeps the Mac awake and verify lid closure alone does not pause listening. Pause Listening explicitly from Home, sleep and wake again, and verify listening stays paused."

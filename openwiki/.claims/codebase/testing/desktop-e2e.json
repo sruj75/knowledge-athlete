@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e99d58de5410f52d005c48d6e451cd539e3dff96097af3973f8821af0d5cce25",
+  "pageVersion": "sha256:2827594a2d333ce4581eae999e21d4c4f9e9c4cda17343a8e048d010d0b7a509",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -48,15 +48,15 @@
     },
     {
       "id": "claim_55adac4761ea4e6e8dc79481bf8c74d0",
-      "statement": "All-day listening regressions use the existing settings/restoration, onboarding completion/Skip and AppState capture boundaries; capture tests replace hardware services and control asynchronous completions to cover cancellation, replacement sessions and required versus optional audio failure.",
+      "statement": "All-day listening regressions use the existing settings/restoration, onboarding completion/Skip and AppState capture boundaries; final-demo tests cover both direct completion controls, repeated completion and late warmup, while capture tests control hardware completions for cancellation, replacement sessions and required versus optional audio failure.",
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168",
           "version": "repo-lines-v1:sha256:27c4b031a4b0e42e55b88f108a7775aa81fd72bad3063382232ad2d60a612a3a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTY0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4MzhkZTVlZTBiN2I3ZTkyZjcyNDdhMWM4ODRlY2FiOGY1ZTg3NTI0OTBmMWY5MzQ0OWM4NWE0NTQwYThlMWIxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjZWFhNDhhY2VhYWRkNTdkYTg4ZWUxZWU3ODcwNWE5ODI3YmEzYjkwOWZjN2VhY2EwNDRkNjA5YjdhYWQ2ZjliIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyYWQ2N2EzMjFlOTgwYjQzYjNkZTgxNDdjNTk2OTM3ZTMwZWVhMjZlNGM4MGNlZGNjZmFkNDNjNDBlY2FjYTdkIn0"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift#L7-L69",
-          "version": "repo-lines-v1:sha256:066414749f793acabeea7eb76c47a452b0e06b3118500b52ef0fc983593ae9fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkOTk0MzVjY2EyNjUwMmFlYWE0M2YxMTJiNDU5NDk0NDgyZTBhZGVjMzE2OWEyMTQ2MDkxYjhkMDYyYjEzYTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmY2RiOWNiNDA3OWZjOGFlZDZhYWRhMzg3MTM2MmUzOWJkYWNjNjI3MGNlZTRlNjgyMTE3ZDM4MTJhZWI3ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxNGRiM2U2ZjJmNTdhODRjODQxYjUwYmE0OGUyMGUxN2EzNTU0NGEwMmRiY2UyZGM1NWM5Zjg2YWZiY2QyOWEifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift#L7-L95",
+          "version": "repo-lines-v1:sha256:ff185ac352bc0e2ac0ef076f818206991f25ed4dde74418cddd0576258f0eb35:eyJzZWxlY3RlZExpbmVDb3VudCI6ODksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkY2U1ZDg3YjVkOWE0M2Y3MDZhOWNkZTAyMWNkMjZmNzI3OTUwNWVhN2MzODRhMGRlMTZjNDUzYjA0NmI0MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmY2RiOWNiNDA3OWZjOGFlZDZhYWRhMzg3MTM2MmUzOWJkYWNjNjI3MGNlZTRlNjgyMTE3ZDM4MTJhZWI3ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmZTU2ZGRhMzNlZTMxMmUwYjQxZjFjMmJiZGNiNjRhM2M4OGRmNWI4NWI3YTU2ZTE4YjlmZjc2MTQ1NmRmN2IifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/OnboardingSkipBehaviorTests.swift#L7-L143",
@@ -74,21 +74,21 @@
     },
     {
       "id": "claim_45d6b2b7a5ab4eeab4b0fc9df53d19d6",
-      "statement": "The manual onboarding flow checks single-action all-day completion, repeated genuine setup, neutral Skip across relaunch and Mac sleep/wake or awake closed-lid behavior; the manual audio-recording flow separately verifies System Audio can be disabled while microphone listening continues.",
+      "statement": "The manual onboarding flow checks direct completion from the final demo's Continue and local Skip for now, without a replacement confirmation stage, repeated genuine setup, neutral global Skip across relaunch and Mac sleep/wake or awake closed-lid behavior; the manual audio-recording flow separately verifies System Audio can be disabled while microphone listening continues.",
       "evidence": [
         {
           "resource": "repo://desktop/macos/e2e/flows/audio-recording.yaml#L73-L77",
           "version": "repo-lines-v1:sha256:994a270220fe9724193823458961177d2cd0f1ae2e0bb8ea87b1a469f95979e7:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDFjOGU2Y2M5M2NjMzQ3N2E2MDczNzMyYTBmYjVhZmQyOWI3MWQ3M2UyYTI2YmY3Mzg0ZDZlMmM0NDI3NjlkMSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDRmODI0MTRlY2RiYzQ5NGM5M2FlYWQwNjM4YmExZDk1N2UyODQxNzM4MWUzOThkNDFjMTAyMmQ0Yjk2NjhlOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTQyMTFjZDY4MzM0NmVjZmQ2NjI5NDdiMzkwZmIwOWI4OTUxNWRlZTZiNGJiYzU0YmNlMmUzZDMzNDQxMWNmZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
         },
         {
-          "resource": "repo://desktop/macos/e2e/flows/onboarding-flow.yaml#L71-L107",
-          "version": "repo-lines-v1:sha256:9467c131dc6bdf405ad282183ea24c50e83bf7b87b1f29adedf34629e82fc6d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiMDBlOTc5YzNhNjE5ODM0MTJjZWY0MmYzNjdiODI2YjZkNDM4NTRhNGJiYzk2Y2ZlNGZjZmJmMDAwZjU3NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViYTFhMmY2YmZlZjgyYmNmNjk5YmYyNWUyMDE3YzQyYWJhNjdmOTMzNTIzZWM5ZWZkN2IxOGVmYjk0OWFlMTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkM2E2ZWUyZTJhODVhMmY1ZDc2ZGVlOTJmNGUyZGIxOThmMTVlOTk2OWMxZjU5NGE5MWEyYThjZDJjM2FhOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/e2e/flows/onboarding-flow.yaml#L72-L101",
+          "version": "repo-lines-v1:sha256:382d2dd310488a0b9fb27d7d2f73fa5350c9749f1866cd4c238b011f47bc427c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiMDBlOTc5YzNhNjE5ODM0MTJjZWY0MmYzNjdiODI2YjZkNDM4NTRhNGJiYzk2Y2ZlNGZjZmJmMDAwZjU3NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViYTFhMmY2YmZlZjgyYmNmNjk5YmYyNWUyMDE3YzQyYWJhNjdmOTMzNTIzZWM5ZWZkN2IxOGVmYjk0OWFlMTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkM2E2ZWUyZTJhODVhMmY1ZDc2ZGVlOTJmNGUyZGIxOThmMTVlOTk2OWMxZjU5NGE5MWEyYThjZDJjM2FhOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-22T17:08:23.952Z"
+    "at": "2026-09-23T07:47:07.190Z"
   }
 }

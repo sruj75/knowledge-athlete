@@ -34,7 +34,7 @@ steps:
 
   - id: S3
     name: First completion enables all-day listening
-    do: "Walk every retained stage from onboarding-flow.yaml, including Back revision and permission-no-start checks. Verify the final disclosure has one 'Finish setup' action and no listening-mode choice. Finish setup, verify Home, the opener, and enabled all-day listening subject to access gates, then quit and relaunch the same bundle and verify completion and listening intent persist."
+    do: "Walk every retained stage from onboarding-flow.yaml, including Back revision and permission-no-start checks. Exercise the final screen-and-voice demo and choose its existing Continue action. Verify Home appears directly without a listening-mode choice, Finish setup screen, or additional completion click. Verify the opener and enabled all-day listening subject to access gates, then quit and relaunch the same bundle and verify completion and listening intent persist."
 
   - id: S4
     name: Second reset preserves ordinary data
@@ -42,11 +42,11 @@ steps:
 
   - id: S5
     name: Second completion enables all-day listening again
-    do: "Walk every retained stage again and choose 'Finish setup'. Verify Home, the opener, and active all-day listening without an active meeting, subject to existing access gates. Quit and relaunch the same bundle and verify completion and listening intent persist."
+    do: "Walk every retained stage again and choose the final screen-and-voice demo's existing 'Skip for now' action. Verify it skips only the demo and opens Home directly without a listening-mode or replacement completion screen. Verify the opener and active all-day listening without an active meeting, subject to existing access gates. Quit and relaunch the same bundle and verify completion and listening intent persist."
 
   - id: S6
     name: Two-run absence and isolation gate
-    do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared; permission grants never started capture before completion; and the second run did not inherit the first run's acquisition or resume answer."
+    do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, Tasks, listening-mode, or replacement completion stage appeared; permission grants never started capture before completing or skipping the final demo; and the second run did not inherit the first run's acquisition or resume answer."
 
   - id: S7
     name: Exercise the neutral Skip exit
