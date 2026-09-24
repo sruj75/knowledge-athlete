@@ -29,7 +29,7 @@ sources:
 generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T12:25:42.469Z
+    at: 2026-09-24T12:34:37.289Z
 ---
 # Qualification and open obligations
 

@@ -3,9 +3,6 @@ type: Codebase guide
 title: Development and wiki maintenance
 description: Describe setup, component entrypoints, pinned development Node and native wiki update/resume lifecycle.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-24T12:25:42.469Z
 sources:
   - id: openwiki-source-311b902b81b9fbe111c8359f
     resource: repo://.conductor/settings.toml
@@ -44,6 +41,9 @@ sources:
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
 generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-24T12:34:37.289Z
 ---
 # Development and wiki maintenance
 

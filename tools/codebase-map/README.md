@@ -29,6 +29,10 @@ cover the full map, pan/zoom, fit, resize, fullscreen and malformed-input recove
 CI installs dependencies and Chromium only when the manifest selects the viewer.
 Tests use the local server and bundled assets, with no external services.
 
+The isolated package overrides Mermaid's transitive `lodash-es` pin to 4.18.1,
+which includes the fixes for [GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc)
+and [GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh).
+
 To inspect the production build locally, run `npm --prefix tools/codebase-map run preview`
 and open `http://127.0.0.1:4173`. Build first with `npm --prefix tools/codebase-map run build`.
 
