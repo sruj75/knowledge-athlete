@@ -6,18 +6,24 @@ tags: [intentive, codebase]
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
+  - id: openwiki-source-19d91df3181544492a10253e
+    resource: repo://.github/scripts/check_policy_change_review.py
   - id: openwiki-source-2086e730056d335da93dacd1
     resource: repo://.github/scripts/publish_guardrail_pulse.py
+  - id: openwiki-source-54aa0818a69c7dc32f892aa8
+    resource: repo://.github/scripts/run_checks.py
+  - id: openwiki-source-6fc056d3bbb591906ac1f888
+    resource: repo://.github/scripts/test_check_policy_change_review.py
   - id: openwiki-source-54e240f9ab6a71a2b90a1c33
     resource: repo://.github/workflows/guardrail-baseline-pulse.yml
   - id: openwiki-source-bcd362fbbe23cf1c0d8329bd
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
     resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-generated: { by: "codex", at: "2026-09-21T15:07:48.183Z" }
+generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-21T15:07:48.183Z
+    at: 2026-09-24T10:47:55.441Z
 ---
 # Qualification and open obligations
 
@@ -36,6 +42,14 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 `check-gauntlet-evidence-at-head.sh` validates source identity and rejects incomplete, dirty or privacy-unsafe records. Its stricter final-closeout requirements are branch-sensitive; do not infer universal green coverage from a nonblocking branch invocation. The underlying continuity harness and source-evidence tests own the concrete row contract.
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
+
+## Policy-change disclosure
+
+The shared manifest selects `policy-change-review` in both PR lanes. The guard examines instruction files, Conductor settings, workflow/action definitions, check implementations and preflight/hook entrypoints. It combines a committed diff with supplied local changed paths and, for local HEAD inputs, a worktree diff. Rename detection is disabled so moving or deleting an instruction does not hide its old path.
+
+Sensitive changes require a visible `## Policy changes` section with nonempty `Policy-Source`, `Policy-Scope`, `Policy-Effect` and `Policy-Qualifications` fields. Commented templates, fenced examples and placeholder-only fields do not satisfy it. Unrelated application changes return successfully without a policy declaration. The check requires PR metadata, so post-merge runs exclude it through the existing metadata-check category.
+
+This is a disclosure check, not authentication of the user's request or verification of live GitHub settings. Reviewers still compare the original request, retained qualifications and actual diff. The [authored authority rules](../../INSTRUCTIONS.md#instruction-authority-and-policy-changes) and [incident review](../../../docs/engineering/policy-provenance-review.md) explain that boundary. Disposable-repository tests exercise instruction migration, dirty files, staged and committed renames, enforcement edits and manifest selection.
 
 ## Weekly guardrail report
 

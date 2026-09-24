@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:3d6d9bc96ff9c828b36f53001f5acf5ccbfa6a3b0b53014f639cc2b516c29dc9",
+  "pageVersion": "sha256:aa51881e0f4100606bf3426a2cd22635a7f1cb2a7e72814fc6c3e1e7e0962170",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -22,7 +22,7 @@
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml",
-          "version": "repo-file-v1:sha256:a17534cb52fdf7520cc1331730736b283444d1e42cd50011faf97f267384a903"
+          "version": "repo-file-v1:sha256:e54a2e365a803996207a5ae299722c31ccaaf5d12d9d351c4ec886ee320d4bf4"
         }
       ]
     },
@@ -49,10 +49,32 @@
           "version": "repo-file-v1:sha256:76bc51982e1b06daf36e54c32eb5e5572261b202b05f408d12255dbee8045c4b"
         }
       ]
+    },
+    {
+      "id": "claim_4727f22bdc5b4a608b52017f530b4a4f",
+      "statement": "The shared policy-review check identifies sensitive instruction and enforcement changes using rename-safe committed and supplied local/worktree paths, then requires visible source, scope, effect and qualifications fields; its PR-metadata classification excludes post-merge runs, and its tests cover migration and local rename cases.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml#L192-L202",
+          "version": "repo-lines-v1:sha256:e9c0de39083a2b9e9c94c7669d4a9804cd69ec210621868c6bc30427e47349d2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3MDQzNTI4ODliM2EwY2RlYzhmNjdkYmE3ZTNmMTk0NDNkOTkyOTM1YTYwMzkzNzdiNzJhNTc0ZDI1ZTUyZDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjNDQzOTRhZTI0YWNiZWFhNGM0NWFjNjIxNTE2YTJkMjU2YjU4ODQyZjZlMDJlMmZiMzY2M2VhMGQyMjZlMDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk5NDM0MWZhYWYyY2MzOTA4YTFlNGM3ZWNhN2FlNjFkNDE4N2Y2NWVjMzQ3MDNiN2M4YzBmNzQxNTM3YmIwY2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkNzkwNTFkMzkxYTIwNjAzZTZlYzllNGE3M2Y0MmM2M2E5MmNmYzQ5NzEzNjkyNmQ5YTg0NGRiNDZmNjE4MGUifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/check_policy_change_review.py",
+          "version": "repo-file-v1:sha256:34288c229398acaab02fa7b1895e15e5de941a99af58b45f849b91b4ae0f5f59"
+        },
+        {
+          "resource": "repo://.github/scripts/run_checks.py#L232-L245",
+          "version": "repo-lines-v1:sha256:87a20da0d80490e1ca91bd3cc038908f8995dfa5e512dd0bbda9be00d579b478:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxNDM1YjczMTBlYjEwZmUwYmYzZmRkMTAzMWRhMzZkYTFlNmZjZTRkY2YxZDMxZTdhY2YyNjg3YTI0MmZiMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE3Yzc1MmRjOTJmNDY5ZDE2OWQwMmFhZjlkYjJiMWVmNmE3NWQ4MDdkMjU4YzUzMDJjZjkwNmIzMzdlMjQ0YTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkYjUyZWFhNzdlNDE4YjMwZGY2YWQ1ZGM2MmQ5N2NmOTFiNTU1MmY1YWRiNmRmNWM0YzU0OWQ2MTMwMDdmOGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5YWI3MTdjODg4YWViN2YzMDUxZGVhNzczMmNiZjQ4MzUxN2YyMzE1OTYwYTVhZTkwMTYxYTRhODhiNzE5ZDEifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/test_check_policy_change_review.py",
+          "version": "repo-file-v1:sha256:2bd5a185be7ed87c5ca308fb5e75ddd65a844417c8754091e59eb06556db8652"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-21T15:07:48.183Z"
+    "at": "2026-09-24T10:47:55.441Z"
   }
 }

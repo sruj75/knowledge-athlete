@@ -15,6 +15,25 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Generate implemented behavior from source/tests. Authored decisions and dated observations
   are not mechanically verified Claims or proof of deployment, acceptance or release readiness.
 
+### Instruction authority and policy changes
+
+- The user's current instructions and authorization for the ongoing task take precedence over
+  inherited guidance. Upstream maintainer conventions, archived decisions, generated summaries and
+  observed settings are evidence, not permission to adopt or enforce a policy in this fork.
+- Before importing or condensing instructions, identify their origin, intended audience and scope.
+  Preserve conditions, exceptions and uncertainty; removing a qualifier is a policy change, not an
+  editorial cleanup. Do not turn another project's workflow into an Intentive requirement by copying it.
+- State policy changes explicitly in the plan and PR: the original user decision and date/reference,
+  affected scope, before/after behavior, and retained or changed qualifications. A copied instruction
+  or an agent-written plan is not independent evidence of the user's preference. Resolve missing
+  intent before changing persistent permissions, merge rules, deployment defaults or external controls.
+  Do not ask again when the current request already authorizes that specific change.
+- Use the PR template's Policy changes section for instruction and workflow changes. The shared
+  preflight checks for that disclosure; a reviewer must still verify its substance against the original
+  request and diff. Neither a passing check nor another agent's review supplies user authorization.
+- The [policy provenance review](../docs/engineering/policy-provenance-review.md) records the
+  September 24 correction and the related inherited operational clauses that were audited.
+
 ## Wiki maintenance
 
 - Install `openwiki@0.5.2` under the pinned Node, then run
@@ -50,9 +69,10 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Use the current worktree/branch; run `make setup` before the first commit and inspect upstream
   changes before integration. Revalidate overlapping rebases. Commit locally by default;
   do not rename/switch branches, push, open PRs or merge without explicit authorization.
-- Land through regular-merge PRs only. The established revert/verified-peer-review exceptions remain
-  in the [archived engineering rules][engineering]; migrations, release/CI, schema, access control
-  and data deletion still require explicit sign-off. Approval does not carry into later changes.
+- Use squash merges for ordinary PRs, as requested by the owner on September 24, 2026. Require the
+  user's authorization to publish or merge; testing, agent peer review and archived exceptions do not
+  grant it. Authorization persists within the requested task unless revoked or its scope changes;
+  it does not extend to unrelated deployments, access-control changes or data deletion.
 - Never stop, replace, delete or automate production Omi/Intentive Stable or Beta apps.
   Testing targets a named development bundle and exact owned processes.
 - Fix the violated owner/identity/state-transition contract. Inspect recent related fixes;
@@ -267,8 +287,9 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 
 Read [release operations](codebase/operations/releases.md) and [qualification](codebase/operations/qualification.md).
 
-- Normal code lands through regular-merge PRs with the repository's retained checks. Remote
-  protection settings must be verified separately; local implementation is not proof of enforcement.
+- Normal code lands through squash-merged PRs with the repository's retained checks. Do not impose
+  a repository-wide merge-method ban: the release changelog automation retains its tested merge-commit
+  ancestry contract. Verify remote settings separately; local implementation is not proof of enforcement.
 - The weekly guardrail report may append its history directly to main through the dedicated
   `Intentive Guardrail Pulse` App. Install it only on this repository with Contents write and
   Metadata read, and keep its credentials in the `guardrail-pulse-publisher` environment restricted
@@ -277,7 +298,7 @@ Read [release operations](codebase/operations/releases.md) and [qualification](c
   or release App this exception. GitHub cannot scope an App bypass to one file, so the publisher
   must enforce append-only changes to `.github/guardrail-pulse-history.jsonl`, validate the complete
   candidate, retry competing pushes at most three times from fresh main and never force-push.
-  Report-only changes are outside the UA scope and require no model refresh. Preserve issue updates
+  Report-only changes require no model refresh. Preserve issue updates
   using the existing `GITHUB_TOKEN`. Provisioning, publication, merge and rule activation belong to
   the explicitly requested publication rollout.
 

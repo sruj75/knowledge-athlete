@@ -189,6 +189,17 @@ checks:
     lanes: ["local", "ci"]
     requires_pr_body: true
     reason: "fix commits declare a validated semantic failure class"
+  - id: policy-change-review
+    command: ["python3", ".github/scripts/check_policy_change_review.py", "--base", "{base}", "--head", "{head}", "--changed-files", "{changed_files}", "--pr-body-file", "{pr_body_file}"]
+    triggers: ["all"]
+    lanes: ["local", "ci"]
+    requires_pr_body: true
+    reason: "PR #120 exposed imported merge guidance losing its fork exception and becoming remote enforcement; require visible source, scope, effect and qualifications for instruction/enforcement changes, including renamed sources, without pretending to verify authorization"
+  - id: policy-change-review-tests
+    command: ["python3", ".github/scripts/test_check_policy_change_review.py"]
+    triggers: [".github/scripts/check_policy_change_review.py", ".github/scripts/test_check_policy_change_review.py", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the PR #120 provenance regression must reject undisclosed qualifier loss, placeholders and renamed instructions while preserving unrelated code and post-merge check behavior"
   - id: failure-class-guard-artifact-ratchet
     command: ["python3", ".github/scripts/check_failure_class_guard_ratchet.py", "--pr-body-file", "{pr_body_file}"]
     triggers: ["all"]

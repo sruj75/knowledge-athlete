@@ -11,6 +11,9 @@ Commit intended source, tests and documentation, run the required PR preflights,
 push and create or update the PR against the configured target branch using the
 repository PR template. Integrate newer main and revalidate before merge. Stop and
 report failures. Do not merge the PR or archive the workspace as part of Create PR.
+For instruction or workflow changes, fill in the template's Policy changes section
+from the original user decision. Review scope and preserved qualifications; copied
+upstream rules or prior agent plans do not establish the user's intent.
 """
 
 [scripts]

@@ -297,6 +297,7 @@ class SelectionTests(unittest.TestCase):
                 "diff-hygiene",
                 "architecture-guardrails",
                 "failure-class-protocol",
+                "policy-change-review",
                 "failure-class-guard-artifact-ratchet",
                 "desktop-changelog-data",
                 "deferred-work-markers",

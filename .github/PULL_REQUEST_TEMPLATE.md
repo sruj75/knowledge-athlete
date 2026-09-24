@@ -16,6 +16,20 @@
      Feature: point to the tests for the core path and main error path.
      No test change: explain why none was needed. -->
 
+## Policy changes
+
+<!-- Required when changing agent instructions, workflow policy or its enforcement.
+     Cite the original user decision, not merely an agent-written plan or inherited
+     rule. Name the affected behavior, the before/after effect, and the conditions
+     or exceptions retained or deliberately changed. For an editorial change,
+     explain why behavior and scope remain the same. Delete for unrelated changes.
+     This disclosure supports review; it does not authenticate user authorization. -->
+
+Policy-Source:
+Policy-Scope:
+Policy-Effect:
+Policy-Qualifications:
+
 ## Failure class (fixes)
 
 <!-- Every `fix:` commit needs this exact, machine-validated declaration.

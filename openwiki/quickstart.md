@@ -14,10 +14,10 @@ sources:
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "codex", at: "2026-09-22T16:32:26.977Z" }
+generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-22T16:32:26.977Z
+    at: 2026-09-24T10:47:55.441Z
 ---
 # Start here
 
@@ -26,6 +26,8 @@ Intentive's active codebase is a macOS app with a bundled Node agent runtime and
 ## Before changing code
 
 Read the [compact authored brief](INSTRUCTIONS.md): Scope, Wiki maintenance, Engineering rules and the relevant component constraints. It keeps current rules and unresolved obligations, with targeted links to the full IR decisions and dated records in Git history. Read the applicable historical decision when changing its boundary; the full archive is not startup context. Generated pages hold implementation explanations, operating commands and source/test evidence. They do not override authored decisions or certify a live deployment.
+
+For instruction imports, summaries or workflow-policy changes, start with [instruction authority](INSTRUCTIONS.md#instruction-authority-and-policy-changes) and the [policy disclosure check](codebase/operations/qualification.md#policy-change-disclosure). Historical text and current settings are not independent proof of the owner's intent.
 
 ## Find your task
 
