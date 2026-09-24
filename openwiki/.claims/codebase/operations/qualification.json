@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:aa51881e0f4100606bf3426a2cd22635a7f1cb2a7e72814fc6c3e1e7e0962170",
+  "pageVersion": "sha256:cd9cea0683c906bca942bba2db64b779bb035bbb664d42b6b51468ed80c1ea8c",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -68,13 +68,13 @@
         },
         {
           "resource": "repo://.github/scripts/test_check_policy_change_review.py",
-          "version": "repo-file-v1:sha256:2bd5a185be7ed87c5ca308fb5e75ddd65a844417c8754091e59eb06556db8652"
+          "version": "repo-file-v1:sha256:7af6111a21a3338e9396173ff77dac28c90bb786d0b2e98929936f1d81aa6b00"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T10:47:55.441Z"
+    "at": "2026-09-24T11:03:11.412Z"
   }
 }

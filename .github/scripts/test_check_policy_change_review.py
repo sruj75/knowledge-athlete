@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from check_policy_change_review import FIELDS, policy_paths
 from run_checks import load_manifest, resolve_checks
@@ -33,6 +34,9 @@ class PolicyReviewTests(unittest.TestCase):
             for key, value in os.environ.items()
             if not key.startswith("GIT_")
         }
+        # Direct helper calls need the same isolation as CLI subprocesses when
+        # Git invokes this suite from a hook with its own GIT_DIR/GIT_INDEX_FILE.
+        self.enterContext(patch.dict(os.environ, self.env, clear=True))
         self.git("init", "-q")
         self.git("config", "user.name", "Fixture")
         self.git("config", "user.email", "fixture@example.invalid")
