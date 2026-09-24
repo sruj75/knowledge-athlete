@@ -1172,7 +1172,7 @@ final class DesktopDiagnosticsManager {
       "device_model": deviceModel(),
     ]
     properties["system_audio_mode"] =
-      UserDefaults.standard.string(forKey: "systemAudioCaptureMode") ?? "always"
+      UserDefaults.standard.string(forKey: .systemAudioCaptureMode) ?? "always"
     return properties
   }
 

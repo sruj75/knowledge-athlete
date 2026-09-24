@@ -5,7 +5,7 @@ description: Explain named bundles, flow inventory, tiers, source identity and p
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-23T07:47:07.190Z
+    at: 2026-09-24T09:33:07.181Z
 sources:
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift

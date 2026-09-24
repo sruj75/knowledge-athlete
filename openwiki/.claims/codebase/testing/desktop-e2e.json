@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2827594a2d333ce4581eae999e21d4c4f9e9c4cda17343a8e048d010d0b7a509",
+  "pageVersion": "sha256:ae982243f0a9f1596e12de842e1a10fc7e2d3e0a11d652e8dae7c749f27f96bb",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -52,7 +52,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168",
-          "version": "repo-lines-v1:sha256:27c4b031a4b0e42e55b88f108a7775aa81fd72bad3063382232ad2d60a612a3a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTY0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4MzhkZTVlZTBiN2I3ZTkyZjcyNDdhMWM4ODRlY2FiOGY1ZTg3NTI0OTBmMWY5MzQ0OWM4NWE0NTQwYThlMWIxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjZWFhNDhhY2VhYWRkNTdkYTg4ZWUxZWU3ODcwNWE5ODI3YmEzYjkwOWZjN2VhY2EwNDRkNjA5YjdhYWQ2ZjliIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyYWQ2N2EzMjFlOTgwYjQzYjNkZTgxNDdjNTk2OTM3ZTMwZWVhMjZlNGM4MGNlZGNjZmFkNDNjNDBlY2FjYTdkIn0"
+          "version": "repo-lines-v1:sha256:64e2fbdbb5a947c289d94842610ba1b8b5fd13e142dadedb8906ef8002babd62:eyJzZWxlY3RlZExpbmVDb3VudCI6MTY0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4MzhkZTVlZTBiN2I3ZTkyZjcyNDdhMWM4ODRlY2FiOGY1ZTg3NTI0OTBmMWY5MzQ0OWM4NWE0NTQwYThlMWIxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjZWFhNDhhY2VhYWRkNTdkYTg4ZWUxZWU3ODcwNWE5ODI3YmEzYjkwOWZjN2VhY2EwNDRkNjA5YjdhYWQ2ZjliIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyYWQ2N2EzMjFlOTgwYjQzYjNkZTgxNDdjNTk2OTM3ZTMwZWVhMjZlNGM4MGNlZGNjZmFkNDNjNDBlY2FjYTdkIn0"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift#L7-L95",
@@ -89,6 +89,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-23T07:47:07.190Z"
+    "at": "2026-09-24T09:33:07.181Z"
   }
 }

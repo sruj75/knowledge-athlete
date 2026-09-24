@@ -147,8 +147,8 @@ final class AmbientCaptureLifecycleTests: XCTestCase {
   ) -> (AppState, TestMicrophone, TestSystemAudio) {
     let keys = ["systemAudioCaptureMode", "disableSystemAudioCapture", "transcriptionEnabled"]
     let saved = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
-    UserDefaults.standard.set(mode.rawValue, forKey: "systemAudioCaptureMode")
-    UserDefaults.standard.set(false, forKey: "disableSystemAudioCapture")
+    UserDefaults.standard.set(mode.rawValue, forKey: .systemAudioCaptureMode)
+    UserDefaults.standard.set(false, forKey: .disableSystemAudioCapture)
     let state = AppState()
     state.audioCaptureService = microphone
     state.systemAudioCaptureService = system
