@@ -1,5 +1,6 @@
 # Files
 
+- [Codebase map viewer](codebase-map.md) - Follow the canonical Mermaid file into a static Next.js page, inspect source provenance, and run the viewer's build and browser checks.
 - [Development and wiki maintenance](development.md) - Describe setup, component entrypoints, pinned development Node and native wiki update/resume lifecycle.
 - [Data and namespace migrations](migrations.md) - Explain retained schema/lifecycle migration tools and distinguish them from retired planning validation.
 - [Owner and provider record](owner-provider-record.md) - Look up Intentive account ownership, provider roles, operating modes, service and model settings, and credential locations.

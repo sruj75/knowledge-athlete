@@ -16,6 +16,13 @@
      Feature: point to the tests for the core path and main error path.
      No test change: explain why none was needed. -->
 
+## Codebase map
+
+<!-- Choose one after reviewing docs/architecture/intentive-codeflow.mmd. -->
+
+- [ ] Updated the diagram's affected flows and source references in this PR.
+- [ ] Reviewed the diagram; this change leaves its flows and references accurate.
+
 ## Policy changes
 
 <!-- Required when changing agent instructions, workflow policy or its enforcement.

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:97de6de293a73edde2854002822fd1c48012d38d48bb03637b73a8c6f28143ba",
+  "claims": [
+    {
+      "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
+      "statement": "The viewer statically exports the canonical Mermaid source read at build time and pins its GitHub source link to the deployment/CI commit or a clean local HEAD; missing, empty, oversized source or unavailable hosted commit metadata fails the build.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/page.tsx#L1-L7",
+          "version": "repo-lines-v1:sha256:cbfbfdeada96b63a1bd62f1d4270f32014ec99b8ae51a93d500d630e9eac2577:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWMyZmVkOWY1MTdmM2Q0MjIwZTkwYTNlM2JmYTU1OWJkMGIzYTA5OTg1ZGM1YmM1NzAxNzRhMWQxM2I0NWUwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/diagram-source.mjs#L1-L37",
+          "version": "repo-lines-v1:sha256:216ec813382a3cd439c1310a6373bc98e403a81b7eabf91582da5046abada032:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZmFmYWM3MDBlZDNjMDhiOTk3MTUwYzE1ZjllYmU5NGZiNWRiZTZkYTBhYTlmNDhiN2E2NGFiNzA3YmRmMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/next.config.ts#L1-L10",
+          "version": "repo-lines-v1:sha256:32e4ef1a490cf5b22eac0528b2fd7c6f4ec6b5f721d56c74f422ecaf9bf59de6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNjc5MjcwYWFiZDgyN2Q4Nzk0NWM5ZmJiYzQ3OGIxODM5NGQyZTFmZDU3MTZjMzY1ZTJiNWUyYjExYmVkZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjYmMxN2NhOGY3MzU5NDc2NzgzMGEzNmVlZWFjNGNlNWZlYTVkZDM4Nzg1NWVhNzRmNDUxOTE5MTk1ZDVjMTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3eb5e8d92848456d9c33a32c4d8cf5cd",
+      "statement": "The browser renderer uses Mermaid ELK with strict security and explicit size/edge limits; viewport gestures and controls transform the existing SVG, while loading/error/retry and render cancellation handle unavailable or superseded output.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L1-L240",
+          "version": "repo-lines-v1:sha256:4741dad4cf9ed2d08b0a3cf3dacc272647f27df27b11505febb79e8c7cbba675:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0NWZmM2U4NWQ2NzE1YTdhOWQwZjZjMWIzMmYzMGNkOGNiMTQ0Y2M3OWM4YWJhZTk1M2VhMTM3ODg5ZmFlMmRlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiNjg2MTMxN2VjOTVhM2E1MWZiMzgwZTAzMGI3NzVmYWU1ZTQxOGFhYzAzMTY0Yjc5OTg2NWQzM2JiZDVmOWRlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlYzc1NTc3ZWU0NGFjMzkzOGE1YWQyNGJmOWVmZDI1OWNhNmQ5MTUzODc4MDM4YzJmN2NlZGNiNzYzY2ZkOTQ1In0"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L240-L508",
+          "version": "repo-lines-v1:sha256:07bee9d7b47c3070ede97d2f38ae31999cab28cf198f34f80fa51b3c5e675938:eyJzZWxlY3RlZExpbmVDb3VudCI6MjY5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjg2MTMxN2VjOTVhM2E1MWZiMzgwZTAzMGI3NzVmYWU1ZTQxOGFhYzAzMTY0Yjc5OTg2NWQzM2JiZDVmOWRlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkOGY0ZjU3NTg0YTQzZDAwNWIxZDkwOGNlZjlmODQ1ZWFjODFjYWFiYjgxZWFjZjUwMWE5YzczNGRiMjM1MGQzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/globals.css#L66-L90",
+          "version": "repo-lines-v1:sha256:357f471e68d439b571e748e1d5236f78697afb2f7e9e4087189a62f08b2db0a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzYmQzNGU4MzYzMGNkODVjNjk4YmJiOTlhOTE0NTNlMmNmODY4NjNjNDZlNDNkNDNhMDU4ZmVmZTVhYWI2MWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZkYWVkMzJmMmViMWM3NDJlN2Q5ZjUzN2Y3YzY5ZWI4NmE3NWNhOWI5OTQ2MzQ0MTk0N2YzZTJjMWZiYWRjODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNDAwYTYzZGNjN2I3NzkxOGUzY2RlODFiYzM5MzNjM2IyNDBlNTI0NmNhZjNlODAwODc0NjNjOTlkMTEwODcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8bf03b0f057a49b2b094dfea405bbd36",
+      "statement": "The local and CI viewer check builds the static page and exercises the complete map, viewport controls, malformed-input recovery and commit links in Chromium; CI package/browser provisioning is selected through the same check manifest.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml#L1-L18",
+          "version": "repo-lines-v1:sha256:3d5eee356140aa88e30e1aaef090ec80a860a646fbb527bc5ec6ca4b810bd7f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MjRiZThhZGNhZmMzYjRiNDQwMjdmNDI3Mzg4ZWFhM2FkNjA5ZTUwODAwMzZiMGE1YjYzNzAwZWM5YWRjMWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YWZmYzBhMDFjNjMwZmJlMjczZTYyMTJhYjM5ZjA0Y2JmOWM2NzE0Y2NhMjI4NDY2OTRmZGFhN2QzNWZiMmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0ZGViOThiZWVhNmU5YTE1NjFkZTgwNGQ2MWZmYzBjNWFjOWRiZGEzZTRiYzY2Mjk2YWU1MjBlODllMjc5YmUifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
+          "version": "repo-lines-v1:sha256:c38414d462aec31a7c970a36272e75ec22941cd5481066ab3cd821d26a06381e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/package.json#L1-L28",
+          "version": "repo-lines-v1:sha256:543cfb5bb9408eedd984a77eddd82354276c8e751b4b5e7a9591f9d652d46c32:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L1-L76",
+          "version": "repo-lines-v1:sha256:d103c125b4dc7542edbe207868429730c75940a08e7fe69103756f6f8b00044d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NzA4OTE3YTlmMzg4YWMxZTkzZTRhMjBlNDY1Y2I5NWM0NjdlMTg3YzhlMWRhN2JlOWY3NGFiYWM1ZWFiYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-24T12:25:42.469Z"
+  }
+}

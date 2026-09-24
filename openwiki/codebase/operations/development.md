@@ -5,7 +5,7 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T10:47:55.441Z
+    at: 2026-09-24T12:25:42.469Z
 sources:
   - id: openwiki-source-311b902b81b9fbe111c8359f
     resource: repo://.conductor/settings.toml
@@ -13,6 +13,8 @@ sources:
     resource: repo://.github/PULL_REQUEST_TEMPLATE.md
   - id: openwiki-source-19d91df3181544492a10253e
     resource: repo://.github/scripts/check_policy_change_review.py
+  - id: openwiki-source-16d213dfcc8beae17f8096fe
+    resource: repo://.github/scripts/prepare_codebase_map_check.py
   - id: openwiki-source-7c03237a6b57ffb3e526a51b
     resource: repo://.nvmrc
   - id: openwiki-source-8fe7ebf00619b8e43f932fa4
@@ -35,7 +37,13 @@ sources:
     resource: repo://scripts/dev-harness/desktop-run-local.sh
   - id: openwiki-source-1a71f2c58cd0b293815e7b47
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
-generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
+  - id: openwiki-source-06044ee38485672b205128e8
+    resource: repo://tools/codebase-map/lib/diagram-source.mjs
+  - id: openwiki-source-cadbf0c250f5afb51126591d
+    resource: repo://tools/codebase-map/package.json
+  - id: openwiki-source-fa2531a1c23faf0486307e94
+    resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
+generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
 ---
 # Development and wiki maintenance
 
@@ -52,6 +60,8 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 | Backend component tests | `backend/test.sh` |
 | Desktop component tests | `desktop/macos/test.sh` |
 | Node runtime checks | `cd desktop/macos/agent && npm run build && npm test` |
+| Codebase map development | `npm --prefix tools/codebase-map run dev` |
+| Codebase map build and browser checks | `npm --prefix tools/codebase-map run check` |
 | Shared deterministic contract | `make preflight` |
 | Build and smoke canonical image | `make runtime-image-smoke SERVICE=backend` |
 
@@ -69,9 +79,13 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance, builds the static Next.js export, and exercises the full canonical map in Chromium. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+
 ## Product map and PR handoff
 
 The [Mermaid product map](../../../docs/architecture/intentive-codeflow.mmd) is a single tracked diagram. Its sections and source anchors support following product flows; it is maintained through reviewed edits when those flows change. There is no automatic graph-generation stage in setup or PR closeout.
+
+The viewer reads this file during its static build and links to the exact source commit. Its Vercel setup publishes main and PR previews, with deployment skipping disabled; automatic publication does not update the diagram's meaning. Follow the [authored closeout rule](../../INSTRUCTIONS.md#pr-closeout) to review the map before closing a code change and update affected flows/source references in that PR. The PR template records an updated or reviewed-unchanged result.
 
 Conductor's Create PR prompt finishes source/tests and the native wiki update, updates the map when relevant, commits the intended changes, and runs the required preflights before publishing the PR. It preserves the current branch and does not merge or archive the workspace. The next workspace inherits the committed map and documentation after they reach its starting branch.
 

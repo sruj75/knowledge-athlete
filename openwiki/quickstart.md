@@ -14,10 +14,16 @@ sources:
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
-generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
+  - id: openwiki-source-8f88765748afaa418d7fe532
+    resource: repo://tools/codebase-map/app/page.tsx
+  - id: openwiki-source-06044ee38485672b205128e8
+    resource: repo://tools/codebase-map/lib/diagram-source.mjs
+  - id: openwiki-source-3db6130123d0c0614cc19cb5
+    resource: repo://tools/codebase-map/next.config.ts
+generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T10:47:55.441Z
+    at: 2026-09-24T12:25:42.469Z
 ---
 # Start here
 
@@ -42,13 +48,15 @@ For instruction imports, summaries or workflow-policy changes, start with [instr
 | Change a backend route | [Backend](codebase/architecture/backend.md), [providers](codebase/integrations/providers.md), [billing](codebase/integrations/billing.md) |
 | Review privacy boundaries | [Telemetry](codebase/integrations/telemetry.md) |
 | Set up and test locally | [Development](codebase/operations/development.md), [contracts](codebase/testing/contracts.md), [desktop E2E](codebase/testing/desktop-e2e.md) |
-| Navigate the product flows | [Mermaid product map](../docs/architecture/intentive-codeflow.mmd) |
+| Navigate the product flows | [Mermaid product map](../docs/architecture/intentive-codeflow.mmd), [interactive viewer](codebase/operations/codebase-map.md) |
 | Change storage or migration tools | [Migrations](codebase/operations/migrations.md) |
 | Work on delivery | [Build and signing](codebase/integrations/build-signing.md), [releases](codebase/operations/releases.md), [qualification](codebase/operations/qualification.md) |
 
 ## First local steps
 
 At the repository root, activate the Node version in `.nvmrc`, run `make setup`, then select the component commands in the development guide. Setup refreshes main, installs Git hooks and synchronizes the backend environment. `make preflight` runs the shared local governance lane. The tracked Mermaid product map is updated through reviewed edits when relevant flows change. Tests and actual user-path evidence are both required by the authored engineering guide; report unavailable or failed evidence explicitly.
+
+The isolated Next.js viewer loads that same Mermaid file during its static build and shows its source commit. Its [setup and checks](codebase/operations/codebase-map.md) cover the full rendered diagram. The [authored closeout rule](INSTRUCTIONS.md#pr-closeout) requires a same-PR map review; automatic Vercel publication displays the committed diagram and does not establish its semantic accuracy or hosted acceptance.
 
 After source and tests stabilize, run the native OpenWiki update and include its pages and metadata in the same local change. Native finalization owns all structural indexes. Initialization preserves the brief and replaces generated state. Publishing still requires explicit user instruction.
 

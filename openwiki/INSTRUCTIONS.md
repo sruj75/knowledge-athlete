@@ -50,14 +50,18 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   agent-size and architecture checks in the shared local/CI manifest, not a parallel validator.
 - Change authored policy only with user authorization. Documentation edits close no open obligations.
 - The tracked product map is `docs/architecture/intentive-codeflow.mmd`. Maintain it through
-  reviewed edits when relevant product flows change; no automatic graph refresh is required.
+  reviewed edits in the same PR when relevant product flows or source references change.
+  The public viewer at `tools/codebase-map/` builds directly from that file. Vercel publishes
+  the committed diagram; it does not generate or verify its semantic accuracy.
 
 ### PR closeout
 
 - Finish source/tests and the native OpenWiki update in this feature PR so the next Conductor
   workspace inherits the code and documentation together.
-- Review the Mermaid product map when affected flows change. Commit intended source, tests and
-  documentation, then run the required PR preflights. Integrate newer main and revalidate before merge.
+- Review the Mermaid product map before closing out code changes. Update affected flows and source
+  references in the same PR, or record in the PR checklist that review found it still accurate.
+  Commit intended source, tests and documentation, then run the required PR preflights. Integrate
+  newer main and revalidate before merge.
 - Publish only when requested. Report check results and any failures. Create PR does not merge
   or archive the workspace.
 

@@ -271,6 +271,18 @@ flowchart TD
     ADVICEDB[("Firestore users/uid/advice<br/>Exposed backend branch only<br/>advice.py:27")]
   end
 
+  subgraph AREA_23["23 · Codebase map publishing · GitHub and Vercel"]
+    MAPREVIEW["Agent reviews flows and source anchors in the same PR<br/>openwiki/INSTRUCTIONS.md"]
+    MAPSOURCE[("Canonical reviewed Mermaid product map<br/>docs/architecture/intentive-codeflow.mmd")]
+    MAPBUILD["Read diagram and exact source commit at build time<br/>tools/codebase-map/lib/diagram-source.mjs"]
+    MAPPAGE["Statically export the viewer page<br/>tools/codebase-map/app/page.tsx"]
+    MAPVIEW["Render ELK diagram; pan, zoom, fit and fullscreen<br/>tools/codebase-map/app/components/diagram-viewer.tsx"]
+    MAPREVIEW -->|"Commit relevant map updates with code"| MAPSOURCE
+    MAPSOURCE -->|"GitHub-connected Vercel build"| MAPBUILD
+    MAPBUILD -->|"Source text and immutable GitHub link"| MAPPAGE
+    MAPPAGE -->|"Public browser; main production / PR preview"| MAPVIEW
+  end
+
   ACCOUNTDATA -->|"Account/entitlement/usage only"| SERVEREXPORT
   ADVICEAPI -->|"Authenticated advice CRUD"| ADVICEDB
   AGENTRESULT -->|"Child artifacts included in next coordinator response"| RESOURCES
