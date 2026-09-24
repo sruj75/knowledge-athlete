@@ -6,7 +6,7 @@ import Foundation
 struct OnboardingOpenerContent: Equatable {
   /// Short headline: time of day + name ("Afternoon, Nik").
   let greeting: String
-  /// Muted detail line under the headline: the chosen listening state.
+  /// Muted detail line under the headline: the configured listening intent.
   let subline: String
   let starters: [String]
 }
@@ -14,10 +14,8 @@ struct OnboardingOpenerContent: Equatable {
 /// Pure, deterministic composer for the post-onboarding opener. Kept free of
 /// any live service or `@MainActor` state so it renders instantly at the
 /// fragile handoff moment and is fully unit-testable. The caller supplies the
-/// live inputs (name, listening mode, and normal Home starter chips).
+/// live inputs (name and normal Home starter chips).
 enum OnboardingOpenerComposer {
-  enum ListeningMode: Equatable { case always, meetingsOnly }
-
   static let maxStarters = 3
 
   static func timeOfDay(_ date: Date, calendar: Calendar = .current) -> String {
@@ -30,14 +28,13 @@ enum OnboardingOpenerComposer {
 
   static func compose(
     name: String,
-    mode: ListeningMode,
     now: Date,
     baseStarters: [String],
     calendar: Calendar = .current
   ) -> OnboardingOpenerContent {
     OnboardingOpenerContent(
       greeting: greeting(name: name, now: now, calendar: calendar),
-      subline: subline(mode: mode),
+      subline: subline,
       starters: starters(baseStarters: baseStarters)
     )
   }
@@ -50,10 +47,7 @@ enum OnboardingOpenerComposer {
     return trimmedName.isEmpty ? tod : "\(tod), \(trimmedName)"
   }
 
-  static func subline(mode: ListeningMode) -> String {
-    let setup = mode == .always ? "I'm set up and listening." : "I'm set up and I'll listen during your meetings."
-    return "\(setup) Ask me anything to start."
-  }
+  static let subline = "I'm set up for all-day listening. Ask me anything to start."
 
   /// Normal Home chips (universal + personalized), de-duplicated and capped.
   static func starters(baseStarters: [String]) -> [String] {

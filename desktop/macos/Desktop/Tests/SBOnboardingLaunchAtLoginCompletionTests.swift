@@ -8,13 +8,11 @@ import XCTest
 @MainActor
 final class SBOnboardingLaunchAtLoginCompletionTests: XCTestCase {
   func testIR145CompletionAlwaysRequestsLaunchAtLoginEnabled() {
-    for selection in [SBOnboardingModel.CaptureSelection.onlyDuringMeetings, .continuous] {
-      let plan = OnboardingExitPolicy.plan(for: .completed(selection))
-      XCTAssertTrue(plan.launchAtLoginRequested)
-      XCTAssertEqual(
-        LaunchAtLoginIntentPolicy.requestedEnabled(for: .onboardingCompletion),
-        true)
-    }
+    let plan = OnboardingExitPolicy.plan(for: .completed)
+    XCTAssertTrue(plan.launchAtLoginRequested)
+    XCTAssertEqual(
+      LaunchAtLoginIntentPolicy.requestedEnabled(for: .onboardingCompletion),
+      true)
   }
 
   func testSettingsCanSubsequentlyRequestLaunchAtLoginDisabled() {

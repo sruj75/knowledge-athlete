@@ -3,7 +3,7 @@ name: onboarding-smoke
 tier: manual
 description: >
   Destructive named-bundle smoke for capture-safe reset, same-bundle restart, completion persistence,
-  and two consecutive retained onboarding exits. It remains manual because it changes setup state and
+  and two consecutive all-day listening completions. It remains manual because it changes setup state and
   may exercise macOS permission UI.
 app: non-prod
 covers:
@@ -33,20 +33,20 @@ steps:
         - "Skip"
 
   - id: S3
-    name: First run uses meeting-only listening
-    do: "Walk every retained stage from onboarding-flow.yaml, including Back revision and permission-no-start checks. Choose 'Only during meetings', verify Home and the opener, then quit and relaunch the same bundle and verify completion persists."
+    name: First completion enables all-day listening
+    do: "Walk every retained stage from onboarding-flow.yaml, including Back revision and permission-no-start checks. Exercise the final screen-and-voice demo and choose its existing Continue action. Verify Home appears directly without a listening-mode choice, Finish setup screen, or additional completion click. Verify the opener and enabled all-day listening subject to access gates, then quit and relaunch the same bundle and verify completion and listening intent persist."
 
   - id: S4
     name: Second reset preserves ordinary data
     do: "Run reset_onboarding again. Verify the setup-only journal and retained setup answers are cleared, while the normal Chat conversation and the recorded conversation, memory, task, and Rewind counts are unchanged."
 
   - id: S5
-    name: Second run uses continuous listening
-    do: "Walk every retained stage again and choose 'Start listening — continuously'. Verify Home, the opener, active continuous listening subject to existing access gates, then quit and relaunch the same bundle and verify completion persists."
+    name: Second completion enables all-day listening again
+    do: "Walk every retained stage again and choose the final screen-and-voice demo's existing 'Skip for now' action. Verify it skips only the demo and opens Home directly without a listening-mode or replacement completion screen. Verify the opener and active all-day listening without an active meeting, subject to existing access gates. Quit and relaunch the same bundle and verify completion and listening intent persist."
 
   - id: S6
     name: Two-run absence and isolation gate
-    do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, or Tasks stage appeared; permission grants never started capture before completion; and the second run did not inherit the first run's acquisition or resume answer."
+    do: "Across both reports verify no role, connector, Full Disk Access, BYOK, Goal, Tasks, listening-mode, or replacement completion stage appeared; permission grants never started capture before completing or skipping the final demo; and the second run did not inherit the first run's acquisition or resume answer."
 
   - id: S7
     name: Exercise the neutral Skip exit

@@ -21,7 +21,8 @@ enum SBOnboardingIdentityCopy {
   static let openSourcePrefix = "View the project repository on "
   static let openSourceDetail = "\(openSourcePrefix)GitHub."
   static let privateDataDetail = "Conversations and memories you keep are saved on this Mac."
-  static let userControlDetail = "Choose when Intentive listens and what you keep."
+  static let userControlDetail =
+    "After setup, listening stays on every day, pauses while your Mac sleeps, and can be paused anytime."
 
   static let allText = [
     promise,
@@ -38,32 +39,14 @@ enum SBOnboardingIdentityCopy {
 /// Drives the Second Brain conversational onboarding: a real chat with Intentive that
 /// streams word-by-word, collects answers, and performs the SAME live side-effects
 /// as the legacy wizard (name/language, retained permissions, the summon
-/// shortcut, a live screen+voice demo, capture,
-/// completion). No fake steps — every widget does real work.
+/// shortcut, and a live screen+voice demo that completes setup).
+/// No fake steps — every widget does real work.
 ///
 /// Core state + lifecycle + copy live here. The heavier per-step behavior
 /// (permissions, shortcut, screen/voice demo) lives in
 /// `SBOnboardingModel+Steps.swift`.
 @MainActor
 final class SBOnboardingModel: ObservableObject {
-  enum CaptureSelection: Equatable {
-    case onlyDuringMeetings
-    case continuous
-
-    var systemAudioCaptureMode: AssistantSettings.SystemAudioCaptureMode {
-      switch self {
-      case .onlyDuringMeetings: .onlyDuringMeetings
-      case .continuous: .always
-      }
-    }
-
-    var capturesWithoutActiveMeeting: Bool {
-      self == .continuous
-    }
-  }
-
-  static let defaultCaptureSelection: CaptureSelection = .onlyDuringMeetings
-
   enum Step: Int, CaseIterable {
     case promise = 0
     case name = 1
@@ -79,7 +62,6 @@ final class SBOnboardingModel: ObservableObject {
     case shortcutOpen = 9
     case shortcutTalk = 10
     case screenDemo = 11
-    case capture = 12
 
     var next: Step? {
       guard let index = Self.allCases.firstIndex(of: self) else { return nil }
@@ -198,10 +180,10 @@ final class SBOnboardingModel: ObservableObject {
   /// earlier request finish after the user's revision.
   private let answerWriteGate = OnboardingAnswerWriteGate()
   private let onComplete: (@MainActor @Sendable () -> Void)?
-  private var exitStarted = false
+  private(set) var exitStarted = false
   var streamTask: Task<Void, Never>?
   /// Permission-grant pollers, one per permission key. Keyed so requesting a
-  /// second permission (the meetings "both" mic+system-audio step) never cancels
+  /// second permission never cancels
   /// a still-running poll for the first and strands it on "macOS…".
   var pollTasks: [String: Task<Void, Never>] = [:]
   /// Observes late-arriving names (Apple sends the name only on first auth;
@@ -289,7 +271,6 @@ final class SBOnboardingModel: ObservableObject {
   // MARK: copy
 
   func message(for step: Step) -> String {
-    let name = displayName
     switch step {
     case .promise:
       return SBOnboardingIdentityCopy.promise
@@ -312,18 +293,7 @@ final class SBOnboardingModel: ObservableObject {
       return "And to talk to me, hands-free? Just hold one of these and say something."
     case .screenDemo:
       return "Here's the fun part."
-    case .capture:
-      return
-        "You're all set, \(name). One last thing: should I listen all the time, or only during your meetings?"
     }
-  }
-
-  var displayName: String {
-    let n = nameDraft.trimmingCharacters(in: .whitespaces)
-    let stored = AuthService.shared.givenName.trimmingCharacters(in: .whitespaces)
-    if !n.isEmpty { return n.components(separatedBy: " ").first ?? n }
-    if !stored.isEmpty { return stored }
-    return "friend"
   }
 
   // MARK: lifecycle
@@ -555,14 +525,14 @@ final class SBOnboardingModel: ObservableObject {
     pickLanguage(code: code, name: name)
   }
 
-  // MARK: capture choice → completes onboarding
+  // MARK: completion
 
-  func capture(_ selection: CaptureSelection) {
+  func complete() {
     guard !exitStarted else { return }
     exitStarted = true
     teardownAll()
     let executor = exitExecutorOverride ?? makeLiveExitExecutor()
-    executor.execute(OnboardingExitPolicy.plan(for: .completed(selection)), onComplete: onComplete)
+    executor.execute(OnboardingExitPolicy.plan(for: .completed), onComplete: onComplete)
   }
 
   /// Skip the rest of onboarding and land on a neutral Home. Capture, monitoring,

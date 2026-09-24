@@ -6,11 +6,10 @@ class AssistantSettings {
   static let shared = AssistantSettings()
 
   /// Controls when system audio (audio from other apps — calls, videos, music) is captured
-  /// during a recording. `always` = capture for the whole recording; `onlyDuringMeetings` =
-  /// capture only while a conferencing call is detected (default); `never` = never.
+  /// during a recording. `always` captures for the whole recording (default); `never`
+  /// keeps microphone capture active without capturing audio from other apps.
   enum SystemAudioCaptureMode: String {
     case always
-    case onlyDuringMeetings
     case never
   }
 
@@ -42,7 +41,7 @@ class AssistantSettings {
   private let defaultTranscriptionVocabulary: [String] = []
   private let defaultVadGateEnabled = false
   private let defaultBatchTranscriptionEnabled = false
-  private let defaultSystemAudioCaptureMode: SystemAudioCaptureMode = .onlyDuringMeetings
+  private let defaultSystemAudioCaptureMode: SystemAudioCaptureMode = .always
 
   private init() {
     // Register defaults
@@ -266,7 +265,7 @@ class AssistantSettings {
   }
 
   /// When system audio (audio from other apps) is captured during a recording.
-  /// Default `.onlyDuringMeetings` limits system audio capture to detected conferencing calls.
+  /// Default `.always` captures other apps alongside the microphone throughout the recording.
   /// The hidden `disableSystemAudioCapture` debug UserDefault still forces "never" — see `AppState.effectiveSystemAudioMode`.
   /// Posts `.systemAudioCaptureModeDidChange` so an active recording can re-apply the gate live.
   var systemAudioCaptureMode: SystemAudioCaptureMode {

@@ -15,7 +15,9 @@ final class SBOnboardingIdentityCopyTests: XCTestCase {
     XCTAssertEqual(
       SBOnboardingIdentityCopy.privateDataDetail,
       "Conversations and memories you keep are saved on this Mac.")
-    XCTAssertEqual(SBOnboardingIdentityCopy.userControlDetail, "Choose when Intentive listens and what you keep.")
+    XCTAssertEqual(
+      SBOnboardingIdentityCopy.userControlDetail,
+      "After setup, listening stays on every day, pauses while your Mac sleeps, and can be paused anytime.")
 
     let renderedCopy = SBOnboardingIdentityCopy.allText.joined(separator: " ")
     XCTAssertFalse(renderedCopy.contains("Omi"))

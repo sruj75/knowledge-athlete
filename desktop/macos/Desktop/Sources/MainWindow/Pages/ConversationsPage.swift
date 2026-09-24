@@ -11,14 +11,6 @@ struct ConversationsPage: View {
   /// When true, renders without internal ScrollViews (for embedding in an outer ScrollView)
   var embedded: Bool = false
 
-  // Listening mode — used only to decide whether the manual "Start Recording"
-  // affordance is meaningful (see startRecordingButton gating).
-  @AppStorage("systemAudioCaptureMode") private var systemAudioCaptureModeRaw =
-    AssistantSettings.SystemAudioCaptureMode.onlyDuringMeetings.rawValue
-  private var listeningCaptureMode: AssistantSettings.SystemAudioCaptureMode {
-    CaptureListeningLogic.listeningCaptureMode(raw: systemAudioCaptureModeRaw)
-  }
-
   // Search state
   @State private var searchQuery: String = ""
   @State private var searchResults: [LocalConversation] = []
@@ -213,12 +205,7 @@ struct ConversationsPage: View {
 
         quickNoteButton
 
-        // Only offer the manual "Start Recording" affordance when listening is
-        // set to Always. In Meetings-only (the default) or Off, showing it while
-        // nothing is transcribing misleads the user into thinking capture is
-        // active — during an actual meeting isTranscribing is already true and
-        // the live transcript replaces this button.
-        if !appState.isTranscribing && listeningCaptureMode == .always {
+        if !appState.isTranscribing {
           startRecordingButton
         }
       }

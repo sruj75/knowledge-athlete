@@ -19,8 +19,6 @@ enum DesktopLifecycleIdentityCopy {
     "On battery, Intentive captures your screen less often to save power while keeping text recognition accurate."
   static let transcriptionLanguageDetail =
     "Languages you speak to Intentive over push-to-talk — the first is your primary. Intentive identifies which one you're speaking each turn."
-  static let systemAudioMeetingDetail =
-    "Intentive captures other apps' audio only while you're in a call (e.g. Zoom, Teams, FaceTime). Detecting browser-based calls like Google Meet requires Screen Recording permission."
   static let insightsEmptyState =
     "Proactive insights from Intentive will appear here as you work.\nEnable the Insight Assistant to start seeing them."
   static let chatLimitDetail =

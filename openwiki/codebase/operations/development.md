@@ -5,10 +5,14 @@ description: Describe setup, component entrypoints, pinned development Node and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-19T10:43:39.596Z
+    at: 2026-09-24T10:47:55.441Z
 sources:
   - id: openwiki-source-311b902b81b9fbe111c8359f
     resource: repo://.conductor/settings.toml
+  - id: openwiki-source-6445599f26c9a35886c1c46e
+    resource: repo://.github/PULL_REQUEST_TEMPLATE.md
+  - id: openwiki-source-19d91df3181544492a10253e
+    resource: repo://.github/scripts/check_policy_change_review.py
   - id: openwiki-source-7c03237a6b57ffb3e526a51b
     resource: repo://.nvmrc
   - id: openwiki-source-8fe7ebf00619b8e43f932fa4
@@ -25,17 +29,17 @@ sources:
     resource: repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
+  - id: openwiki-source-23775c3de52f3ab95a13cb8b
+    resource: repo://README.md
   - id: openwiki-source-f00382734bf395713169fe50
     resource: repo://scripts/dev-harness/desktop-run-local.sh
   - id: openwiki-source-1a71f2c58cd0b293815e7b47
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
-  - id: openwiki-source-3b9ccb56b9b2e5c92a9c0860
-    resource: repo://scripts/ua_graph.py
-generated: { by: "codex", at: "2026-09-19T10:43:39.596Z" }
+generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
 ---
 # Development and wiki maintenance
 
-Start at the repository root. `make setup` refreshes the main baseline, installs worktree-safe Git hooks, synchronizes the backend environment and prepares the pinned Understand Anything scanner. It deliberately leaves the desktop runtime and app environment opt-in. The repository pins development Node to 22.22.0 in `.nvmrc`.
+Start at the repository root. `make setup` refreshes the main baseline, installs worktree-safe Git hooks, and synchronizes the backend environment. It deliberately leaves the desktop runtime and app environment opt-in. The repository pins development Node to 22.22.0 in `.nvmrc`.
 
 ## Local commands
 
@@ -49,8 +53,6 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 | Desktop component tests | `desktop/macos/test.sh` |
 | Node runtime checks | `cd desktop/macos/agent && npm run build && npm test` |
 | Shared deterministic contract | `make preflight` |
-| Prepare the pinned graph scanner | `scripts/ua-graph setup` |
-| Check the committed graph | `scripts/ua-graph check --ref HEAD` |
 | Build and smoke canonical image | `make runtime-image-smoke SERVICE=backend` |
 
 The local launcher requires a valid workspace sentinel and a seeded synthetic user, validates the resolved local profile, then launches through `desktop/macos/run.sh`. The `DESKTOP_USER` selector chooses the synthetic account; `DESKTOP_APP_NAME` gives the bundle its own identity. Start the offline stack before launching. Read the [backend](../../INSTRUCTIONS.md#backend-guidance) and [desktop rules](../../INSTRUCTIONS.md#desktop-guidance) for the policy boundaries.
@@ -67,9 +69,13 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The pinned graph checking runtime has a separate external cache keyed by its upstream revision, lockfile, Node/pnpm versions, operating system and architecture. Explicit setup installs the stock skill's dependencies and builds core, then verifies that scanning, batching and incremental helpers can load. `root` and `check` only validate and use an existing runtime. They fail with setup instructions when it is unavailable or incomplete. The checker reads the requested commit, so a newer unstaged graph cannot make an older committed graph pass.
+## Product map and PR handoff
 
-Conductor's Create PR prompt finishes source/tests and the native wiki update before the final graph refresh. It selects the enabled Codex system fork for semantic generation, preserves the system maps and saved project settings, waits for analysis, commits the persistent graph, and runs the pinned committed-content check before publishing. The generator resolves its own active skill directory; `scripts/ua-graph root` locates the separate offline checker runtime. A missing fork is reported rather than replaced with stock generation. See [Understand Anything across workspaces](understand-anything.md) for the complete handoff and the separate report-publisher rollout.
+The [Mermaid product map](../../../docs/architecture/intentive-codeflow.mmd) is a single tracked diagram. Its sections and source anchors support following product flows; it is maintained through reviewed edits when those flows change. There is no automatic graph-generation stage in setup or PR closeout.
+
+Conductor's Create PR prompt finishes source/tests and the native wiki update, updates the map when relevant, commits the intended changes, and runs the required preflights before publishing the PR. It preserves the current branch and does not merge or archive the workspace. The next workspace inherits the committed map and documentation after they reach its starting branch.
+
+For instruction and workflow changes, that prompt also requests the PR template's Policy changes section. Its four fields record the original decision, affected scope, before/after effect and preserved or changed qualifications. The shared preflight checks the disclosure on sensitive paths, including moved or deleted instructions; it does not prove the cited authorization is genuine. Read the [authored authority boundary](../../INSTRUCTIONS.md#instruction-authority-and-policy-changes) for the policy and the [provenance review](../../../docs/engineering/policy-provenance-review.md) for the incident that motivated this check.
 
 ## Native OpenWiki lifecycle
 
@@ -84,8 +90,7 @@ Commit wiki changes with the implementation on the current branch. The existing 
 ## Source evidence
 
 - [Makefile](../../../Makefile#L21-L39)
-- [Graph runtime and checker](../../../scripts/ua_graph.py)
-- [Conductor Create PR sequence](../../../.conductor/settings.toml#L5-L27)
+- [Conductor Create PR sequence](../../../.conductor/settings.toml#L5-L16)
 - [.nvmrc](../../../.nvmrc)
 
 - [Node package scripts](../../../desktop/macos/agent/package.json#L1-L12)

@@ -472,7 +472,7 @@ extension SBOnboardingModel {
     activate: @escaping @MainActor () -> Void
   ) async {
     let bridgeReady = await warmup()
-    guard !Task.isCancelled, step == .screenDemo else { return }
+    guard !Task.isCancelled, !exitStarted, step == .screenDemo else { return }
     guard bridgeReady else {
       screenDemoPTTUnavailable = true
       return
@@ -481,7 +481,7 @@ extension SBOnboardingModel {
   }
 
   private func activateScreenDemoPTT() {
-    guard step == .screenDemo,
+    guard !exitStarted, step == .screenDemo,
       let bar = FloatingControlBarManager.shared.barState
     else { return }
     PushToTalkManager.shared.setup(barState: bar)
@@ -528,5 +528,5 @@ extension SBOnboardingModel {
     return tokens.isEmpty ? ["fn"] : tokens
   }
 
-  func answerScreenDemo() { advance(userAnswer: "Continue", to: .capture) }
+  func answerScreenDemo() { complete() }
 }

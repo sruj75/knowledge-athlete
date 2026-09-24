@@ -5052,17 +5052,15 @@ class ChatProvider: ObservableObject {
 
   /// Compose and present the personalized opener the instant the Chat tab
   /// appears after onboarding. Composed synchronously from locally-known
-  /// facts (name, listening mode, normal Home suggestion chips) so it is instant
+  /// facts (name and normal Home suggestion chips) so it is instant
   /// and never blank.
   func presentOnboardingOpener() {
     let name = Self.firstName(AuthService.shared.givenName)
-    let mode: OnboardingOpenerComposer.ListeningMode =
-      AssistantSettings.shared.systemAudioCaptureMode == .always ? .always : .meetingsOnly
     let baseStarters = HomeSuggestionComposer.compose(
       personalized: HomeSuggestionsStore.shared.personalizedQuestions)
 
     onboardingOpener = OnboardingOpenerComposer.compose(
-      name: name, mode: mode, now: Date(), baseStarters: baseStarters)
+      name: name, now: Date(), baseStarters: baseStarters)
 
   }
 

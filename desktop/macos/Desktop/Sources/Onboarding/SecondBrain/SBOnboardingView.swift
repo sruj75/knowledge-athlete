@@ -220,7 +220,6 @@ struct SBOnboardingView: View {
     case .shortcutOpen: shortcutWidget(isTalk: false)
     case .shortcutTalk: shortcutWidget(isTalk: true)
     case .screenDemo: screenDemoWidget
-    case .capture: captureWidget
     }
   }
 
@@ -545,38 +544,6 @@ struct SBOnboardingView: View {
     .frame(maxWidth: 380, alignment: .leading)
   }
 
-  // MARK: capture
-
-  private var captureWidget: some View {
-    VStack(spacing: 8) {
-      Text(SBOnboardingCompletionCopy.disclosure)
-        .geist(size: 12)
-        .foregroundStyle(sb.ink(.w6))
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, 4)
-      Button {
-        model.capture(SBOnboardingModel.defaultCaptureSelection)
-      } label: {
-        HStack(spacing: 4) {
-          Text("● Only during meetings").geist(size: 14, weight: .semibold).foregroundStyle(sb.inkInverted)
-          Text("· starts when a call is detected").geist(size: 12).foregroundStyle(sb.inkInverted.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 11).fill(sb.ink))
-      }
-      .buttonStyle(.plain)
-      .keyboardShortcut(.defaultAction)
-      Button {
-        model.capture(.continuous)
-      } label: {
-        Text("Start listening — continuously").geist(size: 14).foregroundStyle(sb.ink(.w85))
-          .frame(maxWidth: .infinity).padding(.vertical, 11)
-          .overlay(RoundedRectangle(cornerRadius: 11).stroke(sb.ink(.w18), lineWidth: 1))
-      }
-      .buttonStyle(.plain)
-    }
-    .frame(maxWidth: 340, alignment: .leading)
-  }
 }
 
 /// Wrapping chip row where each chip hugs its content (no wide grid cells that

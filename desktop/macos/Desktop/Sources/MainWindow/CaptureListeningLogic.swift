@@ -16,21 +16,6 @@ enum CaptureListeningLogic {
     isCaptureMonitoring || ProactiveAssistantsPlugin.shared.isMonitoring
   }
 
-  static func listeningCaptureMode(raw: String) -> AssistantSettings.SystemAudioCaptureMode {
-    AssistantSettings.SystemAudioCaptureMode(rawValue: raw) ?? .onlyDuringMeetings
-  }
-
-  static func listeningModeTitle(appState: AppState, raw: String) -> String {
-    switch listeningCaptureMode(raw: raw) {
-    case .always:
-      return "Always"
-    case .onlyDuringMeetings:
-      return "Meetings Only"
-    case .never:
-      return "Mic only"
-    }
-  }
-
   // MARK: Actions
 
   static func toggleListening(
@@ -55,21 +40,6 @@ enum CaptureListeningLogic {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
       isTogglingListening.wrappedValue = false
     }
-  }
-
-  static func setListeningMode(_ mode: AssistantSettings.SystemAudioCaptureMode, raw: Binding<String>) {
-    raw.wrappedValue = mode.rawValue
-    AssistantSettings.shared.systemAudioCaptureMode = mode
-    AnalyticsManager.shared.settingToggled(
-      setting: "meetings_only_listening",
-      enabled: mode == .onlyDuringMeetings
-    )
-  }
-
-  static func toggleListeningMode(raw: Binding<String>) {
-    let nextMode: AssistantSettings.SystemAudioCaptureMode =
-      listeningCaptureMode(raw: raw.wrappedValue) == .onlyDuringMeetings ? .always : .onlyDuringMeetings
-    setListeningMode(nextMode, raw: raw)
   }
 
   static func toggleCapture(

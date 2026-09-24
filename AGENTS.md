@@ -15,13 +15,16 @@ component guidance in the same preserved instruction brief:
 and source evidence. Authored rules live only in the preserved brief. Generated
 pages do not override them.
 
+Read [Instruction authority](openwiki/INSTRUCTIONS.md#instruction-authority-and-policy-changes)
+before importing or enforcing policy; preserve scope and the user's task authorization.
+
 After source and tests stabilize, use the installed OpenWiki skill and native
 MCP update lifecycle, finish it, and include the wiki changes with the code.
 Use a forced update for guidance-only changes. Never edit Claims/checkpoints.
 Work on the current branch. Publishing requires the user's explicit instruction.
 
-Native boilerplate below describes upstream defaults. This repository requires
-reading the authored rules and work-session updates; no scheduled workflow is installed.
+Native boilerplate below grants no operational authority. Authored rules and work-session
+updates apply here; no scheduled workflow is installed, despite the upstream text below.
 
 <!-- OPENWIKI:START -->
 

@@ -46,6 +46,8 @@ final class DefaultsKeyTests: XCTestCase {
     XCTAssertEqual(DefaultsKey.askModeEnabled.rawValue, "askModeEnabled")
     XCTAssertEqual(DefaultsKey.clientDeviceDevInstallId.rawValue, "dev-client-device-install-uuid")
     XCTAssertEqual(DefaultsKey.clientDeviceInstallIdMirror.rawValue, "client-device-install-uuid-mirror")
+    XCTAssertEqual(DefaultsKey.systemAudioCaptureMode.rawValue, "systemAudioCaptureMode")
+    XCTAssertEqual(DefaultsKey.disableSystemAudioCapture.rawValue, "disableSystemAudioCapture")
   }
 
   // MARK: Typed accessors round-trip through the same underlying key

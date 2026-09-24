@@ -69,10 +69,7 @@ extension SettingsContentView {
 
             Text(
               transcriptionError
-                ?? (isTranscribing
-                  ? (appState.isAwaitingMeeting
-                    ? "Waiting for a meeting…" : "Recording and transcribing audio")
-                  : "Audio recording is paused")
+                ?? (isTranscribing ? "Recording and transcribing audio" : "Audio recording is paused")
             )
             .scaledFont(size: OmiType.body)
             .foregroundColor(transcriptionError != nil ? OmiColors.warning : OmiColors.textTertiary)
@@ -196,7 +193,7 @@ extension SettingsContentView {
                   .scaledFont(size: OmiType.subheading, weight: .semibold)
                   .foregroundColor(OmiColors.textPrimary)
 
-                Text("Choose when Intentive records audio from other apps (calls, videos, music).")
+                Text("Include audio from other apps while listening (calls, videos, music).")
                   .scaledFont(size: OmiType.body)
                   .foregroundColor(OmiColors.textTertiary)
               }
@@ -212,21 +209,11 @@ extension SettingsContentView {
                   }
                 )
               ) {
-                Text("Always").tag(AssistantSettings.SystemAudioCaptureMode.always)
-                Text("Only during meetings").tag(
-                  AssistantSettings.SystemAudioCaptureMode.onlyDuringMeetings)
-                Text("Never").tag(AssistantSettings.SystemAudioCaptureMode.never)
+                Text("On").tag(AssistantSettings.SystemAudioCaptureMode.always)
+                Text("Off").tag(AssistantSettings.SystemAudioCaptureMode.never)
               }
             }
 
-            if systemAudioCaptureMode == .onlyDuringMeetings {
-              Text(
-                DesktopLifecycleIdentityCopy.systemAudioMeetingDetail
-              )
-              .scaledFont(size: OmiType.caption)
-              .foregroundColor(OmiColors.textTertiary)
-              .fixedSize(horizontal: false, vertical: true)
-            }
           }
         }
       }

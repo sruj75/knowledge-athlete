@@ -1,0 +1,702 @@
+flowchart TD
+    %% One running-product diagram. Source anchors are also visible in each node.
+  subgraph AREA_01["01 · Start, sign in, permissions and owner changes · Mac"]
+    APP["Launch normal app services<br/>AppDelegate.applicationDidFinishLaunching<br/>OmiApp.swift:279"]
+    DUPLICATE{"Reject duplicate same-bundle instance before stores open<br/>OmiApp.swift:264"}
+    AUTH["Restore or sign in<br/>AuthService<br/>AuthService.swift:21"]
+    PERM{"Check microphone, screen, system audio and accessibility<br/>AppState.checkAllPermissions<br/>AppState+Permissions.swift:97"}
+    OWNER{"Change account safely<br/>revoke work, quiesce capture, retarget stores<br/>RuntimeOwnerIdentity.swift:198"}
+    WARM["Start local workers and warm services<br/>StartupWarmupCoordinator<br/>StartupWarmupCoordinator.swift:4"]
+    SETTINGS["Local product settings and permissions UI<br/>SettingsPage.swift:8"]
+    STOP["Quit: stop hotkeys / voice / workers; flush Rewind<br/>OmiApp.swift:1214"]
+  end
+
+  subgraph AREA_02["02 · Screen capture · Mac"]
+    MONITOR["Start background monitoring and capture timer<br/>startMonitoring<br/>ProactiveAssistantsPlugin.swift:243"]
+    WINDOW["Observe frontmost app and window<br/>WindowMonitor<br/>WindowMonitor.swift:5"]
+    CAPTURE{"Privacy, owner, idle and timing gates<br/>captureFrame<br/>ProactiveAssistantsPlugin.swift:696"}
+    SCREEN["Resolve and capture active window<br/>ScreenCaptureService<br/>ScreenCaptureService.swift:8"]
+    FRAME["Build live CapturedFrame<br/>JPEG, app, title, time; screenshotId may be absent<br/>CapturedFrame.swift:5"]
+    COORD["Distribute eligible frames<br/>AssistantCoordinator.distributeFrame<br/>AssistantCoordinator.swift:166"]
+    SWITCH["Notify assistants of app/window change<br/>checkContextSwitch<br/>AssistantCoordinator.swift:97"]
+  end
+
+  subgraph AREA_03["03 · Rewind archive, search and recovery · Mac"]
+    INDEX["Archive branch: dedupe and admission<br/>RewindIndexer.processFrame<br/>RewindIndexer.swift:341"]
+    VIDEO["Append HEVC frame / rotate video chunk<br/>VideoChunkEncoder.addFrame<br/>VideoChunkEncoder.swift:277"]
+    OCR["Selected OCR; similar frames can skip OCR<br/>RewindIndexer.swift:24"]
+    SHOT[("Commit screenshot metadata and optional OCR<br/>RewindDatabase.insertScreenshot<br/>RewindDatabase+OwnerAuthorization.swift:6")]
+    OCREMB["Batch OCR embeddings; store vectors locally<br/>OCREmbeddingService<br/>OCREmbeddingService.swift:127"]
+    REWINDUI["Search timeline and inspect archived screen<br/>RewindViewModel.performSearch<br/>RewindViewModel.swift:216"]
+    FRAMELOAD["Read chunk and frame offset<br/>RewindStorage<br/>RewindStorage.swift:527"]
+    RETENTION["Run authorized retention cleanup<br/>RewindIndexer.runCleanup<br/>RewindIndexer.swift:758"]
+    FILECLEAN["Delete expired files / unreferenced chunks<br/>RewindStorage cleanup<br/>RewindStorage.swift:796"]
+    FLUSH["Finalize current chunk or retain recovery marker<br/>flushCurrentVideoChunk<br/>RewindStorage.swift:685"]
+    RECOVER["Recover abandoned chunks<br/>rows first, file next, marker last<br/>RewindStorage.swift:624"]
+  end
+
+  subgraph AREA_04["04 · Ambient audio capture and transcription · Mac"]
+    LISTEN["Setup completes or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
+    CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1614"]
+    AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:475"}
+    MIC["Microphone capture and resampling<br/>AudioCaptureService<br/>AudioCaptureService.swift:9"]
+    SYSTEMAUDIO["System audio process tap<br/>SystemAudioCaptureService<br/>SystemAudioCaptureService.swift:15"]
+    SLEEPCAPTURE["Mac sleep pauses / wake restores enabled listening<br/>NSWorkspace lifecycle observers<br/>AppState.swift:493"]
+    LOCALSTT["Local Parakeet<br/>separate mic and system decoders<br/>LocalTranscriptionService.swift:89"]
+    MIXER["Cloud route: combine mic and system PCM<br/>AudioMixer<br/>AudioMixer.swift:10"]
+    AMBIENTWS["Stream mono 16 kHz PCM<br/>TranscriptionService /v4/listen<br/>TranscriptionService.swift:8"]
+    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:713"]
+    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:770"]
+    SEGMENTS["Upsert by segment ID; order by spoken time<br/>handleBackendSegments<br/>AppState+ListenEvents.swift:8"]
+    LIVEUI["Publish current transcript<br/>LiveTranscriptMonitor<br/>LiveTranscriptMonitor.swift:6"]
+    SEGSTORE[("Persist segments in local conversation<br/>TranscriptionStorage.upsertSegments<br/>TranscriptionStorage+LocalAuthority.swift:41")]
+    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1638"]
+  end
+
+  subgraph AREA_05["05 · Conversation enrichment and live notes · Mac"]
+    FINALIZE["Finalize or recover unfinished work<br/>ConversationFinalizationService<br/>ConversationFinalizationService.swift:44"]
+    DISCARD{"Claim discard decision; failure keeps transcript<br/>ConversationDiscardAdmission<br/>ConversationDiscardAdmission.swift:3"}
+    STRUCTURE["Claim generation → compute title and summary<br/>ConversationStructureEnrichment<br/>ConversationStructureEnrichment.swift:48"]
+    CONVTASK["Find related local tasks → request candidates<br/>ConversationActionItemEnrichment<br/>ConversationActionItemEnrichment.swift:39"]
+    CONVCOMMIT[("Validate generation and commit accepted result<br/>TranscriptionStorage<br/>TranscriptionStorage+LocalAuthority.swift:1361")]
+    NOTES["Transcript word threshold → concise AI note<br/>LiveNotesMonitor.handleSegmentsUpdate<br/>LiveNotesMonitor.swift:233"]
+    NOTESTORE[("Create / edit / delete local conversation note<br/>NoteStorage<br/>NoteStorage.swift:6")]
+  end
+
+  subgraph AREA_06["06 · Five background assistants · Mac"]
+    FOCUS["Focus: owner/cooldown gates → screenshot analysis<br/>FocusAssistant.processFrame<br/>FocusAssistant.swift:175"]
+    FOCUSCOMMIT["Only accepted state transition becomes durable<br/>saveFocusSessionToSQLite<br/>FocusAssistant.swift:908"]
+    TASKEX["Task: context-switch or cadence → extraction<br/>TaskAssistant.processFrame<br/>TaskAssistant.swift:654"]
+    TASKGATE{"Task candidate: confidence, duplicates, owner<br/>handleResultWithScreenshot<br/>TaskAssistant.swift:348"}
+    MEMEX["Memory: newest frame on its cadence<br/>MemoryAssistant.processFrame<br/>MemoryAssistant.swift:381"]
+    MEMGATE{"Memory: first candidate, confidence and owner<br/>handleResultWithScreenshot<br/>MemoryAssistant.swift:205"}
+    INSIGHT["Insight: investigate screenshot and local evidence<br/>InsightAssistant.processFrame<br/>InsightAssistant.swift:661"]
+    INSIGHTCOMMIT["Accepted insight → Memory tagged tips<br/>saveInsightToSQLite<br/>InsightAssistant.swift:479"]
+    SUGGEST["Suggestion: current frame + dwell/cooldown/budget gates<br/>SuggestionAssistant.analyze<br/>SuggestionAssistant.swift:112"]
+    GROUND["Read relevant tasks, memories and Rewind history<br/>assembleGrounding<br/>SuggestionAssistant.swift:221"]
+    SUGGESTGATE{"No grounding means no model call<br/>SuggestionAssistant.swift:173"}
+    SUGGESTRESULT{"After model response: owner, confidence and duplicates<br/>SuggestionAssistant.swift:456"}
+    SUGGESTSEND["Deliver accepted suggestion; no task/Memory write<br/>SuggestionAssistant.deliver<br/>SuggestionAssistant.swift:543"]
+  end
+
+  subgraph AREA_07["07 · Local archive authorities · Mac and Node"]
+    DB[("Owner-partitioned heyintentive.db<br/>RewindDatabase; SQLite / GRDB<br/>RewindDatabase.swift:103")]
+    MEMSTORE[("Memory assertions, transitions and work<br/>MemoryStorage<br/>MemoryStorage.swift:14")]
+    TASKSTORE[("Task rows and recurrence authority<br/>ActionItemStorage<br/>ActionItemStorage.swift:5")]
+    GOALSTORE[("Local goals<br/>GoalStorage<br/>GoalStorage.swift:18")]
+    FOCUSSTORE[("focus_sessions authority<br/>ProactiveStorage<br/>ProactiveStorage.swift:5")]
+    CONVSTORE[("Conversation and transcript authority<br/>TranscriptionStorage<br/>TranscriptionStorage.swift:5")]
+    NODEDB[("heyintentive-agent.sqlite3<br/>Sessions, runs, context and chat journal<br/>sqlite-store.ts:43")]
+  end
+
+  subgraph AREA_08["08 · Memory lifecycle and AI user profile · Mac"]
+    MEMWORK["Lease due work with owner and revision<br/>LocalMemoryLifecycleRunner.runOnce<br/>LocalMemoryLifecycleRunner.swift:79"]
+    MEMEXTRACT["Conversation → Memory candidates<br/>processExtractions<br/>LocalMemoryLifecycleRunner.swift:180"]
+    NORMALIZE["Normalize assertion candidate<br/>LocalMemoryLifecycleRunner.swift:121"]
+    MEMEMBED["Embed eligible Memory; store vectors locally<br/>LocalMemoryLifecycleRunner.swift:242"]
+    CONSOLIDATE["Compare candidate and active memories<br/>promote / merge / archive under revision checks<br/>LocalMemoryLifecycleRunner.swift:299"]
+    MEMSEARCH["Read local semantic Memory matches<br/>MemorySemanticRecall<br/>MemorySemanticRecall.swift:4"]
+    MEMDELETE{"Pending deletion → Undo deadline → final delete<br/>MemoryStorage.beginDeletion<br/>MemoryStorage.swift:620"}
+    PROFILE["Explicit profile regeneration<br/>AIUserProfileService.generateProfile<br/>AIUserProfileService.swift:333"]
+    PROFILEMERGE["New facts + up to five past profiles<br/>Build second consolidation request<br/>AIUserProfileService.swift:427"]
+    PROFILESAVE["Accept final profile and insert ai_user_profiles<br/>Current-owner commit lease<br/>AIUserProfileService.swift:457"]
+    PROFILEREAD["Read latest saved profile when preparing context<br/>AIUserProfileService.getLatestProfile<br/>AIUserProfileService.swift:168"]
+  end
+
+  subgraph AREA_09["09 · Interface: Home, Memory, Tasks, Insights · Mac"]
+    HOME["Main navigation and Chat/Home stages<br/>DesktopHomeView<br/>DesktopHomeView.swift:43"]
+    DASH["Home cards and current work<br/>DashboardPage<br/>DashboardPage.swift:8"]
+    MEMUI["Memory list, literal search and record actions<br/>MemoriesViewModel<br/>MemoriesViewModel.swift:59"]
+    CONVUI["Conversation list and detail<br/>ConversationsPage<br/>ConversationsPage.swift:6"]
+    TASKUI["Tasks: create, edit, complete, delete and Undo<br/>TasksPage<br/>TasksPage.swift:635"]
+    TASKS["TasksStore: authorized mutations and projection<br/>TasksStore.swift:16"]
+    REMINDER["Schedule and reconcile local task reminders<br/>TaskReminderService<br/>TaskReminderService.swift:44"]
+    FOCUSUI["FocusStorage: publish only after durable insert<br/>Focus / Home / notch readers<br/>FocusStorage.swift:172"]
+    INSIGHTUI["InsightStorage: projection of Memory tagged tips<br/>Insights / Home readers<br/>InsightStorage.swift:113"]
+  end
+
+  subgraph AREA_10["10 · Notifications and conversation continuity · Mac"]
+    NOTIFY{"Owner, enabled, snooze and frequency checks<br/>NotificationService.sendNotification<br/>NotificationService.swift:374"}
+    CARD["Show floating-bar card and journal message<br/>presentNotification<br/>FloatingControlBarWindow.swift:3855"]
+    CARDCONTEXT["Attach quoted card context to typed follow-up<br/>notificationContextSuffixIfNeeded<br/>FloatingControlBarWindow.swift:4715"]
+    CARDVOICE["Supply silent reference to native Live<br/>NotchCardVoiceDelivery.cardPresented<br/>NotchCardVoiceDelivery.swift:59"]
+    SYSTEMNOTICE["OS notice / reminder<br/>Functional capture-reset action is separate<br/>NotificationService.swift:258"]
+  end
+
+  subgraph AREA_11["11 · Chat context, transport and accepted journal · Mac"]
+    TEXT["User types in Home or floating bar<br/>ChatProvider.sendMessage<br/>ChatProvider.swift:3740"]
+    CHATGATE{"Owner, quota, session and concurrent-send checks<br/>ChatProvider.swift:3740"}
+    CONTEXT["Collect profile, Memory, goals, tasks and surface context<br/>prepareKernelQueryContext<br/>ChatProvider.swift:1742"]
+    BRIDGE["Swift ↔ Node JSONL request/result transport<br/>AgentRuntimeProcess<br/>AgentRuntimeProcess.swift:227"]
+    PROJECTION["Accepted journal → shared Home/floating transcript<br/>ChatProvider journal projection<br/>ChatProvider+JournalProjection.swift:3"]
+    CHATUI["Visible answer text and resources<br/>ChatMessagesView<br/>ChatMessagesView.swift:74"]
+    CHATSTOP["User stop / watchdog → interrupt active run<br/>ChatProvider.stopAgent<br/>ChatProvider.swift:3195"]
+    VOICECONTEXT["Reuse kernel-rendered context for Live<br/>prepareRealtimeVoiceContextSnapshot<br/>ChatProvider.swift:1862"]
+  end
+
+  subgraph AREA_12["12 · Local Node kernel, Pi and tools"]
+    TRANSPORT{"Validate owner, session and expected snapshot<br/>JsonlTransport<br/>jsonl-transport.ts:84"}
+    KERNEL["Validate context snapshot; admit run/attempt and bind adapter<br/>KernelCore<br/>kernel-core.ts:159"]
+    PI["Pi subprocess: model → tool → model<br/>PiMonoAdapter<br/>pi-mono.ts:203"]
+    EXTENSION["Intentive provider extension<br/>Firebase Bearer headers; private tool pipe<br/>index.ts:375"]
+    CAPABILITY{"Authorize exact owner/session/run/attempt/tool<br/>Reject stale, revoked or replayed calls<br/>run-tool-capability.ts:59"}
+    NODETOOLS["Node control tools<br/>spawn agents and manage their runs<br/>direct-control-execution.ts:8"]
+    SWIFTTOOLS["Swift retained product tools<br/>ChatToolExecutor.execute<br/>ChatToolExecutor.swift:88"]
+    SWIFTWIRE["Node authorized_tool_execution → Swift<br/>Owner-checked execution → correlated return<br/>AgentRuntimeProcess.swift:3166"]
+    TOOLRESULT["Canonical tool result returns to active caller<br/>index.ts:813"]
+    AGENTRESULT["Background agent completion → existing journal row<br/>KernelAgentLifecycleMutation<br/>KernelTurnProjection.swift:71"]
+  end
+
+  subgraph AREA_13["13 · Push-to-talk and native Gemini Live · Mac"]
+    PTT["Hold shortcut: begin physical voice turn<br/>PushToTalkManager.startListening<br/>PushToTalkManager.swift:462"]
+    PTTCAP["Capture and buffer 16 kHz microphone audio<br/>startAudioTranscription<br/>PushToTalkManager.swift:1495"]
+    HUB["RealtimeHubController<br/>Session, turn identity and output ownership<br/>RealtimeHubController.swift:8"]
+    LIVESETUP["Direct Google WebSocket<br/>setup: audio output, transcripts and tools<br/>RealtimeHubSession.swift:679"]
+    LIVEINPUT["activityStart → PCM audio → activityEnd<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:271"]
+    LIVEFUNCTION["Receive functionCalls; return functionResponses<br/>RealtimeHubSession.swift:601"]
+    LIVEOUTPUT["Read serverContent: transcripts and PCM<br/>turnComplete waits for pending tools<br/>RealtimeHubSession.swift:945"]
+    RECONNECT{"Bounded same-provider reconnect with buffered input<br/>RealtimeHubController+SessionDelegate.swift:1117"}
+  end
+
+  subgraph AREA_14["14 · Voice recovery and spoken output · Mac"]
+    BATCH["Fallback: completed speech buffer → batch STT<br/>TranscriptionService.batchTranscribe<br/>TranscriptionService.swift:967"]
+    BATCHPOLICY{"Language, keywords and owner checks<br/>One multi-language retry after empty result<br/>PTTBatchTranscriptionPolicy.swift:6"}
+    SPEECHGATE{"Completed turn has usable speech?<br/>Reject silence before batch recovery<br/>PushToTalkManager.swift:1746"}
+    TRANSCRIPTQUERY["Recognized text → floating Chat request<br/>PushToTalkManager.sendQuery<br/>PushToTalkManager.swift:1402"]
+    PCM["Native PCM16 at 24 kHz<br/>StreamingPCMPlayer<br/>StreamingPCMPlayer.swift:53"]
+    OUTPUTLEASE{"Only current turn/session may play audio<br/>enqueueNativeAudio<br/>RealtimeHubController+VoiceOutput.swift:37"}
+    TTSQUEUE["Arriving text → sentence chunks<br/>FloatingBarVoicePlaybackService<br/>FloatingBarVoicePlaybackService.swift:159"]
+    MP3["Selected OpenAI voice: play returned audio<br/>AVAudioPlayer<br/>FloatingBarVoicePlaybackService.swift:15"]
+    OSSPEECH["Selected system voice / cloud failure fallback<br/>AVSpeechSynthesizer<br/>FloatingBarVoicePlaybackService.swift:15"]
+    SPEAKER["Audible speech output<br/>Hardware playback completion<br/>StreamingPCMPlayer.swift:53"]
+  end
+
+  subgraph AREA_15["15 · Managed inference and provider boundaries · Backend"]
+    SERVER["FastAPI startup, routers and bounded shutdown<br/>backend/main.py<br/>main.py:76"]
+    BEAUTH{"Firebase authentication and participant admission<br/>get_current_participant_uid<br/>endpoints.py:160"}
+    CHATAPI["POST /v2/models/model:streamGenerateContent<br/>Validate, quota, managed prompt, Gemini SSE<br/>desktop_chat.py:372"]
+    PROXY["POST /v1/proxy/gemini/path<br/>Candidate and embedding compute<br/>desktop_proxy.py:192"]
+    CONVAPI["Conversation discard / structure / action-items<br/>Return generation-tagged candidates<br/>conversation_compute.py:173"]
+    MEMAPI["Memory extract / normalize / consolidate<br/>Return validated candidates<br/>memory_compute.py:35"]
+    TOKENAPI["POST /v2/realtime/session<br/>Mint single-use Google credential<br/>desktop_realtime.py:113"]
+    STTAPI["POST /v2/voice-message/transcribe<br/>Fixed Modulate Velma-2 batch STT<br/>chat.py:280"]
+    TTSAPI["POST /v1/tts/synthesize<br/>OpenAI speech → MP3 bytes<br/>desktop_tts_updates.py:199"]
+    GREETING["Bounded greeting / session title compute<br/>No hosted Chat catalog<br/>chat_sessions.py:50"]
+    GOOGLE["Google Gemini<br/>Text/image reasoning and embeddings<br/>desktop_proxy.py:109"]
+    GOOGLELIVE["Google Gemini Live<br/>Direct audio WebSocket session<br/>RealtimeHubSession.swift:667"]
+    MODULATE["Modulate speech recognition<br/>Streaming and prerecorded routes<br/>stt_provider_policy.py:15"]
+    OPENAI["OpenAI text-to-speech<br/>gpt-4o-mini-tts<br/>desktop_tts_updates.py:21"]
+  end
+
+  subgraph AREA_16["16 · Ambient cloud session and translation · Backend"]
+    LISTENAPI["GET WebSocket /v4/listen<br/>Validate fixed audio contract<br/>transcribe.py:26"]
+    LISTENRUN["Admit usage; supervise receive / heartbeat / output<br/>ListenSessionRuntime.run<br/>runtime.py:359"]
+    RECEIVER["Forward bounded PCM to Modulate<br/>ListenReceiver.receive_data<br/>receiver.py:138"]
+    TRANSIENT["Validate and emit transient segments<br/>TransientTranscriptProcessor.process_loop<br/>transcripts.py:67"]
+    TRANSLATE["Optional translation of accepted segment IDs<br/>Emit translation event<br/>transcripts.py:90"]
+    LISTENDRAIN["Flush transcript and usage; drain socket tasks<br/>No hosted conversation persistence<br/>runtime.py:386"]
+  end
+
+  subgraph AREA_17["17 · Account sign-in and remote account authority"]
+    OAUTH["Sign-in browser → Google / Apple<br/>authorize and callback<br/>auth.py:287"]
+    TOKENEXCHANGE["Exchange one-time auth code<br/>Redirect and PKCE validation<br/>auth.py:546"]
+    FIREBASE["Firebase Auth<br/>Identity verification and account lifecycle<br/>endpoints.py:36"]
+    DELETIONMARK[("Firestore account_deletions/uid<br/>Intent, claims, dispatch receipts and retry state<br/>users.py:220")]
+    ACCOUNTDATA[("Server account metadata and entitlement facts<br/>Firestore user projection<br/>users.py:66")]
+    AUTHCACHE[("Scoped Keychain credentials<br/>Local auth restoration and refresh<br/>DesktopKeychainStore.swift:21")]
+    SIGNOUT["Sign out through owner transition<br/>AuthOwnerTransition<br/>AuthOwnerTransition.swift:72"]
+  end
+
+  subgraph AREA_18["18 · Subscription, usage and fair use"]
+    PLANUI["Subscription/trial state presented locally<br/>TrialBannerService<br/>TrialBannerService.swift:12"]
+    PLANAPI["Get subscription / quota / trial / paywall<br/>Server-owned account limits<br/>users.py:254"]
+    CHECKOUT["Request checkout or customer portal URL<br/>payment.py:89"]
+    BILLING["Dodo provider and catalog<br/>BillingService<br/>service.py:57"]
+    WEBHOOK["Verify billing event and update entitlement projection<br/>payment.py:117"]
+    USAGE["Record usage; refresh credits and enforcement<br/>ListenSessionRuntime<br/>runtime.py:323"]
+    REVIEW["Requested fair-use review<br/>Read bounded local conversation evidence<br/>FairUseReviewCoordinator.swift:127"]
+    REVIEWAPI["Classify once; record durable enforcement receipt<br/>Fair-use classification endpoint<br/>fair_use_reviews.py:68"]
+    FAIRNOTICE["Present owner-scoped fair-use warning<br/>FairUseWarningNotificationPresenter<br/>FairUseWarningNotification.swift:62"]
+  end
+
+  subgraph AREA_19["19 · Product controls, onboarding and user data"]
+    ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:49"]
+    ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:565"}
+    ONBOARDEXIT["Final demo Continue or Skip for now → all-day<br/>Global Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:109"]
+    PREFS[("Local capture, assistant, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
+    CONVACTIONS["Folders, stars, titles, speakers and deletion<br/>ConversationRepository<br/>ConversationRepository.swift:240"]
+    GOALSUI["Personalized Home question chips<br/>HomeSuggestionsStore<br/>HomeSuggestionsStore.swift:80"]
+    MEMORYACTIONS["Create, correct, search/filter and delete Memory<br/>MemoriesPage and MemoryStorage<br/>MemoriesPage.swift:102"]
+    EXPORT["Save owner-consistent local JSON<br/>LocalUserDataExport<br/>LocalUserDataExport.swift:316"]
+    DELETEUI["Confirm account deletion<br/>Remote acceptance before local sign-out<br/>SettingsContentView+SettingsUpdates.swift:36"]
+    DELETEAPI["Durable deletion intent and dispatch receipt<br/>start_account_deletion<br/>account_deletion.py:213"]
+    WIPE["Cloud Tasks worker<br/>Cancel billing → delete Auth → wipe account data<br/>account_deletion.py:76"]
+    DELETERETRY["Recover pending/failed deletion work<br/>Startup and periodic reconciliation<br/>main.py:152"]
+    SERVEREXPORT["GET /v1/users/export<br/>Retained account metadata only<br/>data_export.py:38"]
+  end
+
+  subgraph AREA_20["20 · Detailed retrieval, controls and recovery"]
+    REWINDDELETE["Delete selected screenshot and owned artifacts<br/>deleteScreenshotAndArtifacts<br/>RewindDatabase+OwnerAuthorization.swift:162"]
+    REBUILD["Rebuild Rewind index from finalized video files<br/>rebuildFromVideoFiles<br/>RewindIndexer.swift:982"]
+    EXCLUSIONS{"Excluded apps stop both screen branches<br/>RewindSettings.excludedApps<br/>RewindModels.swift:367"}
+    TASKUNDO["Delete task → timed Undo → purge<br/>Tasks page deletion handling<br/>TasksPage.swift:291"]
+    RECURRENCE["Complete repeating task → next occurrence once<br/>ActionItemStorage<br/>ActionItemStorage.swift:352"]
+    MEMRETRY["Failed Memory work → durable retry<br/>No accepted state from failed compute<br/>LocalMemoryLifecycleRunner.swift:384"]
+    MEMORYSCOPE["Short-term / Long-term / Archive states<br/>Memory lifecycle transitions<br/>MemoryStorage.swift:1142"]
+    CHILDVOICE["AgentCompletionVoiceDelivery<br/>Deliver bounded delta; checkpoint only after send<br/>AgentCompletionVoiceDelivery.swift:19"]
+    ARTIFACTQUEUE["Separate desktop action/delivery queue<br/>Automatic consumer UNVERIFIED<br/>kernel-artifacts.ts:119"]
+    FLOATROUTE["Floating typed / batch-voice route<br/>Same main Chat journal, different presentation<br/>FloatingControlBarWindow.swift:3532"]
+    RESOURCES["Accepted answer resources and child artifacts<br/>ChatProvider terminalization<br/>ChatProvider.swift:3535"]
+    DRAFTS["Swift-owned drafts and attachment bytes<br/>Runtime receives materialized references<br/>ChatProvider.swift:3740"]
+  end
+
+  subgraph AREA_21["21 · Retained agent tools and results"]
+    READTOOLS["Read: SQL, screen history, recap,<br/>conversations, Memory and tasks<br/>GeneratedToolExecutors.swift:5"]
+    WRITETOOLS["Write tasks; screen/work context;<br/>check/request permissions<br/>GeneratedToolExecutors.swift:8"]
+    LIVETOOLS["Hub-executed live handlers<br/>get_tasks, screenshot, report_screen_observation<br/>GeneratedToolExecutors.swift:22"]
+    JOURNALREPAIR["Repair orphan turns / replay contiguous journal<br/>ConversationJournal<br/>conversation-journal.ts:22"]
+    BRIDGERESTART["Process exit / handshake failure<br/>Fence old stdout; fail pending requests<br/>AgentRuntimeProcess.swift:260"]
+  end
+
+  subgraph AREA_22["22 · Runtime updates, feedback and privacy"]
+    UPDATER["Check/install signed app update<br/>UpdaterViewModel / Sparkle<br/>UpdaterViewModel.swift:608"]
+    APPCAST["Appcast and manual recovery policy<br/>Runtime update feed, not release publishing<br/>updates.py:851"]
+    UPDATEPOLICY["Show dismissible/required update prompt<br/>DesktopUpdatePolicyManager<br/>DesktopUpdatePolicyManager.swift:7"]
+    ANALYTICS["Consented product analytics<br/>PostHogManager<br/>PostHogManager.swift:42"]
+    CONSENT["Product analytics sharing preference<br/>ProductAnalyticsConsentController<br/>ProductAnalyticsConsentController.swift:40"]
+    FEEDBACK["Submit report / save diagnostics locally<br/>Notes, name and email stay on device<br/>FeedbackView.swift:51"]
+    REPORTAPI["Sentry: sanitized user report<br/>Optional redacted diagnostic attachment<br/>FeedbackView.swift:167"]
+    DIAGNOSTICS["Bounded local diagnostics and fallback events<br/>DesktopDiagnosticsManager<br/>DesktopDiagnosticsManager.swift:89"]
+    ADVICEAPI["Registered backend advice CRUD<br/>No active Mac caller found; separate from suggestions<br/>advice.py:40"]
+    ADVICEDB[("Firestore users/uid/advice<br/>Exposed backend branch only<br/>advice.py:27")]
+  end
+
+  ACCOUNTDATA -->|"Account/entitlement/usage only"| SERVEREXPORT
+  ADVICEAPI -->|"Authenticated advice CRUD"| ADVICEDB
+  AGENTRESULT -->|"Child artifacts included in next coordinator response"| RESOURCES
+  AGENTRESULT -->|"Terminal run becomes completion delta"| CHILDVOICE
+  AGENTRESULT -->|"Update matching spawn journal row"| NODEDB
+  AGENTRESULT -->|"Visible completion block"| PROJECTION
+  AMBIENTWS -->|"Authenticated PCM stream"| LISTENAPI
+  AMBIENTWS -->|"Cloud reconnect exhausted"| CLOUDRECOVER
+  AMBIENTWS -->|"Parsed canonical segments"| SEGMENTS
+  APP -->|"Fetch current recovery policy"| UPDATEPOLICY
+  APP -->|"On application termination"| STOP
+  APP -->|"Open main interface"| HOME
+  APP -->|"Refresh OS permissions"| PERM
+  APP -->|"Restore credentials"| AUTH
+  APP -->|"Runtime update initialization"| UPDATER
+  APP -->|"Start completion observer"| CHILDVOICE
+  APPCAST -->|"Channel-correct update metadata"| UPDATER
+  AUTH -->|"Authenticated owner changes"| OWNER
+  AUTH -->|"Authenticated user needs onboarding"| ONBOARD
+  AUTH -->|"Read/write scoped credential state"| AUTHCACHE
+  AUTH -->|"Start authorized work"| WARM
+  AUTH -->|"Start browser sign-in"| OAUTH
+  AUTH -->|"Validate identity"| FIREBASE
+  BATCH -->|"Final recognized text"| TRANSCRIPTQUERY
+  BATCH -->|"Recorded mono PCM"| STTAPI
+  BATCHPOLICY -->|"Admitted non-silent recording"| BATCH
+  BEAUTH -->|"Admitted Chat"| CHATAPI
+  BEAUTH -->|"Admitted Live mint"| TOKENAPI
+  BEAUTH -->|"Admitted Memory compute"| MEMAPI
+  BEAUTH -->|"Admitted batch transcription"| STTAPI
+  BEAUTH -->|"Admitted conversation compute"| CONVAPI
+  BEAUTH -->|"Admitted greeting/title"| GREETING
+  BEAUTH -->|"Admitted model proxy"| PROXY
+  BEAUTH -->|"Admitted speech synthesis"| TTSAPI
+  BEAUTH -->|"Authenticated account read"| PLANAPI
+  BEAUTH -->|"Authenticated metadata export route"| SERVEREXPORT
+  BEAUTH -->|"Authenticated participant WebSocket"| LISTENAPI
+  BILLING -->|"Checkout or portal URL"| CHECKOUT
+  BILLING -->|"Idempotent entitlement projection"| ACCOUNTDATA
+  BRIDGE -->|"Accepted journal events"| PROJECTION
+  BRIDGE -->|"JSONL query with owner and snapshot IDs"| TRANSPORT
+  BRIDGE -->|"Process termination / handshake failure"| BRIDGERESTART
+  BRIDGERESTART -->|"Generation-fenced restart on next admitted request"| BRIDGE
+  CAPABILITY -->|"Authorized control call"| NODETOOLS
+  CAPABILITY -->|"authorized_tool_execution"| SWIFTWIRE
+  CAPTURE -->|"Only admitted window"| SCREEN
+  CARD -->|"Card presentation"| CARDVOICE
+  CARD -->|"User opens/follows up in floating input"| FLOATROUTE
+  CARD -->|"User types follow-up"| TEXT
+  CARD -->|"When user follows up in text"| CARDCONTEXT
+  CARDCONTEXT -.->|"Quoted reference context"| CONTEXT
+  CARDVOICE -.->|"Silent reference; no speech requested"| HUB
+  CHATAPI -->|"Native generateContent stream"| GOOGLE
+  CHATAPI -->|"Quota question and LLM usage facts"| ACCOUNTDATA
+  CHATAPI -->|"SSE response through managed-provider fetch"| EXTENSION
+  CHATGATE -->|"Admitted request"| CONTEXT
+  CHATSTOP -->|"Cancel current run; revoke later output"| KERNEL
+  CHATUI -->|"Stop action"| CHATSTOP
+  CHATUI -->|"Voice query or typed-speech setting"| TTSQUEUE
+  CHECKOUT -->|"Checkout web flow / portal in default browser"| SETTINGS
+  CHECKOUT -->|"Server catalog offer / customer"| BILLING
+  CHILDVOICE -.->|"Silent context; checkpoint after successful send"| HUB
+  CLOUDRECOVER -->|"After current-session teardown; if local available"| LOCALSTT
+  CONSENT -->|"Sharing enabled, eligible build and owned configuration"| ANALYTICS
+  CONSOLIDATE -->|"Current candidates and active Memory"| MEMAPI
+  CONSOLIDATE -->|"Validated revision-bound transition"| MEMORYSCOPE
+  CONTEXT -->|"Update context sources / read snapshot"| BRIDGE
+  CONVACTIONS -->|"Owner-authorized local transactions"| CONVSTORE
+  CONVAPI -->|"Returned candidates"| CONVCOMMIT
+  CONVAPI -->|"Structured generation"| GOOGLE
+  CONVBEGIN -->|"Arm capture policy"| AUDIOCAPTURE
+  SLEEPCAPTURE -->|"Stop on sleep"| FINISH
+  SLEEPCAPTURE -->|"Previously active and still enabled on wake"| LISTEN
+  CONVBEGIN -->|"Local session before input"| CONVSTORE
+  CONVBEGIN -->|"Start session and load existing notes"| NOTES
+  CONVCOMMIT -->|"Accepted task changes"| TASKSTORE
+  CONVCOMMIT -->|"Accepted title and summary"| CONVSTORE
+  CONVSTORE -->|"Conversation tables"| DB
+  CONVSTORE -->|"List/search current-owner conversations"| CONVUI
+  CONVSTORE -->|"Owner snapshot conversation pages"| EXPORT
+  CONVSTORE -->|"Recent completed conversations"| PROFILE
+  CONVSTORE -->|"Refresh local conversation projection"| CONVUI
+  CONVTASK -->|"Transcript and related task tokens"| CONVAPI
+  CONVUI -->|"Search, folders, star, edit title/speaker, delete"| CONVACTIONS
+  COORD -->|"Eligible current frame after switch"| SUGGEST
+  COORD -->|"Eligible frame"| FOCUS
+  COORD -->|"Eligible frame or context switch"| TASKEX
+  COORD -->|"Eligible newest frame"| INSIGHT
+  COORD -->|"Eligible newest frame"| MEMEX
+  DB -->|"Latest saved ai_user_profiles row"| PROFILEREAD
+  DB -->|"Owner-fenced matching rows"| REWINDUI
+  DB -->|"Related Rewind history"| GROUND
+  DB -.->|"Saved profile and schema"| CONTEXT
+  DELETEAPI -->|"Accepted request: stop capture then sign out"| SIGNOUT
+  DELETEAPI -->|"Durable Cloud Tasks dispatch"| WIPE
+  DELETEAPI -->|"Persist intent and dispatch receipt"| DELETIONMARK
+  DELETERETRY -->|"Retry pending/failed durable work"| WIPE
+  DELETEUI -->|"Authenticated DELETE request"| DELETEAPI
+  DELETIONMARK -->|"Find pending or failed dispatches"| DELETERETRY
+  DIAGNOSTICS -->|"Bounded diagnostic attachment"| FEEDBACK
+  DISCARD -->|"Discard accepted generation"| CONVSTORE
+  DISCARD -->|"Kept or failed-keep"| STRUCTURE
+  DISCARD -->|"Kept or failed-keep; parallel with structure"| CONVTASK
+  DRAFTS -->|"Materialized attachment metadata"| BRIDGE
+  DUPLICATE -->|"First matching instance only"| APP
+  EXCLUSIONS -.->|"Pre-fanout privacy gate"| CAPTURE
+  EXTENSION -->|"Firebase-authenticated Gemini request"| CHATAPI
+  EXTENSION -->|"Private pipe tool_use and capability ref"| CAPABILITY
+  EXTENSION -->|"Provider stream / resolved matching tool call"| PI
+  FAIRNOTICE -->|"Visible quota/fair-use state"| PLANUI
+  FEEDBACK -->|"Build redacted report or save local bundle"| DIAGNOSTICS
+  FEEDBACK -->|"Explicit submit: sanitized event only"| REPORTAPI
+  FINALIZE -->|"After structure/task workers finish"| MEMEXTRACT
+  FINALIZE -->|"Discard work admission"| DISCARD
+  FINISH -->|"End or clear current note session"| NOTES
+  FINISH -->|"Finish local conversation"| CONVSTORE
+  FINISH -->|"Process persisted work"| FINALIZE
+  FIREBASE -->|"Authenticated UID"| BEAUTH
+  FLOATROUTE -->|"Admitted main-journal request with presentation mode"| TEXT
+  FOCUS -->|"Accepted state transition"| FOCUSCOMMIT
+  FOCUS -->|"Screenshot analysis request"| PROXY
+  FOCUSCOMMIT -->|"Durable focus row first"| FOCUSSTORE
+  FOCUSCOMMIT -->|"Eligible distraction/refocus nudge"| NOTIFY
+  FOCUSCOMMIT -->|"Then publish accepted state"| FOCUSUI
+  FOCUSSTORE -->|"Focus tables"| DB
+  FOCUSSTORE -->|"Local focus history"| EXPORT
+  FOCUSSTORE -->|"Reload history / stats"| FOCUSUI
+  FOCUSUI -->|"Home focus cards"| DASH
+  FRAME -->|"Owner-authorized live frame"| COORD
+  FRAMELOAD -->|"Reconstructed image"| REWINDUI
+  GOALSTORE -->|"Active goal projection"| DASH
+  GOALSTORE -->|"Active goals"| PROFILE
+  GOALSTORE -->|"Goal tables"| DB
+  GOALSTORE -->|"Local goal pages"| EXPORT
+  GOALSTORE -->|"Read active goals as bounded suggestion context"| GOALSUI
+  GOALSTORE -.->|"Active goals"| CONTEXT
+  GOALSUI -->|"Bounded personalized-question request"| PROXY
+  GOALSUI -->|"User chooses a suggested question"| TEXT
+  GOOGLELIVE -->|"Function calls"| LIVEFUNCTION
+  GOOGLELIVE -->|"Transcripts, text and 24 kHz PCM"| LIVEOUTPUT
+  GOOGLELIVE -->|"Transport closure during active turn"| RECONNECT
+  GREETING -->|"Bounded text request"| GOOGLE
+  GREETING -->|"Computed text accepted into local journal"| PROJECTION
+  GROUND -->|"Selected grounding packet"| SUGGESTGATE
+  HOME -->|"Home chat input"| TEXT
+  HOME -->|"Home stage"| DASH
+  HOME -->|"Insights section"| INSIGHTUI
+  HOME -->|"Insights → Focus segment"| FOCUSUI
+  HOME -->|"Listening control"| LISTEN
+  HOME -->|"Memory section"| MEMUI
+  HOME -->|"Memory → Conversations"| CONVUI
+  HOME -->|"Open Rewind"| REWINDUI
+  HOME -->|"Open settings"| SETTINGS
+  HOME -->|"Personalized question chips"| GOALSUI
+  HOME -->|"Tasks section"| TASKUI
+  HUB -->|"No usable Live session"| SPEECHGATE
+  HUB -->|"Only accepted voice journal update"| PROJECTION
+  HUB -->|"Open direct provider session"| LIVESETUP
+  HUB -->|"Press / audio chunks / release"| LIVEINPUT
+  HUB -->|"Record fallback and failure events"| DIAGNOSTICS
+  HUB -->|"Request prepared voice context"| VOICECONTEXT
+  HUB -->|"Request temporary credential"| TOKENAPI
+  INDEX -->|"Admit deduplicated image"| VIDEO
+  INDEX -->|"Recovery on storage initialization"| RECOVER
+  INDEX -->|"Schedule cleanup"| RETENTION
+  INSIGHT -->|"Grounded investigation requests"| PROXY
+  INSIGHTCOMMIT -->|"Eligible insight notice"| NOTIFY
+  INSIGHTCOMMIT -->|"Memory assertion tagged tips"| MEMSTORE
+  INSIGHTCOMMIT -->|"Projection after durable commit"| INSIGHTUI
+  INSIGHTUI -->|"Dismiss flag / clear tips via Memory authority"| MEMSTORE
+  INSIGHTUI -->|"Home insight cards"| DASH
+  INSIGHTUI -->|"Staged delete through Memory authority"| MEMDELETE
+  JOURNALREPAIR -->|"Accepted contiguous journal"| PROJECTION
+  KERNEL -->|"Bound execution attempt"| PI
+  KERNEL -->|"Child-run completion"| AGENTRESULT
+  KERNEL -->|"Context, session, run and journal writes"| NODEDB
+  KERNEL -->|"Correlated events and terminal result"| BRIDGE
+  KERNEL -->|"Durable delivery rows / derived action queue"| ARTIFACTQUEUE
+  LISTEN -->|"Create session"| CONVBEGIN
+  LISTEN -->|"Microphone admission"| PERM
+  LISTEN -->|"Stop recording / finalize"| FINISH
+  LISTENAPI -->|"Validated audio contract"| LISTENRUN
+  LISTENRUN -->|"Periodic and final audio usage"| USAGE
+  LISTENRUN -->|"Stop / disconnect / task failure"| LISTENDRAIN
+  LISTENRUN -->|"Supervised input receiver"| RECEIVER
+  LIVEFUNCTION -->|"functionResponses; model continues"| GOOGLELIVE
+  LIVEFUNCTION -->|"get_tasks / screenshot: authorize external run"| CAPABILITY
+  LIVEFUNCTION -->|"report_screen_observation: local grounding only"| LIVETOOLS
+  LIVEINPUT -->|"16 kHz PCM with explicit turn boundaries"| GOOGLELIVE
+  LIVEOUTPUT -->|"Final text with no accepted native PCM: selected-voice fallback"| TTSQUEUE
+  LIVEOUTPUT -->|"Native audio chunks"| OUTPUTLEASE
+  LIVEOUTPUT -->|"Owned transcript/text events"| HUB
+  LIVESETUP -->|"Setup with context and tools"| GOOGLELIVE
+  LIVETOOLS -->|"Local observation result for current call"| LIVEFUNCTION
+  LIVETOOLS -->|"Return authorized call result with captured identity"| SWIFTWIRE
+  LIVEUI -->|"Transcript changes"| NOTES
+  LOCALSTT -->|"Local model failure"| STTRECOVER
+  LOCALSTT -->|"Timed speaker segments"| SEGMENTS
+  AUDIOCAPTURE -->|"Microphone while listening"| MIC
+  AUDIOCAPTURE -->|"macOS 14.4+, consent and System Audio enabled"| SYSTEMAUDIO
+  MEMAPI -->|"Local validation then revision-fenced commit"| MEMSTORE
+  MEMAPI -->|"Memory proposal compute"| GOOGLE
+  MEMDELETE -->|"Pending, restored or finalized record"| MEMSTORE
+  MEMEMBED -->|"Commit current-revision embedding"| MEMSTORE
+  MEMEMBED -->|"Embedding compute"| PROXY
+  MEMEX -->|"Screenshot memory extraction"| PROXY
+  MEMEXTRACT -->|"Bounded transcript segments"| MEMAPI
+  MEMGATE -->|"Accepted assertion"| MEMSTORE
+  MEMGATE -->|"Eligible saved-memory notice"| NOTIFY
+  MEMORYACTIONS -->|"Accept manual assertion / correction"| MEMSTORE
+  MEMORYSCOPE -->|"Promote / merge / archive commit"| MEMSTORE
+  MEMRETRY -->|"Lease when retry is due"| MEMWORK
+  MEMSTORE -->|"All exportable Memory including tips"| EXPORT
+  MEMSTORE -->|"Bounded memories"| PROFILE
+  MEMSTORE -->|"Durable processing queue"| MEMWORK
+  MEMSTORE -->|"List/search current-owner memories"| MEMUI
+  MEMSTORE -->|"Local vector search"| MEMSEARCH
+  MEMSTORE -->|"Matching memories"| GROUND
+  MEMSTORE -->|"Memory tables"| DB
+  MEMSTORE -->|"Read interesting memories tagged tips"| INSIGHTUI
+  MEMSTORE -.->|"Selected Memory text"| CONTEXT
+  MEMUI -->|"Delete / Undo"| MEMDELETE
+  MEMUI -->|"Literal search and filtered list"| MEMSTORE
+  MEMUI -->|"User adds/corrects a memory"| MEMORYACTIONS
+  MEMWORK -->|"Lease consolidation"| CONSOLIDATE
+  MEMWORK -->|"Lease conversation extraction"| MEMEXTRACT
+  MEMWORK -->|"Lease embedding"| MEMEMBED
+  MEMWORK -->|"Lease normalization"| NORMALIZE
+  MEMWORK -->|"Operation fails or remains retryable"| MEMRETRY
+  MIC -->|"Cloud route"| MIXER
+  MIC -->|"Local route: microphone identity"| LOCALSTT
+  MIXER -->|"Mono PCM"| AMBIENTWS
+  MODULATE -->|"Canonical timed segments"| TRANSIENT
+  MODULATE -->|"Recognized text"| STTAPI
+  MONITOR -->|"Observe active app"| WINDOW
+  MONITOR -->|"Periodic capture tick"| CAPTURE
+  MP3 -->|"Audio playback"| SPEAKER
+  NODEDB -->|"Bounded chat journal"| PROFILE
+  NODEDB -->|"Local chat journal"| EXPORT
+  NODEDB -->|"Orphan/replay recovery"| JOURNALREPAIR
+  NODETOOLS -->|"Control result"| TOOLRESULT
+  NODETOOLS -->|"Create/control child runs"| KERNEL
+  NORMALIZE -->|"Assertion candidate"| MEMAPI
+  NOTES -->|"Accepted session note"| NOTESTORE
+  NOTES -->|"Bounded note prompt"| PROXY
+  NOTESTORE -->|"Local notes"| DB
+  NOTESTORE -->|"Stored notes in conversation detail"| CONVUI
+  NOTIFY -->|"Accepted in-app presentation"| CARD
+  NOTIFY -->|"Explicit functional banner only"| SYSTEMNOTICE
+  OAUTH -->|"Callback returns exchangeable auth code"| TOKENEXCHANGE
+  OCR -->|"Optional OCR plus chunk metadata"| SHOT
+  OCREMB -->|"Embedding request"| PROXY
+  OCREMB -->|"Local OCR vector insert"| DB
+  ONBOARD -->|"Isolated onboarding chat surface"| TEXT
+  ONBOARD -->|"Final demo exits directly, or global Skip"| ONBOARDEXIT
+  ONBOARDEXIT -->|"Finish journal handoff then show Home"| HOME
+  ONBOARDEXIT -->|"Persist completion or inactive Skip intent"| PREFS
+  ONBOARDEXIT -->|"Completion requests capture"| ONBOARDGATE
+  ONBOARDGATE -->|"Screen intent plus quota, key and permission gates pass"| MONITOR
+  ONBOARDGATE -->|"Listening passes account and microphone permission gates"| LISTEN
+  OPENAI -->|"MP3 response"| TTSAPI
+  OSSPEECH -->|"Synthesized system speech"| SPEAKER
+  OUTPUTLEASE -->|"Only current output owner"| PCM
+  OWNER -->|"Close old pool and retarget owner directory"| DB
+  OWNER -->|"Revoke previous owner runtime"| BRIDGE
+  PCM -->|"Play already-generated speech"| SPEAKER
+  PI -->|"Model request / tool proposal"| EXTENSION
+  PLANAPI -->|"Read subscription and usage facts"| ACCOUNTDATA
+  PLANAPI -->|"Returned plan and trial state"| PLANUI
+  PLANUI -.->|"Quota/paywall presentation"| CHATGATE
+  PREFS -.->|"Capture and assistant controls"| MONITOR
+  PREFS -.->|"Listening on/off and optional system audio"| AUDIOCAPTURE
+  PREFS -.->|"Master/frequency/assistant notice controls"| NOTIFY
+  PREFS -.->|"Memory feature plus notification admission"| MEMEX
+  PREFS -.->|"Selected voice and speech settings"| TTSQUEUE
+  PROFILE -->|"First synthesis request"| PROXY
+  PROFILEMERGE -->|"Second request with past profiles"| PROXY
+  PROFILEREAD -.->|"Read cached profile when needed"| CONTEXT
+  PROFILEREAD -.->|"Read when preparing assistant context"| FOCUS
+  PROFILEREAD -.->|"Read when preparing assistant context"| INSIGHT
+  PROFILEREAD -.->|"Read when preparing assistant context"| TASKEX
+  PROFILESAVE -->|"Insert ai_user_profiles under owner commit lease"| DB
+  PROJECTION -->|"One main/floating transcript projection"| CHATUI
+  PROXY -->|"Accepted insight candidate"| INSIGHTCOMMIT
+  PROXY -->|"Candidate or embedding request"| GOOGLE
+  PROXY -->|"Embedding vector response"| OCREMB
+  PROXY -->|"Focus classification"| FOCUS
+  PROXY -->|"Memory candidates"| MEMGATE
+  PROXY -->|"New profile text"| PROFILEMERGE
+  PROXY -->|"Proposed note text"| NOTES
+  PROXY -->|"Returned second-stage consolidated profile"| PROFILESAVE
+  PROXY -->|"Returned vector"| MEMEMBED
+  PROXY -->|"Task candidate"| TASKGATE
+  PROXY -->|"Two owner-cached question chips"| GOALSUI
+  PROXY -->|"Untrusted suggestion candidate"| SUGGESTRESULT
+  PTT -->|"Begin current voice turn"| PTTCAP
+  PTTCAP -->|"PCM plus bounded recovery buffer"| HUB
+  REBUILD -->|"Reindex finalized video files"| SHOT
+  RECEIVER -->|"Streaming PCM"| MODULATE
+  RECONNECT -->|"Bounded same-provider rebind / replay while current"| HUB
+  RECONNECT -->|"Recovery exhausted"| SPEECHGATE
+  RECURRENCE -->|"Create next occurrence once"| TASKSTORE
+  REMINDER -->|"Owner-scoped scheduled reminder"| SYSTEMNOTICE
+  RESOURCES -->|"Render resource cards with accepted answer"| CHATUI
+  RETENTION -->|"After metadata deletion, clean expired artifacts"| FILECLEAN
+  RETENTION -->|"Delete expired metadata"| DB
+  REVIEW -->|"Owner-current accepted receipt"| FAIRNOTICE
+  REVIEW -->|"Read bounded evidence locally"| CONVSTORE
+  REVIEW -->|"Submit current-owner requested evidence"| REVIEWAPI
+  REVIEWAPI -->|"Durable enforcement receipt"| ACCOUNTDATA
+  REVIEWAPI -->|"Receipt / typed retryable failure"| REVIEW
+  REWINDDELETE -->|"Clean only owned, unreferenced artifacts"| FILECLEAN
+  REWINDDELETE -->|"Delete row before owned file cleanup"| DB
+  REWINDUI -->|"Local FTS and vector retrieval"| DB
+  REWINDUI -->|"Selected chunk and offset"| FRAMELOAD
+  REWINDUI -->|"User chooses rebuild"| REBUILD
+  REWINDUI -->|"User deletes selected frame"| REWINDDELETE
+  SCREEN -->|"Captured pixels and metadata"| FRAME
+  SCREEN -->|"Independent archival branch; drop while busy"| INDEX
+  SEGMENTS -->|"After live publication, attempt current-session durable upsert"| SEGSTORE
+  SEGMENTS -->|"Publish live text"| LIVEUI
+  SEGSTORE -->|"Durable transcript"| CONVSTORE
+  SERVER -->|"Account metadata authority"| ACCOUNTDATA
+  SERVER -->|"Protected request dependency"| BEAUTH
+  SERVER -->|"Registered HTTP routes; no Mac caller found"| ADVICEAPI
+  SERVER -->|"Startup and periodic reconciliation"| DELETERETRY
+  SETTINGS -->|"Edit shared excluded-app list"| EXCLUSIONS
+  SETTINGS -->|"Local settings edits"| PREFS
+  SETTINGS -->|"Request or recheck OS grant"| PERM
+  SETTINGS -->|"User changes sharing preference"| CONSENT
+  SETTINGS -->|"User checks for updates"| UPDATER
+  SETTINGS -->|"User chooses local JSON destination"| EXPORT
+  SETTINGS -->|"User confirms account deletion"| DELETEUI
+  SETTINGS -->|"User opens checkout or portal"| CHECKOUT
+  SETTINGS -->|"User opens feedback"| FEEDBACK
+  SETTINGS -->|"User requests regeneration"| PROFILE
+  SETTINGS -->|"User signs out"| SIGNOUT
+  SHOT -->|"Queue eligible OCR after commit"| OCREMB
+  SHOT -->|"SQLite screenshot row"| DB
+  SIGNOUT -->|"Exclusive owner transition"| OWNER
+  SPEECHGATE -->|"Usable current-turn audio only"| BATCHPOLICY
+  STOP -->|"Finish active capture"| FINISH
+  STOP -->|"Flush within shutdown deadline"| FLUSH
+  STRUCTURE -->|"Transcript and generation"| CONVAPI
+  STTAPI -->|"Batch recognition"| MODULATE
+  STTAPI -->|"Transcript or typed failure"| BATCH
+  STTRECOVER -->|"Allowed cloud recovery"| AMBIENTWS
+  SUGGEST -->|"Mechanical gates pass"| GROUND
+  SUGGESTGATE -->|"Only nonempty grounding: screenshot and evidence"| PROXY
+  SUGGESTRESULT -->|"Accepted owner-current nonduplicate candidate"| SUGGESTSEND
+  SUGGESTSEND -->|"Suggestion card; no task/Memory write"| NOTIFY
+  SWIFTTOOLS -->|"Admitted screenshot tool"| SCREEN
+  SWIFTTOOLS -->|"Constrained SQL / Rewind retrieval"| DB
+  SWIFTTOOLS -->|"Dispatch retained mutation/context tool"| WRITETOOLS
+  SWIFTTOOLS -->|"Dispatch retained read/search tool"| READTOOLS
+  SWIFTTOOLS -->|"Local conversation operations"| CONVSTORE
+  SWIFTTOOLS -->|"Memory reads and mutations"| MEMSTORE
+  SWIFTTOOLS -->|"Permission tools"| PERM
+  SWIFTTOOLS -->|"Semantic Memory retrieval"| MEMSEARCH
+  SWIFTTOOLS -->|"Task reads and mutations"| TASKSTORE
+  SWIFTTOOLS -->|"authorized_tool_execution_result; full owner/run fence"| SWIFTWIRE
+  SWIFTWIRE -->|"Authorized realtimeHub executor: get_tasks / screenshot"| LIVETOOLS
+  SWIFTWIRE -->|"Execute under captured owner authority"| SWIFTTOOLS
+  SWIFTWIRE -->|"Node finalizes canonical external-surface tool outcome"| TOOLRESULT
+  SWITCH -->|"Context-switch callback"| COORD
+  SYSTEMAUDIO -->|"Cloud route"| MIXER
+  SYSTEMAUDIO -->|"Local route: system identity"| LOCALSTT
+  TASKEX -->|"Task extraction and investigation"| PROXY
+  TASKGATE -->|"Accepted local task"| TASKSTORE
+  TASKS -->|"Authorized CRUD and completion"| TASKSTORE
+  TASKS -->|"First completion of repeating task"| RECURRENCE
+  TASKS -->|"Home task cards"| DASH
+  TASKS -->|"Reconcile due reminders"| REMINDER
+  TASKSTORE -->|"Bounded tasks"| PROFILE
+  TASKSTORE -->|"Local task pages"| EXPORT
+  TASKSTORE -->|"Open and matching tasks"| GROUND
+  TASKSTORE -->|"Task tables"| DB
+  TASKSTORE -->|"Updated task projection; recurrence creates next occurrence"| TASKS
+  TASKSTORE -.->|"Recent unfinished tasks"| CONTEXT
+  TASKUI -->|"User deletes or undoes within deadline"| TASKUNDO
+  TASKUI -->|"User task operations"| TASKS
+  TASKUNDO -->|"Soft deletion / restore / purge"| TASKSTORE
+  TEXT -->|"Maintain local drafts and attachment bytes"| DRAFTS
+  TEXT -->|"Submit message"| CHATGATE
+  TEXT -->|"Terminal response artifacts and completion-delta artifacts"| RESOURCES
+  TOKENAPI -->|"Check trial admission"| ACCOUNTDATA
+  TOKENAPI -->|"Short-lived Google token"| HUB
+  TOKENEXCHANGE -->|"Provider credentials / Firebase custom token"| AUTH
+  TOOLRESULT -->|"Canonical result routed to exact Live call ID"| LIVEFUNCTION
+  TOOLRESULT -->|"Matching tool_result over private pipe"| EXTENSION
+  TRANSCRIPTQUERY -->|"Voice-only floating request with turn identity"| FLOATROUTE
+  TRANSIENT -->|"Optional selected language"| TRANSLATE
+  TRANSIENT -->|"Segment events"| AMBIENTWS
+  TRANSLATE -->|"Bounded translation compute"| GOOGLE
+  TRANSLATE -->|"Translation events"| AMBIENTWS
+  TRANSPORT -->|"Admitted current request"| KERNEL
+  TTSAPI -->|"Eligible synthesis failure; local fallback"| OSSPEECH
+  TTSAPI -->|"Returned MP3"| MP3
+  TTSAPI -->|"Speech synthesis request"| OPENAI
+  TTSQUEUE -->|"Selected cloud voice and text chunks"| TTSAPI
+  TTSQUEUE -->|"Selected system voice"| OSSPEECH
+  UPDATEPOLICY -->|"Update-policy request"| APPCAST
+  UPDATER -->|"Fetch signed appcast"| APPCAST
+  USAGE -->|"Review-request event via ambient socket"| REVIEW
+  USAGE -->|"Usage/enforcement facts"| ACCOUNTDATA
+  VIDEO -->|"Encoded frame offset available"| OCR
+  VOICECONTEXT -->|"Reuse typed kernel source preparation"| CONTEXT
+  VOICECONTEXT -.->|"Exact kernel-rendered voice snapshot"| HUB
+  WARM -->|"Initialize background monitoring"| MONITOR
+  WARM -->|"Initialize storage; reconcile abandoned chunks"| RECOVER
+  WARM -->|"Start local Memory worker"| MEMWORK
+  WEBHOOK -->|"Verified provider event"| BILLING
+  WINDOW -->|"App or window changes"| SWITCH
+  WINDOW -->|"App switch requests capture on next tick"| CAPTURE
+  WIPE -->|"Claim / running / failed / completed state"| DELETIONMARK
+  WIPE -->|"Confirm subscription cancellation first"| BILLING
+  WIPE -->|"Then delete identity"| FIREBASE
+  WIPE -->|"Then wipe retained account data"| ACCOUNTDATA
+
+    classDef store fill:#fef3c7,stroke:#92400e,color:#111827;
+    classDef gate fill:#fff7ed,stroke:#c2410c,color:#111827;
+    classDef surface fill:#e0f2fe,stroke:#0369a1,color:#111827;
+    classDef cloud fill:#ecfdf5,stroke:#047857,color:#111827;
+    classDef gap fill:#fef2f2,stroke:#b91c1c,color:#111827;
+    class SHOT,SEGSTORE,CONVCOMMIT,NOTESTORE,DB,MEMSTORE,TASKSTORE,GOALSTORE,FOCUSSTORE,CONVSTORE,NODEDB,DELETIONMARK,ACCOUNTDATA,AUTHCACHE,PREFS,ADVICEDB store;
+    class DUPLICATE,PERM,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,TASKGATE,MEMGATE,SUGGESTGATE,SUGGESTRESULT,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
+    class SETTINGS,REWINDUI,LIVEUI,HOME,DASH,MEMUI,CONVUI,TASKUI,FOCUSUI,INSIGHTUI,CARD,SYSTEMNOTICE,TEXT,CHATUI,PTT,SPEAKER,PLANUI,FAIRNOTICE,ONBOARD,GOALSUI,MEMORYACTIONS,DELETEUI,RESOURCES,UPDATEPOLICY,FEEDBACK surface;
+    class SERVER,CHATAPI,PROXY,CONVAPI,MEMAPI,TOKENAPI,STTAPI,TTSAPI,GREETING,GOOGLE,GOOGLELIVE,MODULATE,OPENAI,LISTENAPI,LISTENRUN,RECEIVER,TRANSIENT,TRANSLATE,LISTENDRAIN,OAUTH,TOKENEXCHANGE,FIREBASE,PLANAPI,CHECKOUT,BILLING,WEBHOOK,USAGE,REVIEWAPI,DELETEAPI,WIPE,DELETERETRY,SERVEREXPORT,APPCAST,REPORTAPI cloud;
+    class ARTIFACTQUEUE,ADVICEAPI gap;

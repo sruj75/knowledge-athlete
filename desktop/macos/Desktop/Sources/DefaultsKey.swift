@@ -52,6 +52,8 @@ enum DefaultsKey: String {
   case desktopIsPaywalled = "desktop_isPaywalled"
   case rewindDisableContentCache = "rewindDisableContentCache"
   case transcriptionVocabulary = "transcriptionVocabulary"
+  case systemAudioCaptureMode = "systemAudioCaptureMode"
+  case disableSystemAudioCapture = "disableSystemAudioCapture"
 }
 
 /// Compile-checked owner-scoped defaults keys whose final storage key is

@@ -9,7 +9,7 @@ final class OnboardingFlowTests: XCTestCase {
       SBOnboardingModel.Step.allCases,
       [
         .promise, .name, .howHeard, .language, .mic, .systemAudio, .screen,
-        .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
+        .accessibility, .shortcutOpen, .shortcutTalk, .screenDemo,
       ]
     )
   }
@@ -32,7 +32,7 @@ final class OnboardingFlowTests: XCTestCase {
   func testRetainedStepGraphDoesNotDependOnAdjacentRawValues() {
     XCTAssertEqual(SBOnboardingModel.Step.language.next, .mic)
     XCTAssertEqual(SBOnboardingModel.Step.mic.previous, .language)
-    XCTAssertEqual(SBOnboardingModel.Step.capture.next, nil)
+    XCTAssertNil(SBOnboardingModel.Step.screenDemo.next)
     XCTAssertEqual(SBOnboardingModel.Step.promise.previous, nil)
   }
 
@@ -77,14 +77,6 @@ final class OnboardingFlowTests: XCTestCase {
     XCTAssertTrue(source.contains("SBInkButton(title: SBOnboardingIdentityCopy.setupAction, isDefaultAction: true)"))
     XCTAssertTrue(source.contains("Text(\"Continue →\")"))
     XCTAssertTrue(source.contains(".keyboardShortcut(.defaultAction)"))
-  }
-
-  func testSecondBrainCaptureDefaultsToMeetings() throws {
-    let source = try desktopSourceFile("Onboarding/SecondBrain/SBOnboardingView.swift")
-    let defaultChoice = try XCTUnwrap(
-      source.range(of: "model.capture(SBOnboardingModel.defaultCaptureSelection)"))
-    let continuousChoice = try XCTUnwrap(source.range(of: "model.capture(.continuous)"))
-    XCTAssertLessThan(defaultChoice.lowerBound, continuousChoice.lowerBound)
   }
 
   private func desktopSourceFile(_ relativePath: String) throws -> String {

@@ -279,10 +279,6 @@ htmlcov/
 # pnpm store
 .pnpm-store/
 
-# Share persistent Understand Anything graphs; keep analysis scratch local.
-.ua/intermediate/
-.ua/tmp/
-.ua/tmp-*
-.ua/.trash-*/
-.ua/diff-overlay.json
-.ua/*.tmp-*
+# Retired code-analysis data stays local and must not be recommitted.
+/.ua/
+/.understand-anything/

@@ -93,9 +93,8 @@ public class ProactiveAssistantsPlugin: NSObject {
     "Slack", "Discord", "Messenger",
   ]
 
-  // Conferencing-app catalog (call apps / browser apps / call keywords) now lives in the
-  // shared `ConferencingApps` enum, used here (call throttling) and by `MeetingDetector`
-  // (system-audio gating).
+  // Conferencing-app and browser catalogs live in `ConferencingApps` for screen-capture
+  // throttling and screen-sharing detection.
 
   /// Bundle IDs of third-party and system screenshot/screen-recording apps.
   /// When one of these is frontmost, Intentive's 3s capture loop contends with the
@@ -1390,7 +1389,7 @@ public class ProactiveAssistantsPlugin: NSObject {
   // MARK: - Video Call Detection
 
   /// Check if the frontmost app (and optionally window title) indicates an active video call.
-  /// Delegates to the shared `ConferencingApps` catalog (also used by `MeetingDetector`).
+  /// Delegates to the shared `ConferencingApps` catalog.
   private func isVideoCallApp(appName: String?, windowTitle: String?) -> Bool {
     return ConferencingApps.isCallWindow(ownerName: appName, title: windowTitle)
   }

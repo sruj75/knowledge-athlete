@@ -12,9 +12,27 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   and the default destination for generated pages.
 - Windows is paused: exclude `desktop/windows/` and Windows-only surfaces from research/changes.
 - Honor `.openwikiignore`; exclude credentials, private state, dependencies and build outputs.
-  OpenWiki excludes `.ua/`; Understand Anything maintains that separate graph.
 - Generate implemented behavior from source/tests. Authored decisions and dated observations
   are not mechanically verified Claims or proof of deployment, acceptance or release readiness.
+
+### Instruction authority and policy changes
+
+- The user's current instructions and authorization for the ongoing task take precedence over
+  inherited guidance. Upstream maintainer conventions, archived decisions, generated summaries and
+  observed settings are evidence, not permission to adopt or enforce a policy in this fork.
+- Before importing or condensing instructions, identify their origin, intended audience and scope.
+  Preserve conditions, exceptions and uncertainty; removing a qualifier is a policy change, not an
+  editorial cleanup. Do not turn another project's workflow into an Intentive requirement by copying it.
+- State policy changes explicitly in the plan and PR: the original user decision and date/reference,
+  affected scope, before/after behavior, and retained or changed qualifications. A copied instruction
+  or an agent-written plan is not independent evidence of the user's preference. Resolve missing
+  intent before changing persistent permissions, merge rules, deployment defaults or external controls.
+  Do not ask again when the current request already authorizes that specific change.
+- Use the PR template's Policy changes section for instruction and workflow changes. The shared
+  preflight checks for that disclosure; a reviewer must still verify its substance against the original
+  request and diff. Neither a passing check nor another agent's review supplies user authorization.
+- The [policy provenance review](../docs/engineering/policy-provenance-review.md) records the
+  September 24 correction and the related inherited operational clauses that were audited.
 
 ## Wiki maintenance
 
@@ -31,42 +49,17 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Use standard OKF Markdown and package `resource: repo://<package-path>` metadata. Keep link,
   agent-size and architecture checks in the shared local/CI manifest, not a parallel validator.
 - Change authored policy only with user authorization. Documentation edits close no open obligations.
-- Track the persistent Understand Anything graph, fingerprints, metadata, config and exclusions in
-  `.ua/`; keep `intermediate/`, `tmp/`, `.trash-*` and `diff-overlay.json` ignored. Preserve the last
-  valid baseline until analysis and validation finish. Use `--auto-update` for commit-triggered
-  refreshes through the installed coding-agent session hooks and `UNDERSTAND_NO_WORKTREE_REDIRECT=1`
-  for this Conductor worktree's graph. Use GPT-5.6 Luna for semantic-analysis subagents and
-  report the saved baseline and any failures in the active conversation before ending the task.
-- Full scans must pass the bundled `scan-project.mjs --exclude-analysis-data` option so tracked
-  `.ua/` artifacts cannot become input to their own analysis.
-- Include validated graph changes in the normal feature-branch commit/PR workflow. A refresh after
-  a commit produces additional working-tree changes; it does not publish them automatically.
-  Wait for the refresh before staging its persistent files; never commit partial analysis output
-  or advance metadata alone to claim freshness.
+- The tracked product map is `docs/architecture/intentive-codeflow.mmd`. Maintain it through
+  reviewed edits when relevant product flows change; no automatic graph refresh is required.
 
 ### PR closeout
 
-- Finish source/tests and the native OpenWiki update before the final graph refresh. Complete both
-  generated artifacts in this feature PR so the next Conductor workspace inherits them from main;
-  a later refresh in an archived worktree cannot join an already-merged PR (the PR #117 handoff).
-- One coding-agent session owns this worktree's `.ua` refresh. Coalesce stock hook requests and PR
-  closeout into one pending update; await its analysis subagents and successful finalization before
-  staging. Honor the analyzer's project lease; never start a competing writer or adopt its token.
-- Generate with the enabled Codex `understand-anything@understand-anything` system fork
-  (`2.9.7-system.1` or a verified successor), resolving its active skill directory. Preserve the
-  versioned `system` section and use its normal analysis/publication workflow, with
-  `UNDERSTAND_NO_WORKTREE_REDIRECT=1`. Keep scope, English output and auto-update settings.
-  `make setup` and `scripts/ua-graph root` prepare/locate the pinned upstream runtime for offline
-  committed-content checks; that runtime is not the semantic generation plugin. If the system
-  fork is unavailable, report the missing installation rather than regenerate with stock code.
-  If the old baseline commit is unavailable, run a full analysis with the saved settings;
-  never repair freshness by changing metadata alone.
-- Validate the completed graph, commit its persistent files with all intended source/wiki changes,
-  and run `scripts/ua-graph check --ref HEAD` plus the required PR preflights. The checker reads the
-  committed candidate, so fresh unstaged files cannot repair a stale commit. Integrate newer main
-  before merging and refresh again only when the analyzed inputs changed.
-- Publish only when requested. Report the saved baseline and check results, or the specific failure
-  while preserving the last valid baseline. Create PR does not merge or archive the workspace.
+- Finish source/tests and the native OpenWiki update in this feature PR so the next Conductor
+  workspace inherits the code and documentation together.
+- Review the Mermaid product map when affected flows change. Commit intended source, tests and
+  documentation, then run the required PR preflights. Integrate newer main and revalidate before merge.
+- Publish only when requested. Report check results and any failures. Create PR does not merge
+  or archive the workspace.
 
 ## Engineering rules
 
@@ -76,9 +69,10 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Use the current worktree/branch; run `make setup` before the first commit and inspect upstream
   changes before integration. Revalidate overlapping rebases. Commit locally by default;
   do not rename/switch branches, push, open PRs or merge without explicit authorization.
-- Land through regular-merge PRs only. The established revert/verified-peer-review exceptions remain
-  in the [archived engineering rules][engineering]; migrations, release/CI, schema, access control
-  and data deletion still require explicit sign-off. Approval does not carry into later changes.
+- Use squash merges for ordinary PRs, as requested by the owner on September 24, 2026. Require the
+  user's authorization to publish or merge; testing, agent peer review and archived exceptions do not
+  grant it. Authorization persists within the requested task unless revoked or its scope changes;
+  it does not extend to unrelated deployments, access-control changes or data deletion.
 - Never stop, replace, delete or automate production Omi/Intentive Stable or Beta apps.
   Testing targets a named development bundle and exact owned processes.
 - Fix the violated owner/identity/state-transition contract. Inspect recent related fixes;
@@ -98,9 +92,6 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Wire checks into both lanes of `.github/checks-manifest.yaml`; repair manifest omissions rather
   than adding one-off workflow gates. Pre-push remains bounded to 40 broadly selected backend files
   and desktop debug compilation; full suites/release builds retain their existing CI/acceptance lanes.
-- UA freshness is a shared, offline committed-content check using the scanner pinned by
-  `scripts/ua-graph`. Only explicit setup downloads/builds that dependency; checks never install
-  tools or call models. Keep the local pushed-ref check and required CI status on this same primitive.
 - Keep rules mechanical. A guidance-caused defect needs corrected guidance or a guard in the same
   fix PR. Product/operational docs move with code. Ratchet baselines only decrease.
 - Use the installed formatting wrappers; retain Black's `--skip-string-normalization` and exclude
@@ -160,6 +151,26 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   with a timeout. Development builds install on quit.
 - Before changing a boundary, locate owning code/tests and its applicable archived IR decision.
   Cite the applicable principle or concrete guard when declining a product change.
+
+### All-day listening decision
+
+Accepted product requirements:
+
+- All-day listening means ongoing ambient audio listening every day, with no 24-hour expiry.
+- Remove the meetings-only listening feature and its entire onboarding step, with no replacement
+  confirmation screen or Finish setup button. The existing screen-and-voice demo is the last stage;
+  its Continue or demo-local Skip for now action completes onboarding with all-day listening,
+  superseding the earlier IR-143 two-choice requirement.
+- Completion enables microphone and system audio subject to permission/account access, preserves
+  screen-analysis and Launch at Login behavior, and is idempotent. Global Skip stays inactive,
+  including after relaunch, without a completion opener.
+- Keep Listening on/off and independent System Audio on/off; System Audio defaults on and turning
+  it off leaves microphone listening available. The completion opener describes configuration,
+  not a claim that unavailable capture has started.
+- Capture pauses when the Mac sleeps and retains the existing wake-resume behavior when listening
+  was enabled. Lid closure alone does not pause listening if an external display keeps the Mac awake.
+- This is a bootstrap scaffold with no existing users: delete the retired feature directly, without
+  a legacy-mode migration, compatibility path or one-time transition prompt.
 
 ## Backend guidance
 
@@ -276,10 +287,9 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 
 Read [release operations](codebase/operations/releases.md) and [qualification](codebase/operations/qualification.md).
 
-- Normal code lands through up-to-date regular-merge PRs with the `UA Graph Freshness` GitHub Actions
-  check required on main. Activate the rule only after the implementation and refreshed baseline
-  pass on main and the dedicated weekly publisher is provisioned; local implementation alone is
-  not evidence that remote enforcement is active.
+- Normal code lands through squash-merged PRs with the repository's retained checks. Do not impose
+  a repository-wide merge-method ban: the release changelog automation retains its tested merge-commit
+  ancestry contract. Verify remote settings separately; local implementation is not proof of enforcement.
 - The weekly guardrail report may append its history directly to main through the dedicated
   `Intentive Guardrail Pulse` App. Install it only on this repository with Contents write and
   Metadata read, and keep its credentials in the `guardrail-pulse-publisher` environment restricted
@@ -288,7 +298,7 @@ Read [release operations](codebase/operations/releases.md) and [qualification](c
   or release App this exception. GitHub cannot scope an App bypass to one file, so the publisher
   must enforce append-only changes to `.github/guardrail-pulse-history.jsonl`, validate the complete
   candidate, retry competing pushes at most three times from fresh main and never force-push.
-  Report-only changes are outside the UA scope and require no model refresh. Preserve issue updates
+  Report-only changes require no model refresh. Preserve issue updates
   using the existing `GITHUB_TOKEN`. Provisioning, publication, merge and rule activation belong to
   the explicitly requested publication rollout.
 

@@ -24,7 +24,7 @@ final class OnboardingPermissionToolTests: XCTestCase {
       [
         .promise, .name, .howHeard, .language,
         .mic, .systemAudio, .screen, .accessibility,
-        .shortcutOpen, .shortcutTalk, .screenDemo, .capture,
+        .shortcutOpen, .shortcutTalk, .screenDemo,
       ])
   }
 
