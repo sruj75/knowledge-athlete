@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8b0c769935605e2b6292092fe5ea7ea05967dccc5a0fcb01046a2ebe6b532286",
+  "pageVersion": "sha256:90fecef7b092e130e2afd8474f1c77becc65c7669f475238b74f354cc755d45e",
   "claims": [
     {
       "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
@@ -22,25 +22,29 @@
     },
     {
       "id": "claim_3eb5e8d92848456d9c33a32c4d8cf5cd",
-      "statement": "The browser renderer uses Mermaid ELK with strict security and explicit size/edge limits; viewport gestures and controls transform the existing SVG, while loading/error/retry and render cancellation handle unavailable or superseded output.",
+      "statement": "The browser renders each area's local nodes and internal edges with strict Mermaid ELK and explicit size limits, caching its SVG and measured geometry; cancelled effects and graph identity protect source/area changes, and rejected layouts allow local retry while global parse errors have a separate retry state.",
       "evidence": [
         {
-          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L1-L240",
-          "version": "repo-lines-v1:sha256:4741dad4cf9ed2d08b0a3cf3dacc272647f27df27b11505febb79e8c7cbba675:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0NWZmM2U4NWQ2NzE1YTdhOWQwZjZjMWIzMmYzMGNkOGNiMTQ0Y2M3OWM4YWJhZTk1M2VhMTM3ODg5ZmFlMmRlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiNjg2MTMxN2VjOTVhM2E1MWZiMzgwZTAzMGI3NzVmYWU1ZTQxOGFhYzAzMTY0Yjc5OTg2NWQzM2JiZDVmOWRlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlYzc1NTc3ZWU0NGFjMzkzOGE1YWQyNGJmOWVmZDI1OWNhNmQ5MTUzODc4MDM4YzJmN2NlZGNiNzYzY2ZkOTQ1In0"
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L109-L124",
+          "version": "repo-lines-v1:sha256:5fde62310faae02e9fc5f3d3e091175e9fc5a031593cf0cfbd3e2c95d45fb33b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0MGFkYmE5ODY2NDc3MmExNDljOWM5ZmQxMWNhYmVkNzM5OWFiMTVkNDc4NTE3NmNiNmE4NDYyYjhjYjdhMDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzNmI3YWM3MTk2M2MyMmQ2ZTNkZmU4NDUwNTQ0ZTM1OGFhNmQyMTc0MWYyMWJlZmEyNWUwMzJlMTkxNDUyMzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzZmVkMTZlZGY5MTZkNmI0NzlkNDRiNmE1ZjgyZTczZDM4YTE3ODE3ZDAyMzljNmRmNTQwYjY5MmExZjAwMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
         },
         {
-          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L240-L508",
-          "version": "repo-lines-v1:sha256:07bee9d7b47c3070ede97d2f38ae31999cab28cf198f34f80fa51b3c5e675938:eyJzZWxlY3RlZExpbmVDb3VudCI6MjY5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjg2MTMxN2VjOTVhM2E1MWZiMzgwZTAzMGI3NzVmYWU1ZTQxOGFhYzAzMTY0Yjc5OTg2NWQzM2JiZDVmOWRlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkOGY0ZjU3NTg0YTQzZDAwNWIxZDkwOGNlZjlmODQ1ZWFjODFjYWFiYjgxZWFjZjUwMWE5YzczNGRiMjM1MGQzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L30-L65",
+          "version": "repo-lines-v1:sha256:e9f41e5444505a3db7b596ce6170ffb6554db198706ee7abb1160964d1bbc260:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3NWU4ZDAzOGY1NDgyYTZhYTI1N2IwNjZjYjliYjQ4ZDExNWM3YTA3MjMyZGE2YzYyOTNmYjlhMzc5MmFhZTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyY2YzNGIyMDliYjlkMmNiYjIwMGE4MjM2NjY0NTljMzY5YTY5MDZhOTk2ZjdlNWExMzBhZTU3NTJkYWQ3NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAzNTQ0ZGMwN2JjZGM2MjNiNTM3ZWIwODVhZDMwZTY4MTRhZTg2NjQxYzlmNmZmMmJlMTc3ZmEyMWQ4YmM0ZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFmMzBkYzM5N2JkMWMzMjg4NjdjNDE0ZDFhNzE4MzAyMzI4ZDNmODg1ZjA1ZjRiOTU3ZjIzMTlhNjhkOGQ2ZTEifQ"
         },
         {
-          "resource": "repo://tools/codebase-map/app/globals.css#L66-L90",
-          "version": "repo-lines-v1:sha256:357f471e68d439b571e748e1d5236f78697afb2f7e9e4087189a62f08b2db0a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQzYmQzNGU4MzYzMGNkODVjNjk4YmJiOTlhOTE0NTNlMmNmODY4NjNjNDZlNDNkNDNhMDU4ZmVmZTVhYWI2MWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZkYWVkMzJmMmViMWM3NDJlN2Q5ZjUzN2Y3YzY5ZWI4NmE3NWNhOWI5OTQ2MzQ0MTk0N2YzZTJjMWZiYWRjODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVlNDAwYTYzZGNjN2I3NzkxOGUzY2RlODFiYzM5MzNjM2IyNDBlNTI0NmNhZjNlODAwODc0NjNjOTlkMTEwODcifQ"
+          "resource": "repo://tools/codebase-map/lib/mermaid-runtime.ts#L181-L319",
+          "version": "repo-lines-v1:sha256:f8d56a9ada57f75d502673d643819ba2842b6187798822e003066f519a6b0165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTM5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyMDFhOTY3OWVjOTk3ZTNiODI5Y2IzZGJjNmYzM2JmNTk0OTkyMTFhYTkyYzdiZjQzYmRhMTc3MzI1Njg0NjdjIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/mermaid-runtime.ts#L38-L74",
+          "version": "repo-lines-v1:sha256:37bf46d253d1e445c19d46ae66d214e1ec2e1489f5c8546d33849c41592c9770:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5YzNjY2I1MzVlYmRlYWJlM2MxY2JkMjAxZWUyZDc0YWYzODA0YzNhZmY0NGU0ZjhkMDlmYTU1Njc4NmNhMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5YzMyNjVkNjY1ZDRkNzI4MTYxZWMwMDk5NzA4Y2ZhNDEzMWRhZmZmYTEyYTFlYzhhN2VmODg4ZGRmOGI2OWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlYWM2M2I2ZDI2ZTU4Yzk3OTg1YTViYjE0N2ZlM2RhMmU2YjdmOTg5NGEyMjFjZmM1YTkxY2NiYWI0Yzc5NWYifQ"
         }
       ]
     },
     {
       "id": "claim_8bf03b0f057a49b2b094dfea405bbd36",
-      "statement": "The local and CI viewer check builds the static page and exercises the complete map, viewport controls, malformed-input recovery and commit links in Chromium; CI package/browser provisioning is selected through the same check manifest.",
+      "statement": "The manifest-selected local and CI viewer suite builds the static page, tests source/commit and route geometry, and exercises complete 23-area/210-node/422-edge rendering, semantic navigation, cache reuse, reduced motion, error recovery and exact commit links in Chromium; CI provisioning follows the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -52,17 +56,97 @@
         },
         {
           "resource": "repo://tools/codebase-map/package.json#L1-L28",
-          "version": "repo-lines-v1:sha256:97d55618b1c1c3a51260baf0acfe897fb0ada88413a110c297f8bca12d39ef9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "version": "repo-lines-v1:sha256:2467c34776142194853593a3e150dad420bd06a642d5138fadfe8f72a5245fd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTIwNDRlNmY0ZTk2NTY0OTI3OTYyMGQ3NjUyYzYyNzQ0NjdjMjkwY2Q3ZTYzOTNiZjZmZjBlNGQ4ZDA5MDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Mzk1OTgzOTZjZDE1MTk0NzNlNTMzNzMzMzI1NTE0N2QzNzkxZmQ2NjUwMTk0Y2UzZWRjZjI5NzAyM2Y4YTkifQ"
         },
         {
-          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L1-L76",
-          "version": "repo-lines-v1:sha256:d103c125b4dc7542edbe207868429730c75940a08e7fe69103756f6f8b00044d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NzA4OTE3YTlmMzg4YWMxZTkzZTRhMjBlNDY1Y2I5NWM0NjdlMTg3YzhlMWRhN2JlOWY3NGFiYWM1ZWFiYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
+          "version": "repo-file-v1:sha256:bf877c78f99886d8ae3374605757373cac85660ee6cd1c405e1bbb94c6b6c5d4"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/map-geometry.test.mjs",
+          "version": "repo-file-v1:sha256:6eaea7152b26504f8ea1ada90d572482eff1363bde059e9e18355a6e58acef5b"
+        }
+      ]
+    },
+    {
+      "id": "claim_8b9a47d5ccdc4bb0880bedae9483f646",
+      "statement": "The browser Mermaid 12 adapter serializes parser/render operations and copies flowchart membership, nodes, edges and styling into an application-owned model before other operations; unsupported or incomplete graph structures fail explicitly.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/lib/mermaid-runtime.ts#L1-L178",
+          "version": "repo-lines-v1:sha256:54eff2ca7eceef5ada2fa8e459b83483534917047d692896946fc185a83a47e1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTc4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MzEyNDUwNDc5NWJhZWEyMTc1YTBmYjdjYTQxNDNjYjUzYTQ4OGQ4MzE3ZTU3NmY4YWU3NjIxMWVlYzM1YzE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlOWRhZjQ2NWZmZDg2YzUzYWE0NmU0MWJkYWU4Y2QwZjZkYmE2NjVhYmUyZTliN2QxNDA3YTQ2ZGQ3NThlNzEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyYzgxNGU4YzhiODZhZTU2YzBhOWIxYzBkMzZkZTgyOGU5ZGE2ZWVkNWQzM2JhZGJiZjQ4YjEyMTBmOWFmMmI4In0"
+        },
+        {
+          "resource": "repo://tools/codebase-map/package.json#L14-L20",
+          "version": "repo-lines-v1:sha256:fd0efbb2956b8c8f0e7fd2212abdd9e8ef00f799143a5ef5f262e622285bddbb:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQ1Y2QyZmI0ZjNkZjg4NDUxNTI1NWIzOTUyM2YyZjhiNTQ3MmJlZWE5ZjU2NmZmY2EyMDRkYjgwMjU2MTA0MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGQ1Y2QyZmI0ZjNkZjg4NDUxNTI1NWIzOTUyM2YyZjhiNTQ3MmJlZWE5ZjU2NmZmY2EyMDRkYjgwMjU2MTA0MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTMzNzU4ZDgzMTZkZjQ4MTVhYmE0NDU0YWQxZmQ5YzI0NzVkYWYxOTEzYWQ2MDhjNmQ2ZjM0ZTZjOTcxMWJmYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmY5ZTVmMzA4NzA0Y2EzMDgyZTJiNWRmYWE2NTEwOTNkY2E1NmIyYzRlMTI2NzBmNmNhZjcyZjZlZTJjODUwZSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_6b7d5494a74a44a29a2b3054c31340cc",
+      "statement": "Areas occupy a fixed five-column grid. The overview hides node/edge detail and keeps titles at least 14 screen pixels while the camera expands above twice overview scale and collapses below 1.5 times; resize preserves explored world center and scale, and Overview/Fit/Home/Escape/F restore the overview.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L72-L123",
+          "version": "repo-lines-v1:sha256:a0da880e749613e096f7d98d829dbfe539ce8b7470d4d04f4e1862846faa666d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhNzlkNjIzZTMxMDFjZDQzZjFlNzQ2ZDUxZGM5YzM3YzhjZGEwMGI0YTQyN2E2ODc3M2YyMzBlNzhhNWFlYzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYTQwZWZjOWQ2ZDQ5MDFjNjQwZTA3ZjMwYjY2MGFmMWZhZTVmNTczMTk3NzgyOGZkODY0ZjIxZjBmMjAwZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmZGQ4OWIxOTE4YjFlYmFjM2IxMmU3ZjY5YTM2NDFlZGJkMzkzMDc4OTkyZmFmOWE1OTIxNGM1MmM5ZjQ3MmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZmMyNWRiNDQ5OTg4NWFiZDNmMTBiOTY2NTdmZmQ3NjI0MzY5YzQ1Nzg4MjlmZjU0ZDk2NmJkY2M1ZmNhYmMifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/components/map-chrome.tsx#L27-L62",
+          "version": "repo-lines-v1:sha256:44e44458b1ac5cdfd298745411da6eac458d7859b709eceb9d4bd0c447e88a2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlYzY2YTY5ZjIwNWVjYjhkZDRmYjBhYmQ2NTU3ZTBjMmRjMGZmZGIxNTg1ZGQ0YzVmODkxZjRjOGQ2MmRhNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxN2UyNWMzNGY2Y2VlNTIxYjE5MDVhZTBhZTJlYmZmZjgzMDIzMTQ4NWM3MTczYzUxOGNkY2JiNTRiZTY1YmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/components/use-map-camera.ts",
+          "version": "repo-file-v1:sha256:87cf02ef948b7d00db99bf8114499922af3617f28dc72525cccf721f1c2a2286"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/map-geometry.ts#L1-L45",
+          "version": "repo-lines-v1:sha256:b002aa73f685f7384a8421006c4727c8e0d87b205241ad2a2d85a0f5be9dcb9a:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlNjRlN2QyZGE5ZDg1YTRjMGNkZWNhZjMxOTg5YjkyMjhhODBkOGYxYTE3MjcxNTU0ZjliNGUzMTcxMTk5NzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkYjdkZmY5YjI3NmUwOTUyMDc0YjFmMGNlMTZhYmVmNDE2NTAyZjczOWU5ODRlN2VlMmMxMmRmM2EzMGQ1MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0YjRjN2RjMjczZTI5ZTJlMTc4NzgzMGVmZjFiNGMxNDU3MWM2MzAxMzI5ZGJlYzYyNjAyYTkxZWVhOTRmOTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d4c41a4776c494b9cfb873a54204153",
+      "statement": "Secondary node label lines retain their geometry while hidden and become visible at an effective font of 14 pixels; reduced-motion styling disables animations and transitions.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L28-L34",
+          "version": "repo-lines-v1:sha256:01eff419bf00c4da75aa61f08848992797fde1729ea7688649e721b995e85c90:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ViYTQ5MGZhNTAxYmY1NDNjZGUwZTIxMDYzOWE1NTQxNGE1OTQ4Zjk1OTdiMzlhODk2MTlkODgwNjNiZWRlOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjQyOTI1NTcxYjI2Mjc2NjU4NTYyZTI0MWVmZmEyZjEwMzhiMzEyMGJlNmJlNTQzYmNhYTg1YTY4MzQ3OGI5MiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTQ0MGY0YTBiMDk5NWI5MzliY2Y1NzBiMzYzNGZkNmM0MDAwYmJmYmI2MmRlMjMxMTkzYzViZjlhN2MxYmIxOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDE3ZDQ4ZGVkNGE2ZWViNDNmM2Y0YTQxZTg0NWI1OGZjNWU2NjlkOTlmNzJiZmIxNDE0OWIxYTk0YWJjN2MxYyJ9"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/globals.css#L124-L156",
+          "version": "repo-lines-v1:sha256:700cea5f0a15d6050e6752462e3279f0bb23d02e789a594c085653754def8187:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzYTY5NzQxNzI5YWRlNjg1Zjg2N2JhZGY5OWU2OTcyN2ZkNjYwOWM4ZGNlMTk3ZTIwNjkxMDcxMzY1NGM2NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzOTE5NDViYzc1YTcwNGViN2E5NTMzZWNmNThmMWM5ZTRmMGNlZjNmN2MxMTJlODU5ODg5NDFhMzRlY2MwMmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhMGNmYWIxM2JjMjhmNzJkNDZlMjYwMGExNjlkZGJmM2ZiYjlkMTg4YTQxNjE2NzFiY2RlMGU4ODRjMmE2ZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhMzdiMDJmNjM1NjE2N2UwZWNjY2VhY2VlYmEwNDJmM2Q1OTJiOGIxOGViMTRhN2E1YjYzYWI3NTkzN2ZmOTMifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/mermaid-runtime.ts#L218-L252",
+          "version": "repo-lines-v1:sha256:1555b244946ba80bc6fba142693af4260358f5cf88579247ecff66f9b163c478:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyODRmNDUyM2EwMDYzYjIzNDk1MmZlZTQyN2IzMTllYzI2YWJjM2Q4YWRlZDdiYWQ5YWUwMmRhMjdlMTVmNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMwYjk3ZjJkOWMzMDliNjYwZGIxMTUwZjlhZDcwYWYxOTFjOGQ4MzJjODQ4ZmYxYzUwMTY2Y2ZjNzNmMDUyYmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4MGE4Y2Q3YmQxMzBiZDY4NGExOWMzN2YzZGI1YzM3NDU3YWJkNThkNTI4OGNhYzQyYjhjN2JhNjk3MTU4NWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_120b87cacfb74c5bae86e49d1f4a6c26",
+      "statement": "The expanded area's incoming and outgoing cross-area edges retain identities, direction, labels and dotted/thick styles, use local node anchors and remote area boundaries, and route through gutters around local obstacles; full labels support hover/focus, and offscreen destinations navigate through a separate scrollable dock below the canvas.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L81-L112",
+          "version": "repo-lines-v1:sha256:fc4271694fb0e7a62297bb84dc8eb8b8325b736bcc58f532aca0c3620b78b9c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwYmQ5OWY1NmEwOTcwZjk5NGY3N2JlNThjMjBhNjRhOTMwZTg0YTU0Y2E4ZjlmNzNlMWNhYjhmNDcxMDFkMzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyZjNjZmQxMWRhNjE1MDE5N2FjZWVkMDg0MDZhYzY0YjA1MDM0MGRlN2JjMDQxMjRhNGNiN2VmYTY3MTM0MGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1M2Q1MWIwYmUxYzJiMWM4ZGNhNjA2YjZjZWJjNzI2NTY5OTVhOTAyNzkyODRhYzM3OTQwOTEyN2E4MzUxYjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmYWY5MDI5OWM3N2MzNTQwNzMwMDUwZDZmNjI0MjI5Y2E1NzJiZjA5OTg0ZGUzMGNmZmQ2M2Q0NGEzOTk4YjQifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/components/map-connections.tsx",
+          "version": "repo-file-v1:sha256:09d2deb395e95ddcc72cb8ecf112ff25e1f821229c3e9a5f7ba2cf0ae4c70e21"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/globals.css#L153-L176",
+          "version": "repo-lines-v1:sha256:7ebfd27a0a490284f5195d9349bf2b35cc1c50a9352ad8077ecf272ce6dced4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2YjdmZWQ0MzBjNDZmYzQwMTA3NzFjMzg1YjU5YTQ3M2Q2MzdmMjM4OWI2NjYzYWEwNWE5YmZjNzVlODkxN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmZTg3ODNhMWJmYTNmYWQwYTJhMDY2MzljOTFiMTFlMzVkMjRhOWUwNjAyY2U5OTYyZjRiYzI4YzhiOTZkMTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM1MWI5NjA3ZjlmMDBhNGY1ZGQ4MmViNTEzZGU2Mjg0MTA5YjY0ZDMzNGMyOWI2MWY1YmQxMjhhNDMxMTcxYTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/map-geometry.ts#L163-L241",
+          "version": "repo-lines-v1:sha256:6fd8f734cd89c019f18e560578e506ec41b0fd7dbe22eb2cf7f7b7e7d89003ed:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkZWJlYWNiMjdkNDMxN2M0NGEwNzI5OGUwMjc0ZGJjYWYzNmRlYzhjY2M1MGM0OTEyN2Y2NzVkMDA3OGJkYmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T12:34:37.289Z"
+    "at": "2026-09-25T12:41:08.389Z"
   }
 }

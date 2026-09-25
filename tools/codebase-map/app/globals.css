@@ -29,7 +29,7 @@ button:focus-visible, a:focus-visible {
   height: 100vh;
   height: 100dvh;
   min-height: 300px;
-  overflow: hidden;
+  overflow: clip;
   background: #fff;
 }
 
@@ -57,7 +57,7 @@ button:focus-visible, a:focus-visible {
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: clip;
   background-color: #fff;
   background-image: radial-gradient(#e4e9ed .65px, transparent .65px);
   background-size: 20px 20px;
@@ -66,26 +66,13 @@ button:focus-visible, a:focus-visible {
 
 .canvas-label { position: absolute; z-index: 1; top: 25px; left: 30px; display: flex; align-items: center; gap: 9px; pointer-events: none; font-size: 9px; font-weight: 600; letter-spacing: 1.6px; color: #919ba4; }
 .canvas-label-line { width: 17px; height: 1px; background: #aab5bc; }
-.diagram-viewport { position: absolute; inset: 0 0 70px; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.diagram-viewport { position: absolute; inset: 0 0 70px; overflow: clip; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .diagram-viewport:focus-visible { outline: 2px solid #9cb6bd; outline-offset: -4px; border-radius: 5px; }
 .diagram-viewport.is-dragging { cursor: grabbing; }
 .diagram-content { position: absolute; top: 0; left: 0; width: max-content; height: max-content; transform-origin: 0 0; }
 .diagram-content > svg { display: block; }
 .diagram-content .node rect { rx: 5px; ry: 5px; }
 .diagram-content .cluster rect { rx: 8px; ry: 8px; }
-/* Preserve the map's structure when the full codebase is fitted at a small scale. */
-.diagram-content .flowchart-link,
-.diagram-content .node > rect,
-.diagram-content .node > polygon,
-.diagram-content .node > path,
-.diagram-content .node > circle,
-.diagram-content .node > ellipse {
-  stroke-width: calc(.75px * var(--diagram-stroke-scale, 1)) !important;
-}
-.diagram-content .cluster rect {
-  stroke: #b6c1c8 !important;
-  stroke-width: calc(.8px * var(--diagram-stroke-scale, 1)) !important;
-}
 
 .canvas-state { position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%); width: min(400px, calc(100% - 48px)); padding: 26px 20px; text-align: center; background: #ffffffed; border-radius: 12px; }
 .canvas-state h2 { margin: 21px 0 8px; font-size: 17px; font-weight: 500; letter-spacing: -.4px; }
@@ -99,7 +86,7 @@ button:focus-visible, a:focus-visible {
 .retry-button { margin-top: 19px; padding: 9px 16px; border: 1px solid #d9e0e3; border-radius: 6px; background: #fff; font-size: 12px; }
 .retry-button:hover { background: #f5f8f9; }
 
-.canvas-toolbar { position: absolute; z-index: 2; left: 50%; bottom: 39px; display: flex; align-items: center; gap: 2px; padding: 5px; transform: translateX(-50%); border: 1px solid #e0e5e8; border-radius: 10px; background: #fff; box-shadow: 0 3px 6px #23344205, 0 5px 25px #23344208; }
+.canvas-toolbar { position: absolute; z-index: 2; left: 50%; bottom: 30px; display: flex; align-items: center; gap: 2px; padding: 5px; transform: translateX(-50%); border: 1px solid #e0e5e8; border-radius: 10px; background: #fff; box-shadow: 0 3px 6px #23344205, 0 5px 25px #23344208; }
 .tool-button, .zoom-value { display: flex; align-items: center; justify-content: center; height: 34px; border: 0; border-radius: 5px; background: transparent; color: #52606a; }
 .tool-button { width: 34px; padding: 0; }
 .tool-button:hover:not(:disabled), .zoom-value:hover:not(:disabled) { background: #f1f5f6; color: #202e35; }
@@ -138,3 +125,52 @@ button:focus-visible, a:focus-visible {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .loading-orbit span { opacity: .55; }
 }
+
+/* Area cards use world coordinates; their typography stays readable on screen. */
+.map-navigation { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:54px; padding:9px 30px; border-bottom:1px solid #e7ecee; background:#fff; z-index:2; }
+.map-breadcrumb { display:flex; align-items:center; gap:12px; min-width:0; color:#7f8b93; font-size:12px; }
+.map-breadcrumb button { background:none; border:0; padding:6px 0; color:#314b54; font-size:12px; }
+.map-breadcrumb button[aria-current] { font-weight:600; }
+.current-area { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:#33444b; }
+.area-total { padding:3px 7px; border-radius:4px; background:#f1f5f5; font-size:10px; color:#72848a; white-space:nowrap; }
+.area-jump { flex-shrink:0; }
+.area-jump select { max-width:260px; width:190px; border:1px solid #dce4e7; border-radius:6px; padding:7px 25px 7px 10px; font:12px Arial,Helvetica,sans-serif; background:#fff; color:#52666e; }
+.area-card { position:absolute; display:flex; align-items:center; text-align:left; padding:24px; border:calc(1px / var(--map-scale)) solid #d8e1e3; border-radius:calc(10px / var(--map-scale)); background:#fafcfc; color:#273d45; box-shadow:0 calc(2px / var(--map-scale)) calc(5px / var(--map-scale)) #22374004; overflow:hidden; }
+.area-card:hover { background:#f0f6f5; border-color:#92aeaf; }
+.area-card:focus-visible { outline:calc(2px / var(--map-scale)) solid #477384; outline-offset:calc(3px / var(--map-scale)); }
+.area-card-copy { display:flex; flex-direction:column; gap:calc(10px / var(--map-scale)); width:100%; }
+.area-card-meta { display:flex; align-items:center; justify-content:space-between; gap:5px; font-size:var(--meta-font); line-height:1.2; color:#86979a; }
+.area-card-number { font-family:'SFMono-Regular',Consolas,monospace; color:#49656c; letter-spacing:.03em; }
+.area-card-title { display:block; font-size:var(--title-font); line-height:var(--title-leading); font-weight:500; letter-spacing:-.02em; overflow-wrap:break-word; }
+.area-card-open { display:none; font-size:var(--meta-font); color:#667e83; }
+.area-card.is-active { background:#fff; pointer-events:none; border-color:#b6cacc; }
+.area-card.is-active { align-items:flex-start; }
+.area-diagram { position:absolute; transform-origin:0 0; pointer-events:none; }
+.area-diagram svg { display:block; max-width:none; overflow:visible; }
+.area-diagram .node-details { visibility:hidden; }
+.area-diagram.show-details .node-details { visibility:visible; }
+.area-diagram .node rect { rx:5px; ry:5px; }
+.area-state { position:absolute; z-index:3; top:24px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; max-width:calc(100% - 32px); padding:16px 24px; border:1px solid #dce6e7; border-radius:8px; background:#ffffffef; color:#61767d; font-size:12px; box-shadow:0 4px 20px #273b4610; }
+.area-state strong { color:#354d55; font-size:13px; font-weight:500; }
+.area-state .retry-button { margin-top:2px; }
+.connected-area-dock { position:absolute; bottom:72px; left:12px; right:12px; height:44px; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
+.map-connection-destinations { display:flex; align-items:center; gap:6px; width:max-content; min-width:100%; padding:4px 0; }
+.map-connection-destination { display:flex; flex-shrink:0; align-items:center; gap:7px; min-height:32px; padding:7px 10px; border:1px solid #b8cdd0; border-radius:6px; background:#ffffffed; color:#345b64; box-shadow:0 2px 9px #18343c0b; font-size:11px; line-height:1.3; text-align:left; }
+.map-connection-destination:hover, .map-connection-destination:focus-visible { background:#edf5f5; border-color:#698f98; z-index:5; }
+.map-connection-destination span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.map-connection-count { flex-shrink:0; color:#789096; font-size:10px; }
+.map-connection-tooltip { max-width:340px; padding:10px 12px; border:1px solid #d3e0e2; border-radius:6px; background:#fff; color:#334f58; box-shadow:0 5px 22px #25424c19; font-size:12px; line-height:1.5; }
+.map-connection:focus { outline:none; }
+.map-connection:focus .map-connection-line, .map-connection:hover .map-connection-line { stroke:#2e737e; stroke-width:2px; }
+.canvas-toolbar .tool-button { font-size:22px; font-weight:300; }
+.canvas-toolbar .fit-button { font-size:15px; }
+.canvas-toolbar .fit-button span { font-size:11px; }
+@media (max-width:600px) {
+  .map-navigation { min-height:76px; padding:8px 18px; gap:7px; flex-wrap:wrap; }
+  .map-breadcrumb { flex-basis:100%; font-size:11px; }
+  .area-jump { width:100%; }
+  .area-jump select { width:100%; max-width:none; font-size:12px; padding-top:5px; padding-bottom:5px; }
+  .map-connection-destination { font-size:11px; padding:6px 8px; }
+  .canvas-hint { font-size:9px; }
+}
+.source-link > .source-symbol { display:inline; font-size:16px; }

@@ -40,10 +40,12 @@ sources:
     resource: repo://tools/codebase-map/package.json
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
+  - id: openwiki-source-e05a82755d8635ac88952e98
+    resource: repo://tools/codebase-map/tests/map-geometry.test.mjs
+generated: { by: "codex", at: "2026-09-25T12:41:08.389Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T12:34:37.289Z
+    at: 2026-09-25T12:41:08.389Z
 ---
 # Development and wiki maintenance
 
@@ -79,7 +81,7 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance, builds the static Next.js export, and exercises the full canonical map in Chromium. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and route geometry, builds the static Next.js export, and exercises all 23 areas, 210 nodes and 422 connections in Chromium. Browser coverage includes semantic zoom, cached area layouts, fixed positions, mouse/touch/keyboard navigation, reduced motion and retries. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
 
 ## Product map and PR handoff
 

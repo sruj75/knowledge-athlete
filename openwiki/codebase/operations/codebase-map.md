@@ -6,7 +6,7 @@ tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T12:34:37.289Z
+    at: 2026-09-25T12:41:08.389Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -14,19 +14,31 @@ sources:
     resource: repo://.github/scripts/prepare_codebase_map_check.py
   - id: openwiki-source-898a1f4e66854529123c0957
     resource: repo://tools/codebase-map/app/components/diagram-viewer.tsx
+  - id: openwiki-source-1892ff9017909640ba033da6
+    resource: repo://tools/codebase-map/app/components/map-chrome.tsx
+  - id: openwiki-source-ecd9009c9d912324e4bb30e4
+    resource: repo://tools/codebase-map/app/components/map-connections.tsx
+  - id: openwiki-source-cf62d61de08902f4bae41c4b
+    resource: repo://tools/codebase-map/app/components/use-map-camera.ts
   - id: openwiki-source-c4a16291c647622764e26cc3
     resource: repo://tools/codebase-map/app/globals.css
   - id: openwiki-source-8f88765748afaa418d7fe532
     resource: repo://tools/codebase-map/app/page.tsx
   - id: openwiki-source-06044ee38485672b205128e8
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
+  - id: openwiki-source-ea8e6f766ab18449d6c0d798
+    resource: repo://tools/codebase-map/lib/map-geometry.ts
+  - id: openwiki-source-173442aaa3e3f9cbea8df65b
+    resource: repo://tools/codebase-map/lib/mermaid-runtime.ts
   - id: openwiki-source-3db6130123d0c0614cc19cb5
     resource: repo://tools/codebase-map/next.config.ts
   - id: openwiki-source-cadbf0c250f5afb51126591d
     resource: repo://tools/codebase-map/package.json
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
+  - id: openwiki-source-e05a82755d8635ac88952e98
+    resource: repo://tools/codebase-map/tests/map-geometry.test.mjs
+generated: { by: "codex", at: "2026-09-25T12:41:08.389Z" }
 ---
 # Codebase map viewer
 
@@ -46,16 +58,53 @@ Git HEAD for a clean local checkout. Hosted builds require a full commit SHA.
 Edited local checkouts have no immutable source link. The header and footer link
 to the exact Mermaid file at the identified GitHub commit, rather than moving main.
 
-The client component loads Mermaid 12, uses ELK layout and strict security, and
-allows up to 200,000 characters and 2,000 edges. It measures the rendered SVG and
-fits it into the viewport. Mouse/touch, keyboard and toolbar controls change the
-viewport transform without recomputing graph layout. Resize refits the diagram;
-the SVG stays mounted. Inverse-zoom stroke widths preserve the overview's lines,
-while zooming in exposes multiline labels and source references.
+## From overview to local flow
 
-Loading and error states replace an unavailable diagram. Retry starts another
-render; cancellation prevents a completed obsolete render from replacing the
-current source. Fullscreen failures display a notice rather than breaking the map.
+The browser keeps the `DiagramViewer` source/commit/source-URL contract. The
+Mermaid 12 adapter in `lib/mermaid-runtime.ts` parses the complete flowchart and
+copies areas, node membership, labels, shapes, classes, styles and directed edges
+before another Mermaid operation can mutate its parser database. All Mermaid
+operations share a serial queue. Unsupported or incomplete graph structures fail
+explicitly rather than silently dropping content.
+
+`lib/map-geometry.ts` assigns each area a permanent position in a five-column
+grid. The overview shows numbered titles and platform labels, with no node graph
+or connections. Titles remain at least 14 screen pixels; small screens pan across
+the board. Expanding an area does not change other areas' coordinates.
+
+`use-map-camera.ts` owns the camera and active area. A card or Jump to area opens
+one flow near its first nodes at a readable summary scale. Wheel/pinch entry uses
+the area under the gesture anchor, expanding above twice the overview scale and
+collapsing below 1.5 times that scale. Continuing forward zoom while the first
+layout loads retains readable entry; panning or reversing zoom cancels a pending
+entry adjustment. Panning retains the active area. Resize preserves the world
+center and scale unless the camera is still in its fitted overview state.
+Overview, Fit, Home, Escape and F return to the board. Fullscreen failures show a
+notice, and reduced-motion styling disables animations and transitions.
+
+Each area is rendered on first use with Mermaid ELK, strict security, a
+200,000-character limit and a 2,000-edge limit. The generated local definition
+contains its own nodes and internal edges, including styles and source labels.
+The renderer caches the resulting SVG and measured node geometry by graph and
+area, including in-flight promises. Rejected entries are removed for retry.
+Subsequent navigation reuses the cached layout; camera gestures transform it.
+Secondary label lines retain layout space while hidden, becoming visible when
+the effective node font reaches 14 pixels. This avoids moving nodes or routes
+as source references appear.
+
+`map-connections.tsx` draws all incident cross-area edges in a separate layer,
+anchoring one end to the local node and the other to the remote area boundary.
+It suppresses connections between collapsed areas, preserves edge identities,
+directions, labels and dotted/thick styles, and routes through grid gutters with
+local node/header obstacle avoidance. Full labels are available on hover or
+keyboard focus. Offscreen destinations appear as full-title buttons in a separate
+scrollable strip below the canvas, so navigation labels do not cover nodes.
+Clicking a route or its destination changes the active area.
+
+Parsing failures show the global retry state. Local layout failures show an area
+retry while overview navigation remains available. Effect cancellation and graph
+identity checks prevent obsolete renders from replacing the current source or
+area. There is no additional API, database, editor or maintained overview diagram.
 
 ## Develop and check
 
@@ -68,11 +117,15 @@ npm --prefix tools/codebase-map run dev
 npm --prefix tools/codebase-map run check
 ```
 
-`check` generates route types, type-checks, exercises source/commit-loading tests,
-builds a static export, and runs Chromium against that export. The browser checks
-render the complete canonical map and exercise navigation, resize, fullscreen,
-malformed-input retry/recovery and immutable source-link behavior. No live model,
-backend or GitHub service is involved in these checks.
+`check` generates route types, type-checks, exercises source/commit and geometry
+tests, builds a static export, and runs Chromium against that export. Browser
+checks cover the pinned parser and all local views: 23 areas, 210 nodes and 422
+connections. They exercise dense areas 07/15, areas 20/21 without internal edges,
+readable entry, progressive labels, cached SVG reuse, fixed positions, wheel
+hysteresis, sustained touch pinch, keyboard focus, destination navigation,
+resize/fullscreen, reduced motion, local/global retry and exact commit links.
+Geometry tests cover grid gutters and measured local-node obstacle avoidance.
+No live model, backend or GitHub service is involved in these checks.
 
 The shared check manifest selects this suite for viewer, map and relevant tooling
 changes in both local and CI lanes. GitHub Actions uses the same manifest selection

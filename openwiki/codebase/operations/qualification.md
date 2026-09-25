@@ -26,10 +26,12 @@ sources:
     resource: repo://tools/codebase-map/package.json
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
+  - id: openwiki-source-e05a82755d8635ac88952e98
+    resource: repo://tools/codebase-map/tests/map-geometry.test.mjs
+generated: { by: "codex", at: "2026-09-25T12:41:08.389Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T12:34:37.289Z
+    at: 2026-09-25T12:41:08.389Z
 ---
 # Qualification and open obligations
 
@@ -49,7 +51,7 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
-The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests exercise the complete canonical diagram, navigation, resize/fullscreen, malformed-input recovery and commit links against the static export. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 210 nodes and 422 connections across generated local views, including dense and internally disconnected areas. They exercise semantic zoom thresholds, cached layouts, fixed positions, keyboard/touch/mouse navigation, destination-dock separation, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Geometry tests verify grid gutters and local obstacle avoidance. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
 
 ## Policy-change disclosure
 

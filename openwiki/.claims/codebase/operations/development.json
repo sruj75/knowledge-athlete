@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:66e69800e44ec2a385bc5927e5ed8f1743ac83a292ccb2e3ded32fd141d7b396",
+  "pageVersion": "sha256:6eb41dcf330e40d72269e25332a235504e954def6757939464a80a41451b6310",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -128,7 +128,7 @@
     },
     {
       "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
-      "statement": "The codebase map viewer builds directly from the canonical Mermaid file and its isolated check command covers source provenance, static export and full-diagram browser behavior; selected CI runs provision its locked dependencies and Chromium.",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, route geometry, static export and Chromium behavior across all 23 areas, 210 nodes and 422 edges, including semantic zoom, caching, mouse/touch/keyboard navigation, reduced motion and retries; selected CI runs provision locked dependencies and Chromium.",
       "evidence": [
         {
           "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
@@ -140,11 +140,15 @@
         },
         {
           "resource": "repo://tools/codebase-map/package.json#L1-L28",
-          "version": "repo-lines-v1:sha256:97d55618b1c1c3a51260baf0acfe897fb0ada88413a110c297f8bca12d39ef9d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "version": "repo-lines-v1:sha256:2467c34776142194853593a3e150dad420bd06a642d5138fadfe8f72a5245fd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTIwNDRlNmY0ZTk2NTY0OTI3OTYyMGQ3NjUyYzYyNzQ0NjdjMjkwY2Q3ZTYzOTNiZjZmZjBlNGQ4ZDA5MDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Mzk1OTgzOTZjZDE1MTk0NzNlNTMzNzMzMzI1NTE0N2QzNzkxZmQ2NjUwMTk0Y2UzZWRjZjI5NzAyM2Y4YTkifQ"
         },
         {
-          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L1-L76",
-          "version": "repo-lines-v1:sha256:d103c125b4dc7542edbe207868429730c75940a08e7fe69103756f6f8b00044d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NzA4OTE3YTlmMzg4YWMxZTkzZTRhMjBlNDY1Y2I5NWM0NjdlMTg3YzhlMWRhN2JlOWY3NGFiYWM1ZWFiYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
+          "version": "repo-file-v1:sha256:bf877c78f99886d8ae3374605757373cac85660ee6cd1c405e1bbb94c6b6c5d4"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/map-geometry.test.mjs",
+          "version": "repo-file-v1:sha256:6eaea7152b26504f8ea1ada90d572482eff1363bde059e9e18355a6e58acef5b"
         }
       ]
     },
@@ -161,6 +165,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T12:34:37.289Z"
+    "at": "2026-09-25T12:41:08.389Z"
   }
 }
