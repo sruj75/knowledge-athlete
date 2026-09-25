@@ -6,7 +6,7 @@ tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-25T12:41:08.389Z
+    at: 2026-09-25T12:59:37.129Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml

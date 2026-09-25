@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:90fecef7b092e130e2afd8474f1c77becc65c7669f475238b74f354cc755d45e",
+  "pageVersion": "sha256:338d69d601d8467215c50dfc3644d6646cdb74d8faf160a1f3002d43ce007ded",
   "claims": [
     {
       "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
@@ -60,7 +60,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:bf877c78f99886d8ae3374605757373cac85660ee6cd1c405e1bbb94c6b6c5d4"
+          "version": "repo-file-v1:sha256:ce909f7c76f39e1f9fbcd352805bddc9243360ca79ae41421877e93a67d8df0e"
         },
         {
           "resource": "repo://tools/codebase-map/tests/map-geometry.test.mjs",
@@ -132,7 +132,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/app/components/map-connections.tsx",
-          "version": "repo-file-v1:sha256:09d2deb395e95ddcc72cb8ecf112ff25e1f821229c3e9a5f7ba2cf0ae4c70e21"
+          "version": "repo-file-v1:sha256:3462ec4387e33a8a71c274edb43750ec826f281f8e9e0ddc828a0abca5f54c66"
         },
         {
           "resource": "repo://tools/codebase-map/app/globals.css#L153-L176",
@@ -147,6 +147,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-25T12:41:08.389Z"
+    "at": "2026-09-25T12:59:37.129Z"
   }
 }

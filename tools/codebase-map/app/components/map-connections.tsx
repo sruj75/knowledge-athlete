@@ -161,7 +161,7 @@ export function MapConnections({ graph, activeAreaId, rendered, transform, viewp
         ))}
       </div>, destinationContainer)}
       {revealedRoute && revealed && <div className="map-connection-tooltip" role="tooltip"
-        style={{ position: "absolute", left: Math.max(12, Math.min(viewport.width - Math.min(380, viewport.width - 24) - 12, revealed.point.x + 14)), top: Math.max(12, Math.min(viewport.height - 130, revealed.point.y + 18)), maxWidth: Math.min(380, viewport.width - 24), pointerEvents: "none" }}>
+        style={{ position: "absolute", left: Math.max(12, Math.min(viewport.width - Math.min(380, viewport.width - 24) - 12, revealed.point.x + 14)), bottom: 12, maxWidth: Math.min(380, viewport.width - 24), maxHeight: Math.max(0, viewport.height - 24), overflowY: "auto", pointerEvents: "auto" }}>
         {connectionText(revealedRoute, graph)}
       </div>}
     </div>

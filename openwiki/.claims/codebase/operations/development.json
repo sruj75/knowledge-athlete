@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:6eb41dcf330e40d72269e25332a235504e954def6757939464a80a41451b6310",
+  "pageVersion": "sha256:698e933af12e7b9a9e0b315b5475a83056651fc5f584fc5a8e2b5cc8fedb6b10",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -144,7 +144,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:bf877c78f99886d8ae3374605757373cac85660ee6cd1c405e1bbb94c6b6c5d4"
+          "version": "repo-file-v1:sha256:ce909f7c76f39e1f9fbcd352805bddc9243360ca79ae41421877e93a67d8df0e"
         },
         {
           "resource": "repo://tools/codebase-map/tests/map-geometry.test.mjs",
@@ -165,6 +165,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-25T12:41:08.389Z"
+    "at": "2026-09-25T12:59:37.129Z"
   }
 }

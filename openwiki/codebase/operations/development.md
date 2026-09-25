@@ -45,7 +45,7 @@ sources:
 generated: { by: "codex", at: "2026-09-25T12:41:08.389Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-25T12:41:08.389Z
+    at: 2026-09-25T12:59:37.129Z
 ---
 # Development and wiki maintenance
 

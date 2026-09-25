@@ -352,6 +352,36 @@ for (const area of [
   });
 }
 
+test("long connection labels fit completely inside the mobile canvas", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await overview(page);
+  for (const area of ["AREA_07", "AREA_15"]) {
+    await focusArea(page, area);
+    const longest = await page.locator('.map-connection[tabindex="0"]').evaluateAll(connections =>
+      connections.map(connection => ({
+        id: connection.getAttribute("data-edge-id")!,
+        label: connection.querySelector("title")?.textContent ?? "",
+      })).sort((a, b) => b.label.length - a.label.length).slice(0, 4));
+    expect(longest.length).toBeGreaterThan(0);
+    for (const connection of longest) {
+      await page.locator(`.map-connection[data-edge-id="${connection.id}"]`).focus();
+      const tooltip = page.getByRole("tooltip");
+      await expect(tooltip).toHaveText(connection.label);
+      const bounds = await tooltip.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        const viewport = document.querySelector('[data-testid="diagram-viewport"]')!.getBoundingClientRect();
+        return {
+          inside: box.left >= viewport.left && box.right <= viewport.right && box.top >= viewport.top && box.bottom <= viewport.bottom,
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+        };
+      });
+      expect(bounds.inside, `${area} ${connection.id} tooltip escapes the canvas`).toBe(true);
+      expect(bounds.clientHeight, `${area} ${connection.id} tooltip clips its text`).toBeGreaterThanOrEqual(bounds.scrollHeight);
+    }
+  }
+});
+
 test("every source area renders all 210 nodes and all 422 source connections", async ({ page }) => {
   test.setTimeout(120_000);
   await overview(page);
