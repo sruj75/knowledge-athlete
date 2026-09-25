@@ -321,12 +321,14 @@ test("panning at close zoom reveals a second region without clicking or changing
 });
 
 test("click focus animates and wheel input cancels that animation without a delayed jump", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-25T12:00:00Z") });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await overview(page);
   await focusArea(page, "AREA_01");
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.clock.install();
+  // Command latency must not advance the animation between controlled frames.
+  await page.clock.pauseAt(new Date("2026-09-25T13:00:00Z"));
   const initial = await camera(page);
   await page.getByTestId("area-card-AREA_01").click();
   await page.clock.runFor(100);
