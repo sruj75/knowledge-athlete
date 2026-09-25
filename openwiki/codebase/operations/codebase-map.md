@@ -6,7 +6,7 @@ tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-25T14:57:48.440Z
+    at: 2026-09-25T17:08:48.248Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -16,6 +16,8 @@ sources:
     resource: repo://tools/codebase-map/app/components/diagram-viewer.tsx
   - id: openwiki-source-c12807270fd9a39fb19a6dba
     resource: repo://tools/codebase-map/app/components/map-areas.tsx
+  - id: openwiki-source-1892ff9017909640ba033da6
+    resource: repo://tools/codebase-map/app/components/map-chrome.tsx
   - id: openwiki-source-ecd9009c9d912324e4bb30e4
     resource: repo://tools/codebase-map/app/components/map-connections.tsx
   - id: openwiki-source-cf62d61de08902f4bae41c4b
@@ -24,6 +26,8 @@ sources:
     resource: repo://tools/codebase-map/app/globals.css
   - id: openwiki-source-8f88765748afaa418d7fe532
     resource: repo://tools/codebase-map/app/page.tsx
+  - id: openwiki-source-cb37abc91bb20553b8ef91a1
+    resource: repo://tools/codebase-map/lib/area-flows.ts
   - id: openwiki-source-06044ee38485672b205128e8
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
   - id: openwiki-source-173442aaa3e3f9cbea8df65b
@@ -34,11 +38,13 @@ sources:
     resource: repo://tools/codebase-map/next.config.ts
   - id: openwiki-source-cadbf0c250f5afb51126591d
     resource: repo://tools/codebase-map/package.json
+  - id: openwiki-source-74eca9dc530951021748ada2
+    resource: repo://tools/codebase-map/tests/area-flows.test.mjs
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-25T14:26:39.985Z" }
+generated: { by: "codex", at: "2026-09-25T17:08:48.248Z" }
 ---
 # Codebase map viewer
 
@@ -86,6 +92,23 @@ as their effective font size grows; secondary source lines become visible at
 14 pixels. Hidden lines retain their layout space, so nodes and routes do not
 move when references appear. More than one visible subsystem can reveal detail,
 including when the user pans across the map without selecting another area.
+
+## Subsystem inflow and outflow
+
+Directly below the active subsystem title, `map-chrome.tsx` displays Inflow and
+Outflow lists with the canonical data/event labels and clickable source or
+destination subsystems. The reserved panel height keeps the canvas dimensions
+stable when selection changes. Lists scroll independently, reset for a new area,
+and move keyboard focus to the destination title after following a flow. Escape
+returns to Overview and keeps focus inside the viewer.
+
+`lib/area-flows.ts` derives these lists from node membership and actual arrowheads.
+Internal edges are excluded, reverse arrows invert the direction, and bidirectional
+edges appear on both sides. Unlabelled edges use the first endpoint label lines;
+undirected relationships are counted separately without inventing a direction.
+These are the map's recorded data and control exchanges, not inferred payload
+schemas, measured throughput, or a stock-and-flow simulation. Empty lists mean no
+flows are recorded in this map, not proof that the subsystem has no external inputs.
 
 ## Camera and navigation
 
@@ -135,7 +158,10 @@ containment, cached layouts, stable coordinates, continuous wheel/pinch anchors,
 pan-only reveal, animation cancellation, reserved source-label space, connected
 destinations, mouse/touch/keyboard controls, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
-projection, non-overlap and local placement. No live backend or model is involved.
+projection, non-overlap, local placement and boundary-flow direction. Browser checks
+account for all 261 cross-subsystem edges on both the inflow and outflow sides,
+including destination navigation, scroll reset and keyboard focus. No live backend
+or model is involved.
 
 The shared manifest selects this suite for viewer, map and relevant tooling
 changes in both local and CI lanes. GitHub Actions uses the same selection to

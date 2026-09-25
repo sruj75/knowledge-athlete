@@ -55,7 +55,7 @@ export function DiagramViewer({ source, commit, sourceUrl }: DiagramViewerProps)
     if (!event.defaultPrevented && !viewportRef.current?.contains(event.target as Node)) camera.handlers.onKeyDown(event);
   }}>
     <MapHeader sourceUrl={sourceUrl} />
-    <MapNavigation areas={areas} active={active} onOverview={camera.overview} onNavigate={camera.focusArea} />
+    <MapNavigation graph={graph} areas={areas} active={active} onOverview={camera.overview} onNavigate={camera.focusArea} />
     <main className="map-main">
       <div className={`diagram-viewport${camera.dragging ? " is-dragging" : ""}`} data-testid="diagram-viewport" ref={viewportRef}
         tabIndex={0} role="region" aria-label="Interactive codebase map" aria-describedby="canvas-instructions" aria-busy={status === "loading"} {...camera.handlers}>

@@ -16,6 +16,13 @@ browser editor, or separately maintained overview map.
 - Click a subsystem or use **Jump to area** to move smoothly into its first nodes.
   **Fit**, **Overview**, `Home`, `Escape`, and `F` return to the overview.
   Reduced-motion preferences disable camera animation.
+- Directly below the selected subsystem's title, **Inflow** lists incoming
+  data/events and their source subsystem; **Outflow** lists outgoing data/events
+  and their destination. Scroll either list to read every flow, or click a
+  source/destination to follow it. These lists use the canonical edge labels and
+  arrow directions, including control signals; they do not infer payload schemas,
+  runtime rates, or Meadows-style stocks from a generic connection. Unlabelled
+  edges use their endpoint names, and missing flows are described as unrecorded.
 - Every visible subsystem can reveal detail as you zoom or pan across the map.
   Node titles appear first; source references appear when node text reaches
   14 pixels. Their space stays reserved so labels and routes do not move.
@@ -64,7 +71,8 @@ This type-checks, tests the canonical-source/commit loading contract, builds the
 static site, and runs Chromium against the actual exported diagram. Browser tests
 cover desktop/mobile overview readability, click/wheel/pinch/keyboard navigation,
 source detail, stable region positions, cached layouts, resize, fullscreen,
-dense areas, connection inspection, and source/layout failure recovery.
+dense areas, connection inspection, complete inflow/outflow accounting, and
+source/layout failure recovery.
 CI installs dependencies and Chromium only when the manifest selects the viewer.
 Tests use the local server and bundled assets, with no external services.
 

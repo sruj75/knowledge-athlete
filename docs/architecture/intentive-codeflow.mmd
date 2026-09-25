@@ -276,7 +276,7 @@ flowchart TD
     MAPSOURCE[("Canonical reviewed Mermaid product map<br/>docs/architecture/intentive-codeflow.mmd")]
     MAPBUILD["Read diagram and exact source commit at build time<br/>tools/codebase-map/lib/diagram-source.mjs"]
     MAPPAGE["Statically export the viewer page<br/>tools/codebase-map/app/page.tsx"]
-    MAPVIEW["Explore subsystem geography and reveal local flows in place<br/>Continuous zoom; cached Mermaid ELK area layouts<br/>tools/codebase-map/app/components/diagram-viewer.tsx"]
+    MAPVIEW["Explore subsystem geography, inflow and outflow<br/>Continuous zoom; cached Mermaid ELK area layouts<br/>tools/codebase-map/app/components/diagram-viewer.tsx"]
     MAPREVIEW -->|"Commit relevant map updates with code"| MAPSOURCE
     MAPSOURCE -->|"GitHub-connected Vercel build"| MAPBUILD
     MAPBUILD -->|"Source text and immutable GitHub link"| MAPPAGE

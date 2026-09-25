@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b42dc323021da8c6bca393f0e1910376653f5ecdb70c8c254444b3e71c6a1b79",
+  "pageVersion": "sha256:aed86268968449b2ecb77e652d2da146dbb28ca174b6bb365dd2675f53052c6f",
   "claims": [
     {
       "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
@@ -26,7 +26,7 @@
       "evidence": [
         {
           "resource": "repo://tools/codebase-map/app/components/diagram-viewer.tsx#L27-L83",
-          "version": "repo-lines-v1:sha256:6c6fa0453afddd30ab82a3ff148d914f9d4425f84197feefce8216817f7d1d3c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiYzdkYWM4MjdmNTIyYzE4MTM5NTNmYTM0MTFhMzA1Njc0ZjRiMjQ5OWVjYjM4ZWJmNTY4MDVkMDg5ODViYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYTQwZWZjOWQ2ZDQ5MDFjNjQwZTA3ZjMwYjY2MGFmMWZhZTVmNTczMTk3NzgyOGZkODY0ZjIxZjBmMjAwZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMDQ0ZDM5MmIxODdhN2MwOWU4MTZmYmY3NjY2ZWJkMWYzY2ViYWNlMmNiNDQ2MjkwNDBkMjczZDU5Yjg0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZmMyNWRiNDQ5OTg4NWFiZDNmMTBiOTY2NTdmZmQ3NjI0MzY5YzQ1Nzg4MjlmZjU0ZDk2NmJkY2M1ZmNhYmMifQ"
+          "version": "repo-lines-v1:sha256:53f3096fb74d78de7f25a3e181f5d3c7e3bb3673c4e8d807b5be15bafd4494c9:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiYzdkYWM4MjdmNTIyYzE4MTM5NTNmYTM0MTFhMzA1Njc0ZjRiMjQ5OWVjYjM4ZWJmNTY4MDVkMDg5ODViYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYTQwZWZjOWQ2ZDQ5MDFjNjQwZTA3ZjMwYjY2MGFmMWZhZTVmNTczMTk3NzgyOGZkODY0ZjIxZjBmMjAwZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMDQ0ZDM5MmIxODdhN2MwOWU4MTZmYmY3NjY2ZWJkMWYzY2ViYWNlMmNiNDQ2MjkwNDBkMjczZDU5Yjg0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZmMyNWRiNDQ5OTg4NWFiZDNmMTBiOTY2NTdmZmQ3NjI0MzY5YzQ1Nzg4MjlmZjU0ZDk2NmJkY2M1ZmNhYmMifQ"
         },
         {
           "resource": "repo://tools/codebase-map/app/components/map-areas.tsx#L22-L68",
@@ -64,7 +64,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:a9c392cecb72a217774265ff3c9f1887627f14e4d2e098ac61af72b91565e8cf"
+          "version": "repo-file-v1:sha256:9c5e2e71d0ca8feda4af73b3e91d14262f29915a52a704045f6e06a448d8ebef"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -95,8 +95,12 @@
           "version": "repo-lines-v1:sha256:10d774fcd0e6129531e7104b0d73e0fd68a59ea92883155115123f5dc2841044:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExNjZiNDczODQyYWRmNGIyOTUzNjYxNTM4NmQ4NWUxYjY3ZmNmYjk0YjQ5YzdhMmIzM2I1Y2Q4MmMwNzNiZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIwMzJiMjcyYTg3ODM4N2NkYzQyNWJlNjE4NTllNjZjZDBhNGQ4NGY4Y2QwMDU4NmEwZWY4YmRmMGU3YzBlNmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlZWI1NjUzOTFmZmQxMjk2ZDViMTg1M2RjNGZiZWQzZjRhMmQ5MmJjYTBmMGYwNTE5YmViNGI2YjE2M2MxYTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0MGRmM2U5YmZhNzUxMjNlYTk4YTg2NGNmMzM0NTc3MDY5ZjY5Mzc2OWVmODIwMDkxZDg0MmE1NzVhZDMzODEifQ"
         },
         {
-          "resource": "repo://tools/codebase-map/app/globals.css#L115-L155",
-          "version": "repo-lines-v1:sha256:d1356173149aae25ec5dc9f3a8457d892d1421c53c9ca637ddec899b51f673d8:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjZTcyZjdiOGU3YTZhMGJhM2MxNzhhNDE3MjgzNmViMThjYmIxOTk2M2I3MGU5ZTc1ZTQ4NmRhNzYxYzA4MWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwNzNkNWU3NmFmOGQwNGE3NzQzZjg3ZjEzYjUwNTVmMTY0MTdjYjUxYTA0ODE3YTVhNTFjMmQ0M2RmMTQzZGYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0YzVlZWMyNTUwNDUxOTI0ZDM4YWNkZjY5NGQ2MmZkYWM4MTdiNzM0YzZhODI2MTJiODczYWU1NDlkY2E1MzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1MWI5NjA3ZjlmMDBhNGY1ZGQ4MmViNTEzZGU2Mjg0MTA5YjY0ZDMzNGMyOWI2MWY1YmQxMjhhNDMxMTcxYTAifQ"
+          "resource": "repo://tools/codebase-map/app/globals.css#L122-L125",
+          "version": "repo-lines-v1:sha256:97e98f37bac31d4cffec2dbdc59582ebb1e7d4cf423cc56664140e7fbc5bd163:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjQzZGI3ZmFmY2M5NzA4ZGVhNDY5NTcwYzAxNmY3MGExMTY2Y2M4ZGEyNzI2ZmNjMDQzN2U2N2NjY2U2NzI3OSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiN2E1NzgxMzY5MDE4NTAwYThjODU4ZjE1YTY1NjAyNWIzYTlmNGFmZGJjNTlkOTY2YzU5N2RjYmI0ZTdhZWJhYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmRiOTU0N2QzYzg0OGI3N2JmMTBkNzNlZWY0NDExNWI2OTMyODEyZTNhMjRkMDE5ZDA1MjRiYjQ0ODNiYmFhMSJ9"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/globals.css#L172-L175",
+          "version": "repo-lines-v1:sha256:3881720d8deffc220f0587338e00f89a6fa818d408e907d796ad16be4ce2a325:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWRjMjBhYWY2ZDA2NTc1NWU4MzE0ZTBkMTMxNTljNzk1ZjYzMDE5Njc3YWM0ZTRhMDlkYzE0MjA3ODQzNjkxMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDdiNWQ1ZDQ1MTlmZTBiNjk4NzM3Njk1YWIwYzEyYTUyMjdmY2NhOGNlODhmMGM4NDk3MzQ1OTJkZmJmNDg3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTgxMzFkM2E0MTU3ZTg3ZDdkOTFjNzc4MjFhZTE3MDdhMDc1OTMwODBkNjkyZTFiNzk5M2UxMWY3YTk2YjNmMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzRjNzRkZTc5MjQwODhlNTI2NWJlY2ZmMDQ3YmZlZWUyYmZjMDMzYjQyNWEyNzdhZWYwNDJhZWVmNzE4N2Q0NSJ9"
         },
         {
           "resource": "repo://tools/codebase-map/lib/mermaid-runtime.ts#L225-L239",
@@ -153,10 +157,46 @@
           "version": "repo-lines-v1:sha256:8e40a1344cfb01ae92750d6060b31a3d4aa2d04470c12683297df8acbb98ad1e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4NTAzNTNkNGRkYTQxZTdiYTRmYmI0ZDM1Y2Y0YWI3MzkxYmY1N2E5MWMwM2YxYzA1NmM4YjQyYTBmNWQ4MzljIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJlM2EzNThkZDQ3NTlhMWYyNjJkYjc2NWYzNWY3ZjI4MjM3YWQxOWMyYTQ0M2Q4NzgyODQ5MmQ4MTVmOThmMjZjIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3NGMxYzY3NzJkYjVmNDg1YjQ1ZmM1Y2ExNWU5Mjk5ODdhODAxZmUyYzkzYjcxMTZjZDg0YWUyOTFiYTI2ZjQ5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1YmRmY2M1NWY2YTlhMmNiNjlkNWU1NzYxYzNjNjIwNTIwYTlhZGI2OGY4Y2RhNjc4YjY2Y2VlNmZkYzdiOWIxIn0"
         }
       ]
+    },
+    {
+      "id": "claim_acf84d1a096b42aa8fc15497fe88b0fd",
+      "statement": "Subsystem inflow and outflow are derived from canonical node membership and arrowheads, excluding internal edges, preserving reverse and bidirectional directions, using endpoint labels for unlabelled edges, and separating undirected relationships without inferring direction.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/lib/area-flows.ts#L17-L59",
+          "version": "repo-lines-v1:sha256:033888949036a0c3091acd3b8bce636a8ae58fc8bc3063eeb1606b0a16742c64:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxZTYyMTcwOWNjMTg0Y2Q2MTE2MjcyOGZkMTllYWQ5NjVhOGE0YjRmY2Y2MWI1ZWRlNGJmNWNiMzAyYzdkYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjNTZiMTMxNDY4NWI0MTc4ODc3YzZmNzRmMTBjNGJiMjA2ZjQ5MWIxNzUwNDFjODQ0NzZmNzQ2MTY2YmI0ODciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/area-flows.test.mjs",
+          "version": "repo-file-v1:sha256:9431a07fec83454e9a5a3a333b3667a640766e0b1e90aa4a80fda4f3368a9bbb"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb5b5fd44b67482d9472320d0de9d0d4",
+      "statement": "The selected subsystem shows independently scrollable Inflow and Outflow lists directly below its title in reserved space, with clickable remote subsystems, per-area scroll reset and keyboard-focus restoration; browser checks account for all 261 cross-subsystem edges on both sides.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/components/map-chrome.tsx#L24-L71",
+          "version": "repo-lines-v1:sha256:088ba098c57aa8c5b0dd02d654330fdc567f1d442b5cf644e6cd3c19be8ff749:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU4ZTYwMTk4Y2Y0OWQwMzJiODQyZjM1NTY1MzZlOTJhNmZhZjYyZDA1YzFjYTcwZTk0YzM4YjQxOTQ0MzJmYjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzM2I1MTY1OTkzNzk3ZWNmMjQ3YWQzYjJmZDY2YzNlMGIxNDU0MWUzODllODMzZjE4ZWJhYzY3N2Y4ZDEzODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2N2I3Yjc3ZTcwMThkNzNhN2QxMmJmOGUxYzdmN2YyYWVmNTFlMzU3OTM0ZTQwMjI0ZDYzMDI2MDIwZjE2YTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjViZjMyNDgzYzE2MDFkNzNkMWU2OTU0NGE5NDBiYmE4YzFjNjRiN2FkYWJhNjgwOWRiZjI5MGY4M2I2YTVlNzkifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/app/globals.css#L130-L148",
+          "version": "repo-lines-v1:sha256:74edf024b5bbdbf00d0b457ee418b41569a6496cfc6bb16956c4f67e932b92b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxMTU0NTFiYzMwYjY5MjFhNGYzNmZhODAwNTllZjVkY2NmOWQwYzVlN2RjZDczYjQwYWYwNjdmOGU0OWY5YWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBlNWQ2OGViOTBlNDUzNTYzYWE1YWNmZTE4ZTA2YjAwNWYwMDk2NWM4MTVjMDc0MmQ2OTBiNmVjM2I3Yzk3NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmMmM5NjZlMDNkYjIyMTQ5MzIzNzJmZDIyODVlNDdlODA3YjM1YjA4ZmVlMTcwNzRjNWU0MjQ2YTcxNTAxNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0ZDNlZjY4YTIzMTQxMDEyYmJlMjk2Nzk4YjYxY2JlNjc4NDM3YTFjYzBjNjdhYjM0YmUwNWYwYjEwZWU5NzIifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L282-L333",
+          "version": "repo-lines-v1:sha256:77d21105b4fea7d4c2d1849b1976aa666313a804322fb9e8c68608919e827ef4:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5YTM2N2JlNzBlMmNiOTFlMWE2NjdiZjhkNGIyMTNiZjRhMDk5NDYyNjM5MTFkNTVhMGY4MTVhYTMwMGY1NjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUyYzMwYzJhOGIyYjA2MGQwMDE1ZjUxMDk4YWI4ZTVkMzMyYThlMWY4Y2NlOWE2ZThmYzc5MzgzNTdiYzhhYTAifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L83-L126",
+          "version": "repo-lines-v1:sha256:96e651b0e00b9d563536ebed79dade62cdab4902f13f9dc295550949fe2f83ca:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzZTJmN2IwMzgzOGYxZWRmN2I2NzA1MjY5MDMyYzg3YjY3NGJjYTQ4YjkxNGFlZWY0MmExNTMzYjBlNjk2ZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM0MDhjYTRmOGExZTA5MDU4N2M4NzhlZDVlMGViYzAwM2FjZWFhYWY5MmYxYmQ5YjgxYmUwNmI5NTM0ODVlY2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ZDU4YmJiM2JmMTE3YjM3NTQ2NDJiMzA4ZGZkMGVlMzQwOTM2ZmM1YTFjN2IwYmIyOThjY2Y0YzkxZGZmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVjM2JhMjM3YjM3YmQzNWJlZjYxZmUzOGJjNGI0MzhjZDYzZjViOGRhMTdjMjJlYWJhNjVlMjU4YTI0NjcwNjgifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-25T14:57:48.440Z"
+    "at": "2026-09-25T17:08:48.248Z"
   }
 }

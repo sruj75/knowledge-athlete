@@ -80,6 +80,52 @@ async function panBy(page: Page, dx: number, dy: number) {
 }
 
 for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+  test(`subsystem inflow and outflow sit below its title and navigate at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await overview(page);
+    const viewportBefore = await viewBox(page);
+    await focusArea(page, "AREA_01");
+    const flows = page.getByRole("region", { name: "Subsystem inflow and outflow" });
+    const incoming = flows.getByRole("list", { name: "Inflow", exact: true });
+    const outgoing = flows.getByRole("list", { name: "Outflow", exact: true });
+    await expect(incoming).toContainText("Provider credentials / Firebase custom token");
+    await expect(outgoing).toContainText("Close old pool and retarget owner directory");
+    await expect(incoming).not.toContainText("Restore credentials");
+    const titleBox = (await page.locator(".current-area").boundingBox())!;
+    const flowsBox = (await flows.boundingBox())!;
+    expect(flowsBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+    expect(flowsBox.y + flowsBox.height).toBeLessThanOrEqual((await viewBox(page)).y);
+    expect(await viewBox(page), "Flow details must not resize the canvas during zoom").toEqual(viewportBefore);
+    const beforeScroll = await camera(page);
+    const listBox = (await outgoing.boundingBox())!;
+    await page.mouse.move(listBox.x + listBox.width / 2, listBox.y + listBox.height / 2);
+    await page.mouse.wheel(0, 500);
+    await expect.poll(() => outgoing.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    expect(await camera(page)).toEqual(beforeScroll);
+    await outgoing.focus();
+    await page.keyboard.press("Home");
+    await expect.poll(() => outgoing.evaluate(element => element.scrollTop)).toBe(0);
+    expect(await camera(page)).toEqual(beforeScroll);
+    const destination = outgoing.getByRole("button", { name: "To 07 · Local archive authorities", exact: true });
+    await destination.focus();
+    await page.keyboard.press("Enter");
+    await expect(content(page)).toHaveAttribute("data-active-area", "AREA_07");
+    await expect(flows).toHaveAttribute("data-area-id", "AREA_07");
+    expect(await incoming.evaluate(element => element.scrollTop)).toBe(0);
+    expect(await outgoing.evaluate(element => element.scrollTop)).toBe(0);
+    await expect(page.locator(".current-area")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(content(page)).toHaveAttribute("data-active-area", "");
+    await expect(page.getByRole("button", { name: "Overview", exact: true })).toBeFocused();
+    await focusArea(page, "AREA_23");
+    await expect(incoming).toContainText("No incoming flows recorded in the map.");
+    await expect(outgoing).toContainText("No outgoing flows recorded in the map.");
+    await incoming.focus();
+    await page.keyboard.press("Escape");
+    await expect(content(page)).toHaveAttribute("data-active-area", "");
+  });
+
   test(`overview has 23 readable subsystem regions without miniature nodes at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await overview(page);
@@ -245,9 +291,13 @@ test("all 23 cached views preserve 210 nodes and 422 connections including areas
   expect(areaIds).toHaveLength(23);
   const nodes = new Set<string>();
   const internalEdges = new Set<string>();
+  const inflows: string[] = [], outflows: string[] = [];
   const svgIds = new Map<string, string>();
   for (const id of areaIds) {
     await focusArea(page, id);
+    for (const [name, entries] of [["Inflow", inflows], ["Outflow", outflows]] as const) {
+      entries.push(...await page.getByRole("list", { name, exact: true }).locator("[data-flow-edge-id]").evaluateAll(items => items.map(item => item.getAttribute("data-flow-edge-id")!)));
+    }
     const diagram = areaDiagram(page, id);
     expect(await diagram.locator("[data-node-id]").evaluateAll(items => {
       const viewport = document.querySelector('[data-testid="diagram-viewport"]')!.getBoundingClientRect();
@@ -268,6 +318,8 @@ test("all 23 cached views preserve 210 nodes and 422 connections including areas
   expect(internalEdges.size).toBe(161);
   const externalEdges = await page.locator(".map-connection-group").evaluateAll(groups => groups.flatMap(group => JSON.parse(group.getAttribute("data-edge-ids")!) as string[]));
   expect(externalEdges).toHaveLength(261);
+  expect(inflows.sort()).toEqual([...externalEdges].sort());
+  expect(outflows.sort()).toEqual([...externalEdges].sort());
   expect(new Set([...internalEdges, ...externalEdges]).size).toBe(422);
   for (const id of ["AREA_01", "AREA_07", "AREA_15", "AREA_20", "AREA_21"]) {
     await focusArea(page, id);
