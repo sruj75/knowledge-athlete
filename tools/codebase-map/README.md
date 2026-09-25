@@ -3,33 +3,46 @@
 A public, read-only Next.js viewer for the canonical
 [Mermaid product map](../../docs/architecture/intentive-codeflow.mmd).
 The build reads that file directly and statically exports one page. The browser
-parses its 23 areas, 210 nodes and 422 connections into one graph. It opens on a
-board of readable area cards; clicking an area or zooming into it reveals its
-nodes and connections. There is no database, runtime GitHub request or browser
-editor, and no separately maintained overview map.
+renders its 23 areas, 210 nodes and 422 connections with Mermaid ELK. The overview
+uses the original diagram's geography to place readable subsystem regions.
+Zoom reveals their contents in place. There is no database, runtime GitHub request,
+browser editor, or separately maintained overview map.
 
 ## Explore the map
 
-- Pan by dragging, zoom with the wheel or a two-finger pinch, or focus the canvas
-  and use arrow keys and `+` / `-`. Fullscreen gives the map more space.
-- Click a card or use **Jump to area** to focus one area. **Fit diagram** and
-  **Overview** return to the board.
-- Zoom in to reveal source references and secondary node details. Overview cards
-  retain readable titles on smaller screens; pan to reach cards outside the view.
-- Follow connections beyond the current area through their named destination
-  controls in the scrollable strip below the canvas. Every incoming and outgoing connection remains represented, including
-  areas whose nodes connect only to other areas.
+- Drag to pan, use the wheel or a two-finger pinch to zoom, or focus the canvas
+  and use arrow keys and `+` / `-`. Wheel and pinch zoom stay under your cursor;
+  revealing detail never moves the camera.
+- Click a subsystem or use **Jump to area** to move smoothly into its first nodes.
+  **Fit**, **Overview**, `Home`, `Escape`, and `F` return to the overview.
+  Reduced-motion preferences disable camera animation.
+- Every visible subsystem can reveal detail as you zoom or pan across the map.
+  Node titles appear first; source references appear when node text reaches
+  14 pixels. Their space stays reserved so labels and routes do not move.
+- Connections between subsystems stay visible. Hover or focus one to see its
+  endpoints, then click or press Enter for the scrollable list of individual
+  connections. Destination buttons take you to either subsystem. Escape closes
+  the inspector while it has focus. At close zoom, **Connected subsystems** keeps
+  offscreen destinations and their individual connections accessible.
+- On small screens, pan to explore the map instead of shrinking titles below
+  14 pixels. Resize preserves the current scale and world center when exploring.
 
-Area positions stay fixed while exploring. Each area's Mermaid ELK layout is
-rendered on demand and cached for the current source. Panning, zooming, resizing,
-and revisiting an area reuse its SVG. Only one area expands at a time. Zoom enters
-an area at twice the overview scale and returns to cards below 1.5 times that scale,
-preventing repeated expansion and collapse near one threshold. Secondary node
-details appear when their effective font size reaches 14 pixels.
+A complete Mermaid render supplies the relative geographic positions. A
+deterministic overlap pass gives subsystem regions room for readable titles;
+these positions do not change during navigation. Each internal flow is generated
+from the parsed nodes, edges, labels, shapes and styles, laid out locally with ELK,
+and cached on first use. This keeps cross-subsystem routes from spreading the
+internal nodes apart. Panning, zooming and revisiting a loaded area reuse its SVG
+and geometry without invoking Mermaid again.
 
-An area layout failure shows a local retry control while the board and area
-navigation remain available. Invalid source shows a page-level error. Reloading
-the page reads the current deployment and starts a fresh layout cache.
+Cross-subsystem connections are grouped by endpoint pair, preserving every edge
+identity, direction, label and style in the inspector. Only internal edges are
+rendered inside each subsystem. The global graph and local diagrams share the
+same copied parser model; no diagram content is manually duplicated.
+
+Invalid source or a failed initial layout shows a page-level error with retry.
+An area render failure has its own retry control while overview navigation stays
+available. Reloading starts a fresh cache for the current deployment.
 
 ## Develop and verify
 
@@ -50,8 +63,8 @@ npm --prefix tools/codebase-map run check
 This type-checks, tests the canonical-source/commit loading contract, builds the
 static site, and runs Chromium against the actual exported diagram. Browser tests
 cover desktop/mobile overview readability, click/wheel/pinch/keyboard navigation,
-source detail, fixed positions, cached layouts, resize, fullscreen, dense areas,
-connections across areas, and source/layout failure recovery.
+source detail, stable region positions, cached layouts, resize, fullscreen,
+dense areas, connection inspection, and source/layout failure recovery.
 CI installs dependencies and Chromium only when the manifest selects the viewer.
 Tests use the local server and bundled assets, with no external services.
 

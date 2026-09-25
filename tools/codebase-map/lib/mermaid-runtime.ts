@@ -1,8 +1,9 @@
 import type { Mermaid } from "mermaid";
 import type { FlowDB } from "mermaid/dist/diagrams/flowchart/flowDb.js";
-import type { Box, CodebaseGraph, MapArea, MapEdge, MapNode, RenderedArea } from "./graph";
+import type { Box, CodebaseGraph, GraphLayout, MapArea, MapEdge, MapNode, RenderedArea } from "./graph";
 
 type FlowDatabase = Pick<FlowDB, "getSubGraphs" | "getVertices" | "getEdges" | "getClasses" | "getDirection">;
+
 type Styles = {
   classes: Record<string, string[]>;
   nodes: Record<string, string[]>;
@@ -11,7 +12,7 @@ type Styles = {
   areaDirections: Record<string, string>;
 };
 
-const FONT_SIZE = 14;
+export const NODE_FONT_SIZE = 14;
 const MAX_TEXT_SIZE = 200_000;
 const MAX_EDGES = 2_000;
 const graphStyles = new WeakMap<CodebaseGraph, Styles>();
@@ -61,7 +62,7 @@ async function mermaidRuntime(): Promise<Mermaid> {
         clusterBkg: "#fafbfc",
         clusterBorder: "#dce1e5",
         edgeLabelBackground: "#ffffff",
-        fontSize: `${FONT_SIZE}px`,
+        fontSize: `${NODE_FONT_SIZE}px`,
       },
       flowchart: { htmlLabels: true, useMaxWidth: false, curve: "basis", nodeSpacing: 44, rankSpacing: 64 },
     });
@@ -125,12 +126,14 @@ export function loadGraph(source: string): Promise<CodebaseGraph> {
       return areaTitle(area.id, area.title, index, [...area.nodes]);
     });
     const nodes: Record<string, MapNode> = Object.create(null);
+    const domIds: Record<string, string> = Object.create(null);
     const styles: Styles = {
       classes: Object.create(null), nodes: Object.create(null), edges: Object.create(null),
       direction: db.getDirection() || "TB", areaDirections: Object.create(null),
     };
     for (const area of subgraphs) styles.areaDirections[area.id] = area.dir || styles.direction;
     for (const [id, definition] of db.getClasses()) styles.classes[id] = [...definition.styles];
+
     for (const [id, vertex] of vertices) {
       const areaId = membership.get(id);
       if (!areaId) throw new Error(`Node ${id} must belong to one named area.`);
@@ -139,6 +142,7 @@ export function loadGraph(source: string): Promise<CodebaseGraph> {
       if (vertex.labelType === "markdown") throw new Error(`Node ${id} uses a Markdown label; use a plain label with line breaks.`);
       if (vertex.link || vertex.haveCallback) throw new Error(`Node ${id} has a click action; this map supports area navigation only.`);
       nodes[id] = { id, areaId, label: restoreEntities(vertex.text || id), shape, classes: [...vertex.classes] };
+      domIds[id] = vertex.domId;
       styles.nodes[id] = [...vertex.styles];
     }
     const edgeIds = new Set<string>();
@@ -164,7 +168,10 @@ export function loadGraph(source: string): Promise<CodebaseGraph> {
         stroke: edge.stroke || "normal", arrowStart: type === "double_arrow_point", arrowEnd: type !== "arrow_open",
       };
     });
-    const graph: CodebaseGraph = { areas, nodes, edges };
+    // Copy the model before the public renderer parses again. Mermaid owns a
+    // mutable flowchart database; the viewer never retains it between calls.
+    const rendered = await renderCanonical(mermaid, source, areas, nodes, edges, domIds);
+    const graph: CodebaseGraph = { areas, nodes, edges, layout: rendered.layout };
     graphStyles.set(graph, styles);
     return graph;
   });
@@ -250,6 +257,67 @@ function nodeBounds(node: SVGGraphicsElement, svg: SVGSVGElement): Box {
   return { x, y, width, height };
 }
 
+function sizeSvg(svg: SVGSVGElement, width: number, height: number) {
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", String(width));
+  svg.setAttribute("height", String(height));
+  svg.style.maxWidth = "none";
+  svg.style.width = `${width}px`;
+  svg.style.height = `${height}px`;
+}
+
+async function renderCanonical(mermaid: Mermaid, source: string, areas: MapArea[], nodes: Record<string, MapNode>, edges: MapEdge[], domIds: Record<string, string>) {
+  const renderId = `intentive_map_${++renderSequence}`;
+  const staging = document.createElement("div");
+  staging.setAttribute("aria-hidden", "true");
+  staging.style.cssText = "position:absolute;left:-100000px;top:0;width:1600px;visibility:hidden;pointer-events:none;";
+  document.body.append(staging);
+  try {
+    const result = await mermaid.render(renderId, source, staging);
+    staging.innerHTML = result.svg;
+    const svg = staging.querySelector("svg");
+    if (!svg) throw new Error("Mermaid returned no canonical diagram.");
+    const { x, y, width, height } = svg.viewBox.baseVal;
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) {
+      throw new Error("The canonical diagram returned invalid dimensions.");
+    }
+    const normalized = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    normalized.setAttribute("transform", `translate(${-x}, ${-y})`);
+    for (const child of [...svg.children]) {
+      if (!["defs", "style", "title", "desc"].includes(child.tagName.toLowerCase())) normalized.append(child);
+    }
+    svg.append(normalized);
+    sizeSvg(svg, width, height);
+    const layout: GraphLayout = {
+      bounds: { x: 0, y: 0, width, height },
+      areas: Object.create(null),
+    };
+    const byId = new Map([...svg.querySelectorAll<SVGGraphicsElement>("[id]")].map(element => [element.id, element]));
+    for (const area of areas) {
+      const cluster = byId.get(`${renderId}-${area.id}`);
+      const rect = cluster?.querySelector<SVGGraphicsElement>(":scope > rect");
+      if (!rect || !cluster?.classList.contains("cluster")) throw new Error(`Area ${area.id} is missing from the canonical diagram.`);
+      layout.areas[area.id] = nodeBounds(rect, svg);
+    }
+    for (const id of Object.keys(nodes)) {
+      const node = byId.get(`${renderId}-${domIds[id]}`);
+      if (!node?.classList.contains("node")) throw new Error(`Node ${id} is missing from the canonical diagram.`);
+    }
+    const paths = new Map([...svg.querySelectorAll<SVGPathElement>("path[data-edge][data-id]")].map(path => [path.getAttribute("data-id")!, path]));
+    for (const edge of edges) {
+      if (!paths.has(edge.id)) throw new Error(`Connection ${edge.id} is missing from the canonical diagram.`);
+    }
+    if (svg.querySelectorAll("g.node").length !== Object.keys(nodes).length || paths.size !== edges.length || svg.querySelectorAll("g.cluster").length !== areas.length) {
+      throw new Error("The canonical render does not match every source area, node and connection.");
+    }
+    // The full render supplies the geography. Local views retain their own
+    // cached layout so long cross-area routes do not spread their nodes apart.
+    return { layout };
+  } finally {
+    staging.remove();
+  }
+}
+
 export function renderArea(graph: CodebaseGraph, areaId: string): Promise<RenderedArea> {
   let cache = renderedAreas.get(graph);
   if (!cache) { cache = new Map(); renderedAreas.set(graph, cache); }
@@ -306,7 +374,7 @@ export function renderArea(graph: CodebaseGraph, areaId: string): Promise<Render
         path.setAttribute("data-source-id", edge.source);
         path.setAttribute("data-target-id", edge.target);
       }
-      return { svg: svg.outerHTML, width, height, nodes, fontSize: FONT_SIZE };
+      return { svg: svg.outerHTML, width, height, nodes, fontSize: NODE_FONT_SIZE };
     } finally {
       staging.remove();
     }

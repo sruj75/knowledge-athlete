@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:caa59a85444589af9b4374ad87ce8a0153b1fca3bf0f8c6250346d1444614b37",
+  "pageVersion": "sha256:c799ca3ca32da8e901d2a774c75c1a7830e77051fc7c4b9d3b1593657ea57f5d",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -74,7 +74,7 @@
     },
     {
       "id": "claim_cd91b439989d45c89302142c09043825",
-      "statement": "The shared local/CI viewer check tests route geometry and exercises all 23 areas, 210 nodes and 422 edges of the static canonical map, semantic navigation/cache invariants, input methods, separate destination dock, reduced motion, errors and commit links; CI dependency provisioning is conditional on the same manifest selection.",
+      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 210 nodes and 422 edges of the static canonical map, continuous camera/cache invariants, title containment, input methods, connection inspection and destinations, reduced motion, local/offscreen error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -90,17 +90,17 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:ce909f7c76f39e1f9fbcd352805bddc9243360ca79ae41421877e93a67d8df0e"
+          "version": "repo-file-v1:sha256:8948be0dec1d2b55453df435e3dca9f720284078bff7c13397046c79ba34443f"
         },
         {
-          "resource": "repo://tools/codebase-map/tests/map-geometry.test.mjs",
-          "version": "repo-file-v1:sha256:6eaea7152b26504f8ea1ada90d572482eff1363bde059e9e18355a6e58acef5b"
+          "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
+          "version": "repo-file-v1:sha256:03df0f1aab48cbb5f93f42913af0af33ea14d86196c1b9b1c0a055eb68d4d703"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-25T12:59:37.129Z"
+    "at": "2026-09-25T14:26:39.985Z"
   }
 }

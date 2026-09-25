@@ -14,7 +14,7 @@ export function MapHeader({ sourceUrl }: { sourceUrl: string | null }) {
       </svg><span>Intentive</span>
     </div>
     <span className="header-divider" aria-hidden="true" />
-    <div className="map-title"><h1>Codebase map</h1><span className="map-subtitle">Explore the system, one area at a time.</span></div>
+    <div className="map-title"><h1>Codebase map</h1><span className="map-subtitle">Zoom into subsystems and follow their connections.</span></div>
     {sourceUrl && <a className="source-link" href={sourceUrl} aria-label="View source" target="_blank" rel="noreferrer"><span>View source</span><span className="source-symbol" aria-hidden="true">↗</span></a>}
   </header>;
 }

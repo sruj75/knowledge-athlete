@@ -1,4 +1,10 @@
 export type Box = { x: number; y: number; width: number; height: number };
+export type Point = { x: number; y: number };
+
+export type GraphLayout = {
+  bounds: Box;
+  areas: Record<string, Box>;
+};
 
 export type MapArea = {
   id: string;
@@ -31,6 +37,7 @@ export type CodebaseGraph = {
   areas: MapArea[];
   nodes: Record<string, MapNode>;
   edges: MapEdge[];
+  layout: GraphLayout;
 };
 
 export type RenderedArea = {
