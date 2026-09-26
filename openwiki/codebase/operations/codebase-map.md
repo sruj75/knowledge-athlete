@@ -1,12 +1,12 @@
 ---
 type: Codebase guide
 title: Codebase map viewer
-description: Follow the canonical Mermaid file into a continuous spatial map with cached local flows, exact source provenance, and browser acceptance checks.
+description: Follow the canonical Mermaid file into a geographic subsystem overview with click-only local flows, exact source provenance, and browser acceptance checks.
 tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-25T17:08:48.248Z
+    at: 2026-09-26T08:08:12.066Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -20,8 +20,8 @@ sources:
     resource: repo://tools/codebase-map/app/components/map-chrome.tsx
   - id: openwiki-source-ecd9009c9d912324e4bb30e4
     resource: repo://tools/codebase-map/app/components/map-connections.tsx
-  - id: openwiki-source-cf62d61de08902f4bae41c4b
-    resource: repo://tools/codebase-map/app/components/use-map-camera.ts
+  - id: openwiki-source-ce616679ca749aaca2fc1bc1
+    resource: repo://tools/codebase-map/app/components/use-map-navigation.ts
   - id: openwiki-source-c4a16291c647622764e26cc3
     resource: repo://tools/codebase-map/app/globals.css
   - id: openwiki-source-8f88765748afaa418d7fe532
@@ -44,12 +44,12 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-25T17:08:48.248Z" }
+generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
 ---
 # Codebase map viewer
 
 The viewer is a public, read-only architecture browser. It shows subsystem regions
-and reveals their internal flows as the camera moves closer. It does not host
+and opens one internal flow when a subsystem is selected. It does not host
 owner-local product data or generate architecture from source code.
 
 ## From repository to browser
@@ -79,19 +79,19 @@ crowded neighbors while retaining broad geographic order. Region coordinates
 remain fixed during navigation; no numbered grid is maintained. Overview titles
 stay at least 14 screen pixels, and smaller screens pan across the map.
 
-`map-areas.tsx` requests local detail for visible regions and explicit destinations.
-Each internal flow is generated from the copied model's nodes, internal edges,
-labels, shapes and styles, then rendered with Mermaid ELK. This prevents long
-cross-subsystem routes from stretching its internal layout. The renderer caches
-SVG and measured node geometry by graph and area, including in-flight promises.
-Rejected cache entries are removed for retry. Revisiting an area, zooming and
-panning reuse its cached geometry without invoking Mermaid again.
+`map-areas.tsx` presents overview titles only. Explicit selection in
+`diagram-viewer.tsx` requests one internal flow from the copied model's nodes,
+internal edges, labels, shapes and styles, then renders it with Mermaid ELK.
+This prevents long cross-subsystem routes from stretching its internal layout.
+The renderer caches SVG and measured node geometry by graph and area, including
+in-flight promises. Rejected cache entries are removed for retry. Scrolling,
+dragging and revisiting an area reuse its cached layout without invoking Mermaid
+again.
 
-Local SVGs fit uniformly inside their fixed regions. Node titles fade into view
-as their effective font size grows; secondary source lines become visible at
-14 pixels. Hidden lines retain their layout space, so nodes and routes do not
-move when references appear. More than one visible subsystem can reveal detail,
-including when the user pans across the map without selecting another area.
+The selected SVG appears at natural size, with full node labels and source
+references immediately visible at 14 pixels. There are no fading titles,
+miniature internal diagrams or zoom thresholds. Overview region coordinates
+remain independent of local SVG dimensions.
 
 ## Subsystem inflow and outflow
 
@@ -110,34 +110,37 @@ These are the map's recorded data and control exchanges, not inferred payload
 schemas, measured throughput, or a stock-and-flow simulation. Empty lists mean no
 flows are recorded in this map, not proof that the subsystem has no external inputs.
 
-## Camera and navigation
+## Click navigation and scrolling
 
-`use-map-camera.ts` owns the affine camera and selected area. Wheel and pinch
-zoom preserve the world point under the gesture anchor; loading or revealing a
-local flow does not request a camera move. Clicking a subsystem or using Jump to
-area waits for its local layout, then moves to its first nodes at a readable
-scale. User input, another destination, or resizing cancels pending focus and
-animation, preventing a late render from moving the camera after a gesture.
+`use-map-navigation.ts` owns native scrolling and mouse drag-to-pan. Clicking a
+subsystem, choosing Jump to area, or following a destination opens its flow near
+the first nodes. Overview and Escape return to the map. Wheel and touch gestures
+scroll; the viewer has no zoom buttons, percentage display, Fit action, keyboard
+zoom, pinch scaling or animated camera. Browser accessibility zoom is not blocked.
 
-Resize preserves the world center and scale while exploring, or refits an
-untouched overview. If a preserved scale is below a new overview minimum, Zoom
-out does not increase it. Overview, Fit, Home, Escape and F return to the map.
-Reduced-motion preferences disable camera animation. Fullscreen failures show a
-notice.
+Scroll positions are saved separately for the overview and each subsystem.
+Loading placeholders cannot overwrite saved positions. Resize preserves the
+selected area and explored position within the available scroll bounds; small
+flows stay centered. An untouched overview can adapt its initial fit to a new
+viewport, while an explored overview retains its scale. Reduced-motion styling
+disables loading animations and transitions. Fullscreen failures show a notice.
 
-`map-connections.tsx` draws grouped cross-subsystem relationships in a separate
-SVG layer, anchored to region boundaries. Grouped arrows reflect source edge
-directions; fully dotted groups retain dotted lines. The complete constituent
-edge identities, labels, directions and styles remain inspectable. Hover or
-keyboard focus names the endpoints. Clicking or pressing Enter opens a persistent,
-scrollable inspector with individual edges and destination buttons. A close view's
-Connected subsystems control keeps offscreen destinations accessible.
+`map-connections.tsx` draws grouped cross-subsystem relationships in the overview
+as a separate SVG layer anchored to region boundaries. A portal keeps the routes
+inside the scrolling canvas while inspection controls stay fixed in the viewport.
+Grouped arrows reflect source directions; fully dotted groups retain dotted lines.
+The complete constituent edge identities, labels, directions and styles remain
+inspectable. Hover or keyboard focus names the endpoints. Clicking or pressing
+Enter opens a scrollable inspector with individual edges and destination buttons.
+An open flow's Connected subsystems control gives access to its remote destinations.
+Closing an inspector restores a usable trigger; following a destination focuses
+the diagram viewport.
 
-Global parse/layout failures retain the page-level retry state. Local failures
-have a region retry; failed explicit navigation also shows a viewport-level
-retry so an offscreen destination cannot hide recovery. Effect cancellation and
-request identity checks prevent obsolete renders from replacing the current
-source or overriding a newer gesture.
+Global parse/layout failures retain a page-level retry. A local failure shows its
+own retry in the viewport while Overview and Jump remain usable. Selecting the
+same failed area retains its retry state; a new retry reruns its evicted cache
+entry. Cancelled effects and graph/area identity prevent stale renders from
+replacing a newer selection or source.
 
 ## Develop and check
 
@@ -153,15 +156,16 @@ npm --prefix tools/codebase-map run check
 The check generates route types, type-checks, exercises source provenance and
 spatial-layout tests, builds the static export, and runs Chromium against it.
 Browser checks account for all 23 areas, 210 nodes and 422 connections, including
-dense areas 07/15 and areas 20/21 without internal edges. They cover title
-containment, cached layouts, stable coordinates, continuous wheel/pinch anchors,
-pan-only reveal, animation cancellation, reserved source-label space, connected
-destinations, mouse/touch/keyboard controls, resize/fullscreen, reduced motion,
+dense areas 07/15 and areas 20/21 without internal edges. They cover readable
+overview titles, explicit click/keyboard entry, full labels at natural SVG size,
+wheel scrolling without opening or scaling diagrams, native touch scrolling,
+mouse drag, restored positions, fixed geographic coordinates, cached layouts,
+connection inspection and destination focus, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
-projection, non-overlap, local placement and boundary-flow direction. Browser checks
-account for all 261 cross-subsystem edges on both the inflow and outflow sides,
-including destination navigation, scroll reset and keyboard focus. No live backend
-or model is involved.
+projection, non-overlap and boundary-flow direction. Browser checks account for
+all 261 cross-subsystem edges on both inflow and outflow sides, including
+independent list scrolling, destination navigation, scroll reset and keyboard
+focus. No live backend or model is involved.
 
 The shared manifest selects this suite for viewer, map and relevant tooling
 changes in both local and CI lanes. GitHub Actions uses the same selection to

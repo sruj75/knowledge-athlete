@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d804d61aecb5f4e0969e6cb95d6f082e9fe9bbb6f7731300e42a8dfed2004988",
+  "pageVersion": "sha256:359f3914d7a714fd6275e599b5585d15bc23f92139285cfd3691524b8ca47c43",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -74,7 +74,7 @@
     },
     {
       "id": "claim_cd91b439989d45c89302142c09043825",
-      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 210 nodes and 422 edges of the static canonical map, continuous camera/cache invariants, title containment, input methods, connection inspection and destinations, reduced motion, local/offscreen error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
+      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 210 nodes and 422 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -90,17 +90,17 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:9c5e2e71d0ca8feda4af73b3e91d14262f29915a52a704045f6e06a448d8ebef"
+          "version": "repo-file-v1:sha256:f48f88d10d7d24baf4e51b07196580dfbed62cdc1f6eafcbc7e06807b058b320"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
-          "version": "repo-file-v1:sha256:03df0f1aab48cbb5f93f42913af0af33ea14d86196c1b9b1c0a055eb68d4d703"
+          "version": "repo-file-v1:sha256:1a7af2eefa407e67ae98ae786af95342ce78338215fbadd09c4e830197da8e3c"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-25T17:08:48.248Z"
+    "at": "2026-09-26T08:08:12.066Z"
   }
 }

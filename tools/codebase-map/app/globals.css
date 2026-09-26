@@ -66,10 +66,12 @@ button:focus-visible, a:focus-visible {
 
 .canvas-label { position: absolute; z-index: 1; top: 25px; left: 30px; display: flex; align-items: center; gap: 9px; pointer-events: none; font-size: 9px; font-weight: 600; letter-spacing: 1.6px; color: #919ba4; }
 .canvas-label-line { width: 17px; height: 1px; background: #aab5bc; }
-.diagram-viewport { position: absolute; inset: 0 0 70px; overflow: clip; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.diagram-viewport { position: absolute; inset: 0 0 44px; overflow: auto; overscroll-behavior: contain; touch-action: auto; cursor: grab; user-select: none; -webkit-user-select: none; }
 .diagram-viewport:focus-visible { outline: 2px solid #9cb6bd; outline-offset: -4px; border-radius: 5px; }
 .diagram-viewport.is-dragging { cursor: grabbing; }
-.diagram-content { position: absolute; top: 0; left: 0; width: max-content; height: max-content; transform-origin: 0 0; }
+.diagram-content { position: relative; }
+.overview-connections { position:absolute; inset:0; }
+.overview-regions { position:absolute; top:0; left:0; transform-origin:0 0; }
 .diagram-content > svg { display: block; }
 .diagram-content .node rect { rx: 5px; ry: 5px; }
 .diagram-content .cluster rect { rx: 8px; ry: 8px; }
@@ -86,14 +88,10 @@ button:focus-visible, a:focus-visible {
 .retry-button { margin-top: 19px; padding: 9px 16px; border: 1px solid #d9e0e3; border-radius: 6px; background: #fff; font-size: 12px; }
 .retry-button:hover { background: #f5f8f9; }
 
-.canvas-toolbar { position: absolute; z-index: 2; left: 50%; bottom: 30px; display: flex; align-items: center; gap: 2px; padding: 5px; transform: translateX(-50%); border: 1px solid #e0e5e8; border-radius: 10px; background: #fff; box-shadow: 0 3px 6px #23344205, 0 5px 25px #23344208; }
-.tool-button, .zoom-value { display: flex; align-items: center; justify-content: center; height: 34px; border: 0; border-radius: 5px; background: transparent; color: #52606a; }
-.tool-button { width: 34px; padding: 0; }
-.tool-button:hover:not(:disabled), .zoom-value:hover:not(:disabled) { background: #f1f5f6; color: #202e35; }
-.zoom-value { min-width: 54px; padding: 0 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
-.toolbar-divider { width: 1px; height: 19px; margin: 0 5px; background: #e6ebee; }
-.fit-button { width: auto; gap: 7px; padding: 0 9px; font-size: 11px; }
-.canvas-hint { position: absolute; bottom: 14px; width: 100%; margin: 0; text-align: center; pointer-events: none; font-size: 10px; color: #8e979e; letter-spacing: .1px; }
+.canvas-toolbar { position:absolute; z-index:2; right:16px; bottom:4px; padding:2px; border:1px solid #e0e5e8; border-radius:7px; background:#fff; }
+.tool-button { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border:0; border-radius:5px; background:transparent; color:#52606a; font-size:20px; }
+.tool-button:hover { background:#f1f5f6; }
+.canvas-hint { position:absolute; bottom:14px; width:100%; margin:0; padding:0 65px 0 16px; pointer-events:none; font-size:11px; color:#78858d; }
 .canvas-hint > span:not(.visually-hidden) { margin: 0 6px; color: #b3bcc1; }
 .canvas-notice { position: absolute; right: 20px; bottom: 15px; max-width: 260px; margin: 0; padding: 10px 14px; border: 1px solid #dde4e6; border-radius: 7px; background: #fff; color: #53626a; font-size: 11px; line-height: 1.5; }
 
@@ -167,21 +165,15 @@ button:focus-visible, a:focus-visible {
 .area-card-title { display:block; font-weight:550; letter-spacing:-.015em; overflow-wrap:break-word; }
 .region-enter { position:absolute; right:10px; bottom:8px; color:#6c8893; opacity:0; }
 .region-summary:hover .region-enter { opacity:1; }
-.region-detail-heading { position:absolute; top:10px; left:12px; right:12px; display:flex; gap:10px; color:#506f7c; line-height:1.2; pointer-events:none; white-space:nowrap; }
-.region-detail-heading > :first-child { font-family:SFMono-Regular,Consolas,monospace; }
-.area-diagram { position:absolute; transform-origin:0 0; pointer-events:none; }
+.area-diagram { position:absolute; pointer-events:none; }
 .area-diagram svg { display:block; max-width:none; overflow:visible; }
-.area-diagram .node-details { visibility:hidden; }
-.area-diagram.show-details .node-details { visibility:visible; }
 .area-diagram .node rect { rx:5px; ry:5px; }
-.region-loading { position:absolute; inset:40% 10% auto; text-align:center; color:#687f88; }
-.region-loading button { background:white; border:1px solid #a7bec5; padding:8px 12px; border-radius:5px; }
 .region-connections { position:absolute; inset:0; overflow:visible; pointer-events:none; }
 .map-connection-group:focus { outline:none; }
 .map-connection-group:focus .region-connection-line { stroke:#315e71; opacity:1; stroke-width:2px; }
-.connection-preview { position:absolute; z-index:4; left:16px; bottom:14px; max-width:min(520px,calc(100% - 32px)); display:flex; flex-direction:column; gap:6px; padding:12px 16px; border:1px solid #d0dde2; background:#fffffff5; border-radius:8px; box-shadow:0 3px 14px #263e4e12; pointer-events:none; color:#3e5865; font-size:12px; }
+.connection-preview { position:absolute; z-index:4; left:16px; bottom:54px; max-width:min(520px,calc(100% - 32px)); display:flex; flex-direction:column; gap:6px; padding:12px 16px; border:1px solid #d0dde2; background:#fffffff5; border-radius:8px; box-shadow:0 3px 14px #263e4e12; pointer-events:none; color:#3e5865; font-size:12px; }
 .connection-preview strong { color:#80949d; font-size:10px; font-weight:500; }
-.connection-inspector { position:absolute; z-index:5; top:12px; right:12px; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 24px); display:flex; flex-direction:column; border:1px solid #cbd9df; border-radius:10px; background:#fff; box-shadow:0 6px 30px #16394c20; overflow:hidden; color:#34515f; }
+.connection-inspector { position:absolute; z-index:5; top:12px; right:12px; width:min(360px,calc(100% - 24px)); max-height:calc(100% - 68px); display:flex; flex-direction:column; border:1px solid #cbd9df; border-radius:10px; background:#fff; box-shadow:0 6px 30px #16394c20; overflow:hidden; color:#34515f; }
 .connection-inspector-heading { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #edf1f4; font-size:12px; font-weight:600; }
 .connection-inspector-heading button { border:0; background:transparent; color:#607985; font-size:24px; line-height:1; }
 .connection-endpoints { display:flex; flex-direction:column; gap:6px; padding:12px; }
@@ -193,9 +185,6 @@ button:focus-visible, a:focus-visible {
 .connection-inspector li strong { font-weight:500; }
 .connection-inspector li p { margin:5px 0; color:#66828e; }
 .connection-inspector li small { display:block; color:#879aa3; overflow-wrap:anywhere; }
-.canvas-toolbar .tool-button { font-size:22px; font-weight:300; }
-.canvas-toolbar .fit-button { font-size:15px; }
-.canvas-toolbar .fit-button span { font-size:11px; }
 @media (max-width:600px) {
   .map-navigation { padding:8px 18px 10px; }
   .map-navigation-row { min-height:58px; gap:7px; flex-wrap:wrap; }
@@ -211,7 +200,7 @@ button:focus-visible, a:focus-visible {
 }
 .source-link > .source-symbol { display:inline; font-size:16px; }
 
-.connected-areas { position:absolute; z-index:4; left:12px; bottom:12px; max-width:min(340px,calc(100% - 24px)); max-height:70%; display:flex; flex-direction:column; overflow:hidden; border:1px solid #d1dde2; border-radius:8px; background:#fff; box-shadow:0 3px 15px #263e4e12; }
+.connected-areas { position:absolute; z-index:4; left:12px; bottom:54px; max-width:min(340px,calc(100% - 24px)); max-height:70%; display:flex; flex-direction:column; overflow:hidden; border:1px solid #d1dde2; border-radius:8px; background:#fff; box-shadow:0 3px 15px #263e4e12; }
 .connected-toggle { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:11px 14px; border:0; background:#fff; color:#426272; font-size:12px; }
 .connected-list { overflow:auto; padding:0 8px 8px; }
 .connected-list > div { display:flex; align-items:stretch; border-top:1px solid #edf1f3; }
@@ -221,6 +210,3 @@ button:focus-visible, a:focus-visible {
 .connected-list button:last-child { flex-shrink:0; color:#7e929d; }
 .connected-list button > span:first-child { color:#8a9da5; font-family:monospace; }
 .connected-list button > span:last-child { margin-left:auto; }
-
-.focus-error { z-index:5; top:16px; right:16px; bottom:auto; display:flex; flex-direction:column; gap:10px; font-size:12px; }
-.focus-error button { padding:8px 12px; border:1px solid #cad8de; border-radius:5px; background:#fff; color:#365b6b; }

@@ -16,7 +16,7 @@ export function MapHeader({ sourceUrl }: { sourceUrl: string | null }) {
       </svg><span>Intentive</span>
     </div>
     <span className="header-divider" aria-hidden="true" />
-    <div className="map-title"><h1>Codebase map</h1><span className="map-subtitle">Zoom into subsystems and follow their connections.</span></div>
+    <div className="map-title"><h1>Codebase map</h1><span className="map-subtitle">Open a subsystem and follow its connections.</span></div>
     {sourceUrl && <a className="source-link" href={sourceUrl} aria-label="View source" target="_blank" rel="noreferrer"><span>View source</span><span className="source-symbol" aria-hidden="true">↗</span></a>}
   </header>;
 }
@@ -38,7 +38,7 @@ export function MapNavigation({ graph, areas, active, onOverview, onNavigate }: 
     <div className="map-breadcrumb">
       <button ref={overviewButton} type="button" onClick={onOverview} aria-current={active ? undefined : "page"}>Overview</button>
       {active ? <><span aria-hidden="true">/</span><span ref={currentTitle} tabIndex={-1} className="current-area" title={active.fullTitle}
-        onKeyDown={event => { if (["Escape", "Home", "f", "F"].includes(event.key)) { event.preventDefault(); event.stopPropagation(); onOverview(); overviewButton.current?.focus({ preventScroll: true }); } }}>{active.number} · {active.title}</span></>
+        onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onOverview(); overviewButton.current?.focus({ preventScroll: true }); } }}>{active.number} · {active.title}</span></>
         : <span className="area-total">{areas.length} areas</span>}
     </div>
     <label className="area-jump"><span className="visually-hidden">Jump to area</span>
@@ -71,20 +71,12 @@ export function MapNavigation({ graph, areas, active, onOverview, onNavigate }: 
   </nav>;
 }
 
-export function MapToolbar({ disabled, percent, onZoom, onOverview, fullscreen, supportsFullscreen, onFullscreen }: {
-  disabled: boolean; percent: number; onZoom: (factor: number) => void; onOverview: () => void;
+export function MapToolbar({ fullscreen, supportsFullscreen, onFullscreen }: {
   fullscreen: boolean; supportsFullscreen: boolean; onFullscreen: () => void;
 }) {
-  const label = `${Math.round(percent)}%`;
+  if (!supportsFullscreen) return null;
   return <div className="canvas-toolbar" role="group" aria-label="Diagram controls">
-    <button className="tool-button" type="button" aria-label="Zoom out" title="Zoom out (−)" disabled={disabled} onClick={() => onZoom(1 / 1.3)}>−</button>
-    <span className="zoom-value" aria-label={`Current zoom ${label}`}>{disabled ? "—" : label}</span>
-    <button className="tool-button" type="button" aria-label="Zoom in" title="Zoom in (+)" disabled={disabled} onClick={() => onZoom(1.3)}>+</button>
-    <span className="toolbar-divider" aria-hidden="true" />
-    <button className="tool-button fit-button" type="button" aria-label="Fit diagram" title="Return to overview (F)" disabled={disabled} onClick={onOverview}>⌗ <span>Fit</span></button>
-    {supportsFullscreen && <><span className="toolbar-divider" aria-hidden="true" />
-      <button className="tool-button" type="button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title="Fullscreen" onClick={onFullscreen}>⛶</button>
-    </>}
+    <button className="tool-button" type="button" aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"} title="Fullscreen" onClick={onFullscreen}>⛶</button>
   </div>;
 }
 

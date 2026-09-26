@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { createSpatialLayout, placeDiagram } from "../lib/spatial-layout.ts";
+import { createSpatialLayout } from "../lib/spatial-layout.ts";
 
 const source = readFileSync(new URL("../../../docs/architecture/intentive-codeflow.mmd", import.meta.url), "utf8");
 const areaIds = [...source.matchAll(/subgraph\s+(AREA_\d+)\[/g)].map(match => match[1]);
@@ -62,23 +62,6 @@ test("canonical north/south and broad east/west landmarks survive crowded-region
   assert.ok(point("AREA_23").y < point("AREA_21").y);
 });
 
-test("every original diagram fits uniformly inside its fixed region below the header", () => {
-  const graph = fixture();
-  const layout = createSpatialLayout(graph);
-  for (const id of areaIds) {
-    const diagram = layout.diagrams[id];
-    const area = layout.areas[id];
-    const original = graph.layout.areas[id];
-    assert.ok(diagram.scale > 0);
-    assert.equal(diagram.width, original.width * diagram.scale);
-    assert.equal(diagram.height, original.height * diagram.scale);
-    assert.ok(diagram.x >= area.x + 12 - 1e-8);
-    assert.ok(diagram.y >= area.y + 32 + 12 - 1e-8);
-    assert.ok(diagram.x + diagram.width <= area.x + area.width - 12 + 1e-8);
-    assert.ok(diagram.y + diagram.height <= area.y + area.height - 12 + 1e-8);
-  }
-});
-
 test("coincident canonical centers still produce finite, separate regions", () => {
   const graph = fixture();
   for (const id of areaIds) graph.layout.areas[id] = { x: 0, y: 0, width: 200, height: 200 };
@@ -90,28 +73,11 @@ test("coincident canonical centers still produce finite, separate regions", () =
   }
 });
 
-test("a cached local render replaces the fallback crop without moving its region", () => {
-  const region = { x: 100, y: 200, width: 300, height: 146 };
-  const original = { ...region };
-  const wide = placeDiagram(region, { width: 1200, height: 240 });
-  const tall = placeDiagram(region, { width: 240, height: 1200 });
-  assert.deepEqual(region, original);
-  for (const diagram of [wide, tall]) {
-    assert.ok(diagram.x >= region.x + 12);
-    assert.ok(diagram.y >= region.y + 32 + 12);
-    assert.ok(diagram.x + diagram.width <= region.x + region.width - 12);
-    assert.ok(diagram.y + diagram.height <= region.y + region.height - 12);
-  }
-  assert.equal(wide.width / wide.height, 5);
-  assert.equal(tall.height / tall.width, 5);
-});
-
 test("missing canonical geometry fails clearly; an empty model has an empty overview", () => {
   const graph = fixture();
   delete graph.layout.areas.AREA_01;
   assert.throws(() => createSpatialLayout(graph), /AREA_01.*canonical layout/);
   const empty = createSpatialLayout({ ...graph, areas: [] });
   assert.deepEqual(empty.areas, {});
-  assert.deepEqual(empty.diagrams, {});
   assert.ok(empty.bounds.width > 0 && empty.bounds.height > 0);
 });

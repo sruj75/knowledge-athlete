@@ -5,17 +5,19 @@ A public, read-only Next.js viewer for the canonical
 The build reads that file directly and statically exports one page. The browser
 renders its 23 areas, 210 nodes and 422 connections with Mermaid ELK. The overview
 uses the original diagram's geography to place readable subsystem regions.
-Zoom reveals their contents in place. There is no database, runtime GitHub request,
+Clicking a subsystem opens its internal flow at a fixed readable size. There is no database, runtime GitHub request,
 browser editor, or separately maintained overview map.
 
 ## Explore the map
 
-- Drag to pan, use the wheel or a two-finger pinch to zoom, or focus the canvas
-  and use arrow keys and `+` / `-`. Wheel and pinch zoom stay under your cursor;
-  revealing detail never moves the camera.
-- Click a subsystem or use **Jump to area** to move smoothly into its first nodes.
-  **Fit**, **Overview**, `Home`, `Escape`, and `F` return to the overview.
-  Reduced-motion preferences disable camera animation.
+- Click a subsystem or use **Jump to area** to open its internal flow. Full node
+  labels and source references appear immediately at their natural 14-pixel size.
+- Scroll, swipe, or drag to move around the map or an open diagram. The viewer
+  has no zoom gestures, zoom buttons, or animated detail transitions. Browser
+  accessibility zoom remains available.
+- **Overview** or `Escape` returns to the subsystem map. Each view remembers its
+  scroll position. Resize preserves the open subsystem and explored position;
+  small diagrams remain centered. Fullscreen provides more room to explore.
 - Directly below the selected subsystem's title, **Inflow** lists incoming
   data/events and their source subsystem; **Outflow** lists outgoing data/events
   and their destination. Scroll either list to read every flow, or click a
@@ -23,23 +25,20 @@ browser editor, or separately maintained overview map.
   arrow directions, including control signals; they do not infer payload schemas,
   runtime rates, or Meadows-style stocks from a generic connection. Unlabelled
   edges use their endpoint names, and missing flows are described as unrecorded.
-- Every visible subsystem can reveal detail as you zoom or pan across the map.
-  Node titles appear first; source references appear when node text reaches
-  14 pixels. Their space stays reserved so labels and routes do not move.
-- Connections between subsystems stay visible. Hover or focus one to see its
-  endpoints, then click or press Enter for the scrollable list of individual
-  connections. Destination buttons take you to either subsystem. Escape closes
-  the inspector while it has focus. At close zoom, **Connected subsystems** keeps
-  offscreen destinations and their individual connections accessible.
-- On small screens, pan to explore the map instead of shrinking titles below
-  14 pixels. Resize preserves the current scale and world center when exploring.
+- In the overview, connections between subsystems are grouped into routes.
+  Hover or focus one to see its endpoints, then click or press Enter for the
+  scrollable list of individual connections. Destination buttons open either
+  subsystem. Escape closes the inspector while it has focus. In an open flow,
+  **Connected subsystems** keeps its destinations and connections accessible.
+- On small screens, scroll to explore the overview instead of shrinking titles
+  below 14 pixels. Opening a subsystem preserves the same readable node size.
 
 A complete Mermaid render supplies the relative geographic positions. A
 deterministic overlap pass gives subsystem regions room for readable titles;
 these positions do not change during navigation. Each internal flow is generated
 from the parsed nodes, edges, labels, shapes and styles, laid out locally with ELK,
 and cached on first use. This keeps cross-subsystem routes from spreading the
-internal nodes apart. Panning, zooming and revisiting a loaded area reuse its SVG
+internal nodes apart. Scrolling, dragging and revisiting a loaded area reuse its SVG
 and geometry without invoking Mermaid again.
 
 Cross-subsystem connections are grouped by endpoint pair, preserving every edge
@@ -69,8 +68,9 @@ npm --prefix tools/codebase-map run check
 
 This type-checks, tests the canonical-source/commit loading contract, builds the
 static site, and runs Chromium against the actual exported diagram. Browser tests
-cover desktop/mobile overview readability, click/wheel/pinch/keyboard navigation,
-source detail, stable region positions, cached layouts, resize, fullscreen,
+cover desktop/mobile overview readability, click and keyboard navigation, native
+scrolling and touch swipes, full source labels, stable region positions, cached
+layouts, restored scroll positions, resize, fullscreen,
 dense areas, connection inspection, complete inflow/outflow accounting, and
 source/layout failure recovery.
 CI installs dependencies and Chromium only when the manifest selects the viewer.

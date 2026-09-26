@@ -42,10 +42,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-25T14:26:39.985Z" }
+generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-25T17:08:48.248Z
+    at: 2026-09-26T08:08:12.066Z
 ---
 # Development and wiki maintenance
 
@@ -81,7 +81,7 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 210 nodes and 422 connections in Chromium. Browser coverage includes continuous anchored zoom, cached local flows, fixed region positions, title containment, connection inspection, mouse/touch/keyboard navigation, resize, reduced motion and visible offscreen retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 210 nodes and 422 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
 
 ## Product map and PR handoff
 

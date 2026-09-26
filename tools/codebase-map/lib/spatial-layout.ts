@@ -1,14 +1,12 @@
-import type { Box, CodebaseGraph, RenderedArea } from "./graph";
+import type { Box, CodebaseGraph } from "./graph";
 
 export type SpatialLayout = {
   bounds: Box;
   areas: Record<string, Box>;
-  diagrams: Record<string, Box & { scale: number }>;
 };
 
 type Region = {
   id: string;
-  original: Box;
   x: number;
   y: number;
   anchorX: number;
@@ -22,30 +20,14 @@ const margin = 24;
 const gap = 18;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-/** Fit a cached local diagram without changing its region or its aspect ratio. */
-export function placeDiagram(region: Box, rendered: Pick<RenderedArea, "width" | "height">): Box & { scale: number } {
-  const inset = 12;
-  const header = 32;
-  const scale = Math.min((region.width - inset * 2) / rendered.width, (region.height - header - inset * 2) / rendered.height);
-  const width = rendered.width * scale;
-  const height = rendered.height * scale;
-  return {
-    x: region.x + (region.width - width) / 2,
-    y: region.y + header + inset + (region.height - header - inset * 2 - height) / 2,
-    width,
-    height,
-    scale,
-  };
-}
-
 /**
  * Give the canonical area's center enough room to become a readable map region.
- * This is independent of the camera and expanded area: navigation cannot relayout it.
+ * This is independent of the selected subsystem: navigation cannot relayout it.
  * The small relaxation spreads crowded neighbors, rather than assigning grid cells.
  */
 export function createSpatialLayout(graph: CodebaseGraph): SpatialLayout {
   const ordered = [...graph.areas].sort((a, b) => a.id.localeCompare(b.id));
-  if (!ordered.length) return { bounds: { x: 0, y: 0, ...reference }, areas: {}, diagrams: {} };
+  if (!ordered.length) return { bounds: { x: 0, y: 0, ...reference }, areas: {} };
 
   const regions: Region[] = ordered.map(area => {
     const original = graph.layout.areas[area.id];
@@ -55,7 +37,6 @@ export function createSpatialLayout(graph: CodebaseGraph): SpatialLayout {
     const aspect = Math.log2(original.width / original.height);
     return {
       id: area.id,
-      original,
       x: 0,
       y: 0,
       anchorX: original.x + original.width / 2,
@@ -134,11 +115,9 @@ export function createSpatialLayout(graph: CodebaseGraph): SpatialLayout {
   const right = Math.max(...regions.map(region => region.x + region.width / 2)) + margin;
   const bottom = Math.max(...regions.map(region => region.y + region.height / 2)) + margin;
   const areas: SpatialLayout["areas"] = {};
-  const diagrams: SpatialLayout["diagrams"] = {};
   for (const region of regions) {
     const box = { x: region.x - region.width / 2 - left, y: region.y - region.height / 2 - top, width: region.width, height: region.height };
     areas[region.id] = box;
-    diagrams[region.id] = placeDiagram(box, region.original);
   }
-  return { bounds: { x: 0, y: 0, width: right - left, height: bottom - top }, areas, diagrams };
+  return { bounds: { x: 0, y: 0, width: right - left, height: bottom - top }, areas };
 }

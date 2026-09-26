@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Box, CodebaseGraph, MapEdge, Point } from "../../lib/graph";
+import { createPortal } from "react-dom";
+import type { Box, CodebaseGraph, MapEdge, Point, Transform, Viewport } from "../../lib/graph";
 import type { SpatialLayout } from "../../lib/spatial-layout";
-import type { Transform, Viewport } from "./use-map-camera";
 
-type Props = { graph: CodebaseGraph; layout: SpatialLayout; transform: Transform; viewport: Viewport; highlightedAreaId: string | null; activeAreaId: string | null; onNavigate: (id: string) => void };
+type Props = { graph: CodebaseGraph; layout: SpatialLayout; transform: Transform; viewport: Viewport; canvas: HTMLElement | null; highlightedAreaId: string | null; activeAreaId: string | null; onNavigate: (id: string) => void };
 type Link = { id: string; from: string; to: string; edges: MapEdge[]; path: string; start: Point; end: Point; forward: boolean; backward: boolean };
 const plain = (value: string) => value.replace(/<br\s*\/?\s*>/gi, " · ").replace(/<[^>]*>/g, "");
 function port(box: Box, other: Box): Point {
@@ -42,18 +42,25 @@ function linksFor(graph: CodebaseGraph, layout: SpatialLayout): Link[] {
 }
 
 /** The overview shows relationships between regions; individual edges stay inspectable. */
-export function MapConnections({ graph, layout, transform, viewport, highlightedAreaId, activeAreaId, onNavigate }: Props) {
+export function MapConnections({ graph, layout, transform, viewport, canvas, highlightedAreaId, activeAreaId, onNavigate }: Props) {
   const marker = `region-arrow-${useId().replace(/[^\w-]/g, "")}`;
   const links = useMemo(() => linksFor(graph, layout), [graph, layout]);
   const [hovered, setHovered] = useState<string | null>(null);
   const [destinationsOpen, setDestinationsOpen] = useState(false);
   const [inspected, setInspected] = useState<string | null>(null);
   const inspector = useRef<HTMLElement>(null);
+  const connectedToggle = useRef<HTMLButtonElement>(null);
+  const restoreInspectorFocus = useRef(true);
   useEffect(() => {
     if (!inspected) return;
     const previous = document.activeElement;
+    restoreInspectorFocus.current = true;
     inspector.current?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
-    return () => { if (previous instanceof HTMLElement || previous instanceof SVGElement) previous.focus({ preventScroll: true }); };
+    return () => {
+      if (!restoreInspectorFocus.current) return;
+      if (previous?.isConnected && previous !== document.body && (previous instanceof HTMLElement || previous instanceof SVGElement)) previous.focus({ preventScroll: true });
+      else connectedToggle.current?.focus({ preventScroll: true });
+    };
   }, [inspected]);
   const selected = links.find(link => link.id === inspected);
   const preview = links.find(link => link.id === hovered);
@@ -62,7 +69,7 @@ export function MapConnections({ graph, layout, transform, viewport, highlighted
   const arrow = (start: boolean, end: boolean) => start && end ? "↔" : start ? "←" : end ? "→" : "—";
   const names = (link: Link) => `${area(link.from).number} ${area(link.from).title} ${arrow(link.backward, link.forward)} ${area(link.to).number} ${area(link.to).title}`;
   return <>
-    <svg className="region-connections" width={viewport.width} height={viewport.height} aria-label="Subsystem connections">
+    {canvas && createPortal(<svg className="region-connections" width={viewport.width} height={viewport.height} aria-label="Subsystem connections">
       <defs><marker id={marker} viewBox="0 0 8 8" refX="7" refY="4" markerWidth={5 / transform.scale} markerHeight={5 / transform.scale} markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L8 4 L0 8z" fill="#94a7b3" /></marker></defs>
       <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.scale})`}>
         {links.map(link => {
@@ -79,12 +86,12 @@ export function MapConnections({ graph, layout, transform, viewport, highlighted
           </g>;
         })}
       </g>
-    </svg>
-    {preview && !selected && <div className="connection-preview" role="tooltip"><span>{names(preview)}</span><strong>{preview.edges.length} connections · Click to inspect</strong></div>}
+    </svg>, canvas)}
+    {canvas && preview && !selected && <div className="connection-preview" role="tooltip"><span>{names(preview)}</span><strong>{preview.edges.length} connections · Click to inspect</strong></div>}
     {activeAreaId && destinations.length > 0 && <nav className="connected-areas" aria-label="Connected subsystems" data-no-pan
       onPointerDown={event => event.stopPropagation()} onWheelCapture={event => event.stopPropagation()}
       onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape") setDestinationsOpen(false); }}>
-      <button className="connected-toggle" type="button" aria-expanded={destinationsOpen} onClick={() => setDestinationsOpen(value => !value)}>{destinations.length} connected subsystems <span aria-hidden="true">{destinationsOpen ? "−" : "+"}</span></button>
+      <button ref={connectedToggle} className="connected-toggle" type="button" aria-expanded={destinationsOpen} onClick={() => setDestinationsOpen(value => !value)}>{destinations.length} connected subsystems <span aria-hidden="true">{destinationsOpen ? "−" : "+"}</span></button>
       {destinationsOpen && <div className="connected-list">{destinations.map(link => {
         const id = link.from === activeAreaId ? link.to : link.from;
         return <div key={id}><button type="button" onClick={() => { setDestinationsOpen(false); onNavigate(id); }}><span>{area(id).number}</span>{area(id).title}<span aria-hidden="true">↗</span></button><button type="button" aria-label={`Inspect connections with ${area(id).title}`} onClick={() => { setDestinationsOpen(false); setInspected(link.id); }}>{link.edges.length} links</button></div>;
@@ -92,7 +99,7 @@ export function MapConnections({ graph, layout, transform, viewport, highlighted
     </nav>}
     {selected && <aside ref={inspector} className="connection-inspector" aria-label="Connection details" data-no-pan onPointerDown={event => event.stopPropagation()} onWheelCapture={event => event.stopPropagation()} onKeyDown={event => { event.stopPropagation(); if (event.key === "Escape") setInspected(null); }}>
       <div className="connection-inspector-heading"><span>{selected.edges.length} connections</span><button type="button" aria-label="Close connection details" onClick={() => setInspected(null)}>×</button></div>
-      <div className="connection-endpoints">{[selected.from, selected.to].map(id => <button key={id} type="button" onClick={() => { setInspected(null); onNavigate(id); }}><span>{area(id).number}</span>{area(id).title}<span>↗</span></button>)}</div>
+      <div className="connection-endpoints">{[selected.from, selected.to].map(id => <button key={id} type="button" onClick={() => { restoreInspectorFocus.current = false; setInspected(null); onNavigate(id); }}><span>{area(id).number}</span>{area(id).title}<span>↗</span></button>)}</div>
       <ol tabIndex={0} aria-label="Individual connections">{selected.edges.map(edge => <li key={edge.id} data-edge-id={edge.id}><strong>{plain(graph.nodes[edge.source].label).split(" · ")[0]} {arrow(edge.arrowStart, edge.arrowEnd)} {plain(graph.nodes[edge.target].label).split(" · ")[0]}</strong><p>{plain(edge.label) || "Direct connection"}{edge.stroke === "dotted" ? " · dotted" : edge.stroke === "thick" ? " · emphasized" : ""}</p><small>{plain(graph.nodes[edge.source].label)}<br />{plain(graph.nodes[edge.target].label)}</small></li>)}</ol>
     </aside>}
   </>;

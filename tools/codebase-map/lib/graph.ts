@@ -1,5 +1,7 @@
 export type Box = { x: number; y: number; width: number; height: number };
 export type Point = { x: number; y: number };
+export type Transform = Point & { scale: number };
+export type Viewport = { width: number; height: number };
 
 export type GraphLayout = {
   bounds: Box;
