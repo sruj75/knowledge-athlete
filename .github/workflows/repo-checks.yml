@@ -37,12 +37,14 @@ jobs:
         with:
           python-version-file: backend/.python-version
 
-      - name: Set up Node.js for manifest-selected agent checks
+      - name: Set up Node.js for manifest-selected checks
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: 'npm'
-          cache-dependency-path: desktop/macos/agent/package-lock.json
+          cache-dependency-path: |
+            desktop/macos/agent/package-lock.json
+            tools/codebase-map/package-lock.json
 
       # The preflight can select uv-backed checks (e.g. backend-route-policy-baseline
       # runs the OpenAPI runner) whenever a PR touches backend routes, so this job
@@ -58,6 +60,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+
+      - name: Prepare selected codebase map check dependencies
+        run: python3 .github/scripts/prepare_codebase_map_check.py --base "origin/${{ github.base_ref }}"
 
       - name: Run current PR metadata preflight
         env:
@@ -109,12 +114,14 @@ jobs:
         with:
           python-version-file: backend/.python-version
 
-      - name: Set up Node.js for manifest-selected agent checks
+      - name: Set up Node.js for manifest-selected checks
         uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: 'npm'
-          cache-dependency-path: desktop/macos/agent/package-lock.json
+          cache-dependency-path: |
+            desktop/macos/agent/package-lock.json
+            tools/codebase-map/package-lock.json
 
       - name: Set up uv
         uses: astral-sh/setup-uv@ecd24dd710f2fb0dca1693a67af11fc4a5c5ec84
@@ -132,6 +139,9 @@ jobs:
         run: |
           scripts/changed-files "${{ needs.changes.outputs.diff_base }}"...HEAD > /tmp/changed-files.txt
           cat /tmp/changed-files.txt
+
+      - name: Prepare selected codebase map check dependencies
+        run: python3 .github/scripts/prepare_codebase_map_check.py --base "${{ needs.changes.outputs.diff_base }}"
 
       - name: Run shared PR contract preflight
         if: github.event_name == 'pull_request'

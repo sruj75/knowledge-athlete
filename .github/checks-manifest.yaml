@@ -4,6 +4,16 @@
 # Checks that consume PR metadata declare `requires_pr_body: true`; post-merge
 # push runs exclude only that category because no authoritative PR body is available.
 checks:
+  - id: codebase-map
+    command: ["npm", "--prefix", "tools/codebase-map", "run", "check"]
+    triggers: ["tools/codebase-map/**", "docs/architecture/intentive-codeflow.mmd", ".nvmrc", ".github/scripts/prepare_codebase_map_check.py", ".github/workflows/repo-checks.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the published codebase map must build from the canonical Mermaid source and render its complete diagram with working canvas controls"
+  - id: codebase-map-check-dependencies
+    command: ["python3", ".github/scripts/test_prepare_codebase_map_check.py"]
+    triggers: [".github/scripts/prepare_codebase_map_check.py", ".github/scripts/test_prepare_codebase_map_check.py", ".github/workflows/repo-checks.yml", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "viewer dependency preparation follows manifest selection and must stop on failed package or browser installation"
   - id: dev-harness-unit-tests
     command: ["bash", "scripts/dev-harness/run-tests.sh"]
     triggers: ["Makefile", ".conductor/settings.toml", "scripts/dev-instance.sh", "scripts/dev-harness/**", "desktop/macos/scripts/qualify-desktop-beta.sh", "desktop/macos/scripts/qualification-desktop-command.py", "desktop/macos/scripts/qualification-lease-command.sh", "desktop/macos/scripts/omi-fault-inject.sh", "desktop/macos/scripts/release-keyvalue.py", ".github/checks-manifest.yaml"]

@@ -8,6 +8,8 @@ sources:
     resource: repo://.github/checks-manifest.yaml
   - id: openwiki-source-19d91df3181544492a10253e
     resource: repo://.github/scripts/check_policy_change_review.py
+  - id: openwiki-source-16d213dfcc8beae17f8096fe
+    resource: repo://.github/scripts/prepare_codebase_map_check.py
   - id: openwiki-source-2086e730056d335da93dacd1
     resource: repo://.github/scripts/publish_guardrail_pulse.py
   - id: openwiki-source-54aa0818a69c7dc32f892aa8
@@ -20,10 +22,16 @@ sources:
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
     resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-generated: { by: "codex", at: "2026-09-24T10:47:55.441Z" }
+  - id: openwiki-source-cadbf0c250f5afb51126591d
+    resource: repo://tools/codebase-map/package.json
+  - id: openwiki-source-fa2531a1c23faf0486307e94
+    resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
+  - id: openwiki-source-add0ec364ed6744f53f1bc54
+    resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
+generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T11:03:11.412Z
+    at: 2026-09-26T08:08:12.066Z
 ---
 # Qualification and open obligations
 
@@ -42,6 +50,8 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 `check-gauntlet-evidence-at-head.sh` validates source identity and rejects incomplete, dirty or privacy-unsafe records. Its stricter final-closeout requirements are branch-sensitive; do not infer universal green coverage from a nonblocking branch invocation. The underlying continuity harness and source-evidence tests own the concrete row contract.
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
+
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 210 nodes and 422 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
 
 ## Policy-change disclosure
 

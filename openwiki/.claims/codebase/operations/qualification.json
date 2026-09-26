@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:cd9cea0683c906bca942bba2db64b779bb035bbb664d42b6b51468ed80c1ea8c",
+  "pageVersion": "sha256:359f3914d7a714fd6275e599b5585d15bc23f92139285cfd3691524b8ca47c43",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -22,7 +22,7 @@
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml",
-          "version": "repo-file-v1:sha256:e54a2e365a803996207a5ae299722c31ccaaf5d12d9d351c4ec886ee320d4bf4"
+          "version": "repo-file-v1:sha256:9b8ba0c65877f53344994cd7eba2662d1a977245d9789b016aba2ba129612669"
         }
       ]
     },
@@ -71,10 +71,36 @@
           "version": "repo-file-v1:sha256:7af6111a21a3338e9396173ff77dac28c90bb786d0b2e98929936f1d81aa6b00"
         }
       ]
+    },
+    {
+      "id": "claim_cd91b439989d45c89302142c09043825",
+      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 210 nodes and 422 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
+      "evidence": [
+        {
+          "resource": "repo://.github/checks-manifest.yaml#L1-L18",
+          "version": "repo-lines-v1:sha256:3d5eee356140aa88e30e1aaef090ec80a860a646fbb527bc5ec6ca4b810bd7f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2MjRiZThhZGNhZmMzYjRiNDQwMjdmNDI3Mzg4ZWFhM2FkNjA5ZTUwODAwMzZiMGE1YjYzNzAwZWM5YWRjMWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YWZmYzBhMDFjNjMwZmJlMjczZTYyMTJhYjM5ZjA0Y2JmOWM2NzE0Y2NhMjI4NDY2OTRmZGFhN2QzNWZiMmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0ZGViOThiZWVhNmU5YTE1NjFkZTgwNGQ2MWZmYzBjNWFjOWRiZGEzZTRiYzY2Mjk2YWU1MjBlODllMjc5YmUifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
+          "version": "repo-lines-v1:sha256:c38414d462aec31a7c970a36272e75ec22941cd5481066ab3cd821d26a06381e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/package.json#L1-L28",
+          "version": "repo-lines-v1:sha256:2467c34776142194853593a3e150dad420bd06a642d5138fadfe8f72a5245fd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTIwNDRlNmY0ZTk2NTY0OTI3OTYyMGQ3NjUyYzYyNzQ0NjdjMjkwY2Q3ZTYzOTNiZjZmZjBlNGQ4ZDA5MDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Mzk1OTgzOTZjZDE1MTk0NzNlNTMzNzMzMzI1NTE0N2QzNzkxZmQ2NjUwMTk0Y2UzZWRjZjI5NzAyM2Y4YTkifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
+          "version": "repo-file-v1:sha256:f48f88d10d7d24baf4e51b07196580dfbed62cdc1f6eafcbc7e06807b058b320"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
+          "version": "repo-file-v1:sha256:1a7af2eefa407e67ae98ae786af95342ce78338215fbadd09c4e830197da8e3c"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T11:03:11.412Z"
+    "at": "2026-09-26T08:08:12.066Z"
   }
 }

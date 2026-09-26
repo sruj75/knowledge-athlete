@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:46be9532ddd7e5a6b0a59ecf8bbe43d86a97faf9c403e71c1162cd206d324134",
+  "pageVersion": "sha256:4efd3011b0254183bd90d167b6e0ee76acd673de87de874543915d4a79eecf3e",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
@@ -39,10 +39,28 @@
           "version": "repo-lines-v1:sha256:ab9849eae4d43d3c180a0f857635bb3f69a4fe0e61b7daf20b115cf754f07266:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzdiMGQzY2Y3MWZiMzk4ODNjY2MwZTdiZWIzOGI4YzIzZGQwOGRmNGZjODBhYTQxZGIwZDYwYmQ5MzU1MzI3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ2OTJmODY0ZTJiZmJiNDFhZGIxODc5YTI3YTk3MjY4MDI1MWZiMGNiODUwMDIyNmIwODE5ZDEyYWNhODY3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTlmZTZiZDhhODBjOWFmZDMzMWJmMTc3NjU1YjBkNWViZTcwNmI0ZjYxN2UyODU0ZjE2ZTNlYzdkMjAzMmQ2MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmQ1YWJhNzExZGVjNDA5OTE4ZDFhODYxNWY4ZTU2NWY3OTg0MjY2ZGZhNWUxOGQ0NTUwNDFlMjI5OGI3NzU2NCJ9"
         }
       ]
+    },
+    {
+      "id": "claim_38ccb4092c65468b84ae862f6c9a1eaf",
+      "statement": "The isolated Next.js codebase viewer reads the canonical Mermaid file during static generation and carries its identified commit into the browser view rather than fetching repository contents at runtime.",
+      "evidence": [
+        {
+          "resource": "repo://tools/codebase-map/app/page.tsx#L1-L7",
+          "version": "repo-lines-v1:sha256:cbfbfdeada96b63a1bd62f1d4270f32014ec99b8ae51a93d500d630e9eac2577:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWMyZmVkOWY1MTdmM2Q0MjIwZTkwYTNlM2JmYTU1OWJkMGIzYTA5OTg1ZGM1YmM1NzAxNzRhMWQxM2I0NWUwZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/diagram-source.mjs#L1-L37",
+          "version": "repo-lines-v1:sha256:216ec813382a3cd439c1310a6373bc98e403a81b7eabf91582da5046abada032:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZmFmYWM3MDBlZDNjMDhiOTk3MTUwYzE1ZjllYmU5NGZiNWRiZTZkYTBhYTlmNDhiN2E2NGFiNzA3YmRmMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/next.config.ts#L1-L10",
+          "version": "repo-lines-v1:sha256:32e4ef1a490cf5b22eac0528b2fd7c6f4ec6b5f721d56c74f422ecaf9bf59de6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNjc5MjcwYWFiZDgyN2Q4Nzk0NWM5ZmJiYzQ3OGIxODM5NGQyZTFmZDU3MTZjMzY1ZTJiNWUyYjExYmVkZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjYmMxN2NhOGY3MzU5NDc2NzgzMGEzNmVlZWFjNGNlNWZlYTVkZDM4Nzg1NWVhNzRmNDUxOTE5MTk1ZDVjMTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T10:47:55.441Z"
+    "at": "2026-09-24T12:25:42.469Z"
   }
 }

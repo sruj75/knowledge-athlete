@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b0551823adf56df506d167584589705dc060a1876e8ea04831958e7d0355c11f",
+  "pageVersion": "sha256:2686862a9d8f193edfe6e3f320c0fd705c9e04166f83229c11b7bb240e3e8e81",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -117,18 +117,54 @@
           "version": "repo-lines-v1:sha256:46e8cfe9a5aad27daa983008d6fa0daf28d1b4fd824b5ffc093113bb85033442:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNWVjOWQ4Zjc2Njc0YWY2N2M5MjMyNDcyYTM3M2M5MGFmNWM3YzM5NDhkYWNhZjg2YjJjNzRlY2Y0MTE5NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzMDNlY2RkNGE0ZDEwZjE5YzczZmQ0MmZkMTI0MzdmZDMzNTRhODI2ODE2MDVkYTUyNTVhOTdhMzkwNjhkYmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE5MzUzZTlkMzZlZGY5MTRiYTE0NDI0ZjU5NmE4OTZiY2M5NTc2MmY4ZWE3YmEwZDM5NzQ4NGI2ODgwNTQ0OTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwYmViY2M5NzVhMTM5NTliZmIxN2UzYmUwZjI2YzAyYWJiYjUxYjNlZGFjMmQwOTUzZDA3ZWYwMTI5NmZlM2UifQ"
         },
         {
-          "resource": "repo://.github/PULL_REQUEST_TEMPLATE.md#L19-L31",
-          "version": "repo-lines-v1:sha256:d9586add3659fe9bc5a3401c1b9e57b00bef172b2d95bb7b2087d5314937687b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmZmM4NjU1MjNkYWY1OWRiYzMxMzJlODZlNmRhMjBhYTI0ZTZlMThlZmRhYTNkNWQwM2JhOTg4MTE5ZDk2ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkOWIwMWIxZTY0YTg5ZTg3MjE3Y2Q1OGUxZGEwMzkyMDkyY2IzODAyZTJlOGIwNjNjOTg0YjE3NDI3YzZhYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyOTEzMzE2YjU2NDk3NWRjZDE2NzVmMGQ3OGE2YTBmNTlmMTA5OTUyMTAxYWNkZGFjZjM3ZmZmYjk0ZDM5Y2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3OGNkYTU0OWY3MmIzN2M2MzhmYTMxMTBlNDgyMTY0ODkyNTBmYzRhY2IzYTMyMTVjZDQ0ZTY1YjVhODU0MDAifQ"
+          "resource": "repo://.github/PULL_REQUEST_TEMPLATE.md#L26-L38",
+          "version": "repo-lines-v1:sha256:d9586add3659fe9bc5a3401c1b9e57b00bef172b2d95bb7b2087d5314937687b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmZmM4NjU1MjNkYWY1OWRiYzMxMzJlODZlNmRhMjBhYTI0ZTZlMThlZmRhYTNkNWQwM2JhOTg4MTE5ZDk2ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkOWIwMWIxZTY0YTg5ZTg3MjE3Y2Q1OGUxZGEwMzkyMDkyY2IzODAyZTJlOGIwNjNjOTg0YjE3NDI3YzZhYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZhOWQ5M2UxOWM3ODMyY2MwMjg5NmRkNTg1ZDY3MWQ2MzYwMTJjN2JhYTQwZTc4MjI0OTlhNTI3YmI5Yzg3MjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3OGNkYTU0OWY3MmIzN2M2MzhmYTMxMTBlNDgyMTY0ODkyNTBmYzRhY2IzYTMyMTVjZDQ0ZTY1YjVhODU0MDAifQ"
         },
         {
           "resource": "repo://.github/scripts/check_policy_change_review.py#L67-L123",
-          "version": "repo-lines-v1:sha256:22b9dc4ffaea6355aecad1cd6386ae4bc905505e05b2b9b6bcc460ee7fe6d70d:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkNmVlZWViYTAwMWEyYTE0Y2RhNjNlOTY5MzhjMzM4ZWU1NmUzYTI3YjY0ZjY2MTgwZDUyNDgwMTk1MjhjM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "version": "repo-lines-v1:sha256:2df389b54d516c20d3d954aa90ca699d5c143c9962fdfc9f09139b25637e607f:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiMThlYzlhMDE3YjEzOTYzNzhjMzdlNDM0ZTA4NDQ5NmIyYzU3MzRlOTY5MzJlZmVhYjMxZmY0YTU3MzRiYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0MTRkM2E3NDMxNjAyZGRkNTI2ODkwYWZiYjRiM2FhYWU0NmNhNzgxOTljMTY5Y2ZlYTUxODNlNmRmNDA4M2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxY2YxNzgxOTAxMWE4YTY0OWE5OThmM2IyNjM2NmFkOTE3MDlmNGE0Yjg0YjkxYTlmNTY1MDFjYzY5ZWM4NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjhiNzFmOWZlZjMzODgzMDdkMjEzYTZmNDIyMmYyNGNjY2RjZDhmZDM5MzEzMzU0ZTgwODUxZWEzNmU4ZjUxMTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 210 nodes and 422 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
+          "version": "repo-lines-v1:sha256:c38414d462aec31a7c970a36272e75ec22941cd5481066ab3cd821d26a06381e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/lib/diagram-source.mjs#L1-L37",
+          "version": "repo-lines-v1:sha256:216ec813382a3cd439c1310a6373bc98e403a81b7eabf91582da5046abada032:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZmFmYWM3MDBlZDNjMDhiOTk3MTUwYzE1ZjllYmU5NGZiNWRiZTZkYTBhYTlmNDhiN2E2NGFiNzA3YmRmMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/package.json#L1-L28",
+          "version": "repo-lines-v1:sha256:2467c34776142194853593a3e150dad420bd06a642d5138fadfe8f72a5245fd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTIwNDRlNmY0ZTk2NTY0OTI3OTYyMGQ3NjUyYzYyNzQ0NjdjMjkwY2Q3ZTYzOTNiZjZmZjBlNGQ4ZDA5MDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Mzk1OTgzOTZjZDE1MTk0NzNlNTMzNzMzMzI1NTE0N2QzNzkxZmQ2NjUwMTk0Y2UzZWRjZjI5NzAyM2Y4YTkifQ"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
+          "version": "repo-file-v1:sha256:f48f88d10d7d24baf4e51b07196580dfbed62cdc1f6eafcbc7e06807b058b320"
+        },
+        {
+          "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
+          "version": "repo-file-v1:sha256:1a7af2eefa407e67ae98ae786af95342ce78338215fbadd09c4e830197da8e3c"
+        }
+      ]
+    },
+    {
+      "id": "claim_3c44804441f743b4ab3326d305a323ba",
+      "statement": "The PR template includes a codebase-map checklist that distinguishes updating affected flows and source references from reviewing the existing diagram as still accurate.",
+      "evidence": [
+        {
+          "resource": "repo://.github/PULL_REQUEST_TEMPLATE.md#L19-L24",
+          "version": "repo-lines-v1:sha256:51dd13857f6b6c4bd68d7356cd32b125b71d88e5046c4a02e9b50592a52d0753:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjY1YThmMzYzMTVlZTFkNTBlYzdlOTU5ZTAxMGQ5ZTFhY2NjMDUwNzdhMmE1MjQyYmI3OGQ1NmY2YjA2Nzc5MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdiMDA5YmFjM2RmNDBjNTFjNWJjNWVkZGVmZmRkNzE4OTU1YjE2ODA1ZGJkMDRkMWJjYjhhYWQ0ZjczODFhOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjI5MTMzMTZiNTY0OTc1ZGNkMTY3NWYwZDc4YTZhMGY1OWYxMDk5NTIxMDFhY2RkYWNmMzdmZmZiOTRkMzljYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzJjOWU5YjU4ZDBiYmQ1ZGM0YTZmNDg2MzgxMTViMjYyYTBhNDcyMzBlOTU2MmU5NjJiZTE1NzYyZTI3ZDg1YyJ9"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T10:47:55.441Z"
+    "at": "2026-09-26T08:08:12.066Z"
   }
 }
