@@ -12,9 +12,9 @@ flowchart TD
   end
 
   subgraph AREA_02["02 · Screen capture · Mac"]
-    MONITOR["Start background monitoring and capture timer<br/>startMonitoring<br/>ProactiveAssistantsPlugin.swift:243"]
+    MONITOR["Start background monitoring and capture timer<br/>startMonitoring<br/>ProactiveAssistantsPlugin.swift:191"]
     WINDOW["Observe frontmost app and window<br/>WindowMonitor<br/>WindowMonitor.swift:5"]
-    CAPTURE{"Privacy, owner, idle and timing gates<br/>captureFrame<br/>ProactiveAssistantsPlugin.swift:696"}
+    CAPTURE{"Privacy, owner, physical-input idle and timing gates<br/>captureFrame; refresh changed window context<br/>ProactiveAssistantsPlugin.swift:549"}
     SCREEN["Resolve and capture active window<br/>ScreenCaptureService<br/>ScreenCaptureService.swift:8"]
     FRAME["Build live CapturedFrame<br/>JPEG, app, title, time; screenshotId may be absent<br/>CapturedFrame.swift:5"]
   end

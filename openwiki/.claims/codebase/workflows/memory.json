@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8482053a267d24a231b6f19b4c05c575eb7697d16b2816ce026f1a80b673d34f",
+  "pageVersion": "sha256:05ddbc25c542647c6a81ff7b2c75acd613d7eb19cc7cc6ae1c6711b3f50c3ed3",
   "claims": [
     {
       "id": "claim_a27d784147154d4482309535c1bb46f4",
@@ -59,8 +59,12 @@
       "statement": "Screen observation now hands permitted frames to the supervisor while the retained independent capture/storage path remains; the retention flow checks that retired screen workers do not recreate product records.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L689-L920",
-          "version": "repo-lines-v1:sha256:871f0094026bb8763ad1eb305ea2f2a98566d8027450bbb25d3bbc8526e6bd51:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiODhjZjM2MGVmMDQyNWIwZDNiMmYwNTYxNjMwZTQzYzdhMGVjYWY0ODA2ZjdjOTEwYjY0NjdmMWYzNmVjODlmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI5YjYyZjYwZDg1OTBhNTc5Y2Y0NmY4ZDY3Mzc4YzRjNTcyYjk2MmNlY2NkYjkwYzdhNWY3YjQyYjk2MDc4MmE0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJmYjBkODAxMWRhZThlMTQyMjYzMTM1ZDQ3NjNlMjdlYjAyYTIyNjViZjg3NTM3YzRkYmY5MDhlNTBiYjcwYTA0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NmNmNTk0ODBiOWIyYTk5MjY4OTdkMzM0NGMzYTAzYjVlNDk1MmMyYjNhZTkyN2E0NGQyOWIyYjI3NTE0MmVhIn0"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L738-L784",
+          "version": "repo-lines-v1:sha256:2d444492842279d1bb2fff0dd203d33aeee7b91861042215053ae9a5bd4c1cdd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNjQ4NjgwYzE3NTkxOTk4MGM0YmY3ODViNDQ5OGM3MDM2YWI1ODU5NWFjZGFiMjA2ZDg0ZGE5Njk0YmE2NDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2ZTI0YjdlZDkwNWRmYzQ2M2FiODBjYjAzOTc3MTNjOTM4YWY4MWY3OTQ3MzA4Mjg3MDA3NTRmNDM3Y2E3ODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3MjEzOGVmNWVmYzIwZTY5YmZhZDJkOGVhYWQyNTMzYzE3NTU4YzRlYjAzNWI3NTc0MGYzZjllNDVhZDdhNDAifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L823-L866",
+          "version": "repo-lines-v1:sha256:5ebc2d411497f94bb6db137f1ab9feefe8b08e3fb7a9f564dc5f479e441f3d12:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzZTYwNDExMWI5MGIyMGQzZTQ5Yzc2YWFmOTQzZjczZDRhZGIwMjEwMDc1MzEzOThhZTFiNmVjYjI5NWVmNWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc3MDJlY2Q0ZGFhZjliZjc5MTIyZTQzMzQzY2ZjN2U1NjEwYjZmY2U2MWI3MWQ2NmUwOTlkNjQ0ZTNlZmVjODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4NzJlOGIwNDM1N2FhM2QzNjJkN2JiNjA0NzFkYWE0ZTMyOTNmYTFiZWFkNzFhY2Q3OWI4YWZlNzU3NDkwNmIifQ"
         },
         {
           "resource": "repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml",
@@ -71,6 +75,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-27T19:56:49.848Z"
   }
 }

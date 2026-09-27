@@ -251,6 +251,16 @@ struct ProactiveCaptureTrigger {
     appSwitchRequest = nil
   }
 
+  mutating func invalidateSupervisorContext(from previousEpoch: UInt64, to currentEpoch: UInt64) {
+    guard previousEpoch != currentEpoch else { return }
+    // B discarded its image at this boundary. Dedup must not suppress the fresh
+    // capture it now needs, including a return to identical pixels. Preserve any
+    // activation debounce so resolving the window cannot bypass settling.
+    let pendingAppSwitch = appSwitchRequest
+    reset()
+    appSwitchRequest = pendingAppSwitch
+  }
+
   /// Record that an app-switch notification fired. The trigger debounces rapid
   /// switches and evaluates the next poll as a capture candidate.
   mutating func requestAppSwitchCapture(app: String, at time: Date) {

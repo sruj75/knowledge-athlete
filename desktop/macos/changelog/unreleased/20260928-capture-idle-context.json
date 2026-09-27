@@ -1,0 +1,5 @@
+{
+  "changes": [
+    "Fixed screen capture resuming after physical keyboard or mouse activity and refreshed Supervisor context when returning to an unchanged window"
+  ]
+}

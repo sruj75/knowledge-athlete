@@ -499,7 +499,7 @@ public class ProactiveAssistantsPlugin: NSObject {
   private func onAppActivated(appName: String) {
     guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
     guard appName != currentApp else { return }
-    SupervisorService.shared.applicationContextChanged(
+    updateSupervisorApplicationContext(
       appName: appName, authorizationSnapshot: authorizationSnapshot)
     currentApp = appName
     currentAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
@@ -512,9 +512,28 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     sendEvent(type: "appSwitch", data: ["app": appName])
     if SupervisorScreenPolicy.isAppExcluded(appName) {
-      SupervisorService.shared.screenUnavailable()
+      makeSupervisorScreenUnavailable()
     }
     captureTrigger.requestAppSwitchCapture(app: appName, at: Date())
+  }
+
+  private func updateSupervisorApplicationContext(
+    appName: String?, windowTitle: String? = nil, windowID: CGWindowID? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    let previousEpoch = SupervisorService.shared.contextEpoch
+    SupervisorService.shared.applicationContextChanged(
+      appName: appName, windowTitle: windowTitle, windowID: windowID,
+      authorizationSnapshot: authorizationSnapshot)
+    captureTrigger.invalidateSupervisorContext(
+      from: previousEpoch, to: SupervisorService.shared.contextEpoch)
+  }
+
+  private func makeSupervisorScreenUnavailable() {
+    let previousEpoch = SupervisorService.shared.contextEpoch
+    SupervisorService.shared.screenUnavailable()
+    captureTrigger.invalidateSupervisorContext(
+      from: previousEpoch, to: SupervisorService.shared.contextEpoch)
   }
 
   private func applyHeartbeatForApp() {
@@ -576,14 +595,14 @@ public class ProactiveAssistantsPlugin: NSObject {
       return
     }
     if let currentApp = currentApp, RewindSettings.shared.isAppExcluded(currentApp) {
-      SupervisorService.shared.screenUnavailable()
+      makeSupervisorScreenUnavailable()
       return
     }
 
     // Get current window info (use real app name, not cached)
     let (realAppName, windowTitle, windowID) = await WindowMonitor.getActiveWindowInfoAsync()
     guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-    SupervisorService.shared.applicationContextChanged(
+    updateSupervisorApplicationContext(
       appName: realAppName, windowTitle: windowTitle, windowID: windowID,
       authorizationSnapshot: authorizationSnapshot)
     var supervisorCaptureEpoch = SupervisorService.shared.contextEpoch
@@ -634,7 +653,7 @@ public class ProactiveAssistantsPlugin: NSObject {
     }
 
     if isRewindExcluded {
-      SupervisorService.shared.screenUnavailable()
+      makeSupervisorScreenUnavailable()
       return
     }
 
@@ -691,7 +710,7 @@ public class ProactiveAssistantsPlugin: NSObject {
         // whatever is currently active, which may differ from the earlier resolution.
         let (fallbackApp, fallbackTitle, fallbackID) = await WindowMonitor.getActiveWindowInfoAsync()
         guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-        SupervisorService.shared.applicationContextChanged(
+        updateSupervisorApplicationContext(
           appName: fallbackApp, windowTitle: fallbackTitle, windowID: fallbackID,
           authorizationSnapshot: authorizationSnapshot)
         if let fallbackApp = fallbackApp {
@@ -735,8 +754,10 @@ public class ProactiveAssistantsPlugin: NSObject {
             frame, authorizationSnapshot: authorizationSnapshot, visualHash: fullHash,
             applicationContextEpoch: supervisorCaptureEpoch)
         } else {
-          SupervisorService.shared.screenUnavailable()
+          makeSupervisorScreenUnavailable()
         }
+        captureTrigger.invalidateSupervisorContext(
+          from: supervisorCaptureEpoch, to: SupervisorService.shared.contextEpoch)
 
         // Pass CGImage directly to RewindIndexer (only if not excluded from Rewind).
         // Backpressure: skip this frame if the previous one is still being processed.
@@ -782,7 +803,7 @@ public class ProactiveAssistantsPlugin: NSObject {
       var resolvedApp = appName
       let (freshApp, freshTitle, freshID) = await WindowMonitor.getActiveWindowInfoAsync()
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
-      SupervisorService.shared.applicationContextChanged(
+      updateSupervisorApplicationContext(
         appName: freshApp, windowTitle: freshTitle, windowID: freshID,
         authorizationSnapshot: authorizationSnapshot)
       if let freshApp = freshApp {
@@ -818,8 +839,10 @@ public class ProactiveAssistantsPlugin: NSObject {
           visualHash: image.map { RewindOCRService.dHash(of: $0) },
           applicationContextEpoch: supervisorCaptureEpoch)
       } else {
-        SupervisorService.shared.screenUnavailable()
+        makeSupervisorScreenUnavailable()
       }
+      captureTrigger.invalidateSupervisorContext(
+        from: supervisorCaptureEpoch, to: SupervisorService.shared.contextEpoch)
 
       if !isRewindExcluded {
         if isProcessingRewindFrame {

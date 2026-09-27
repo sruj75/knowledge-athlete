@@ -17,7 +17,7 @@ extension ProactiveAssistantsPlugin {
   }
 
   func systemIdleSeconds() -> TimeInterval {
-    TimeInterval(CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .null))
+    SystemInputIdleClock.seconds()
   }
 
   func sendEvent(type: String, data: [String: Any]) {

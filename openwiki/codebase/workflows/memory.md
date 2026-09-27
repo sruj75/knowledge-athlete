@@ -3,9 +3,6 @@ type: Codebase guide
 title: Memory lifecycle
 description: Trace intake, normalization, revision/owner fencing, embedding and local retrieval with tests.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
 sources:
   - id: openwiki-source-62abf112d5ded48560527143
     resource: repo://backend/routers/memory_compute.py
@@ -22,6 +19,9 @@ sources:
   - id: openwiki-source-c40e9e241b6526aaeb39d5dc
     resource: repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml
 generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T19:56:49.848Z
 ---
 # Memory lifecycle
 

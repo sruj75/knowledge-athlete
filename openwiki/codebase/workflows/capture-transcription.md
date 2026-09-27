@@ -28,6 +28,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel%2BSteps.swift
   - id: openwiki-source-ba8b351f307e1bdf1eb75789
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
+  - id: openwiki-source-422845293f0448d19afeded2
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemInputIdleClock.swift
+  - id: openwiki-source-577b743ef6d29a4ab11ce6a1
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift
   - id: openwiki-source-fa25afaba6337b7634ae58d1
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift
   - id: openwiki-source-a0fab1458953c2a806bb3e77
@@ -46,10 +50,12 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift
   - id: openwiki-source-c5914c9070f6356327633f39
     resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
-generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
+  - id: openwiki-source-43a148583c684bbc3904c51c
+    resource: repo://desktop/macos/Desktop/Tests/SystemInputIdleClockTests.swift
+generated: { by: "codex", at: "2026-09-27T19:56:49.848Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T18:21:54.828Z
+    at: 2026-09-27T19:56:49.848Z
 ---
 # Capture and transcription
 
@@ -90,6 +96,8 @@ Accepted ambient batches also reach [B's supervisor](supervisor-conversation.md)
 Capture callbacks attach monotonic host-clock intervals to 16 kHz PCM. The mixer and local/cloud transcription producers retain bounded sidecar timelines mapping provider-relative offsets back to capture time. Cloud reconnects reset the producer identity and timeline so delayed segments cannot be assigned to a different stream. Missing or retired spans remain unmappable rather than acquiring a guessed timestamp.
 
 Direct A–C input/playback intervals take precedence in B. Ambient segments overlapping those intervals, or lacking a valid capture mapping, are excluded from B only. Delayed corrections are checked again; an unmappable correction removes the older admitted version. This conservative first version may omit unrelated background speech during a voice turn. It does not pause ambient capture, rewrite transcription or remove archive records.
+
+The sixty-second screen-capture idle pause measures the last physical keyboard, mouse or tablet event through `SystemInputIdleClock`. It queries Quartz's any-input event selector on the HID source; null events have a separate clock and do not establish user inactivity. The clock regression supplies a recent physical-input time alongside an old null-event time and checks the real capture trigger. Genuine inactivity still pauses capture.
 
 Screen capture continues through the existing permission, exclusion, owner and change-detection gates. App/window identity changes invalidate B's current context before capture starts. Both normal and fallback capture paths carry that epoch, so a late image cannot restore a departed application's context. A permitted changed frame schedules observation; capture storage and independent enrichment retain their own owners.
 

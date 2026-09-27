@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:3aac77a1025bd561ccdf1fca28888d480172d195c52c432de6bea7836ad3a8b2",
+  "pageVersion": "sha256:54df53101cacbec8cd9e6f6a926438197ce27992969e0dc04e6ae14e6a372395",
   "claims": [
     {
       "id": "claim_99203f0f8d854aa48cc2bf6b841ecff6",
@@ -101,10 +101,36 @@
           "version": "repo-lines-v1:sha256:0599d49bf249236bde71b054d372b1b9fc13a1b2cc3c583e38107871b5327d3d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2ZmViNzZiNjY5MzIyOTQ1NDEyMDJhYmZiMjM0MmY5NzkwMDFhZTNiZDA1ZDk4N2Q2MjBmM2FjZjlhMjRmYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZiNTI3ZDgzMWQ5YTE1ZDYyNDM2N2RiMGVkNjQ1ZjFkNWJmMDE5NTRlMTBhMjM3YjM2ZmJiYjg4ZmJiNzA2YTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
         }
       ]
+    },
+    {
+      "id": "claim_89718ebba5dd44e48988de81b85dc8cf",
+      "statement": "Capture-plugin app/window and screen-revocation epoch changes, as well as epoch-rejected completed captures, invalidate obsolete capture deduplication while preserving app-switch settling, idle/privacy gates and independent Rewind writes.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift#L254-L289",
+          "version": "repo-lines-v1:sha256:21a7e7508c7b5c910270853e40291fbc0925aa71025f925ebfac6841bcaf8907:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjNjFjNWZlNDcxMDcxNmM2NWRjYTQ0NWQxODQxNGU2YTA1YjExZjQ0NjkwZTM5NmFlYWQyNTc0ODg1MDI5YzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyNzY1MDg2ODZiOWZhNTNjNjNjNGM3ZTAxMGYxNjg1ZTJhOTY1NzAxOWZjNzBiZTZkMDQxOGVlNzE3NDI1OTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkYjE0OWM0NjMzZWU2ZjhkNTgxY2E2NjRmMGQzNmFkNTg3ZGVhOTVlOWU2N2RmNzEzMzgwNjIyMmI4N2ZkN2YifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L499-L537",
+          "version": "repo-lines-v1:sha256:cd6ee6c365bbb163c8a6ec56d142ef8931483124bcfcec04efb7b582983f6800:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3NTFjNTdlMmJhM2U3MDNmYmVlN2ZlNWJhMmE2MjQ2MjQxYjM2NjAzNjcwMDU2YjBhZWQ1ZTI3Yjc1MjhlNGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYxOWQ0MmE1NTNlYTU1NjA5MmRmNmU0ZGMwNjk1ODcyMDM1Y2Y2OGJiNmM0OGY4MGNmYjFlODAzZTY0NjhhYTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyMDAzMzQxN2ExMjIxNTEyNDAwZGNhMGFlZWUyMzZmYzM2YjI0MWU3NWViNTMxMjUwNzZlYmMxNGRjZDk0MmUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L738-L784",
+          "version": "repo-lines-v1:sha256:2d444492842279d1bb2fff0dd203d33aeee7b91861042215053ae9a5bd4c1cdd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNjQ4NjgwYzE3NTkxOTk4MGM0YmY3ODViNDQ5OGM3MDM2YWI1ODU5NWFjZGFiMjA2ZDg0ZGE5Njk0YmE2NDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2ZTI0YjdlZDkwNWRmYzQ2M2FiODBjYjAzOTc3MTNjOTM4YWY4MWY3OTQ3MzA4Mjg3MDA3NTRmNDM3Y2E3ODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3MjEzOGVmNWVmYzIwZTY5YmZhZDJkOGVhYWQyNTMzYzE3NTU4YzRlYjAzNWI3NTc0MGYzZjllNDVhZDdhNDAifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L823-L866",
+          "version": "repo-lines-v1:sha256:5ebc2d411497f94bb6db137f1ab9feefe8b08e3fb7a9f564dc5f479e441f3d12:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzZTYwNDExMWI5MGIyMGQzZTQ5Yzc2YWFmOTQzZjczZDRhZGIwMjEwMDc1MzEzOThhZTFiNmVjYjI5NWVmNWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc3MDJlY2Q0ZGFhZjliZjc5MTIyZTQzMzQzY2ZjN2U1NjEwYjZmY2U2MWI3MWQ2NmUwOTlkNjQ0ZTNlZmVjODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4NzJlOGIwNDM1N2FhM2QzNjJkN2JiNjA0NzFkYWE0ZTMyOTNmYTFiZWFkNzFhY2Q3OWI4YWZlNzU3NDkwNmIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ProactiveAssistantOrchestrationPolicyTests.swift#L381-L467",
+          "version": "repo-lines-v1:sha256:69a5994eb7cd91d06e2bb834efec3f882ac8f14d8bfa0b4f727889411e375601:eyJzZWxlY3RlZExpbmVDb3VudCI6ODcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1NDdiOTQyYzdkYTYxODI5OGVlMzExMzNiM2FhNDMwYjkzNjcwYWY3NDk1MzY3ODZlZTAwMGNiNTZhZTJjNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmYmQyNGQzOGQ4YTgzYzNjMTNmMmNlZjAzZjYwNjI2YzE0ZGUyMjIyOTY3YTYwNzYzNDI2YjQ5OTkyODVlNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4N2I2NjU4MGE5MGViM2Y3NTA2NGZkOTRmMTk4ZTI1YWNmYjc5YjY1M2RjNWU0ZDRiNGYyOWY0YTI1OTQ1MmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4Y2QwMmU4NTk0YzI2YzA5MTljZTA1OGJiYmJjZGE1NWJlMjM5MjA5YmY0YjVlZGVkZDlkMWVlNmY5MGViZTIifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T18:59:28.091Z"
+    "at": "2026-09-27T19:56:49.848Z"
   }
 }

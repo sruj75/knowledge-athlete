@@ -378,6 +378,86 @@ final class ProactiveAssistantOrchestrationPolicyTests: XCTestCase {
     XCTAssertTrue(trigger.shouldSkipPreview(0x1234, similarityThreshold: 0.92))
   }
 
+  func testSupervisorContextReturnRecapturesIdenticalPageAfterAppSwitchSettles() {
+    let now = Date(timeIntervalSinceReferenceDate: 9_100)
+    var trigger = ProactiveCaptureTrigger(idleThreshold: 60, heartbeatInterval: 3)
+    trigger.markCaptured(app: "Browser", windowTitle: "Document", at: now, frameHash: 0x1234)
+
+    // The excluded app produces no capture, so the trigger still remembers Browser.
+    trigger.invalidateSupervisorContext(from: 1, to: 2)
+    trigger.requestAppSwitchCapture(app: "Browser", at: now.addingTimeInterval(1))
+    // Resolving the returned window must keep the pending activation debounce.
+    trigger.invalidateSupervisorContext(from: 2, to: 3)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(1.1)),
+      .skip)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(1.6)),
+      .capture)
+    XCTAssertFalse(trigger.shouldSkipPreview(0x1234, similarityThreshold: 0.90))
+  }
+
+  func testSupervisorWindowIdentityAndCosmeticTitleChangesRequireFreshPixels() {
+    let now = Date(timeIntervalSinceReferenceDate: 9_200)
+    for nextTitle in ["Document", "Document (2)"] {
+      var trigger = ProactiveCaptureTrigger(idleThreshold: 60, heartbeatInterval: 3)
+      trigger.markCaptured(app: "Browser", windowTitle: "Document", at: now, frameHash: 0x1234)
+      // B fences window IDs and raw titles even when capture's normalized title is unchanged.
+      trigger.invalidateSupervisorContext(from: 1, to: 2)
+      XCTAssertEqual(
+        trigger.nextDecision(
+          app: "Browser", windowTitle: nextTitle, idleSeconds: 0, now: now.addingTimeInterval(1)),
+        .capture)
+    }
+  }
+
+  func testSupervisorRejectedCaptureDoesNotSeedPermanentPreviewSuppression() {
+    let now = Date(timeIntervalSinceReferenceDate: 9_300)
+    var trigger = ProactiveCaptureTrigger(idleThreshold: 60, heartbeatInterval: 3)
+    // Rewind can retain the completed capture while B rejects its departed context epoch.
+    trigger.markCaptured(app: "Browser", windowTitle: "Document", at: now, frameHash: 0x1234)
+    trigger.invalidateSupervisorContext(from: 1, to: 2)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(1)),
+      .capture)
+    XCTAssertFalse(trigger.shouldSkipPreview(0x1234, similarityThreshold: 0.90))
+  }
+
+  func testUnchangedSupervisorContextPreservesPreviewDeduplication() {
+    let now = Date(timeIntervalSinceReferenceDate: 9_400)
+    var trigger = ProactiveCaptureTrigger(idleThreshold: 60, heartbeatInterval: 3)
+    trigger.markCaptured(app: "Browser", windowTitle: "Document", at: now, frameHash: 0x1234)
+    trigger.invalidateSupervisorContext(from: 2, to: 2)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(1)),
+      .skip)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(3)),
+      .preview)
+    XCTAssertTrue(trigger.shouldSkipPreview(0x1234, similarityThreshold: 0.90))
+  }
+
+  func testSupervisorPrivacyRevocationRecapturesOnlyAfterActivityResumes() {
+    let now = Date(timeIntervalSinceReferenceDate: 9_500)
+    var trigger = ProactiveCaptureTrigger(idleThreshold: 60, heartbeatInterval: 3)
+    trigger.markCaptured(app: "Browser", windowTitle: "Document", at: now, frameHash: 0x1234)
+    // Excluding the current app revokes B's image without an app-switch event.
+    trigger.invalidateSupervisorContext(from: 1, to: 2)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 60, now: now.addingTimeInterval(60)),
+      .skip)
+    XCTAssertEqual(
+      trigger.nextDecision(
+        app: "Browser", windowTitle: "Document", idleSeconds: 0, now: now.addingTimeInterval(61)),
+      .capture)
+  }
+
   func testCaptureTriggerStretchesHeartbeatForStaticScreens() {
     let now = Date(timeIntervalSinceReferenceDate: 9_000)
     var trigger = ProactiveCaptureTrigger(

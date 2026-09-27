@@ -22,14 +22,20 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
   - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
+  - id: openwiki-source-14bf8dc2566284e843496189
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
+  - id: openwiki-source-577b743ef6d29a4ab11ce6a1
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-6e7c96ad2c3b57bb1ecbf498
     resource: repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
-generated: { by: "codex", at: "2026-09-27T18:59:28.091Z" }
+  - id: openwiki-source-ca6b9c6b19a187c27a76cfd2
+    resource: repo://desktop/macos/Desktop/Tests/ProactiveAssistantOrchestrationPolicyTests.swift
+generated: { by: "codex", at: "2026-09-27T19:56:49.848Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T18:59:28.091Z
+    at: 2026-09-27T19:56:49.848Z
 ---
 # Supervisor conversation
 
@@ -57,6 +63,8 @@ flowchart LR
 `SupervisorService` is bound to a `RuntimeOwnerAuthorizationSnapshot`, logical session and application-context epoch. It keeps the latest permitted frame, app/window identity and capture time; up to 24 ambient segments from the last 120 seconds; and up to 16 direct conversation entries with terminal outcomes. Each evaluation reads up to twenty existing Memories and the latest profile through the same local authorities used by Chat. Empty reads are valid. B neither generates profiles nor invokes semantic search.
 
 The capture plugin retains its existing permission, application exclusion, change detection and Rewind fan-out. A changed screen hash, settled app/window context, accepted transcript change or direct exchange marks the observation dirty. The scheduler coalesces for three seconds, admits one request at a time and keeps only the latest pending view. Same-context updates do not starve the in-flight interpretation; app/window, privacy, owner and session changes revoke its authority. Capture paths pin the context epoch before asynchronous work, including retry and older-macOS fallback paths.
+
+When the capture plugin changes B's app/window context or revokes its screen, it also clears obsolete capture deduplication if the context epoch changed. Pending app-switch settling is preserved. Returning to identical pixels can therefore acquire a new permitted frame instead of leaving B without an image. A capture rejected for an obsolete epoch similarly resets deduplication after completion; it cannot restore the old context, and the independent Rewind write remains in place. Unchanged valid context keeps normal preview suppression. The capture trigger regressions cover returned windows, raw-title/window-identity changes, rejected captures, privacy revocation, idle gating and unchanged-screen deduplication.
 
 Ambient corrections replace entries by session, producer and segment identity. Monotonic PCM sidecars map local/cloud decoder offsets back to capture intervals, including new producer identities after reconnect. Direct A–C capture/playback takes precedence: overlapping or unmappable segments are excluded from B only. Ambient recording, the live transcript and archive remain unchanged. This conservative suppression can omit unrelated speech during an A–C turn. See [capture and transcription](capture-transcription.md).
 

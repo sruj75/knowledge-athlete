@@ -20,6 +20,7 @@ covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryExtractionModels.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ScreenCaptureTargetPolicy.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemCaptureModeProbe.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemInputIdleClock.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/CapturedFrame.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveExternalCaptureYield.swift
@@ -81,3 +82,7 @@ steps:
       interactive_count: { min: 5 }
       text_visible:
         - Home
+
+  - id: S8
+    name: Resume capture after physical input and a context change
+    do: "On the named development bundle, leave the Mac idle for at least sixty seconds, then physically click or type in a permitted synthetic document. Verify a fresh frame reaches local Rewind after activity resumes. Switch to an excluded app and return to the same unchanged document; verify B receives fresh permitted screen evidence even when the pixels match the earlier frame. Repeat with two windows having the same title. Keep privacy exclusions and the idle pause enabled."

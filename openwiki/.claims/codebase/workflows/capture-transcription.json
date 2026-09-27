@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8cf90154b3025a879ef1e0db4395c01d921a0245e8f0ce10b27b18a724e17a96",
+  "pageVersion": "sha256:a312ed9db62222274e77c228222e6a7d9dc4d4e50bd26b115d8bc65352170593",
   "claims": [
     {
       "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
@@ -223,10 +223,28 @@
           "version": "repo-lines-v1:sha256:e468ec06da12c7ba8f88964c99b84aac6e622c9aae8c512b4505a6ff2cb95077:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiNTA4NDdkNzM3ZDc3ZGU1ODkxZTgyOTkxNDU0NjM2NTYwODAxOTMzZmVkMWM1ODExZjBhNThiMGE1NDg5NzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk0MWRjOWFmZDJhMjdhM2IwZWJkYjNjMzEyNmJmOTAzNjZjMjNjZWVhMDljM2U1YmE4YTI2NTgwYzNmZjRjZjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjExOGM2MGIwYTYzODgwNzY1MWMyMGYyZTk2YTkxMGY1NjVkN2QzZWI3ZjM5N2JhM2YxZTc2NTA4ZWViZDAzNWIifQ"
         }
       ]
+    },
+    {
+      "id": "claim_06e5976cd32848caade3e79ca56a9d82",
+      "statement": "The screen-capture idle gate uses the HID any-input event clock rather than the null-event clock, allowing recent physical input to resume capture while preserving the sixty-second inactivity pause.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemInputIdleClock.swift#L4-L16",
+          "version": "repo-lines-v1:sha256:bb23e1c9801f699779655d4af57d989fd2f7613d1b94a53ba44b849e4d235d61:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhNWFlYTUyOTdiMGI1M2MwNjA1YTdhYjZlMzFkNTJiZGExNmVlYTY0MGE3MjJjNzVhN2JjNWFkMzM4MjVkOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRkYmUxODA2NjUyZmM0YzBiMTYyZGQzM2UwYzJjZGExZjVkYTZkZmM4ZWRkODMzZGZlMDY1YTc1NDNkZmM5NzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L592-L599",
+          "version": "repo-lines-v1:sha256:cd23f49202d202e8adfdda34d79989d36be4fda74671be1a74ef6b75a9870fe4:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWE0NzIwOGYyNjc3YmEyNDgxNjg4MGU5OTFkYjA5NTI4MDQ4Y2I0YWFkMmIxM2NjZDYzMTg1MWRkMTdlNjJjOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZkMTc0MDlmYjM5NjEzYTc5ZTU4NjJmMDQ1MjY2NjUxOTA3MTM3NWYxZTM0ZTQ1ZDYxYzQ4MGE0Njk3MTFiOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNmQ5N2ZmYTA3YjcwOTFjOTE4N2RlYjQxMDJjYmEyY2Q5MjNlYjUwYjY4MDQ5NDc3MTE3ZDk3MWM4YmNhMTlkZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjUzMDUzNmQ1ZTZmZTNlN2Y1Nzg2NmJjMjcwMTU4M2JhY2M0Y2Q0YmIxNjM5Y2NjOGRlNTY0NGJiMTFmZTk4ZCJ9"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SystemInputIdleClockTests.swift#L6-L41",
+          "version": "repo-lines-v1:sha256:8dc1d3abb06814241e6d3c420a3ba76568405012f177f141ff63a748dd52e711:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2MWFmMTdmZjBiNDRkMTQyNjVjNDNhMzc0MmE4NTViODM5MTY2NDg1ODVhZTFiMzdkYjJiNzJlNjVkNTZjYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlYWE0OGFjZWFhZGQ1N2RhODhlZTFlZTc4NzA1YTk4MjdiYTNiOTA5ZmM3ZWFjYTA0NGQ2MDliN2FhZDZmOWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T18:21:54.828Z"
+    "at": "2026-09-27T19:56:49.848Z"
   }
 }
