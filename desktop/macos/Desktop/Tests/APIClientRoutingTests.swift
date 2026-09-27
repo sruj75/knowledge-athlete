@@ -497,6 +497,43 @@ final class APIClientRoutingTests: XCTestCase {
     super.tearDown()
   }
 
+  @MainActor
+  func testAIEndpointsUseCanonicalPathsWithTrailingSlashBaseURL() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "ai-routing-owner")
+    addTeardownBlock { await fixture.restore() }
+    let authorization = try XCTUnwrap(
+      RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: "ai-routing-owner"))
+    let config = URLSessionConfiguration.ephemeral
+    config.protocolClasses = [URLCapture.self]
+    let client = APIClient(session: URLSession(configuration: config))
+    await client.setTestAuthHeader("Bearer test-token")
+    let baseURL = await client.baseURL
+    XCTAssertEqual(baseURL, "http://canonical-test:9001/", "Exercise the configured base URL's trailing slash")
+    URLCapture.setResponse(
+      statusCode: 200,
+      body: Data(
+        #"{"decision_id":"decision","observation_id":"observation","session_id":"session","context_epoch":1,"action":"wait","note":null,"prompt":{"text":"","name":"intentive-supervisor-system","version":"test","source":"fallback"},"outcome":"completed"}"#
+          .utf8))
+    let response = try await client.evaluateSupervisor(
+      request: .init(
+        observationID: "observation", sessionID: "session", contextEpoch: 1, screen: nil,
+        transcripts: [], conversation: [], memories: [], profile: "", evaluationSharing: false),
+      authorizationSnapshot: authorization)
+    XCTAssertEqual(response.action, .wait)
+    assertCapturedPath("/v1/supervisor/evaluate")
+    XCTAssertEqual(URLCapture.capturedRequests.first?.method, "POST")
+
+    URLCapture.reset()
+    URLCapture.setResponse(statusCode: 204, body: Data())
+    try await client.submitAIObservation(
+      .score(sessionID: "session", turnID: "turn", decisionID: nil, value: 1),
+      authorizationSnapshot: authorization, permitsContent: { false })
+    assertCapturedPath("/v1/ai/observations")
+    XCTAssertEqual(URLCapture.capturedRequests.first?.method, "POST")
+    XCTAssertTrue(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
+  }
+
   func testManagedRequestsNeverEmitLegacyCustomerKeys() async throws {
     let legacyKeys = [
       (storage: "dev_openai_api_key", header: "X-BYOK-OpenAI"),

@@ -6,7 +6,7 @@ extension APIClient {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> SupervisorEvaluationResponse {
     try await post(
-      "/v1/supervisor/evaluate", body: request, authorizationSnapshot: authorizationSnapshot)
+      "v1/supervisor/evaluate", body: request, authorizationSnapshot: authorizationSnapshot)
   }
 
   /// Best-effort telemetry never refreshes authentication, invalidates login or
@@ -19,7 +19,7 @@ extension APIClient {
   ) async throws {
     let policy = RequestAuthPolicy.ownerBound(authorizationSnapshot)
     try validateExpectedOwner(policy)
-    guard let url = URL(string: baseURL + "/v1/ai/observations") else { throw APIError.invalidResponse }
+    guard let url = URL(string: baseURL + "v1/ai/observations") else { throw APIError.invalidResponse }
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.timeoutInterval = 10

@@ -26,15 +26,14 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-6e7c96ad2c3b57bb1ecbf498
     resource: repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
-generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
+generated: { by: "codex", at: "2026-09-27T18:59:28.091Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T18:21:54.828Z
+    at: 2026-09-27T18:59:28.091Z
 ---
 # Supervisor conversation
 
-<!-- openwiki: broken internal link [../../INSTRUCTIONS.md#first-a–b–c-interaction-decision] heading anchor "first-a–b–c-interaction-decision" does not exist in "../../INSTRUCTIONS.md". Fix the href or restore the target, then delete this comment. -->
-C is the person working, A is Intentive's native Gemini Live conversation, and B is the private supervisor. One complete interaction is: permitted screen/transcript evidence reaches B; B returns private guidance; A speaks through the existing voice owner; C replies or interrupts using PTT; B receives that exchange and its playback outcome. The [authored decision](../../INSTRUCTIONS.md#first-a–b–c-interaction-decision) defines the product scope. This page describes its implementation.
+C is the person working, A is Intentive's native Gemini Live conversation, and B is the private supervisor. One complete interaction is: permitted screen/transcript evidence reaches B; B returns private guidance; A speaks through the existing voice owner; C replies or interrupts using PTT; B receives that exchange and its playback outcome. The [authored decision](../../INSTRUCTIONS.md#first-abc-interaction-decision) defines the product scope. This page describes its implementation.
 
 ```mermaid
 flowchart LR

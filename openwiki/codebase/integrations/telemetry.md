@@ -5,7 +5,7 @@ description: Explain PostHog, Sentry, Langfuse and fallback logging without inve
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-09-27T18:59:28.091Z
 sources:
   - id: openwiki-source-cf1f9de8bf8d48d97d4711c9
     resource: repo://backend/tests/unit/test_posthog_telemetry.py
@@ -25,13 +25,17 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
   - id: openwiki-source-0f0462a4bfd1de02ce1949b1
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift
+  - id: openwiki-source-88c3ed3955da0f57bcfd5d9f
+    resource: repo://desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift
   - id: openwiki-source-e711d9b61bda7bb73f34522f
     resource: repo://desktop/macos/Desktop/Sources/Observability/SentryBeforeSendPolicy.swift
   - id: openwiki-source-c2b1bb99ebb64c26ca0bc0e2
     resource: repo://desktop/macos/Desktop/Sources/Privacy/ProductAnalyticsConsentController.swift
   - id: openwiki-source-c8eeff499a30efe076e6b5cf
     resource: repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+  - id: openwiki-source-abb5b57da8acacb3c7b68515
+    resource: repo://desktop/macos/Desktop/Tests/APIClientRoutingTests.swift
+generated: { by: "codex", at: "2026-09-27T18:59:28.091Z" }
 ---
 # Telemetry and privacy boundaries
 
@@ -53,7 +57,7 @@ The [authored privacy and product constraints](../../INSTRUCTIONS.md#product-con
 
 Normal sessions send only identifiers, prompt names/versions/sources, timings, counts, outcomes and scores. The session-scoped **evaluation sharing** control starts off and is not persisted. Selecting a disposable test session permits bounded conversation and guidance text through the typed `/v1/ai/observations` intake. The export model has no fields for raw audio, screenshots, copied Memory/profile context, credentials or tool payloads. Backend Chat provider input/output tracing is metadata only even in selected sessions; reviewed Chat text comes from canonical journal acceptance on the Mac.
 
-`AIEvaluationReporter` captures an owner and consent ticket at turn/evaluation admission. Tickets include a session and consent epoch. Disabling sharing cancels pending exports; an off/on transition cannot release text captured under the old ticket. Session end or owner revocation resets sharing and receipts. The API client rechecks authority and consent after asynchronous token lookup, immediately before encoding the wire body. Its best-effort request has no automatic replay, authentication refresh or sign-out on failure.
+`AIEvaluationReporter` captures an owner and consent ticket at turn/evaluation admission. Tickets include a session and consent epoch. Disabling sharing cancels pending exports; an off/on transition cannot release text captured under the old ticket. Session end or owner revocation resets sharing and receipts. The API client rechecks authority and consent after asynchronous token lookup, immediately before encoding the wire body. Supervisor and observation routes use paths relative to the canonical trailing-slash backend URL; `APIClientRoutingTests` checks the actual resulting POST paths. Its best-effort request has no automatic replay, authentication refresh or sign-out on failure.
 
 B's backend generation uses an owner/session/decision trace ID and records the observation ID and B prompt version without observation text. A's terminal receipt joins the same decision trace with its turn ID, physical-session A prompt receipt and actual playback outcome. Helpful/unhelpful controls on the resulting message attach a Boolean score to that trace. Unguided A turns use their own trace identity.
 
