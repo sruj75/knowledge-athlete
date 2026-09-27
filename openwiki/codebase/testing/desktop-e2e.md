@@ -3,10 +3,9 @@ type: Codebase guide
 title: Desktop end-to-end verification
 description: Explain named bundles, flow inventory, tiers, source identity and physical versus synthetic evidence.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
 sources:
+  - id: openwiki-source-276b6bd5d516d3e8277c2462
+    resource: repo://backend/tests/unit/test_voice_provider_probe.py
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
   - id: openwiki-source-c8eeff499a30efe076e6b5cf
@@ -17,6 +16,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/OnboardingSkipBehaviorTests.swift
   - id: openwiki-source-2fd985b3fe67bf34e47b6cf5
     resource: repo://desktop/macos/Desktop/Tests/PersistedCaptureLaunchPolicyTests.swift
+  - id: openwiki-source-0adbb8127cc707067b3adf30
+    resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
   - id: openwiki-source-6381aced3f5b7d306db135b9
     resource: repo://desktop/macos/Desktop/Tests/SupervisorAudioTimelineTests.swift
   - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
@@ -39,7 +40,12 @@ sources:
     resource: repo://desktop/macos/scripts/omi-ctl
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+  - id: openwiki-source-5f82b394f0fb8c8ef82a6f25
+    resource: repo://scripts/voice-provider-probe.sh
+generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T20:28:49.985Z
 ---
 # Desktop end-to-end verification
 
@@ -87,6 +93,8 @@ Run affected XCTest suites in separate processes, for example `xcrun swift test 
 ## Supervisor conversation coverage
 
 `SupervisorServiceTests` drives the real coordinator with controlled observations and inference completions: corrected segments, echo precedence, empty context, owner/app revocation, single-flight/latest-input behavior, stale guidance and quota pause. `SupervisorAudioTimelineTests` checks stream-to-capture mapping, missing spans and clock/reconnect boundaries. Voice reducer/coordinator and Live input lifecycle tests prove genuine no-microphone supervisor admission, private text transport, warm boundaries, assistant-only journal behavior, PTT priority and no automatic replay after ambiguous failure.
+
+`RealtimeHubSessionInputLifecycleTests` also drives real controller admission through a controllable raw transport and its `setupComplete` event. It verifies provider rejection produces a bounded diagnostic and terminal failure without replay. Separate wire tests require one standalone text message for supervisor and post-tool turns; microphone activity markers remain part of PTT. The direct provider probe uses the same text-only request contract. These checks do not establish physical playback.
 
 `AIEvaluationExportTests` checks the bounded export representation and consent epochs. `APIClientAuthRetryTests` additionally drives actual observation requests while token lookup is suspended: off/on revocation removes queued Chat/B text, and a telemetry 401 neither retries nor signs out. These tests exercise implementation boundaries without proving audible output or natural microphone acquisition.
 

@@ -7,6 +7,49 @@ struct SessionCallbackBox<T>: @unchecked Sendable {
   init(_ value: T) { self.value = value }
 }
 
+enum RealtimeSupervisorFailureStage: String {
+  case admission
+  case text
+  case providerEvent = "provider_event"
+}
+
+enum RealtimeSupervisorFailureDiagnostics {
+  /// Provider reasons may echo private guidance. Only fixed stages, bounded
+  /// transport classifications and Boolean admission facts leave this boundary.
+  static func record(
+    stage: RealtimeSupervisorFailureStage,
+    failure: RealtimeHubTransportFailure? = nil,
+    transportOpen: Bool? = nil,
+    activityOpen: Bool? = nil,
+    responsePending: Bool? = nil,
+    supervisorAttempted: Bool? = nil,
+    identityMatches: Bool? = nil
+  ) {
+    let kind = failure?.kind.rawValue ?? "local_state"
+    let domain: String
+    switch failure?.systemDomain {
+    case "posix", "network", "url", "other": domain = failure?.systemDomain ?? "none"
+    case nil: domain = "none"
+    default: domain = "other"
+    }
+    var properties: [String: Any] = [
+      "supervisor_stage": stage.rawValue, "failure_kind": kind, "system_domain": domain,
+    ]
+    properties["system_code"] = failure?.systemCode
+    properties["transport_open"] = transportOpen
+    properties["activity_open"] = activityOpen
+    properties["response_pending"] = responsePending
+    properties["supervisor_attempted"] = supervisorAttempted
+    properties["identity_matches"] = identityMatches
+    DesktopDiagnosticsManager.shared.recordFallback(
+      area: "realtime_hub", from: "supervisor", to: "none", reason: "transport_error",
+      outcome: .exhausted, extra: properties)
+    log(
+      "RealtimeHub: supervisor failure stage=\(stage.rawValue) kind=\(kind) "
+        + "domain=\(domain) code=\(failure?.systemCode.map(String.init) ?? "none")")
+  }
+}
+
 enum RealtimePostToolContinuationStartResult: Equatable {
   case started
   case alreadyInFlight

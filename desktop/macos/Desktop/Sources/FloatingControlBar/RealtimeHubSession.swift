@@ -381,22 +381,31 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
           continuation.resume(returning: false)
           return
         }
-        self.send(json: self.textInputWire(text)) { error in
+        self.send(json: Self.textInputWire(text)) { error in
           continuation.resume(returning: error == nil)
         }
       }
     }
   }
 
-  /// A private supervisor note creates one owned spoken response, never a buffered
-  /// microphone turn. Once any wire may have reached the provider this session
+  /// Native text input requests one spoken response directly. Activity markers
+  /// delimit audio input and must not bracket a text-only turn. Once any wire may
+  /// have reached the provider this session
   /// must not replay the intervention, even after an ambiguous send failure.
   func sendSupervisorTurn(_ text: String, identity: RealtimeHubEventIdentity) async -> Bool {
     await withCheckedContinuation { continuation in
       q.async { [weak self] in
-        guard let self, self.isOpen, !self.activityOpen, !self.geminiResponsePending,
+        guard let self else {
+          RealtimeSupervisorFailureDiagnostics.record(stage: .admission)
+          continuation.resume(returning: false)
+          return
+        }
+        guard self.isOpen, !self.activityOpen, !self.geminiResponsePending,
           !self.supervisorTurnAttempted
         else {
+          RealtimeSupervisorFailureDiagnostics.record(
+            stage: .admission, transportOpen: self.isOpen, activityOpen: self.activityOpen,
+            responsePending: self.geminiResponsePending, supervisorAttempted: self.supervisorTurnAttempted)
           continuation.resume(returning: false)
           return
         }
@@ -405,20 +414,17 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
         self.completedGeminiEventIdentity = nil
         self.resetTurnUsage()
         self.geminiResponsePending = true
-        self.send(json: ["realtimeInput": ["activityStart": [:]]]) { error in
-          guard error == nil, self.isOpen, self.activeEventIdentity == identity else {
-            continuation.resume(returning: false)
-            return
+        self.send(json: Self.textInputWire(text)) { error in
+          let identityMatches = self.activeEventIdentity == identity
+          let sent = error == nil && self.isOpen && identityMatches
+          if !sent {
+            RealtimeSupervisorFailureDiagnostics.record(
+              stage: .text, failure: error.map { .system($0, phase: .send) },
+              transportOpen: self.isOpen, activityOpen: self.activityOpen,
+              responsePending: self.geminiResponsePending, supervisorAttempted: self.supervisorTurnAttempted,
+              identityMatches: identityMatches)
           }
-          self.send(json: ["realtimeInput": ["text": text]]) { error in
-            guard error == nil, self.isOpen, self.activeEventIdentity == identity else {
-              continuation.resume(returning: false)
-              return
-            }
-            self.send(json: ["realtimeInput": ["activityEnd": [:]]]) { error in
-              continuation.resume(returning: error == nil)
-            }
-          }
+          continuation.resume(returning: sent)
         }
       }
     }
@@ -463,11 +469,9 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
 
       self.postToolContinuationAttempted = true
       self.completedGeminiEventIdentity = nil
-      self.activityOpen = true
       for wire in Self.geminiPostToolContinuationWires() {
         self.send(json: wire)
       }
-      self.activityOpen = false
       self.geminiResponsePending = true
       log("\(self.tag): requested explicit Gemini post-tool continuation")
       completionBox.value(.started)
@@ -479,11 +483,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     + "Now give the concise, natural spoken answer to that same request using the tool result already provided."
 
   static func geminiPostToolContinuationWires() -> [[String: Any]] {
-    [
-      ["realtimeInput": ["activityStart": [:]]],
-      ["realtimeInput": ["text": geminiPostToolContinuationInstruction]],
-      ["realtimeInput": ["activityEnd": [:]]],
-    ]
+    [textInputWire(geminiPostToolContinuationInstruction)]
   }
 
   private func sendTextInput(_ text: String, logLabel: String) async -> Bool {
@@ -524,15 +524,14 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     }
   }
 
-  /// Gemini wire form of a user text-input message. Shared by the buffered
-  /// PTT path (`sendTextInputNow`) and the confirmed, non-buffering background
-  /// path (`sendBackgroundAgentContext`).
-  private func textInputWire(_ text: String) -> [String: Any] {
+  /// Native text requests a response when sent alone. PTT can also append this
+  /// text as context inside its existing audio activity window.
+  private static func textInputWire(_ text: String) -> [String: Any] {
     ["realtimeInput": ["text": text]]
   }
 
   private func sendTextInputNow(_ text: String, logLabel: String) {
-    send(json: textInputWire(text))
+    send(json: Self.textInputWire(text))
     log("\(tag): \(logLabel) sent (\(text.count) chars)")
   }
 

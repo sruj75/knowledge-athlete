@@ -392,9 +392,8 @@ def run_probe(config: ProbeConfig) -> int:
         _emit("connect", "PASS", "none")
         try:
             current_step = "commit"
-            websocket.send_json({"realtimeInput": {"activityStart": {}}})
+            # Standalone text commits directly; activity markers are for manual audio.
             websocket.send_json({"realtimeInput": {"text": PROBE_INPUT}})
-            websocket.send_json({"realtimeInput": {"activityEnd": {}}})
             _emit("commit", "PASS", "none")
             current_step = "response"
             _receive_until(

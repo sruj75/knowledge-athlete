@@ -146,11 +146,11 @@ flowchart TD
     PTT["Hold shortcut: begin physical voice turn<br/>PushToTalkManager.startListening<br/>PushToTalkManager.swift:462"]
     PTTCAP["Capture and buffer 16 kHz microphone audio<br/>startAudioTranscription<br/>PushToTalkManager.swift:1495"]
     HUB["RealtimeHubController<br/>Session, turn identity and output ownership<br/>RealtimeHubController.swift:8"]
-    LIVESETUP["Direct Google WebSocket<br/>setup: pinned managed A prompt; audio and transcripts<br/>RealtimeHubSession.swift:679"]
-    LIVEINPUT["activityStart → PTT PCM or private text → activityEnd<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:271"]
-    LIVEFUNCTION["Receive functionCalls; return functionResponses<br/>RealtimeHubSession.swift:601"]
-    LIVEOUTPUT["Read serverContent: transcripts and PCM<br/>turnComplete waits for pending tools<br/>RealtimeHubSession.swift:945"]
-    RECONNECT{"PTT: bounded reconnect; automatic turns never replay<br/>RealtimeHubController+SessionDelegate.swift:1117"}
+    LIVESETUP["Direct Google WebSocket<br/>setup: pinned managed A prompt; audio and transcripts<br/>RealtimeHubSession.swift:719"]
+    LIVEINPUT["PTT: activityStart → PCM/context → activityEnd<br/>Automatic speech: standalone realtimeInput.text<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:272"]
+    LIVEFUNCTION["Receive functionCalls; return functionResponses<br/>RealtimeHubSession.swift:641"]
+    LIVEOUTPUT["Read serverContent: transcripts and PCM<br/>turnComplete waits for pending tools<br/>RealtimeHubSession.swift:954"]
+    RECONNECT{"PTT: bounded reconnect; automatic turns never replay<br/>RealtimeHubController+SessionDelegate.swift:1119"}
   end
 
   subgraph AREA_14["14 · Voice recovery and spoken output · Mac"]
@@ -178,7 +178,7 @@ flowchart TD
     TTSAPI["POST /v1/tts/synthesize<br/>OpenAI speech → MP3 bytes<br/>desktop_tts_updates.py:199"]
     GREETING["Bounded greeting / session title compute<br/>No hosted Chat catalog<br/>chat_sessions.py:50"]
     GOOGLE["Google Gemini<br/>Text/image reasoning and embeddings<br/>desktop_proxy.py:109"]
-    GOOGLELIVE["Google Gemini Live<br/>Direct audio WebSocket session<br/>RealtimeHubSession.swift:667"]
+    GOOGLELIVE["Google Gemini Live<br/>Direct audio WebSocket session<br/>RealtimeHubSession.swift:707"]
     MODULATE["Modulate speech recognition<br/>Streaming and prerecorded routes<br/>stt_provider_policy.py:15"]
     OPENAI["OpenAI text-to-speech<br/>gpt-4o-mini-tts<br/>desktop_tts_updates.py:21"]
   end
@@ -292,7 +292,7 @@ flowchart TD
   BAPI -->|"Backend-owned schema and prompt"| GOOGLE
   BAPI -->|"Versioned decision; no product-data write"| BNOTE
   BNOTE -->|"Valid latest guidance only"| AINIT
-  AINIT -->|"activityStart, private text/context, activityEnd"| HUB
+  AINIT -->|"realtimeInput.text; no microphone activity markers"| HUB
   PTT -->|"Immediate interruption priority"| AINIT
   HUB -->|"Assistant-only initiated entry and delivery status"| PROJECTION
   HUB -->|"Terminal playback outcome and pinned A prompt"| AEXAMPLE

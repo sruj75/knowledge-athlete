@@ -1121,6 +1121,7 @@ extension RealtimeHubController {
     if VoiceTurnCoordinator.shared.activeTurn?.intent == .supervisor,
       let turnID = VoiceTurnCoordinator.shared.activeTurnID
     {
+      RealtimeSupervisorFailureDiagnostics.record(stage: .providerEvent, failure: failure)
       pendingSupervisorGuidance = nil
       VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
       return

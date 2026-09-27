@@ -22,6 +22,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
   - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
+  - id: openwiki-source-6cab9acfa3869452a0792b9a
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift
+  - id: openwiki-source-5235c3e4e03b2e78ba2bd0e0
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSessionTypes.swift
   - id: openwiki-source-14bf8dc2566284e843496189
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
   - id: openwiki-source-577b743ef6d29a4ab11ce6a1
@@ -32,10 +36,12 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
   - id: openwiki-source-ca6b9c6b19a187c27a76cfd2
     resource: repo://desktop/macos/Desktop/Tests/ProactiveAssistantOrchestrationPolicyTests.swift
-generated: { by: "codex", at: "2026-09-27T19:56:49.848Z" }
+  - id: openwiki-source-0adbb8127cc707067b3adf30
+    resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
+generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T19:56:49.848Z
+    at: 2026-09-27T20:28:49.985Z
 ---
 # Supervisor conversation
 
@@ -84,11 +90,11 @@ A private note is an internal expiring value, never a user message, notification
 
 ## Speaking and interruption
 
-`RealtimeHubController.submitSupervisorGuidance` uses the existing voice reducer with `.supervisor` intent. It acquires turn, session, response and playback ownership without starting microphone capture or its timeout. Actual dispatch checks idle voice, current guidance, local notification permission, snooze and frequency. The Gemini Live transport sends activity start, private text/context and activity end. A connection containing an already completed or attempted response is replaced before another automatic turn.
+`RealtimeHubController.submitSupervisorGuidance` uses the existing voice reducer with `.supervisor` intent. It acquires turn, session, response and playback ownership without starting microphone capture or its timeout. Actual dispatch checks idle voice, current guidance, local notification permission, snooze and frequency. The Gemini Live transport sends one standalone `realtimeInput.text` message carrying private guidance and permitted context. Audio activity markers remain reserved for the PTT audio window. A connection containing an already completed or attempted response is replaced before another automatic turn.
 
 PTT has immediate priority through the normal interruption owner. A `guide_next_turn` note is inserted when the next user input window opens and does not trigger a second response. Automatic turns reject tool execution in code. User-origin tools keep their existing authorization boundary; a private note is not user authorization.
 
-The automatic note is consumed before transport submission. If initiation might have reached Gemini and the connection fails, that turn is cancelled without replay or batch transcription recovery. User PTT keeps its existing same-provider and bounded batch recovery. [Chat and voice](chat-voice.md) explains both paths.
+The automatic note is consumed before transport submission. If initiation might have reached Gemini and the connection fails, that turn is cancelled without replay or batch transcription recovery. User PTT keeps its existing same-provider and bounded batch recovery. Automatic failure diagnostics record only the fixed admission/send/provider stage, bounded transport kind/domain/code and Boolean state; neither the note nor the raw provider reason is logged. [Chat and voice](chat-voice.md) explains both paths.
 
 ## History, delivery and improvement
 

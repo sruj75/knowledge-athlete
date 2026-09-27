@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:0c907ba56c30f974d97e70e298fe70f0c259382d208fe5600532731dda17dc6e",
+  "pageVersion": "sha256:81e895ee2f3eadfcd03d17ef6e78e4ee8a65313625c385a071b1ede8d12c8b92",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -100,17 +100,17 @@
     },
     {
       "id": "claim_46bee518ebab40889017a36a7436f6c6",
-      "statement": "The supervisor conversation flow is manual and separately exercises cold/warm admission, physical speaker/headphone PTT, feedback, consent revocation and provider/permission failures on a named authenticated development bundle.",
+      "statement": "The supervisor conversation flow is manual and separately exercises cold/warm admission, physical speaker/headphone PTT, feedback, consent revocation and provider/permission failures with bounded diagnostics on a named authenticated development bundle.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L42",
-          "version": "repo-lines-v1:sha256:b8690417fb16b9782e97b8bcb17194da715f1b661c6f49dc3b0f28c1c51b41a3:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxZDI5NzllOGZiZjBjZmM1YzA1NmRjOTJhZWRlZGQwZjQwODQ2MDhkMzE4YzUyMzc2ZmE3Zjc5NDE1MGY3NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L45",
+          "version": "repo-lines-v1:sha256:82d51c08b367d2284cc85d439bc628ba7f45e01153b301f91e15d32e3501765d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-27T20:28:49.985Z"
   }
 }

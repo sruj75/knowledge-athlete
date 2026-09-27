@@ -10,7 +10,85 @@ import XCTest
 
   @MainActor
   final class RealtimeHubSessionInputLifecycleTests: XCTestCase {
-    func testSupervisorInitiationUsesNativeActivityTextActivityWireWithoutAudio() async throws {
+    func testSupervisorProviderRejectionAfterRealSetupProducesBoundedReceiptWithoutReplay() async throws {
+      let supervisorEnabled = SupervisorService.shared.enabled
+      SupervisorService.shared.enabled = false
+      DesktopDiagnosticsManager.shared.resetForTests()
+      defer { DesktopDiagnosticsManager.shared.resetForTests() }
+      let fixture = RuntimeOwnerAuthorityTestFixture()
+      addTeardownBlock { @MainActor in
+        await fixture.restore()
+        SupervisorService.shared.enabled = supervisorEnabled
+      }
+      await fixture.establish(authOwnerID: "supervisor-rejection-fixture")
+      let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+      let controller = RealtimeHubController()
+      controller.supervisorGuidanceIsCurrent = { _ in true }
+      controller.claimSupervisorSpeech = { _ in true }
+      controller.testingLocalProfileTransportAuthorized = true
+      controller.prefetchedVoiceContext = "Shared conversation"
+      controller.prefetchedVoiceContextSessionID = "kernel-session"
+      controller.prefetchedVoiceContextFreshnessIdentity = "history"
+      controller.prefetchedVoiceContextOwnerScope = controller.currentOwnerScope
+      controller.prefetchedVoiceContextSurface = .realtimeVoice()
+      let tracker = RealtimeTransportTracker()
+      var transport: ControllableRealtimeRawWebSocket?
+      addTeardownBlock { @MainActor in
+        controller.supervisorWarmDeadline?.cancel()
+        controller.supervisorDispatchTask?.cancel()
+        controller.pendingSupervisorGuidance = nil
+        _ = await controller.session?.inputLifecycleSnapshot()
+        transport?.acknowledgeClose()
+        await controller.session?.stopAndWait()
+      }
+      controller.startSession(
+        provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+        rawWebSocketFactory: { _, queue in
+          let socket = ControllableRealtimeRawWebSocket(queue: queue, tracker: tracker)
+          socket.nextInputRejectionReason = "PRIVATE PROVIDER REASON"
+          transport = socket
+          return socket
+        })
+      let source = try XCTUnwrap(controller.session)
+      let guidance = SupervisorGuidance(
+        id: UUID().uuidString, observationID: "observation", sessionID: "logical-session",
+        contextEpoch: 1, note: "PRIVATE SUPERVISOR GUIDANCE", expiresAt: Date().addingTimeInterval(30),
+        authorizationSnapshot: authorization, action: .intervene)
+      let result = await controller.submitSupervisorGuidance(guidance)
+      let turnID = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
+      let terminal = expectation(description: "Provider rejection terminalizes the supervisor turn")
+      var fulfilled = false
+      let observation = VoiceTurnCoordinator.shared.observeSnapshots { model in
+        if !fulfilled, model.lastTerminal?.turnID == turnID {
+          fulfilled = true
+          terminal.fulfill()
+        }
+      }
+      defer { observation.cancel() }
+      await fulfillment(of: [terminal], timeout: 2)
+      await controller.supervisorDispatchTask?.value
+      let terminalReason = VoiceTurnCoordinator.shared.model.lastTerminal?.reason
+      let socket = try XCTUnwrap(transport)
+      let framesBeforeReady = await socket.sentTextFrames()
+      controller.hubDidConnect(source: source)
+      await controller.supervisorDispatchTask?.value
+      let framesAfterReady = await socket.sentTextFrames()
+      let snapshots = DesktopDiagnosticsManager.shared.currentSnapshotsForSentry()
+      let receipt = snapshots.last { $0["supervisor_stage"] as? String == "provider_event" }
+      let diagnosticsJSON =
+        String(
+          data: try JSONSerialization.data(withJSONObject: snapshots), encoding: .utf8) ?? ""
+      XCTAssertEqual(result, .accepted)
+      XCTAssertEqual(terminalReason, .providerFailed)
+      XCTAssertTrue(framesBeforeReady.contains { $0.contains("realtimeInput") })
+      XCTAssertEqual(framesAfterReady, framesBeforeReady, "A later ready callback cannot replay private initiation")
+      XCTAssertEqual(receipt?["failure_kind"] as? String, "provider_close")
+      XCTAssertEqual(receipt?["system_code"] as? Int, 1007)
+      XCTAssertFalse(diagnosticsJSON.contains("PRIVATE PROVIDER REASON"))
+      XCTAssertFalse(diagnosticsJSON.contains("PRIVATE SUPERVISOR GUIDANCE"))
+    }
+
+    func testSupervisorInitiationUsesNativeTextWireWithoutAudioActivityMarkers() async throws {
       let tracker = RealtimeTransportTracker()
       let ready = expectation(description: "Gemini setup acknowledged")
       let delegate = RealtimeHubSessionDelegateSpy()
@@ -32,12 +110,9 @@ import XCTest
         let object = try JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any]
         return object?["realtimeInput"] as? [String: Any]
       }
-      XCTAssertEqual(input.count, 3)
-      if input.count == 3 {
-        XCTAssertNotNil(input[0]["activityStart"])
-        XCTAssertEqual(input[1]["text"] as? String, "private fixture")
-        XCTAssertNotNil(input[2]["activityEnd"])
-      }
+      XCTAssertEqual(input.count, 1)
+      XCTAssertEqual(input.first?["text"] as? String, "private fixture")
+      XCTAssertFalse(input.contains { $0["activityStart"] != nil || $0["activityEnd"] != nil })
       XCTAssertFalse(input.contains { $0["audio"] != nil })
       session.abandonInputTurn()
       let duplicate = await session.sendSupervisorTurn("private fixture", identity: identity)
@@ -47,11 +122,18 @@ import XCTest
     }
 
     func testSupervisorTextTurnRequiresReadyTransportAndCannotReplay() async {
+      DesktopDiagnosticsManager.shared.resetForTests()
+      defer { DesktopDiagnosticsManager.shared.resetForTests() }
       let delegate = RealtimeHubSessionDelegateSpy()
       let session = makeSession(provider: .gemini, delegate: delegate)
       let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("supervisor"))
       let cold = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
       XCTAssertFalse(cold)
+      let coldReceipt = DesktopDiagnosticsManager.shared.currentSnapshotsForSentry().last {
+        $0["supervisor_stage"] as? String == "admission"
+      }
+      XCTAssertEqual(coldReceipt?["transport_open"] as? Bool, false)
+      XCTAssertEqual(coldReceipt?["supervisor_attempted"] as? Bool, false)
       session.markReadyForTesting()
       let sent = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
       XCTAssertTrue(sent)
@@ -114,6 +196,7 @@ import XCTest
         var transports: [ControllableRealtimeRawWebSocket] = []
         let makeTransport: (URL, DispatchQueue) -> RealtimeRawWebSocketTransport = { _, queue in
           let transport = ControllableRealtimeRawWebSocket(queue: queue, tracker: tracker)
+          transport.automaticallyAcknowledgeSetup = alreadyWarm
           transports.append(transport)
           return transport
         }
@@ -692,15 +775,14 @@ import XCTest
       XCTAssertEqual(inlineData?["displayName"], "live-screenshot.jpg")
     }
 
-    func testGeminiPostToolContinuationOpensASeparateInternalActivityTurn() {
+    func testGeminiPostToolContinuationUsesTextWithoutAudioActivityMarkers() {
       let wires = RealtimeHubSession.geminiPostToolContinuationWires()
 
-      XCTAssertEqual(wires.count, 3)
-      XCTAssertNotNil((wires[0]["realtimeInput"] as? [String: Any])?["activityStart"])
+      XCTAssertEqual(wires.count, 1)
       XCTAssertEqual(
-        (wires[1]["realtimeInput"] as? [String: String])?["text"],
+        (wires.first?["realtimeInput"] as? [String: String])?["text"],
         RealtimeHubSession.geminiPostToolContinuationInstruction)
-      XCTAssertNotNil((wires[2]["realtimeInput"] as? [String: Any])?["activityEnd"])
+      XCTAssertTrue(wires.allSatisfy { ($0["realtimeInput"] as? [String: Any])?.count == 1 })
       XCTAssertFalse(
         RealtimeHubSession.geminiPostToolContinuationInstruction.localizedCaseInsensitiveContains("screenshot"),
         "the continuation must work for every synchronous Gemini tool, not only visual evidence")
@@ -923,6 +1005,8 @@ import XCTest
     var onClose: ((Int, String) -> Void)?
     var onError: ((RealtimeRawWebSocketFailure) -> Void)?
     var onInputAccepted: (() -> Void)?
+    var nextInputRejectionReason: String?
+    var automaticallyAcknowledgeSetup = true
     private(set) var closeRequested = false
 
     private let queue: DispatchQueue
@@ -952,8 +1036,15 @@ import XCTest
       completion?(nil)
       if !setupCompleted {
         setupCompleted = true
-        onMessage?(Data(#"{"setupComplete":{}}"#.utf8))
+        if automaticallyAcknowledgeSetup {
+          onMessage?(Data(#"{"setupComplete":{}}"#.utf8))
+        }
       } else if text.contains(#""realtimeInput""#) {
+        if let reason = nextInputRejectionReason {
+          nextInputRejectionReason = nil
+          onClose?(1007, reason)
+          return
+        }
         onInputAccepted?()
         onInputAccepted = nil
       }

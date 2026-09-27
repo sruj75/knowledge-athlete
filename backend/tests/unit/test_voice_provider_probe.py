@@ -33,7 +33,7 @@ class _Response:
         return False
 
 
-def test_gemini_probe_completes_a_direct_setup_input_and_turn_complete_path(monkeypatch, capsys):
+def test_gemini_probe_commits_text_without_manual_audio_activity_markers(monkeypatch, capsys):
     module = _load_module()
     created = []
 
@@ -78,11 +78,10 @@ def test_gemini_probe_completes_a_direct_setup_input_and_turn_complete_path(monk
     assert websocket.headers == {}
     assert websocket.url.startswith(module.GEMINI_URL_PREFIX)
     assert websocket.sent[0]["setup"]["model"] == "models/gemini-3.1-flash-live-preview"
-    assert websocket.sent[1:] == [
-        {"realtimeInput": {"activityStart": {}}},
-        {"realtimeInput": {"text": module.PROBE_INPUT}},
-        {"realtimeInput": {"activityEnd": {}}},
-    ]
+    # The provider's text-input contract is one realtimeInput.text message.
+    # Manual activity markers delimit audio, not a standalone text request:
+    # https://ai.google.dev/gemini-api/docs/live-api/capabilities#sending-text
+    assert websocket.sent[1:] == [{"realtimeInput": {"text": module.PROBE_INPUT}}]
     assert "provider=gemini step=response status=PASS class=none" in output
     assert "firebase-token-must-not-leak" not in output
     assert "gemini-token-must-not-leak" not in output

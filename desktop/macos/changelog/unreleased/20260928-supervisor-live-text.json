@@ -1,0 +1,5 @@
+{
+  "changes": [
+    "Fixed automatic spoken check-ins and text-only voice continuations failing before playback"
+  ]
+}

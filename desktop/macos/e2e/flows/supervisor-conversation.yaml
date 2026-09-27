@@ -9,6 +9,9 @@ covers:
   - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
   - desktop/macos/Desktop/Sources/AIObservability/APIClient+Supervisor.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+Supervisor.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionDelegate.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSessionTypes.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeSessionSetup.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorModels.swift
@@ -39,4 +42,4 @@ steps:
     do: "Explicitly select a disposable evaluation session and repeat a controlled exchange. Confirm only bounded conversation and guidance text is added. Disable sharing while an evaluation or credential lookup is pending, re-enable it, and verify old queued text is not released. End monitoring and sign out separately; both must revoke sharing and pending notes."
   - id: S6
     name: Failure and permission boundaries
-    do: "Exclude the current app, disable each observation input, remove memory/profile context, and exercise quota exhaustion. Verify B uses only allowed inputs or visibly pauses and PTT still works. Break the Live connection after automatic initiation; verify no duplicate automatic utterance or batch-STT fallback. Make prompts or telemetry unavailable and verify PTT remains usable and B safely returns wait."
+    do: "Exclude the current app, disable each observation input, remove memory/profile context, and exercise quota exhaustion. Verify B uses only allowed inputs or visibly pauses and PTT still works. Break the Live connection after automatic initiation; verify no duplicate automatic utterance or batch-STT fallback. Verify the diagnostic records only the failure stage and bounded kind/code or admission flags, with no private guidance or raw provider reason. Make prompts or telemetry unavailable and verify PTT remains usable and B safely returns wait."

@@ -30,10 +30,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-09-27T20:28:49.985Z
 ---
 # Qualification and open obligations
 
@@ -57,7 +57,7 @@ The [codebase map viewer](codebase-map.md) adds a diff-selected build and browse
 
 ## A–B–C qualification
 
-The manual `supervisor-conversation` flow binds the new interaction to a named development bundle, authenticated Gemini and managed A/B prompts. It separates cold/warm unsolicited admission, physical PTT interruption with speakers and headphones, silent next-turn guidance, speech controls, assistant-only journal acceptance, feedback correlation, sharing revocation and provider/permission failures.
+The manual `supervisor-conversation` flow binds the new interaction to a named development bundle, authenticated Gemini and managed A/B prompts. It separates cold/warm unsolicited admission, physical PTT interruption with speakers and headphones, silent next-turn guidance, speech controls, assistant-only journal acceptance, feedback correlation, sharing revocation and provider/permission failures. Failure qualification also checks bounded stage/kind/code diagnostics without private guidance or raw provider reasons.
 
 Record usable-input time, B evaluation start and audible-playback start separately. A passed scheduling test does not remove transcription or model latency, and an evaluation count from a brief test does not establish all-day quota coverage. Repository tests, offline T2/T3, managed prompt fetches and physical audio outcomes remain distinct evidence classes. The [Supervisor workflow](../workflows/supervisor-conversation.md) and [desktop E2E](../testing/desktop-e2e.md) locate their respective seams.
 

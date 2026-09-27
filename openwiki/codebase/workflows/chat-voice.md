@@ -20,6 +20,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
   - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
+  - id: openwiki-source-6cab9acfa3869452a0792b9a
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift
+  - id: openwiki-source-5235c3e4e03b2e78ba2bd0e0
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSessionTypes.swift
   - id: openwiki-source-21802c0cbbe5aeada371f269
     resource: repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
   - id: openwiki-source-d2fcc2b5c63a2a31e81a6ae9
@@ -32,10 +36,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/PTTBatchLanguagePolicyTests.swift
   - id: openwiki-source-0adbb8127cc707067b3adf30
     resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
-generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
+generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T18:21:54.828Z
+    at: 2026-09-27T20:28:49.985Z
 ---
 # Chat, tools and voice
 
@@ -57,7 +61,9 @@ Realtime voice uses Gemini Live. The controller associates reconnect and retaine
 
 A's native Gemini Live connection is separate from the Pi text/tool loop described above. [B's supervisor](supervisor-conversation.md) hands private guidance to `RealtimeHubController`, which admits a genuine `.supervisor` intent through `VoiceTurnCoordinator`. Admission requires idle voice; speech dispatch additionally checks current owner/session/context, snooze, notifications and frequency. The reducer starts neither microphone capture nor the PTT capture timeout.
 
-The existing Live transport sends activity start, private text/context and activity end. A warm connection that already contains a completed or attempted response is replaced before an automatic turn, with a fresh response identity and prompt receipt. The note is consumed before sending. An ambiguous connection failure cancels the automatic turn instead of reconnecting to replay it or entering batch-STT recovery. Ordinary user PTT keeps its existing recovery policy.
+The Live transport sends one standalone `realtimeInput.text` message for private initiation. It does not bracket a no-microphone turn with audio activity markers. Physical PTT retains its activity start, PCM/context and activity end sequence. A warm connection that already contains a completed or attempted response is replaced before an automatic turn, with a fresh response identity and prompt receipt. The note is consumed before sending. An ambiguous connection failure cancels the automatic turn instead of reconnecting to replay it or entering batch-STT recovery. Ordinary user PTT keeps its existing recovery policy. Automatic admission, send and provider errors record only a fixed stage, bounded failure kind/domain/code and Boolean state, never the private note or raw provider reason.
+
+After a tool-only response, the existing bounded continuation also sends standalone text, preserving its current identity and one-attempt guard. It does not open a microphone activity window.
 
 `guide_next_turn` keeps one expiring note for the next PTT input window and does not initiate speech. PTT admission immediately interrupts an active automatic turn through the existing output owner. Automatic turns reject tool calls in code; private notes do not authorize user-turn tool effects.
 
