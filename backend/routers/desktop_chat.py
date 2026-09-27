@@ -25,6 +25,8 @@ from utils.llm.managed_stream_transport import (
 from utils.llm.model_config import get_model
 from utils.llm.provider_errors import handle_llm_error
 from utils.observability.langfuse import ChatGeneration, normalize_session_id, start_chat_generation
+from utils.observability.chat_evaluation import remember_chat_prompt
+from models.desktop_ai import PromptReference
 from utils.observability.langfuse_prompts import (
     ResolvedRuntimePrompt,
     compose_system_prompt,
@@ -408,6 +410,13 @@ async def stream_generate_content(
     enforce_chat_quota(uid, platform=x_app_platform)
     await _meter_server_request(uid)
     prompt = await _resolve_runtime_system_prompt(payload)
+    await run_blocking(
+        db_executor,
+        remember_chat_prompt,
+        uid,
+        request_id,
+        PromptReference.model_validate({'name': prompt.name, 'version': prompt.version, 'source': prompt.source}),
+    )
     session_id = normalize_session_id(x_omi_session_id)
     await run_blocking(
         db_executor,

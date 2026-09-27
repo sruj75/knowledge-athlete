@@ -188,7 +188,7 @@ final class RealtimeHubTestHarness: NSObject, RealtimeHubSessionDelegate {
       }
       let token: String
       do {
-        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
+        token = try await APIClient.shared.mintRealtimeSession(expectedOwnerID: ownerID).token
       } catch {
         return [
           "error": "managed Gemini mint failed",

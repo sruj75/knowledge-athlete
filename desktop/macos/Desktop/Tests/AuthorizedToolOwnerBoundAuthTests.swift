@@ -184,7 +184,7 @@ private actor PermissionCallbackBox<Value: Sendable> {
     let client = await makeClient()
     let operation = Task { @MainActor in
       do {
-        _ = try await client.mintRealtimeToken(
+        _ = try await client.mintRealtimeSession(
           expectedOwnerID: "owner-a",
           customBaseURL: "https://owner-bound.invalid/")
         return false

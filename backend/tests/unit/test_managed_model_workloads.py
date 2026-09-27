@@ -10,7 +10,6 @@ import pytest
 from utils.llm import clients, model_config
 from utils.llm.model_config import WorkloadLifecycle
 
-
 EXPECTED_ROUTES = {
     'chat_agent': ('gemini', 'gemini-3.7-flash'),
     'chat_greeting': ('gemini', 'gemini-3.7-flash'),
@@ -22,6 +21,7 @@ EXPECTED_ROUTES = {
     'memory_l1': ('gemini', 'gemini-3.7-flash'),
     'memory_l2': ('gemini', 'gemini-3.7-flash'),
     'session_titles': ('gemini', 'gemini-2.5-flash-lite'),
+    'supervisor': ('gemini', 'gemini-3.7-flash'),
     'translation': ('gemini', 'gemini-2.5-flash-lite'),
 }
 

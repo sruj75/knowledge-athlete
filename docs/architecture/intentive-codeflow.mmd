@@ -17,8 +17,6 @@ flowchart TD
     CAPTURE{"Privacy, owner, idle and timing gates<br/>captureFrame<br/>ProactiveAssistantsPlugin.swift:696"}
     SCREEN["Resolve and capture active window<br/>ScreenCaptureService<br/>ScreenCaptureService.swift:8"]
     FRAME["Build live CapturedFrame<br/>JPEG, app, title, time; screenshotId may be absent<br/>CapturedFrame.swift:5"]
-    COORD["Distribute eligible frames<br/>AssistantCoordinator.distributeFrame<br/>AssistantCoordinator.swift:166"]
-    SWITCH["Notify assistants of app/window change<br/>checkContextSwitch<br/>AssistantCoordinator.swift:97"]
   end
 
   subgraph AREA_03["03 · Rewind archive, search and recovery · Mac"]
@@ -63,20 +61,17 @@ flowchart TD
     NOTESTORE[("Create / edit / delete local conversation note<br/>NoteStorage<br/>NoteStorage.swift:6")]
   end
 
-  subgraph AREA_06["06 · Five background assistants · Mac"]
-    FOCUS["Focus: owner/cooldown gates → screenshot analysis<br/>FocusAssistant.processFrame<br/>FocusAssistant.swift:175"]
-    FOCUSCOMMIT["Only accepted state transition becomes durable<br/>saveFocusSessionToSQLite<br/>FocusAssistant.swift:908"]
-    TASKEX["Task: context-switch or cadence → extraction<br/>TaskAssistant.processFrame<br/>TaskAssistant.swift:654"]
-    TASKGATE{"Task candidate: confidence, duplicates, owner<br/>handleResultWithScreenshot<br/>TaskAssistant.swift:348"}
-    MEMEX["Memory: newest frame on its cadence<br/>MemoryAssistant.processFrame<br/>MemoryAssistant.swift:381"]
-    MEMGATE{"Memory: first candidate, confidence and owner<br/>handleResultWithScreenshot<br/>MemoryAssistant.swift:205"}
-    INSIGHT["Insight: investigate screenshot and local evidence<br/>InsightAssistant.processFrame<br/>InsightAssistant.swift:661"]
-    INSIGHTCOMMIT["Accepted insight → Memory tagged tips<br/>saveInsightToSQLite<br/>InsightAssistant.swift:479"]
-    SUGGEST["Suggestion: current frame + dwell/cooldown/budget gates<br/>SuggestionAssistant.analyze<br/>SuggestionAssistant.swift:112"]
-    GROUND["Read relevant tasks, memories and Rewind history<br/>assembleGrounding<br/>SuggestionAssistant.swift:221"]
-    SUGGESTGATE{"No grounding means no model call<br/>SuggestionAssistant.swift:173"}
-    SUGGESTRESULT{"After model response: owner, confidence and duplicates<br/>SuggestionAssistant.swift:456"}
-    SUGGESTSEND["Deliver accepted suggestion; no task/Memory write<br/>SuggestionAssistant.deliver<br/>SuggestionAssistant.swift:543"]
+  subgraph AREA_06["06 · Supervisor and private voice guidance · Mac and backend"]
+    OBSERVE["Bounded owner/session observation<br/>Permitted frame, corrected transcripts, direct exchange<br/>SupervisorService.swift:7"]
+    ECHOGATE{"Map capture intervals; suppress ambient overlap<br/>Unmappable segments excluded only from B<br/>SupervisorAudioTimeline.swift:24"}
+    BEVALUATE["Three-second coalescing; one request in flight<br/>Read existing Memory/profile; quota pause<br/>SupervisorService.swift:351"]
+    BAPI["POST /v1/supervisor/evaluate<br/>One managed Gemini call, no tools or writes<br/>desktop_supervisor.py:81"]
+    BNOTE{"wait / guide_next_turn / intervene<br/>Private note expires; owner/session/context fenced<br/>SupervisorModels.swift:1"}
+    AINIT["Admit supervisor voice turn without mic<br/>Idle, notification/snooze/frequency gates; PTT priority<br/>RealtimeHubController+Supervisor.swift:23"]
+    AEXAMPLE["Session-scoped terminal outcome and feedback<br/>Normal metadata only; selected bounded text<br/>AIEvaluationReporter.swift:7"]
+    AOBSAPI["POST /v1/ai/observations<br/>Correlate decision, Live prompt and score<br/>ai_evaluation.py:47"]
+    ROLEPROMPTS["Langfuse role prompts<br/>A pinned to physical session; B pinned per evaluation<br/>langfuse_prompts.py:84"]
+    EVALTRACE["Langfuse decision, terminal and feedback traces<br/>Metadata by default; bounded selected examples<br/>ai_evaluation.py:47"]
   end
 
   subgraph AREA_07["07 · Local archive authorities · Mac and Node"]
@@ -111,7 +106,7 @@ flowchart TD
     TASKUI["Tasks: create, edit, complete, delete and Undo<br/>TasksPage<br/>TasksPage.swift:635"]
     TASKS["TasksStore: authorized mutations and projection<br/>TasksStore.swift:16"]
     REMINDER["Schedule and reconcile local task reminders<br/>TaskReminderService<br/>TaskReminderService.swift:44"]
-    FOCUSUI["FocusStorage: publish only after durable insert<br/>Focus / Home / notch readers<br/>FocusStorage.swift:172"]
+    FOCUSUI["Read existing saved Focus sessions<br/>FocusStorage / FocusPage<br/>FocusStorage.swift:172"]
     INSIGHTUI["InsightStorage: projection of Memory tagged tips<br/>Insights / Home readers<br/>InsightStorage.swift:113"]
   end
 
@@ -151,11 +146,11 @@ flowchart TD
     PTT["Hold shortcut: begin physical voice turn<br/>PushToTalkManager.startListening<br/>PushToTalkManager.swift:462"]
     PTTCAP["Capture and buffer 16 kHz microphone audio<br/>startAudioTranscription<br/>PushToTalkManager.swift:1495"]
     HUB["RealtimeHubController<br/>Session, turn identity and output ownership<br/>RealtimeHubController.swift:8"]
-    LIVESETUP["Direct Google WebSocket<br/>setup: audio output, transcripts and tools<br/>RealtimeHubSession.swift:679"]
-    LIVEINPUT["activityStart → PCM audio → activityEnd<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:271"]
+    LIVESETUP["Direct Google WebSocket<br/>setup: pinned managed A prompt; audio and transcripts<br/>RealtimeHubSession.swift:679"]
+    LIVEINPUT["activityStart → PTT PCM or private text → activityEnd<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:271"]
     LIVEFUNCTION["Receive functionCalls; return functionResponses<br/>RealtimeHubSession.swift:601"]
     LIVEOUTPUT["Read serverContent: transcripts and PCM<br/>turnComplete waits for pending tools<br/>RealtimeHubSession.swift:945"]
-    RECONNECT{"Bounded same-provider reconnect with buffered input<br/>RealtimeHubController+SessionDelegate.swift:1117"}
+    RECONNECT{"PTT: bounded reconnect; automatic turns never replay<br/>RealtimeHubController+SessionDelegate.swift:1117"}
   end
 
   subgraph AREA_14["14 · Voice recovery and spoken output · Mac"]
@@ -223,7 +218,7 @@ flowchart TD
     ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:49"]
     ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:565"}
     ONBOARDEXIT["Final demo Continue or Skip for now → all-day<br/>Global Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:109"]
-    PREFS[("Local capture, assistant, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
+    PREFS[("Local capture, Supervisor, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
     CONVACTIONS["Folders, stars, titles, speakers and deletion<br/>ConversationRepository<br/>ConversationRepository.swift:240"]
     GOALSUI["Personalized Home question chips<br/>HomeSuggestionsStore<br/>HomeSuggestionsStore.swift:80"]
     MEMORYACTIONS["Create, correct, search/filter and delete Memory<br/>MemoriesPage and MemoryStorage<br/>MemoriesPage.swift:102"]
@@ -282,6 +277,33 @@ flowchart TD
     MAPBUILD -->|"Source text and immutable GitHub link"| MAPPAGE
     MAPPAGE -->|"Public browser; main production / PR preview"| MAPVIEW
   end
+
+  FRAME -->|"Latest permitted frame; changed visual evidence"| OBSERVE
+  WINDOW -->|"Settled app/window change; revoke stale note"| OBSERVE
+  SEGMENTS -->|"Capture clock provenance; storage remains unchanged"| ECHOGATE
+  ECHOGATE -->|"Correct by segment ID; omit overlapping speech"| OBSERVE
+  HUB -->|"Direct transcripts, turn boundaries and playback outcome"| OBSERVE
+  HUB -.->|"Direct A-C interval takes precedence"| ECHOGATE
+  OBSERVE -->|"Latest pending bounded snapshot"| BEVALUATE
+  MEMSTORE -->|"Existing bounded memories; empty is valid"| BEVALUATE
+  PROFILEREAD -->|"Existing bounded profile; no regeneration"| BEVALUATE
+  BEAUTH -->|"Participant admission and shared quota"| BAPI
+  BEVALUATE -->|"Authenticated owner-bound observation"| BAPI
+  BAPI -->|"Backend-owned schema and prompt"| GOOGLE
+  BAPI -->|"Versioned decision; no product-data write"| BNOTE
+  BNOTE -->|"Valid latest guidance only"| AINIT
+  AINIT -->|"activityStart, private text/context, activityEnd"| HUB
+  PTT -->|"Immediate interruption priority"| AINIT
+  HUB -->|"Assistant-only initiated entry and delivery status"| PROJECTION
+  HUB -->|"Terminal playback outcome and pinned A prompt"| AEXAMPLE
+  BNOTE -->|"Decision correlation and B prompt version"| AEXAMPLE
+  CHATUI -->|"Helpful / unhelpful"| AEXAMPLE
+  PREFS -.->|"Session sharing opt-in; revocation cancels queued content"| AEXAMPLE
+  AEXAMPLE -->|"Allowlisted receipt; no raw media or stored context"| AOBSAPI
+  ROLEPROMPTS -->|"Live prompt text/name/version/source"| TOKENAPI
+  ROLEPROMPTS -->|"Supervisor prompt or unavailable wait"| BAPI
+  BAPI -->|"One metadata-only generation trace"| EVALTRACE
+  AOBSAPI -->|"Allowed outcome/example/score linked to both roles"| EVALTRACE
 
   ACCOUNTDATA -->|"Account/entitlement/usage only"| SERVEREXPORT
   ADVICEAPI -->|"Authenticated advice CRUD"| ADVICEDB
@@ -367,14 +389,8 @@ flowchart TD
   CONVSTORE -->|"Refresh local conversation projection"| CONVUI
   CONVTASK -->|"Transcript and related task tokens"| CONVAPI
   CONVUI -->|"Search, folders, star, edit title/speaker, delete"| CONVACTIONS
-  COORD -->|"Eligible current frame after switch"| SUGGEST
-  COORD -->|"Eligible frame"| FOCUS
-  COORD -->|"Eligible frame or context switch"| TASKEX
-  COORD -->|"Eligible newest frame"| INSIGHT
-  COORD -->|"Eligible newest frame"| MEMEX
   DB -->|"Latest saved ai_user_profiles row"| PROFILEREAD
   DB -->|"Owner-fenced matching rows"| REWINDUI
-  DB -->|"Related Rewind history"| GROUND
   DB -.->|"Saved profile and schema"| CONTEXT
   DELETEAPI -->|"Accepted request: stop capture then sign out"| SIGNOUT
   DELETEAPI -->|"Durable Cloud Tasks dispatch"| WIPE
@@ -402,16 +418,10 @@ flowchart TD
   FINISH -->|"Process persisted work"| FINALIZE
   FIREBASE -->|"Authenticated UID"| BEAUTH
   FLOATROUTE -->|"Admitted main-journal request with presentation mode"| TEXT
-  FOCUS -->|"Accepted state transition"| FOCUSCOMMIT
-  FOCUS -->|"Screenshot analysis request"| PROXY
-  FOCUSCOMMIT -->|"Durable focus row first"| FOCUSSTORE
-  FOCUSCOMMIT -->|"Eligible distraction/refocus nudge"| NOTIFY
-  FOCUSCOMMIT -->|"Then publish accepted state"| FOCUSUI
   FOCUSSTORE -->|"Focus tables"| DB
   FOCUSSTORE -->|"Local focus history"| EXPORT
   FOCUSSTORE -->|"Reload history / stats"| FOCUSUI
   FOCUSUI -->|"Home focus cards"| DASH
-  FRAME -->|"Owner-authorized live frame"| COORD
   FRAMELOAD -->|"Reconstructed image"| REWINDUI
   GOALSTORE -->|"Active goal projection"| DASH
   GOALSTORE -->|"Active goals"| PROFILE
@@ -426,7 +436,6 @@ flowchart TD
   GOOGLELIVE -->|"Transport closure during active turn"| RECONNECT
   GREETING -->|"Bounded text request"| GOOGLE
   GREETING -->|"Computed text accepted into local journal"| PROJECTION
-  GROUND -->|"Selected grounding packet"| SUGGESTGATE
   HOME -->|"Home chat input"| TEXT
   HOME -->|"Home stage"| DASH
   HOME -->|"Insights section"| INSIGHTUI
@@ -448,10 +457,6 @@ flowchart TD
   INDEX -->|"Admit deduplicated image"| VIDEO
   INDEX -->|"Recovery on storage initialization"| RECOVER
   INDEX -->|"Schedule cleanup"| RETENTION
-  INSIGHT -->|"Grounded investigation requests"| PROXY
-  INSIGHTCOMMIT -->|"Eligible insight notice"| NOTIFY
-  INSIGHTCOMMIT -->|"Memory assertion tagged tips"| MEMSTORE
-  INSIGHTCOMMIT -->|"Projection after durable commit"| INSIGHTUI
   INSIGHTUI -->|"Dismiss flag / clear tips via Memory authority"| MEMSTORE
   INSIGHTUI -->|"Home insight cards"| DASH
   INSIGHTUI -->|"Staged delete through Memory authority"| MEMDELETE
@@ -488,10 +493,7 @@ flowchart TD
   MEMDELETE -->|"Pending, restored or finalized record"| MEMSTORE
   MEMEMBED -->|"Commit current-revision embedding"| MEMSTORE
   MEMEMBED -->|"Embedding compute"| PROXY
-  MEMEX -->|"Screenshot memory extraction"| PROXY
   MEMEXTRACT -->|"Bounded transcript segments"| MEMAPI
-  MEMGATE -->|"Accepted assertion"| MEMSTORE
-  MEMGATE -->|"Eligible saved-memory notice"| NOTIFY
   MEMORYACTIONS -->|"Accept manual assertion / correction"| MEMSTORE
   MEMORYSCOPE -->|"Promote / merge / archive commit"| MEMSTORE
   MEMRETRY -->|"Lease when retry is due"| MEMWORK
@@ -500,7 +502,6 @@ flowchart TD
   MEMSTORE -->|"Durable processing queue"| MEMWORK
   MEMSTORE -->|"List/search current-owner memories"| MEMUI
   MEMSTORE -->|"Local vector search"| MEMSEARCH
-  MEMSTORE -->|"Matching memories"| GROUND
   MEMSTORE -->|"Memory tables"| DB
   MEMSTORE -->|"Read interesting memories tagged tips"| INSIGHTUI
   MEMSTORE -.->|"Selected Memory text"| CONTEXT
@@ -556,28 +557,19 @@ flowchart TD
   PREFS -.->|"Capture and assistant controls"| MONITOR
   PREFS -.->|"Listening on/off and optional system audio"| AUDIOCAPTURE
   PREFS -.->|"Master/frequency/assistant notice controls"| NOTIFY
-  PREFS -.->|"Memory feature plus notification admission"| MEMEX
   PREFS -.->|"Selected voice and speech settings"| TTSQUEUE
   PROFILE -->|"First synthesis request"| PROXY
   PROFILEMERGE -->|"Second request with past profiles"| PROXY
   PROFILEREAD -.->|"Read cached profile when needed"| CONTEXT
-  PROFILEREAD -.->|"Read when preparing assistant context"| FOCUS
-  PROFILEREAD -.->|"Read when preparing assistant context"| INSIGHT
-  PROFILEREAD -.->|"Read when preparing assistant context"| TASKEX
   PROFILESAVE -->|"Insert ai_user_profiles under owner commit lease"| DB
   PROJECTION -->|"One main/floating transcript projection"| CHATUI
-  PROXY -->|"Accepted insight candidate"| INSIGHTCOMMIT
   PROXY -->|"Candidate or embedding request"| GOOGLE
   PROXY -->|"Embedding vector response"| OCREMB
-  PROXY -->|"Focus classification"| FOCUS
-  PROXY -->|"Memory candidates"| MEMGATE
   PROXY -->|"New profile text"| PROFILEMERGE
   PROXY -->|"Proposed note text"| NOTES
   PROXY -->|"Returned second-stage consolidated profile"| PROFILESAVE
   PROXY -->|"Returned vector"| MEMEMBED
-  PROXY -->|"Task candidate"| TASKGATE
   PROXY -->|"Two owner-cached question chips"| GOALSUI
-  PROXY -->|"Untrusted suggestion candidate"| SUGGESTRESULT
   PTT -->|"Begin current voice turn"| PTTCAP
   PTTCAP -->|"PCM plus bounded recovery buffer"| HUB
   REBUILD -->|"Reindex finalized video files"| SHOT
@@ -630,10 +622,6 @@ flowchart TD
   STTAPI -->|"Batch recognition"| MODULATE
   STTAPI -->|"Transcript or typed failure"| BATCH
   STTRECOVER -->|"Allowed cloud recovery"| AMBIENTWS
-  SUGGEST -->|"Mechanical gates pass"| GROUND
-  SUGGESTGATE -->|"Only nonempty grounding: screenshot and evidence"| PROXY
-  SUGGESTRESULT -->|"Accepted owner-current nonduplicate candidate"| SUGGESTSEND
-  SUGGESTSEND -->|"Suggestion card; no task/Memory write"| NOTIFY
   SWIFTTOOLS -->|"Admitted screenshot tool"| SCREEN
   SWIFTTOOLS -->|"Constrained SQL / Rewind retrieval"| DB
   SWIFTTOOLS -->|"Dispatch retained mutation/context tool"| WRITETOOLS
@@ -647,18 +635,14 @@ flowchart TD
   SWIFTWIRE -->|"Authorized realtimeHub executor: get_tasks / screenshot"| LIVETOOLS
   SWIFTWIRE -->|"Execute under captured owner authority"| SWIFTTOOLS
   SWIFTWIRE -->|"Node finalizes canonical external-surface tool outcome"| TOOLRESULT
-  SWITCH -->|"Context-switch callback"| COORD
   SYSTEMAUDIO -->|"Cloud route"| MIXER
   SYSTEMAUDIO -->|"Local route: system identity"| LOCALSTT
-  TASKEX -->|"Task extraction and investigation"| PROXY
-  TASKGATE -->|"Accepted local task"| TASKSTORE
   TASKS -->|"Authorized CRUD and completion"| TASKSTORE
   TASKS -->|"First completion of repeating task"| RECURRENCE
   TASKS -->|"Home task cards"| DASH
   TASKS -->|"Reconcile due reminders"| REMINDER
   TASKSTORE -->|"Bounded tasks"| PROFILE
   TASKSTORE -->|"Local task pages"| EXPORT
-  TASKSTORE -->|"Open and matching tasks"| GROUND
   TASKSTORE -->|"Task tables"| DB
   TASKSTORE -->|"Updated task projection; recurrence creates next occurrence"| TASKS
   TASKSTORE -.->|"Recent unfinished tasks"| CONTEXT
@@ -695,7 +679,6 @@ flowchart TD
   WARM -->|"Initialize storage; reconcile abandoned chunks"| RECOVER
   WARM -->|"Start local Memory worker"| MEMWORK
   WEBHOOK -->|"Verified provider event"| BILLING
-  WINDOW -->|"App or window changes"| SWITCH
   WINDOW -->|"App switch requests capture on next tick"| CAPTURE
   WIPE -->|"Claim / running / failed / completed state"| DELETIONMARK
   WIPE -->|"Confirm subscription cancellation first"| BILLING
@@ -708,7 +691,7 @@ flowchart TD
     classDef cloud fill:#ecfdf5,stroke:#047857,color:#111827;
     classDef gap fill:#fef2f2,stroke:#b91c1c,color:#111827;
     class SHOT,SEGSTORE,CONVCOMMIT,NOTESTORE,DB,MEMSTORE,TASKSTORE,GOALSTORE,FOCUSSTORE,CONVSTORE,NODEDB,DELETIONMARK,ACCOUNTDATA,AUTHCACHE,PREFS,ADVICEDB store;
-    class DUPLICATE,PERM,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,TASKGATE,MEMGATE,SUGGESTGATE,SUGGESTRESULT,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
+    class DUPLICATE,PERM,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
     class SETTINGS,REWINDUI,LIVEUI,HOME,DASH,MEMUI,CONVUI,TASKUI,FOCUSUI,INSIGHTUI,CARD,SYSTEMNOTICE,TEXT,CHATUI,PTT,SPEAKER,PLANUI,FAIRNOTICE,ONBOARD,GOALSUI,MEMORYACTIONS,DELETEUI,RESOURCES,UPDATEPOLICY,FEEDBACK surface;
     class SERVER,CHATAPI,PROXY,CONVAPI,MEMAPI,TOKENAPI,STTAPI,TTSAPI,GREETING,GOOGLE,GOOGLELIVE,MODULATE,OPENAI,LISTENAPI,LISTENRUN,RECEIVER,TRANSIENT,TRANSLATE,LISTENDRAIN,OAUTH,TOKENEXCHANGE,FIREBASE,PLANAPI,CHECKOUT,BILLING,WEBHOOK,USAGE,REVIEWAPI,DELETEAPI,WIPE,DELETERETRY,SERVEREXPORT,APPCAST,REPORTAPI cloud;
     class ARTIFACTQUEUE,ADVICEAPI gap;

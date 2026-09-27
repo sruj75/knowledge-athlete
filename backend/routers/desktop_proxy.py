@@ -6,15 +6,12 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
-from database import redis_db
-from utils.executors import critical_executor, db_executor, run_blocking
 from utils.llm.desktop_llm_stub import (
     llm_stub_enabled,
     stub_gemini_proxy_json,
 )
-from utils.other.endpoints import get_current_participant_uid
 from utils.observability.fallback import record_fallback
-from utils.subscription import is_trial_paywalled
+from services.desktop_inference import authorized_desktop_user, enforce_desktop_gemini_quota
 
 router = APIRouter()
 
@@ -25,8 +22,6 @@ _SHIPPED_TEXT_MODELS = frozenset({"gemini-2.5-flash", "gemini-2.5-flash-lite", "
 _MAX_BODY_BYTES = 5 * 1024 * 1024
 _MAX_OUTPUT_TOKENS = 8192
 _DEFAULT_THINKING_BUDGET = 1024
-_BURST_LIMIT = 30
-_DAILY_HARD_LIMIT = 1500
 
 
 def _path_parts(path: str) -> tuple[str, str, str]:
@@ -117,30 +112,6 @@ def _upstream(path: str, query: dict[str, str]) -> tuple[str, dict[str, str], di
     )
 
 
-async def _meter_server_request(uid: str, path: str, model: str, action: str) -> str:
-    try:
-        burst_allowed, _, _ = await run_blocking(
-            critical_executor, redis_db.check_rate_limit, uid, "desktop_gemini_burst", _BURST_LIMIT, 60
-        )
-        if not burst_allowed:
-            raise HTTPException(status_code=429, detail="Gemini request rate limit exceeded")
-        _, current, _ = await run_blocking(
-            critical_executor,
-            redis_db.check_rate_limit,
-            uid,
-            "desktop_gemini_daily",
-            _DAILY_HARD_LIMIT,
-            86_400,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Gemini rate limiter is unavailable") from exc
-    if int(current) > _DAILY_HARD_LIMIT:
-        raise HTTPException(status_code=429, detail="Gemini daily request limit exceeded")
-    return path
-
-
 async def _proxy(request: Request, path: str, uid: str) -> Response:
     body = await request.body()
     if len(body) > _MAX_BODY_BYTES:
@@ -154,7 +125,7 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
             json.dumps(payload, separators=(",", ":")).encode("utf-8"),
             media_type="application/json",
         )
-    path = await _meter_server_request(uid, path, model, action)
+    await enforce_desktop_gemini_quota(uid)
     _, model, action = _path_parts(path)
     body = _sanitize(body, action)
     url, headers, params = _upstream(path, dict(request.query_params))
@@ -182,12 +153,6 @@ async def _proxy(request: Request, path: str, uid: str) -> Response:
         raise HTTPException(status_code=502, detail="Gemini upstream request failed") from exc
 
 
-async def _authorized_desktop_user(uid: str = Depends(get_current_participant_uid)) -> str:
-    if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
-        raise HTTPException(status_code=402, detail="trial_expired")
-    return uid
-
-
 @router.post("/v1/proxy/gemini/{path:path}")
-async def gemini_proxy(request: Request, path: str, uid: str = Depends(_authorized_desktop_user)) -> Response:
+async def gemini_proxy(request: Request, path: str, uid: str = Depends(authorized_desktop_user)) -> Response:
     return await _proxy(request, path, uid)

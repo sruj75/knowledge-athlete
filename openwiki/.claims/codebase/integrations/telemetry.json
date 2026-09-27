@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:c34137414f7a66570bf79f988f95d103ee021ec62af2cb6a061f9c65497e1475",
+  "pageVersion": "sha256:8489d6ec45c07b5f51e7528a316d5649c3b7176a8ac5898b6c86ddbd201afc58",
   "claims": [
     {
       "id": "claim_ca8a32d6adf443868d9aa2e6f1a594c5",
@@ -39,10 +39,64 @@
           "version": "repo-file-v1:sha256:6a22ada03af409e1f103e5ca056a0112b770a85a32573a2016e3e91e21192e52"
         }
       ]
+    },
+    {
+      "id": "claim_21398132a0f7481084601c3ab0a4e2a2",
+      "statement": "Normal Chat, Live and supervisor evaluation export is metadata only; explicit session sharing permits bounded conversation and guidance via a typed allowlist that excludes audio, screenshots, memory/profile copies and tool payloads.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/observability/evaluation_policy.py#L9-L38",
+          "version": "repo-lines-v1:sha256:2f5a87cf67765e8e43c9b07f16909e4154d0b4092a247c693e7b86fe6dafa16b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyM2FkODRmZWYxYTRlNzczNGIzZWYzM2ZkNWQwMzY2YjlmYTNmMzk0ZDg2NGZiNDI0ZGNjNGYwY2NjZTc4NDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMTFjMDU2N2QwYTVmOWU5YjEzNWY2NWNkMjUzNzJkZmQ2Mjg3NzVmN2MxZWQyNTNmOGJhZDQyZGQyZDY2NjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ZjI3YjZjYTNmYjE0YzZiYmY0OTljZTI0ODEyOWRhMmJkZjIxZTI2MmRlYmFjYjVlMTkxNzdlYjc3ZDM4YWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift#L8-L104",
+          "version": "repo-lines-v1:sha256:c6676aa02e65a2703adc73fdf1a6dc4388cdb810625e168d057e44ba81e8a6c9:eyJzZWxlY3RlZExpbmVDb3VudCI6OTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyZjkxODMyNzIyNDliZDFmNzIzZDhlZWVhNGM2NGFjMGI2NmY2YTY3OTZhMWMyY2QwMDdiOWY5MjA1MjMxZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzYTFlYWYyMjRhOWNlZGIyNDMzMDNjODg5YmViOWYzNjg5YmQ4NWUxMDI0NzJlNGY5YWQ4ZDM4MTdhNTY2YjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViNGFkZDdmMGJjYjM1OTIxZGQ1Zjk4YzU1NDdkNjliMzAyYWM1N2JkYmY2NjdhNjhlZTQ5YzJmNmVhY2UwNWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c065647e2ee04795a50d0daaa052438e",
+      "statement": "Session and epoch consent tickets fence queued content across off/on transitions, and the observation API rechecks current owner and consent after token lookup without authentication refresh or replay.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift#L106-L124",
+          "version": "repo-lines-v1:sha256:e84307e3789b0586f37318de08c07d26083b2ead73d91b534baa2df1c30a110e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3MTczM2YzZGQwNTQwM2I2ODMwZGU4ZDBjNWFkNGRlYWQxNzY0ZTY2YTQxMjYyMTdkOThlZjA0Nzg2MWEyOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L141-L189",
+          "version": "repo-lines-v1:sha256:683d84e9ed94bfb6f24a4ee1d2dc337976c43133ecb8794165461c1f0ea8734e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MmUwMzBjMjQ1NTVlMDA3MTc1OWY0YjRmN2IxZTU3MmU2NjJjNmEwNzA2ZmI4N2ZkYWQyZDM4ZGUzZTJmZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0MGNiZTYwYmIwYWRjNWE3MmU0YjkxZTkxOTMzYzBmODlkM2Y1OGI3NmFiN2RhZTUxYTY3OWJmYTZhYjYyYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift#L12-L39",
+          "version": "repo-lines-v1:sha256:492498296dbc31289b2dafccc26af0979cdecfee3af9e9b7817c6597b4276dd8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NDdhNWJjMGUzYWY0OTgxMTc0NjUzNTU3OTgxZmYxMWY0ZGQwMjZkMzk5YjkyMmUwYzMwNTY0NzY3YTU3YzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg4MWE5NDJiYzMyYjRiMGM0YTA4ZGI4ZjAwODIwZWMzNTNhODNlOTRjNTFjZTQ2MDczYmZhZjkzMmRmMjI3NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift#L632-L741",
+          "version": "repo-lines-v1:sha256:964a2a6702b126abd96d9d3f4ba0813092cc7a414fe264370e36f7dee84b1b00:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI5YjYyZjYwZDg1OTBhNTc5Y2Y0NmY4ZDY3Mzc4YzRjNTcyYjk2MmNlY2NkYjkwYzdhNWY3YjQyYjk2MDc4MmE0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0ODkzZjQwZTM3ODFlYjg5NmM4MmQwNDZhMDgwNjdhMTFlMzVjZGYyZjFkZmFmMjZmZWE5MGI4ZGI2Njc2NDEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJhMDNjZWNmMGY4ZTgzNDAyMjEyMTc0MWY2ZGJkM2VjOWJhZDk1OTIwYTU5ZmZjNjY4MWQ0NDg3Nzc4OTc3OWRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4ZGE5OGRmZjA5MmIyMmQ2NTRiZWZiM2NjYjEyOGQ4OWJiZDMwZWUyM2RkNTkzYzgyYTFlNDQ2MThhNTAzMDljIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_349fc992efe84775b9d2686cd9dde9e8",
+      "statement": "B observation IDs, B decisions, A terminal turns and helpful/unhelpful scores share owner/session-correlated traces with role-specific prompt versions; Chat instead resolves its actual prompt through an owner-scoped managed-request receipt.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/observability/ai_evaluation.py#L49-L165",
+          "version": "repo-lines-v1:sha256:8f901b441d9d961dcd250c97e92cc33dc562a7341f185e236c2d664649a25556:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2YwOGM1ODg2OTQ0MTQ4ZGM3NTM4YmU2OGUxZDZjODUwMDI4YTVmYjM0ZGQ4NTlkZDk1NDIyYTE5MDI2YTZlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MmI3Y2UxMWU3N2NiZmYzZjIwZDQxYjYxNjRhZjc1MGE3NDJlMGYwZGVmNGY1NzFkYWQ4MjY2NDUzZWY0MTJkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://backend/utils/observability/chat_evaluation.py#L13-L31",
+          "version": "repo-lines-v1:sha256:ab336429204324ac23e37711061e31bc42f2e6b9f1b21f3dc35789ff3f713cc0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiNDMxZTk5ZmI5OTFlOTBiYTU5ZjA0ZTEwY2EwMWUzZTZlMDY4NWU0MjY2ODAwMGMxYzM2MDA4YzdiMGY5ZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlN2M5NTdiY2I0NGZiNjczYzk4YjAwNTBhNzVkMzgwODJkYjgxZDkxOGRlMzEzYTNmMDdjMTIzNTMwNmQ3ZWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyMDA5N2U0YWE1MDA2OGJhMTU3ZjlhMjczOWZhZDg2OTk1ZTFlMGNkY2NkYWRjNTg5N2MyMDM0Yzc0ZDNlZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L49-L139",
+          "version": "repo-lines-v1:sha256:af78ae9b2a50c738900f397a533e151676cf971f660069469f5dd9a7d50cab5c:eyJzZWxlY3RlZExpbmVDb3VudCI6OTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlMzc3ZjA0Yjg4MzdlZjQ3Mzg3ZDUyNTI2YjMxMjYzMWJhMWRmMTIzN2FiMTA2MDFiZDE2YTY4MjBhYzY3OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5YzRmYjQwZjkwMGQyMjU0ZDJmNzc3NDA2ZTUzZjZmMjdhMjJhYmQxYjk4YzIzMTk1NTlhYTQyNWQzZjMxMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1NTA5NTcwZGU5NGIwNGYwNDFhYmYxOTVhZTkwZDJkMjUwOTBkMDA5YThmOThhZGEwOThjOWZlY2JjNWM4NjEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

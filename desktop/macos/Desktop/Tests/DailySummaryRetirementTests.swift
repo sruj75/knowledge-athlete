@@ -10,10 +10,10 @@ final class DailySummaryRetirementTests: XCTestCase {
 
     XCTAssertTrue(notificationIDs.contains("notifications.settings"))
     XCTAssertTrue(notificationIDs.contains("notifications.frequency"))
-    XCTAssertTrue(notificationIDs.contains("notifications.focus"))
-    XCTAssertTrue(notificationIDs.contains("notifications.task"))
-    XCTAssertTrue(notificationIDs.contains("notifications.insight"))
-    XCTAssertTrue(notificationIDs.contains("notifications.memory"))
+    XCTAssertTrue(notificationIDs.contains("notifications.supervisor"))
+    for retired in ["notifications.focus", "notifications.task", "notifications.insight", "notifications.memory"] {
+      XCTAssertFalse(notificationIDs.contains(retired))
+    }
 
     XCTAssertFalse(items.contains { $0.name == "Daily Summary" })
     XCTAssertFalse(items.contains { $0.name == "Summary Time" })

@@ -5,22 +5,29 @@ import SoundAnalysis
 
 protocol LocalTranscriptionAudioReceiving: AnyObject, Sendable {
   func appendAudio(_ data: Data)
+  func appendAudio(_ data: Data, captureInterval: SupervisorCaptureInterval?)
+}
+
+extension LocalTranscriptionAudioReceiving {
+  func appendAudio(_ data: Data, captureInterval: SupervisorCaptureInterval?) {
+    appendAudio(data)
+  }
 }
 
 final class LocalTranscriptionAudioSink: @unchecked Sendable {
   private let lock = NSLock()
   private var service: (any LocalTranscriptionAudioReceiving)?
-  private var buffered: [Data] = []
+  private var buffered: [(Data, SupervisorCaptureInterval?)] = []
   private var buffering = false
 
-  func append(_ data: Data) {
+  func append(_ data: Data, captureInterval: SupervisorCaptureInterval? = nil) {
     lock.withLock {
       if buffering {
-        buffered.append(data)
+        buffered.append((data, captureInterval))
       } else {
         // Delivery is part of the sink's synchronization boundary. `beginHandoff()` must not
         // return while an append already admitted to the retiring receiver is still in flight.
-        service?.appendAudio(data)
+        service?.appendAudio(data, captureInterval: captureInterval)
       }
     }
   }
@@ -36,7 +43,7 @@ final class LocalTranscriptionAudioSink: @unchecked Sendable {
     lock.withLock {
       // Keep live callbacks behind the sink lock until every older buffered chunk has reached
       // the new receiver. Publishing the receiver first would let newer PCM overtake the replay.
-      buffered.forEach { newService.appendAudio($0) }
+      buffered.forEach { newService.appendAudio($0.0, captureInterval: $0.1) }
       buffered.removeAll()
       service = newService
       buffering = false
@@ -105,6 +112,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
     let window: [Float]
     let startSec: Double
     let durSec: Double
+    let captureInterval: SupervisorCaptureInterval?
   }
 
   private let language: String
@@ -141,6 +149,8 @@ final class LocalTranscriptionService: @unchecked Sendable {
   private var readinessWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
   private var flushWaiters: [CheckedContinuation<Void, Never>] = []
   private var emittedSeconds = 0.0  // absolute start offset of the next emitted segment
+  private var supervisorTimeline = SupervisorAudioTimeline()
+  private let supervisorProducerID = UUID()
 
   private var pumpTask: Task<Void, Never>?
   private var modelLoadTask: Task<Void, Never>?
@@ -280,6 +290,10 @@ final class LocalTranscriptionService: @unchecked Sendable {
 
   /// Feed 16 kHz mono Int16 little-endian PCM — the same `Data` the WebSocket path sends.
   func appendAudio(_ data: Data) {
+    appendAudio(data, captureInterval: nil)
+  }
+
+  func appendAudio(_ data: Data, captureInterval: SupervisorCaptureInterval?) {
     let floats = Self.int16ToFloat32(data)
     guard !floats.isEmpty else { return }
     let overflow = lock.withLock {
@@ -303,6 +317,7 @@ final class LocalTranscriptionService: @unchecked Sendable {
         modelLoadTask = nil
         return (waiters, callback, tasks.0, tasks.1)
       }
+      supervisorTimeline.append(byteCount: floats.count * 2, interval: captureInterval)
       buffer.append(contentsOf: floats)
       return nil
     }
@@ -403,7 +418,9 @@ final class LocalTranscriptionService: @unchecked Sendable {
         let durSec = Double(take) / Double(sampleRate)
         emittedSeconds += durSec
         isFlushing = true
-        return DrainSnapshot(manager: manager, window: window, startSec: startSec, durSec: durSec)
+        return DrainSnapshot(
+          manager: manager, window: window, startSec: startSec, durSec: durSec,
+          captureInterval: supervisorTimeline.interval(start: startSec, end: startSec + durSec))
       })
     else { return }
 
@@ -458,7 +475,11 @@ final class LocalTranscriptionService: @unchecked Sendable {
         text: text,
         isUser: isUser,
         start: snapshot.startSec,
-        end: snapshot.startSec + snapshot.durSec
+        end: snapshot.startSec + snapshot.durSec,
+        supervisorProvenance: snapshot.captureInterval.map {
+          SupervisorTranscriptProvenance(
+            producerID: supervisorProducerID, source: isUser ? .microphone : .system, capture: $0)
+        }
       )
       // Deliver synchronously on the main actor so an awaited finish() guarantees the
       // segment is persisted (to the current session) before the caller rotates state.

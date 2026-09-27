@@ -104,6 +104,16 @@ def test_swift_generator_sanitizes_openapi_component_names():
     assert 'WorkstreamProposal-Output' not in rendered
 
 
+def test_swift_generator_uses_synthesized_codable_for_empty_requests():
+    rendered = generate_swift_openapi_types._render_struct(
+        'MintRequest', {'type': 'object', 'properties': {}, 'additionalProperties': False}
+    )
+
+    assert 'public struct MintRequest: Codable {' in rendered
+    assert 'public init() {}' in rendered
+    assert 'decoder.container' not in rendered
+
+
 def test_swift_generator_module_helper_is_emitted():
     spec = {'components': {'schemas': {}}}
     generated = generate_swift_openapi_types.generate(spec, 'test-openapi.json')

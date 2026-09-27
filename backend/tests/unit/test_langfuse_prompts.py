@@ -1,6 +1,39 @@
 from types import SimpleNamespace
 
+import pytest
+
 from utils.observability import langfuse_prompts
+
+
+@pytest.mark.parametrize(
+    'role,name', [('live', 'intentive-live-system'), ('supervisor', 'intentive-supervisor-system')]
+)
+def test_role_prompt_uses_owned_name_and_nonempty_bundled_fallback(monkeypatch, role, name):
+    monkeypatch.setattr(langfuse_prompts, 'get_langfuse_client', lambda: None)
+    fallback = langfuse_prompts.get_runtime_prompt(role)
+    assert fallback.name == name
+    assert fallback.text.strip()
+    assert fallback.source == 'fallback'
+    calls = []
+    prompt = SimpleNamespace(version=7, is_fallback=False, compile=lambda: 'managed behavior')
+    client = SimpleNamespace(get_prompt=lambda *args, **kwargs: (calls.append((args, kwargs)), prompt)[1])
+    monkeypatch.setattr(langfuse_prompts, 'get_langfuse_client', lambda: client)
+    resolved = langfuse_prompts.get_runtime_prompt(role)
+    assert resolved.text == 'managed behavior'
+    assert resolved.version == '7'
+    assert calls[0][0] == (name,)
+    assert resolved.receipt() == {'text': 'managed behavior', 'name': name, 'version': '7', 'source': 'langfuse'}
+
+
+@pytest.mark.parametrize('text', ['', 'x' * 32001], ids=['empty', 'oversized'])
+def test_unusable_live_prompt_uses_bundled_behavior_instead_of_breaking_mint(monkeypatch, text):
+    prompt = SimpleNamespace(version=7, is_fallback=False, compile=lambda: text)
+    monkeypatch.setattr(
+        langfuse_prompts, 'get_langfuse_client', lambda: SimpleNamespace(get_prompt=lambda *_a, **_k: prompt)
+    )
+    result = langfuse_prompts.get_runtime_prompt('live')
+    assert result.source == 'fallback'
+    assert 0 < len(result.text) <= 32000
 
 
 def test_remote_blank_prompt_is_valid_linked_and_uses_the_sdk_cache_contract(monkeypatch):
@@ -81,3 +114,17 @@ def test_managed_prompt_precedes_the_existing_kernel_policy():
     assert langfuse_prompts.compose_system_prompt(remote, 'kernel policy') == 'managed procedure\n\nkernel policy'
     assert langfuse_prompts.compose_system_prompt(blank, 'kernel policy') == 'kernel policy'
     assert 'Omi' not in langfuse_prompts.FALLBACK_RUNTIME_PROMPT
+
+
+def test_local_qualification_can_select_a_nonproduction_prompt_label(monkeypatch):
+    labels = []
+    prompt = SimpleNamespace(version=2, is_fallback=False, compile=lambda: 'qualification behavior')
+    client = SimpleNamespace(get_prompt=lambda *args, **kwargs: (labels.append(kwargs['label']), prompt)[1])
+    monkeypatch.setattr(langfuse_prompts, 'get_langfuse_client', lambda: client)
+    monkeypatch.setenv('LANGFUSE_PROMPT_LABEL', 'abc-local-qualification')
+    for role in ['live', 'supervisor']:
+        assert langfuse_prompts.get_runtime_prompt(role).version == '2'
+    assert labels == ['abc-local-qualification', 'abc-local-qualification']
+    monkeypatch.setenv('LANGFUSE_PROMPT_LABEL', '   ')
+    langfuse_prompts.get_runtime_prompt('live')
+    assert labels[-1] == 'production'

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2686862a9d8f193edfe6e3f320c0fd705c9e04166f83229c11b7bb240e3e8e81",
+  "pageVersion": "sha256:1a79f430eb5d865dd9052bef2c89e5bf738769c9034d540d188f496fa8f5bc6a",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -128,7 +128,7 @@
     },
     {
       "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
-      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 210 nodes and 422 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 205 nodes and 409 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
       "evidence": [
         {
           "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
@@ -144,7 +144,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:f48f88d10d7d24baf4e51b07196580dfbed62cdc1f6eafcbc7e06807b058b320"
+          "version": "repo-file-v1:sha256:ef9247fe5c12bf0e1b20b66211cafc35acfc1d72186b13d7261afccbd5c3466d"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -161,10 +161,50 @@
           "version": "repo-lines-v1:sha256:51dd13857f6b6c4bd68d7356cd32b125b71d88e5046c4a02e9b50592a52d0753:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjY1YThmMzYzMTVlZTFkNTBlYzdlOTU5ZTAxMGQ5ZTFhY2NjMDUwNzdhMmE1MjQyYmI3OGQ1NmY2YjA2Nzc5MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdiMDA5YmFjM2RmNDBjNTFjNWJjNWVkZGVmZmRkNzE4OTU1YjE2ODA1ZGJkMDRkMWJjYjhhYWQ0ZjczODFhOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjI5MTMzMTZiNTY0OTc1ZGNkMTY3NWYwZDc4YTZhMGY1OWYxMDk5NTIxMDFhY2RkYWNmMzdmZmZiOTRkMzljYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzJjOWU5YjU4ZDBiYmQ1ZGM0YTZmNDg2MzgxMTViMjYyYTBhNDcyMzBlOTU2MmU5NjJiZTE1NzYyZTI3ZDg1YyJ9"
         }
       ]
+    },
+    {
+      "id": "claim_d2fb196cda1e4ece9feef596cf9d4da5",
+      "statement": "Local Langfuse credentials, endpoint and prompt label are supplied only to the real-mode backend child; offline, infrastructure and desktop environments exclude them.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/dev-harness/desktop-app-scrub-env.txt#L1-L18",
+          "version": "repo-lines-v1:sha256:083411d695be57ba9c09d8dbde8184818ee9da8276b55ac39484d1bd1c9973f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjZTE5Y2JiNmVlOTMyNjYyNWVhMWE3MDFkMGFmOWJiMTRkZmQ0ZTA2ODIzYTU0YjdmOTFjN2MyOTlmYmM0MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxZDdkMDUwZDE1MzMwM2EyNzBjMDBjNTU1NjFkZjBhM2Y0ZTk2M2Q3YmMxM2Y2Y2RmOGM5NDU5YjRlYzRlNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4M2E0MzgwODgwNzAwYzVkMjgwODg2YTg0NzA1MjRhNGY1ZDY3NTFiMzU0YjUwODUyZTg0MDQxM2YzMTNmYzQifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/cli.py#L2020-L2036",
+          "version": "repo-lines-v1:sha256:af0aff5e146dd485cb1e99a465f08d1a73fd0c4de964dafe2981ce5accd68e99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMTU3NjFjMGZhYWYyYmU1NDNiOTYxNTU5YzdkNTRkYzRmZTk0OTkzMTVlNGIwNzY5MjNmOWUxOTVhYmVhOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwNzIzODUxOTdkY2UyMzVmNTlhMTFmYzVkNTZhOGYxNWQzODVkYTg3NjViZmQ2ZWIxNmExYTBjM2JmYTkxNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1YmRlYjM0NGY1OTU0ZTE1YzA1NWUzZWJjYzNmYjdhMmZlM2E0MTg2YjYxZGM3NTVlMjE4YWEyYTRhMTVhYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiM2E4MjUzNGMwZGExOGYxNmFjYjZjNThkOTEzMDI0YWIyNzkwZDcyZTJkYjJhNzMxNzA2MmI4NDc1NjNhMjgifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/config.py#L280-L296",
+          "version": "repo-lines-v1:sha256:0f0dd81ded2a4544b54ebf15352c6238b041f2f659583354463295f4ae4ea62b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiMzM2ODJmMGI3MzlkM2ZjMzBkMmNkNGU1YzQ1OWEyNGU3YzQ2YzVkZjcyYTg5YWVhY2Y5Y2U2ODYxZmJkMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwNmZlNGE4Zjk2NjEyZGE3ZTE1N2UwODAwMGZjNjY1MjBjYjlmMWI2NDBkMzNlYTI4ODcyOTc1M2NlYWMwNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmYmQwMDkzMTRiYzI3MDg0MTY3MzRhMDJhZTVmZjM5YTFlNDhhMDUwYmU5MWY0M2IyZmFhOTIwMDJjNjJiZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/config.py#L39-L48",
+          "version": "repo-lines-v1:sha256:c8af1bbd0d7d0670d38af9a2b8cddca6f19595aa8cba622254aa03362a84d165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZDk4OGE5OTFhNzlmNjRlMWUwMTY4NmNlOGU2Y2M3YTY3ZTIxMjI4MGJjZDhjZDBiOTE2YzRmYzEyMGYwZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwMzM5NjNkNzI4YWQ0YjRkNmIyODVkMDg5ZTA0YzZiNjY3YWE0Y2Y2ZTI4NTVhMmU1YTNkOGYzNzcxNThmOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiOWJiMzk4MzU3ZWRhNDRlNmRmNGUzOTc2NTQ5ZTZmNzRlN2JkNmYyOTllYjgzZDc2Yjk1ZDI5NDVjYjc3NTcifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/tests/test_observability_env.py",
+          "version": "repo-file-v1:sha256:3a1cca7c7d59ca738d193d6148be1729178c2ef19ded1999993bcdd8a681c844"
+        }
+      ]
+    },
+    {
+      "id": "claim_33d5cb8754164d09980392a416f96bbd",
+      "statement": "The local harness allows 120 seconds for Auth emulator readiness during sequential cold startup.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/cli.py#L2047-L2056",
+          "version": "repo-lines-v1:sha256:6ec8eb5e0e969bc4f7b72bff1ac4fbe636c57c6115cf22e5e09d6fe2491b5b47:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwZWFjOGExMTZhOThlODNkMWVmNDY3MGY2YWM4Y2FmNjVlMGEyYzc1NmMzZGEwZTU4NTQ0NTA4ZGVmNzI1ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJjMDBmYmE2OTAwMzBhMzM5MDMzNmE5MjI1MmFiYzk5Mzg0ZjdjYWE0MWI4MGE2YjllY2Y5MTYwYWRhYjJlZWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2YmU1MDhlZDhlNDEwMTVkN2QzODRkYjA4MjQ0YzE4M2NjYmIwMTQ2ODViZTNiYTE4MGM3OTliNDZlMjYxZDgifQ"
+        },
+        {
+          "resource": "repo://scripts/dev-harness/tests/test_cli.py",
+          "version": "repo-file-v1:sha256:ce9c4c2850377d5aba151a9c2fd0641eff3c4b4ace291544f08ef77562098757"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-26T08:08:12.066Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

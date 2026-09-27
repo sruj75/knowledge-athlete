@@ -18,6 +18,8 @@ sources:
     resource: repo://.github/scripts/test_check_policy_change_review.py
   - id: openwiki-source-54e240f9ab6a71a2b90a1c33
     resource: repo://.github/workflows/guardrail-baseline-pulse.yml
+  - id: openwiki-source-38a1b3c7a8acf2ceea409825
+    resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-bcd362fbbe23cf1c0d8329bd
     resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
   - id: openwiki-source-275b2622aa4001b497c886f2
@@ -28,10 +30,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-26T08:08:12.066Z
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Qualification and open obligations
 
@@ -51,7 +53,13 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
-The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 210 nodes and 422 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 205 nodes and 409 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+
+## A–B–C qualification
+
+The manual `supervisor-conversation` flow binds the new interaction to a named development bundle, authenticated Gemini and managed A/B prompts. It separates cold/warm unsolicited admission, physical PTT interruption with speakers and headphones, silent next-turn guidance, speech controls, assistant-only journal acceptance, feedback correlation, sharing revocation and provider/permission failures.
+
+Record usable-input time, B evaluation start and audible-playback start separately. A passed scheduling test does not remove transcription or model latency, and an evaluation count from a brief test does not establish all-day quota coverage. Repository tests, offline T2/T3, managed prompt fetches and physical audio outcomes remain distinct evidence classes. The [Supervisor workflow](../workflows/supervisor-conversation.md) and [desktop E2E](../testing/desktop-e2e.md) locate their respective seams.
 
 ## Policy-change disclosure
 

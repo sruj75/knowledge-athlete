@@ -1727,7 +1727,7 @@ def print_provider_status(
         for key in sorted(parsed.sources):
             if key == "PROVIDER_MODE":
                 print(f"  {key}: {parsed.sources[key]}")
-            elif key in config.CORE_PROVIDER_ENV:
+            elif key in (*config.CORE_PROVIDER_ENV, *config.BACKEND_OBSERVABILITY_ENV):
                 print(f"  {key}: {parsed.sources[key]}")
     return report
 
@@ -2026,7 +2026,7 @@ def _start_app_services(cfg: config.HarnessConfig) -> None:
         cwd=cfg.repo_root / "backend",
         log_name="backend.log",
         port=cfg.backend_port,
-        env=config.child_env_for(cfg),
+        env=config.child_env_for(cfg, include_observability=True),
     )
 
 
@@ -2047,7 +2047,10 @@ def _start_services(cfg: config.HarnessConfig) -> None:
 # 45 s (the old flat deadline shared across *all* services) is not enough.
 _HEALTH_TIMEOUTS: dict[str, float] = {
     "firestore": 45.0,
-    "auth": 45.0,
+    # Firebase starts Auth after Firestore. Cold CLI/module loading on a loaded
+    # development machine can put Auth readiness around 90s even when Firestore
+    # was healthy within its own window. Both deadlines begin together below.
+    "auth": 120.0,
     "backend": 90.0,
     "redis": 30.0,
 }

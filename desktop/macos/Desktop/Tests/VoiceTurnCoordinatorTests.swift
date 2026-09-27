@@ -574,6 +574,25 @@ import XCTest
       XCTAssertNotNil(terminal["duration_ms"] as? Int)
     }
 
+    func testDrainedPartialAnswerIsNotDeliveredWhenProviderFailsBeforeFinishing() throws {
+      let coordinator = VoiceTurnCoordinator(scheduler: ManualVoiceTurnScheduler())
+      let turnID = coordinator.begin(intent: .supervisor)
+      let sessionID = VoiceSessionID()
+      let responseID = VoiceResponseID("partial-supervisor")
+      coordinator.publish(.selectRoute(turnID: turnID, route: .hub(sessionID: sessionID)))
+      coordinator.publish(.hubCommitAccepted(turnID: turnID, sessionID: sessionID, responseID: responseID))
+      guard case .acquired(let lease) = coordinator.acquireOutput(.nativeRealtime, turnID: turnID) else {
+        return XCTFail("expected output lease")
+      }
+      XCTAssertTrue(coordinator.releaseOutput(lease))
+      XCTAssertFalse(coordinator.hasDeliveredVoiceOutput(turnID: turnID))
+      coordinator.publish(.finish(turnID: turnID, reason: .providerFailed))
+      XCTAssertEqual(coordinator.model.lastTerminal?.reason, .providerFailed)
+      XCTAssertFalse(
+        coordinator.hasDeliveredVoiceOutput(turnID: turnID),
+        "A temporarily drained chunk is not the completed provider answer")
+    }
+
     func testDeliveredVoiceAnswerDoesNotBecomeResponseFailureWhenJournalFailsLater() throws {
       DesktopDiagnosticsManager.shared.resetForTests()
       defer { DesktopDiagnosticsManager.shared.resetForTests() }
@@ -599,6 +618,9 @@ import XCTest
       XCTAssertTrue(coordinator.releaseOutput(lease))
       XCTAssertTrue(coordinator.completeNonHubProvider(token, outcome: .journalFailed))
       XCTAssertEqual(coordinator.model.lastTerminal?.reason, .journalFailed)
+      XCTAssertTrue(
+        coordinator.hasDeliveredVoiceOutput(turnID: turnID),
+        "Delivery acknowledgement must survive the terminal callback and later journal failure")
 
       let url = try XCTUnwrap(DesktopDiagnosticsManager.shared.writeDiagnosticsAttachment())
       defer { try? FileManager.default.removeItem(at: url) }

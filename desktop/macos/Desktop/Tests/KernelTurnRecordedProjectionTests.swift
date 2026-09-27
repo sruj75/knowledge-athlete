@@ -59,7 +59,7 @@ import XCTest
       result: AgentRuntimeProcess.JournalOperationResult
     ) async throws -> AgentRuntimeProcess.JournalOperationResult {
       started = true
-      startedWaiters.forEach { $0.resume() }
+      for waiter in startedWaiters { waiter.resume() }
       startedWaiters.removeAll()
       await withCheckedContinuation { releaseContinuation = $0 }
       guard let authorizationSnapshot,
@@ -94,7 +94,7 @@ import XCTest
       callCount += 1
       guard callCount > 1 else { return initial }
       lateReadStarted = true
-      lateReadWaiters.forEach { $0.resume() }
+      for waiter in lateReadWaiters { waiter.resume() }
       lateReadWaiters.removeAll()
       return await withCheckedContinuation { lateReadRelease = $0 }
     }
@@ -417,6 +417,39 @@ import XCTest
       XCTAssertNil(rejected.user)
       XCTAssertNil(rejected.assistant)
       XCTAssertTrue(provider.messages.isEmpty)
+    }
+
+    func testSupervisorJournalAdmitsOnlyAssistantAndOpaqueCorrelation() async throws {
+      let fixture = RuntimeOwnerAuthorityTestFixture()
+      await fixture.establish(authOwnerID: "supervisor-owner")
+      let host = ChatProvider()
+      let surface = host.mainChatSurfaceReference()
+      let stream = RealtimeStreamingJournalProjection(
+        ownerID: "supervisor-owner", continuityKey: "supervisor:opaque-decision", admissionSurface: surface)
+      var captured: [KernelJournalTurnWrite] = []
+      let projection = KernelTurnProjection(
+        host: host, client: AgentClient.Session(harnessMode: "piMono"),
+        kernelReadyOperation: { true },
+        journalRecordExchangeOperation: { _, _, _, writes, _ in
+          captured = writes
+          return AgentRuntimeProcess.JournalOperationResult(
+            operation: "record_exchange", conversationId: "conversation", turn: nil,
+            turns: [], clearedCount: 0, highWaterTurnSeq: 0,
+            conversationGeneration: 1, generationBaseTurnSeq: 0)
+        })
+      _ = await projection.recordExchange(
+        surface: surface, turns: stream.admissionTurns(userText: "PRIVATE NOTE MUST NEVER BE A USER TURN"),
+        origin: "realtime_voice", continuityKey: stream.continuityKey,
+        messageSource: stream.messageSource, ownerID: stream.ownerID)
+      XCTAssertEqual(captured.count, 1)
+      XCTAssertEqual(captured.first?.role, "assistant")
+      XCTAssertEqual(captured.first?.origin, "realtime_voice")
+      XCTAssertEqual(captured.first?.content, "")
+      let metadata = captured.first?.metadataJSON ?? ""
+      XCTAssertTrue(metadata.contains("supervisor"))
+      XCTAssertTrue(metadata.contains("opaque-decision"))
+      XCTAssertFalse(metadata.contains("PRIVATE NOTE"))
+      await fixture.restore()
     }
 
     func testSameUIDReauthenticationRevokesNotificationExchangeBeforeCanonicalWrite() async throws {

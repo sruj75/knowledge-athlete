@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:696be6b32d4be7c0c16b85484aea6b3e867e6e23748c4c3d6af3b89a7d7175ee",
+  "claims": [
+    {
+      "id": "claim_99203f0f8d854aa48cc2bf6b841ecff6",
+      "statement": "One owner-bound supervisor holds bounded corrected ambient and direct-conversation context, reads existing local Memory/profile and schedules one evaluation at a time with three-second coalescing and latest pending input.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L208-L421",
+          "version": "repo-lines-v1:sha256:a7c256fd53ff6e153cc3ce104854196448d890d0ff1633eecbee03ee52192768:eyJzZWxlY3RlZExpbmVDb3VudCI6MjE0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlZGU3NGJhOWRmZjRlZDU5ZmI5MzZhZjk3MGUzNGYzYWFjYjA3MGRlMTg2MzE2ODE5MzQ3ZjY4MzEyNjBjYmExIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI2MDhiOTM1ZTJkYTIzNGQxNWI0NDNhMDg5MWQ0MDhhYWM5ZDA2ZTc5YWVlY2Y5YTA4NWUzZDVkNTRkOGVhMmQ2IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxNzUyMzFjNjA2OTdkNjJlZDE2ZDI0ODMxNDBjMDQ3NzczM2U0NDUzY2FjN2RlZmFjMDgwM2E5Y2Q2MGYzNzcxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxYjlmMWUwMTQwOTFhZjJjNTY1OWZhODc0MWJjNDRmYmNlNzI3MmY1NTlhMWU1Njk2MmY5MmUwMGU3NTY5OThkIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L145",
+          "version": "repo-lines-v1:sha256:c513c2f4b11d73d37af5c11323705eecc0f70fcd4d033f39a08914869f582f3b:eyJzZWxlY3RlZExpbmVDb3VudCI6NzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2M2RjMjU3MDE2MGRhZDQ1NDY3YWVmZjc5YTQwZWEwMjJhODI4MmFjMzlhMWEwZjI2MGQyODFjZjRlNjVjNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0ZjQ5NWU3YzU5NDNhNmY5YzEzNDE5YzZlYmVmY2Y2NTA0YmYzMzY3MjQ1MTAyMjc3M2UxODUxZDEyM2RhZTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a561cfa2599c47dabfe2e693f1e23d1c",
+      "statement": "Supervisor guidance is observation/session/context-bound, expires after thirty seconds, and accepts only wait, guide_next_turn or intervene from a one-call authenticated no-tools backend.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_supervisor.py#L80-L177",
+          "version": "repo-lines-v1:sha256:b4c9ddd34a0311084bf3d284db3ae1fd9b8b63738c39d4a6529abc59be12c188:eyJzZWxlY3RlZExpbmVDb3VudCI6OTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkMmFhYjk0MDlmMTEyYjNmNzM1OTliOTNiMGEyY2FhZDc3Nzc5ZGVlOTEzMjlkNjlmMTNkNjE2MjM2YmZkNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3YmZhZDEzYjNkZDQyODQzYmU4MGY0NDQxZWJhNTlmYmI1ZjQ0YzZjNDFhY2FjNWEzMGNiNDY5NWRlMTNmZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3MjIzMTA2ZmQ4NzQyYjcwZWEyMzNmOWRjMzU5ZjRiMDJiYmIwNjliNzI4M2VlZjc2MjQ5OTUxNmJkN2I5YzgifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L344-L431",
+          "version": "repo-lines-v1:sha256:780da449c43ce505520abbb6ad4a3bb2c9d9cb1fb102f961c75ee6cd3d2315c8:eyJzZWxlY3RlZExpbmVDb3VudCI6ODgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljY2E4ZDdiMjlkYmM2MTQ1NGI0OTEwY2VlYjRmNjI1MmU2ZWFjMjdjNTExZTVmMjI4NjU2MmM2OGQzZDQ3OGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4ODAyM2FmNTBmMjBiMGU4ZjhmNmYxODg0NTIzNWYzZDkzMmRlNWU0YmI3MDAyZmViODU1YTUzM2FlYzAyN2MifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cb13da9503c64030a6b32cdf70200c67",
+      "statement": "Direct voice capture/playback intervals exclude overlapping or unmappable ambient segments only from B, while ordinary AppState transcript persistence remains independent.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift#L8-L83",
+          "version": "repo-lines-v1:sha256:1a26f467a00fd5f84a6d00f5d15b7be90e26f9a123a71834150a0ae2196697f0:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZWIyZGIyOWM2YTg2NTFjODc2NTFiYjI1Yjk4NGFiYjBjNmM5YjEyZjg4MWJhMTMyZTUwMmI0YzVlN2E4M2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2M2YwOTQ5M2QzYTE3NTZlNjZkZjg5ZjI3ZmYwMjFlNjFlNjVhYmJjYjYzMjU5ZmJmZTM5ZDk4NDU4MGNlMGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNmYTY5NWI5NDVkOWI0NDY0NGExYzcxNmY4ZDJjMzFmMzFmNDkxMTQ5NjM1OGY0NDBhOTM2NWE4YTQ3MTI0N2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L208-L315",
+          "version": "repo-lines-v1:sha256:ed4e164fb4db1c9fb562e5a8ff69cae2763174cb62d04abce47a2edfc58b9731:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlZGU3NGJhOWRmZjRlZDU5ZmI5MzZhZjk3MGUzNGYzYWFjYjA3MGRlMTg2MzE2ODE5MzQ3ZjY4MzEyNjBjYmExIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxNzUyMzFjNjA2OTdkNjJlZDE2ZDI0ODMxNDBjMDQ3NzczM2U0NDUzY2FjN2RlZmFjMDgwM2E5Y2Q2MGYzNzcxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI2MjhmZGJjMzNiZDEwNjIzNGNlZmFiYTk3ZTliOTg1ZGFhNzIxMjNhYWI2ODdlN2ZjOWY4ZjFiNWUwNjYzMGVkIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_e41af8ef424941f7af35b2d12afd45ef",
+      "statement": "Supervisor-origin speech shares voice admission/playback, has no microphone input or tool authority, and cannot replay after ambiguous automatic initiation; the next-turn decision instead inserts context into the next PTT window.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift#L728-L747",
+          "version": "repo-lines-v1:sha256:fef40928eae2683d2fb7652fd27aeb2f2552d45e018c3bd8b0fe040f2072d0a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3NTQ1NWEyN2NjYzM3MTQ4MTRkZTJiZjQxMTdmNGYzMGY4ZDJlMjc0NDE5NTY0YmRlNzVmMzY4ZWFmYzUzOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNTdjNTM5NWVjNDhmZGI5ZjkwOWYzZjcxYmFkOGFhODlmMGU3MzVhOWNjMjEwYzgwMTZmNTY3NTBiMDA0MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiNWIwOTQ1YWI3ODgxMzllODYxYTRiZDhlZTc1YWVhYmMzMmQ1MjM2ZDkzMjAxYzQ2ZjBhODcwY2M2MDNlYTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhMWNlYjFiNWZjNWM1MjljODNhYjNiMDY2Y2ZhNTAyMjg2NmM5OWNkYjJiOWE2OTUwZTdkN2Y1ODFkYTgxOWIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L170",
+          "version": "repo-lines-v1:sha256:66546de86ec8d24e25b2fb0e183cd5c71415b000d3d17b316b13b386c54afc82:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQ4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyZWI4ZWZkNjA3NTEwNTgwMTM3ZDczZTdhYWYyYWM5NDQ5MDcyNDBjYWY2YzFkMjY0NzNhZGNlZGRhYzE5ZmYzIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1097-L1131",
+          "version": "repo-lines-v1:sha256:4785818a51ad79e43484c76297caf75b516a37f7185e9712e578fe77a2970580:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmYTlkZTMyYWExNmJjMDBjYTExZTA3OTMxZTc5MTk3NWJiZDIwOWQxODI3OThjMzRmYmM2ZWExODMxNjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM3NWI1YjQxZDI5ZDdkN2Y4NTNkY2U3NWQ0MDU1MjViOGQ5YzM1ZGVkNGI3ZjVkNGRiZjBjY2FmNzMwMDI3NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwZDJmNzY2OTU5ZDFiYzYwMDVkZDM4MTYxMTA0YmRiZTRmNWY1YzQ4ZjI0YTM1MWNiZGQ0YTgwOWYyMzQwYjEifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1173-L1183",
+          "version": "repo-lines-v1:sha256:6fecd9313becb61cdb31b0ce0a46d266ff4bb1a3310dbdde55b072478b04a6e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwNTUzMDk4YmU5MGI3ZDUzZDkxNTc4ZmY4MjRhNDVjYWFiODkyYjc1MDAxMjFiMWEyODg2NWY0YTE3OGEzMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwMDNiMGJiZjI3MTc0YjVlODVmYWYyZjc5NGI3ZjllMmM0YTNiOTU4OGM0MzZjMTEyN2MzYTY3YmJhMjM1MDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZTA4NzQ4OTc0MjlmYmE5ZjQ4MmYzMGJhYjlmYmUwNTljYTA3N2I0MzAwNzg3NWRkMDc2ODU2NzlkMjhkOGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9734ca079b234fe29b974a9674221d11",
+      "statement": "Automatic utterances use assistant-only canonical journal entries with full delivery gated by provider completion and playback drain, while terminal outcomes return to B and role-specific prompt telemetry.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/observability/ai_evaluation.py#L49-L165",
+          "version": "repo-lines-v1:sha256:8f901b441d9d961dcd250c97e92cc33dc562a7341f185e236c2d664649a25556:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2YwOGM1ODg2OTQ0MTQ4ZGM3NTM4YmU2OGUxZDZjODUwMDI4YTVmYjM0ZGQ4NTlkZDk1NDIyYTE5MDI2YTZlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MmI3Y2UxMWU3N2NiZmYzZjIwZDQxYjYxNjRhZjc1MGE3NDJlMGYwZGVmNGY1NzFkYWQ4MjY2NDUzZWY0MTJkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift#L899-L990",
+          "version": "repo-lines-v1:sha256:da5571d7efb5f5a89adcf0e58f5d9a750b311d6a1c710013beed5a52dd382235:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljMjgyNTY0ZDgxYTJiOTk4NTBmZDc0MjU3ZmQxNjg4YzE1ODU1NzQ3YmJkZDg2NTY1NTJmY2M0YTY4N2M4ZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMzc5MWQ4MDFiNjdhYmYxYmIwMmY2OTYyYTNiOGIwYjk4MzFmZjI1OTJjMTNmZmI4YzY5YjU5ZTBmYjdjZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0OTA2MTFkMzI4OTBiMmQyNGRhMTY0MTg5OTBhMjVkYjIyODVhOWM5YmVhNzEwN2ZlNmI0YzI4ZDdkMDIyZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0NmEyZDAyNWRjMWZhMTVhZjE3OThlZDE5Y2Y4NzExODM1ZTA1Mzc4OTk0N2MyYzM5MDc5NTA3NTRjMzMwOTQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L173-L222",
+          "version": "repo-lines-v1:sha256:8204b52f4685a14e8b47f3b1844da6972c0a6a5c795443e5d41ec9d6cb152c94:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3N2U0MTQwOTYxMWM2YTQ2NGU0ODhhYzExMDdhN2Y2YWU4MTBiYWIwNWY1ZTBiN2JiNjIxNzFjNTM2NjljYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliNmQ3ZTgxZjM3Yzk5Y2E2MThiNzY3ZTU0N2ZiNDFmYzZlOWFjY2UyMTNmODM3ZjYxMGI4NmZmYmM1YTIyOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_603dc090d85b4c25b6459afa8ec9d0de",
+      "statement": "Evaluation sharing is session-scoped and initially off; typed allowlisted content is fenced by consent epochs and owner checks after token lookup so revocation cannot release old queued text.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift#L8-L124",
+          "version": "repo-lines-v1:sha256:eeb1f46835474d35be80d293e85b778d9086d16382fe4c686475a68f69dd622f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0MmY5MTgzMjcyMjQ5YmQxZjcyM2Q4ZWVlYTRjNjRhYzBiNjZmNmE2Nzk2YTFjMmNkMDA3YjlmOTIwNTIzMWVkIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkM2ExZWFmMjI0YTljZWRiMjQzMzAzYzg4OWJlYjlmMzY4OWJkODVlMTAyNDcyZTRmOWFkOGQzODE3YTU2NmI3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L141-L189",
+          "version": "repo-lines-v1:sha256:683d84e9ed94bfb6f24a4ee1d2dc337976c43133ecb8794165461c1f0ea8734e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MmUwMzBjMjQ1NTVlMDA3MTc1OWY0YjRmN2IxZTU3MmU2NjJjNmEwNzA2ZmI4N2ZkYWQyZDM4ZGUzZTJmZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0MGNiZTYwYmIwYWRjNWE3MmU0YjkxZTkxOTMzYzBmODlkM2Y1OGI3NmFiN2RhZTUxYTY3OWJmYTZhYjYyYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift#L12-L39",
+          "version": "repo-lines-v1:sha256:492498296dbc31289b2dafccc26af0979cdecfee3af9e9b7817c6597b4276dd8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NDdhNWJjMGUzYWY0OTgxMTc0NjUzNTU3OTgxZmYxMWY0ZGQwMjZkMzk5YjkyMmUwYzMwNTY0NzY3YTU3YzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg4MWE5NDJiYzMyYjRiMGM0YTA4ZGI4ZjAwODIwZWMzNTNhODNlOTRjNTFjZTQ2MDczYmZhZjkzMmRmMjI3NDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.5.2",
+    "at": "2026-09-27T17:33:01.317Z"
+  }
+}

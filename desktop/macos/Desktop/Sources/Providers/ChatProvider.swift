@@ -3823,6 +3823,12 @@ class ChatProvider: ObservableObject {
     activeChatTelemetryAttempt = (generation: sendGen, attempt: telemetryAttempt)
     activeChatTurnLifecycle = (generation: sendGen, lifecycle: turnLifecycle)
     activeChatClientTurnId = (generation: sendGen, id: turnAttemptId)
+    let reportsChatEvaluation = turnOwner == .mainChat || turnOwner == .floatingDefault
+    if reportsChatEvaluation {
+      AIEvaluationReporter.shared.captureTurnStart(
+        turnID: "chat:\(turnAttemptId)", authorizationSnapshot: turnAuthorizationSnapshot)
+    }
+    defer { AIEvaluationReporter.shared.discardTurnAdmission(turnID: "chat:\(turnAttemptId)") }
     activeSendChatID = submittedSessionID ?? "default"
 
     // Ensure bridge is running
@@ -4755,6 +4761,13 @@ class ChatProvider: ObservableObject {
           )
         }
       )
+
+      if journalAccepted, reportsChatEvaluation {
+        AIEvaluationReporter.shared.recordChatTerminal(
+          turnID: turnAttemptId, requestID: queryResult.managedRequestID,
+          authorizationSnapshot: turnAuthorizationSnapshot, userText: trimmedText,
+          assistantText: queryResult.text.isEmpty ? messageText : queryResult.text)
+      }
 
       // The kernel journal commit releases the turn.
       releaseSendLock(sendGeneration: sendGen)

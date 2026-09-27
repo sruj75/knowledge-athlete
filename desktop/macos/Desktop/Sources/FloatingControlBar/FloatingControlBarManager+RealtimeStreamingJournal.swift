@@ -11,11 +11,37 @@ extension FloatingControlBarManager {
     guard RuntimeOwnerIdentity.currentOwnerId() == projection.ownerID,
       let provider = sharedFloatingProvider
     else { return false }
+    if projection.isSupervisor {
+      return await provider.kernelTurnProjection.recordExchange(
+        surface: projection.admissionSurface, turns: projection.admissionTurns(userText: ""),
+        origin: "realtime_voice", continuityKey: projection.continuityKey,
+        messageSource: projection.messageSource, ownerID: projection.ownerID) != nil
+    }
     return await provider.recordStreamingJournalExchange(
       surface: projection.admissionSurface, ownerID: projection.ownerID,
       continuityKey: projection.continuityKey, userMessage: projection.userMessage(text: userText),
       assistantMessage: projection.assistantMessage(text: "", isStreaming: true),
       origin: "realtime_voice", sessionId: nil, messageSource: "realtime_voice")
+  }
+
+  /// A supervisor intervention has no user row or private guidance metadata.
+  func recordSupervisorRealtimeExchange(
+    projection: RealtimeStreamingJournalProjection,
+    assistantText: String,
+    interrupted: Bool
+  ) async -> Bool {
+    guard RuntimeOwnerIdentity.currentOwnerId() == projection.ownerID,
+      let provider = sharedFloatingProvider
+    else { return false }
+    return await provider.kernelTurnProjection.recordExchange(
+      surface: projection.admissionSurface,
+      turns: [
+        .init(
+          message: projection.assistantMessage(text: assistantText, isStreaming: false),
+          status: interrupted ? .failed : .completed)
+      ],
+      origin: "realtime_voice", continuityKey: projection.continuityKey,
+      messageSource: "supervisor", ownerID: projection.ownerID) != nil
   }
 
   /// Persists a coalesced realtime delta through the admitted assistant row.
@@ -36,24 +62,27 @@ extension FloatingControlBarManager {
   func completeStreamingRealtimeExchange(
     projection: RealtimeStreamingJournalProjection,
     userText: String,
-    assistantText: String
+    assistantText: String,
+    status: KernelJournalTurnStatus = .completed
   ) async -> Bool {
     guard RuntimeOwnerIdentity.currentOwnerId() == projection.ownerID,
       let provider = sharedFloatingProvider
     else { return false }
     let surface = projection.admissionSurface
-    guard
-      await provider.kernelTurnProjection.updateTurn(
-        surface: surface, message: projection.userMessage(text: userText), status: .completed,
-        ownerID: projection.ownerID) != nil
-    else { return false }
+    if !projection.isSupervisor {
+      guard
+        await provider.kernelTurnProjection.updateTurn(
+          surface: surface, message: projection.userMessage(text: userText), status: .completed,
+          ownerID: projection.ownerID) != nil
+      else { return false }
+    }
     // Retry the assistant mutation so a transient nil does not leave the row
     // stuck in .streaming after the user row is already committed.
     for _ in 0..<3 {
       if await provider.kernelTurnProjection.updateTurn(
         surface: surface,
         message: projection.assistantMessage(text: assistantText, isStreaming: false),
-        status: .completed, ownerID: projection.ownerID) != nil
+        status: status, ownerID: projection.ownerID) != nil
       {
         return true
       }

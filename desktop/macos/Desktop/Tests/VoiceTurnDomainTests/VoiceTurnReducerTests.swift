@@ -28,6 +28,74 @@ final class VoiceTurnReducerTests: XCTestCase {
   }
   private let reducer = VoiceTurnReducer()
 
+  func testSupervisorAdmissionDoesNotCaptureAndUserPTTPreemptsIt() {
+    let intervention = VoiceTurnID()
+    let started = reduce(.idle, .start(turnID: intervention, ownerID: "owner", intent: .supervisor))
+    XCTAssertEqual(started.model.turn?.phase, .finalizing)
+    XCTAssertFalse(started.model.turn?.projection.isListening ?? true)
+    XCTAssertFalse(started.model.turn?.deadlines.contains(.captureStart) ?? true)
+    let reply = VoiceTurnID()
+    let interrupted = reduce(started.model, .start(turnID: reply, ownerID: "owner", intent: .hold))
+    XCTAssertEqual(interrupted.model.lastTerminal?.reason, .interruptedByBargeIn)
+    XCTAssertEqual(interrupted.model.turn?.id, reply)
+    XCTAssertEqual(interrupted.model.turn?.phase, .recording)
+  }
+
+  func testSupervisorCannotReplaceAnActiveUserTurn() {
+    let user = VoiceTurnID()
+    let listening = reduce(.idle, .start(turnID: user, ownerID: "owner", intent: .hold)).model
+    let rejected = reduce(listening, .start(turnID: VoiceTurnID(), ownerID: "owner", intent: .supervisor))
+    XCTAssertEqual(rejected.model.turn?.id, user)
+    XCTAssertNil(rejected.model.lastTerminal)
+  }
+
+  func testSupervisorConnectionFailureNeverRequestsTranscriptionOrReplay() {
+    let turnID = VoiceTurnID()
+    var model = reduce(.idle, .start(turnID: turnID, ownerID: "owner", intent: .supervisor)).model
+    model = reduce(model, .selectRoute(turnID: turnID, route: .hub(sessionID: nil))).model
+    let rejected = reduce(model, .hubAdmissionRejected(turnID: turnID))
+    XCTAssertEqual(rejected.model.lastTerminal?.reason, .providerFailed)
+    XCTAssertFalse(
+      rejected.effects.contains { effect in
+        if case .fallbackToTranscription = effect { return true }
+        return false
+      })
+    XCTAssertFalse(
+      rejected.effects.contains { effect in
+        if case .stopCapture = effect { return true }
+        return false
+      })
+  }
+
+  func testSupervisorJournalWaitsForAudioDrainAndCanFailWithoutReplayingSpeech() throws {
+    let turnID = VoiceTurnID()
+    let sessionID = VoiceSessionID()
+    let responseID = VoiceResponseID("supervisor")
+    let lease = VoiceOutputLease(id: VoiceLeaseID(), turnID: turnID, lane: .nativeRealtime)
+    var model = reduce(.idle, .start(turnID: turnID, ownerID: "owner", intent: .supervisor)).model
+    model = reduce(model, .selectRoute(turnID: turnID, route: .hub(sessionID: sessionID))).model
+    model = reduce(model, .hubCommitAccepted(turnID: turnID, sessionID: sessionID, responseID: responseID)).model
+    model = reduce(model, .playbackStarted(turnID: turnID, lease: lease)).model
+    let generated = reduce(model, .providerTurnFinished(turnID: turnID, sessionID: sessionID, responseID: responseID))
+    XCTAssertEqual(generated.model.turn?.journalFinalization, .pending)
+    XCTAssertFalse(
+      generated.effects.contains {
+        if case .finalizeJournal = $0 { return true }
+        return false
+      })
+    let drained = reduce(generated.model, .playbackDrained(turnID: turnID, leaseID: lease.id))
+    guard case .writing(let identity) = drained.model.turn?.journalFinalization else {
+      return XCTFail("Canonical completion must begin after playback drains")
+    }
+    let failed = reduce(drained.model, .journalFailed(turnID: turnID, identity: identity, message: "fixture"))
+    XCTAssertEqual(failed.model.lastTerminal?.reason, .journalFailed)
+    XCTAssertFalse(
+      failed.effects.contains {
+        if case .fallbackToTranscription = $0 { return true }
+        return false
+      })
+  }
+
   func testHappyHubTurnTransitionsThroughPlaybackAndTerminatesExactlyOnce() throws {
     let turnID = VoiceTurnID()
     let captureID = VoiceCaptureID(7)

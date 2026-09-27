@@ -143,6 +143,25 @@ final class RealtimeHubController: NSObject, RealtimeHubSessionDelegate {
   /// turn completes, require a fresh provider session before accepting another PTT
   /// turn so a late event from A can never be attributed to B.
   var geminiSessionNeedsTurnBoundary = false
+  var sessionManagedPrompt: AIManagedPrompt?
+  var turnManagedPrompts: [VoiceTurnID: AIManagedPrompt] = [:]
+  var pendingSupervisorGuidance: PendingSupervisorGuidance?
+  var supervisorFinalJournalPayloads: [VoiceTurnID: SupervisorFinalJournalPayload] = [:]
+  var nextTurnSupervisorGuidance: SupervisorGuidance?
+  var supervisorContextTurnIDs: Set<VoiceTurnID> = []
+  var supervisorWarmDeadline: Task<Void, Never>?
+  var supervisorDispatchTask: Task<Void, Never>?
+  var privateGuidanceTurnID: VoiceTurnID?
+  var supervisorContinuityKeys: [VoiceTurnID: String] = [:]
+  var supervisorDecisionIDs: [VoiceTurnID: String] = [:]
+  var supervisorOwnerIDs: [VoiceTurnID: String] = [:]
+  var voiceObservationOwners: [VoiceTurnID: RuntimeOwnerAuthorizationSnapshot] = [:]
+  var supervisorGuidanceIsCurrent: (SupervisorGuidance) -> Bool = { SupervisorService.shared.isCurrent($0) }
+  var claimSupervisorSpeech: (RuntimeOwnerAuthorizationSnapshot) -> Bool = {
+    NotificationService.shared.claimSupervisorSpeech(authorizationSnapshot: $0)
+  }
+  var observedVoiceTerminals: [VoiceTurnID] = []
+  var deliveredVoiceTurnIDs: Set<VoiceTurnID> = []
 
   // Per-turn language identification (multi-language PTT).
   /// Local copy of this turn's mic audio (16 kHz s16le mono) for on-device language ID.

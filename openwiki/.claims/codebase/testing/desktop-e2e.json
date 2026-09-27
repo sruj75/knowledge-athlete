@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:ae982243f0a9f1596e12de842e1a10fc7e2d3e0a11d652e8dae7c749f27f96bb",
+  "pageVersion": "sha256:2f2985776455559c4a0bd41453d85f7b4ab33a86ef2302b0f1765836c315be21",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -85,10 +85,42 @@
           "version": "repo-lines-v1:sha256:382d2dd310488a0b9fb27d7d2f73fa5350c9749f1866cd4c238b011f47bc427c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiMDBlOTc5YzNhNjE5ODM0MTJjZWY0MmYzNjdiODI2YjZkNDM4NTRhNGJiYzk2Y2ZlNGZjZmJmMDAwZjU3NDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViYTFhMmY2YmZlZjgyYmNmNjk5YmYyNWUyMDE3YzQyYWJhNjdmOTMzNTIzZWM5ZWZkN2IxOGVmYjk0OWFlMTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBkM2E2ZWUyZTJhODVhMmY1ZDc2ZGVlOTJmNGUyZGIxOThmMTVlOTk2OWMxZjU5NGE5MWEyYThjZDJjM2FhOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_2c49c226802644f48ee3106bd6b6a684",
+      "statement": "Supervisor coordinator, timeline, voice and export regression suites exercise observation scheduling, private voice admission, echo/capture mapping and consent revocation at implementation seams.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift#L637-L741",
+          "version": "repo-lines-v1:sha256:3e4d8ccde83ccf20c2ac75a94e9d7462301b95d994e1f4e3157ada4baa23a860:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJhNWE2MmMyZGE0NjUyNjE0YjUyMjIyNmU5NjMyOGU5MjQ3YzA3ZDBmZDNjNjYxYTZjYTUxYzQwZTAzOWFjZDNmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0ODkzZjQwZTM3ODFlYjg5NmM4MmQwNDZhMDgwNjdhMTFlMzVjZGYyZjFkZmFmMjZmZWE5MGI4ZGI2Njc2NDEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ODRmZjJjYWIyOWUwZjVmMWM1OWQ5Y2MxMGE5NjE5MjYzZjI4M2ZkOTczYjNiMjNkMmNiOWQxMmFhY2EzNWJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4ZGE5OGRmZjA5MmIyMmQ2NTRiZWZiM2NjYjEyOGQ4OWJiZDMwZWUyM2RkNTkzYzgyYTFlNDQ2MThhNTAzMDljIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorAudioTimelineTests.swift",
+          "version": "repo-file-v1:sha256:371b053fdc7039fd1299bdf4103649330d7d61aa37054ca8ae0efd4d3327507d"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift",
+          "version": "repo-file-v1:sha256:ccf61d503d02b9affbedb4024ebb3e1312acd76a152e5364fcb760df77d89af5"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/VoiceTurnCoordinatorTests.swift",
+          "version": "repo-file-v1:sha256:e8af028a130adc80755d4df0048fdf9e28f836c417538d22f53fba386990ad2a"
+        }
+      ]
+    },
+    {
+      "id": "claim_9fd6a2ec83274249986b62964d472c2d",
+      "statement": "The complete authenticated A-B-C speaker/headphone interaction and feedback/export checks live in a manual flow rather than automatic T2/T3 acceptance.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L42",
+          "version": "repo-lines-v1:sha256:b8690417fb16b9782e97b8bcb17194da715f1b661c6f49dc3b0f28c1c51b41a3:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxZDI5NzllOGZiZjBjZmM1YzA1NmRjOTJhZWRlZGQwZjQwODQ2MDhkMzE4YzUyMzc2ZmE3Zjc5NDE1MGY3NzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T09:33:07.181Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

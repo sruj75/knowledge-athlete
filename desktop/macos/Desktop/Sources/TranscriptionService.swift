@@ -47,6 +47,7 @@ class TranscriptionService: @unchecked Sendable {
     let start: Double
     let end: Double
     let translations: [BackendTranslation]
+    let supervisorProvenance: SupervisorTranscriptProvenance?
 
     init(
       segmentId: String,
@@ -55,7 +56,8 @@ class TranscriptionService: @unchecked Sendable {
       isUser: Bool,
       start: Double,
       end: Double,
-      translations: [BackendTranslation] = []
+      translations: [BackendTranslation] = [],
+      supervisorProvenance: SupervisorTranscriptProvenance? = nil
     ) {
       self.segmentId = segmentId
       self.speakerId = speakerId
@@ -64,6 +66,7 @@ class TranscriptionService: @unchecked Sendable {
       self.start = start
       self.end = end
       self.translations = translations
+      self.supervisorProvenance = supervisorProvenance
     }
   }
 
@@ -298,6 +301,8 @@ class TranscriptionService: @unchecked Sendable {
 
   // Audio buffering
   private var audioBuffer = Data()
+  private var supervisorTimeline = SupervisorAudioTimeline()
+  private var supervisorProducerID = UUID()
   private let audioBufferSize = 3200  // ~100ms of 16kHz 16-bit audio (16000 * 2 * 0.1)
   private let audioBufferLock = NSLock()
 
@@ -428,10 +433,11 @@ class TranscriptionService: @unchecked Sendable {
   }
 
   /// Send audio data to the backend (buffered for efficiency)
-  func sendAudio(_ data: Data) {
+  func sendAudio(_ data: Data, captureInterval: SupervisorCaptureInterval? = nil) {
     guard isConnected, !managedCloudAudioQuiesced else { return }
 
     audioBufferLock.lock()
+    supervisorTimeline.append(byteCount: data.count, interval: captureInterval)
     audioBuffer.append(data)
 
     // Send when buffer is full enough
@@ -622,6 +628,13 @@ class TranscriptionService: @unchecked Sendable {
 
   private func handleWebSocketOpen() {
     guard !isConnected else { return }
+    audioBufferLock.withLock {
+      // A fresh provider stream has a new sample clock. Buffered bytes from a
+      // closed transport cannot be relabelled as observations of this stream.
+      audioBuffer = Data()
+      supervisorTimeline = SupervisorAudioTimeline()
+      supervisorProducerID = UUID()
+    }
     isConnected = true
     reconnectAttempts = 0
     lastDataReceivedAt = Date()
@@ -734,8 +747,11 @@ class TranscriptionService: @unchecked Sendable {
   }
 
   private func receiveMessage() {
-    webSocketTask?.receive { [weak self] result in
-      guard let self = self else { return }
+    guard let socket = webSocketTask else { return }
+    socket.receive { [weak self, weak socket] result in
+      guard let self, let socket,
+        WebSocketConnectionAttempt.matches(socket, current: self.webSocketTask)
+      else { return }
 
       switch result {
       case .success(let message):
@@ -832,7 +848,13 @@ class TranscriptionService: @unchecked Sendable {
               text: wire.text,
               isUser: false,
               start: wire.start,
-              end: wire.end)
+              end: wire.end,
+              supervisorProvenance: audioBufferLock.withLock {
+                supervisorTimeline.interval(start: wire.start, end: wire.end).map {
+                  SupervisorTranscriptProvenance(
+                    producerID: supervisorProducerID, source: .mixed, capture: $0)
+                }
+              })
           }
           guard segments.count == envelope.segments.count else { return }
           onBackendSegments?(segments)

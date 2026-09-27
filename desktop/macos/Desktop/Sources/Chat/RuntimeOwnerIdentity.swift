@@ -359,7 +359,10 @@ enum RuntimeOwnerIdentity {
     // These actors retain pools, directories, encoders, or owner-derived
     // values. Purge them while the transition reservation is still held so
     // automation swaps and every auth path share the same hard boundary.
-    await AssistantCoordinator.shared.resetForOwnerChange()
+    await MainActor.run {
+      ProactiveAssistantsPlugin.shared.resetOwnerBoundCaptureState()
+      SupervisorService.shared.endSession()
+    }
     await EmbeddingService.shared.resetForOwnerChange()
     await OCREmbeddingService.shared.reset()
     await RewindDatabase.shared.retargetEffectiveOwner(to: nextOwner)

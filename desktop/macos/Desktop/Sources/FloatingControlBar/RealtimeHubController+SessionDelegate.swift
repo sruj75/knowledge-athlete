@@ -553,6 +553,9 @@ extension RealtimeHubController {
 
   func hubDidOpenInputWindow(source: RealtimeHubSession) {
     guard isCurrentSession(source) else { return }
+    if let turnID = VoiceTurnCoordinator.shared.activeTurnID, turnManagedPrompts[turnID] == nil {
+      turnManagedPrompts[turnID] = sessionManagedPrompt
+    }
     AgentCompletionVoiceDelivery.shared.voiceSessionDidOpenInputWindow()
     NotchCardVoiceDelivery.shared.voiceSessionDidOpenInputWindow()
   }
@@ -561,6 +564,7 @@ extension RealtimeHubController {
     guard isCurrentSession(source) else { return }
     lastWarmAt = Date()
     hubConnected = true  // authenticated + ready — PTT may now route turns to the hub
+    dispatchPendingSupervisorGuidanceIfReady()
     AgentCompletionVoiceDelivery.shared.voiceSessionDidConnect()
     NotchCardVoiceDelivery.shared.voiceSessionDidConnect()
     let replayedReconnectTurn = reconnectAudioBuffer != nil
@@ -589,7 +593,9 @@ extension RealtimeHubController {
     identity: RealtimeHubEventIdentity?,
     source: RealtimeHubSession
   ) {
-    guard acceptsTurnEvent(identity, source: source) else { return }
+    guard acceptsTurnEvent(identity, source: source),
+      VoiceTurnCoordinator.shared.activeTurn?.intent != .supervisor
+    else { return }
     let automationSelection = RealtimeAutomationTranscriptOverridePolicy.select(
       providerText: text,
       providerIsFinal: isFinal,
@@ -724,6 +730,12 @@ extension RealtimeHubController {
     source: RealtimeHubSession
   ) {
     guard acceptsTurnEvent(identity, source: source), let eventIdentity = identity else { return }
+    guard VoiceTurnCoordinator.shared.activeTurn?.intent != .supervisor else {
+      // A spontaneous conversational turn has no user tool authority. Fail the
+      // owned turn instead of allowing even a read/permission tool to execute.
+      VoiceTurnCoordinator.shared.publish(.finish(turnID: eventIdentity.turnID, reason: .cancelled))
+      return
+    }
     let toolTurnEpoch = realtimeToolTurnEpoch
     let transportKey = toolCallKey(callId: callId, name: name, turnEpoch: toolTurnEpoch)
     guard toolEffectIdentityByTransportKey[transportKey] == nil,
@@ -933,6 +945,12 @@ extension RealtimeHubController {
       log("RealtimeHub: TEST override provider transcript → \"\(forced.prefix(60))\"")
     }
     let providerReply = assistantText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let turnID = VoiceTurnCoordinator.shared.activeTurnID {
+      SupervisorService.shared.observeVoice(
+        userText: VoiceTurnCoordinator.shared.activeTurn?.intent == .supervisor ? nil : heard,
+        assistantText: providerReply, turnID: turnID.description, outcome: "generated",
+        authorizationSnapshot: voiceObservationOwners[turnID])
+    }
     let acceptedSpawnOwnerID = acceptedSpawnJournalReceiptByContinuityKey[turnIdempotencyKey]?.ownerID
     let reply =
       acceptedSpawnJournalReceiptByContinuityKey[turnIdempotencyKey]?.receipt.assistantText
@@ -944,7 +962,14 @@ extension RealtimeHubController {
       log("RealtimeHub[\(providerTag)]: server turn done; waiting for local playback to drain")
     }
     // Record the completed turn to the kernel; chat UI updates from ordered journal replay.
-    if VoiceTurnCoordinator.shared.activeTurn?.journalFinalization == .pending {
+    if let turn = VoiceTurnCoordinator.shared.activeTurn, turn.intent == .supervisor,
+      turn.journalFinalization == .pending, let ownerID = turn.ownerID
+    {
+      // A generated answer is not yet a completed spoken turn. The reducer
+      // admits the final canonical write only after its playback lease drains.
+      supervisorFinalJournalPayloads[turn.id] = SupervisorFinalJournalPayload(
+        ownerID: ownerID, continuityKey: turnIdempotencyKey, assistantText: reply)
+    } else if VoiceTurnCoordinator.shared.activeTurn?.journalFinalization == .pending {
       let completedTurnIdempotencyKey = turnIdempotencyKey
       guard let completedTurnOwnerID = VoiceTurnCoordinator.shared.activeTurn?.ownerID else {
         if let activeTurnID = VoiceTurnCoordinator.shared.activeTurnID {
@@ -1093,6 +1118,13 @@ extension RealtimeHubController {
 
   func hubDidError(_ failure: RealtimeHubTransportFailure, source: RealtimeHubSession) {
     guard isCurrentSession(source) else { return }
+    if VoiceTurnCoordinator.shared.activeTurn?.intent == .supervisor,
+      let turnID = VoiceTurnCoordinator.shared.activeTurnID
+    {
+      pendingSupervisorGuidance = nil
+      VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerFailed))
+      return
+    }
     let message = failure.message
     if reconnectAudioBuffer == nil {
       _ = beginTransportRebindForActiveInputIfNeeded()

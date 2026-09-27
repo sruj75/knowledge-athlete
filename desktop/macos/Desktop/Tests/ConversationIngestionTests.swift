@@ -168,6 +168,16 @@ final class ConversationIngestionTests: XCTestCase {
     XCTAssertEqual(next.values, [duringHandoff])
   }
 
+  func testAudioSinkKeepsCaptureTimesThroughLocalProducerHandoff() {
+    let sink = LocalTranscriptionAudioSink()
+    let next = LocalAudioReceiverStub()
+    let capture = SupervisorCaptureInterval(start: 10, end: 11)
+    sink.beginHandoff()
+    sink.append(Data([1, 2]), captureInterval: capture)
+    sink.completeHandoff(to: next)
+    XCTAssertEqual(next.captures, [capture])
+  }
+
   func testAudioSinkWaitsForAnAdmittedAppendBeforeHandoffReturns() {
     let sink = LocalTranscriptionAudioSink()
     let previous = BlockingLocalAudioReceiverStub()
@@ -427,9 +437,15 @@ final class ConversationIngestionTests: XCTestCase {
 
 private final class LocalAudioReceiverStub: LocalTranscriptionAudioReceiving, @unchecked Sendable {
   private(set) var values: [Data] = []
+  private(set) var captures: [SupervisorCaptureInterval?] = []
 
   func appendAudio(_ data: Data) {
     values.append(data)
+  }
+
+  func appendAudio(_ data: Data, captureInterval: SupervisorCaptureInterval?) {
+    values.append(data)
+    captures.append(captureInterval)
   }
 }
 

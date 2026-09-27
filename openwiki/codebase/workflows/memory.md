@@ -5,21 +5,33 @@ description: Trace intake, normalization, revision/owner fencing, embedding and 
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-09-27T17:33:01.317Z
 sources:
   - id: openwiki-source-62abf112d5ded48560527143
     resource: repo://backend/routers/memory_compute.py
   - id: openwiki-source-5fe974b198877ecf775fae46
     resource: repo://backend/tests/unit/test_memory_compute.py
+  - id: openwiki-source-577b743ef6d29a4ab11ce6a1
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift
+  - id: openwiki-source-e0e1aceea6bbd06a72738ece
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-83de7f0f3608399f3b050de3
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift
   - id: openwiki-source-67c279c1fb27efbebf9fa81a
     resource: repo://desktop/macos/Desktop/Tests/LocalMemoryLifecycleRunnerTests.swift
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+  - id: openwiki-source-c40e9e241b6526aaeb39d5dc
+    resource: repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 ---
 # Memory lifecycle
 
 MemoryStorage is the local archive owner. Intake starts as local assertions and provenance, then `LocalMemoryLifecycleRunner` processes durable work. Backend extraction, normalization and consolidation return proposals; the local store decides whether the proposal still applies and commits it.
+
+## Supervisor reads and retired screen writers
+
+The [A–B–C supervisor](supervisor-conversation.md) reads up to twenty existing local Memories and the latest profile under captured owner authorization. Those reads are bounded and empty results are valid; they do not regenerate a profile or add semantic retrieval. B returns only private conversation guidance and has no product-write capability.
+
+The five old screen workers no longer register or run, so they no longer create Memory, Tasks, Focus or Insights from screenshots. Their records remain readable, and the local Memory lifecycle, archive/search, manual operations and independent conversation enrichment continue through their existing owners. The retention flow checks this separation; changing the supervisor does not replace the lifecycle described below.
 
 ## Processing loop
 

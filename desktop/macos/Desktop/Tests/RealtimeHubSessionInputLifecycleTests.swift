@@ -10,6 +10,240 @@ import XCTest
 
   @MainActor
   final class RealtimeHubSessionInputLifecycleTests: XCTestCase {
+    func testSupervisorInitiationUsesNativeActivityTextActivityWireWithoutAudio() async throws {
+      let tracker = RealtimeTransportTracker()
+      let ready = expectation(description: "Gemini setup acknowledged")
+      let delegate = RealtimeHubSessionDelegateSpy()
+      delegate.onConnect = { ready.fulfill() }
+      var transport: ControllableRealtimeRawWebSocket?
+      let session = makeSession(provider: .gemini, delegate: delegate) { _, queue in
+        let socket = ControllableRealtimeRawWebSocket(queue: queue, tracker: tracker)
+        transport = socket
+        return socket
+      }
+      session.start()
+      await fulfillment(of: [ready], timeout: 2)
+      let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("native-supervisor"))
+      let sent = await session.sendSupervisorTurn("private fixture", identity: identity)
+      XCTAssertTrue(sent)
+      let socket = try XCTUnwrap(transport)
+      let frames = await socket.sentTextFrames()
+      let input = try frames.compactMap { frame -> [String: Any]? in
+        let object = try JSONSerialization.jsonObject(with: Data(frame.utf8)) as? [String: Any]
+        return object?["realtimeInput"] as? [String: Any]
+      }
+      XCTAssertEqual(input.count, 3)
+      if input.count == 3 {
+        XCTAssertNotNil(input[0]["activityStart"])
+        XCTAssertEqual(input[1]["text"] as? String, "private fixture")
+        XCTAssertNotNil(input[2]["activityEnd"])
+      }
+      XCTAssertFalse(input.contains { $0["audio"] != nil })
+      session.abandonInputTurn()
+      let duplicate = await session.sendSupervisorTurn("private fixture", identity: identity)
+      XCTAssertFalse(duplicate)
+      socket.acknowledgeClose()
+      await session.stopAndWait()
+    }
+
+    func testSupervisorTextTurnRequiresReadyTransportAndCannotReplay() async {
+      let delegate = RealtimeHubSessionDelegateSpy()
+      let session = makeSession(provider: .gemini, delegate: delegate)
+      let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("supervisor"))
+      let cold = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
+      XCTAssertFalse(cold)
+      session.markReadyForTesting()
+      let sent = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
+      XCTAssertTrue(sent)
+      let duplicate = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
+      XCTAssertFalse(duplicate)
+      let snapshot = await session.inputLifecycleSnapshot()
+      XCTAssertFalse(snapshot.activityOpen)
+      XCTAssertEqual(snapshot.pendingAudioChunkCount, 0)
+      XCTAssertEqual(snapshot.pendingTextInputCount, 0)
+    }
+
+    func testImmediatePTTCommitSendsBoundedContextInsideTheActivityWindow() async {
+      let session = makeSession(provider: .gemini, delegate: RealtimeHubSessionDelegateSpy())
+      session.markReadyForTesting()
+      session.beginInputTurn(
+        turnID: VoiceTurnID(), responseID: VoiceResponseID("quick-ptt"),
+        context: "private guidance for the next user turn")
+      session.commitInputTurn()
+      let snapshot = await session.inputLifecycleSnapshot()
+      XCTAssertFalse(snapshot.activityOpen)
+      XCTAssertEqual(snapshot.pendingTextInputCount, 0)
+      XCTAssertFalse(snapshot.pendingCommit)
+    }
+
+    func testAmbiguousSupervisorSendCannotBeRetriedAfterTransportRecovers() async {
+      let session = makeSession(provider: .gemini, delegate: RealtimeHubSessionDelegateSpy())
+      session.markReadyForTesting()
+      session.setTestingForcedSendError(RealtimeHubSessionTestError.forced)
+      let identity = RealtimeHubEventIdentity(turnID: VoiceTurnID(), responseID: VoiceResponseID("uncertain"))
+      let failed = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
+      XCTAssertFalse(failed)
+      session.setTestingForcedSendError(nil)
+      session.abandonInputTurn()
+      let retried = await session.sendSupervisorTurn("private fixture guidance", identity: identity)
+      XCTAssertFalse(retried)
+      let snapshot = await session.inputLifecycleSnapshot()
+      XCTAssertEqual(snapshot.pendingTextInputCount, 0)
+      XCTAssertEqual(snapshot.pendingAudioChunkCount, 0)
+    }
+
+    func testSupervisorControllerUsesColdAndWarmNativeAdmissionWithoutAUserTranscript() async throws {
+      let supervisorEnabled = SupervisorService.shared.enabled
+      SupervisorService.shared.enabled = false
+      defer { SupervisorService.shared.enabled = supervisorEnabled }
+      for startingState in ["cold", "warm", "completedPTT"] {
+        let alreadyWarm = startingState != "cold"
+        let fixture = RuntimeOwnerAuthorityTestFixture()
+        await fixture.establish(authOwnerID: "supervisor-voice-fixture")
+        let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+        let controller = RealtimeHubController()
+        controller.supervisorGuidanceIsCurrent = { _ in true }
+        controller.claimSupervisorSpeech = { _ in true }
+        controller.testingLocalProfileTransportAuthorized = true
+        controller.prefetchedVoiceContext = "Shared conversation"
+        controller.prefetchedVoiceContextSessionID = "kernel-session"
+        controller.prefetchedVoiceContextFreshnessIdentity = "history"
+        controller.prefetchedVoiceContextOwnerScope = controller.currentOwnerScope
+        controller.prefetchedVoiceContextSurface = .realtimeVoice()
+        let tracker = RealtimeTransportTracker()
+        var transports: [ControllableRealtimeRawWebSocket] = []
+        let makeTransport: (URL, DispatchQueue) -> RealtimeRawWebSocketTransport = { _, queue in
+          let transport = ControllableRealtimeRawWebSocket(queue: queue, tracker: tracker)
+          transports.append(transport)
+          return transport
+        }
+        controller.startSession(
+          provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+          managedPrompt: AIManagedPrompt(
+            text: "Short backend fallback", name: "live-a", version: "fallback", source: "fallback"),
+          rawWebSocketFactory: makeTransport)
+        XCTAssertEqual(controller.sessionManagedPrompt?.name, "intentive-live-local")
+        XCTAssertNotEqual(controller.sessionManagedPrompt?.text, "Short backend fallback")
+        var source = try XCTUnwrap(controller.session)
+        if alreadyWarm {
+          source.markReadyForTesting()
+          _ = await source.inputLifecycleSnapshot()
+          controller.hubDidConnect(source: source)
+        }
+        let pttBoundaryReady = expectation(description: "completed PTT boundary")
+        if startingState == "completedPTT" {
+          // This is the existing authoritative flag set by PTT turnComplete.
+          controller.geminiSessionNeedsTurnBoundary = true
+          controller.testingWarmAfterDrain = {
+            controller.startSession(
+              provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+              rawWebSocketFactory: makeTransport)
+            pttBoundaryReady.fulfill()
+          }
+        } else {
+          pttBoundaryReady.fulfill()
+        }
+        let guidance = SupervisorGuidance(
+          id: UUID().uuidString, observationID: "observation", sessionID: "logical-session",
+          contextEpoch: 1, note: "PRIVATE GUIDANCE", expiresAt: Date().addingTimeInterval(30),
+          authorizationSnapshot: authorization, action: .intervene, context: "Visible app context")
+        let result = await controller.submitSupervisorGuidance(guidance)
+        XCTAssertEqual(result, .accepted)
+        let turnID = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
+        if startingState == "completedPTT" {
+          XCTAssertNil(controller.session, "Completed PTT session must rotate before a supervisor speaks")
+          transports.first?.acknowledgeClose()
+          await fulfillment(of: [pttBoundaryReady], timeout: 2)
+          source = try XCTUnwrap(controller.session)
+          source.markReadyForTesting()
+          _ = await source.inputLifecycleSnapshot()
+          controller.hubDidConnect(source: source)
+        } else {
+          await fulfillment(of: [pttBoundaryReady], timeout: 2)
+        }
+        if !alreadyWarm {
+          XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .finalizing)
+          XCTAssertNotNil(controller.pendingSupervisorGuidance)
+          source.markReadyForTesting()
+          _ = await source.inputLifecycleSnapshot()
+          controller.hubDidConnect(source: source)
+        }
+        await controller.supervisorDispatchTask?.value
+        XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.intent, .supervisor)
+        XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
+        XCTAssertNil(controller.pendingSupervisorGuidance)
+        let responseID = try XCTUnwrap(controller.voiceResponseID)
+        controller.hubDidReceiveInputTranscript(
+          "PRIVATE GUIDANCE", isFinal: true,
+          identity: RealtimeHubEventIdentity(turnID: turnID, responseID: responseID), source: source)
+        XCTAssertEqual(controller.turnTranscript, "")
+        let input = await source.inputLifecycleSnapshot()
+        XCTAssertEqual(input.pendingAudioChunkCount, 0)
+        XCTAssertFalse(input.activityOpen)
+        let output = VoiceTurnCoordinator.shared.acquireOutput(.nativeRealtime, turnID: turnID)
+        guard case .acquired = output else { return XCTFail("Supervisor must use the existing output owner") }
+        controller.assistantText = "A short helpful suggestion"
+        controller.hubDidFinishTurn(
+          identity: RealtimeHubEventIdentity(turnID: turnID, responseID: responseID), source: source)
+        XCTAssertNotNil(controller.supervisorFinalJournalPayloads[turnID])
+        XCTAssertTrue(
+          controller.turnPersistenceLedger.pendingContinuityKeys.isEmpty,
+          "Generated speech must not be persisted as completed before playback drains")
+        // The production tool delegate must cancel before reserving or executing any tool.
+        controller.hubDidRequestTool(
+          name: "spawn_agent", callId: "forbidden", argumentsJSON: "{}",
+          identity: RealtimeHubEventIdentity(turnID: turnID, responseID: responseID), source: source)
+        XCTAssertEqual(VoiceTurnCoordinator.shared.model.lastTerminal?.reason, .cancelled)
+        XCTAssertTrue(controller.toolEffectIdentityByTransportKey.isEmpty)
+        XCTAssertNil(controller.externalRunAuthorityState)
+        controller.supervisorWarmDeadline?.cancel()
+        // A completed/attempted Gemini turn is a mandatory physical boundary,
+        // even if the canonical context text is unchanged for the next decision.
+        let replacementReady = expectation(description: "new supervisor session")
+        controller.testingWarmAfterDrain = {
+          controller.startSession(
+            provider: .gemini, auth: .hermeticStub, ownerScope: controller.currentOwnerScope,
+            rawWebSocketFactory: makeTransport)
+          replacementReady.fulfill()
+        }
+        let next = SupervisorGuidance(
+          id: UUID().uuidString, observationID: "next-observation", sessionID: "logical-session",
+          contextEpoch: 1, note: "NEW PRIVATE GUIDANCE", expiresAt: Date().addingTimeInterval(30),
+          authorizationSnapshot: authorization, action: .intervene)
+        let usedSocket = transports.last
+        let admittedNext = await controller.submitSupervisorGuidance(next)
+        XCTAssertEqual(admittedNext, .accepted)
+        XCTAssertNil(controller.session, "Never put another supervisor turn on the used physical socket")
+        XCTAssertNotNil(controller.pendingSupervisorGuidance)
+        usedSocket?.acknowledgeClose()
+        await fulfillment(of: [replacementReady], timeout: 2)
+        let replacement = try XCTUnwrap(controller.session)
+        XCTAssertFalse(replacement === source)
+        replacement.markReadyForTesting()
+        _ = await replacement.inputLifecycleSnapshot()
+        controller.hubDidConnect(source: replacement)
+        await controller.supervisorDispatchTask?.value
+        XCTAssertEqual(VoiceTurnCoordinator.shared.activeTurn?.phase, .awaitingResponse)
+        let lastTurn = try XCTUnwrap(VoiceTurnCoordinator.shared.activeTurnID)
+        let lastResponse = try XCTUnwrap(controller.voiceResponseID)
+        controller.assistantText = "Generated but never played"
+        controller.hubDidFinishTurn(
+          identity: RealtimeHubEventIdentity(turnID: lastTurn, responseID: lastResponse), source: replacement)
+        guard case .writing(let journalIdentity) = VoiceTurnCoordinator.shared.activeTurn?.journalFinalization else {
+          return XCTFail("Expected journal boundary for generated response")
+        }
+        controller.finalizeJournal(turnID: lastTurn, identity: journalIdentity)
+        XCTAssertEqual(
+          VoiceTurnCoordinator.shared.model.lastTerminal?.reason, .providerNoResponse,
+          "Provider completion without acknowledged audio must never become a delivered intervention")
+        controller.testingWarmAfterDrain = {}
+        controller.supervisorWarmDeadline?.cancel()
+        transports.last?.acknowledgeClose()
+        await replacement.stopAndWait()
+        await fixture.restore()
+      }
+    }
+
     func testPendingHistoryRefreshCannotAdmitInputToAnOlderMatchingSocket() async throws {
       try await assertPendingHistoryRefresh(replacesSocket: true)
     }
@@ -785,7 +1019,7 @@ import XCTest
       try await withCheckedThrowingContinuation { continuation in
         result = continuation
         loading = true
-        loadingWaiters.forEach { $0.resume() }
+        for waiter in loadingWaiters { waiter.resume() }
         loadingWaiters.removeAll()
       }
     }

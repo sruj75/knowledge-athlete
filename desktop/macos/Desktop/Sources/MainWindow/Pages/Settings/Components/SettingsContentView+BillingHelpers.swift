@@ -284,24 +284,6 @@ extension SettingsContentView {
     AssistantSettings.supportedLanguages.first { $0.code == code }?.name ?? code
   }
 
-  // MARK: - Slider Index Helpers
-
-  var analysisDelaySliderIndex: Int {
-    analysisDelayOptions.firstIndex(of: analysisDelay) ?? 0
-  }
-
-  var taskIntervalSliderIndex: Int {
-    extractionIntervalOptions.firstIndex(of: taskExtractionInterval) ?? 0
-  }
-
-  var insightIntervalSliderIndex: Int {
-    extractionIntervalOptions.firstIndex(of: insightExtractionInterval) ?? 0
-  }
-
-  var memoryIntervalSliderIndex: Int {
-    extractionIntervalOptions.firstIndex(of: memoryExtractionInterval) ?? 0
-  }
-
   // MARK: - Helpers
 
   func toggleMonitoring(enabled: Bool) {
@@ -373,32 +355,6 @@ extension SettingsContentView {
     // Persisting posts .systemAudioCaptureModeDidChange; AppState updates system-audio capture
     // without interrupting the microphone in an in-progress recording.
     AssistantSettings.shared.systemAudioCaptureMode = mode
-  }
-
-  func startGlowPreview() {
-    isPreviewRunning = true
-
-    // Show the demo window and get its frame
-    let demoWindow = GlowDemoWindow.show()
-    let windowFrame = demoWindow.frame
-
-    // Phase 1: Show focused (green) glow after a small delay
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-      GlowDemoWindow.setPhase(.focused)
-      OverlayService.shared.showGlow(around: windowFrame, colorMode: .focused, isPreview: true)
-    }
-
-    // Phase 2: Show distracted (red) glow
-    DispatchQueue.main.asyncAfter(deadline: .now() + 3.3) {
-      GlowDemoWindow.setPhase(.distracted)
-      OverlayService.shared.showGlow(around: windowFrame, colorMode: .distracted, isPreview: true)
-    }
-
-    // End preview and close demo window
-    DispatchQueue.main.asyncAfter(deadline: .now() + 7.0) {
-      GlowDemoWindow.close()
-      isPreviewRunning = false
-    }
   }
 
   func deleteCurrentAIProfile() {

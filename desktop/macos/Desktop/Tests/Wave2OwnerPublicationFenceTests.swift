@@ -13,7 +13,6 @@ final class Wave2OwnerPublicationFenceTests: XCTestCase {
   }
 
   override func tearDown() async throws {
-    AssistantCoordinator.shared.setEventCallback(nil)
     if let ownerFixture { await ownerFixture.restore() }
     ownerFixture = nil
   }
@@ -52,54 +51,6 @@ final class Wave2OwnerPublicationFenceTests: XCTestCase {
     } catch {
       XCTAssertTrue(error is LocalMutationAuthorizationError)
     }
-  }
-
-  func testOwnerlessCaptureCannotRepopulateCoordinatorTrackingDuringTransition() async throws {
-    let fixture = try XCTUnwrap(ownerFixture)
-    let authorizationSnapshot = try XCTUnwrap(
-      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
-    AssistantCoordinator.shared.trackFrame(
-      CapturedFrame(
-        jpegData: Data([0x0A]),
-        appName: "Safari",
-        frameNumber: 1),
-      authorizationSnapshot: authorizationSnapshot)
-    XCTAssertNotNil(AssistantCoordinator.shared.trackedFrameAuthorizationForTests)
-
-    await fixture.establish(authOwnerID: nil)
-    await AssistantCoordinator.shared.resetForOwnerChange()
-    AssistantCoordinator.shared.trackFrame(
-      CapturedFrame(
-        jpegData: Data([0x0B]),
-        appName: "Notes",
-        frameNumber: 2),
-      authorizationSnapshot: authorizationSnapshot)
-
-    XCTAssertNil(AssistantCoordinator.shared.trackedFrameAuthorizationForTests)
-  }
-
-  func testOwnerResetClearsPluginDebounceFrameBeforeReplacementOwnerIsVisible() async throws {
-    let authorizationSnapshot = try XCTUnwrap(
-      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
-    let plugin = ProactiveAssistantsPlugin.shared
-    plugin.stageDistributionForTests(
-      OwnerBoundCapturedFrame(
-        frame: CapturedFrame(
-          jpegData: Data([0x0C]),
-          appName: "Mail",
-          frameNumber: 3),
-        authorizationSnapshot: authorizationSnapshot))
-    plugin.stageAnalysisDelayForTests(
-      authorizationSnapshot: authorizationSnapshot)
-    XCTAssertEqual(
-      plugin.pendingDistributionAuthorizationForTests,
-      authorizationSnapshot)
-
-    await AssistantCoordinator.shared.resetForOwnerChange()
-
-    XCTAssertNil(plugin.pendingDistributionAuthorizationForTests)
-    XCTAssertFalse(plugin.hasAnalysisDelayTimerForTests)
-    XCTAssertNil(FocusStorage.shared.delayEndTime)
   }
 
   func testSuggestionGroundingReadsRejectAStaleGenerationAtTheirStorageBoundaries() async throws {
@@ -211,60 +162,4 @@ final class Wave2OwnerPublicationFenceTests: XCTestCase {
     }
   }
 
-  func testQueuedAssistantEventChecksAuthorizationAtActualCallbackBoundary() async throws {
-    let fixture = try XCTUnwrap(ownerFixture)
-    let staleSnapshot = try XCTUnwrap(
-      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
-    var delivered = false
-    AssistantCoordinator.shared.setEventCallback { _, _ in delivered = true }
-
-    await fixture.establish(authOwnerID: nil)
-    await fixture.establish(authOwnerID: "wave2-publication-owner")
-    AssistantCoordinator.shared.sendEvent(
-      type: "memoryExtracted",
-      data: [:],
-      authorizationSnapshot: staleSnapshot)
-
-    XCTAssertFalse(delivered)
-  }
-
-  func testSuggestionRejectsLateResultFromPreviousSameUIDGeneration() async throws {
-    let fixture = try XCTUnwrap(ownerFixture)
-    let assistant = try SuggestionAssistant(apiKey: "test-key")
-    let staleSnapshot = try XCTUnwrap(
-      RuntimeOwnerIdentity.captureAuthorizationSnapshot())
-    let result = SuggestionResult(
-      hasSuggestion: true,
-      suggestion: ExtractedSuggestion(
-        suggestion: "Review the retained task",
-        reasoning: "A prior commitment is due",
-        category: .commitment,
-        confidence: 1),
-      contextSummary: "Reviewing work",
-      currentActivity: "Working",
-      telemetryIdentity: nil)
-
-    await fixture.establish(authOwnerID: nil)
-    await fixture.establish(authOwnerID: "wave2-publication-owner")
-    await assistant.handleResult(
-      result,
-      authorizationSnapshot: staleSnapshot,
-      sendEvent: { _, _ in })
-
-    let recentSuggestionsCount = await assistant.recentSuggestionsCount
-    XCTAssertEqual(recentSuggestionsCount, 0)
-  }
-
-  func testSuggestionOwnerResetClearsEvaluationBudget() async throws {
-    let assistant = try SuggestionAssistant(apiKey: "test-key")
-    let now = Date()
-    await assistant.recordEvaluationForTests(now: now)
-    let beforeReset = await assistant.evaluationsTodayForTests(now: now)
-    XCTAssertEqual(beforeReset, 1)
-
-    await assistant.resetForOwnerChange()
-
-    let afterReset = await assistant.evaluationsTodayForTests(now: now)
-    XCTAssertEqual(afterReset, 0)
-  }
 }

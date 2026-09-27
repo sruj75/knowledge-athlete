@@ -120,6 +120,7 @@ package enum VoiceTurnIntent: String, Equatable, Sendable {
   case hold
   case locked
   case automation
+  case supervisor
 }
 
 package enum VoiceTurnRoute: Equatable, Sendable {
@@ -387,7 +388,7 @@ package struct VoiceTurn: Equatable, Sendable {
     self.ownerID = ownerID
     self.supersededTurnID = supersededTurnID
     self.intent = intent
-    phase = intent == .locked ? .lockedRecording : .recording
+    phase = intent == .supervisor ? .finalizing : (intent == .locked ? .lockedRecording : .recording)
     route = .undecided
     pendingToolCallIDs = []
     toolEffectIdentities = [:]
@@ -407,7 +408,7 @@ package struct VoiceTurn: Equatable, Sendable {
     reservedEffectIdentities = []
     deadlines = []
     projection = VoiceTurnUIProjection(
-      isListening: true,
+      isListening: intent != .supervisor,
       isLocked: intent == .locked,
       transcript: "",
       hint: "",
@@ -1095,6 +1096,10 @@ struct VoiceTurnReducer {
     var effects: [VoiceTurnEffect] = []
 
     if case .start(let turnID, let ownerID, let intent) = event {
+      // A background intervention can never supersede user-owned work.
+      if intent == .supervisor, let active = model.turn, !active.phase.isTerminal {
+        return VoiceTurnReduction(model: model, effects: effects)
+      }
       let supersededTurnID: VoiceTurnID?
       if let active = model.turn, !active.phase.isTerminal {
         supersededTurnID = active.id
@@ -1113,7 +1118,9 @@ struct VoiceTurnReducer {
       model.staleEventCount = 0
       model.invalidTransitionCount = 0
       model.duplicateTerminalCount = 0
-      schedule(.captureStart, after: deadlines.captureStart, in: &model, effects: &effects)
+      if intent != .supervisor {
+        schedule(.captureStart, after: deadlines.captureStart, in: &model, effects: &effects)
+      }
       return VoiceTurnReduction(model: model, effects: effects)
     }
 
@@ -1161,6 +1168,19 @@ struct VoiceTurnReducer {
         stale(&model, event: event, effects: &effects)
       }
       return VoiceTurnReduction(model: model, effects: effects)
+    }
+
+    // A supervisor initiation is never recovered by replaying private text or by
+    // transcribing nonexistent microphone audio. User PTT retains its recovery.
+    if turn.intent == .supervisor {
+      switch event {
+      case .hubAdmissionRejected, .providerReconnectStarted, .providerReconnectFailed,
+        .providerReplacementStarted, .providerReplacementFailed:
+        terminate(&model, reason: .providerFailed, effects: &effects)
+        return VoiceTurnReduction(model: model, effects: effects)
+      default:
+        break
+      }
     }
 
     switch event {
@@ -1765,6 +1785,9 @@ struct VoiceTurnReducer {
       cancel(.playbackDrain, in: &model, effects: &effects)
       model.turn?.activeLease = nil
       model.turn?.providerOutputSuppressed = false
+      if turn.intent == .supervisor, model.turn?.providerFinished == true {
+        startJournalFinalizationIfNeeded(in: &model, effects: &effects)
+      }
       if completionFencesSatisfied(model.turn) {
         terminate(&model, reason: .success, effects: &effects)
       } else if !turn.pendingToolCallIDs.isEmpty {
@@ -2110,6 +2133,7 @@ struct VoiceTurnReducer {
     effects: inout [VoiceTurnEffect]
   ) {
     guard var turn = model.turn, turn.journalFinalization == .pending else { return }
+    guard turn.intent != .supervisor || turn.activeLease == nil else { return }
     let identity = VoiceEffectIdentity(turnID: turn.id, effectID: turn.nextEffectID)
     turn.nextEffectID &+= 1
     turn.journalFinalization = .writing(identity)
@@ -2203,7 +2227,7 @@ struct VoiceTurnReducer {
       return
     }
     let record = VoiceTurnTerminalRecord(turnID: turn.id, reason: reason, route: turn.route)
-    if turn.captureID != nil || turn.phase.isRecording || turn.phase == .finalizing {
+    if turn.intent != .supervisor && (turn.captureID != nil || turn.phase.isRecording || turn.phase == .finalizing) {
       effects.append(.stopCapture(turnID: turn.id, captureID: turn.captureID))
     }
     let preservesHubForBargeInHandoff: Bool = {

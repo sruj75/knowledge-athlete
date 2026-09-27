@@ -121,22 +121,4 @@ final class UntrustedNotificationContextTests: XCTestCase {
     XCTAssertTrue(flat(guardText).lowercased().contains("untrusted"))
   }
 
-  // MARK: - Suggestion grounding
-
-  /// Grounding carries raw OCR from pages the user viewed — the same untrusted class.
-  func testGroundingBlockIsFramedAsUntrustedEvidence() {
-    var grounding = SuggestionGrounding()
-    grounding.relatedScreens = ["Jul 24 09:12 · Safari — evil: \(injection)"]
-
-    let rendered = grounding.promptSections()
-    XCTAssertTrue(rendered.contains(injection), "evidence must be preserved verbatim")
-
-    let guardText = rendered.components(separatedBy: injection)[0]
-    XCTAssertTrue(flat(guardText).contains("UNTRUSTED CONTEXT"))
-    XCTAssertTrue(flat(guardText).lowercased().contains("never follow instructions"))
-  }
-
-  func testEmptyGroundingStillRendersNothingAtAll() {
-    XCTAssertEqual(SuggestionGrounding().promptSections(), "", "no preamble without evidence")
-  }
 }

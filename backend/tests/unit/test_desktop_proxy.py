@@ -17,6 +17,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from routers import desktop_proxy
+from services import desktop_inference
 import main
 
 
@@ -45,13 +46,13 @@ def test_embedding_proxy_normalizes_secret_whitespace_before_http_wire_encoding(
         return function(*args, **kwargs)
 
     monkeypatch.setenv('GEMINI_API_KEY', api_key)
-    monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
-    monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', lambda *args: (True, 1, 60))
+    monkeypatch.setattr(desktop_inference, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_inference.redis_db, 'check_rate_limit', lambda *args: (True, 1, 60))
     monkeypatch.setattr(desktop_proxy, 'llm_stub_enabled', lambda: False)
     monkeypatch.setattr(desktop_proxy.httpx, 'AsyncClient', client_with_memory_network)
     app = FastAPI()
     app.include_router(desktop_proxy.router)
-    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'embedding-test-user'
+    app.dependency_overrides[desktop_inference.authorized_desktop_user] = lambda: 'embedding-test-user'
     with TestClient(app) as client:
         response = client.post(
             '/v1/proxy/gemini/models/gemini-embedding-001:embedContent',
@@ -105,15 +106,17 @@ def test_gemini_proxy_routes_current_and_shipped_beta_models_to_managed_external
     meter = MagicMock(side_effect=[(True, 1, 60), (True, 1, 86_400)])
     fallback = MagicMock()
     monkeypatch.setenv('GEMINI_API_KEY', 'managed-gemini-key')
-    monkeypatch.setattr(desktop_proxy, 'run_blocking', immediate)
-    monkeypatch.setattr(desktop_proxy.redis_db, 'check_rate_limit', meter)
+    monkeypatch.setattr(desktop_inference, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_inference.redis_db, 'check_rate_limit', meter)
     monkeypatch.setattr(desktop_proxy, 'llm_stub_enabled', lambda: False)
     monkeypatch.setattr(desktop_proxy.httpx, 'AsyncClient', FakeAsyncClient)
     monkeypatch.setattr(desktop_proxy, 'record_fallback', fallback)
 
     # Exercise the assembled app's actual route binding; external auth/provider
     # boundaries are controlled without running the live startup services.
-    monkeypatch.setitem(main.app.dependency_overrides, desktop_proxy._authorized_desktop_user, lambda: 'managed-user')
+    monkeypatch.setitem(
+        main.app.dependency_overrides, desktop_inference.authorized_desktop_user, lambda: 'managed-user'
+    )
     client = TestClient(main.app)
     try:
         response = client.post(
@@ -192,7 +195,7 @@ def test_proxy_rejects_product_dead_pro_and_streaming_actions():
 def test_streaming_proxy_route_is_absent():
     app = FastAPI()
     app.include_router(desktop_proxy.router)
-    app.dependency_overrides[desktop_proxy._authorized_desktop_user] = lambda: 'managed-user'
+    app.dependency_overrides[desktop_inference.authorized_desktop_user] = lambda: 'managed-user'
     try:
         with TestClient(app) as client:
             response = client.post(
@@ -255,11 +258,11 @@ async def test_gemini_proxy_rejects_paywalled_desktop_user(monkeypatch):
     async def run_blocking(_, function, *args):
         return function(*args)
 
-    monkeypatch.setattr(desktop_proxy, "run_blocking", run_blocking)
-    monkeypatch.setattr(desktop_proxy, "is_trial_paywalled", lambda uid, platform: True)
+    monkeypatch.setattr(desktop_inference, "run_blocking", run_blocking)
+    monkeypatch.setattr(desktop_inference, "is_trial_paywalled", lambda uid, platform: True)
 
     with pytest.raises(HTTPException) as error:
-        await desktop_proxy._authorized_desktop_user("user")
+        await desktop_inference.authorized_desktop_user("user")
 
     assert error.value.status_code == 402
     assert error.value.detail == "trial_expired"
@@ -268,18 +271,13 @@ async def test_gemini_proxy_rejects_paywalled_desktop_user(monkeypatch):
 @pytest.mark.asyncio
 async def test_server_gemini_meter_preserves_the_explicit_flash_route(monkeypatch):
     async def run_blocking(_, function, *args, **kwargs):
-        if function is desktop_proxy.redis_db.check_rate_limit:
+        if function is desktop_inference.redis_db.check_rate_limit:
             if args[1] == "desktop_gemini_daily":
                 return True, 31, 86_400
             return True, 1, 60
         return 31, 86_400
 
-    monkeypatch.setattr(desktop_proxy, "run_blocking", run_blocking)
+    monkeypatch.setattr(desktop_inference, "run_blocking", run_blocking)
     monkeypatch.setenv("OMI_MODEL_TIER", "max")
 
-    assert (
-        await desktop_proxy._meter_server_request(
-            "user", "models/gemini-2.5-flash:generateContent", "gemini-2.5-flash", "generateContent"
-        )
-        == "models/gemini-2.5-flash:generateContent"
-    )
+    await desktop_inference.enforce_desktop_gemini_quota('user')

@@ -11,7 +11,9 @@ from google.cloud import firestore
 from pydantic import BaseModel, ConfigDict, StrictInt
 
 from database._client import get_firestore_client
-from utils.executors import db_executor, run_blocking
+from models.desktop_ai import RealtimeSessionResponse
+from utils.executors import db_executor, llm_executor, run_blocking
+from utils.observability.langfuse_prompts import get_runtime_prompt
 from utils.other.endpoints import get_current_participant_uid, get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
@@ -109,7 +111,7 @@ async def _post_json(
     return data, None
 
 
-@router.post("/v2/realtime/session")
+@router.post("/v2/realtime/session", response_model=RealtimeSessionResponse)
 async def mint_session(request: MintRequest, uid: str = Depends(get_current_participant_uid)) -> JSONResponse:
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         return JSONResponse(
@@ -134,7 +136,8 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_part
     token = data.get("name") if data else None
     if not isinstance(token, str):
         return _error(502, "provider_mint_transport_error", "gemini mint: no token name in response", retryable=True)
-    return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at})
+    prompt = await run_blocking(llm_executor, get_runtime_prompt, 'live')
+    return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at, 'prompt': prompt.receipt()})
 
 
 def _record_usage(

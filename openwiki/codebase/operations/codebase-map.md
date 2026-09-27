@@ -4,9 +4,6 @@ title: Codebase map viewer
 description: Follow the canonical Mermaid file into a geographic subsystem overview with click-only local flows, exact source provenance, and browser acceptance checks.
 tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-26T08:08:12.066Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -44,7 +41,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Codebase map viewer
 
@@ -155,7 +155,7 @@ npm --prefix tools/codebase-map run check
 
 The check generates route types, type-checks, exercises source provenance and
 spatial-layout tests, builds the static export, and runs Chromium against it.
-Browser checks account for all 23 areas, 210 nodes and 422 connections, including
+Browser checks account for all 23 areas, 205 nodes and 409 connections, including
 dense areas 07/15 and areas 20/21 without internal edges. They cover readable
 overview titles, explicit click/keyboard entry, full labels at natural SVG size,
 wheel scrolling without opening or scaling diagrams, native touch scrolling,
@@ -163,7 +163,7 @@ mouse drag, restored positions, fixed geographic coordinates, cached layouts,
 connection inspection and destination focus, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
 projection, non-overlap and boundary-flow direction. Browser checks account for
-all 261 cross-subsystem edges on both inflow and outflow sides, including
+all 245 cross-subsystem edges on both inflow and outflow sides, including
 independent list scrolling, destination navigation, scroll reset and keyboard
 focus. No live backend or model is involved.
 

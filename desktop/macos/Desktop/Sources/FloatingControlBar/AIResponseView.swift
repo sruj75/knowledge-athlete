@@ -493,6 +493,7 @@ struct MessageHoverOverlay<Content: View>: View {
       Spacer(minLength: 0)
 
       HStack(spacing: OmiSpacing.xs) {
+        AIEvaluationFeedbackView(message: message)
         if actions.contains(.copy) {
           // Copy — captures `finalOutput` explicitly so we always copy the
           // message this button was drawn for, even if SwiftUI reuses the

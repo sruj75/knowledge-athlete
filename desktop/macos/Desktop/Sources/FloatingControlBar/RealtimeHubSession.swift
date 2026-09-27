@@ -137,6 +137,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   /// turn; further retries would create an unbounded tool/turn loop.
   private var postToolContinuationAttempted = false
   private var geminiSyntheticToolCallCounter = 0
+  private var supervisorTurnAttempted = false
 
   // Per-turn token usage for managed billing — client-reported. Reset at commit
   // and reported at finishTurn. Gemini sends cumulative usageMetadata (we keep the latest).
@@ -387,6 +388,42 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     }
   }
 
+  /// A private supervisor note creates one owned spoken response, never a buffered
+  /// microphone turn. Once any wire may have reached the provider this session
+  /// must not replay the intervention, even after an ambiguous send failure.
+  func sendSupervisorTurn(_ text: String, identity: RealtimeHubEventIdentity) async -> Bool {
+    await withCheckedContinuation { continuation in
+      q.async { [weak self] in
+        guard let self, self.isOpen, !self.activityOpen, !self.geminiResponsePending,
+          !self.supervisorTurnAttempted
+        else {
+          continuation.resume(returning: false)
+          return
+        }
+        self.supervisorTurnAttempted = true
+        self.activeEventIdentity = identity
+        self.completedGeminiEventIdentity = nil
+        self.resetTurnUsage()
+        self.geminiResponsePending = true
+        self.send(json: ["realtimeInput": ["activityStart": [:]]]) { error in
+          guard error == nil, self.isOpen, self.activeEventIdentity == identity else {
+            continuation.resume(returning: false)
+            return
+          }
+          self.send(json: ["realtimeInput": ["text": text]]) { error in
+            guard error == nil, self.isOpen, self.activeEventIdentity == identity else {
+              continuation.resume(returning: false)
+              return
+            }
+            self.send(json: ["realtimeInput": ["activityEnd": [:]]]) { error in
+              continuation.resume(returning: error == nil)
+            }
+          }
+        }
+      }
+    }
+  }
+
   /// A provider can complete a tool-only response after accepting the final tool
   /// result without emitting a user-facing reply. Continue the same physical turn
   /// once, never as a synthetic user request. The continuation is bounded here so
@@ -505,7 +542,8 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
   func beginInputTurn(
     turnID: VoiceTurnID? = nil,
     responseID: VoiceResponseID? = nil,
-    interrupting: Bool = false
+    interrupting: Bool = false,
+    context: String? = nil
   ) {
     q.async { [weak self] in
       guard let self else { return }
@@ -525,6 +563,9 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
         self.pendingGeminiToolCallIds.removeAll()
       }
       guard !self.activityOpen else { return }
+      if let context, !context.isEmpty {
+        self.pendingTextInputs.append((text: context, logLabel: "observed context"))
+      }
       self.activityOpen = true
       if self.isOpen {
         self.send(json: ["realtimeInput": ["activityStart": [:]]])
@@ -822,7 +863,7 @@ final class RealtimeHubSession: NSObject, @unchecked Sendable {
     argumentsJSON: String,
     identity explicitIdentity: RealtimeHubEventIdentity? = nil
   ) {
-    log("\(tag): tool_call \(name)(\(argumentsJSON.prefix(160)))")
+    log("\(tag): tool_call \(name) (\(argumentsJSON.utf8.count) argument bytes)")
     let identity = explicitIdentity ?? activeEventIdentity
     deliverToDelegate { delegate in
       delegate.hubDidRequestTool(

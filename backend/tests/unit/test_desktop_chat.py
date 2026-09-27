@@ -22,6 +22,7 @@ _PROMPT = ResolvedRuntimePrompt(
 @pytest.fixture(autouse=True)
 def _disable_real_langfuse(monkeypatch):
     monkeypatch.setattr(desktop_chat, 'start_chat_generation', lambda **_: ChatGeneration(None, None))
+    monkeypatch.setattr(desktop_chat, 'remember_chat_prompt', lambda *_: None)
 
 
 def _native_body() -> dict[str, object]:
@@ -341,3 +342,44 @@ async def test_endpoint_requires_server_managed_gemini_key_outside_stub(monkeypa
             x_omi_session_id=None,
         )
     assert getattr(caught.value, 'status_code', None) == 503
+
+
+@pytest.mark.asyncio
+async def test_endpoint_binds_real_chat_prompt_receipt_to_authenticated_request(monkeypatch):
+    receipts = []
+    monkeypatch.setattr(desktop_chat, 'llm_stub_enabled', lambda: False)
+    monkeypatch.setenv('GEMINI_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(desktop_chat, 'enforce_chat_quota', lambda *_args, **_kwargs: None)
+
+    async def meter(_uid):
+        return None
+
+    async def resolve(_payload):
+        return ResolvedRuntimePrompt(
+            text='PRIVATE_PROMPT', name='intentive-chat-system', version='17', source='langfuse', prompt_client=None
+        )
+
+    async def run(_executor, function, *args, **kwargs):
+        if function is desktop_chat.remember_chat_prompt:
+            receipts.append(args)
+        return None
+
+    monkeypatch.setattr(desktop_chat, '_meter_server_request', meter)
+    monkeypatch.setattr(desktop_chat, '_resolve_runtime_system_prompt', resolve)
+    monkeypatch.setattr(desktop_chat, 'run_blocking', run)
+    response = await desktop_chat.stream_generate_content(
+        model='gemini-3.7-flash',
+        body={'contents': [{'role': 'user', 'parts': [{'text': 'PRIVATE_INPUT'}]}]},
+        alt='sse',
+        uid='authenticated-owner',
+        x_app_platform='macos',
+        x_omi_chat_contract_version='2',
+        x_omi_request_id='actual-retry',
+        x_omi_session_id='kernel-session',
+        x_goog_api_key=None,
+    )
+    assert response.headers['x-request-id'] == 'actual-retry'
+    owner, request_id, prompt = receipts[0]
+    assert (owner, request_id) == ('authenticated-owner', 'actual-retry')
+    assert prompt.model_dump() == {'name': 'intentive-chat-system', 'version': '17', 'source': 'langfuse'}
+    assert 'PRIVATE' not in str(receipts)

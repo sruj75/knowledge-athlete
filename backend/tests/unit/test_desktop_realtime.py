@@ -5,6 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from routers import desktop_realtime
+from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
 
 
 class _Client:
@@ -36,6 +37,9 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
     )
 
     async def run(_executor, function, *_args):
+        if function is getattr(desktop_realtime, 'get_runtime_prompt', None):
+            assert _args == ('live',)
+            return ResolvedRuntimePrompt('Live behavior', 'intentive-live-system', '7', 'langfuse')
         assert function is desktop_realtime.is_trial_paywalled
         return False
 
@@ -48,6 +52,12 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
     assert body["provider"] == "gemini"
     assert body["token"] == "auth-token"
     assert body["expires_at"].endswith("Z")
+    assert body['prompt'] == {
+        'text': 'Live behavior',
+        'name': 'intentive-live-system',
+        'version': '7',
+        'source': 'langfuse',
+    }
 
 
 @pytest.mark.asyncio

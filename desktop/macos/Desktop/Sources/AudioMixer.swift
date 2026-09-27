@@ -23,6 +23,11 @@ class AudioMixer: @unchecked Sendable {
 
   private let outputMode: OutputMode
   private var onMixedChunk: AudioChunkHandler?
+  private var onObservedChunk: ((Data, SupervisorCaptureInterval?) -> Void)?
+  private var micTimeline = SupervisorAudioTimeline()
+  private var systemTimeline = SupervisorAudioTimeline()
+  private var micConsumed: TimeInterval = 0
+  private var systemConsumed: TimeInterval = 0
   private var isRunning = false
 
   /// Clock function for timestamps. Defaults to `CFAbsoluteTimeGetCurrent()`.
@@ -73,6 +78,10 @@ class AudioMixer: @unchecked Sendable {
     self.isRunning = true
     micBuffer = Data()
     systemBuffer = Data()
+    micTimeline = SupervisorAudioTimeline()
+    systemTimeline = SupervisorAudioTimeline()
+    micConsumed = 0
+    systemConsumed = 0
     mixerStartTime = clock()
     lastMicDataTime = 0
     lastSystemDataTime = 0
@@ -82,7 +91,13 @@ class AudioMixer: @unchecked Sendable {
     log("AudioMixer: Started (mode=\(outputMode == .mono ? "mono" : "stereo"))")
   }
 
-  /// Stop the mixer and flush remaining audio
+  /// Start the existing mono mixer with capture-clock metadata alongside PCM.
+  func startObserved(onChunk: @escaping (Data, SupervisorCaptureInterval?) -> Void) {
+    start { _ in }
+    bufferLock.withLock { onObservedChunk = onChunk }
+  }
+
+  /// Stop the mixer and flush remaining audio.
   func stop() {
     bufferLock.lock()
     isRunning = false
@@ -91,18 +106,20 @@ class AudioMixer: @unchecked Sendable {
     micBuffer = Data()
     systemBuffer = Data()
     onMixedChunk = nil
+    onObservedChunk = nil
     bufferLock.unlock()
     log("AudioMixer: Stopped")
   }
 
   /// Add microphone audio (16kHz mono Int16 PCM)
-  func setMicAudio(_ data: Data) {
+  func setMicAudio(_ data: Data, captureInterval: SupervisorCaptureInterval? = nil) {
     bufferLock.lock()
     defer { bufferLock.unlock() }
 
     guard isRunning else { return }
 
     micBuffer.append(data)
+    micTimeline.append(byteCount: data.count, interval: captureInterval)
 
     // Only mark alive when non-empty data arrives (a broken capture path
     // can send empty chunks which should not count as liveness).
@@ -118,19 +135,21 @@ class AudioMixer: @unchecked Sendable {
     if micBuffer.count > maxBufferBytes {
       let excess = micBuffer.count - maxBufferBytes
       micBuffer.removeFirst(excess)
+      micConsumed += Double(excess) / 32_000
     }
 
     processBuffers()
   }
 
   /// Add system audio (16kHz mono Int16 PCM)
-  func setSystemAudio(_ data: Data) {
+  func setSystemAudio(_ data: Data, captureInterval: SupervisorCaptureInterval? = nil) {
     bufferLock.lock()
     defer { bufferLock.unlock() }
 
     guard isRunning else { return }
 
     systemBuffer.append(data)
+    systemTimeline.append(byteCount: data.count, interval: captureInterval)
 
     if !data.isEmpty {
       lastSystemDataTime = clock()
@@ -144,6 +163,7 @@ class AudioMixer: @unchecked Sendable {
     if systemBuffer.count > maxBufferBytes {
       let excess = systemBuffer.count - maxBufferBytes
       systemBuffer.removeFirst(excess)
+      systemConsumed += Double(excess) / 32_000
     }
 
     processBuffers()
@@ -213,6 +233,23 @@ class AudioMixer: @unchecked Sendable {
 
     guard bytesToProcess >= 2 else { return }
 
+    // Track only actual samples; zero padding has no capture identity. When
+    // either real source has unknown timing the mixed interval stays unknown.
+    let micBytes = min(micBuffer.count, bytesToProcess)
+    let systemBytes = min(systemBuffer.count, bytesToProcess)
+    let micCapture = micTimeline.interval(
+      start: micConsumed, end: micConsumed + Double(micBytes) / 32_000)
+    let systemCapture = systemTimeline.interval(
+      start: systemConsumed, end: systemConsumed + Double(systemBytes) / 32_000)
+    let capture: SupervisorCaptureInterval?
+    if micBytes > 0 && systemBytes > 0 {
+      capture = micCapture.flatMap { mic in systemCapture.map { mic.union($0) } }
+    } else {
+      capture = micBytes > 0 ? micCapture : systemCapture
+    }
+    micConsumed += Double(micBytes) / 32_000
+    systemConsumed += Double(systemBytes) / 32_000
+
     // Extract data from buffers
     let micData: Data
     let sysData: Data
@@ -246,6 +283,7 @@ class AudioMixer: @unchecked Sendable {
 
     // Send to callback
     onMixedChunk?(mixed)
+    onObservedChunk?(mixed, outputMode == .mono ? capture : nil)
   }
 
   /// Sum two mono Int16 streams into a single mono Int16 stream.

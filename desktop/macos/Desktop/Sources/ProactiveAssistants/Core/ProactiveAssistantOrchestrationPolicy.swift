@@ -81,12 +81,6 @@ enum ProactiveAssistantOrchestrationPolicy {
     case skip(nextCounter: Int, didEnterCall: Bool)
   }
 
-  enum DistributionDecision: Equatable {
-    case flushNow
-    case debounce
-    case skip
-  }
-
   static func shouldRecheckPermission(
     now: Date,
     lastCheckTime: Date,
@@ -137,36 +131,6 @@ enum ProactiveAssistantOrchestrationPolicy {
     return .capture(nextCounter: 0, didLeaveCall: currentCounter > 0)
   }
 
-  static func distributionDecision(
-    lastDistributedApp: String?,
-    lastDistributedWindowTitle: String?,
-    frameApp: String,
-    frameWindowTitle: String?,
-    lastDistributionTime: Date,
-    now: Date,
-    defaultFallbackInterval: TimeInterval,
-    messagingFallbackInterval: TimeInterval,
-    messagingFastPathApps: Set<String>
-  ) -> DistributionDecision {
-    guard lastDistributedApp != nil else {
-      return .flushNow
-    }
-
-    if ContextDetection.didContextChange(
-      fromApp: lastDistributedApp,
-      fromWindowTitle: lastDistributedWindowTitle,
-      toApp: frameApp,
-      toWindowTitle: frameWindowTitle
-    ) {
-      return .debounce
-    }
-
-    let fallbackInterval =
-      messagingFastPathApps.contains(frameApp)
-      ? messagingFallbackInterval
-      : defaultFallbackInterval
-    return now.timeIntervalSince(lastDistributionTime) >= fallbackInterval ? .flushNow : .skip
-  }
 }
 
 struct ProactiveScreenshotCaptureGate {
@@ -228,68 +192,6 @@ struct ProactiveVideoCallThrottleGate {
 
   mutating func reset() {
     counter = 0
-  }
-}
-
-struct ProactiveFrameDistributionGate {
-  enum Action: Equatable {
-    case flushNow
-    case scheduleDebounce
-    case skip
-  }
-
-  private(set) var lastDistributedApp: String?
-  private(set) var lastDistributedWindowTitle: String?
-  private(set) var lastDistributionTime: Date = .distantPast
-
-  mutating func reset() {
-    lastDistributedApp = nil
-    lastDistributedWindowTitle = nil
-    lastDistributionTime = .distantPast
-  }
-
-  mutating func nextAction(
-    frameApp: String,
-    frameWindowTitle: String?,
-    now: Date,
-    defaultFallbackInterval: TimeInterval,
-    messagingFallbackInterval: TimeInterval,
-    messagingFastPathApps: Set<String>
-  ) -> Action {
-    let decision = ProactiveAssistantOrchestrationPolicy.distributionDecision(
-      lastDistributedApp: lastDistributedApp,
-      lastDistributedWindowTitle: lastDistributedWindowTitle,
-      frameApp: frameApp,
-      frameWindowTitle: frameWindowTitle,
-      lastDistributionTime: lastDistributionTime,
-      now: now,
-      defaultFallbackInterval: defaultFallbackInterval,
-      messagingFallbackInterval: messagingFallbackInterval,
-      messagingFastPathApps: messagingFastPathApps
-    )
-
-    switch decision {
-    case .flushNow:
-      return .flushNow
-    case .debounce:
-      // Track the pending context immediately so repeated captures in that same
-      // context do not starve the debounce timer by rescheduling forever.
-      lastDistributedApp = frameApp
-      lastDistributedWindowTitle = frameWindowTitle
-      return .scheduleDebounce
-    case .skip:
-      return .skip
-    }
-  }
-
-  mutating func markFlushed(
-    frameApp: String,
-    frameWindowTitle: String?,
-    at time: Date
-  ) {
-    lastDistributedApp = frameApp
-    lastDistributedWindowTitle = frameWindowTitle
-    lastDistributionTime = time
   }
 }
 

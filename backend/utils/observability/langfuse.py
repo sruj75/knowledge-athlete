@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from langfuse import Langfuse, propagate_attributes
+from utils.observability.evaluation_policy import chat_input_shape, chat_output_shape
 
 from utils.observability.fallback import record_fallback
 
@@ -132,7 +133,7 @@ class ChatGeneration:
             return
         try:
             self.observation.update(
-                output=output,
+                output=chat_output_shape(output),
                 usage_details=usage_details,
                 level=level,
                 status_message=status_message,
@@ -194,7 +195,7 @@ def start_chat_generation(
                 trace_context={'trace_id': trace_id},
                 name='desktop-chat-completion',
                 as_type='generation',
-                input=provider_input,
+                input=chat_input_shape(provider_input),
                 model=model,
                 prompt=prompt_client,
             )

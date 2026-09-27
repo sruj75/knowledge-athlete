@@ -110,7 +110,7 @@ extension SettingsContentView {
             placeholder: "App name (e.g., Passwords)",
             addButtonTitle: "Add",
             existingApps: rewindSettings.excludedApps,
-            builtInApps: TaskAssistantSettings.builtInExcludedApps,
+            builtInApps: SupervisorScreenPolicy.excludedUtilityApps,
             onAdd: { appName in
               rewindSettings.excludeApp(appName)
             }

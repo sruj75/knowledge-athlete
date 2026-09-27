@@ -4,9 +4,6 @@ title: Managed model providers
 description: Map LLM package responsibilities, Gemini workloads, Modulate, TTS and server-held keys.
 tags: [intentive, codebase]
 resource: repo://backend/utils/llm
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
 sources:
   - id: openwiki-source-8c3da56dbbaf9fe6eb52b9bd
     resource: repo://backend/config/stt_provider_policy.py
@@ -14,13 +11,22 @@ sources:
     resource: repo://backend/routers/desktop_proxy.py
   - id: openwiki-source-246adce1bd09822e870e6154
     resource: repo://backend/routers/desktop_realtime.py
+  - id: openwiki-source-436c23d0e71e7e8c078ad9ef
+    resource: repo://backend/routers/desktop_supervisor.py
   - id: openwiki-source-f9557f9df695b6659e2ddd5c
     resource: repo://backend/routers/desktop_tts_updates.py
   - id: openwiki-source-6439c0b00e9284c12c7afccb
     resource: repo://backend/utils/llm/model_config.py
   - id: openwiki-source-03e90258dd4af40e9e153037
     resource: repo://backend/utils/llm/providers.py
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+  - id: openwiki-source-63500ad8455656e0ed04a9b7
+    resource: repo://backend/utils/observability/langfuse_prompts.py
+  - id: openwiki-source-d3a88be39f01bdd4a0057cdf
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Managed model providers
 
@@ -30,7 +36,7 @@ The LLM package has an explicit workload inventory. Each workload records its pr
 
 | Work | Implemented route/provider |
 | --- | --- |
-| Normal Pi Chat and desktop background text | Managed Gemini 3.7 Flash |
+| Normal Pi Chat, supervisor evaluation and desktop background text | Managed Gemini 3.7 Flash |
 | Conversation candidates, Memory proposals and fair-use classification | Explicit Gemini workloads with local result owners or bounded enforcement results |
 | Session title and transcript translation workloads | Gemini 2.5 Flash-Lite entries in the workload inventory |
 | Desktop embeddings | Allowlisted `gemini-embedding-001` proxy |
@@ -39,6 +45,14 @@ The LLM package has an explicit workload inventory. Each workload records its pr
 | Spoken output | OpenAI `gpt-4o-mini-tts` |
 
 The desktop proxy also recognizes shipped older text-model names and maps them to the available 3.7 model. This existing wire behavior is distinct from the explicit server workload inventory; changing one does not prove every other model caller migrated.
+
+## Managed conversational instructions
+
+The backend resolver owns three text prompt roles: `intentive-chat-system`, `intentive-live-system` for A and `intentive-supervisor-system` for B. `LANGFUSE_PROMPT_NAME` overrides Chat only; `LANGFUSE_PROMPT_LABEL` selects a label for all roles and defaults to `production`. The SDK cache defaults to 300 seconds and is configurable through `LANGFUSE_PROMPT_CACHE_TTL_SECONDS`.
+
+`/v2/realtime/session` returns A's prompt text, name, version and source alongside its credential. Swift pins that receipt when creating the physical Live connection. A uses managed text only when its source is `langfuse`; otherwise it keeps its existing local conversational instructions and identifies the fallback actually used. B resolves its prompt per evaluation and returns `wait` without a model call on a cold unavailable-prompt outcome. Cached managed prompts remain eligible through the resolver.
+
+Editable instructions do not own permissions: the supervisor's output schema, no-tool contract, owner checks and automatic-turn tool prohibition remain executable code. [Supervisor conversation](../workflows/supervisor-conversation.md) explains the private handoff; [telemetry](telemetry.md) describes prompt-version correlation.
 
 ## Request and failure boundaries
 

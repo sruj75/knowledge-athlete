@@ -39,6 +39,7 @@ extension RealtimeHubController {
       log("RealtimeHub: refusing to begin provider input for a stale voice owner")
       return .rejected
     }
+    voiceObservationOwners[turnID] = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
     admittedInputTurnID = nil
     if let pending = reconnectAudioBuffer, pending.turnID != turnID {
       reconnectAudioBuffer = nil
@@ -477,7 +478,8 @@ extension RealtimeHubController {
       s.beginInputTurn(
         turnID: turnID,
         responseID: voiceResponseID,
-        interrupting: reducerInterruptsPreviousTurn)
+        interrupting: reducerInterruptsPreviousTurn,
+        context: takeSupervisorContextForInput(turnID: turnID))
     }
     s.commitInputTurn()
     VoiceTurnCoordinator.shared.publish(
@@ -562,6 +564,9 @@ extension RealtimeHubController {
       log("RealtimeHub: ignored stale cancelTurn id=\(requestedTurnID)")
       return false
     }
+    if let terminal = VoiceTurnCoordinator.shared.model.lastTerminal, terminal.turnID == requestedTurnID {
+      supervisorVoiceWillTerminate(turnID: requestedTurnID, reason: terminal.reason)
+    }
     let canceledPreparationTask = turnPreparationTask
     turnPreparationTask?.cancel()
     turnPreparationTask = nil
@@ -582,7 +587,7 @@ extension RealtimeHubController {
     // warm session (and its context) so the next real turn is instant and in-context.
     let terminalReason = VoiceTurnCoordinator.shared.model.lastTerminal
       .flatMap { $0.turnID == requestedTurnID ? $0.reason : nil }
-    let replaceAbandonedSession = terminalReason != .success
+    let replaceAbandonedSession = terminalReason != .success || privateGuidanceTurnID == requestedTurnID
     if terminalReason != .success {
       session?.abandonInputTurn()
     }

@@ -146,43 +146,6 @@ enum SpatialOverlayGeometry {
     return Swift.min(Swift.max(value, minValue), maxValue)
   }
 
-  static func glowEdgeFrame(
-    for edge: GlowEdge,
-    around targetRect: CGRect,
-    thickness: CGFloat,
-    overlap: CGFloat
-  ) -> CGRect {
-    switch edge {
-    case .top:
-      return CGRect(
-        x: targetRect.minX - thickness,
-        y: targetRect.maxY - overlap,
-        width: targetRect.width + thickness * 2,
-        height: thickness + overlap
-      )
-    case .bottom:
-      return CGRect(
-        x: targetRect.minX - thickness,
-        y: targetRect.minY - thickness,
-        width: targetRect.width + thickness * 2,
-        height: thickness + overlap
-      )
-    case .left:
-      return CGRect(
-        x: targetRect.minX - thickness,
-        y: targetRect.minY - thickness,
-        width: thickness + overlap,
-        height: targetRect.height + thickness * 2
-      )
-    case .right:
-      return CGRect(
-        x: targetRect.maxX - overlap,
-        y: targetRect.minY - thickness,
-        width: thickness + overlap,
-        height: targetRect.height + thickness * 2
-      )
-    }
-  }
 }
 
 extension CGRect {

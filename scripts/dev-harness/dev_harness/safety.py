@@ -254,6 +254,8 @@ def build_child_env(
     for key, value in (extra or {}).items():
         if key in _STRIPPED_EXACT_ENV_KEYS or key.startswith(_STRIPPED_ENV_PREFIXES):
             raise SafetyError(f"Refusing to pass unsafe child environment variable {key}")
+        if provider_mode == "offline" and key.startswith("LANGFUSE_"):
+            raise SafetyError(f"Refusing observability configuration {key} in offline provider mode")
         if provider_mode == "offline" and key not in _LOCAL_BACKEND_SECRET_KEYS and _PROVIDER_SECRET_RE.search(key):
             raise SafetyError(f"Refusing provider credential {key} in offline provider mode")
         child[key] = value

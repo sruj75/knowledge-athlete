@@ -10,6 +10,10 @@ sources:
     resource: repo://backend/main.py
   - id: openwiki-source-221ccd7dfd0766ec2939c6ec
     resource: repo://desktop/macos/agent/package.json
+  - id: openwiki-source-d961728264020390f7b3849f
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
+  - id: openwiki-source-e0e1aceea6bbd06a72738ece
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
@@ -20,10 +24,10 @@ sources:
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
   - id: openwiki-source-3db6130123d0c0614cc19cb5
     resource: repo://tools/codebase-map/next.config.ts
-generated: { by: "codex", at: "2026-09-24T12:25:42.469Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T12:25:42.469Z
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Start here
 
@@ -42,6 +46,7 @@ For instruction imports, summaries or workflow-policy changes, start with [instr
 | Understand ownership | [Architecture](codebase/architecture/overview.md), [product boundaries](codebase/concepts/product-boundaries.md) |
 | Look up provider accounts and settings | [Owner and provider record](codebase/operations/owner-provider-record.md) |
 | Trace capture or lost transcript | [Capture and transcription](codebase/workflows/capture-transcription.md) |
+| Trace B guidance, A speech and C interruption | [Supervisor conversation](codebase/workflows/supervisor-conversation.md), [evaluation privacy](codebase/integrations/telemetry.md) |
 | Change Chat, tools or PTT | [Chat and voice](codebase/workflows/chat-voice.md), [agent runtime](codebase/architecture/desktop-agent.md) |
 | Change Memory processing | [Memory lifecycle](codebase/workflows/memory.md), [local data](codebase/architecture/local-data.md) |
 | Trace export or account deletion | [Account lifecycle](codebase/workflows/account-lifecycle.md) |

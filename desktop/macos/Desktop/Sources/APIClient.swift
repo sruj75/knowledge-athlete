@@ -145,11 +145,10 @@ actor APIClient {
   /// Ask the backend to mint a short-lived Gemini Live token. The backend gates on auth + paywall.
   /// Credential failures are typed so the hub can recover deterministically instead
   /// of treating every failure as a silent fallback.
-  func mintRealtimeToken(
+  func mintRealtimeSession(
     expectedOwnerID: String,
     customBaseURL: String? = nil
-  ) async throws -> String {
-    struct Resp: Decodable { let token: String }
+  ) async throws -> RealtimeSessionSetup {
     let base = customBaseURL ?? baseURL
     guard !base.isEmpty else {
       throw CredentialHealthError.backendTransient(
@@ -196,8 +195,7 @@ actor APIClient {
     provider: ManagedInferenceProvider?,
     authPolicy: RequestAuthPolicy,
     retriedAuth: Bool
-  ) async throws -> String {
-    struct Resp: Decodable { let token: String }
+  ) async throws -> RealtimeSessionSetup {
     try validateExpectedOwner(authPolicy)
     let (data, response) = try await session.data(for: request)
     try validateExpectedOwner(authPolicy)
@@ -263,12 +261,12 @@ actor APIClient {
       throw RealtimeTokenMintError(statusCode: httpResponse.statusCode, healthError: healthError, payload: payload)
     }
 
-    let resp = try decoder.decode(Resp.self, from: data)
+    let resp = try decoder.decode(RealtimeSessionSetup.self, from: data)
     guard !resp.token.isEmpty else {
       throw CredentialHealthError.backendTransient(
         statusCode: httpResponse.statusCode, message: "Realtime token was empty.")
     }
-    return resp.token
+    return resp
   }
 
   /// Report a managed realtime turn's token usage so the backend can price it and record

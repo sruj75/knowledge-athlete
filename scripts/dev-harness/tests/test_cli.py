@@ -246,6 +246,33 @@ def test_wait_health_returns_terminal_timeout_failures(monkeypatch: pytest.Monke
     assert any(item.startswith("backend: not healthy after 0s") for item in failures)
 
 
+def test_wait_health_allows_auth_to_start_after_firestore(monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = SimpleNamespace(
+        firestore_host="127.0.0.1:8085",
+        auth_host="127.0.0.1:9099",
+        backend_url="http://127.0.0.1:8000",
+        redis_port=6380,
+    )
+    elapsed = 0.0
+
+    def advance(seconds: float) -> None:
+        nonlocal elapsed
+        elapsed += seconds
+
+    def health(url: str, headers: object = None) -> tuple[bool, str]:
+        ready = cfg.auth_host not in url or elapsed >= 90
+        return ready, "HTTP 200" if ready else "connection refused"
+
+    monkeypatch.setattr(cli, "_process_records", lambda _cfg: [])
+    monkeypatch.setattr(cli, "_port_open", lambda _host, _port: True)
+    monkeypatch.setattr(cli, "_http_ok", health)
+    monkeypatch.setattr(cli.time, "time", lambda: elapsed)
+    monkeypatch.setattr(cli.time, "sleep", advance)
+
+    assert cli._wait_health(cfg) == []
+    assert elapsed == 90
+
+
 def test_wait_health_returns_dead_process_failure_and_clears_recovered_checks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

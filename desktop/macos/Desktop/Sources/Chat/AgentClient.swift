@@ -99,6 +99,7 @@ enum AgentClient {
   }
 
   struct QueryResult: Sendable {
+    let managedRequestID: String?
     let text: String
     let costUsd: Double
     let omiSessionId: String
@@ -115,6 +116,7 @@ enum AgentClient {
     let completionDeltaArtifacts: [AgentArtifactProjection]
 
     init(_ result: AgentBridge.QueryResult) {
+      managedRequestID = result.managedRequestID
       text = result.text
       costUsd = result.costUsd
       omiSessionId = result.omiSessionId

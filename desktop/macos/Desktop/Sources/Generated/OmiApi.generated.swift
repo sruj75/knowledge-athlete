@@ -117,6 +117,52 @@ public enum OmiAPI {
   }
 
 
+  public struct ChatTerminalObservation: Codable {
+    public let conversation: [ConversationObservation]?
+    public let durationMs: Int
+    public let evaluationSharing: Bool?
+    public let kind: String
+    public let outcome: String
+    public let requestId: String
+    public let sessionId: String
+    public let turnId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case conversation
+      case durationMs = "duration_ms"
+      case evaluationSharing = "evaluation_sharing"
+      case kind
+      case outcome
+      case requestId = "request_id"
+      case sessionId = "session_id"
+      case turnId = "turn_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversation = try c.decodeIfPresent([ConversationObservation].self, forKey: .conversation)
+      durationMs = try c.decode(Int.self, forKey: .durationMs)
+      evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      kind = try c.decode(String.self, forKey: .kind)
+      outcome = try c.decode(String.self, forKey: .outcome)
+      requestId = try c.decode(String.self, forKey: .requestId)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+      turnId = try c.decode(String.self, forKey: .turnId)
+    }
+
+    public init(conversation: [ConversationObservation]?, durationMs: Int, evaluationSharing: Bool?, kind: String, outcome: String, requestId: String, sessionId: String, turnId: String) {
+      self.conversation = conversation
+      self.durationMs = durationMs
+      self.evaluationSharing = evaluationSharing
+      self.kind = kind
+      self.outcome = outcome
+      self.requestId = requestId
+      self.sessionId = sessionId
+      self.turnId = turnId
+    }
+  }
+
+
   public struct ConversationActionCandidate: Codable {
     public let action: String
     public let description_: String
@@ -327,6 +373,36 @@ public enum OmiAPI {
     public init(discard: Bool, generationId: String) {
       self.discard = discard
       self.generationId = generationId
+    }
+  }
+
+
+  public struct ConversationObservation: Codable {
+    public let outcome: String?
+    public let role: String
+    public let text: String
+    public let turnId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case outcome
+      case role
+      case text
+      case turnId = "turn_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      outcome = try c.decodeIfPresent(String.self, forKey: .outcome)
+      role = try c.decode(String.self, forKey: .role)
+      text = try c.decode(String.self, forKey: .text)
+      turnId = try c.decode(String.self, forKey: .turnId)
+    }
+
+    public init(outcome: String?, role: String, text: String, turnId: String) {
+      self.outcome = outcome
+      self.role = role
+      self.text = text
+      self.turnId = turnId
     }
   }
 
@@ -995,6 +1071,84 @@ public enum OmiAPI {
   }
 
 
+  public struct MintRequest: Codable {
+    public init() {}
+  }
+
+
+  public struct PromptReceipt: Codable {
+    public let name: String
+    public let source: String
+    public let text: String
+    public let version: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      name = try c.decode(String.self, forKey: .name)
+      source = try c.decode(String.self, forKey: .source)
+      text = try c.decode(String.self, forKey: .text)
+      version = try c.decode(String.self, forKey: .version)
+    }
+
+    public init(name: String, source: String, text: String, version: String) {
+      self.name = name
+      self.source = source
+      self.text = text
+      self.version = version
+    }
+  }
+
+
+  public struct PromptReference: Codable {
+    public let name: String
+    public let source: String
+    public let version: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      name = try c.decode(String.self, forKey: .name)
+      source = try c.decode(String.self, forKey: .source)
+      version = try c.decode(String.self, forKey: .version)
+    }
+
+    public init(name: String, source: String, version: String) {
+      self.name = name
+      self.source = source
+      self.version = version
+    }
+  }
+
+
+  public struct RealtimeSessionResponse: Codable {
+    public let expiresAt: String
+    public let prompt: PromptReceipt
+    public let provider: String
+    public let token: String
+
+    private enum CodingKeys: String, CodingKey {
+      case expiresAt = "expires_at"
+      case prompt
+      case provider
+      case token
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      expiresAt = try c.decode(String.self, forKey: .expiresAt)
+      prompt = try c.decode(PromptReceipt.self, forKey: .prompt)
+      provider = try c.decode(String.self, forKey: .provider)
+      token = try c.decode(String.self, forKey: .token)
+    }
+
+    public init(expiresAt: String, prompt: PromptReceipt, provider: String, token: String) {
+      self.expiresAt = expiresAt
+      self.prompt = prompt
+      self.provider = provider
+      self.token = token
+    }
+  }
+
+
   public struct RelatedTaskCandidate: Codable {
     public let completed: Bool?
     public let description_: String
@@ -1025,6 +1179,294 @@ public enum OmiAPI {
   }
 
 
+  public struct ScoreObservation: Codable {
+    public let decisionId: String?
+    public let evaluationSharing: Bool?
+    public let kind: String
+    public let requestId: String?
+    public let sessionId: String
+    public let turnId: String
+    public let value: Int
+
+    private enum CodingKeys: String, CodingKey {
+      case decisionId = "decision_id"
+      case evaluationSharing = "evaluation_sharing"
+      case kind
+      case requestId = "request_id"
+      case sessionId = "session_id"
+      case turnId = "turn_id"
+      case value
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      decisionId = try c.decodeIfPresent(String.self, forKey: .decisionId)
+      evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      kind = try c.decode(String.self, forKey: .kind)
+      requestId = try c.decodeIfPresent(String.self, forKey: .requestId)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+      turnId = try c.decode(String.self, forKey: .turnId)
+      value = try c.decode(Int.self, forKey: .value)
+    }
+
+    public init(decisionId: String?, evaluationSharing: Bool?, kind: String, requestId: String?, sessionId: String, turnId: String, value: Int) {
+      self.decisionId = decisionId
+      self.evaluationSharing = evaluationSharing
+      self.kind = kind
+      self.requestId = requestId
+      self.sessionId = sessionId
+      self.turnId = turnId
+      self.value = value
+    }
+  }
+
+
+  public struct SupervisorDecisionObservation: Codable {
+    public let conversation: [ConversationObservation]?
+    public let decisionId: String
+    public let evaluationSharing: Bool?
+    public let kind: String
+    public let note: String?
+    public let observationId: String
+    public let prompt: PromptReference
+    public let sessionId: String
+    public let transcripts: [TranscriptObservation]?
+
+    private enum CodingKeys: String, CodingKey {
+      case conversation
+      case decisionId = "decision_id"
+      case evaluationSharing = "evaluation_sharing"
+      case kind
+      case note
+      case observationId = "observation_id"
+      case prompt
+      case sessionId = "session_id"
+      case transcripts
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversation = try c.decodeIfPresent([ConversationObservation].self, forKey: .conversation)
+      decisionId = try c.decode(String.self, forKey: .decisionId)
+      evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      kind = try c.decode(String.self, forKey: .kind)
+      note = try c.decodeIfPresent(String.self, forKey: .note)
+      observationId = try c.decode(String.self, forKey: .observationId)
+      prompt = try c.decode(PromptReference.self, forKey: .prompt)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+      transcripts = try c.decodeIfPresent([TranscriptObservation].self, forKey: .transcripts)
+    }
+
+    public init(conversation: [ConversationObservation]?, decisionId: String, evaluationSharing: Bool?, kind: String, note: String?, observationId: String, prompt: PromptReference, sessionId: String, transcripts: [TranscriptObservation]?) {
+      self.conversation = conversation
+      self.decisionId = decisionId
+      self.evaluationSharing = evaluationSharing
+      self.kind = kind
+      self.note = note
+      self.observationId = observationId
+      self.prompt = prompt
+      self.sessionId = sessionId
+      self.transcripts = transcripts
+    }
+  }
+
+
+  public struct SupervisorRequest: Codable {
+    public let contextEpoch: Int
+    public let conversation: [ConversationObservation]?
+    public let evaluationSharing: Bool?
+    public let memories: [String]?
+    public let observationId: String
+    public let profile: String?
+    public let screen: SupervisorScreen?
+    public let sessionId: String
+    public let transcripts: [TranscriptObservation]?
+
+    private enum CodingKeys: String, CodingKey {
+      case contextEpoch = "context_epoch"
+      case conversation
+      case evaluationSharing = "evaluation_sharing"
+      case memories
+      case observationId = "observation_id"
+      case profile
+      case screen
+      case sessionId = "session_id"
+      case transcripts
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      contextEpoch = try c.decode(Int.self, forKey: .contextEpoch)
+      conversation = try c.decodeIfPresent([ConversationObservation].self, forKey: .conversation)
+      evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      memories = try c.decodeIfPresent([String].self, forKey: .memories)
+      observationId = try c.decode(String.self, forKey: .observationId)
+      profile = try c.decodeIfPresent(String.self, forKey: .profile)
+      screen = try c.decodeIfPresent(SupervisorScreen.self, forKey: .screen)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+      transcripts = try c.decodeIfPresent([TranscriptObservation].self, forKey: .transcripts)
+    }
+
+    public init(contextEpoch: Int, conversation: [ConversationObservation]?, evaluationSharing: Bool?, memories: [String]?, observationId: String, profile: String?, screen: SupervisorScreen?, sessionId: String, transcripts: [TranscriptObservation]?) {
+      self.contextEpoch = contextEpoch
+      self.conversation = conversation
+      self.evaluationSharing = evaluationSharing
+      self.memories = memories
+      self.observationId = observationId
+      self.profile = profile
+      self.screen = screen
+      self.sessionId = sessionId
+      self.transcripts = transcripts
+    }
+  }
+
+
+  public struct SupervisorResponse: Codable {
+    public let action: String
+    public let contextEpoch: Int
+    public let decisionId: String
+    public let note: String?
+    public let observationId: String
+    public let outcome: String
+    public let prompt: PromptReceipt
+    public let sessionId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case action
+      case contextEpoch = "context_epoch"
+      case decisionId = "decision_id"
+      case note
+      case observationId = "observation_id"
+      case outcome
+      case prompt
+      case sessionId = "session_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      action = try c.decode(String.self, forKey: .action)
+      contextEpoch = try c.decode(Int.self, forKey: .contextEpoch)
+      decisionId = try c.decode(String.self, forKey: .decisionId)
+      note = try c.decodeIfPresent(String.self, forKey: .note)
+      observationId = try c.decode(String.self, forKey: .observationId)
+      outcome = try c.decode(String.self, forKey: .outcome)
+      prompt = try c.decode(PromptReceipt.self, forKey: .prompt)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+    }
+
+    public init(action: String, contextEpoch: Int, decisionId: String, note: String?, observationId: String, outcome: String, prompt: PromptReceipt, sessionId: String) {
+      self.action = action
+      self.contextEpoch = contextEpoch
+      self.decisionId = decisionId
+      self.note = note
+      self.observationId = observationId
+      self.outcome = outcome
+      self.prompt = prompt
+      self.sessionId = sessionId
+    }
+  }
+
+
+  public struct SupervisorScreen: Codable {
+    public let appName: String?
+    public let capturedAt: String
+    public let jpegBase64: String
+    public let windowTitle: String?
+
+    private enum CodingKeys: String, CodingKey {
+      case appName = "app_name"
+      case capturedAt = "captured_at"
+      case jpegBase64 = "jpeg_base64"
+      case windowTitle = "window_title"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      appName = try c.decodeIfPresent(String.self, forKey: .appName)
+      capturedAt = try c.decode(String.self, forKey: .capturedAt)
+      jpegBase64 = try c.decode(String.self, forKey: .jpegBase64)
+      windowTitle = try c.decodeIfPresent(String.self, forKey: .windowTitle)
+    }
+
+    public init(appName: String?, capturedAt: String, jpegBase64: String, windowTitle: String?) {
+      self.appName = appName
+      self.capturedAt = capturedAt
+      self.jpegBase64 = jpegBase64
+      self.windowTitle = windowTitle
+    }
+  }
+
+
+  public struct TerminalTurnObservation: Codable {
+    public let conversation: [ConversationObservation]?
+    public let decisionId: String?
+    public let durationMs: Int
+    public let evaluationSharing: Bool?
+    public let kind: String
+    public let outcome: String
+    public let prompt: PromptReference
+    public let sessionId: String
+    public let turnId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case conversation
+      case decisionId = "decision_id"
+      case durationMs = "duration_ms"
+      case evaluationSharing = "evaluation_sharing"
+      case kind
+      case outcome
+      case prompt
+      case sessionId = "session_id"
+      case turnId = "turn_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversation = try c.decodeIfPresent([ConversationObservation].self, forKey: .conversation)
+      decisionId = try c.decodeIfPresent(String.self, forKey: .decisionId)
+      durationMs = try c.decode(Int.self, forKey: .durationMs)
+      evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      kind = try c.decode(String.self, forKey: .kind)
+      outcome = try c.decode(String.self, forKey: .outcome)
+      prompt = try c.decode(PromptReference.self, forKey: .prompt)
+      sessionId = try c.decode(String.self, forKey: .sessionId)
+      turnId = try c.decode(String.self, forKey: .turnId)
+    }
+
+    public init(conversation: [ConversationObservation]?, decisionId: String?, durationMs: Int, evaluationSharing: Bool?, kind: String, outcome: String, prompt: PromptReference, sessionId: String, turnId: String) {
+      self.conversation = conversation
+      self.decisionId = decisionId
+      self.durationMs = durationMs
+      self.evaluationSharing = evaluationSharing
+      self.kind = kind
+      self.outcome = outcome
+      self.prompt = prompt
+      self.sessionId = sessionId
+      self.turnId = turnId
+    }
+  }
+
+
+  public struct TranscriptObservation: Codable {
+    public let id: String
+    public let source: String
+    public let text: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      id = try c.decode(String.self, forKey: .id)
+      source = try c.decode(String.self, forKey: .source)
+      text = try c.decode(String.self, forKey: .text)
+    }
+
+    public init(id: String, source: String, text: String) {
+      self.id = id
+      self.source = source
+      self.text = text
+    }
+  }
+
+
 
   // --- Client methods (typed URLRequest + async wrappers). GENERATED - DO NOT EDIT. ---
 
@@ -1044,6 +1486,32 @@ public enum OmiAPI {
   public enum OmiApiError: Error {
     case invalidURL
     case httpError(status: Int, data: Data)
+  }
+
+  public static func reportObservationV1AiObservationsPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: OmiAnyCodable) async throws -> Void {
+    let _path = "/v1/ai/observations"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return
   }
 
   public static func computeActionItemsV1ConversationComputeActionItemsPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: ConversationActionItemsRequest) async throws -> ConversationActionItemsResponse {
@@ -1276,6 +1744,32 @@ public enum OmiAPI {
       throw OmiApiError.httpError(status: http.statusCode, data: data)
     }
     return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
+  }
+
+  public static func evaluateSupervisorV1SupervisorEvaluatePost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: SupervisorRequest) async throws -> SupervisorResponse {
+    let _path = "/v1/supervisor/evaluate"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return try JSONDecoder().decode(SupervisorResponse.self, from: data)
   }
 
   public static func deleteAccountV1UsersDeleteAccountDelete(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil) async throws -> OmiAnyCodable {
@@ -1577,6 +2071,32 @@ public enum OmiAPI {
     return try JSONDecoder().decode(InitialMessageResponse.self, from: data)
   }
 
+  public static func mintSessionV2RealtimeSessionPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: MintRequest) async throws -> RealtimeSessionResponse {
+    let _path = "/v2/realtime/session"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return try JSONDecoder().decode(RealtimeSessionResponse.self, from: data)
+  }
+
   public static func transcribeVoiceMessageV2VoiceMessageTranscribePost(client: OmiApiClient, xAppPlatform: String? = nil, authorization: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil) async throws -> OmiAnyCodable {
     let _path = "/v2/voice-message/transcribe"
     guard let components = URLComponents(string: client.baseURL + _path) else {
@@ -1601,5 +2121,5 @@ public enum OmiAPI {
     return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
   }
 
-  // Total: 22 Swift client methods generated.
+  // Total: 25 Swift client methods generated.
 }

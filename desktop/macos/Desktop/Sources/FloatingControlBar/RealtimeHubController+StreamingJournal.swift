@@ -100,7 +100,8 @@ extension RealtimeHubController {
   func beginStreamingRealtimeProjectionIfNeeded() {
     let userText = turnTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
     let responseText = assistantText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !turnIdempotencyKey.isEmpty, !userText.isEmpty, !responseText.isEmpty,
+    guard !turnIdempotencyKey.isEmpty,
+      turnIdempotencyKey.hasPrefix("supervisor:") || !userText.isEmpty, !responseText.isEmpty,
       acceptedSpawnJournalReceiptByContinuityKey[turnIdempotencyKey] == nil,
       VoiceTurnCoordinator.shared.activeTurn?.pendingToolCallIDs.isEmpty == true,
       let ownerID = VoiceTurnCoordinator.shared.activeTurn?.ownerID,
@@ -149,13 +150,14 @@ extension RealtimeHubController {
     ownerID: String,
     userText: String,
     assistantText: String,
-    continuityKey: String
+    continuityKey: String,
+    status: KernelJournalTurnStatus = .completed
   ) async -> RealtimeStreamingJournalWriteLedger.FinalizationResult {
     streamingJournalFlushTasks.removeValue(forKey: continuityKey)?.cancel()
     return await streamingJournalWriteLedger.finalize(continuityKey: continuityKey) { projection in
       guard projection.ownerID == ownerID else { return false }
       return await FloatingControlBarManager.shared.completeStreamingRealtimeExchange(
-        projection: projection, userText: userText, assistantText: assistantText)
+        projection: projection, userText: userText, assistantText: assistantText, status: status)
     }
   }
 

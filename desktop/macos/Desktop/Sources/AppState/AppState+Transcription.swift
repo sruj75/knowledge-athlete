@@ -364,8 +364,8 @@ extension AppState {
     // Local mode: bypass the mixer — mic and system are transcribed by SEPARATE Parakeet
     // instances so transcripts are diarized by source (mic = you, system = another speaker).
     if !sttSession.useLocalSTT {
-      audioMixer?.start { [weak self] monoMixed in
-        self?.transcriptionService?.sendAudio(monoMixed)
+      audioMixer?.startObserved { [weak self] monoMixed, captureInterval in
+        self?.transcriptionService?.sendAudio(monoMixed, captureInterval: captureInterval)
       }
     }
 
@@ -389,10 +389,11 @@ extension AppState {
       let mixer = audioMixer
       try await mic.startCapture(
         onAudioChunk: { audioData in
+          let captureInterval = SupervisorCaptureInterval.captured(byteCount: audioData.count)
           if useLocalSTT {
-            localSink.append(audioData)
+            localSink.append(audioData, captureInterval: captureInterval)
           } else {
-            mixer?.setMicAudio(audioData)
+            mixer?.setMicAudio(audioData, captureInterval: captureInterval)
           }
         },
         onAudioLevel: { level in
@@ -429,10 +430,11 @@ extension AppState {
       let mixer = audioMixer
       try await systemService.startCapture(
         onAudioChunk: { audioData in
+          let captureInterval = SupervisorCaptureInterval.captured(byteCount: audioData.count)
           if useLocalSTT {
-            localSink.append(audioData)
+            localSink.append(audioData, captureInterval: captureInterval)
           } else {
-            mixer?.setSystemAudio(audioData)
+            mixer?.setSystemAudio(audioData, captureInterval: captureInterval)
           }
         },
         onAudioLevel: { level in

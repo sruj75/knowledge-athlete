@@ -307,12 +307,6 @@ class ResourceMonitor {
       components["videoEncoder_currentChunkAgeSec"] = Int(age)
     }
 
-    // FocusAssistant pending tasks (actor — await, optional since it may not be initialized)
-    if let focusAssistant = ProactiveAssistantsPlugin.shared.currentFocusAssistant {
-      components["focus_pendingTasks"] = await focusAssistant.pendingTasksCount
-      components["focus_historyCount"] = await focusAssistant.analysisHistoryCount
-    }
-
     // Rewind backpressure stats (MainActor — direct access)
     let plugin = ProactiveAssistantsPlugin.shared
     components["rewind_droppedFrames"] = plugin.droppedFrameCount
@@ -552,18 +546,10 @@ class ResourceMonitor {
 
   private func triggerMemoryRemediation() {
     log(
-      "ResourceMonitor: Triggering memory remediation — flushing video encoder, clearing assistant pending work, trimming transcript"
+      "ResourceMonitor: Triggering memory remediation — flushing video encoder, trimming transcript"
     )
 
     let memoryBefore = getMemoryFootprintMB()
-    let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
-
-    // Clear queued frames in assistant coordinator
-    if let authorizationSnapshot {
-      AssistantCoordinator.shared.clearAllPendingWork(
-        authorizationSnapshot: authorizationSnapshot)
-    }
-
     // Trim in-memory transcript segments (already persisted in SQLite)
     onMemoryPressureTrimTranscript?()
 
@@ -575,14 +561,6 @@ class ResourceMonitor {
         _ = try await RewindStorage.shared.flushCurrentVideoChunk()
       } catch {
         logError("ResourceMonitor: Failed to flush video chunk during memory remediation", error: error)
-      }
-
-      // Clear focus assistant pending tasks specifically
-      if let focusAssistant = ProactiveAssistantsPlugin.shared.currentFocusAssistant,
-        let authorizationSnapshot
-      {
-        await focusAssistant.clearPendingWork(
-          authorizationSnapshot: authorizationSnapshot)
       }
 
       let memoryAfter = await MainActor.run { self.getMemoryFootprintMB() }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:08e4147144d06b1bba78aecf3959f47d4c8562f52a326ea6823b48aa40ad01fd",
+  "pageVersion": "sha256:8f235782b5c78c1e50849e4371f63cb1757bc2fa9bfc729f09f1588df036e877",
   "claims": [
     {
       "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
@@ -40,7 +40,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BPushToTalk.swift",
-          "version": "repo-file-v1:sha256:299a22b77be9571fb08a7389fd23c0baca0897fb43860d0f28cece604556a3d2"
+          "version": "repo-file-v1:sha256:475b0f576d53572476b07ca1673090d5b7de10ab4e475de149ff0c93c78a53ca"
         }
       ]
     },
@@ -53,10 +53,50 @@
           "version": "repo-lines-v1:sha256:e52e4feb90b339f77a9d2ea2fc907ad0f7c1e89a0a1c55bd7900434e1a7e4726:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI1OTNhYTFhN2RlOTFjNjMyN2EyNDgxMzU0M2Q4YTZkYzJhNGE1MTU3Zjc4ZmEyOTliNjBiMmQ4MmQ1ODgxZTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwNmIyMTI0YzgyODI5OTA0NzNjNTJkZjU3OWVkN2M3YTM0OTg3MmEwYmU0YzNmZWZkNTk3YjZkY2E3NjRiM2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiMzc4ODU2MTc2YTQ0NzhkNjYxNjVjNjY2ZjMyYjUzOGZiNzg4YzdmYWZiYzU1YzJjYTcwNGZkOTgwNDYxZTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzMjIwYjlkZDVlZTQ2OTk1YjAzYTAzMmU0YjMzMDY0MTljMjRlZmZhMDkyNTkxYmE2MDU5MDNhOTM0ZTM4ZWQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_f65eb7ecaf604ac8a991726008684fc6",
+      "statement": "A supervisor-origin voice turn uses the existing reducer/session/playback owners without microphone capture, sends a manual activity-text-activity Live turn, and cancels ambiguous failures without automatic replay.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L138",
+          "version": "repo-lines-v1:sha256:24098c4a2746c0760c1a2eded41f4123e4d54686deef9402759f9d06b7a5d823:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4Zjk0ZjY4NmI2OWEyZmIwMWI4YmZkNGI2YzA0Nzc1OTJkYzU0Njc5N2ZkMDQ5ZTcyZWU4Y2ZjNDc3ZjgwNWQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNzMxZTQ3ODVjMmIzNmY2MGFhYTM3ZWZmODkyMTk0ZTJkNGU5NzExNjUyZWNjMDQwNGE0MWJiYmIzMDJjZTdhIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1097-L1131",
+          "version": "repo-lines-v1:sha256:4785818a51ad79e43484c76297caf75b516a37f7185e9712e578fe77a2970580:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4NzVmYTlkZTMyYWExNmJjMDBjYTExZTA3OTMxZTc5MTk3NWJiZDIwOWQxODI3OThjMzRmYmM2ZWExODMxNjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM3NWI1YjQxZDI5ZDdkN2Y4NTNkY2U3NWQ0MDU1MjViOGQ5YzM1ZGVkNGI3ZjVkNGRiZjBjY2FmNzMwMDI3NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwZDJmNzY2OTU5ZDFiYzYwMDVkZDM4MTYxMTA0YmRiZTRmNWY1YzQ4ZjI0YTM1MWNiZGQ0YTgwOWYyMzQwYjEifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1173-L1183",
+          "version": "repo-lines-v1:sha256:6fecd9313becb61cdb31b0ce0a46d266ff4bb1a3310dbdde55b072478b04a6e9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYwNTUzMDk4YmU5MGI3ZDUzZDkxNTc4ZmY4MjRhNDVjYWFiODkyYjc1MDAxMjFiMWEyODg2NWY0YTE3OGEzMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwMDNiMGJiZjI3MTc0YjVlODVmYWYyZjc5NGI3ZjllMmM0YTNiOTU4OGM0MzZjMTEyN2MzYTY3YmJhMjM1MDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2ZTA4NzQ4OTc0MjlmYmE5ZjQ4MmYzMGJhYjlmYmUwNTljYTA3N2I0MzAwNzg3NWRkMDc2ODU2NzlkMjhkOGYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift#L13-L93",
+          "version": "repo-lines-v1:sha256:cd97d79e2b7e40361e6a460beb3e68bd72318d380d9d9a3811fdd11850ac3589:eyJzZWxlY3RlZExpbmVDb3VudCI6ODEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlNzJjMjhmZDJhOTA5OTg5OGJmN2NjZTJjNDdmOTU3Yzg5NTg4YjM0N2I4NmQzOWE3NzI0NjQ5M2I1MmEyMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdjMTZlZWY1MGM1MmE5ODI2OWExNTZhNjhhMzcyMjk2MDc5MDg5YzdkMzVlNDRkZjJmYjZkNGU5ZDk2M2VlNzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU2ODFkYzc5NDZmOWVmNGFkODZmZjk2OWY2YjhiZjA3OGU0MTE2NzFkYzU4ODg0NmIxNWI5YjJkNDdmODlhMWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_95fc20ba44894419be5e604225987003",
+      "statement": "Supervisor guidance can wait for the next PTT window; automatic turns reject tool execution and persist only assistant output with completion gated on provider finish and playback drain.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift#L728-L747",
+          "version": "repo-lines-v1:sha256:fef40928eae2683d2fb7652fd27aeb2f2552d45e018c3bd8b0fe040f2072d0a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3NTQ1NWEyN2NjYzM3MTQ4MTRkZTJiZjQxMTdmNGYzMGY4ZDJlMjc0NDE5NTY0YmRlNzVmMzY4ZWFmYzUzOTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxNTdjNTM5NWVjNDhmZGI5ZjkwOWYzZjcxYmFkOGFhODlmMGU3MzVhOWNjMjEwYzgwMTZmNTY3NTBiMDA0MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiNWIwOTQ1YWI3ODgxMzllODYxYTRiZDhlZTc1YWVhYmMzMmQ1MjM2ZDkzMjAxYzQ2ZjBhODcwY2M2MDNlYTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhMWNlYjFiNWZjNWM1MjljODNhYjNiMDY2Y2ZhNTAyMjg2NmM5OWNkYjJiOWE2OTUwZTdkN2Y1ODFkYTgxOWIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift#L899-L990",
+          "version": "repo-lines-v1:sha256:da5571d7efb5f5a89adcf0e58f5d9a750b311d6a1c710013beed5a52dd382235:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljMjgyNTY0ZDgxYTJiOTk4NTBmZDc0MjU3ZmQxNjg4YzE1ODU1NzQ3YmJkZDg2NTY1NTJmY2M0YTY4N2M4ZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMzc5MWQ4MDFiNjdhYmYxYmIwMmY2OTYyYTNiOGIwYjk4MzFmZjI1OTJjMTNmZmI4YzY5YjU5ZTBmYjdjZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0OTA2MTFkMzI4OTBiMmQyNGRhMTY0MTg5OTBhMjVkYjIyODVhOWM5YmVhNzEwN2ZlNmI0YzI4ZDdkMDIyZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0NmEyZDAyNWRjMWZhMTVhZjE3OThlZDE5Y2Y4NzExODM1ZTA1Mzc4OTk0N2MyYzM5MDc5NTA3NTRjMzMwOTQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L149-L222",
+          "version": "repo-lines-v1:sha256:66fecf54e1f71155711a2eb4ff63c4e3a48eb3a582bb6264ea403bebdac483da:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4NTcwNTk1YWE2Mjg1YzdjOWJiODBmN2ZiOGYyNWQyN2JmMzdhYzE5ZDU3ZTAzYjU0Njg5YzU1Y2JjOGM1ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0YWJjOGZmYjBkODQyNDhjMTM1YWI1ODMyMDE3YjA4YWRjMDQ4OGQ4NGUzN2M2ZmUyNzhhYjFjOTA4OGFkZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

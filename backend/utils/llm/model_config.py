@@ -60,6 +60,17 @@ def _workload(
 
 
 _WORKLOADS: Dict[str, ManagedModelWorkload] = {
+    'supervisor': _workload(
+        'supervisor',
+        'gemini',
+        'gemini-3.7-flash',
+        'POST /v1/supervisor/evaluate',
+        'bounded screen, transcripts, conversation and existing local profile context',
+        'validated wait, guide_next_turn or intervene decision with a private note',
+        'supervisor',
+        'owner-scoped Mac supervisor coordinator',
+        'wait on provider or invalid-decision failure; no tool or memory mutations',
+    ),
     'conv_action_items': _workload(
         'conv_action_items',
         'gemini',

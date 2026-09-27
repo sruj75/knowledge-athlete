@@ -7,6 +7,25 @@ import WebKit
 extension SettingsContentView {
   var notificationsSection: some View {
     VStack(spacing: OmiSpacing.xl) {
+      settingsCard(destination: .supervisor) {
+        VStack(alignment: .leading, spacing: OmiSpacing.md) {
+          settingRow(
+            title: "Supervisor", subtitle: "Use permitted screen context and transcripts to guide conversation"
+          ) {
+            Toggle("Supervisor", isOn: $supervisor.enabled)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+          }
+          Text(supervisorStatusText)
+            .scaledFont(size: OmiType.caption)
+            .foregroundColor(supervisor.state == .paused ? OmiColors.warning : OmiColors.textTertiary)
+          Text(
+            "Screen and audio recording permissions remain in your capture settings. Proactive speech follows the notification controls below."
+          )
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textTertiary)
+        }
+      }
       // Notifications
       settingsCard(destination: .notificationSettings) {
         VStack(alignment: .leading, spacing: OmiSpacing.lg) {
@@ -23,7 +42,7 @@ extension SettingsContentView {
               }
           }
 
-          Text("Control how often you receive notifications")
+          Text("Allow Intentive to speak proactively and control how often it interrupts")
             .scaledFont(size: OmiType.body)
             .foregroundColor(OmiColors.textTertiary)
 
@@ -32,78 +51,21 @@ extension SettingsContentView {
 
           Group {
             notificationFrequencySlider(destination: .notificationFrequency)
-
-            // Sits under the master toggle and the frequency slider because both gate it:
-            // frequency caps how often any proactive card is delivered, and this decides
-            // whether live suggestions are generated at all.
-            settingRow(
-              title: "Live Suggestions",
-              subtitle: "Suggest things in the notch using available local context",
-              settingId: "notifications.livesuggestions"
-            ) {
-              Toggle("", isOn: $liveSuggestionsEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: liveSuggestionsEnabled) { _, newValue in
-                  SuggestionAssistantSettings.shared.applyUserEnabledChange(newValue)
-                }
-            }
-
-            settingRow(
-              title: "Focus Notifications", subtitle: "Show notification on focus changes",
-              destination: .focusNotifications
-            ) {
-              Toggle("", isOn: $focusNotificationsEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: focusNotificationsEnabled) { _, newValue in
-                  FocusAssistantSettings.shared.notificationsEnabled = newValue
-                }
-            }
-
-            settingRow(
-              title: "Task Notifications",
-              subtitle: "Allow interruptions when a task needs attention",
-              destination: .taskNotifications
-            ) {
-              Toggle("", isOn: $taskNotificationsEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: taskNotificationsEnabled) { _, newValue in
-                  TaskAssistantSettings.shared.notificationsEnabled = newValue
-                }
-            }
-
-            settingRow(
-              title: "Insight Notifications",
-              subtitle: "Show notification when an insight is generated",
-              destination: .insightNotifications
-            ) {
-              Toggle("", isOn: $insightNotificationsEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: insightNotificationsEnabled) { _, newValue in
-                  InsightAssistantSettings.shared.notificationsEnabled = newValue
-                }
-            }
-
-            settingRow(
-              title: "Memory Notifications",
-              subtitle: "Show notification when a memory is extracted",
-              destination: .memoryNotifications
-            ) {
-              Toggle("", isOn: $memoryNotificationsEnabled)
-                .toggleStyle(OmiToggleStyle())
-                .labelsHidden()
-                .onChange(of: memoryNotificationsEnabled) { _, newValue in
-                  MemoryAssistantSettings.shared.applyUserSettingChange(.notificationsEnabled, value: newValue)
-                }
-            }
           }
           .disabled(!notificationsEnabled)
           .opacity(notificationsEnabled ? 1 : 0.55)
         }
       }
+    }
+  }
+
+  private var supervisorStatusText: String {
+    switch supervisor.state {
+    case .idle: return "Ready for new context"
+    case .observing: return "Observing permitted context"
+    case .evaluating: return "Considering the latest context"
+    case .paused: return "Supervisor paused by a service limit or temporary failure. Push-to-talk remains available."
+    case .disabled: return "Supervisor is off"
     }
   }
 
@@ -119,6 +81,24 @@ extension SettingsContentView {
           Text(PrivacyTruthPresentation.dataLocationDetail)
             .scaledFont(size: OmiType.caption)
             .foregroundColor(OmiColors.textTertiary)
+        }
+      }
+
+      settingsCard(destination: .evaluationSharing) {
+        VStack(alignment: .leading, spacing: OmiSpacing.md) {
+          settingRow(
+            title: "Share this evaluation session",
+            subtitle: "Include bounded conversation and guidance text to help evaluate Intentive"
+          ) {
+            Toggle("Share this evaluation session", isOn: $supervisor.evaluationSharing)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+          }
+          Text(
+            "Off by default. Screenshots, audio, saved memories and profile contents are never included. Sharing ends when monitoring ends, you sign out, or you turn this off."
+          )
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textTertiary)
         }
       }
 

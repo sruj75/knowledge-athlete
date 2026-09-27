@@ -232,9 +232,20 @@ extension RealtimeHubController {
   }
 
   func voiceTurnDidTerminate(turnID: VoiceTurnID) {
+    if let terminal = VoiceTurnCoordinator.shared.model.lastTerminal, terminal.turnID == turnID {
+      supervisorVoiceWillTerminate(turnID: turnID, reason: terminal.reason)
+    }
     markVoiceJournalPinTerminal(
-      continuityKey: "voice:\(turnID.rawValue.uuidString.lowercased())"
+      continuityKey: supervisorContinuityKeys[turnID] ?? "voice:\(turnID.rawValue.uuidString.lowercased())"
     )
+    if privateGuidanceTurnID == turnID { privateGuidanceTurnID = nil }
+    supervisorContinuityKeys.removeValue(forKey: turnID)
+    supervisorDecisionIDs.removeValue(forKey: turnID)
+    supervisorOwnerIDs.removeValue(forKey: turnID)
+    turnManagedPrompts.removeValue(forKey: turnID)
+    voiceObservationOwners.removeValue(forKey: turnID)
+    supervisorContextTurnIDs.remove(turnID)
+    deliveredVoiceTurnIDs.remove(turnID)
     if admittedInputTurnID == turnID { admittedInputTurnID = nil }
     if let terminal = VoiceTurnCoordinator.shared.model.lastTerminal,
       terminal.turnID == turnID
@@ -267,9 +278,9 @@ extension RealtimeHubController {
     log("RealtimeHub: minting ephemeral \(provider.displayName) token (managed)")
     Task { [weak self] in
       guard let self else { return }
-      let token: String
+      let setup: RealtimeSessionSetup
       do {
-        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
+        setup = try await APIClient.shared.mintRealtimeSession(expectedOwnerID: ownerID)
       } catch let error as RealtimeTokenMintError {
         guard
           self.acceptMintCompletionOrRewarm(
@@ -340,8 +351,9 @@ extension RealtimeHubController {
       }
       self.startSession(
         provider: provider,
-        auth: .managedEphemeral(token),
-        ownerScope: ownerScope)
+        auth: .managedEphemeral(setup.token),
+        ownerScope: ownerScope,
+        managedPrompt: setup.prompt)
     }
   }
 
@@ -349,6 +361,7 @@ extension RealtimeHubController {
     provider: RealtimeHubProvider,
     auth: HubAuth,
     ownerScope: RealtimeHubOwnerScope,
+    managedPrompt: AIManagedPrompt? = nil,
     rawWebSocketFactory: @escaping (URL, DispatchQueue) -> RealtimeRawWebSocketTransport = {
       RawWebSocket(url: $0, queue: $1)
     }
@@ -385,10 +398,24 @@ extension RealtimeHubController {
     #endif
     sessionVoiceContextFreshnessIdentity = topLevelContext.snapshotFreshnessIdentity
     sessionVoiceContextSurface = topLevelContext.surface
-    let instructions = RealtimeHubTools.systemInstruction(
+    let fallbackInstructions = RealtimeHubTools.systemInstruction(
       kernelContext: topLevelContext.rendered,
       kernelSemanticGuidance: topLevelContext.semanticGuidance,
       userLanguages: AssistantSettings.shared.voiceBaseLanguages)
+    let selectedPrompt = managedPrompt.flatMap {
+      $0.source == "langfuse" && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? $0 : nil
+    }
+    sessionManagedPrompt =
+      selectedPrompt
+      ?? AIManagedPrompt(
+        text: RealtimeHubTools.systemInstruction(
+          kernelContext: "", kernelSemanticGuidance: "",
+          userLanguages: AssistantSettings.shared.voiceBaseLanguages),
+        name: "intentive-live-local", version: "local", source: "fallback")
+    let instructions =
+      selectedPrompt.map {
+        $0.text + "\n\n" + topLevelContext.rendered + "\n\n" + topLevelContext.semanticGuidance
+      } ?? fallbackInstructions
     let s = RealtimeHubSession(
       provider: provider,
       auth: auth,
@@ -767,7 +794,8 @@ extension RealtimeHubController {
     live.beginInputTurn(
       turnID: pending.turnID,
       responseID: pending.responseID,
-      interrupting: pending.interrupting)
+      interrupting: pending.interrupting,
+      context: takeSupervisorContextForInput(turnID: pending.turnID))
     for pcm16k in pending.audioBuffer {
       sendAudio(pcm16k, to: live)
     }
@@ -888,7 +916,8 @@ extension RealtimeHubController {
       ownerID: ownerID,
       userText: userText,
       assistantText: assistantText,
-      continuityKey: idempotencyKey
+      continuityKey: idempotencyKey,
+      status: idempotencyKey.hasPrefix("supervisor:") && interrupted ? .failed : .completed
     ) {
     case .completed(let accepted):
       return accepted
@@ -909,13 +938,21 @@ extension RealtimeHubController {
         guard AuthorizedToolExecution.isOwnerCurrent(ownerID) else { return false }
         for attempt in 0..<2 {
           guard AuthorizedToolExecution.isOwnerCurrent(ownerID) else { return false }
-          let accepted = await FloatingControlBarManager.shared.recordExchange(
-            surface: surface,
-            ownerID: ownerID,
-            userText: userText,
-            assistantText: assistantText,
-            origin: "realtime_voice",
-            continuityKey: idempotencyKey)
+          let accepted: Bool
+          if idempotencyKey.hasPrefix("supervisor:") {
+            accepted = await FloatingControlBarManager.shared.recordSupervisorRealtimeExchange(
+              projection: RealtimeStreamingJournalProjection(
+                ownerID: ownerID, continuityKey: idempotencyKey, admissionSurface: surface),
+              assistantText: assistantText, interrupted: interrupted)
+          } else {
+            accepted = await FloatingControlBarManager.shared.recordExchange(
+              surface: surface,
+              ownerID: ownerID,
+              userText: userText,
+              assistantText: assistantText,
+              origin: "realtime_voice",
+              continuityKey: idempotencyKey)
+          }
           guard AuthorizedToolExecution.isOwnerCurrent(ownerID) else { return false }
           if accepted { return true }
           if attempt == 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
@@ -929,6 +966,24 @@ extension RealtimeHubController {
   /// has acknowledged this turn's stable idempotency key. Merely scheduling an
   /// in-process retry is not logical success.
   func finalizeJournal(turnID: VoiceTurnID, identity: VoiceEffectIdentity) {
+    if VoiceTurnCoordinator.shared.activeTurn?.providerFinished == true,
+      VoiceTurnCoordinator.shared.hasDeliveredVoiceOutput(turnID: turnID)
+    {
+      deliveredVoiceTurnIDs.insert(turnID)
+    }
+    if let payload = supervisorFinalJournalPayloads.removeValue(forKey: turnID) {
+      guard deliveredVoiceTurnIDs.contains(turnID) else {
+        // A provider turnComplete without any acknowledged playback is not a
+        // delivered intervention. Terminal cleanup records generated text failed.
+        VoiceTurnCoordinator.shared.publish(.finish(turnID: turnID, reason: .providerNoResponse))
+        return
+      }
+      enqueueTurnPersistence(idempotencyKey: payload.continuityKey, retainingReceipt: true) { [weak self] in
+        await self?.persistTurnDirectlyToKernel(
+          ownerID: payload.ownerID, userText: "", assistantText: payload.assistantText,
+          interrupted: false, idempotencyKey: payload.continuityKey, acceptedSpawnOwnerID: nil) ?? false
+      }
+    }
     let idempotencyKey = turnIdempotencyKey
     Task { @MainActor [weak self] in
       guard let self else { return }
@@ -1187,9 +1242,9 @@ extension RealtimeHubController {
         self.ensureWarm()
         return
       }
-      let token: String
+      let setup: RealtimeSessionSetup
       do {
-        token = try await APIClient.shared.mintRealtimeToken(expectedOwnerID: ownerID)
+        setup = try await APIClient.shared.mintRealtimeSession(expectedOwnerID: ownerID)
       } catch let error as RealtimeTokenMintError {
         if self.redriveReplacementMintIfStale(
           replacementGeneration: replacementGeneration,
@@ -1262,8 +1317,9 @@ extension RealtimeHubController {
       guard self.releaseMint(generation: mintGeneration, ownerScope: ownerScope) else { return }
       self.startReplacementSessionForBargeIn(
         provider: provider,
-        auth: .managedEphemeral(token),
-        ownerScope: ownerScope)
+        auth: .managedEphemeral(setup.token),
+        ownerScope: ownerScope,
+        managedPrompt: setup.prompt)
     }
   }
 
@@ -1296,7 +1352,8 @@ extension RealtimeHubController {
   func startReplacementSessionForBargeIn(
     provider: RealtimeHubProvider,
     auth: HubAuth,
-    ownerScope: RealtimeHubOwnerScope
+    ownerScope: RealtimeHubOwnerScope,
+    managedPrompt: AIManagedPrompt? = nil
   ) {
     Task { @MainActor [weak self] in
       guard let self else { return }
@@ -1311,7 +1368,7 @@ extension RealtimeHubController {
         self.ensureWarm()
         return
       }
-      self.startSession(provider: provider, auth: auth, ownerScope: ownerScope)
+      self.startSession(provider: provider, auth: auth, ownerScope: ownerScope, managedPrompt: managedPrompt)
     }
   }
 
@@ -1342,7 +1399,8 @@ extension RealtimeHubController {
       live.beginInputTurn(
         turnID: pending.turnID,
         responseID: pending.responseID,
-        interrupting: false)
+        interrupting: false,
+        context: takeSupervisorContextForInput(turnID: pending.turnID))
     }
     flushBargeInReplacementAudioBuffer(pending.audioBuffer)
     if VoiceTurnCoordinator.shared.activeTurn?.hubCommitPending == true {
@@ -1419,7 +1477,8 @@ extension RealtimeHubController {
     live.beginInputTurn(
       turnID: pending.turnID,
       responseID: pending.responseID,
-      interrupting: pending.interrupting)
+      interrupting: pending.interrupting,
+      context: takeSupervisorContextForInput(turnID: pending.turnID))
     for pcm16k in pending.audioBuffer {
       sendAudio(pcm16k, to: live)
     }

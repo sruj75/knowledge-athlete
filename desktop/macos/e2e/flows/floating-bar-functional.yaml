@@ -4,6 +4,7 @@ tier: 2
 description: Ask Intentive open + stubbed typed turn on the floating bar (distinct from perf benchmarks)
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/SpatialOverlay/SpatialOverlayGeometry.swift
   - desktop/macos/Desktop/Sources/Chat/AgentCompletionVoiceDelivery.swift
   - desktop/macos/Desktop/Sources/Chat/ChatDraftStore.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/AIResponseView.swift

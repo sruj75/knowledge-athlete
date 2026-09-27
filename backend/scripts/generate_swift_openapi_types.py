@@ -40,6 +40,14 @@ def source_label_for_path(path: PurePath, root_dir: PurePath = ROOT_DIR) -> str:
 # as the desktop Codable migration progresses. Each entry pulls in transitive
 # $ref dependencies automatically.
 TARGET_SCHEMAS = (
+    'MintRequest',
+    'RealtimeSessionResponse',
+    'SupervisorRequest',
+    'SupervisorResponse',
+    'TerminalTurnObservation',
+    'ChatTerminalObservation',
+    'ScoreObservation',
+    'SupervisorDecisionObservation',
     'ConversationDiscardRequest',
     'ConversationDiscardResponse',
     'ConversationCandidateRequest',
@@ -253,6 +261,9 @@ def _render_struct(name: str, schema: dict[str, Any]) -> str:
     name = _swift_type_name(name)
     props = schema.get('properties') or {}
     required = set(schema.get('required') or [])
+
+    if not props:
+        return f'public struct {name}: Codable {{\n  public init() {{}}\n}}\n\n'
 
     # Build CodingKeys + decode body.
     fields: list[tuple[str, str, str, bool]] = []  # (swift_name, wire_name, type, optional)

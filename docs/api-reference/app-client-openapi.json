@@ -460,6 +460,55 @@
         "title": "ConversationDiscardResponse",
         "type": "object"
       },
+      "ConversationObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "completed",
+                  "cancelled",
+                  "failed",
+                  "suppressed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 2000,
+            "title": "Text",
+            "type": "string"
+          },
+          "turn_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "turn_id",
+          "role",
+          "text"
+        ],
+        "title": "ConversationObservation",
+        "type": "object"
+      },
       "ConversationStructureResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1493,6 +1542,12 @@
         "title": "MemoryTranscriptSegment",
         "type": "object"
       },
+      "MintRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "MintRequest",
+        "type": "object"
+      },
       "PaymentCheckoutSessionResponse": {
         "properties": {
           "session_id": {
@@ -1633,6 +1688,105 @@
         "title": "PricingOption",
         "type": "object"
       },
+      "PromptReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "langfuse",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 32000,
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "name",
+          "version",
+          "source"
+        ],
+        "title": "PromptReceipt",
+        "type": "object"
+      },
+      "PromptReference": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "langfuse",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "source"
+        ],
+        "title": "PromptReference",
+        "type": "object"
+      },
+      "RealtimeSessionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptReceipt"
+          },
+          "provider": {
+            "const": "gemini",
+            "title": "Provider",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "token",
+          "expires_at",
+          "prompt"
+        ],
+        "title": "RealtimeSessionResponse",
+        "type": "object"
+      },
       "RelatedTaskCandidate": {
         "additionalProperties": false,
         "properties": {
@@ -1670,6 +1824,63 @@
           "description"
         ],
         "title": "RelatedTaskCandidate",
+        "type": "object"
+      },
+      "ScoreObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "decision_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "evaluation_sharing": {
+            "default": false,
+            "title": "Evaluation Sharing",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "score",
+            "title": "Kind",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Turn Id",
+            "type": "string"
+          },
+          "value": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "session_id",
+          "turn_id",
+          "value"
+        ],
+        "title": "ScoreObservation",
         "type": "object"
       },
       "SetUserLanguageRequest": {
@@ -1898,6 +2109,382 @@
         ],
         "title": "SubscriptionStatus",
         "type": "string"
+      },
+      "SupervisorDecisionObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationObservation"
+            },
+            "maxItems": 16,
+            "title": "Conversation",
+            "type": "array"
+          },
+          "decision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "evaluation_sharing": {
+            "default": false,
+            "title": "Evaluation Sharing",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "supervisor_decision",
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "observation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptReference"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptObservation"
+            },
+            "maxItems": 32,
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "session_id",
+          "decision_id",
+          "observation_id",
+          "prompt"
+        ],
+        "title": "SupervisorDecisionObservation",
+        "type": "object"
+      },
+      "SupervisorRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "context_epoch": {
+            "maximum": 1.8446744073709552e+19,
+            "minimum": 0.0,
+            "title": "Context Epoch",
+            "type": "integer"
+          },
+          "conversation": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationObservation"
+            },
+            "maxItems": 16,
+            "title": "Conversation",
+            "type": "array"
+          },
+          "evaluation_sharing": {
+            "default": false,
+            "title": "Evaluation Sharing",
+            "type": "boolean"
+          },
+          "memories": {
+            "items": {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Memories",
+            "type": "array"
+          },
+          "observation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "profile": {
+            "default": "",
+            "maxLength": 12000,
+            "title": "Profile",
+            "type": "string"
+          },
+          "screen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupervisorScreen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptObservation"
+            },
+            "maxItems": 32,
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "observation_id",
+          "session_id",
+          "context_epoch"
+        ],
+        "title": "SupervisorRequest",
+        "type": "object"
+      },
+      "SupervisorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "wait",
+              "guide_next_turn",
+              "intervene"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "context_epoch": {
+            "title": "Context Epoch",
+            "type": "integer"
+          },
+          "decision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Decision Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "observation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Observation Id",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "completed",
+              "degraded"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptReceipt"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "decision_id",
+          "observation_id",
+          "session_id",
+          "context_epoch",
+          "prompt",
+          "outcome"
+        ],
+        "title": "SupervisorResponse",
+        "type": "object"
+      },
+      "SupervisorScreen": {
+        "additionalProperties": false,
+        "properties": {
+          "app_name": {
+            "default": "",
+            "maxLength": 256,
+            "title": "App Name",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "jpeg_base64": {
+            "maxLength": 2800000,
+            "minLength": 1,
+            "title": "Jpeg Base64",
+            "type": "string"
+          },
+          "window_title": {
+            "default": "",
+            "maxLength": 512,
+            "title": "Window Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jpeg_base64",
+          "captured_at"
+        ],
+        "title": "SupervisorScreen",
+        "type": "object"
+      },
+      "TerminalTurnObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationObservation"
+            },
+            "maxItems": 16,
+            "title": "Conversation",
+            "type": "array"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "duration_ms": {
+            "maximum": 3600000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "evaluation_sharing": {
+            "default": false,
+            "title": "Evaluation Sharing",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "terminal_turn",
+            "title": "Kind",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "completed",
+              "cancelled",
+              "failed",
+              "suppressed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/PromptReference"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "session_id",
+          "turn_id",
+          "prompt",
+          "outcome",
+          "duration_ms"
+        ],
+        "title": "TerminalTurnObservation",
+        "type": "object"
+      },
+      "TranscriptObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "microphone",
+              "system",
+              "mixed",
+              "user",
+              "assistant"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 2000,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "source"
+        ],
+        "title": "TranscriptObservation",
+        "type": "object"
       },
       "TranscriptionErrorDetail": {
         "properties": {
@@ -2418,6 +3005,102 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/ai/observations": {
+      "post": {
+        "operationId": "report_observation_v1_ai_observations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "score": "#/components/schemas/ScoreObservation",
+                    "supervisor_decision": "#/components/schemas/SupervisorDecisionObservation",
+                    "terminal_turn": "#/components/schemas/TerminalTurnObservation"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TerminalTurnObservation"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ScoreObservation"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SupervisorDecisionObservation"
+                  }
+                ],
+                "title": "Event"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Report Observation"
+      }
+    },
     "/v1/conversation-compute/action-items": {
       "post": {
         "operationId": "compute_action_items_v1_conversation_compute_action_items_post",
@@ -3261,6 +3944,90 @@
           }
         ],
         "summary": "Payment Success"
+      }
+    },
+    "/v1/supervisor/evaluate": {
+      "post": {
+        "operationId": "evaluate_supervisor_v1_supervisor_evaluate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Evaluate Supervisor"
       }
     },
     "/v1/users/delete-account": {
@@ -4239,6 +5006,90 @@
         "tags": [
           "chat-sessions"
         ]
+      }
+    },
+    "/v2/realtime/session": {
+      "post": {
+        "operationId": "mint_session_v2_realtime_session_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MintRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Mint Session"
       }
     },
     "/v2/voice-message/transcribe": {

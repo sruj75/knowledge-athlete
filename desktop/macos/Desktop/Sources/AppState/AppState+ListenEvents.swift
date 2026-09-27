@@ -9,6 +9,14 @@ extension AppState {
     _ segments: [TranscriptionService.BackendSegment], expectedSessionId: Int64? = nil
   ) async {
     if let expectedSessionId, currentSessionId != expectedSessionId { return }
+    if let sessionID = currentSessionId,
+      let authorization = currentSessionAuthorization,
+      (try? authorization.require()) != nil,
+      let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
+    {
+      SupervisorService.shared.observeAmbient(
+        segments, sessionID: sessionID, authorizationSnapshot: snapshot)
+    }
     for segment in segments {
       guard !segment.text.isEmpty else { continue }
 

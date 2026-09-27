@@ -36,7 +36,7 @@ final class SettingsDestinationContractTests: XCTestCase {
       SettingsDestination.notificationFrequency.isMountedForSearch(
         systemAudioSupported: false))
     XCTAssertTrue(
-      SettingsDestination.focusNotifications.isMountedForSearch(
+      SettingsDestination.supervisor.isMountedForSearch(
         systemAudioSupported: false))
     XCTAssertTrue(
       SettingsDestination.autoInstallUpdates.isMountedForSearch(

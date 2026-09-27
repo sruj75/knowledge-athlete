@@ -40,7 +40,13 @@ CORE_PROVIDER_ENV = (
     "MODULATE_API_KEY",
     "GEMINI_API_KEY",
 )
-SECRETS_FILE_ALLOWED_KEYS = frozenset({"PROVIDER_MODE", *CORE_PROVIDER_ENV})
+BACKEND_OBSERVABILITY_ENV = (
+    "LANGFUSE_PUBLIC_KEY",
+    "LANGFUSE_SECRET_KEY",
+    "LANGFUSE_BASE_URL",
+    "LANGFUSE_PROMPT_LABEL",
+)
+SECRETS_FILE_ALLOWED_KEYS = frozenset({"PROVIDER_MODE", *CORE_PROVIDER_ENV, *BACKEND_OBSERVABILITY_ENV})
 
 
 @dataclass(frozen=True)
@@ -175,7 +181,7 @@ def parse_secrets_file(cfg: HarnessConfig) -> SecretsFileParseResult:
             secrets[key] = value
             sources[key] = "file"
 
-    for key in _credential_env_names(cfg):
+    for key in (*_credential_env_names(cfg), *BACKEND_OBSERVABILITY_ENV):
         if key in secrets:
             continue
         ambient = os.environ.get(key, "").strip()
@@ -271,7 +277,7 @@ def _harness_service_extra(cfg: HarnessConfig) -> dict[str, str]:
     }
 
 
-def child_env_for(cfg: HarnessConfig) -> dict[str, str]:
+def child_env_for(cfg: HarnessConfig, *, include_observability: bool = False) -> dict[str, str]:
     extra = {
         **_harness_service_extra(cfg),
         "PORT": str(cfg.backend_port),
@@ -280,6 +286,9 @@ def child_env_for(cfg: HarnessConfig) -> dict[str, str]:
     }
     if cfg.provider_mode != "offline":
         extra.update(provider_secrets_from_file(cfg))
+        if include_observability:
+            parsed = parse_secrets_file(cfg)
+            extra.update({key: value for key, value in parsed.secrets.items() if key in BACKEND_OBSERVABILITY_ENV})
     env = safety.build_child_env(provider_mode=cfg.provider_mode, extra=extra)
     if cfg.provider_mode == "offline":
         env.update(safety.offline_provider_placeholders())

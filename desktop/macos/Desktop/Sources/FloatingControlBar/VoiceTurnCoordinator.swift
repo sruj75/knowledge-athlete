@@ -99,6 +99,7 @@ final class VoiceTurnCoordinator {
   private var timelineSequence: UInt64 = 0
   private var turnStartedAt: [VoiceTurnID: ContinuousClock.Instant] = [:]
   private var turnFullAnswerDurationMs: [VoiceTurnID: Int] = [:]
+  private var lastTerminalDelivery: (turnID: VoiceTurnID, delivered: Bool)?
   private var pendingFacts: [VoiceTurnFact] = []
   private var isDrainingEvents = false
 
@@ -263,6 +264,11 @@ final class VoiceTurnCoordinator {
     return .acquired(lease)
   }
 
+  func hasDeliveredVoiceOutput(turnID: VoiceTurnID) -> Bool {
+    (model.turn?.id == turnID && model.turn?.providerFinished == true && turnFullAnswerDurationMs[turnID] != nil)
+      || (lastTerminalDelivery?.turnID == turnID && lastTerminalDelivery?.delivered == true)
+  }
+
   @discardableResult
   func releaseOutput(_ lease: VoiceOutputLease) -> Bool {
     guard activeTurn?.activeLease == lease else { return false }
@@ -333,6 +339,8 @@ final class VoiceTurnCoordinator {
     turnStartedAt[id] = ContinuousClock.now
     publish(.start(turnID: id, ownerID: ownerID ?? ownerIDProvider(), intent: intent))
     if activeTurnID == id {
+      AIEvaluationReporter.shared.captureTurnStart(turnID: id.description)
+      SupervisorService.shared.observeVoiceActivity(turnID: id.description, active: true)
       DesktopDiagnosticsManager.shared.recordVoiceTurnStarted(
         turnID: id.description,
         intent: intent.rawValue)
@@ -407,7 +415,7 @@ final class VoiceTurnCoordinator {
     let before = model
     let reduction = domain.publish(fact)
     appendTimeline(fact: fact, before: before, after: model)
-    process(reduction.effects)
+    process(reduction.effects, previousTurn: before.turn)
     presenter?.apply(projection)
     snapshotHandler?(model)
     for observer in snapshotObservers.values {
@@ -461,7 +469,7 @@ final class VoiceTurnCoordinator {
     presenter?.apply(.idle)
   }
 
-  private func process(_ effects: [VoiceTurnEffect]) {
+  private func process(_ effects: [VoiceTurnEffect], previousTurn: VoiceTurn?) {
     for effect in effects {
       if let turnID = Self.ownerFencedTurnID(for: effect),
         requireCurrentOwner(for: turnID) == nil
@@ -476,8 +484,14 @@ final class VoiceTurnCoordinator {
       case .cancelAllDeadlines(let turnID):
         cancelAll(turnID: turnID)
       case .terminal(let terminal):
+        SupervisorService.shared.observeVoiceActivity(turnID: terminal.turnID.description, active: false)
         let terminalDurationMs = turnStartedAt.removeValue(forKey: terminal.turnID).map(Self.elapsedMilliseconds)
-        let fullAnswerDurationMs = turnFullAnswerDurationMs.removeValue(forKey: terminal.turnID)
+        let playbackDurationMs = turnFullAnswerDurationMs.removeValue(forKey: terminal.turnID)
+        let providerFinished =
+          (model.turn?.id == terminal.turnID && model.turn?.providerFinished == true)
+          || (previousTurn?.id == terminal.turnID && previousTurn?.providerFinished == true)
+        let fullAnswerDurationMs = providerFinished ? playbackDurationMs : nil
+        lastTerminalDelivery = (terminal.turnID, fullAnswerDurationMs != nil)
         DesktopDiagnosticsManager.shared.recordVoiceTurnTerminal(
           turnID: terminal.turnID.description,
           reason: terminal.reason.rawValue,

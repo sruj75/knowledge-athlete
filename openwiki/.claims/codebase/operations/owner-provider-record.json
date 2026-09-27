@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2dd7785e2e29071dd6a59ae4ee17bab2c4145201aab77ff63df2cca1e50a409b",
+  "pageVersion": "sha256:6e4048710b8fa22872c21918a89df2c62b7f99cfa73e13fb86976279cb64592d",
   "claims": [
     {
       "id": "claim_7fcdd211685a4b4585c51bac055dec51",
@@ -82,15 +82,15 @@
     },
     {
       "id": "claim_57bc75d927f84237abf809a067b66c0b",
-      "statement": "The development backend declares US Langfuse, the development tracing environment, intentive-chat-system and a 300-second prompt cache; prompt resolution requests the production label.",
+      "statement": "The development backend declares US Langfuse and the development tracing environment; the resolver names Chat, Live and supervisor prompts, defaults to a 300-second SDK cache and selects LANGFUSE_PROMPT_LABEL or production.",
       "evidence": [
         {
           "resource": "repo://backend/deploy/runtime_env.yaml#L198-L209",
           "version": "repo-lines-v1:sha256:38f610b3c50bab8919705d5710e79d121b75db8ee3d97d0ca41e3e90106d233f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NTNiNTIxMWIzNmMzNDQxZjI5YTNhMzI5MjQ2YjYyNjFiZGQ0NGQzZjZiZTIyNjJiZDdmODk5NWNlMDIxMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3NjEwMzQ4NzM5YjgyODA4YzExZWRjNzFhYWU3MTRhMTFiY2QzOTVjNzVmOGQyMjdmMTlmZWRjM2EyNTk1MjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE4NDNlMTZjZDc5OGYzMjQxNmY3ZTkwNGUxZDEwNTFjMTA5N2I2Y2U0NDQxMzNlOWZiYzA3YzJkZDY1OWFmNWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiNjJlNWRlOTAwZjMzNjJhNDU4YjJmMjFmZDRhYTc2Yjg3NmUyMGMxOGExM2Q0NDI4NjU0ZGEzNTBkMTk2NTYifQ"
         },
         {
-          "resource": "repo://backend/utils/observability/langfuse_prompts.py#L72-L80",
-          "version": "repo-lines-v1:sha256:19c1254beb97cff6da339ddf0fe76525481225aa469eef237be94f8c7acf5752:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmE0ZjEyZjI1Nzg3MmYxZWU4MGYxNDhlNDhjNzJkMmI0ZDRmOTQxMGJlNTMzOGU3OTQ0ZjIwNjNiYmU4NzZkOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTkwOWE1M2E2MThkMDI4ZTFkMzAwMGMwYTdhYmNlZWNiZTVmYjM3ZjRlNTExZWZlNDY2NDNmYWQ2ZTY2ODcyZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWZmZGFjMGI5MjQxYjQ3OGI2ZDY3NjRlYTYzYjZkODc2MThlM2MwYTJiMWFkYjJhOGJhNmY1NjliNmQ3NjY3MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNTY4ZTAzNDc1MTljMzFjODA3MjJiNzVlYTNkOWQxNzVlNjYxNDIyNDFlNGI2YWJmNDIzZDllNTc0ODhkMDk2NyJ9"
+          "resource": "repo://backend/utils/observability/langfuse_prompts.py#L15-L119",
+          "version": "repo-lines-v1:sha256:1075388afc801d3abe7a26575639e3c519ac66587f9d4544600f6a1c353506a2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI0N2MxOGJlYzc1NmE0ODkyOTJkM2Y0MWI1ZTYzMjI0YjY2OTQ4MzVkOTQyNzJjYjE0MjU4ZmRhMzA0NTdlOThlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1ZDM5Y2E3YmFjN2ViODI1MTBhNTFhZmU0ZDAzZGE3NjkyOTkzNmNlNDcyMjViMjcxYWQ5NGY5MWY0MzMxM2QzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlNWMxYzQ2MmUyYTM5ZDc0NzU5ZjVlMWIxMjZmNzY4M2EyYjczMDExOGUxOGY1MTIyYjA4Y2VkZWViNjUwZTIzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1MDc2OGY4NzhlMDg1ODg1NGY4NzNiNDdmMzdlMWZkYWZhODVlZWFmYzE5ZDExMTlhMjBlMzYwZjI1N2ZmZGY3In0"
         }
       ]
     },
@@ -106,11 +106,11 @@
     },
     {
       "id": "claim_802ddbb8709b4d7091768a172afb48d3",
-      "statement": "The managed workload registry assigns Chat, greeting, conversation processing, Memory compute and fair-use classification to gemini-3.7-flash, and session titles and segment translation to gemini-2.5-flash-lite.",
+      "statement": "The managed workload registry assigns Chat, supervisor, greeting, conversation processing, Memory compute and fair-use classification to gemini-3.7-flash, and session titles and segment translation to gemini-2.5-flash-lite.",
       "evidence": [
         {
-          "resource": "repo://backend/utils/llm/model_config.py#L62-L184",
-          "version": "repo-lines-v1:sha256:6e73fe2d0e5b5bbdd0e32a89f6521831510fcfb81477d4424f55f0048ea37137:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIzLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI5M2U1ZDM0MTMwNGZlOWY1NzgzZTkyOWRlYmExMmY1ZjE5YjhkZDgyZjQ0ZGQxMDc2N2ExZDJkMTg0NjZiMzQ0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI3MDJjNDE0YjU0Y2Y4NmRmYjRmOTBkZmU3ZDdiZGJmYTY2NmI3ZGRkZDMyZjEyODZmMjMwYTViNTMyNDE4MThhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwYmJmN2QzMmFkOWM5YzliZDY5YjBhZTIwMmZlMGQ3YzY5ZGViOTViZGExZGI2NjE0Y2Y3NmFkOGJlNWJkNjNhIn0"
+          "resource": "repo://backend/utils/llm/model_config.py",
+          "version": "repo-file-v1:sha256:6d847d758c9f6589d33d6b1135a0f04834bdcc45a33e87c4d183ee42e63f8c56"
         }
       ]
     },
@@ -205,6 +205,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-22T16:32:26.977Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

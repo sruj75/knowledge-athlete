@@ -16,12 +16,10 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
   case vocabulary = "transcription.vocabulary"
   case conversationLocation = "transcription.location"
   case vadGate = "transcription.vadgate"
+  case supervisor = "notifications.supervisor"
+  case evaluationSharing = "privacy.evaluationsharing"
   case notificationSettings = "notifications.settings"
   case notificationFrequency = "notifications.frequency"
-  case focusNotifications = "notifications.focus"
-  case taskNotifications = "notifications.task"
-  case insightNotifications = "notifications.insight"
-  case memoryNotifications = "notifications.memory"
   case localData = "privacy.encryption"
   case tracking = "privacy.tracking"
   case account = "account.account"
@@ -56,10 +54,9 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
     case .rewindStorage, .rewindExcludedApps, .rewindBattery, .rewindRetention: return .rewind
     case .languageMode, .voiceLanguages, .vocabulary, .conversationLocation, .vadGate:
       return .transcription
-    case .notificationSettings, .notificationFrequency, .focusNotifications, .taskNotifications,
-      .insightNotifications, .memoryNotifications:
+    case .notificationSettings, .notificationFrequency, .supervisor:
       return .notifications
-    case .localData, .tracking: return .privacy
+    case .localData, .tracking, .evaluationSharing: return .privacy
     case .account: return .account
     case .currentPlan: return .planUsage
     case .softwareUpdates, .automaticUpdates, .autoInstallUpdates, .updateChannel, .version,
@@ -232,23 +229,13 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["frequency", "how often", "interval"], section: .notifications, icon: "bell",
       destination: .notificationFrequency),
     SettingsSearchItem(
-      name: "Focus Notifications", subtitle: "Show notification on focus changes",
-      keywords: ["focus", "distraction", "notify focus"], section: .notifications, icon: "bell",
-      destination: .focusNotifications),
+      name: "Supervisor", subtitle: "Guide conversation using permitted screen context and transcripts",
+      keywords: ["supervisor", "proactive", "guidance"], section: .notifications, icon: "sparkles",
+      destination: .supervisor),
     SettingsSearchItem(
-      name: "Task Notifications",
-      subtitle: "Allow interruptions when a task needs attention",
-      keywords: ["task", "action item", "notify task", "interruption", "proactive"],
-      section: .notifications, icon: "bell",
-      destination: .taskNotifications),
-    SettingsSearchItem(
-      name: "Insight Notifications", subtitle: "Show notification when an insight is generated",
-      keywords: ["insight", "insights", "notify insight"], section: .notifications, icon: "bell",
-      destination: .insightNotifications),
-    SettingsSearchItem(
-      name: "Memory Notifications", subtitle: "Show notification when a memory is extracted",
-      keywords: ["memory", "facts", "notify memory"], section: .notifications, icon: "bell",
-      destination: .memoryNotifications),
+      name: "Share this evaluation session", subtitle: "Opt in to sharing bounded conversation and guidance text",
+      keywords: ["evaluation", "sharing", "test", "feedback"], section: .privacy, icon: "lock.shield",
+      destination: .evaluationSharing),
     // Privacy
     SettingsSearchItem(
       name: "Local Data", subtitle: "Local storage for conversation transcripts and metadata",

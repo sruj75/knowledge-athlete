@@ -293,6 +293,7 @@ struct ChatBubble: View {
   @ViewBuilder
   private func messageMetadataRow(actions: [ChatMessageAction]) -> some View {
     HStack(spacing: OmiSpacing.sm) {
+      AIEvaluationFeedbackView(message: message)
       if actions.contains(.copy) {
         copyButton
       }

@@ -136,7 +136,8 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   Insights are `tips` Memory records, not another authority.
 - Tasks keep local CRUD/order/reminders/recurrence/source linkage/five-second Undo; simple goals keep
   local identity and active/completed state. No ranking/staging/productivity-score/task-chat system.
-  Focus keeps current/today/recent state; AI Profile keeps five prior profiles.
+  Existing Focus history remains readable; automatic screen-derived Focus creation is retired.
+  AI Profile keeps five prior profiles.
 - Assistant/notification controls stay local. Cloud FCM, hosted Focus/Profile/assistant settings,
   Daily Summary, People/voice identity, cloud recordings/playback and public sharing remain retired.
   Quota/fair-use facts remain server-authoritative with truthful owner-local presentation.
@@ -155,6 +156,42 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   with a timeout. Development builds install on quit.
 - Before changing a boundary, locate owning code/tests and its applicable archived IR decision.
   Cite the applicable principle or concrete guard when declining a product change.
+
+### First A–B–C interaction decision
+
+Authorized by the user in the September 27, 2026 implementation request:
+
+- One owner-bound Supervisor (B) observes permitted screen frames and corrected ambient transcripts,
+  reads bounded existing local Memory/profile context, and privately guides Gemini Live (A). Empty
+  context is valid. B has no tool loop and never creates tasks, memories, Focus or Insights.
+- This replaces the five background assistants and their independent scheduling, cards, glows,
+  worker controls and prompts. Retain stored records, manual operations, archive/search, conversation
+  enrichment and independent producers. Screen/audio capture permissions remain separate from
+  enabling B and permission to speak proactively.
+- A may begin a conversation while idle using a real supervisor-origin voice turn with no microphone
+  capture. C replies or interrupts with PTT, which takes immediate priority. Automatic turns cannot
+  execute tools and cannot replay after ambiguous transport failure. Ordinary PTT recovery remains.
+- Direct A–C events take precedence over overlapping ambient segments in B's input. Segments with
+  unknown capture intervals are excluded from B, without altering ambient storage. First-version
+  suppression may omit unrelated speech during A–C turns.
+- Keep one evaluation in flight and the latest pending snapshot, with three-second coalescing and
+  existing shared quotas/backoff. Private guidance expires after thirty seconds and is revoked by
+  owner, session or application-context changes. It is never a user message, card, resource or log.
+- Use the existing canonical journal for assistant-only initiated utterances, with opaque correlation
+  and truthful delivery status. Generated text is fully delivered only after playback completes.
+- Langfuse manages `intentive-live-system` and `intentive-supervisor-system`; pin A to its physical
+  Live session and B to each evaluation. Code owns permissions, tool authorization, input boundaries
+  and output schemas. A keeps its conversational fallback; unavailable B prompts yield `wait`.
+- Apply one Langfuse export policy to Chat, A and B: normal sessions export identifiers, prompt
+  versions, timings, counts, outcomes and scores only. An explicit session-scoped opt-in may add
+  bounded conversation and guidance text. Never export raw audio, screenshots, copied Memory/profile
+  payloads, credentials or tool payloads. Disabling sharing, ending the session or signing out revokes
+  queued content export; re-enabling cannot release content from the prior opt-in period.
+- Link B decisions, A terminal playback outcomes and helpful/unhelpful feedback through opaque
+  owner/session/observation/turn identifiers. Telemetry or prompt failures must not block PTT.
+- No webcam, hands-free conversation, raw-audio reasoning for B, STT rewrite, second conversation
+  database or new agent platform. Measure evaluation volume and latency before claiming all-day
+  coverage. Native physical speaker/headphone qualification remains distinct from repository tests.
 
 ### All-day listening decision
 
@@ -241,7 +278,8 @@ and [desktop E2E](codebase/testing/desktop-e2e.md) for implementation and operat
   Realtime owns the voice session, not Chat routing; tool effects still require kernel authorization.
 - Telemetry emits one terminal outcome; Stop/supersession is cancellation. Chat latency ends at visible
   answer, voice latency at playback drain. Later persistence failure cannot rewrite delivered output.
-  Authority never depends on telemetry; PostHog/traces are shape-only with protected diagnostic storage.
+  Authority never depends on telemetry. PostHog remains shape-only with protected diagnostic storage.
+  Langfuse uses the normal/selected-session export policy below for Chat, Live and Supervisor.
 - Await fixture restoration in teardown. Prefer clocks/callbacks to sleeps and production behavior to
   source-string assertions; narrow static tripwires require the established justification annotation.
 - User-visible changes need a changelog fragment; automation owns CHANGELOG.json. Cleanup requires

@@ -14,6 +14,7 @@ import XCTest
     private nonisolated(unsafe) static var forcedBody = Data()
     private nonisolated(unsafe) static var successfulStatus = 204
     private nonisolated(unsafe) static var successfulBody = Data()
+    private nonisolated(unsafe) static var requestBodies: [Data] = []
 
     static func reset() {
       lock.lock()
@@ -23,6 +24,7 @@ import XCTest
       forcedBody = Data()
       successfulStatus = 204
       successfulBody = Data()
+      requestBodies = []
       lock.unlock()
     }
 
@@ -53,11 +55,30 @@ import XCTest
       return deleteAttempts
     }
 
+    static var capturedBodies: [Data] { lock.withLock { requestBodies } }
+
+    private static func bodyData(_ request: URLRequest) -> Data {
+      if let body = request.httpBody { return body }
+      guard let stream = request.httpBodyStream else { return Data() }
+      stream.open()
+      defer { stream.close() }
+      var body = Data()
+      var buffer = [UInt8](repeating: 0, count: 4_096)
+      while stream.hasBytesAvailable {
+        let count = stream.read(&buffer, maxLength: 4_096)
+        guard count > 0 else { break }
+        body.append(contentsOf: buffer.prefix(count))
+      }
+      return body
+    }
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+      let requestBody = Self.bodyData(request)
       Self.lock.lock()
+      Self.requestBodies.append(requestBody)
       Self.deleteAttempts += 1
       let attempt = Self.deleteAttempts
       let status = Self.forcedStatus ?? (Self.alwaysUnauthorized || attempt == 1 ? 401 : Self.successfulStatus)
@@ -133,6 +154,24 @@ import XCTest
       client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
       client?.urlProtocol(self, didLoad: Data(#"{"ok":true}"#.utf8))
       client?.urlProtocolDidFinishLoading(self)
+    }
+  }
+
+  @MainActor
+  private final class AIObservationAuthLookupGate {
+    var consent = AIEvaluationConsent(sessionID: "evaluation-session")
+    private var released = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func hold() async {
+      guard !released else { return }
+      await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+      released = true
+      continuation?.resume()
+      continuation = nil
     }
   }
 
@@ -460,7 +499,7 @@ import XCTest
       try configureRefreshableSession(idToken: ownerToken)
 
       do {
-        _ = try await client.mintRealtimeToken(expectedOwnerID: "user-1")
+        _ = try await client.mintRealtimeSession(expectedOwnerID: "user-1")
         XCTFail("Expected provider authorization failure")
       } catch let error as RealtimeTokenMintError {
         XCTAssertEqual(
@@ -593,6 +632,112 @@ import XCTest
       }
 
       XCTAssertEqual(AuthRetryURLStub.attempts, 1)
+    }
+
+    func testSupervisorObservationRevocationDuringAuthLookupStripsSelectedContent() async throws {
+      try await assertObservationRevocationDuringAuthLookup(
+        .decision(
+          sessionID: "evaluation-session", decisionID: "decision", observationID: "observation",
+          prompt: .init(text: "PRIVATE_PROMPT", name: "intentive-supervisor-system", version: "7", source: "langfuse"),
+          transcripts: [.init(id: "segment", text: "PRIVATE_AMBIENT", source: .mixed)],
+          conversation: [.init(turnID: "turn", role: "assistant", text: "PRIVATE_MESSAGE", outcome: "completed")],
+          note: "PRIVATE_NOTE"))
+    }
+
+    func testChatObservationRevocationDuringAuthLookupStripsSelectedContent() async throws {
+      try await assertObservationRevocationDuringAuthLookup(
+        .chatTerminal(
+          sessionID: "evaluation-session", turnID: "turn", requestID: "actual-chat-request",
+          outcome: .completed, durationMs: 12,
+          conversation: [
+            .init(turnID: "turn", role: "user", text: "PRIVATE_QUESTION", outcome: "completed"),
+            .init(turnID: "turn", role: "assistant", text: "PRIVATE_ANSWER", outcome: "completed"),
+          ]))
+    }
+
+    private func assertObservationRevocationDuringAuthLookup(_ event: AIEvaluationObservation) async throws {
+      let ownerToken = try token(ownerID: "user-1")
+      try configureRefreshableSession(idToken: ownerToken)
+      // The token fixture writes defaults directly; force a real owner boundary
+      // so the process-wide authority adopts that owner instead of staying revoked.
+      await establishOwnerForAuthTest("user-1")
+      let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: "user-1"))
+      let auth = AuthService.shared
+      try auth.saveTokens(idToken: ownerToken, refreshToken: "refresh-token", expiresIn: 0, userId: "user-1")
+      setenv("FIREBASE_API_KEY", "test-key", 1)
+      defer { unsetenv("FIREBASE_API_KEY") }
+      let gate = AIObservationAuthLookupGate()
+      gate.consent.update(sessionID: "evaluation-session", sharing: true)
+      let ticket = gate.consent.ticket
+      let lookupStarted = expectation(description: "export paused inside auth header lookup")
+      auth.tokenRefreshHooks = AuthService.TokenRefreshHooks(dataForRequest: { request in
+        lookupStarted.fulfill()
+        await gate.hold()
+        let body = try JSONSerialization.data(withJSONObject: [
+          "id_token": ownerToken, "refresh_token": "refresh-token", "expires_in": "3600", "user_id": "user-1",
+        ])
+        let url = try XCTUnwrap(request.url)
+        let response = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
+        return (body, response)
+      })
+      defer { gate.release() }
+      AuthRetryURLStub.returnStatus(204)
+      let config = URLSessionConfiguration.ephemeral
+      config.protocolClasses = [AuthRetryURLStub.self]
+      let client = APIClient(session: URLSession(configuration: config))
+      let export = Task {
+        try await client.submitAIObservation(event, authorizationSnapshot: authorization) {
+          gate.consent.permitsContent(ticket)
+        }
+      }
+      await fulfillment(of: [lookupStarted], timeout: 2)
+      XCTAssertEqual(AuthRetryURLStub.attempts, 0, "No request may start before auth completes")
+      gate.consent.update(sessionID: "evaluation-session", sharing: false)
+      gate.consent.update(sessionID: "evaluation-session", sharing: true)
+      gate.release()
+      try await export.value
+      XCTAssertEqual(AuthRetryURLStub.attempts, 1)
+      let body = try XCTUnwrap(AuthRetryURLStub.capturedBodies.first)
+      let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+      XCTAssertEqual(json["evaluation_sharing"] as? Bool, false)
+      for key in ["conversation", "transcripts", "note"] { XCTAssertNil(json[key]) }
+      XCTAssertFalse(String(decoding: body, as: UTF8.self).contains("PRIVATE_"))
+      XCTAssertTrue(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
+      let retainedToken = try await auth.getIdToken()
+      XCTAssertEqual(retainedToken, ownerToken, "Revoking sharing must not revoke authentication")
+    }
+
+    func testAIObservation401DoesNotRetryOrInvalidateFirebaseSession() async throws {
+      let ownerToken = try token(ownerID: "user-1")
+      try configureRefreshableSession(idToken: ownerToken)
+      // The token fixture writes defaults directly; force a real owner boundary
+      // so the process-wide authority adopts that owner instead of staying revoked.
+      await establishOwnerForAuthTest("user-1")
+      let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: "user-1"))
+      let auth = AuthService.shared
+      auth.tokenRefreshHooks = AuthService.TokenRefreshHooks(dataForRequest: { _ in
+        XCTFail("Best-effort evaluation export must never refresh or replay after HTTP 401")
+        throw URLError(.userAuthenticationRequired)
+      })
+      AuthRetryURLStub.returnUnauthorizedForEveryAttempt()
+      let config = URLSessionConfiguration.ephemeral
+      config.protocolClasses = [AuthRetryURLStub.self]
+      let client = APIClient(session: URLSession(configuration: config))
+      do {
+        try await client.submitAIObservation(
+          .chatTerminal(
+            sessionID: "evaluation-session", turnID: "turn", requestID: "request", outcome: .completed,
+            durationMs: 12, conversation: []), authorizationSnapshot: authorization, permitsContent: { false })
+        XCTFail("Expected telemetry endpoint rejection")
+      } catch APIError.httpError(let statusCode, _) {
+        XCTAssertEqual(statusCode, 401)
+      }
+      XCTAssertEqual(AuthRetryURLStub.attempts, 1)
+      XCTAssertTrue(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
+      XCTAssertEqual(UserDefaults.standard.string(forKey: .authUserId), "user-1")
+      let retainedToken = try await auth.getIdToken()
+      XCTAssertEqual(retainedToken, ownerToken)
+      XCTAssertFalse(try healthSnapshots().contains { $0["area"] as? String == "api_auth" })
     }
 
     private func configureRefreshableSession(idToken: String = "id-token") throws {

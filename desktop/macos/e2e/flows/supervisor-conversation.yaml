@@ -1,0 +1,42 @@
+version: 2
+name: supervisor-conversation
+tier: manual
+description: Qualify the complete A-B-C interaction using authenticated Gemini and physical audio
+app: non-prod
+covers:
+  - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift
+  - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift
+  - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
+  - desktop/macos/Desktop/Sources/AIObservability/APIClient+Supervisor.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+Supervisor.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeSessionSetup.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorModels.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorScreenPolicy.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+preconditions:
+  - named_test_bundle_only
+  - auth_ready
+  - screen_recording_ready
+  - microphone_ready
+  - authenticated_gemini_ready
+  - managed_live_and_supervisor_prompts_ready
+steps:
+  - id: S1
+    name: Cold and warm proactive admission
+    do: "On the exact named development bundle, enable Supervisor and capture, allow proactive speech with nonzero frequency, and show a controlled screen/transcript cue. Check that B begins after usable evidence and privately causes A to speak without opening microphone capture. Repeat on a warm Live session. Record input-ready, evaluation-start and playback-start times separately. Verify an assistant-only journal row appears with no private note or invented user message."
+  - id: S2
+    name: Physical reply and interruption
+    do: "While A speaks through speakers, physically hold PTT, interrupt and reply. Verify A stops promptly, the new user turn captures nonzero physical microphone input, and B receives the direct exchange plus interrupted playback status without ambient duplicates. Repeat using headphones. Keep archive transcripts intact."
+  - id: S3
+    name: Silent next-turn guidance and speech gates
+    do: "Exercise wait and guide_next_turn with a controlled managed prompt. Verify wait produces no utterance and guide_next_turn is consumed only at the next PTT window. Verify busy voice, snooze, disabled notifications and frequency zero prevent unsolicited speech while ordinary PTT remains available. Switch applications and wait beyond thirty seconds to verify stale guidance is discarded."
+  - id: S4
+    name: Terminal feedback and normal export
+    do: "With evaluation sharing off, rate the resulting assistant message Helpful or Unhelpful. Verify the receipt joins the observation, B decision, A turn and both prompt versions. Inspect only safe trace metadata: no conversation, guidance, image, audio, memory/profile or tool payload is exported. Verify completed means playback drained, and interruption is cancelled."
+  - id: S5
+    name: Selected session and revocation
+    do: "Explicitly select a disposable evaluation session and repeat a controlled exchange. Confirm only bounded conversation and guidance text is added. Disable sharing while an evaluation or credential lookup is pending, re-enable it, and verify old queued text is not released. End monitoring and sign out separately; both must revoke sharing and pending notes."
+  - id: S6
+    name: Failure and permission boundaries
+    do: "Exclude the current app, disable each observation input, remove memory/profile context, and exercise quota exhaustion. Verify B uses only allowed inputs or visibly pauses and PTT still works. Break the Live connection after automatic initiation; verify no duplicate automatic utterance or batch-STT fallback. Make prompts or telemetry unavailable and verify PTT remains usable and B safely returns wait."

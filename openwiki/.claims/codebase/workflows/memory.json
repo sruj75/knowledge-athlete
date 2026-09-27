@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:221cce1a8a84f9879d4cee099760c3201e8f2bacec258af8f464ed68be0ebceb",
+  "pageVersion": "sha256:8482053a267d24a231b6f19b4c05c575eb7697d16b2816ce026f1a80b673d34f",
   "claims": [
     {
       "id": "claim_a27d784147154d4482309535c1bb46f4",
@@ -39,10 +39,38 @@
           "version": "repo-file-v1:sha256:758614ce7c30b7019cdee3431c8bb6e619a9fe285969e52d141732010906a7f4"
         }
       ]
+    },
+    {
+      "id": "claim_3fa7668fe20046e99a20c97c6743d0ba",
+      "statement": "The supervisor reads at most twenty existing Memories and the latest local profile under owner authorization, accepting empty results without creating records or invoking semantic search.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L374-L421",
+          "version": "repo-lines-v1:sha256:39af7756d6b766a8c44e6fd652618f14b0c97b21e7a17ce836ce2d91c37e27e9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjZGI5YjZkZDQzNDY2ZDFjMzRhYmE1ZjNmNDAxMWQ1NTJlMDA1Y2RmNTQ2ZWUxODdjMGJjZDY5ZWI0OWNmNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwOGI5MzVlMmRhMjM0ZDE1YjQ0M2EwODkxZDQwOGFhYzlkMDZlNzlhZWVjZjlhMDg1ZTNkNWQ1NGQ4ZWEyZDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwMDBhZWZhODM5ODUxY2IzZjEwYTAzNTkxYWFhNmQzMGQxNTkyYTJiNzI4NzdiMjdiMjE0NzJiNDY3MWMyMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiOWYxZTAxNDA5MWFmMmM1NjU5ZmE4NzQxYmM0NGZiY2U3MjcyZjU1OWExZTU2OTYyZjkyZTAwZTc1Njk5OGQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
+          "version": "repo-lines-v1:sha256:97f333da924c49d5cdc3ea2ea0460035382e6ee8fcee0732c2f1668553bc8cd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhYjZkZjgzMzVhMDFhM2UxZTIzMmFjN2EyOTM1OWExMDIzMzdkZTVkOTg5YTBmMmMzODQ4NmQyNzk0ZTM4Y2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkMTNiYjBlMWE2Mjc4ZDYwNmZlZjI0OWMyZTU2MzM4MWI0NzZiYTM2YjZmNDE1MzM3ODU4MTE3Y2M3YjY4NTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_89c885531a76421d9ba9deb0094be428",
+      "statement": "Screen observation now hands permitted frames to the supervisor while the retained independent capture/storage path remains; the retention flow checks that retired screen workers do not recreate product records.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L689-L920",
+          "version": "repo-lines-v1:sha256:871f0094026bb8763ad1eb305ea2f2a98566d8027450bbb25d3bbc8526e6bd51:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiODhjZjM2MGVmMDQyNWIwZDNiMmYwNTYxNjMwZTQzYzdhMGVjYWY0ODA2ZjdjOTEwYjY0NjdmMWYzNmVjODlmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI5YjYyZjYwZDg1OTBhNTc5Y2Y0NmY4ZDY3Mzc4YzRjNTcyYjk2MmNlY2NkYjkwYzdhNWY3YjQyYjk2MDc4MmE0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJmYjBkODAxMWRhZThlMTQyMjYzMTM1ZDQ3NjNlMjdlYjAyYTIyNjViZjg3NTM3YzRkYmY5MDhlNTBiYjcwYTA0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1NmNmNTk0ODBiOWIyYTk5MjY4OTdkMzM0NGMzYTAzYjVlNDk1MmMyYjNhZTkyN2E0NGQyOWIyYjI3NTE0MmVhIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml",
+          "version": "repo-file-v1:sha256:e7c5db121db3695e102e60c7462851567e864e8e8c1bea874e395de3e1ecdb0f"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

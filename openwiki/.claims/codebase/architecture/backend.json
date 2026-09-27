@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a5acbcf3d10d36b5a4b74d6d1f087e902bc5f9fffa6a0069db0a4ed6e7016333",
+  "pageVersion": "sha256:d8a6d14a1e29d97bb1733db7ae203475aefe8d51322c33fd509d559c41b50660",
   "claims": [
     {
       "id": "claim_1ae32bfa0ced442c9374eb8dd5b47ab8",
       "statement": "One FastAPI composition mounts retained desktop, account and transient product-compute routers.",
       "evidence": [
         {
-          "resource": "repo://backend/main.py#L76-L119",
-          "version": "repo-lines-v1:sha256:63cd2c4ba748296009a6fef9985c4aa391a91228be70ddec12fa4d7e126463fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2Y2QxZWMzMDIyZDlmYzcxYzMwMmJhYWViOGM4ZTgxOWU5ZTBkMGM5ZmIyNmUyMmQwYjhiYWQwMGNkZGUzMDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBjNTRmYTA5ZDg3Y2JkYmIyMjUxNDRmMDgxZTVmZGZjMGE4MzIyZjc0MGFkMjI1YWEzOTRiNDVlOWRjNDkzNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+          "resource": "repo://backend/main.py#L76-L121",
+          "version": "repo-lines-v1:sha256:6e5a70e7e11fb6abe1fb9b0fc4a507747fb3cee423c45c07976df1c32b8b3b4d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3YzMwZjBmYzMyZWQzZTk1ZTcwNjBhZTZhNWY0YjQ3ODZjMzBiNGZlOTQ1NTMwMjBlMTQ2NjIwOTk1OGI3YmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
         },
         {
           "resource": "repo://backend/tests/unit/test_s26_canonical_backend_app.py",
@@ -39,10 +39,38 @@
           "version": "repo-lines-v1:sha256:350d46ecd4696d5513f7ca6d4f8e920250847ce84afb0ae4468279e30c768c05:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0ODY5ZDM0NTkyZjA5OWI4NjUxYmQyODU1ODVmMDVkMWEyYzY5NTUxMjRiYTJlNWM4ODFkNTFmMzhjOTY5NjZkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3YzgxYjlmMjJlODgxMGM3NzdkYWFlMmJkYzg3OGIyYjdiMTQzNGY4YjVkOGE1MjQ5MTIzNzRkNzI1MjdlYjZmIn0"
         }
       ]
+    },
+    {
+      "id": "claim_50cfc08276734020aa2fa4a3e0a76209",
+      "statement": "Supervisor evaluation uses authenticated participant admission and shared Gemini quotas, makes one schema-bound model call without tools, and returns wait on unavailable managed prompts or invalid provider output.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_supervisor.py#L80-L177",
+          "version": "repo-lines-v1:sha256:b4c9ddd34a0311084bf3d284db3ae1fd9b8b63738c39d4a6529abc59be12c188:eyJzZWxlY3RlZExpbmVDb3VudCI6OTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkMmFhYjk0MDlmMTEyYjNmNzM1OTliOTNiMGEyY2FhZDc3Nzc5ZGVlOTEzMjlkNjlmMTNkNjE2MjM2YmZkNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3YmZhZDEzYjNkZDQyODQzYmU4MGY0NDQxZWJhNTlmYmI1ZjQ0YzZjNDFhY2FjNWEzMGNiNDY5NWRlMTNmZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3MjIzMTA2ZmQ4NzQyYjcwZWEyMzNmOWRjMzU5ZjRiMDJiYmIwNjliNzI4M2VlZjc2MjQ5OTUxNmJkN2I5YzgifQ"
+        },
+        {
+          "resource": "repo://backend/services/desktop_inference.py#L11-L32",
+          "version": "repo-lines-v1:sha256:f7c83779cd3b7b4a3c612a93a5991727f8bde6a2c0845444b27f61246422c545:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkMjkxYjFhMDA0MjMxNmI4NmQ3NzAzNWFiNmJjNDUzNzk2OWRmMjY5YWFlYjc3NjZkMTFjOTg4Mzc4ZDg2MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmMzg1M2U4OTc1NTY4ZDA2M2M0MjczZWYzNTkwNjQxMTZmNGI4ZmU0NjQ5NjUwNWY5MTg1ZjBjZjVjMjYxNGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5Mjc0OGEyMmFhMmJjZmE1MTEzMmZmODNmMzQyMjM0YzRjOTdlNGZjYzFjNGU5NDZhNGJkMDM5NWVmY2EyODIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b127f2385aca457894798c61f41bfe2d",
+      "statement": "The authenticated AI observation intake applies a separate quota and exports typed outcomes through a failure-contained observability helper; B evaluation traces themselves contain only metadata.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_supervisor.py#L181-L185",
+          "version": "repo-lines-v1:sha256:f93fe3186bedc2a7e41c5a26cebce1b2a0f3e16212841d7530fda40473f49145:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAxN2U4ZjZhZDZmYzg1Yzc0ZTU2ZTU3MTMzY2JmZmViNmU1OGM0Zjc5MTM5N2Y2YTJmNTNiMWI3NTMxMjRkMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQ2YjMzNWQ3ZGQ2ZjlhMmNiNTlmYmEyNjkxZjc2YTM4OTlkMWUwNjYyNjVhNDQ4MjYzM2Q2NjBjZWIyYWIxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDcyMjMxMDZmZDg3NDJiNzBlYTIzM2Y5ZGMzNTlmNGIwMmJiYjA2OWI3MjgzZWVmNzYyNDk5NTE2YmQ3YjljOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        },
+        {
+          "resource": "repo://backend/utils/observability/ai_evaluation.py#L49-L165",
+          "version": "repo-lines-v1:sha256:8f901b441d9d961dcd250c97e92cc33dc562a7341f185e236c2d664649a25556:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2YwOGM1ODg2OTQ0MTQ4ZGM3NTM4YmU2OGUxZDZjODUwMDI4YTVmYjM0ZGQ4NTlkZDk1NDIyYTE5MDI2YTZlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MmI3Y2UxMWU3N2NiZmYzZjIwZDQxYjYxNjRhZjc1MGE3NDJlMGYwZGVmNGY1NzFkYWQ4MjY2NDUzZWY0MTJkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

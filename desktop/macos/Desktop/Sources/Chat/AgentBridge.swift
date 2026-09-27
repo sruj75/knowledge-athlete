@@ -348,6 +348,7 @@ enum AgentQueryTerminalStatus: Equatable, Sendable {
 actor AgentBridge {
 
   struct QueryResult {
+    var managedRequestID: String?
     let text: String
     let costUsd: Double
     let omiSessionId: String
@@ -1479,7 +1480,7 @@ actor AgentBridge {
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorization) else {
         throw BridgeError.authMissing
       }
-      return try await runtime.query(
+      var result = try await runtime.query(
         clientId: clientId,
         requestId: requestId,
         sessionId: session.sessionId,
@@ -1499,6 +1500,8 @@ actor AgentBridge {
         onAuthRequired: guardedAuthRequired,
         onAuthSuccess: guardedAuthSuccess
       )
+      result.managedRequestID = usesManagedCloud ? requestId : nil
+      return result
     } catch let error as BridgeError
       where usesManagedCloud && !bridgeOutputTracker.hasOutput && error.isSessionAuthenticationFailure
     {
@@ -1519,7 +1522,7 @@ actor AgentBridge {
       }
       let retryRequestId = UUID().uuidString
       activeRequestId = retryRequestId
-      return try await runtime.query(
+      var result = try await runtime.query(
         clientId: clientId,
         requestId: retryRequestId,
         sessionId: session.sessionId,
@@ -1539,6 +1542,8 @@ actor AgentBridge {
         onAuthRequired: guardedAuthRequired,
         onAuthSuccess: guardedAuthSuccess
       )
+      result.managedRequestID = retryRequestId
+      return result
     }
   }
 

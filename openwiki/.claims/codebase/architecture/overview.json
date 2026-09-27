@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b48a45dd83956b130a10312903b77445b0abbaebe41a209e97cd560c6e63b079",
+  "pageVersion": "sha256:afb790235853c51180690a376152a25e58b4821b25d8411b1c7ee8276e0f49c0",
   "claims": [
     {
       "id": "claim_0bbbdc5863884ad7a83cc11b3640d82f",
       "statement": "The canonical Python application composes account, desktop, speech and transient product-compute routers.",
       "evidence": [
         {
-          "resource": "repo://backend/main.py#L95-L119",
-          "version": "repo-lines-v1:sha256:b5e6f0911340d0775abba0396e3fafc53d5c75bf8cfb3446b2c93b5df97ead25:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwZTcxYjFkZmIwMGJjYWUxMmZkYWY3OTUwMDUwZjU2ZDAxYjQ4MTEwODRiYjRjMzliODNlYmViZWE5NGMzYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2OGY2ODdjODEzODQwZDc2OWRiYTQyZGVjMjAxYjBjZDQzMGM3ZWEwM2M1YjNhYTliYWY1YjQ1Y2FmMzNkYjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+          "resource": "repo://backend/main.py#L95-L121",
+          "version": "repo-lines-v1:sha256:ce2a2d355649e59414cc689ec2efe5a2e060628696463c4b4792ebc8211fde2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzM2ExNDM2M2MxN2NiYjhiOGIzMjNmMTBlMTZhMGQyZmU4ZTI3MDIwYTU0OTE5YzFiOGY3NWM4ODM4ODliYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
         }
       ]
     },
@@ -39,10 +39,28 @@
           "version": "repo-file-v1:sha256:3cb70cc4969948ad54a6cd9f7ce7e10124048ec66c430c0ab801d663df59c5ec"
         }
       ]
+    },
+    {
+      "id": "claim_a3d98d07aeb9455e8577856e39e3564f",
+      "statement": "The owner-bound supervisor supplies private guidance to native Live voice while accepted assistant-only output uses the existing Node journal and ordinary PTT retains the voice interruption owner.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift#L899-L990",
+          "version": "repo-lines-v1:sha256:da5571d7efb5f5a89adcf0e58f5d9a750b311d6a1c710013beed5a52dd382235:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljMjgyNTY0ZDgxYTJiOTk4NTBmZDc0MjU3ZmQxNjg4YzE1ODU1NzQ3YmJkZDg2NTY1NTJmY2M0YTY4N2M4ZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMzc5MWQ4MDFiNjdhYmYxYmIwMmY2OTYyYTNiOGIwYjk4MzFmZjI1OTJjMTNmZmI4YzY5YjU5ZTBmYjdjZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0OTA2MTFkMzI4OTBiMmQyNGRhMTY0MTg5OTBhMjVkYjIyODVhOWM5YmVhNzEwN2ZlNmI0YzI4ZDdkMDIyZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0NmEyZDAyNWRjMWZhMTVhZjE3OThlZDE5Y2Y4NzExODM1ZTA1Mzc4OTk0N2MyYzM5MDc5NTA3NTRjMzMwOTQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L138",
+          "version": "repo-lines-v1:sha256:24098c4a2746c0760c1a2eded41f4123e4d54686deef9402759f9d06b7a5d823:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4Zjk0ZjY4NmI2OWEyZmIwMWI4YmZkNGI2YzA0Nzc1OTJkYzU0Njc5N2ZkMDQ5ZTcyZWU4Y2ZjNDc3ZjgwNWQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNzMxZTQ3ODVjMmIzNmY2MGFhYTM3ZWZmODkyMTk0ZTJkNGU5NzExNjUyZWNjMDQwNGE0MWJiYmIzMDJjZTdhIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
+          "version": "repo-lines-v1:sha256:97f333da924c49d5cdc3ea2ea0460035382e6ee8fcee0732c2f1668553bc8cd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhYjZkZjgzMzVhMDFhM2UxZTIzMmFjN2EyOTM1OWExMDIzMzdkZTVkOTg5YTBmMmMzODQ4NmQyNzk0ZTM4Y2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkMTNiYjBlMWE2Mjc4ZDYwNmZlZjI0OWMyZTU2MzM4MWI0NzZiYTM2YjZmNDE1MzM3ODU4MTE3Y2M3YjY4NTkifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-19T10:43:39.596Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

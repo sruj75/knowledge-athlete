@@ -1,0 +1,6 @@
+{
+  "changes": [
+    "Replaced five background assistants with one Supervisor that privately guides voice conversation using permitted screen context and transcripts",
+    "Added proactive spoken turns with push-to-talk interruption, session-scoped evaluation sharing, and helpful or unhelpful feedback"
+  ]
+}

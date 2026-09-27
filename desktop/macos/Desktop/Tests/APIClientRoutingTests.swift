@@ -459,7 +459,7 @@ final class APIClientRoutingTests: XCTestCase {
     let client = await makeTestClient()
 
     do {
-      _ = try await client.mintRealtimeToken(expectedOwnerID: "realtime-routing-owner")
+      _ = try await client.mintRealtimeSession(expectedOwnerID: "realtime-routing-owner")
       XCTFail("Expected structured realtime mint failure")
     } catch let error as RealtimeTokenMintError {
       XCTAssertEqual(error.statusCode, 429)

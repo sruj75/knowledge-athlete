@@ -679,6 +679,19 @@ class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     throttleOwnerSnapshot = authorizationSnapshot
   }
 
+  /// Claim the existing proactive speech allowance at final voice dispatch.
+  /// This records the throttle once without creating a card or notification.
+  func claimSupervisorSpeech(
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) -> Bool {
+    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot),
+      !FloatingControlBarManager.shared.isSnoozed,
+      Self.areNotificationsEnabled()
+    else { return false }
+    return shouldAllowProactiveNotification(
+      assistantId: "supervisor", authorizationSnapshot: authorizationSnapshot)
+  }
+
   private func shouldAllowProactiveNotification(
     assistantId: String,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,

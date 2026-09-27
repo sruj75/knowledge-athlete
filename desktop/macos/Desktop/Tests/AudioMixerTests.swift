@@ -227,3 +227,42 @@ final class AudioMixerTests: XCTestCase {
     XCTAssertEqual(output.count, 1, "Stop should flush remaining data")
   }
 }
+
+extension AudioMixerTests {
+  func testObservedMixPreservesCaptureClockAcrossBufferingAndDelayedDelivery() {
+    var observations: [SupervisorCaptureInterval?] = []
+    var output: [Data] = []
+    let mixer = AudioMixer(outputMode: .mono, clock: fakeClock)
+    mixer.startObserved { bytes, capture in
+      output.append(bytes)
+      observations.append(capture)
+    }
+    mixer.setMicAudio(audioChunk(value: 100), captureInterval: .init(start: 10, end: 10.1))
+    now += 1
+    mixer.setSystemAudio(audioChunk(value: 200), captureInterval: .init(start: 10.05, end: 10.15))
+    XCTAssertEqual(observations, [.init(start: 10, end: 10.15)])
+    XCTAssertEqual(output[0].withUnsafeBytes { $0.bindMemory(to: Int16.self)[0] }, 300)
+    mixer.stop()
+  }
+
+  func testObservedMixFailsClosedWhenEitherRealSourceHasUnknownClock() {
+    var observations: [SupervisorCaptureInterval?] = []
+    let mixer = AudioMixer(outputMode: .mono, clock: fakeClock)
+    mixer.startObserved { _, capture in observations.append(capture) }
+    mixer.setMicAudio(audioChunk(), captureInterval: .init(start: 10, end: 10.1))
+    mixer.setSystemAudio(audioChunk())
+    XCTAssertEqual(observations.count, 1)
+    XCTAssertNil(observations[0])
+    mixer.stop()
+  }
+
+  func testObservedMicOnlyPaddingDoesNotInventUnknownSystemCapture() {
+    var observations: [SupervisorCaptureInterval?] = []
+    let mixer = AudioMixer(outputMode: .mono, clock: fakeClock)
+    mixer.startObserved { _, capture in observations.append(capture) }
+    now += 2.1
+    mixer.setMicAudio(audioChunk(), captureInterval: .init(start: 20, end: 20.1))
+    XCTAssertEqual(observations, [.init(start: 20, end: 20.1)])
+    mixer.stop()
+  }
+}

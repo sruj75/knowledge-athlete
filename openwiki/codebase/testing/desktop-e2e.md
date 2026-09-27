@@ -5,22 +5,32 @@ description: Explain named bundles, flow inventory, tiers, source identity and p
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-24T09:33:07.181Z
+    at: 2026-09-27T17:33:01.317Z
 sources:
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
+  - id: openwiki-source-c8eeff499a30efe076e6b5cf
+    resource: repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift
   - id: openwiki-source-c5914c9070f6356327633f39
     resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
   - id: openwiki-source-3a6beeb263fb2e3086419d17
     resource: repo://desktop/macos/Desktop/Tests/OnboardingSkipBehaviorTests.swift
   - id: openwiki-source-2fd985b3fe67bf34e47b6cf5
     resource: repo://desktop/macos/Desktop/Tests/PersistedCaptureLaunchPolicyTests.swift
+  - id: openwiki-source-6381aced3f5b7d306db135b9
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorAudioTimelineTests.swift
+  - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift
   - id: openwiki-source-5868e015ddfc06ba519b2fd9
     resource: repo://desktop/macos/Desktop/Tests/SystemAudioCaptureModeSettingsTests.swift
+  - id: openwiki-source-817647037a7a2f498d04beb7
+    resource: repo://desktop/macos/Desktop/Tests/VoiceTurnCoordinatorTests.swift
   - id: openwiki-source-37264eb7b55d74ddb5f6107a
     resource: repo://desktop/macos/e2e/flows/audio-recording.yaml
   - id: openwiki-source-b877eb680c762b94400c700b
     resource: repo://desktop/macos/e2e/flows/onboarding-flow.yaml
+  - id: openwiki-source-38a1b3c7a8acf2ceea409825
+    resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-7b7bd425584dcecda56e70ae
     resource: repo://desktop/macos/scripts/check-e2e-flow-coverage.py
   - id: openwiki-source-1d70e9d198b8f1602d970413
@@ -29,7 +39,7 @@ sources:
     resource: repo://desktop/macos/scripts/omi-ctl
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-09-23T07:47:07.190Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 ---
 # Desktop end-to-end verification
 
@@ -73,6 +83,16 @@ The [capture workflow](../workflows/capture-transcription.md) is covered at thre
 Run affected XCTest suites in separate processes, for example `xcrun swift test --package-path desktop/macos/Desktop --filter 'AmbientCaptureLifecycleTests/'` from the repository root. `desktop/macos/test.sh` includes the unchanged transcript-storage regressions and runs desktop XCTest suites with process isolation.
 
 `onboarding-flow.yaml` is a manual genuine-onboarding flow: the existing screen-and-voice demo is the last stage, and its Continue or demo-local Skip for now opens Home directly with all-day listening enabled. There is no listening-mode or replacement confirmation stage. Repeated setup remains valid, and global Skip leaves capture inactive across relaunch. Its sleep/wake and closed-lid-but-awake checks need an actual Mac configuration. `audio-recording.yaml` separately checks that turning System Audio off leaves microphone listening available and that pausing Listening stops both sources. T2 synthetic transcript injection cannot replace these UI and hardware checks.
+
+## Supervisor conversation coverage
+
+`SupervisorServiceTests` drives the real coordinator with controlled observations and inference completions: corrected segments, echo precedence, empty context, owner/app revocation, single-flight/latest-input behavior, stale guidance and quota pause. `SupervisorAudioTimelineTests` checks stream-to-capture mapping, missing spans and clock/reconnect boundaries. Voice reducer/coordinator and Live input lifecycle tests prove genuine no-microphone supervisor admission, private text transport, warm boundaries, assistant-only journal behavior, PTT priority and no automatic replay after ambiguous failure.
+
+`AIEvaluationExportTests` checks the bounded export representation and consent epochs. `APIClientAuthRetryTests` additionally drives actual observation requests while token lookup is suspended: off/on revocation removes queued Chat/B text, and a telemetry 401 neither retries nor signs out. These tests exercise implementation boundaries without proving audible output or natural microphone acquisition.
+
+The `supervisor-conversation.yaml` flow deliberately has `tier: manual`. Use a named development bundle with authenticated Gemini and selected managed A/B prompt versions. Observe a controlled screen/transcript event, let B privately cause A to speak, physically interrupt or reply with PTT, and verify that B receives the exchange and playback status. Repeat with speakers and headphones. Check helpful/unhelpful linkage to both prompt versions, normal metadata-only tracing, selected-session bounded text and revocation while work is queued. Its remaining steps cover speech controls, stale notes, empty context, excluded inputs, quotas and connection/prompt/telemetry failures.
+
+A T2/T3 success cannot mark this manual flow passed. Keep the measured input, evaluation and playback timings, source/bundle identity and request count alongside the result. The [workflow](../workflows/supervisor-conversation.md) explains the causal path; the [export policy](../integrations/telemetry.md) limits saved evidence.
 
 ## Safe execution
 

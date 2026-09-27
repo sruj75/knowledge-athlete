@@ -94,39 +94,7 @@ struct SettingsContentView: View {
 
   // Log export state
 
-  // Focus Assistant states
-  @State var focusEnabled: Bool
-  @State var cooldownInterval: Int
-  @State var glowOverlayEnabled: Bool
-  @State var analysisDelay: Int
-  @State var focusNotificationsEnabled: Bool
-  @State var liveSuggestionsEnabled: Bool
-  @State var focusExcludedApps: Set<String>
-
-  // Task Assistant states
-  @State var taskEnabled: Bool
-  @State var taskExtractionInterval: Double
-  @State var taskMinConfidence: Double
-  @State var taskNotificationsEnabled: Bool
-  @State var taskAllowedApps: Set<String>
-  @State var taskBrowserKeywords: [String]
-
-  // Advice Assistant states
-  @State var insightEnabled: Bool
-  @State var insightExtractionInterval: Double
-  @State var insightMinConfidence: Double
-  @State var insightNotificationsEnabled: Bool
-  @State var insightExcludedApps: Set<String>
-
-  // Memory Assistant states
-  @State var memoryEnabled: Bool
-  @State var memoryExtractionInterval: Double
-  @State var memoryMinConfidence: Double
-  @State var memoryNotificationsEnabled: Bool
-  @State var memoryExcludedApps: Set<String>
-
-  // Glow preview state
-  @State var isPreviewRunning: Bool = false
+  @ObservedObject var supervisor = SupervisorService.shared
 
   // Downgrade confirmation alert
   @State var showDowngradeAlert = false
@@ -187,9 +155,6 @@ struct SettingsContentView: View {
     nonmutating set { viewModel.subscriptionError = newValue }
   }
 
-  let cooldownOptions = [1, 2, 5, 10, 15, 30, 60]
-  let analysisDelayOptions = [0, 10, 20, 30, 60, 300]  // seconds: instant, 10s, 20s, 30s, 1 min, 5 min
-  let extractionIntervalOptions: [Double] = [10.0, 600.0, 3600.0]  // 10s, 10min, 1hr
   let hourOptions = Array(0...23)
   let frequencyOptions = [
     (0, "Off"),
@@ -287,11 +252,6 @@ struct SettingsContentView: View {
     case resetOnboarding = "Reset Onboarding"
     case aiUserProfile = "AI User Profile"
     case stats = "Your Stats"
-    case focusAssistant = "Focus Assistant"
-    case taskAssistant = "Task Assistant"
-    case insightAssistant = "Insight Assistant"
-    case memoryAssistant = "Memory Assistant"
-    case analysisThrottle = "Analysis Throttle"
     case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
@@ -301,11 +261,6 @@ struct SettingsContentView: View {
       case .resetOnboarding: return "arrow.counterclockwise"
       case .aiUserProfile: return "brain"
       case .stats: return "chart.bar"
-      case .focusAssistant: return "eye.fill"
-      case .taskAssistant: return "checklist"
-      case .insightAssistant: return "lightbulb.fill"
-      case .memoryAssistant: return "brain.head.profile"
-      case .analysisThrottle: return "clock.arrow.2.circlepath"
       case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
@@ -333,35 +288,6 @@ struct SettingsContentView: View {
     _isMonitoring = State(initialValue: ProactiveAssistantsPlugin.shared.isMonitoring)
     _screenCaptureHealth = State(initialValue: ProactiveAssistantsPlugin.shared.screenCaptureHealth)
     _isTranscribing = State(initialValue: appState.isTranscribing)
-    _focusEnabled = State(initialValue: FocusAssistantSettings.shared.isEnabled)
-    _cooldownInterval = State(initialValue: FocusAssistantSettings.shared.cooldownInterval)
-    _glowOverlayEnabled = State(initialValue: settings.glowOverlayEnabled)
-    _analysisDelay = State(initialValue: settings.analysisDelay)
-    _focusNotificationsEnabled = State(
-      initialValue: FocusAssistantSettings.shared.notificationsEnabled)
-    _liveSuggestionsEnabled = State(initialValue: SuggestionAssistantSettings.shared.isEnabled)
-    _focusExcludedApps = State(initialValue: FocusAssistantSettings.shared.excludedApps)
-    _taskEnabled = State(initialValue: TaskAssistantSettings.shared.isEnabled)
-    _taskExtractionInterval = State(initialValue: TaskAssistantSettings.shared.extractionInterval)
-    _taskMinConfidence = State(initialValue: TaskAssistantSettings.shared.minConfidence)
-    _taskNotificationsEnabled = State(
-      initialValue: TaskAssistantSettings.shared.notificationsEnabled)
-    _taskAllowedApps = State(initialValue: TaskAssistantSettings.shared.allowedApps)
-    _taskBrowserKeywords = State(initialValue: TaskAssistantSettings.shared.browserKeywords)
-    _insightEnabled = State(initialValue: InsightAssistantSettings.shared.isEnabled)
-    _insightExtractionInterval = State(
-      initialValue: InsightAssistantSettings.shared.extractionInterval)
-    _insightMinConfidence = State(initialValue: InsightAssistantSettings.shared.minConfidence)
-    _insightNotificationsEnabled = State(
-      initialValue: InsightAssistantSettings.shared.notificationsEnabled)
-    _insightExcludedApps = State(initialValue: InsightAssistantSettings.shared.excludedApps)
-    _memoryEnabled = State(initialValue: MemoryAssistantSettings.shared.isEnabled)
-    _memoryExtractionInterval = State(
-      initialValue: MemoryAssistantSettings.shared.extractionInterval)
-    _memoryMinConfidence = State(initialValue: MemoryAssistantSettings.shared.minConfidence)
-    _memoryNotificationsEnabled = State(
-      initialValue: MemoryAssistantSettings.shared.notificationsEnabled)
-    _memoryExcludedApps = State(initialValue: MemoryAssistantSettings.shared.excludedApps)
     let notificationSettings = LocalNotificationSettings().snapshot()
     _notificationsEnabled = State(initialValue: notificationSettings.enabled)
     _notificationFrequency = State(initialValue: notificationSettings.frequency)
@@ -476,9 +402,9 @@ struct SettingsContentView: View {
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
-      selectedSection = .advanced
+      selectedSection = .notifications
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-        highlightedSettingId = "advanced.taskassistant"
+        highlightedSettingId = SettingsDestination.supervisor.rawValue
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: .navigateToFloatingBarSettings)) { _ in

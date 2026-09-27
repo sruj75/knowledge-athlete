@@ -55,6 +55,19 @@ struct RealtimeStreamingJournalProjection: Equatable {
   /// or finalization to a different conversation surface.
   let admissionSurface: AgentSurfaceReference
 
+  var isSupervisor: Bool { continuityKey.hasPrefix("supervisor:") }
+  var messageSource: String { isSupervisor ? "supervisor" : "realtime_voice" }
+
+  func admissionTurns(userText: String) -> [KernelTurnProjection.ExchangeTurn] {
+    let assistant = KernelTurnProjection.ExchangeTurn(
+      message: assistantMessage(text: "", isStreaming: true), status: .pending)
+    return isSupervisor
+      ? [assistant]
+      : [
+        .init(message: userMessage(text: userText), status: .completed), assistant,
+      ]
+  }
+
   init(ownerID: String, continuityKey: String, admissionSurface: AgentSurfaceReference) {
     self.ownerID = ownerID
     self.continuityKey = continuityKey

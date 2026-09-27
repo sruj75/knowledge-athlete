@@ -826,7 +826,7 @@ final class AgentRuntimeProcessTests: XCTestCase {
     XCTAssertEqual(AgentQueryTerminalStatus(wireValue: nil), .invalid(nil))
     XCTAssertEqual(AgentQueryTerminalStatus(wireValue: "future_terminal"), .invalid("future_terminal"))
 
-    let successfulBridgeResult = AgentBridge.QueryResult(
+    var successfulBridgeResult = AgentBridge.QueryResult(
       text: "accepted",
       costUsd: 0,
       omiSessionId: "omi-session",
@@ -839,7 +839,9 @@ final class AgentRuntimeProcessTests: XCTestCase {
       cacheReadTokens: 0,
       cacheWriteTokens: 0
     )
+    successfulBridgeResult.managedRequestID = "successful-auth-retry"
     let successfulClientResult = AgentClient.QueryResult(successfulBridgeResult)
+    XCTAssertEqual(successfulClientResult.managedRequestID, "successful-auth-retry")
     XCTAssertEqual(try successfulBridgeResult.requireSucceeded().text, "accepted")
     XCTAssertEqual(try successfulClientResult.requireSucceeded().text, "accepted")
     XCTAssertEqual(

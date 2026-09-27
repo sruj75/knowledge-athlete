@@ -83,7 +83,7 @@ def test_trace_id_is_deterministic_and_session_id_is_bounded():
     assert langfuse_observability.normalize_session_id('x' * 201) is None
 
 
-def test_generation_uses_real_trace_attributes_prompt_and_usage(monkeypatch):
+def test_generation_uses_prompt_and_usage_but_never_exports_provider_content(monkeypatch):
     propagated = []
     started = []
     updates = []
@@ -147,7 +147,7 @@ def test_generation_uses_real_trace_attributes_prompt_and_usage(monkeypatch):
             'trace_context': {'trace_id': 'a' * 32},
             'name': 'desktop-chat-completion',
             'as_type': 'generation',
-            'input': payload,
+            'input': {'content_count': 1, 'has_tools': False},
             'model': 'claude',
             'prompt': prompt,
         }
@@ -155,7 +155,7 @@ def test_generation_uses_real_trace_attributes_prompt_and_usage(monkeypatch):
     assert updates == [
         {'completion_start_time': started_at},
         {
-            'output': {'text': 'done'},
+            'output': {'text_chars': 4, 'tool_call_count': 0},
             'usage_details': {'input': 2, 'output': 1},
             'level': None,
             'status_message': None,

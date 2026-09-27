@@ -30,10 +30,20 @@ sources:
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
     resource: repo://README.md
+  - id: openwiki-source-648efa783be5c3e57e4a924f
+    resource: repo://scripts/dev-harness/desktop-app-scrub-env.txt
   - id: openwiki-source-f00382734bf395713169fe50
     resource: repo://scripts/dev-harness/desktop-run-local.sh
+  - id: openwiki-source-9581e57ba116860c998da8ee
+    resource: repo://scripts/dev-harness/dev_harness/cli.py
+  - id: openwiki-source-543a4acc2ebff40b6e85a9d0
+    resource: repo://scripts/dev-harness/dev_harness/config.py
+  - id: openwiki-source-7bcac1059bbb5bc94686687a
+    resource: repo://scripts/dev-harness/tests/test_cli.py
   - id: openwiki-source-1a71f2c58cd0b293815e7b47
     resource: repo://scripts/dev-harness/tests/test_desktop_profile.py
+  - id: openwiki-source-c05339353cedb9da29a567ff
+    resource: repo://scripts/dev-harness/tests/test_observability_env.py
   - id: openwiki-source-06044ee38485672b205128e8
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
   - id: openwiki-source-cadbf0c250f5afb51126591d
@@ -42,10 +52,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-26T08:08:12.066Z
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Development and wiki maintenance
 
@@ -69,6 +79,14 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 
 The local launcher requires a valid workspace sentinel and a seeded synthetic user, validates the resolved local profile, then launches through `desktop/macos/run.sh`. The `DESKTOP_USER` selector chooses the synthetic account; `DESKTOP_APP_NAME` gives the bundle its own identity. Start the offline stack before launching. Read the [backend](../../INSTRUCTIONS.md#backend-guidance) and [desktop rules](../../INSTRUCTIONS.md#desktop-guidance) for the policy boundaries.
 
+## Local managed A/B qualification
+
+Use the same named development bundle with synthetic emulator identities for the [Supervisor conversation](../workflows/supervisor-conversation.md). Offline mode proves deterministic routing and lifecycle; it does not exercise Gemini or managed prompt availability. Real mode reads explicit local provider configuration from gitignored `backend/.env.local-dev`.
+
+The harness admits `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` and `LANGFUSE_PROMPT_LABEL` only into the real-mode backend process. Infrastructure children, offline mode and the desktop launch environment exclude those values. Set the label to a deliberately selected test label when qualifying hosted test prompts; the resolver otherwise selects `production`. Creating a label or prompt is an external operation, separate from editing local configuration.
+
+Auth emulator readiness allows 120 seconds for its sequential cold startup. A stack restart is required when its recorded source fingerprint no longer matches the checkout. Named-bundle qualification still requires a clean full source SHA and matching stack fingerprint; credentials or a successful prompt fetch alone do not prove physical microphone/playback behavior.
+
 ## Prerequisites and focused checks
 
 The backend dependency synchronizer reads the exact Python version from `backend/.python-version` (currently 3.11.15), selects the platform lock, resolves/installs that interpreter through `uv`, and synchronizes its virtual environment. Refresh it with `bash backend/scripts/sync-python-deps.sh`. Intentional dependency changes use `backend/scripts/update-python-lock.sh`.
@@ -81,7 +99,7 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 210 nodes and 422 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 205 nodes and 409 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
 
 ## Product map and PR handoff
 

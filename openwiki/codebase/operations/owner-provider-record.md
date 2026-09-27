@@ -3,9 +3,6 @@ type: Operations reference
 title: Owner and provider record
 description: Look up Intentive account ownership, provider roles, operating modes, service and model settings, and credential locations.
 tags: [intentive, operations, ownership, providers]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-22T16:32:26.977Z
 sources:
   - id: openwiki-source-36951cfe9bd99b6b1f9b15ff
     resource: repo://backend/deploy/runtime_env.yaml
@@ -29,7 +26,10 @@ sources:
     resource: repo://desktop/macos/scripts/desktop-core-harness.sh
   - id: openwiki-source-3ff70d80feb2d0ad64f504ba
     resource: repo://scripts/dev-harness/dev_harness/providers.py
-generated: { by: "codex", at: "2026-09-22T16:32:26.977Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Owner and provider record
 
@@ -60,7 +60,7 @@ Secret values belong in the credential stores below.
 | Upstash | `srujan@heyintentive.com` | `intentive-development` | Hosted Redis coordination, limits, locks, and caches |
 | OpenAI | `srujantriples@gmail.com` | Personal organization / Default project; key name `Intentive development TTS` | Spoken output |
 | Modulate | Login email not recorded | Key name `Intentive development` | Managed speech transcription |
-| Langfuse | `srujantriples@gmail.com` (signup email; see note below) | `Intentive`, US Cloud | Chat tracing and prompt management |
+| Langfuse | `srujantriples@gmail.com` (signup email; see note below) | `Intentive`, US Cloud | Chat, Live voice and supervisor tracing and prompt management |
 | PostHog | `srujantriples@gmail.com` | Organization `Intentive`; project `Intentive Desktop` (`397035`) | Product analytics |
 | Sentry | Login email not recorded | Organization `heyintentive`; project `desktop-macos` | Crash diagnostics and debug symbols |
 | GitHub | `sruj75`; recorded account email `srujan24@icloud.com` | `sruj75/knowledge-athlete` | Source, CI, and release orchestration |
@@ -96,7 +96,7 @@ project. Project membership for that email was not queried.
 | Desktop artifact bucket | `knowledge-athlete-desktop-updates-dev`; private, uniform bucket-level access |
 | Account-deletion queue | Cloud Tasks `account-deletion`, `us-west1`; 1 concurrent dispatch, 5 attempts |
 | Cost settings | Recorded INR 100 monthly alert budget, thresholds 50%/80%/100%, recipient `srujan@heyintentive.com`; Gemini prepaid auto-reload off. Alerts do not cap spending. |
-| Langfuse | `https://us.cloud.langfuse.com`; tracing environment `development`; prompt `intentive-chat-system`, label `production`, cache TTL 300 seconds |
+| Langfuse | `https://us.cloud.langfuse.com`; tracing environment `development`; prompts `intentive-chat-system`, `intentive-live-system` and `intentive-supervisor-system`; label defaults to `production` and can be selected by `LANGFUSE_PROMPT_LABEL`; cache TTL defaults to 300 seconds |
 | PostHog | US ingestion: `https://us.i.posthog.com` |
 
 ### Cloud service identities
@@ -118,12 +118,14 @@ Recorded WIF provider:
 
 | Provider | Model / setting | Responsibility |
 | --- | --- | --- |
-| Gemini | `gemini-3.7-flash` | Chat, greeting, conversation processing, Memory compute, and fair-use classification |
+| Gemini | `gemini-3.7-flash` | Chat, supervisor, greeting, conversation processing, Memory compute, and fair-use classification |
 | Gemini | `gemini-2.5-flash-lite` | Session titles and segment translation |
 | Gemini | `gemini-embedding-001` | Embedding generation |
 | Gemini Live | `gemini-3.1-flash-live-preview` | Native realtime voice |
 | OpenAI | `gpt-4o-mini-tts` | Text-to-speech; recorded key scope `/v1/audio/speech` |
 | Modulate | `velma-2-stt-streaming`, `velma-2-stt-batch` | Live and prerecorded transcription; recorded key limit 500 credits |
+
+Managed prompt names and label selection describe the current resolver, not a guarantee that those versions exist in a hosted project. A pins its prompt to the physical Live session; B resolves it per evaluation. Local test labels can be selected without changing the default production label. See [provider behavior](../integrations/providers.md) and the [evaluation export policy](../integrations/telemetry.md).
 
 ## Build, updates, and website
 

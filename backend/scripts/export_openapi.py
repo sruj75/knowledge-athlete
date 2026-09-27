@@ -32,6 +32,7 @@ E2E_DIR = BACKEND_DIR / 'testing' / 'e2e'
 DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.json'
 
 APP_CLIENT_PREFIXES = (
+    '/v1/ai/observations',
     '/v1/conversation-compute',
     '/v1/fair-use',
     '/v1/memory/compute',
@@ -39,10 +40,12 @@ APP_CLIENT_PREFIXES = (
     '/v1/payments',
     '/v1/paypal',
     '/v1/sync',
+    '/v1/supervisor',
     '/v1/users',
     '/v2/chat/generate-title',
     '/v2/chat/initial-message',
     '/v2/messages',
+    '/v2/realtime/session',
     '/v2/voice-messages',
     '/v2/voice-message',
     '/v3/upload-audio',

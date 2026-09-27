@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:4efd3011b0254183bd90d167b6e0ee76acd673de87de874543915d4a79eecf3e",
+  "pageVersion": "sha256:9f29d9a045cc890046b6af3b91d2ef78ef49ca0106723f5c8965c555fc3d28a7",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
       "statement": "The repository composes a canonical FastAPI backend with desktop and transient compute routes and bundles a Node agent with TypeScript build and Vitest test commands.",
       "evidence": [
         {
-          "resource": "repo://backend/main.py#L95-L119",
-          "version": "repo-lines-v1:sha256:b5e6f0911340d0775abba0396e3fafc53d5c75bf8cfb3446b2c93b5df97ead25:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMwZTcxYjFkZmIwMGJjYWUxMmZkYWY3OTUwMDUwZjU2ZDAxYjQ4MTEwODRiYjRjMzliODNlYmViZWE5NGMzYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2OGY2ODdjODEzODQwZDc2OWRiYTQyZGVjMjAxYjBjZDQzMGM3ZWEwM2M1YjNhYTliYWY1YjQ1Y2FmMzNkYjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+          "resource": "repo://backend/main.py#L95-L121",
+          "version": "repo-lines-v1:sha256:ce2a2d355649e59414cc689ec2efe5a2e060628696463c4b4792ebc8211fde2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzM2ExNDM2M2MxN2NiYjhiOGIzMjNmMTBlMTZhMGQyZmU4ZTI3MDIwYTU0OTE5YzFiOGY3NWM4ODM4ODliYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
         },
         {
           "resource": "repo://desktop/macos/agent/package.json#L1-L22",
@@ -57,10 +57,24 @@
           "version": "repo-lines-v1:sha256:32e4ef1a490cf5b22eac0528b2fd7c6f4ec6b5f721d56c74f422ecaf9bf59de6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNjc5MjcwYWFiZDgyN2Q4Nzk0NWM5ZmJiYzQ3OGIxODM5NGQyZTFmZDU3MTZjMzY1ZTJiNWUyYjExYmVkZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVjYmMxN2NhOGY3MzU5NDc2NzgzMGEzNmVlZWFjNGNlNWZlYTVkZDM4Nzg1NWVhNzRmNDUxOTE5MTk1ZDVjMTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_ed2bd5ac19a041548c406e2f8d7697a1",
+      "statement": "The supervisor combines existing observations and local context into private guidance admitted through the native voice owner rather than an independent product-write loop.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L138",
+          "version": "repo-lines-v1:sha256:24098c4a2746c0760c1a2eded41f4123e4d54686deef9402759f9d06b7a5d823:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4Zjk0ZjY4NmI2OWEyZmIwMWI4YmZkNGI2YzA0Nzc1OTJkYzU0Njc5N2ZkMDQ5ZTcyZWU4Y2ZjNDc3ZjgwNWQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNzMxZTQ3ODVjMmIzNmY2MGFhYTM3ZWZmODkyMTk0ZTJkNGU5NzExNjUyZWNjMDQwNGE0MWJiYmIzMDJjZTdhIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
+          "version": "repo-lines-v1:sha256:97f333da924c49d5cdc3ea2ea0460035382e6ee8fcee0732c2f1668553bc8cd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhYjZkZjgzMzVhMDFhM2UxZTIzMmFjN2EyOTM1OWExMDIzMzdkZTVkOTg5YTBmMmMzODQ4NmQyNzk0ZTM4Y2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkMTNiYjBlMWE2Mjc4ZDYwNmZlZjI0OWMyZTU2MzM4MWI0NzZiYTM2YjZmNDE1MzM3ODU4MTE3Y2M3YjY4NTkifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-24T12:25:42.469Z"
+    "at": "2026-09-27T17:33:01.317Z"
   }
 }

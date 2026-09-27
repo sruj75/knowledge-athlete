@@ -5,7 +5,7 @@ import SwiftUI
 enum FocusMonitoringPresentation {
   static let emptyTitle = "No sessions yet"
   static let emptyBody =
-    "Focus sessions appear here as you work.\nEnable Focus monitoring in Settings to begin."
+    "Your saved Focus sessions remain here. Automatic Focus tracking has been retired."
   static let refreshLabel = "Refresh"
   static let historyTitle = "Today's sessions"
 
@@ -13,14 +13,7 @@ enum FocusMonitoringPresentation {
     "Focus history could not be loaded: \(error)"
   }
 
-  static func statusText(focusEnabled: Bool, captureStatus: HomeStatusState) -> String {
-    guard focusEnabled else { return "Focus disabled" }
-    switch captureStatus {
-    case .active: return "Monitoring"
-    case .inactive: return "Capture off"
-    case .blocked: return "Capture blocked"
-    }
-  }
+  static let statusText = "Saved Focus history"
 }
 
 // MARK: - Focus View Model
@@ -30,7 +23,6 @@ class FocusViewModel: ObservableObject {
   @Published var isLoading = false
 
   private let storage = FocusStorage.shared
-  private let settings = FocusAssistantSettings.shared
 
   var recentSessions: [StoredFocusSession] {
     storage.todaySessions
@@ -63,25 +55,9 @@ class FocusViewModel: ObservableObject {
     storage.todayStats
   }
 
-  var isMonitoring: Bool {
-    settings.isEnabled && captureStatus == .active
-  }
+  var isMonitoring: Bool { false }
 
-  var captureStatus: HomeStatusState {
-    if let appState = AppState.current {
-      return CaptureListeningLogic.captureStatus(
-        appState: appState,
-        isCaptureMonitoring: ProactiveAssistantsPlugin.shared.isMonitoring)
-    }
-    if !ProactiveAssistantsPlugin.shared.hasScreenRecordingPermission { return .blocked }
-    return ProactiveAssistantsPlugin.shared.isMonitoring ? .active : .inactive
-  }
-
-  var monitoringStatusText: String {
-    FocusMonitoringPresentation.statusText(
-      focusEnabled: settings.isEnabled,
-      captureStatus: captureStatus)
-  }
+  var monitoringStatusText: String { FocusMonitoringPresentation.statusText }
 
   var todayCount: Int {
     storage.todaySessions.count

@@ -16,6 +16,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift
   - id: openwiki-source-0ed8e411deb2244cca5f7d5f
     resource: repo://desktop/macos/Desktop/Sources/ConversationFinalizationService.swift
+  - id: openwiki-source-447203af4cf903c7769e46c0
+    resource: repo://desktop/macos/Desktop/Sources/LocalTranscriptionService.swift
   - id: openwiki-source-3dd71ac26583c26216d95504
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift
   - id: openwiki-source-8b4617ee9e7ec26f1c05bd9c
@@ -26,20 +28,26 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
   - id: openwiki-source-fa25afaba6337b7634ae58d1
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift
+  - id: openwiki-source-a0fab1458953c2a806bb3e77
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
+  - id: openwiki-source-e0e1aceea6bbd06a72738ece
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-afd2ee5cdf854c9307c25e08
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalTranscriptFormatter.swift
   - id: openwiki-source-09ee795cdf804c9c27a7a9a6
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift
+  - id: openwiki-source-1ae0b0d70d63b02e1a4b5564
+    resource: repo://desktop/macos/Desktop/Sources/TranscriptionService.swift
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
   - id: openwiki-source-5f30adb7a7fdc16ada6d6f6e
     resource: repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift
   - id: openwiki-source-c5914c9070f6356327633f39
     resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
-generated: { by: "codex", at: "2026-09-23T07:47:07.190Z" }
+generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-23T07:47:07.190Z
+    at: 2026-09-27T17:33:01.317Z
 ---
 # Capture and transcription
 
@@ -72,6 +80,16 @@ The existing `NSWorkspace` lifecycle observers stop capture on Mac sleep and req
 Provider delivery order is not spoken order. The live AppState projection and local archive both use `LocalTranscriptFormatter.chronologicallyOrdered`: start time first, original arrival order for equal-time segments, then stable input order. Live updates sort before publishing to the transcript monitor. Storage sorts the raw ingestion records before normalization joins adjacent fragments and assigns the saved display order.
 
 A correction with the same segment ID retains its original arrival position, even when its timestamp changes. Live `arrivalOrder` and persistent `sourceOrder` keep that tie-breaker independent of the current display position. Existing keyed translations survive a text-only correction. The regression tests drive real AppState ingestion and GRDB writes, close and reopen the database, and compare the live/monitor order with the restored conversation. This establishes synthetic ingestion and persistence behavior, not natural microphone or provider qualification.
+
+## Supervisor observation without changing the archive
+
+Accepted ambient batches also reach [B's supervisor](supervisor-conversation.md) under current owner authority. Same-ID corrections replace B's earlier text. This is a separate bounded observation projection; the existing live transcript and local storage still receive their original segments.
+
+Capture callbacks attach monotonic host-clock intervals to 16 kHz PCM. The mixer and local/cloud transcription producers retain bounded sidecar timelines mapping provider-relative offsets back to capture time. Cloud reconnects reset the producer identity and timeline so delayed segments cannot be assigned to a different stream. Missing or retired spans remain unmappable rather than acquiring a guessed timestamp.
+
+Direct A–C input/playback intervals take precedence in B. Ambient segments overlapping those intervals, or lacking a valid capture mapping, are excluded from B only. Delayed corrections are checked again; an unmappable correction removes the older admitted version. This conservative first version may omit unrelated background speech during a voice turn. It does not pause ambient capture, rewrite transcription or remove archive records.
+
+Screen capture continues through the existing permission, exclusion, owner and change-detection gates. App/window identity changes invalidate B's current context before capture starts. Both normal and fallback capture paths carry that epoch, so a late image cannot restore a departed application's context. A permitted changed frame schedules observation; capture storage and independent enrichment retain their own owners.
 
 ## Transient cloud path
 
