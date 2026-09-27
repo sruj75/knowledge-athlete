@@ -12,18 +12,18 @@ sources:
     resource: repo://desktop/macos/agent/src/adapters/pi-mono.ts
   - id: openwiki-source-22fbe8e419c78e59a910956c
     resource: repo://desktop/macos/agent/src/runtime/conversation-journal.ts
-  - id: openwiki-source-d3a88be39f01bdd4a0057cdf
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift
   - id: openwiki-source-d961728264020390f7b3849f
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
+  - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-589f41062c2e58cbb24b065e
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-09-27T18:21:54.828Z
 ---
 # System architecture
 
@@ -57,7 +57,7 @@ The distinction matters on failure: an unavailable compute provider can prevent 
 
 The [Supervisor workflow](../workflows/supervisor-conversation.md) adds a separate observation path. B is one owner-bound Mac service that combines permitted screen evidence, corrected ambient transcripts, direct A–C exchanges and bounded existing Memory/profile reads. Its authenticated backend call returns a private decision without tools or product writes.
 
-A is the existing native Gemini Live conversation, owned by the voice reducer, session controller and playback service. B can guide the next PTT turn or admit an idle supervisor-origin turn without microphone capture. C's PTT interrupts that turn through the same voice owner. Swift projects the assistant-only result into the existing Node journal; no second conversation database is introduced.
+A is the existing native Gemini Live conversation, owned by the voice reducer, session controller and playback service. B can guide the next PTT turn or admit an idle supervisor-origin turn without microphone capture. C's PTT interrupts that turn through the same voice owner. Swift projects the assistant-only result into the existing Node journal through `RealtimeHubController+TurnPersistence`; no second conversation database is introduced.
 
 The old five workers, automatic screen-derived record creation and proactive card/glow path are removed. Capture, Rewind, saved records, manual tools and independent conversation/Memory enrichment retain their existing owners. Langfuse prompt receipts and bounded outcome reporting connect B's decision to A's delivery and user feedback; [telemetry](../integrations/telemetry.md) explains the export boundary.
 

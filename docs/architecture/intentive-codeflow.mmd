@@ -35,20 +35,20 @@ flowchart TD
 
   subgraph AREA_04["04 · Ambient audio capture and transcription · Mac"]
     LISTEN["Setup completes or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
-    CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1614"]
-    AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:475"}
+    CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1478"]
+    AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:339"}
     MIC["Microphone capture and resampling<br/>AudioCaptureService<br/>AudioCaptureService.swift:9"]
     SYSTEMAUDIO["System audio process tap<br/>SystemAudioCaptureService<br/>SystemAudioCaptureService.swift:15"]
     SLEEPCAPTURE["Mac sleep pauses / wake restores enabled listening<br/>NSWorkspace lifecycle observers<br/>AppState.swift:493"]
     LOCALSTT["Local Parakeet<br/>separate mic and system decoders<br/>LocalTranscriptionService.swift:89"]
     MIXER["Cloud route: combine mic and system PCM<br/>AudioMixer<br/>AudioMixer.swift:10"]
     AMBIENTWS["Stream mono 16 kHz PCM<br/>TranscriptionService /v4/listen<br/>TranscriptionService.swift:8"]
-    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:713"]
-    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:770"]
+    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:577"]
+    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:634"]
     SEGMENTS["Upsert by segment ID; order by spoken time<br/>handleBackendSegments<br/>AppState+ListenEvents.swift:8"]
     LIVEUI["Publish current transcript<br/>LiveTranscriptMonitor<br/>LiveTranscriptMonitor.swift:6"]
     SEGSTORE[("Persist segments in local conversation<br/>TranscriptionStorage.upsertSegments<br/>TranscriptionStorage+LocalAuthority.swift:41")]
-    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1638"]
+    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1502"]
   end
 
   subgraph AREA_05["05 · Conversation enrichment and live notes · Mac"]

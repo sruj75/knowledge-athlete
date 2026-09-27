@@ -10,6 +10,8 @@ sources:
     resource: repo://backend/tests/unit/test_listen_transient_contract.py
   - id: openwiki-source-dcf6ee3a3f4c4e9dc2457f0c
     resource: repo://desktop/macos/Desktop/Sources/AppState.swift
+  - id: openwiki-source-33065b6602ae99fc06c69f61
+    resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BAudioCapture.swift
   - id: openwiki-source-7b28599e5fadd910008e71c1
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift
   - id: openwiki-source-68f304488b5eba9e53815f71
@@ -44,10 +46,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift
   - id: openwiki-source-c5914c9070f6356327633f39
     resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-09-27T18:21:54.828Z
 ---
 # Capture and transcription
 
@@ -71,7 +73,7 @@ The existing `NSWorkspace` lifecycle observers stop capture on Mac sleep and req
 
 ## Capture reconciliation and recovery
 
-`AppState` remains the capture owner. Reconciliation starts the microphone continuously and starts system audio only when enabled. Overlapping requests coalesce through the existing capture gate. Each asynchronous startup checks the recording generation before continuing, so an obsolete completion cannot stop or unlock a replacement session. Hardware-service identity checks undo stale starts. A required microphone failure stops listening; an optional system-audio failure records its permission outcome and leaves microphone capture running.
+`AppState` remains the capture owner; `AppState+AudioCapture` contains hardware startup and clock wiring, while `AppState+Transcription` reconciles the session. Reconciliation starts the microphone continuously and starts system audio only when enabled. Overlapping requests coalesce through the existing capture gate. Each asynchronous startup checks the recording generation before continuing, so an obsolete completion cannot stop or unlock a replacement session. Hardware-service identity checks undo stale starts. A required microphone failure stops listening; an optional system-audio failure records its permission outcome and leaves microphone capture running.
 
 `AmbientCaptureLifecycleTests` exercises this implementation through hardware adapters with controlled startup completions. It checks independent System Audio disablement, both failure policies, stop during startup and replacement-session isolation. See [desktop verification](../testing/desktop-e2e.md#all-day-listening-coverage) for the separate genuine onboarding and physical audio checks.
 
@@ -117,7 +119,8 @@ For a failure, identify whether admission, capture, transport, canonical segment
 - [Onboarding completion and Skip](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L530-L593)
 - [Completion effects](../../../desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L73-L107)
 - [Demo completion and late warmup](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel+Steps.swift#L468-L531)
-- [Capture reconciliation](../../../desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift#L383-L532)
+- [Capture reconciliation](../../../desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift#L339-L394)
+- [Hardware startup and clock wiring](../../../desktop/macos/Desktop/Sources/AppState/AppState+AudioCapture.swift#L7-L141)
 - [Sleep and wake](../../../desktop/macos/Desktop/Sources/AppState.swift#L493-L554)
 - [Hardware-seam regressions](../../../desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168)
 
@@ -130,6 +133,6 @@ For a failure, identify whether admission, capture, transport, canonical segment
 - [desktop/macos/Desktop/Tests/ConversationIngestionTests.swift](../../../desktop/macos/Desktop/Tests/ConversationIngestionTests.swift)
 - [desktop/macos/Desktop/Sources/AppState/AppState+ListenEvents.swift](../../../desktop/macos/Desktop/Sources/AppState/AppState+ListenEvents.swift#L1-L78)
 - [desktop/macos/Desktop/Sources/Rewind/Core/LocalTranscriptFormatter.swift](../../../desktop/macos/Desktop/Sources/Rewind/Core/LocalTranscriptFormatter.swift#L12-L28)
-- [desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift](../../../desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift#L58-L142)
+- [desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift](../../../desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage+LocalAuthority.swift#L58-L141)
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

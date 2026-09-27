@@ -8,16 +8,20 @@ sources:
     resource: repo://desktop/macos/agent/src/runtime/conversation-journal.ts
   - id: openwiki-source-62d945a031f8cfbb45021e15
     resource: repo://desktop/macos/agent/tests/conversation-journal.test.ts
+  - id: openwiki-source-e762e0de342d9685ba91244f
+    resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift
   - id: openwiki-source-f1efbd1a25d10b5d7c7d4775
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/PTTBatchTranscriptionPolicy.swift
   - id: openwiki-source-a06ede6cec7facee4647ba62
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BPushToTalk.swift
   - id: openwiki-source-9fa7197ddcfd64cf31d5f460
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift
-  - id: openwiki-source-d3a88be39f01bdd4a0057cdf
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift
   - id: openwiki-source-d961728264020390f7b3849f
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
+  - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
+  - id: openwiki-source-21802c0cbbe5aeada371f269
+    resource: repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
   - id: openwiki-source-d2fcc2b5c63a2a31e81a6ae9
     resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
   - id: openwiki-source-60e99a5c14248df3a5999a25
@@ -28,10 +32,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/PTTBatchLanguagePolicyTests.swift
   - id: openwiki-source-0adbb8127cc707067b3adf30
     resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-09-27T18:21:54.828Z
 ---
 # Chat, tools and voice
 
@@ -57,7 +61,9 @@ The existing Live transport sends activity start, private text/context and activ
 
 `guide_next_turn` keeps one expiring note for the next PTT input window and does not initiate speech. PTT admission immediately interrupts an active automatic turn through the existing output owner. Automatic turns reject tool calls in code; private notes do not authorize user-turn tool effects.
 
-Supervisor output is admitted as an assistant-only entry in the existing canonical journal. The continuity key carries opaque decision correlation; no invented user utterance or private note enters journal text. Completed delivery requires both provider completion and actual playback drain. Interrupted/failed speech keeps truthful terminal status, and generated text alone cannot prove full delivery. The [evaluation reporter](../integrations/telemetry.md) links these outcomes and user scores to both prompt versions without affecting speech on export failure.
+Supervisor output is admitted as an assistant-only entry in the existing canonical journal through `RealtimeHubController+TurnPersistence`. The continuity key carries opaque decision correlation; no invented user utterance or private note enters journal text. Completed delivery requires both provider completion and actual playback drain. Interrupted/failed speech keeps truthful terminal status, and generated text alone cannot prove full delivery. The [evaluation reporter](../integrations/telemetry.md) links these outcomes and user scores to both prompt versions without affecting speech on export failure.
+
+Helpful/unhelpful feedback shares the message metadata row's keyboard focus state with copy and context controls, so focusing a feedback button reveals the quiet row. The floating response view retains its own local focus state.
 
 ## Verification
 

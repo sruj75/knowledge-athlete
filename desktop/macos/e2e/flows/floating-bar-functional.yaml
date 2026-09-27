@@ -25,6 +25,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+AgentCompletionContext.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionDelegate.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionLifecycle.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+TurnPersistence.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+Tools.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubControllerSupport.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubResumeOnceGate.swift
@@ -38,6 +39,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift
   - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
+  - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnPresentation.swift
   - desktop/macos/Desktop/Sources/DesktopDiagnosticsManager.swift
   - desktop/macos/Desktop/Sources/Generated/GeneratedRealtimeTools.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingBackgroundModifier.swift

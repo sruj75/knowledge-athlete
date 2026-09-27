@@ -3,9 +3,6 @@ type: Workflow guide
 title: Supervisor conversation
 description: Trace permitted observations through private supervisor guidance, native Live speech, PTT interruption, canonical history and evaluation feedback.
 tags: [intentive, supervisor, voice, ownership, evaluation]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
 sources:
   - id: openwiki-source-436c23d0e71e7e8c078ad9ef
     resource: repo://backend/routers/desktop_supervisor.py
@@ -21,15 +18,18 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift
   - id: openwiki-source-9fa7197ddcfd64cf31d5f460
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift
-  - id: openwiki-source-d3a88be39f01bdd4a0057cdf
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift
   - id: openwiki-source-d961728264020390f7b3849f
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
+  - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-6e7c96ad2c3b57bb1ecbf498
     resource: repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-09-27T18:21:54.828Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-09-27T18:21:54.828Z
 ---
 # Supervisor conversation
 
@@ -85,7 +85,7 @@ The automatic note is consumed before transport submission. If initiation might 
 
 ## History, delivery and improvement
 
-Automatic speech records an assistant-only entry in the existing Node canonical journal. Its opaque continuity key relates it to the B decision; no invented C message or note is persisted. Provider completion plus actual PCM playback drain gates completed delivery. Interrupted or failed text remains distinguishable from a fully spoken answer. B receives the direct utterance and terminal playback outcome, with ambient overlap suppressed.
+Automatic speech records an assistant-only entry in the existing Node canonical journal through the controller's `TurnPersistence` extension. Its opaque continuity key relates it to the B decision; no invented C message or note is persisted. Provider completion plus actual PCM playback drain gates completed delivery. Interrupted or failed text remains distinguishable from a fully spoken answer. B receives the direct utterance and terminal playback outcome, with ambient overlap suppressed.
 
 Langfuse manages `intentive-live-system` and `intentive-supervisor-system`. The backend returns A's prompt receipt with the Live credential, and Swift pins it to that physical connection; B resolves its prompt per evaluation. The SDK cache serves available prompts. Cold failure preserves A's existing local conversation instructions and makes B return `wait` with an unavailable-prompt outcome. Executable permissions, tool authority and response schemas remain in code.
 

@@ -1,6 +1,6 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift": 1720
+    "desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift": 1584
   },
   "raise_justifications": {
     "desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift": "S-20 adds authorization-fenced managed-cloud-to-local handoff and local-transcription recovery at the existing capture owner."

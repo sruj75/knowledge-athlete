@@ -22,6 +22,7 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/ChatPrompts.swift
   - desktop/macos/Desktop/Sources/Chat/TypingIndicator.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift
+  - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatInputView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatScrollBehavior.swift
   - desktop/macos/Desktop/Sources/Chat/ChatContentBlockCodec.swift
@@ -36,6 +37,7 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/OmiMarkdown.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+TurnMetadata.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+QuerySurface.swift
   - desktop/macos/Desktop/Sources/Providers/ChatProvider+HarnessReset.swift
   - desktop/macos/Desktop/Sources/Services/APIClient/APIClient+ChatCompute.swift
@@ -43,6 +45,7 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/LocalChatAttachmentStore.swift
   - desktop/macos/Desktop/Sources/Chat/LocalChatCatalog.swift
   - desktop/macos/Desktop/Sources/Chat/AgentBridge.swift
+  - desktop/macos/Desktop/Sources/Chat/AgentQueryResult.swift
   - desktop/macos/Desktop/Sources/Chat/AgentClient.swift
   - desktop/macos/Desktop/Sources/Chat/AgentContextRevision.swift
   - desktop/macos/Desktop/Sources/Chat/KernelTurnProjection.swift

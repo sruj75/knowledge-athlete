@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:afb790235853c51180690a376152a25e58b4821b25d8411b1c7ee8276e0f49c0",
+  "pageVersion": "sha256:6f9328ffd13b690a259e8dc14620a81e13257e9a6d24daa710c56bd5746419ea",
   "claims": [
     {
       "id": "claim_0bbbdc5863884ad7a83cc11b3640d82f",
@@ -45,12 +45,12 @@
       "statement": "The owner-bound supervisor supplies private guidance to native Live voice while accepted assistant-only output uses the existing Node journal and ordinary PTT retains the voice interruption owner.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift#L899-L990",
-          "version": "repo-lines-v1:sha256:da5571d7efb5f5a89adcf0e58f5d9a750b311d6a1c710013beed5a52dd382235:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljMjgyNTY0ZDgxYTJiOTk4NTBmZDc0MjU3ZmQxNjg4YzE1ODU1NzQ3YmJkZDg2NTY1NTJmY2M0YTY4N2M4ZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMzc5MWQ4MDFiNjdhYmYxYmIwMmY2OTYyYTNiOGIwYjk4MzFmZjI1OTJjMTNmZmI4YzY5YjU5ZTBmYjdjZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE0OTA2MTFkMzI4OTBiMmQyNGRhMTY0MTg5OTBhMjVkYjIyODVhOWM5YmVhNzEwN2ZlNmI0YzI4ZDdkMDIyZDMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0NmEyZDAyNWRjMWZhMTVhZjE3OThlZDE5Y2Y4NzExODM1ZTA1Mzc4OTk0N2MyYzM5MDc5NTA3NTRjMzMwOTQifQ"
-        },
-        {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L138",
           "version": "repo-lines-v1:sha256:24098c4a2746c0760c1a2eded41f4123e4d54686deef9402759f9d06b7a5d823:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4Zjk0ZjY4NmI2OWEyZmIwMWI4YmZkNGI2YzA0Nzc1OTJkYzU0Njc5N2ZkMDQ5ZTcyZWU4Y2ZjNDc3ZjgwNWQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNzMxZTQ3ODVjMmIzNmY2MGFhYTM3ZWZmODkyMTk0ZTJkNGU5NzExNjUyZWNjMDQwNGE0MWJiYmIzMDJjZTdhIn0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift#L31-L119",
+          "version": "repo-lines-v1:sha256:c3b54faf3e14674b60d21593b0d84767bd60adf90858134acf8365469c49f1ee:eyJzZWxlY3RlZExpbmVDb3VudCI6ODksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMTYyN2UyZWNlY2MxMTI1ZjAzMWVlZTg0NzNhOWZkNmRiYTc4M2QyNTdjYjkzMzcxYjkxNDgwNjQ3M2YyZGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxOWRhMWVhNjY0ODgzMWY1OGU1ZDgyNmRjYjk3Mjk5NWVjY2M3ZjIxMWU0NjllM2JmMTViNzE0NmJkNGFlYTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM0ODViYmU3MzY1ZTU4ZTg4YzEzNmQ1MDRiYWY5NWJiMTU2MDE1YTgzYTA1NTcwYTlhZGE3Y2FjNDdmZjI1N2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzJiMGMyMjMzOWM4ZjZhM2JjMDEyYjZlMTRkN2IzMmEwMzVhYmI2ZGY1ZDgyNDYzODY4MmZlNTZkYzdjODAifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
@@ -61,6 +61,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-27T18:21:54.828Z"
   }
 }

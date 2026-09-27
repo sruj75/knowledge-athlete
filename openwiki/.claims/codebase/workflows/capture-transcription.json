@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:35a06c998f4004b61906c94d9545a2640aafa822f1ffe0c1ae17b17c1fc58aae",
+  "pageVersion": "sha256:8cf90154b3025a879ef1e0db4395c01d921a0245e8f0ce10b27b18a724e17a96",
   "claims": [
     {
       "id": "claim_ccd05eb73a634c1eb46f503f422ded2e",
@@ -111,12 +111,16 @@
       "statement": "System Audio defaults to enabled and can be disabled independently of continuous microphone listening; capture reconciliation has no meeting gate and required microphone failure stops the session while optional system-audio failure leaves microphone capture available.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L423-L532",
-          "version": "repo-lines-v1:sha256:bcfc30b5d13479f0884e081724bca30af271c965d1ddb543bc5b7afbc35b8246:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlN2ViNWM0OTNhY2Y0ODE3OGRjOWFiNGY0OGI2ZjBkMjA5OWZjMzhmOTA4MDM2ZTViNTJiYjgwYzBiNDFjYTYyIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3NGM1MTViNGU1NTVkYjcyZWJhZjRhZWQ0MDNlZmRkNTEyNjBmZGNmZTdhMjhhN2FmZjdjZGVjNzc0YjRhMDMwIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNmU3Njg4YmJmYzg1MTAzNGFhMThmYmVkMWViMThiYzMyYWJjMDg4NzRkMTgyOWQ3MWM2MjMwYzViZjEwZWMzIn0"
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BAudioCapture.swift#L49-L141",
+          "version": "repo-lines-v1:sha256:12a517096570a1b05d377235cceb6cc8a22592f671f15f2fa6da9ec8e7b71e9f:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YTU0Y2U3MzU0ODMyYTFjYjc0YzJkYmU3ZmU4NGRlZDY0YzU5Y2ViYWM3ZTIzYTkxZTJkMjJkMmFhYTBhYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiODgxMjM3NGM2NjBjZTgzODljNjJkNmQyMWZjNjY5OGE1Y2RkNWVkODUyYzY4ZTFhMDQyNTYzNDEyODQ0ZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L339-L394",
+          "version": "repo-lines-v1:sha256:03b15f10d2ca2118f80dcf8b4044137788d9763f14ba9391a6179d3f5249f921:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkNDBjNGRmMWQ4M2VmZGZhNzFiNWJhYjdhMGFhNzNjNmUyNjM0MGVmMWVjMmUxM2FhYzYwZmExZmVjYmE3YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1ODEwN2Y4NmE4NTI0ZmFlMDYzOWIxN2I5MWY1NDZkNzEwYTYxZjVhYTBlZTgwZWFhNGU0MjQzNzRhYjZiMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2ZjdjNjU4NWY4MmIxZWRjNmNkNmY4NDhmNmUwMTM5NDgxODI3NWQ5ZmUwZWM1NjU2YjQyMTM2NDdkODdjZjAifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift#L8-L60",
-          "version": "repo-lines-v1:sha256:0f3ccee13e4688c77ded37fc8ac63e2375acae92499c87d737617036d306ed9c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZTFiYWJjZjBlMzY3OGYwZjYzODYyNGJkNTcyMDRmMmMyZDNhN2I0ZDRlYjhhOWFjNWMzMWY4NTJhYjY3ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3ODExYmY5MzgzMTEwYjY4MzczYzMyNGI0ODFmNzkyNWMyZjA4ZjVlZGNhMjcxOWZhNzMxYmViMDhiMDg4OGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzOWIyNTQzODIwNjU3MGMwYjc5MjkwZWM0OTIxOWNhNmNlMjY5OGFmYmM4MWE5OTAwY2NkZTIzNzUyZDIzNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFiYjM0ZDAyMGIzNzdkMWZlZGYwZDRmYmMxNjUwNDY2OWE0NDJmNjU3NjQ3OTM2NjM0MDMxZWQ4ZmUwNzE0NDkifQ"
+          "version": "repo-lines-v1:sha256:413e45e8812fa528ad4359afea9a63f5eb22228da0721dee641e842a8898aa32:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3ZTFiYWJjZjBlMzY3OGYwZjYzODYyNGJkNTcyMDRmMmMyZDNhN2I0ZDRlYjhhOWFjNWMzMWY4NTJhYjY3ZTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFlOGE0ZWI0NDFjMTljODRmOWIyOGQyZGM4NWEwY2FmMDQzNDJhMzQxNDJmYTA4YWZmNjIwMTcyYjMxYmE2MGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzOWIyNTQzODIwNjU3MGMwYjc5MjkwZWM0OTIxOWNhNmNlMjY5OGFmYmM4MWE5OTAwY2NkZTIzNzUyZDIzNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlM2E0MjM5NTZjNjIzOWE1YjFmNDE4MmZmMTg3NzMyYTYyZTE3MzhkOTQ5ZjdhMmNhODExNzc4NTFiNmYwNzAifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L8-L109",
@@ -139,8 +143,12 @@
       "statement": "Capture reconciliation coalesces overlapping starts and fences awaited hardware completions by recording generation; stale hardware-service identities are stopped, and controlled-completion tests prove old microphone or system-audio startups do not stop or unlock replacement sessions.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L383-L532",
-          "version": "repo-lines-v1:sha256:699321a897597d75c774c4ac9fbba09543ab7669eba8e4745c9ae8f52d2deb4d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZGRhMzM3YmIxMTQ0ZmJjOTQ4N2UzMDIwY2Y2ZDIzYTczZGE4NWIyZTU4NTVjNDAwMjU1MWEzOTdmZjQ1YWNjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzZTc3NDg5ZWNiYzk0OTVkMzA5ZGRhZWE4NDJkYzViZTJkZjY3M2Q3ZTQ1N2M2YmM4NDg4ODY5MWYwMjJhZmIyIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNmU3Njg4YmJmYzg1MTAzNGFhMThmYmVkMWViMThiYzMyYWJjMDg4NzRkMTgyOWQ3MWM2MjMwYzViZjEwZWMzIn0"
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BAudioCapture.swift#L49-L141",
+          "version": "repo-lines-v1:sha256:12a517096570a1b05d377235cceb6cc8a22592f671f15f2fa6da9ec8e7b71e9f:eyJzZWxlY3RlZExpbmVDb3VudCI6OTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0YTU0Y2U3MzU0ODMyYTFjYjc0YzJkYmU3ZmU4NGRlZDY0YzU5Y2ViYWM3ZTIzYTkxZTJkMjJkMmFhYTBhYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiODgxMjM3NGM2NjBjZTgzODljNjJkNmQyMWZjNjY5OGE1Y2RkNWVkODUyYzY4ZTFhMDQyNTYzNDEyODQ0ZjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AppState/AppState%2BTranscription.swift#L339-L394",
+          "version": "repo-lines-v1:sha256:03b15f10d2ca2118f80dcf8b4044137788d9763f14ba9391a6179d3f5249f921:eyJzZWxlY3RlZExpbmVDb3VudCI6NTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkNDBjNGRmMWQ4M2VmZGZhNzFiNWJhYjdhMGFhNzNjNmUyNjM0MGVmMWVjMmUxM2FhYzYwZmExZmVjYmE3YTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1ODEwN2Y4NmE4NTI0ZmFlMDYzOWIxN2I5MWY1NDZkNzEwYTYxZjVhYTBlZTgwZWFhNGU0MjQzNzRhYjZiMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2ZjdjNjU4NWY4MmIxZWRjNmNkNmY4NDhmNmUwMTM5NDgxODI3NWQ5ZmUwZWM1NjU2YjQyMTM2NDdkODdjZjAifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L30-L140",
@@ -219,6 +227,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-27T18:21:54.828Z"
   }
 }

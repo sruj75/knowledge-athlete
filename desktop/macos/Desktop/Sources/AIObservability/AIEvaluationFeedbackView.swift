@@ -3,6 +3,8 @@ import SwiftUI
 
 struct AIEvaluationFeedbackView: View {
   let message: ChatMessage
+  var metadataFocus: FocusState<Bool>.Binding? = nil
+  @FocusState private var isLocallyFocused: Bool
   @ObservedObject private var reporter = AIEvaluationReporter.shared
 
   var body: some View {
@@ -25,6 +27,7 @@ struct AIEvaluationFeedbackView: View {
         .foregroundColor(selected ? OmiColors.accent : OmiColors.textTertiary)
     }
     .buttonStyle(.plain)
+    .focused(metadataFocus ?? $isLocallyFocused)
     .help(helpful ? "Helpful" : "Unhelpful")
     .accessibilityLabel(helpful ? "Helpful response" : "Unhelpful response")
   }

@@ -27,6 +27,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+PushToTalk.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionDelegate.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionLifecycle.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+TurnPersistence.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+StreamingJournal.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeVoiceContextSingleFlight.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+TransportReplacement.swift
@@ -47,6 +48,7 @@ covers:
   - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSettings.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift
   - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
+  - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnPresentation.swift
   - desktop/macos/Desktop/Sources/FloatingControlBar/GlobalShortcutManager.swift
   - desktop/macos/Desktop/Sources/VADGateService.swift
 preconditions:

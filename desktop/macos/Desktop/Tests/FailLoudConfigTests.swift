@@ -80,7 +80,7 @@ final class FailLoudConfigTests: XCTestCase {
   }
 
   func testSystemAudioCaptureOutcomesUpdatePermissionState() throws {
-    let src = try source(relativePath: "Sources/AppState/AppState+Transcription.swift")
+    let src = try source(relativePath: "Sources/AppState/AppState+AudioCapture.swift")
 
     XCTAssertTrue(
       src.contains("recordSystemAudioCaptureOutcome(.granted)"),
