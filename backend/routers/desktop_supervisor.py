@@ -141,6 +141,8 @@ async def evaluate_supervisor(
     }
     started = monotonic()
     outcome = 'completed'
+    failure: HTTPException | None = None
+    fallback_reason: str | None = None
     try:
         async with get_gemini_semaphore():
             response = await get_gemini_client().post(
@@ -153,9 +155,26 @@ async def evaluate_supervisor(
         provider_body = _ProviderResponse.model_validate(response.json())
         text = ''.join(part.text for part in provider_body.candidates[0].content.parts if not part.thought)
         decision = SupervisorDecision.model_validate_json(text)
-    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError, ValidationError):
-        record_fallback(component='other', from_mode='supervisor', to_mode='wait', reason='other', outcome='degraded')
+    except httpx.HTTPStatusError as error:
+        status = error.response.status_code
+        fallback_reason = {402: 'quota', 429: 'provider_429', 401: 'auth', 403: 'auth'}.get(
+            status, 'provider_5xx' if status >= 500 else 'other'
+        )
+        # Provider billing/auth failures must not become desktop trial/Firebase failures.
+        client_status = 429 if status == 429 else 503 if status >= 500 or status in (401, 402, 403) else 502
+        failure = HTTPException(status_code=client_status, detail='Managed Gemini is temporarily unavailable')
         decision = SupervisorDecision(action='wait')
+    except httpx.HTTPError as error:
+        fallback_reason = 'timeout' if isinstance(error, httpx.TimeoutException) else 'other'
+        failure = HTTPException(status_code=503, detail='Managed Gemini is temporarily unavailable')
+        decision = SupervisorDecision(action='wait')
+    except (ValueError, KeyError, IndexError, TypeError, ValidationError):
+        fallback_reason = 'malformed_doc'
+        decision = SupervisorDecision(action='wait')
+    if fallback_reason is not None:
+        record_fallback(
+            component='other', from_mode='supervisor', to_mode='wait', reason=fallback_reason, outcome='degraded'
+        )
         outcome = 'degraded'
     result = SupervisorResponse(
         **decision.model_dump(),
@@ -175,6 +194,8 @@ async def evaluate_supervisor(
         prompt_client=prompt.prompt_client,
         duration_ms=int((monotonic() - started) * 1000),
     )
+    if failure is not None:
+        raise failure
     return result
 
 

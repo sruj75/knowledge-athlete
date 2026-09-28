@@ -36,6 +36,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift
   - id: openwiki-source-c4851e5ad253e57eeaa6684e
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift
+  - id: openwiki-source-94cf8b5484aee99e219dae66
+    resource: repo://desktop/macos/Desktop/Sources/MainWindow/Pages/Settings/Sections/SettingsContentView%2BNotificationsPrivacy.swift
   - id: openwiki-source-14bf8dc2566284e843496189
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
   - id: openwiki-source-577b743ef6d29a4ab11ce6a1
@@ -48,10 +50,12 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ProactiveAssistantOrchestrationPolicyTests.swift
   - id: openwiki-source-0adbb8127cc707067b3adf30
     resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
-generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
+  - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift
+generated: { by: "codex", at: "2026-09-28T11:37:40.701Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-28T09:46:29.604Z
+    at: 2026-09-28T11:37:40.701Z
 ---
 # Supervisor conversation
 
@@ -63,6 +67,8 @@ flowchart LR
   Local[Existing local Memory and profile] --> B
   B --> Evaluate[Authenticated one-call evaluation]
   Evaluate --> Note[Expiring private decision]
+  Evaluate -->|Provider failure| Pause[Visible pause and cooldown]
+  Pause -->|Fresh permitted observation| B
   Note --> A[Native Live voice admission]
   C[Person presses PTT] --> A
   A --> Playback[Existing playback owner]
@@ -94,7 +100,11 @@ Ambient corrections replace entries by session, producer and segment identity. M
 | `guide_next_turn` | Keep a private note for the next admitted PTT input window |
 | `intervene` | Attempt an idle supervisor-origin voice turn |
 
-The response carries observation, session, context and decision identity plus the B prompt receipt. The client accepts it only while its captured authority and context remain current. Guidance expires thirty seconds after the observation's latest accepted change, including time spent loading context and evaluating. Only the latest pending note is valid. Invalid provider output becomes `wait`; failed transport produces no intervention. A fresh observation may retry after backoff, while daily quota exhaustion leaves B visibly paused for the session. Ordinary PTT retains its independent admission path.
+The response carries observation, session, context and decision identity plus the B prompt receipt. The client accepts it only while its captured authority and context remain current. Guidance expires thirty seconds after the observation's latest accepted change, including time spent loading context and evaluating. Only the latest pending note is valid. Invalid provider output becomes `wait`; a provider or transport failure produces no intervention. Ordinary PTT retains its independent admission path.
+
+Provider failures are not successful `wait` responses. The backend first records a degraded observation with the decision, owner/session and prompt correlation, then returns fixed safe error text. Upstream `429` remains `429`; provider `401`, `402`, `403` and server failures become `503`; other rejected requests become `502`. Transport errors also become `503`. This preserves Firebase identity and desktop trial status while activating the existing visible Supervisor pause. Logs retain bounded failure categories, never provider bodies, exception text, credentials or local observation payloads.
+
+The client pauses for sixty seconds and admits only fresh observations after that cooldown; it does not replay a stale private decision. The application's own daily Gemini quota remains distinct: its specific quota response pauses B for the logical session. Malformed model output and unavailable managed prompts still return degraded `wait` decisions. Endpoint regressions cover status mapping, one provider call, retained trace identity and private-content exclusion; coordinator tests cover cooldown, fresh input and daily-quota pause.
 
 A private note is an internal expiring value, never a user message, notification card, resource attachment or ordinary log. Optional evaluation export is described below; it requires explicit current-session consent.
 

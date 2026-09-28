@@ -1,0 +1,3 @@
+{
+  "change": "Supervisor now shows a paused state when its AI service is unavailable, instead of silently skipping check-ins and repeatedly retrying."
+}

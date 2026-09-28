@@ -65,7 +65,7 @@ flowchart TD
     OBSERVE["Bounded owner/session observation<br/>Permitted frame, corrected transcripts, native/fallback exchange<br/>SupervisorService.swift:12"]
     ECHOGATE{"Map capture intervals; suppress ambient overlap<br/>Unmappable segments excluded only from B<br/>SupervisorAudioTimeline.swift:24"}
     BEVALUATE["Three-second coalescing; one request in flight<br/>Read existing Memory/profile; quota pause<br/>SupervisorService.swift:373"]
-    BAPI["POST /v1/supervisor/evaluate<br/>One managed Gemini call, no tools or writes<br/>desktop_supervisor.py:81"]
+    BAPI["POST /v1/supervisor/evaluate<br/>One Gemini call; provider errors pause B<br/>desktop_supervisor.py:81"]
     BNOTE{"wait / guide_next_turn / intervene<br/>Private note expires; owner/session/context fenced<br/>SupervisorModels.swift:1"}
     AINIT["Admit supervisor voice turn without mic<br/>Idle, notification/snooze/frequency gates; PTT priority<br/>RealtimeHubController+Supervisor.swift:23"]
     AEXAMPLE["Session-scoped terminal outcome and feedback<br/>Normal metadata only; selected bounded text<br/>AIEvaluationReporter.swift:7"]

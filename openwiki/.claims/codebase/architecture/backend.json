@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:d8a6d14a1e29d97bb1733db7ae203475aefe8d51322c33fd509d559c41b50660",
+  "pageVersion": "sha256:234c0029226a2d75ba1c96cd02efa2b523c87b6d4fcc42e6dda2063e92397988",
   "claims": [
     {
       "id": "claim_1ae32bfa0ced442c9374eb8dd5b47ab8",
@@ -45,8 +45,8 @@
       "statement": "Supervisor evaluation uses authenticated participant admission and shared Gemini quotas, makes one schema-bound model call without tools, and returns wait on unavailable managed prompts or invalid provider output.",
       "evidence": [
         {
-          "resource": "repo://backend/routers/desktop_supervisor.py#L80-L177",
-          "version": "repo-lines-v1:sha256:b4c9ddd34a0311084bf3d284db3ae1fd9b8b63738c39d4a6529abc59be12c188:eyJzZWxlY3RlZExpbmVDb3VudCI6OTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkMmFhYjk0MDlmMTEyYjNmNzM1OTliOTNiMGEyY2FhZDc3Nzc5ZGVlOTEzMjlkNjlmMTNkNjE2MjM2YmZkNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI3YmZhZDEzYjNkZDQyODQzYmU4MGY0NDQxZWJhNTlmYmI1ZjQ0YzZjNDFhY2FjNWEzMGNiNDY5NWRlMTNmZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ3MjIzMTA2ZmQ4NzQyYjcwZWEyMzNmOWRjMzU5ZjRiMDJiYmIwNjliNzI4M2VlZjc2MjQ5OTUxNmJkN2I5YzgifQ"
+          "resource": "repo://backend/routers/desktop_supervisor.py#L80-L199",
+          "version": "repo-lines-v1:sha256:22c824a4736e3870b9839470e07329c75748145520a0851821a4e3d23750f61c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4ZDJhYWI5NDA5ZjExMmIzZjczNTk5YjkzYjBhMmNhYWQ3Nzc3OWRlZTkxMzI5ZDY5ZjEzZDYxNjIzNmJmZDQ3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmYTExYzA1NjdkMGE1ZjllOWIxMzVmNjVjZDI1MzcyZGZkNjI4Nzc1ZjdjMWVkMjUzZjhiYWQ0MmRkMmQ2NjY5IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyN2JmYWQxM2IzZGQ0Mjg0M2JlODBmNDQ0MWViYTU5ZmJiNWY0NGM2YzQxYWNhYzVhMzBjYjQ2OTVkZTEzZmQ0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIzNjc3Mzk5YjhmMDg5NjY4NjgxOWYzMDY5YjkxNjc4ZGNmZTNiNjQ3ZWExYjRlYWU3ODljZWFkZTU3Mjk0ZTU2In0"
         },
         {
           "resource": "repo://backend/services/desktop_inference.py#L11-L32",
@@ -59,7 +59,7 @@
       "statement": "The authenticated AI observation intake applies a separate quota and exports typed outcomes through a failure-contained observability helper; B evaluation traces themselves contain only metadata.",
       "evidence": [
         {
-          "resource": "repo://backend/routers/desktop_supervisor.py#L181-L185",
+          "resource": "repo://backend/routers/desktop_supervisor.py#L202-L206",
           "version": "repo-lines-v1:sha256:f93fe3186bedc2a7e41c5a26cebce1b2a0f3e16212841d7530fda40473f49145:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDAxN2U4ZjZhZDZmYzg1Yzc0ZTU2ZTU3MTMzY2JmZmViNmU1OGM0Zjc5MTM5N2Y2YTJmNTNiMWI3NTMxMjRkMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmQ2YjMzNWQ3ZGQ2ZjlhMmNiNTlmYmEyNjkxZjc2YTM4OTlkMWUwNjYyNjVhNDQ4MjYzM2Q2NjBjZWIyYWIxMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDcyMjMxMDZmZDg3NDJiNzBlYTIzM2Y5ZGMzNTlmNGIwMmJiYjA2OWI3MjgzZWVmNzYyNDk5NTE2YmQ3YjljOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
         },
         {
@@ -67,10 +67,28 @@
           "version": "repo-lines-v1:sha256:8f901b441d9d961dcd250c97e92cc33dc562a7341f185e236c2d664649a25556:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2YwOGM1ODg2OTQ0MTQ4ZGM3NTM4YmU2OGUxZDZjODUwMDI4YTVmYjM0ZGQ4NTlkZDk1NDIyYTE5MDI2YTZlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MmI3Y2UxMWU3N2NiZmYzZjIwZDQxYjYxNjRhZjc1MGE3NDJlMGYwZGVmNGY1NzFkYWQ4MjY2NDUzZWY0MTJkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
         }
       ]
+    },
+    {
+      "id": "claim_a5481fccde1e4ea280968fdb290ee80e",
+      "statement": "Supervisor provider HTTP and transport failures retain a correlated degraded observation before returning fixed safe HTTP errors; upstream authentication and billing failures do not become Firebase or desktop-trial failures, and the existing Mac consumer pauses before fresh-observation retries.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_supervisor.py#L142-L199",
+          "version": "repo-lines-v1:sha256:6b28e79328c1bc384457267637d33ddd50366d828783def6cac0f9b006296a40:eyJzZWxlY3RlZExpbmVDb3VudCI6NTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllNWQzZDhiYjVhYTIyMWNlZjg1YWFkYzAxYmRkY2Q3M2RjNTkwOTdiODFmMDJkZmJhZjM0YzdhODA4ZGUzYmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMTFjMDU2N2QwYTVmOWU5YjEzNWY2NWNkMjUzNzJkZmQ2Mjg3NzVmN2MxZWQyNTNmOGJhZDQyZGQyZDY2NjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxMGZjMmIwZjgwOTUxZTVmNmE1NWJkMWMwYzI2Y2FkZmM1ZjE2YTkwNTM0Yzc3Y2EyYjJjYzBkZjEzYTljNjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM2NzczOTliOGYwODk2Njg2ODE5ZjMwNjliOTE2NzhkY2ZlM2I2NDdlYTFiNGVhZTc4OWNlYWRlNTcyOTRlNTYifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_supervisor.py#L153-L259",
+          "version": "repo-lines-v1:sha256:474cc2d496e6d1d6d4e6c22562b5a5d90268a404e1c51dd22f77e6e743f9ef00:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkYzk3YWUzNDhjNzgxN2E1MjA1MTIyYjljYTE2ZTNkYTM2YWNkNGFhNDc3ODU5ODUyMzk5OWExN2RhNGM2NTg5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxODdlNGM2MGU2OTNjYTJkYTJkYWUzNDEzMTY5NWZlYzE0ZDUzYjY0M2Q0MGMyZmExZWRmZTI0NDFiNTg5OTJjIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI1NjgwYjBmMjkyOGFjMGRiZjNkZDRhMzFkNWMxNmU5MTk4YTI5YTYwODZkMzljZmI1N2MyMGY2MGJlMzNhNjVkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI5NDI0OGFkYzUwODk5ZTY4ZWY3YzA1ZDAyZGY2ZWM0MjNkNGM5OTcyMmYyMTRhMDVmZjRhZjFhY2Q0ZWVhYmQ3In0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L441-L450",
+          "version": "repo-lines-v1:sha256:c8ee244971e3c7815c17dab694adee2e660802e513825af08022028c752f4461:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyZGY4NmI0NzZiMGQ2ZGJiZDE2ZmExOWZlMTdhOGJlNzc1MWFiZTNlZTgwN2I1MTBmYjVmOGNkZDBkYWQxNGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIyMzdjMDA3NTU4NTMzYjFhMGEyNDk2MGIwN2E0NzYxMDI0MDI4YTRhZjY5MWVlYTY1NDllZTVkMmU0ZmYzMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZmYTMxOTdhM2NjMzUwMzA4NWY3NTQxNzc0ZDJjOTc1OWRkYTY5ZmY4ZjE4Y2E0MWVlMTQ2MzE1M2U2ZGI2NzYifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-28T11:40:43.597Z"
   }
 }
