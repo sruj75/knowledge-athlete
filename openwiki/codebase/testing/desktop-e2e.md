@@ -20,12 +20,20 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
   - id: openwiki-source-6381aced3f5b7d306db135b9
     resource: repo://desktop/macos/Desktop/Tests/SupervisorAudioTimelineTests.swift
+  - id: openwiki-source-1592e120abd19e2542953971
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorPTTHandoffTests.swift
   - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
     resource: repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift
+  - id: openwiki-source-a35d04e6c48b5c933f303b81
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorVoiceDeliveryJournalTests.swift
   - id: openwiki-source-5868e015ddfc06ba519b2fd9
     resource: repo://desktop/macos/Desktop/Tests/SystemAudioCaptureModeSettingsTests.swift
+  - id: openwiki-source-db3e257106cfb3cc74404f2a
+    resource: repo://desktop/macos/Desktop/Tests/VoiceFallbackSupervisorObservationTests.swift
   - id: openwiki-source-817647037a7a2f498d04beb7
     resource: repo://desktop/macos/Desktop/Tests/VoiceTurnCoordinatorTests.swift
+  - id: openwiki-source-6dc8033075abd90b29974c20
+    resource: repo://desktop/macos/Desktop/Tests/VoiceTurnDomainTests/VoiceReplacementDeadlineTests.swift
   - id: openwiki-source-37264eb7b55d74ddb5f6107a
     resource: repo://desktop/macos/e2e/flows/audio-recording.yaml
   - id: openwiki-source-b877eb680c762b94400c700b
@@ -42,10 +50,10 @@ sources:
     resource: repo://desktop/macos/test.sh
   - id: openwiki-source-5f82b394f0fb8c8ef82a6f25
     resource: repo://scripts/voice-provider-probe.sh
-generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
+generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T20:28:49.985Z
+    at: 2026-09-28T09:46:29.604Z
 ---
 # Desktop end-to-end verification
 
@@ -95,6 +103,10 @@ Run affected XCTest suites in separate processes, for example `xcrun swift test 
 `SupervisorServiceTests` drives the real coordinator with controlled observations and inference completions: corrected segments, echo precedence, empty context, owner/app revocation, single-flight/latest-input behavior, stale guidance and quota pause. `SupervisorAudioTimelineTests` checks stream-to-capture mapping, missing spans and clock/reconnect boundaries. Voice reducer/coordinator and Live input lifecycle tests prove genuine no-microphone supervisor admission, private text transport, warm boundaries, assistant-only journal behavior, PTT priority and no automatic replay after ambiguous failure.
 
 `RealtimeHubSessionInputLifecycleTests` also drives real controller admission through a controllable raw transport and its `setupComplete` event. It verifies provider rejection produces a bounded diagnostic and terminal failure without replay. Separate wire tests require one standalone text message for supervisor and post-tool turns; microphone activity markers remain part of PTT. The direct provider probe uses the same text-only request contract. These checks do not establish physical playback.
+
+`SupervisorPTTHandoffTests` drives the real supervisor admission, playback ownership and physical PTT manager entry with injected PCM, then the production replacement callback through a controlled socket. It checks that the required replacement deadline retains capture, readiness sends input exactly once, release sends one activity end and private automatic guidance is not replayed. Reducer tests separately cover replacement timeout and late readiness while preserving ordinary cold-PTT recovery. These are deterministic transport and state-machine checks, not physical microphone evidence.
+
+`VoiceFallbackSupervisorObservationTests` verifies that only journal-accepted fallback exchanges enter B under the owner/session captured when recording began, and that completion waits for playback drain. Cancellation updates the existing exchange; session or owner changes reject late observations. `SupervisorVoiceDeliveryJournalTests` checks assistant-only identity, preserved correlation, delivery metadata round-trips and the precedence of a genuine journal failure over the speech-delivery label.
 
 `AIEvaluationExportTests` checks the bounded export representation and consent epochs. `APIClientAuthRetryTests` additionally drives actual observation requests while token lookup is suspended: off/on revocation removes queued Chat/B text, and a telemetry 401 neither retries nor signs out. These tests exercise implementation boundaries without proving audible output or natural microphone acquisition.
 

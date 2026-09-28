@@ -94,6 +94,22 @@ struct RealtimeStreamingJournalProjection: Equatable {
       isStreaming: isStreaming
     )
   }
+
+  /// A terminal row means the journal accepted the generated text. Whether it
+  /// was fully spoken is a separate, bounded fact from the playback owner.
+  @MainActor
+  func terminalAssistantTurn(
+    text: String, deliveryOutcome: AIVoiceTurnOutcome?
+  ) -> KernelTurnProjection.ExchangeTurn {
+    var message = assistantMessage(text: text, isStreaming: false)
+    message.voiceDeliveryOutcome = deliveryOutcome
+    message.journalMetadataJSON =
+      message.journalWrite(
+        origin: "realtime_voice", status: .completed,
+        continuityKey: continuityKey, messageSource: messageSource
+      ).metadataJSON
+    return .init(message: message, status: .completed)
+  }
 }
 
 /// Serializes journal writes for one or more realtime turns without retaining

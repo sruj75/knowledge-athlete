@@ -62,6 +62,12 @@ struct VoiceTurnTimelineEntry: Equatable, Sendable {
 struct VoiceNonHubCompletionToken: Equatable, Sendable {
   let turnID: VoiceTurnID
   let providerIdentity: VoiceEffectIdentity
+  let observationAdmission: SupervisorVoiceObservationAdmission?
+}
+
+struct VoiceNonHubConversation: Equatable, Sendable {
+  let userText: String
+  let assistantText: String
 }
 
 enum VoiceNonHubCompletionOutcome: Equatable, Sendable {
@@ -89,6 +95,7 @@ final class VoiceTurnCoordinator {
   private let ownerIDProvider: @MainActor () -> String?
   private let ownerIsCurrent: @MainActor (String) -> Bool
   private let requiresAuthenticatedOwner: Bool
+  private let supervisor: SupervisorService
   private var deadlineCancellations: [DeadlineKey: VoiceTurnDeadlineCancellation] = [:]
   private var presenter: FloatingControlBarState.PTTBarPresenter?
   private var effectHandler: EffectHandler?
@@ -99,6 +106,8 @@ final class VoiceTurnCoordinator {
   private var timelineSequence: UInt64 = 0
   private var turnStartedAt: [VoiceTurnID: ContinuousClock.Instant] = [:]
   private var turnFullAnswerDurationMs: [VoiceTurnID: Int] = [:]
+  // Immutable observation authority only; B's bounded snapshot owns all text.
+  private var voiceObservationAdmissions: [VoiceTurnID: SupervisorVoiceObservationAdmission] = [:]
   private var lastTerminalDelivery: (turnID: VoiceTurnID, delivered: Bool)?
   private var pendingFacts: [VoiceTurnFact] = []
   private var isDrainingEvents = false
@@ -109,6 +118,7 @@ final class VoiceTurnCoordinator {
     model: VoiceTurnModel = .idle,
     scheduler: VoiceTurnDeadlineScheduling? = nil,
     timelineLimit: Int = 256,
+    supervisor: SupervisorService = .shared,
     requiresAuthenticatedOwner: Bool = false,
     ownerIDProvider: @escaping @MainActor () -> String? = { nil },
     ownerIsCurrent: @escaping @MainActor (String) -> Bool = {
@@ -119,6 +129,7 @@ final class VoiceTurnCoordinator {
     self.scheduler = scheduler ?? TaskVoiceTurnDeadlineScheduler()
     self.timelineLimit = max(1, timelineLimit)
     self.requiresAuthenticatedOwner = requiresAuthenticatedOwner
+    self.supervisor = supervisor
     self.ownerIDProvider = ownerIDProvider
     self.ownerIsCurrent = ownerIsCurrent
   }
@@ -163,7 +174,9 @@ final class VoiceTurnCoordinator {
       !Self.isHubRoute(turn.route),
       let providerIdentity = turn.providerEffectIdentity
     else { return nil }
-    return VoiceNonHubCompletionToken(turnID: turn.id, providerIdentity: providerIdentity)
+    return VoiceNonHubCompletionToken(
+      turnID: turn.id, providerIdentity: providerIdentity,
+      observationAdmission: voiceObservationAdmissions[turn.id])
   }
 
   /// Closes a non-hub provider only after its canonical kernel journal operation
@@ -172,7 +185,8 @@ final class VoiceTurnCoordinator {
   @discardableResult
   func completeNonHubProvider(
     _ token: VoiceNonHubCompletionToken,
-    outcome: VoiceNonHubCompletionOutcome
+    outcome: VoiceNonHubCompletionOutcome,
+    conversation: VoiceNonHubConversation? = nil
   ) -> Bool {
     guard requireCurrentOwner(for: token.turnID) != nil else { return false }
     guard activeTurn?.id == token.turnID,
@@ -184,6 +198,14 @@ final class VoiceTurnCoordinator {
       publish(.finish(turnID: token.turnID, reason: .providerFailed))
       return model.lastTerminal?.turnID == token.turnID
         && model.lastTerminal?.reason == .providerFailed
+    }
+
+    if outcome == .journalAccepted, let conversation, let admission = token.observationAdmission {
+      // The existing Chat journal has accepted this pair. Playback remains an
+      // independent fence, so generation alone never claims spoken delivery.
+      supervisor.observeVoice(
+        userText: conversation.userText, assistantText: conversation.assistantText,
+        turnID: token.turnID.description, outcome: "generated", admission: admission)
     }
 
     publish(
@@ -339,8 +361,9 @@ final class VoiceTurnCoordinator {
     turnStartedAt[id] = ContinuousClock.now
     publish(.start(turnID: id, ownerID: ownerID ?? ownerIDProvider(), intent: intent))
     if activeTurnID == id {
+      voiceObservationAdmissions[id] = supervisor.captureVoiceObservationAdmission()
       AIEvaluationReporter.shared.captureTurnStart(turnID: id.description)
-      SupervisorService.shared.observeVoiceActivity(turnID: id.description, active: true)
+      supervisor.observeVoiceActivity(turnID: id.description, active: true)
       DesktopDiagnosticsManager.shared.recordVoiceTurnStarted(
         turnID: id.description,
         intent: intent.rawValue)
@@ -484,7 +507,7 @@ final class VoiceTurnCoordinator {
       case .cancelAllDeadlines(let turnID):
         cancelAll(turnID: turnID)
       case .terminal(let terminal):
-        SupervisorService.shared.observeVoiceActivity(turnID: terminal.turnID.description, active: false)
+        supervisor.observeVoiceActivity(turnID: terminal.turnID.description, active: false)
         let terminalDurationMs = turnStartedAt.removeValue(forKey: terminal.turnID).map(Self.elapsedMilliseconds)
         let playbackDurationMs = turnFullAnswerDurationMs.removeValue(forKey: terminal.turnID)
         let providerFinished =
@@ -492,6 +515,21 @@ final class VoiceTurnCoordinator {
           || (previousTurn?.id == terminal.turnID && previousTurn?.providerFinished == true)
         let fullAnswerDurationMs = providerFinished ? playbackDurationMs : nil
         lastTerminalDelivery = (terminal.turnID, fullAnswerDurationMs != nil)
+        if let admission = voiceObservationAdmissions.removeValue(forKey: terminal.turnID),
+          !Self.isHubRoute(terminal.route)
+        {
+          let outcome: String
+          if fullAnswerDurationMs != nil {
+            outcome = "completed"
+          } else if terminal.reason == .success {
+            outcome = "suppressed"
+          } else if [.cancelled, .interruptedByBargeIn, .explicitInterrupt].contains(terminal.reason) {
+            outcome = "cancelled"
+          } else {
+            outcome = "failed"
+          }
+          supervisor.observeVoice(turnID: terminal.turnID.description, outcome: outcome, admission: admission)
+        }
         DesktopDiagnosticsManager.shared.recordVoiceTurnTerminal(
           turnID: terminal.turnID.description,
           reason: terminal.reason.rawValue,

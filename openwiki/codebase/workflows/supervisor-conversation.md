@@ -16,8 +16,14 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift
   - id: openwiki-source-7b28599e5fadd910008e71c1
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift
+  - id: openwiki-source-b84455af73b70bd37a1e4cd0
+    resource: repo://desktop/macos/Desktop/Sources/Chat/ChatMessage.swift
+  - id: openwiki-source-8cccfc7e26d01ce730e0f49e
+    resource: repo://desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift
   - id: openwiki-source-9fa7197ddcfd64cf31d5f460
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift
+  - id: openwiki-source-d3a88be39f01bdd4a0057cdf
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift
   - id: openwiki-source-d961728264020390f7b3849f
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
   - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
@@ -26,6 +32,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift
   - id: openwiki-source-5235c3e4e03b2e78ba2bd0e0
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSessionTypes.swift
+  - id: openwiki-source-4b674425e211b49d3fcdd759
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift
+  - id: openwiki-source-c4851e5ad253e57eeaa6684e
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift
   - id: openwiki-source-14bf8dc2566284e843496189
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/ProactiveAssistantOrchestrationPolicy.swift
   - id: openwiki-source-577b743ef6d29a4ab11ce6a1
@@ -38,10 +48,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ProactiveAssistantOrchestrationPolicyTests.swift
   - id: openwiki-source-0adbb8127cc707067b3adf30
     resource: repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift
-generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
+generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T20:28:49.985Z
+    at: 2026-09-28T09:46:29.604Z
 ---
 # Supervisor conversation
 
@@ -94,11 +104,15 @@ A private note is an internal expiring value, never a user message, notification
 
 PTT has immediate priority through the normal interruption owner. A `guide_next_turn` note is inserted when the next user input window opens and does not trigger a second response. Automatic turns reject tool execution in code. User-origin tools keep their existing authorization boundary; a private note is not user authorization.
 
+If PTT requires a fresh Live connection after automatic output, the required replacement owns its three-second deadline and retained microphone input. The ordinary one-second warm timeout is cancelled during replacement. Accepted readiness records the input admission before the manager flushes captured PCM, preventing an unnecessary second replacement. A short rescue deadline remains until that flush is admitted; ordinary cold PTT retains its existing warm recovery.
+
 The automatic note is consumed before transport submission. If initiation might have reached Gemini and the connection fails, that turn is cancelled without replay or batch transcription recovery. User PTT keeps its existing same-provider and bounded batch recovery. Automatic failure diagnostics record only the fixed admission/send/provider stage, bounded transport kind/domain/code and Boolean state; neither the note nor the raw provider reason is logged. [Chat and voice](chat-voice.md) explains both paths.
 
 ## History, delivery and improvement
 
-Automatic speech records an assistant-only entry in the existing Node canonical journal through the controller's `TurnPersistence` extension. Its opaque continuity key relates it to the B decision; no invented C message or note is persisted. Provider completion plus actual PCM playback drain gates completed delivery. Interrupted or failed text remains distinguishable from a fully spoken answer. B receives the direct utterance and terminal playback outcome, with ambient overlap suppressed.
+Automatic speech records an assistant-only entry in the existing Node canonical journal through the controller's `TurnPersistence` extension. Its opaque continuity key relates it to the B decision; no invented C message or note is persisted. Provider completion plus actual PCM playback drain gates completed delivery. Journal-accepted generated text is saved as `completed`, while bounded `voiceDeliveryOutcome` metadata separately preserves completed, cancelled, failed or suppressed playback. Chat can restore “Interrupted”, “Voice reply incomplete” or “Not spoken”; a genuine journal failure retains its save warning. B receives the direct utterance and terminal playback outcome, with ambient overlap suppressed.
+
+When user PTT falls back through batch transcription and Chat, the voice coordinator sends the journal-accepted user/assistant pair into this same bounded B snapshot. Observation authority is captured at the beginning of the physical turn and retained through provider completion; owner or supervisor-session changes reject delayed callbacks. Generation does not imply delivery: playback drain, cancellation or failure updates the existing exchange with its terminal outcome. This does not add a conversation store or a separate telemetry path.
 
 Langfuse manages `intentive-live-system` and `intentive-supervisor-system`. The backend returns A's prompt receipt with the Live credential, and Swift pins it to that physical connection; B resolves its prompt per evaluation. The SDK cache serves available prompts. Cold failure preserves A's existing local conversation instructions and makes B return `wait` with an unavailable-prompt outcome. Executable permissions, tool authority and response schemas remain in code.
 

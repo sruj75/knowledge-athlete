@@ -286,7 +286,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     XCTAssertEqual(reducer.deadlines.providerReconnect, 3)
   }
 
-  func testLateReplacementReadyCannotReclaimHubWarmBatchFallback() {
+  func testLateReplacementReadyCannotReclaimReplacementTimeoutBatchFallback() {
     let turnID = VoiceTurnID()
     let replacementResponseID = VoiceResponseID("late-replacement")
     var model = reduce(.idle, .start(turnID: turnID, ownerID: nil, intent: .hold)).model
@@ -304,7 +304,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     model = reduce(model, .finalize(turnID: turnID)).model
     model = reduce(model, .hubCommitDeferredForReplacement(turnID: turnID)).model
 
-    let fallback = reduce(model, .deadlineFired(turnID: turnID, deadline: .hubWarm))
+    let fallback = reduce(model, .deadlineFired(turnID: turnID, deadline: .bargeInReplacement))
 
     XCTAssertEqual(fallback.model.turn?.route, .managedBatch)
     XCTAssertEqual(fallback.model.turn?.phase, .finalizing)
@@ -317,7 +317,7 @@ final class VoiceTurnReducerTests: XCTestCase {
     XCTAssertTrue(fallback.model.turn?.deadlines.contains(.transcription) == true)
     XCTAssertTrue(
       fallback.effects.contains(
-        .fallbackToTranscription(turnID: turnID, reason: .hubWarmTimeout)))
+        .fallbackToTranscription(turnID: turnID, reason: .bargeInReplacementTimeout)))
 
     let lateReady = reduce(
       fallback.model,

@@ -28,18 +28,14 @@ extension FloatingControlBarManager {
   func recordSupervisorRealtimeExchange(
     projection: RealtimeStreamingJournalProjection,
     assistantText: String,
-    interrupted: Bool
+    deliveryOutcome: AIVoiceTurnOutcome
   ) async -> Bool {
     guard RuntimeOwnerIdentity.currentOwnerId() == projection.ownerID,
       let provider = sharedFloatingProvider
     else { return false }
     return await provider.kernelTurnProjection.recordExchange(
       surface: projection.admissionSurface,
-      turns: [
-        .init(
-          message: projection.assistantMessage(text: assistantText, isStreaming: false),
-          status: interrupted ? .failed : .completed)
-      ],
+      turns: [projection.terminalAssistantTurn(text: assistantText, deliveryOutcome: deliveryOutcome)],
       origin: "realtime_voice", continuityKey: projection.continuityKey,
       messageSource: "supervisor", ownerID: projection.ownerID) != nil
   }
@@ -63,7 +59,7 @@ extension FloatingControlBarManager {
     projection: RealtimeStreamingJournalProjection,
     userText: String,
     assistantText: String,
-    status: KernelJournalTurnStatus = .completed
+    deliveryOutcome: AIVoiceTurnOutcome? = nil
   ) async -> Bool {
     guard RuntimeOwnerIdentity.currentOwnerId() == projection.ownerID,
       let provider = sharedFloatingProvider
@@ -78,11 +74,12 @@ extension FloatingControlBarManager {
     }
     // Retry the assistant mutation so a transient nil does not leave the row
     // stuck in .streaming after the user row is already committed.
+    let terminal = projection.terminalAssistantTurn(text: assistantText, deliveryOutcome: deliveryOutcome)
     for _ in 0..<3 {
       if await provider.kernelTurnProjection.updateTurn(
         surface: surface,
-        message: projection.assistantMessage(text: assistantText, isStreaming: false),
-        status: status, ownerID: projection.ownerID) != nil
+        message: terminal.message,
+        status: terminal.status, ownerID: projection.ownerID) != nil
       {
         return true
       }

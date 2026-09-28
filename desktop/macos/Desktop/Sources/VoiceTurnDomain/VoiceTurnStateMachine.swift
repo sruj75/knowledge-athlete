@@ -1386,6 +1386,9 @@ struct VoiceTurnReducer {
       model.turn?.providerEffectIdentity = identity
       model.turn?.sessionID = nil
       model.turn?.providerFinished = false
+      // Required replacement owns the captured input and its longer deadline.
+      // The ordinary warm hint must not race a healthy fresh-session setup.
+      cancel(.hubWarm, in: &model, effects: &effects)
       if shouldProjectProviderConnectionAsAwaitingResponse(turn) {
         model.turn?.phase = .awaitingResponse
         model.turn?.projection.isResponseActive = false
@@ -1410,6 +1413,10 @@ struct VoiceTurnReducer {
       model.turn?.providerConnection = .ready
       model.turn?.sessionID = sessionID
       bindProviderReadyHubRoute(sessionID: sessionID, in: &model)
+      if model.turn?.route == .hubWarmWait {
+        // Keep a bounded rescue if the manager never admits its buffered PCM.
+        schedule(.hubWarm, after: deadlines.hubWarm, in: &model, effects: &effects)
+      }
       if shouldProjectProviderConnectionAsAwaitingResponse(turn) {
         model.turn?.phase = .awaitingResponse
       }
@@ -1851,9 +1858,9 @@ struct VoiceTurnReducer {
       case .captureStart:
         terminate(&model, reason: .captureFailed, effects: &effects)
       case .hubWarm:
-        // A replacement may still be connecting when the bounded warm window
-        // expires. Once batch STT owns the turn, a late provider-ready callback
-        // must not restore the hub route or replay the same capture there.
+        // This covers ordinary warming and missing manager admission after a
+        // replacement is ready. Once batch STT owns the turn, late callbacks
+        // must not restore the hub route or replay the same capture.
         cancel(.bargeInReplacement, in: &model, effects: &effects)
         cancel(.deferredCommit, in: &model, effects: &effects)
         cancel(.providerResponse, in: &model, effects: &effects)
@@ -1979,7 +1986,14 @@ struct VoiceTurnReducer {
       return turn.phase == .awaitingResponse
     case .pendingTools, .screenEvidenceProtocol:
       return turn.phase == .awaitingTools
-    case .deferredCommit, .bargeInReplacement:
+    case .bargeInReplacement:
+      if case .replacing = turn.providerConnection,
+        turn.phase.isRecording || turn.phase == .finalizing
+      {
+        return true
+      }
+      return turn.phase == .awaitingResponse && turn.hubCommitPending
+    case .deferredCommit:
       return turn.phase == .awaitingResponse && turn.hubCommitPending
     case .playbackDrain:
       if case .playing = turn.phase { return true }
@@ -2007,23 +2021,9 @@ struct VoiceTurnReducer {
     acceptsProviderOutput(turn.phase) || turn.hubCommitPending
   }
 
-  /// Binds a freshly ready provider session to the hub route without stealing a
-  /// manager-owned warm capture.
-  ///
-  /// `.hubWarmWait` is this reducer's record that `PushToTalkManager` — not the
-  /// controller — still holds the turn's PCM in its bounded buffer, and is
-  /// waiting for the `prepareHubInput` effect that only `hubReady` emits. That
-  /// effect is the single place which flushes the manager buffer and commits a
-  /// released turn. Rewriting the route to `.hub` from any other
-  /// provider-ready transition both orphans that buffer (the controller replays
-  /// its own, unrelated buffer) and silently disarms the `.hubWarm` rescue
-  /// deadline, because `deadlineMatchesCurrentState` admits `.hubWarm` only
-  /// while the route reads `.hubWarmWait`. The turn is then parked in
-  /// `.finalizing` with no remaining deadline until the provider's idle socket
-  /// teardown minutes later.
-  ///
-  /// Every provider-ready transition must bind the route through here so a new
-  /// admission path cannot reintroduce that clobber.
+  /// Preserve `.hubWarmWait` while the manager owns buffered PCM. Only
+  /// `hubReady` emits `prepareHubInput` to flush it and commit a released turn.
+  /// Provider-ready events must keep that route and its admission rescue intact.
   private func bindProviderReadyHubRoute(
     sessionID: VoiceSessionID,
     in model: inout VoiceTurnModel

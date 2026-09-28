@@ -34,8 +34,14 @@ extension RealtimeHubController {
     assistantText: String,
     interrupted: Bool,
     idempotencyKey: String,
-    acceptedSpawnOwnerID: String?
+    acceptedSpawnOwnerID: String?,
+    voiceDeliveryOutcome: AIVoiceTurnOutcome? = nil
   ) async -> Bool {
+    // Supervisor delivery must come from the playback/terminal fence, never
+    // from accepting generated text. Reject a contradictory completed claim.
+    if idempotencyKey.hasPrefix("supervisor:") {
+      guard let voiceDeliveryOutcome, !(interrupted && voiceDeliveryOutcome == .completed) else { return false }
+    }
     guard AuthorizedToolExecution.isOwnerCurrent(ownerID) else {
       log("RealtimeHub: refusing voice journal write after authenticated owner changed")
       return false
@@ -71,7 +77,7 @@ extension RealtimeHubController {
       userText: userText,
       assistantText: assistantText,
       continuityKey: idempotencyKey,
-      status: idempotencyKey.hasPrefix("supervisor:") && interrupted ? .failed : .completed
+      deliveryOutcome: voiceDeliveryOutcome
     ) {
     case .completed(let accepted):
       return accepted
@@ -94,10 +100,11 @@ extension RealtimeHubController {
           guard AuthorizedToolExecution.isOwnerCurrent(ownerID) else { return false }
           let accepted: Bool
           if idempotencyKey.hasPrefix("supervisor:") {
+            guard let voiceDeliveryOutcome else { return false }
             accepted = await FloatingControlBarManager.shared.recordSupervisorRealtimeExchange(
               projection: RealtimeStreamingJournalProjection(
                 ownerID: ownerID, continuityKey: idempotencyKey, admissionSurface: surface),
-              assistantText: assistantText, interrupted: interrupted)
+              assistantText: assistantText, deliveryOutcome: voiceDeliveryOutcome)
           } else {
             accepted = await FloatingControlBarManager.shared.recordExchange(
               surface: surface,
@@ -135,7 +142,8 @@ extension RealtimeHubController {
       enqueueTurnPersistence(idempotencyKey: payload.continuityKey, retainingReceipt: true) { [weak self] in
         await self?.persistTurnDirectlyToKernel(
           ownerID: payload.ownerID, userText: "", assistantText: payload.assistantText,
-          interrupted: false, idempotencyKey: payload.continuityKey, acceptedSpawnOwnerID: nil) ?? false
+          interrupted: false, idempotencyKey: payload.continuityKey, acceptedSpawnOwnerID: nil,
+          voiceDeliveryOutcome: .completed) ?? false
       }
     }
     let idempotencyKey = turnIdempotencyKey

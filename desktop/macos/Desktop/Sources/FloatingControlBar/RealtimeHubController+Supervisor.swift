@@ -216,7 +216,7 @@ extension RealtimeHubController {
       _ = enqueueTurnPersistence(idempotencyKey: key) { [weak self] in
         await self?.persistTurnDirectlyToKernel(
           ownerID: ownerID, userText: "", assistantText: spoken, interrupted: !delivered,
-          idempotencyKey: key, acceptedSpawnOwnerID: nil) ?? false
+          idempotencyKey: key, acceptedSpawnOwnerID: nil, voiceDeliveryOutcome: terminalOutcome) ?? false
       }
     }
   }

@@ -263,7 +263,9 @@ extension KernelJournalTurn {
         ChatResource.decodeResourcesFromPersistence(resourcesJSON)
       ),
       turnOwner: owner,
-      journalStatus: status
+      journalStatus: status,
+      voiceDeliveryOutcome: (metadata["voiceDeliveryOutcome"] as? String).flatMap(AIVoiceTurnOutcome.init(rawValue:)),
+      journalMetadataJSON: metadataJSON
     )
   }
 
@@ -284,21 +286,8 @@ extension ChatMessage {
     sessionId: String? = nil,
     messageSource: String? = nil
   ) -> KernelJournalTurnWrite {
-    var metadata: [String: Any] = [:]
-    if let continuityKey, !continuityKey.isEmpty { metadata["continuityKey"] = continuityKey }
-    if let notificationContext { metadata["notificationContext"] = notificationContext }
-    // Preserve the local session and source context with the canonical turn so
-    // local projections can reconstruct the shared typed/voice timeline.
-    if let sessionId { metadata["sessionId"] = sessionId }
-    if let messageSource { metadata["messageSource"] = messageSource }
-    let metadataJSON: String
-    if let data = try? JSONSerialization.data(withJSONObject: metadata),
-      let encoded = String(data: data, encoding: .utf8)
-    {
-      metadataJSON = encoded
-    } else {
-      metadataJSON = "{}"
-    }
+    let metadataJSON = encodedJournalMetadata(
+      continuityKey: continuityKey, sessionId: sessionId, messageSource: messageSource)
     return KernelJournalTurnWrite(
       turnId: id,
       role: sender == .user ? "user" : "assistant",
@@ -312,6 +301,29 @@ extension ChatMessage {
     )
   }
 
+  private func encodedJournalMetadata(
+    continuityKey: String? = nil, sessionId: String? = nil, messageSource: String? = nil
+  ) -> String {
+    var metadata =
+      journalMetadataJSON.flatMap { raw in
+        try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any]
+      } ?? [:]
+    let continuityKey = continuityKey ?? clientTurnId
+    if let continuityKey, !continuityKey.isEmpty { metadata["continuityKey"] = continuityKey }
+    if let notificationContext { metadata["notificationContext"] = notificationContext }
+    // Preserve the local session and source context with the canonical turn so
+    // local projections can reconstruct the shared typed/voice timeline.
+    if let sessionId { metadata["sessionId"] = sessionId }
+    if let messageSource { metadata["messageSource"] = messageSource }
+    metadata["voiceDeliveryOutcome"] = voiceDeliveryOutcome?.rawValue
+    if let data = try? JSONSerialization.data(withJSONObject: metadata),
+      let encoded = String(data: data, encoding: .utf8)
+    {
+      return encoded
+    }
+    return "{}"
+  }
+
   func journalUpdate(status: KernelJournalTurnStatus? = nil) -> KernelJournalTurnUpdate {
     KernelJournalTurnUpdate(
       turnId: id,
@@ -321,7 +333,7 @@ extension ChatMessage {
       appendContentBlocksJSON: nil,
       resourcesJSON: ChatResource.encodeResourcesForPersistence(displayResources) ?? "[]",
       appendResourcesJSON: nil,
-      metadataJSON: nil
+      metadataJSON: voiceDeliveryOutcome == nil ? nil : encodedJournalMetadata()
     )
   }
 }

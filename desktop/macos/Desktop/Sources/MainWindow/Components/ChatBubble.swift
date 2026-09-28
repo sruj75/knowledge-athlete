@@ -197,8 +197,8 @@ struct ChatBubble: View {
       .frame(maxWidth: 280)
     }
 
-    if message.sender == .ai && !message.isStreaming && message.journalStatus == .failed {
-      Text("Couldn't save this reply")
+    if let statusLabel = message.journalDeliveryStatusLabel {
+      Text(statusLabel)
         .scaledFont(size: OmiType.micro, weight: .medium)
         .foregroundColor(.orange.opacity(0.9))
     }

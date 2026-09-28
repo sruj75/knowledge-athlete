@@ -77,7 +77,7 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await overview(page);
     await expect(content(page)).toHaveAttribute("data-area-count", "23");
     await expect(content(page)).toHaveAttribute("data-node-count", "205");
-    await expect(content(page)).toHaveAttribute("data-edge-count", "409");
+    await expect(content(page)).toHaveAttribute("data-edge-count", "410");
     await expect(page.getByTestId("area-diagram")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^(Zoom in|Zoom out|Fit diagram)$/ })).toHaveCount(0);
     await expect(page.getByTestId("area-card-AREA_01")).toHaveAccessibleName(/Start, sign in, permissions and owner changes/);
@@ -113,8 +113,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     expect(order("AREA_02").x).toBeGreaterThan(order("AREA_16").x);
     expect(order("AREA_08").y).toBeGreaterThan(order("AREA_10").y);
     const groupedEdges = await page.locator(".map-connection-group").evaluateAll(groups => groups.flatMap(group => JSON.parse(group.getAttribute("data-edge-ids")!) as string[]));
-    expect(groupedEdges).toHaveLength(245);
-    expect(new Set(groupedEdges).size).toBe(245);
+    expect(groupedEdges).toHaveLength(246);
+    expect(new Set(groupedEdges).size).toBe(246);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     const extent = await canvas(page).evaluate(element => {
       const content = element.querySelector('[data-testid="diagram-content"]')!.getBoundingClientRect();
@@ -249,7 +249,7 @@ test("detail views inspect and navigate connected subsystems without replacing t
   }
 });
 
-test("all 23 cached views preserve 205 nodes and 409 connections including areas without internal edges", async ({ page }) => {
+test("all 23 cached views preserve 205 nodes and 410 connections including areas without internal edges", async ({ page }) => {
   test.setTimeout(120_000);
   await overview(page);
   const errors: string[] = [];
@@ -285,10 +285,10 @@ test("all 23 cached views preserve 205 nodes and 409 connections including areas
   }
   expect(nodes.size).toBe(205);
   expect(internalEdges.size).toBe(164);
-  expect(externalEdges).toHaveLength(245);
+  expect(externalEdges).toHaveLength(246);
   expect(inflows.sort()).toEqual([...externalEdges].sort());
   expect(outflows.sort()).toEqual([...externalEdges].sort());
-  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(409);
+  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(410);
   for (const id of ["AREA_01", "AREA_07", "AREA_15", "AREA_20", "AREA_21"]) {
     await focusArea(page, id);
     expect(await areaSvg(page, id).getAttribute("id")).toBe(svgIds.get(id));

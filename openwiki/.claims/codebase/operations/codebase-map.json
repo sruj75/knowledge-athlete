@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8fedd41f9831c69ecd88201927b6f907ae6cd8f7190b03a00be9c95e34196f74",
+  "pageVersion": "sha256:907b93063450666a4581ab187b7451185152a6d91f74a92e76eeab0269cc0fa9",
   "claims": [
     {
       "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
@@ -48,7 +48,7 @@
     },
     {
       "id": "claim_8bf03b0f057a49b2b094dfea405bbd36",
-      "statement": "The manifest-selected local and CI viewer suite builds the static page, tests source provenance and spatial layout, and exercises complete 23-area/205-node/409-edge rendering, click-only navigation, native scrolling, cache reuse, reduced motion, error recovery and exact commit links in Chromium; CI provisioning follows the same manifest selection.",
+      "statement": "The manifest-selected local and CI viewer suite builds the static page, tests source provenance and spatial layout, and exercises complete 23-area/205-node/410-edge rendering, click-only navigation, native scrolling, cache reuse, reduced motion, error recovery and exact commit links in Chromium; CI provisioning follows the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -64,7 +64,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:ef9247fe5c12bf0e1b20b66211cafc35acfc1d72186b13d7261afccbd5c3466d"
+          "version": "repo-file-v1:sha256:8a2205daba566481544c1d7b6bda9c0c5ef74ddaf9898dbd3310b5b01e9c94e7"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -116,7 +116,7 @@
     },
     {
       "id": "claim_cb5b5fd44b67482d9472320d0de9d0d4",
-      "statement": "The selected subsystem shows independently scrollable Inflow and Outflow lists directly below its title in reserved space, with clickable remote subsystems, per-area scroll reset and keyboard-focus restoration; browser checks account for all 245 cross-subsystem edges on both sides.",
+      "statement": "The selected subsystem shows independently scrollable Inflow and Outflow lists directly below its title in reserved space, with clickable remote subsystems, per-area scroll reset and keyboard-focus restoration; browser checks account for all 246 cross-subsystem edges on both sides.",
       "evidence": [
         {
           "resource": "repo://tools/codebase-map/app/components/map-chrome.tsx#L24-L71",
@@ -132,7 +132,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L250-L298",
-          "version": "repo-lines-v1:sha256:16d116c97d161e50326620879e433be97db8c96dd19a0798cea42036632b8ea0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyYTQ3MzBiZjk2OTkzMzgzZGNhODc5MzUyNzlkZjBjNTlhN2Q3MWRiNjBhMzhmZTlmMmYwY2U2MmI0OTIyNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMWVhMTVhMGY3YjFkNzc0MWMwOTJkZTgwMmQzOWZkYTQ0MzRlY2YwNWY5NDM1OGM2ZjM2OWNhOTExNmUyMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0M2QyZGZiMWFhNWQ1YWI4YWVhZDBlNWI3M2JiYTc4OTdmZDUyZDZlMzYyNTA1MTY4YTAyM2UyYTFmYTM2ZmUifQ"
+          "version": "repo-lines-v1:sha256:d4cdc1d0a572d49f17d1a8dc4b398b16c416be4602dabbb25e13cc70f6a1d83e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRkZDRiN2MwYWJjMTY1OGE5YjEwNjZlMWIwYzQ5OTcyYjBiZTMzMDBiMGRlODYxZTkyNTUxNzQ4Mjk1Y2ZjNTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMWVhMTVhMGY3YjFkNzc0MWMwOTJkZTgwMmQzOWZkYTQ0MzRlY2YwNWY5NDM1OGM2ZjM2OWNhOTExNmUyMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0M2QyZGZiMWFhNWQ1YWI4YWVhZDBlNWI3M2JiYTc4OTdmZDUyZDZlMzYyNTA1MTY4YTAyM2UyYTFmYTM2ZmUifQ"
         }
       ]
     },
@@ -154,7 +154,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L75-L123",
-          "version": "repo-lines-v1:sha256:39e451798a642019e79859b032a18d1241794d998a911e584d644089fcfe4d9c:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MDJhYmQ0YTAzY2Y3ZTg4NWU0MzZhMmU0ZTE2ZmMwNzhiODdmNTEyMmUyYTU2NjFjZjM1ZGY2NzQyYWI5YWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ZDU4YmJiM2JmMTE3YjM3NTQ2NDJiMzA4ZGZkMGVlMzQwOTM2ZmM1YTFjN2IwYmIyOThjY2Y0YzkxZGZmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlYTM5MWE1ZDI0N2ZkYzA2ZDg0Y2E1YzVmNGU0MmVkZWY5YjBkM2M4ZTUzY2I5MTVlMmQxMDQ1ZDQ2YzY0MmQifQ"
+          "version": "repo-lines-v1:sha256:a8b65c6f2ff2a9e57ab214b30d135c81895ffc5ee39145e61b04cea0f32ec956:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MDJhYmQ0YTAzY2Y3ZTg4NWU0MzZhMmU0ZTE2ZmMwNzhiODdmNTEyMmUyYTU2NjFjZjM1ZGY2NzQyYWI5YWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ZDU4YmJiM2JmMTE3YjM3NTQ2NDJiMzA4ZGZkMGVlMzQwOTM2ZmM1YTFjN2IwYmIyOThjY2Y0YzkxZGZmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlYTM5MWE1ZDI0N2ZkYzA2ZDg0Y2E1YzVmNGU0MmVkZWY5YjBkM2M4ZTUzY2I5MTVlMmQxMDQ1ZDQ2YzY0MmQifQ"
         }
       ]
     },
@@ -209,6 +209,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-09-28T09:46:29.604Z"
   }
 }

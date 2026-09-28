@@ -1,0 +1,5 @@
+{
+  "changes": [
+    "Improved push-to-talk replies after automatic check-ins, included fallback replies in Supervisor context, and distinguished interrupted speech from chat save failures"
+  ]
+}

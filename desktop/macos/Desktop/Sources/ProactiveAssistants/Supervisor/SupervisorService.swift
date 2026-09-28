@@ -1,6 +1,11 @@
 import Combine
 import Foundation
 
+struct SupervisorVoiceObservationAdmission: Equatable, Sendable {
+  let sessionID: String
+  let authorization: RuntimeOwnerAuthorizationSnapshot
+}
+
 /// One background reader. This service never writes product records or presents
 /// a notification; accepted guidance crosses the existing voice owner boundary.
 @MainActor
@@ -147,6 +152,22 @@ final class SupervisorService: ObservableObject {
     if let owner, owner != snapshot { endSession() }
     owner = snapshot
     return true
+  }
+
+  func captureVoiceObservationAdmission() -> SupervisorVoiceObservationAdmission? {
+    guard admit(nil), let owner else { return nil }
+    return .init(sessionID: sessionID, authorization: owner)
+  }
+
+  func observeVoice(
+    userText: String? = nil, assistantText: String? = nil, turnID: String, outcome: String,
+    admission: SupervisorVoiceObservationAdmission
+  ) {
+    // A provider callback cannot adopt a new monitoring session after capture began.
+    guard admission.sessionID == sessionID, owner == admission.authorization else { return }
+    observeVoice(
+      userText: userText, assistantText: assistantText, turnID: turnID, outcome: outcome,
+      authorizationSnapshot: admission.authorization)
   }
 
   /// App/window identity is known before pixels are ready. Revoke old advice

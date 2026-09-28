@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:97ab4fdd582a0961930955e61f7aef5c9a03fdae1fa005ea3a627c2c26d1457f",
+  "pageVersion": "sha256:54a65243df60a0d86bd14639ca9ef3b071c4f5b1a64aefc6b32f14ce8b0d8f1a",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -113,8 +113,8 @@
       "statement": "The complete authenticated A-B-C speaker/headphone interaction and feedback/export checks live in a manual flow rather than automatic T2/T3 acceptance.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L42",
-          "version": "repo-lines-v1:sha256:82d51c08b367d2284cc85d439bc628ba7f45e01153b301f91e15d32e3501765d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L55",
+          "version": "repo-lines-v1:sha256:e14aa337ff725da505a8e1018bbfc749223fc0561ee94b80a10f18ab779eb806:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
     },
@@ -139,10 +139,38 @@
           "version": "repo-lines-v1:sha256:e5e235169fea670939e6155a2c89a584b4e733a70f00c96fa9d69b10101c8208:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTkxOWUwM2UwNjRlMzU1YTk3Y2YwY2Y4MWZmNDc3ODQ2OGM4ZmIxNTI1OWI1NjA0OTgyMzZjZGY3NTRiNTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MDMyZTk2NGQwOTMyMzUxZTVkMTg1MjY5MjgxYjE3MWEzYTA5YjA4YjI4NmU2NjFlYTQ3MDMyM2M4MmViNGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YzdiZGZlYTAwODY5NjIyNGUxNjE5ZGJkMDQzMjI5YzM0MDEwYzczNTdhMWJiODI3MmFiOWY3NWY5MjUxN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1M2IxNjA1YWRlNWQ5MGRmMmNlMzIyZDNlMjVjMzI1OTIwNWQ5MTY3ZjdlNWFjY2VjYzRjNzZlODEwMWRkZmQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_becc7a6e5e2d49f6957432f8103f92f6",
+      "statement": "Deterministic supervisor handoff tests exercise actual manager admission and replacement readiness with injected PCM, requiring one input flush and one activity end without private guidance replay; reducer tests retain distinct required-replacement and ordinary cold-PTT deadlines.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorPTTHandoffTests.swift#L10-L159",
+          "version": "repo-lines-v1:sha256:93f1d4cf2a678a9af5aa01144a49644ea450636fa6c62253adc0eb38f263dd1f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJhZDBhYmMyYWRmMDBmN2YxNmVkYjZjNzI3NjEwYWRiNmQzNTM1MTA2NzM0MmNkNWRhZTg1YjhjMDBhMDI3Yzc5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI2YmZiMDVjNzczZmViNmVkNTcyYWEzZGEyMWFiY2VlOTYzNDU0ZDk4YmNkZjdiODUwMWFhM2IzOThhODg1OTM0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4M2ZhZmY0Mjk2Y2Y4YzFiMjFhOTBmMDE1ZDc2YjA5OWZkZWY1YmQzNzg4NzIxODMwOWNiYWUxZjY1OWQyMjJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4NTEyOWE4Y2NkYzVkZDUzYjIzODAzZjQ3YTYwMGU5OTU2ZWJmMzdhOTM3YTI0YjEwMThhODY0ZWZkMTAwYzc0In0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/VoiceTurnDomainTests/VoiceReplacementDeadlineTests.swift#L8-L73",
+          "version": "repo-lines-v1:sha256:5baccd771ba906d305b70df025a82086f3e4097bff71afd4d43d7ce3fd38b828:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzYmY0ODg1YzA1NDZjNjQ0MjJjNTE3YTRjNGNlMjNlOGYxZDM1NmYyMTNmNmIzZDAwMDIwNGE2MjJjYTJmMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0OWYzZjE4OTcwMTAzZjY0MDczZTk1OWJiOTdjNWZhNTFlNWJhM2VlMjUyNTIzZTE3ODVmMjQyMGI4YTUxYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzMDkzZGI4OWI2YjQ1OTFhNjI3NjE1MjNkMmMwNTAyNTU4M2M5MTIxMGU3YTdlMWUxNTEwMWQyMmIzMjhjMTQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_3786abe4ce1a47e8afc88553f0d6b243",
+      "statement": "Fallback observation tests require journal acceptance and original owner/session admission, separate generation from playback completion, and reject revoked or cancelled completions; delivery journal tests preserve assistant-only identity and correlation while keeping actual journal failure distinct from speech interruption.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorVoiceDeliveryJournalTests.swift#L7-L101",
+          "version": "repo-lines-v1:sha256:2a78fff0cad596d1e436a7524c8c784d1033aad12b2eb162061bae4aed3598db:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGI5NWMxODRmYmZjNDdhNjczMDNhMGZjMDVhYzNkNmZmYWNjNmIzNTM2OGQ2NjIyNzA2YWQ2MjVmNWQ2OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2NzhjOWJiZjZmMDQ0YTM5NGZjMWEyZWUzNmMyYzQzM2U3NDY3MDM5ZmViMTcyMmQwNzE2NDgyOWU2MDkzMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkOTNiNWEzMDgzZGQxMGZhOWI3OGQ3MDFkN2M0ZGFmYmQyMGQ1ODI3NmViZDI1YWVkMmY1YzlkYmZhODYxOGQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/VoiceFallbackSupervisorObservationTests.swift#L78-L182",
+          "version": "repo-lines-v1:sha256:9e83367f091cd9f5f1b25d3ccff7aa4f797cd98391822cda88532619ab42d27d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJmODZkNWZjZGVjYTk2Mjg2NGZmZWVkYjYyNWM4N2M0NTFhYTY3OWU3YTlhYzk3Y2NkYTIwOWIzMGY1OWNkZmI5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlODZmOWY2ZDRmODA5Nzc5MmM2ZjZmMGVjY2QwYTA4ZGNiY2M3YTJiMzdkZWJmMTgxMTRkNWQ3NDVkZTkxZDJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MSwiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIn0"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T20:28:49.985Z"
+    "at": "2026-09-28T09:46:29.604Z"
   }
 }

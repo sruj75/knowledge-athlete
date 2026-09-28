@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:81e895ee2f3eadfcd03d17ef6e78e4ee8a65313625c385a071b1ede8d12c8b92",
+  "pageVersion": "sha256:e2bf90494e7924ec2a8e4f1acace6f69b608ebb51ea71610c39564575a0a7d2d",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -74,7 +74,7 @@
     },
     {
       "id": "claim_cd91b439989d45c89302142c09043825",
-      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 205 nodes and 409 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
+      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 205 nodes and 410 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -90,7 +90,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:ef9247fe5c12bf0e1b20b66211cafc35acfc1d72186b13d7261afccbd5c3466d"
+          "version": "repo-file-v1:sha256:8a2205daba566481544c1d7b6bda9c0c5ef74ddaf9898dbd3310b5b01e9c94e7"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -100,17 +100,39 @@
     },
     {
       "id": "claim_46bee518ebab40889017a36a7436f6c6",
-      "statement": "The supervisor conversation flow is manual and separately exercises cold/warm admission, physical speaker/headphone PTT, feedback, consent revocation and provider/permission failures with bounded diagnostics on a named authenticated development bundle.",
+      "statement": "The manual supervisor flow separately qualifies named-bundle authenticated cold/warm speech, physical speaker/headphone PTT with exactly-once replacement admission and bounded fallback observation, persisted delivery status, feedback, consent revocation and bounded failure diagnostics.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L45",
-          "version": "repo-lines-v1:sha256:82d51c08b367d2284cc85d439bc628ba7f45e01153b301f91e15d32e3501765d:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L55",
+          "version": "repo-lines-v1:sha256:e14aa337ff725da505a8e1018bbfc749223fc0561ee94b80a10f18ab779eb806:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_4be8e2a61fba4aa2943ae71e21e1e557",
+      "statement": "Assistant feedback controls require a current in-memory evaluation receipt and share the metadata hover/focus reveal; a restored journal row alone does not restore a receipt after app restart.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift#L10-L34",
+          "version": "repo-lines-v1:sha256:878cc68bd56be22a4e66da25f409f5bf9f30540ade459929bcbd32cef2166d7b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5YjZhNGUwYmI3MmZmOTEwOTc5OWZlNTEwNDI4MTI3NmM3YzJjMmZhZmI4Yzc3MGNhZTVkNmRkYThlODExNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0MTllNjZhZDU1NGFjMmZkMTE3MDAwZTA4MjQyMTM4ZTZkOWM0MzcxYWM2NDI4YWYyMTRlOWVhOTNhOWY5ZWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L127-L155",
+          "version": "repo-lines-v1:sha256:a06e67face1bbecd36bdc478b3309aab57db6045741306a8f818441d893dad3b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmOWE1ZmI4NzkwNmRiMDkyOTY1MmQ5MTc3YTU4ZWMyMzk2OWRjODI0MDgzZGM5NTVhODNkZDE1ZmU0MTBhYzMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmN2M5NmJkZTU5ZjUxMTExODE0NjdiMTY4NGUxMzhmMjAyZjM1MzMyM2Y4OGNiNDgzYmUwZGM0ZmEyNWFiMDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFhZDA5YjMzMTEyMGIwMTNjMDdhZDgxNzhkYmRlYjQ5YjhlNmZmNzM4ZDJmMWY5ZWQ1MTcxOGY1NzMyZTliY2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjZTI3YzFjYjQ3ODY5ZTVmNTY4OGFjZWU3ZTUwMTgxNWU4NmFlNTZhZTY1ZjlhMmJjNjBhYjY3NDFlNWVkMGQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L24-L30",
+          "version": "repo-lines-v1:sha256:7a6a529f313033ea242ec211a84d35e669d573771af6f94b185c618760f84e2b:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMjVlMWM2ZTA1ZmJlYmMyYjFiYzI5Nzc1NjA3MWMwMTRlOTMyNDQyMWRjZmFjZTJjMDQ3YTlmZTY2NjFmYzgxYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGRiNmI0ZGVjYjQ1ZDhiYmE0MzRjNWI1OTdjZWQ3YzFiZDdmMDFmNzg1OWUzZTcwZDJhYmVjNzdmNTM2OTBhOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWFkZWQ2M2QzYTAyZDIzYzc2YTdiYzc0ZmVmMTRiNjZjMzdmNzJiMDVkNWQ5MDhiMWY1YmNmYzFjMjJlODQzYSJ9"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift#L17-L49",
+          "version": "repo-lines-v1:sha256:a3eaf5c1a2c493f03bcbf3716e3e970237c3f7f6deb81a3691cde4fa12a9a4bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3MmVlYTZiNzY3ZWJhODBjMTFkZjk4OGFhNWVmNTMyZmIzMzc5NDRlMmUxNjk4MTZiMTViNTA4ODMxODQ2MmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhM2U1OTVkODc3YTA2NTdkYTgxNjA4YTJhN2Y5YWUyYzEyZTQ2NzMwNGQ0MDY0MDNjMTlkNzZhZjdmZjkwMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjViNWViOGM5NWRjYTY2MjBmNWU2NWNiYzVhMjJmY2M2YTdiM2MwYWEwNWM0N2RiZjY1MDdlODA1NzU4YWViY2UifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T20:28:49.985Z"
+    "at": "2026-09-28T09:46:29.604Z"
   }
 }

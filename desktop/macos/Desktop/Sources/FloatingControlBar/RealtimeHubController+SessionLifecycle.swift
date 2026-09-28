@@ -1239,6 +1239,7 @@ extension RealtimeHubController {
       return
     }
     if let live = session {
+      admittedInputTurnID = pending.turnID
       live.beginInputTurn(
         turnID: pending.turnID,
         responseID: pending.responseID,

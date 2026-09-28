@@ -18,6 +18,12 @@ sources:
     resource: repo://.github/scripts/test_check_policy_change_review.py
   - id: openwiki-source-54e240f9ab6a71a2b90a1c33
     resource: repo://.github/workflows/guardrail-baseline-pulse.yml
+  - id: openwiki-source-e762e0de342d9685ba91244f
+    resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift
+  - id: openwiki-source-e0ddaa9325c2b96bfacccfee
+    resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
+  - id: openwiki-source-21802c0cbbe5aeada371f269
+    resource: repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
   - id: openwiki-source-38a1b3c7a8acf2ceea409825
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-bcd362fbbe23cf1c0d8329bd
@@ -30,10 +36,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-27T20:28:49.985Z" }
+generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T20:28:49.985Z
+    at: 2026-09-28T09:46:29.604Z
 ---
 # Qualification and open obligations
 
@@ -53,11 +59,15 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
-The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 205 nodes and 409 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 205 nodes and 410 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
 
 ## A–B–C qualification
 
 The manual `supervisor-conversation` flow binds the new interaction to a named development bundle, authenticated Gemini and managed A/B prompts. It separates cold/warm unsolicited admission, physical PTT interruption with speakers and headphones, silent next-turn guidance, speech controls, assistant-only journal acceptance, feedback correlation, sharing revocation and provider/permission failures. Failure qualification also checks bounded stage/kind/code diagnostics without private guidance or raw provider reasons.
+
+For a reply after automatic speech, verify that the required replacement owns its bounded connection deadline and admits the buffered microphone input exactly once. A ready socket must not trigger another replacement. Separately force replacement timeout and verify that the canonically accepted fallback exchange and final playback outcome reach B under the original owner/session. Journal replay must distinguish accepted text from spoken delivery, showing an interruption without a false save-failure warning.
+
+Rate a fresh assistant message in the same monitoring session before restarting the app. The thumbs controls share the message metadata row's hover/keyboard reveal and require an in-memory evaluation receipt. A restored journal row alone cannot reconstruct that receipt after restart.
 
 Record usable-input time, B evaluation start and audible-playback start separately. A passed scheduling test does not remove transcription or model latency, and an evaluation count from a brief test does not establish all-day quota coverage. Repository tests, offline T2/T3, managed prompt fetches and physical audio outcomes remain distinct evidence classes. The [Supervisor workflow](../workflows/supervisor-conversation.md) and [desktop E2E](../testing/desktop-e2e.md) locate their respective seams.
 

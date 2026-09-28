@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:ac05368a4d8655938cc6ac35833687e8d31909903d47784ae1ceb537d79bf49f",
+  "pageVersion": "sha256:0b58af99d31ecaab2280c113b04c750e78609ef72e52d33c7b648b4f51298ec8",
   "claims": [
     {
       "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
       "statement": "Swift Chat presents a timeline whose accepted turns and catalog metadata belong to the Node journal authority.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift#L914-L946",
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift#L825-L857",
           "version": "repo-lines-v1:sha256:2fa1e85cd375e328b00bbaaaf88fa9966df890597cb2e14724eb5d591d08f114:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhMDNkMmY0ZDAxY2YxYWFiNmYwYzJiNDc5YzNkYTNhNTYwNWIyYzUyZjMzNDJlZmUzODI1NjFjOWVmYWYwYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZhNjFiNmRhNGFhMDViMjhjMmY0YjlhNjJkMjM1MmIzMzg1MTUxOGE3OWU5NjUyNWZlYjFlYTIzNGU4MDVjYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjZjQ0OGVlOGE2YjUzYzRmNGY5ZjRkZjNjM2EzMWFmNzljMTc4MmU1MmRlOWQyZmY0OWNlNmI2MzI1MzBmN2QifQ"
         },
         {
@@ -82,7 +82,7 @@
     },
     {
       "id": "claim_95fc20ba44894419be5e604225987003",
-      "statement": "Supervisor guidance can wait for the next PTT window; automatic turns reject tool execution and persist only assistant output with completion gated on provider finish and playback drain.",
+      "statement": "Supervisor guidance can wait for the next PTT window; automatic turns reject tools and persist only assistant output. Journal acceptance is separate from durable speech delivery, which requires provider completion and playback drain.",
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionDelegate.swift#L728-L747",
@@ -90,11 +90,15 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L149-L222",
-          "version": "repo-lines-v1:sha256:66fecf54e1f71155711a2eb4ff63c4e3a48eb3a582bb6264ea403bebdac483da:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4NTcwNTk1YWE2Mjg1YzdjOWJiODBmN2ZiOGYyNWQyN2JmMzdhYzE5ZDU3ZTAzYjU0Njg5YzU1Y2JjOGM1ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0YWJjOGZmYjBkODQyNDhjMTM1YWI1ODMyMDE3YjA4YWRjMDQ4OGQ4NGUzN2M2ZmUyNzhhYjFjOTA4OGFkZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+          "version": "repo-lines-v1:sha256:7e9a70368e892a501a80aebb18e6fd680563d587f598f4fce3115a5f072e2b04:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4NTcwNTk1YWE2Mjg1YzdjOWJiODBmN2ZiOGYyNWQyN2JmMzdhYzE5ZDU3ZTAzYjU0Njg5YzU1Y2JjOGM1ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0YWJjOGZmYjBkODQyNDhjMTM1YWI1ODMyMDE3YjA4YWRjMDQ4OGQ4NGUzN2M2ZmUyNzhhYjFjOTA4OGFkZjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift#L31-L162",
-          "version": "repo-lines-v1:sha256:42e78b6d337b20a5d9195c19459eca0cb45edcc9ea36307510621b70b8562d36:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIzYTE2MjdlMmVjZWNjMTEyNWYwMzFlZWU4NDczYTlmZDZkYmE3ODNkMjU3Y2I5MzM3MWI5MTQ4MDY0NzNmMmRjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzNDg1YmJlNzM2NWU1OGU4OGMxMzZkNTA0YmFmOTViYjE1NjAxNWE4M2EwNTU3MGE5YWRhN2NhYzQ3ZmYyNTdiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "version": "repo-lines-v1:sha256:e3365318003fe13d7be3b168bac2c15931f9db9cfce41d1951f6a4ee3d0ffc19:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIzYTE2MjdlMmVjZWNjMTEyNWYwMzFlZWU4NDczYTlmZDZkYmE3ODNkMjU3Y2I5MzM3MWI5MTQ4MDY0NzNmMmRjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4MDEzZTcyNjk4Y2M5ZjhiNTVmMzc0NDM2MmM4ZjM4M2U5NDY3NzE3MDNhY2NjMmFlNzdmOTM0Nzk4MWJlYmUyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIzNDg1YmJlNzM2NWU1OGU4OGMxMzZkNTA0YmFmOTViYjE1NjAxNWE4M2EwNTU3MGE5YWRhN2NhYzQ3ZmYyNTdiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI5YzJmNGM4N2ZkN2Y4Nzk2Yjc4YjljZDJhNzllZGQ2YTExNGVmYzNhZDhjZWJlMmI0NmU2MjEwODllNzRhMzg1In0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift#L97-L112",
+          "version": "repo-lines-v1:sha256:1770001d124f096f271f75ad4df2431ce09c5f5ef04e0f37be3ebf783ef59093:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNkNThmNmJhNWM4MDU3YmIwOGZmMjVhNzQwZGM5OTJlY2MyMmVhNGMxOWFkNDlkYjM0MDcyNDYzYTg2ZTZkMmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMxY2VhMTUxNWQ2NmI4YTM1YjQ1Y2FjM2YxY2NhOWI5OGM2YmQ5OTcyYjg2ZDU3Mzg3NDkwZmNkMGRhMDRiNDAifQ"
         }
       ]
     },
@@ -135,10 +139,68 @@
           "version": "repo-lines-v1:sha256:43950d52ae9529d259d477f26de1b3da9662dd3bb56b2c965b4692201726870b:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkxY2ZjMGM4NTdmZDY1Yjc4NGJlMjg5NjIzNThiNDI3ZTc1YmVmYmRmMDE4OTk2MmI3MjQ1ZTMzYmE1ODY1ZTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmNWM2NGI0ZTQ3M2RhMTlmYzM2MjI2NjE5NzFlYzMzMWZlMTQ1M2M1ZWM3YTU1MzQ5YThjYTM2N2FkMmJiODEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkZTVlZWY0MTc5ZTFkNGY1YmY0NWY5MjgxNjEwYzZkMmIyYzJkYWU5MmY3NWRkMTU5YWQyMzRiZDU3OGRlMmMifQ"
         }
       ]
+    },
+    {
+      "id": "claim_e247b9d482f14a18a2d9452f9e0dd43f",
+      "statement": "Required Live replacement cancels the ordinary warm deadline, owns the capture until its replacement deadline, and marks input admitted on accepted readiness before manager replay; ordinary cold PTT keeps its shorter recovery.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSessionLifecycle.swift#L1218-L1259",
+          "version": "repo-lines-v1:sha256:d38c6343e0ee1c7210e2acaea24b724bd4cafa401baa15a525738776b0715e07:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmOGI5MjMyNTQ5OTM0NjZiZTdlZmM4YzM3OTYzMDE3ZTIyNTQwNTc4M2UyNzdhZWE4ZDUyYjFiN2NkYWI3NTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4MTBiYmZhZTc4NWQzNGJiOTY4MzhlNjY1NDhiZmY5YjQ0YzdlZGJiODQ0NmU1YzkwMzY1MDQ0M2FiYWU3NjIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1000-L1009",
+          "version": "repo-lines-v1:sha256:ada298c1e1e9b32f08609853c771c4d8839e3b9490b06158c81728e4a63fa974:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmMjc4YWMwZTZlODQ4ZTBhYTlhMjI3MTYwMDhmYTJhMzMxN2Y1YWUxYTBiZjI1ZGFlMzRlZGY1OTFmMjRhOWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3ZjEwNDY5MTQ0MzAzNDgxOThkMjhlYmI2MmIzN2ZkOTQ4YjRmNWI3NTExYTg3MGU2NWFkYTM2YmU1OWFlMDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRkYjM2OWQxOTdjMGU2MDgzOTIxNzUyNjAwODk3NmIzMDc3NTc2YTRiNmUzYmUyYTgzOTU4MzE0M2M2OGM0ZWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI4NDMwMjM2YTU3N2QwMWRjMjJhZjYyZWRmOGUzOGMwMWI2MGM2ODljZTljYzA4NmY4YjZiNjcyMzI1NTdhYmEifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift#L1364-L1422",
+          "version": "repo-lines-v1:sha256:c0742972b12595569da4c6b5d2ab27372b7ccebc66ab263886559460c2638fc9:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5YzZkZmVmMDIwM2VkOGQzNzAyOGQ0YWZiZGJmNmE5MDJjNWFlZGQ4YjY2ZDE4MmI5MzE2OWRmNmRjODJmMDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjViOTdiMWZkNWE1N2ExYzQ5NGVhMGM0ODU2YjMyMDQ4NzBkOTdhMmUzMjU5NjM1NWNkOTY0M2Q0NWYxMDM3ZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRjYTBmOTFmYTIwMWZiNmM4YjdlMTE3NmYwNGE1MTI5MWQ2NjRkMjQzMmEzODM1OWI3Y2QxYTM1ZjFjYmI0NGIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_29fbde3d35cb4eddbedd9bbf4c6c0b2c",
+      "statement": "Journal-accepted fallback exchanges enter the bounded supervisor snapshot under the authority captured at voice begin, with terminal playback outcomes updating the same turn and revoked owner/session admissions rejected.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift#L185-L224",
+          "version": "repo-lines-v1:sha256:7c3ca8349b847efc5af982521aa27afb7606647a0bdce414908b9aa3628e0337:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2OTE2OWY1NzkyNDZkZDAzMDJlZjAxZThkZTRmZTc2ODY3MGYxYTg3ZjIwMzFkOTA5NjMzODhiNzg2MjQ3MGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMGE0MzJlMzA2ZTQzODlhMjY5OWRjZWU3OWEyYTFjYjgwZGM4ODgyYzdhZjZiYzc2OTFiZDdhMjUwZjRjNTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE4NzNlYmJlNTVkNTIzZDY3NTdmMGJmM2UzNWZlNzEyNThhZjkwMWMzZjlmN2Q0YmNjZTA1NjcyNjRmOGMwYmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY1ZWRiMjUxNjYxMDM3MmM5NjI2YzIyYWY4NTI1OWEyMTA3MDJiNTMyNGQ3Yzk3Yjk2ZTQ1NmNjYmRlMmUwMjUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift#L353-L374",
+          "version": "repo-lines-v1:sha256:8276f3b5f3ee4ae8b98a174be5bb307964dbb78e4cb4ad3125a3925b96271aa1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBkZGYzYzdjY2Q1ZTg2MWUwZTRhY2Q2NTFiOTQwMGM2YmIyZTc3MzkxNGZjYWZhNGQ2ZDYwYWVjM2YzODc4YmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4OTQ1NDVjN2E2NzAzMGUyNDI0NjE5YjM3ZjQ5MmMyNzk5MDc0YjUxNWQxYzQ2Zjk5YjBhOWE3YzM3YTU4N2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA4ZjZjMmZkMzAwNzBjMjZjMzViNmIxOWViNWUwYWY3ZjEyMGE1YmYyMjUxZjdiOTk0NTFkNWRkMzk0OWYzNWIifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift#L509-L536",
+          "version": "repo-lines-v1:sha256:f1ee8ad1e862eac78e38519b12d37461372ef27f87146ca9cfeb7ae73664ccdc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwM2NjYjE5M2Y2NDM2ODM0NWNhZWRmNzI5NDEwMGRlYzE4MWU5NTI5YWYwNGNlZjViODM0YzQ3ZTQ2ZmM4MmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxMzQxYTU2MTgyMTY4ZTI5ZTg5ZTlhYjE3OTQ2YTZkMmI0YzU4NDYxNDcyM2QxZTUzOTAyYTUyYjg5MDJjYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ5ZTlkODg2Zjc3Mjg1NjExZTM1NTVjNDI0ZTI4NDU0M2JhOTBhOTZmOTQyY2I2ODhlYTc1NGQ1N2IyYjQ4YmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIxZTE4MDZkNGI0ZTcwMTIxNDg0YzRkYTA2ZWM2YjkyZmJmOGMwMWVkZDUxYTEwNDU3YWMyM2JhMDVlYWNjZWQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L157-L202",
+          "version": "repo-lines-v1:sha256:359fae0c6d03bd600c6d4bc5ef6868b87eced6dcc10f852d94a58402b96f0d27:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZDEzMjJmMDgwYWI0OTM0ZmRkYjM0NmQ1YmI0NzZiMDhmYzQ4NDJmMzNjMTRkODE5Y2I2ZDA0NjVhOWY3ZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmM2M0NDk2MzIwMTNkMWQwZDFhNjVhMTNkMjkxYjYzZTkwZDM1Nzc4ZjI3NWU1Y2EyNzQxMmRiZDI0NWNmMWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzNWZlZTk1M2YzN2ZmM2M1NTkwNGQ0ZThmMmRhYWMyMjJkMDZkZDE3NjlmZTZiZTU0OWRlOGQxNGY0MTFiYzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJmNzQzN2JhNjNkYWQwMjE4MmI2ZTA2N2YzOTY5NDcyNTQ5OGI0ZDBiYTY3NThjMWZhZWY1ODJmNDMzNTUxNTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_98d83a1df56247ea9eeff4ad8d652cab",
+      "statement": "Canonical metadata preserves bounded voice delivery outcomes across journal writes and restoration; Chat labels interruption, incomplete or suppressed speech separately while actual journal failure retains its save warning.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Chat/ChatMessage.swift#L71-L81",
+          "version": "repo-lines-v1:sha256:44ae2337fdce598b5cd28ff47c272fdb877c33d5b9f1b76bb0d74efbd2147700:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwYjRmOGRmZmVjNDc0N2ViNDFiYzkwYzcyYmI2OTQ5YmU2Y2QzNjFiZDMwYjdhNTUwMmNjZWY2ODdkNTEwYjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkzNmJhYzliZWQyZGExYTNmNzQ1ZWI1ZGUxMGViZTIxNjQ0NmRhODRlNTcyZDQ0NzI3ZjY2ZDJiZWY2MGJiYjYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift#L250-L269",
+          "version": "repo-lines-v1:sha256:7d948232652e9f1730d961e484023f194373a504ba84cf3a98ccc3074f6b9b3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkYjA2MGMwOGY5OGY2ZjcxOTQyZDhkYTNjYWE5ODliNjQwOTYzM2VhZjc5NDYyNTBlNTU4NjU0YjhmMGQ1OTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwNDk5ZmUwZTdiZDhhZTE2YzJjZTgwZTY1YzI1MDZiNjgxNzUyNzhlOTk4ZDlhOGViNDY0ZGMxNjdlZjNlZjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxYTY2NjA2NmZjN2EyZWUxMWUxZDk0MzZjNzkxY2YyYzU5MjA5MjMzMjNkNmQyYmU2ODRiMzQ2ZmYyZDcyNDYifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift#L305-L339",
+          "version": "repo-lines-v1:sha256:8cdf799233ab03268fb27706e5e96979adf5017f4369f250acea6ea20ea2c7fd:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljODI0YmM0YmJkYzQ2NTZmYzU1ZjFlYjYxYWVhM2ExZmEzMTlkNTBiY2QwYTAyZjdlYjk2MTUzY2NhMDNiMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzNzkzOTZmMWEzNjIxYTIyYmM0OTgyZTdlNjVlYTk3NWQzM2JkMjgwZjU0NzA2ODRmMGE4YzRmNzY0ODQ3MzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T20:28:49.985Z"
+    "at": "2026-09-28T09:46:29.604Z"
   }
 }

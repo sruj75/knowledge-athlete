@@ -62,9 +62,9 @@ flowchart TD
   end
 
   subgraph AREA_06["06 · Supervisor and private voice guidance · Mac and backend"]
-    OBSERVE["Bounded owner/session observation<br/>Permitted frame, corrected transcripts, direct exchange<br/>SupervisorService.swift:7"]
+    OBSERVE["Bounded owner/session observation<br/>Permitted frame, corrected transcripts, native/fallback exchange<br/>SupervisorService.swift:12"]
     ECHOGATE{"Map capture intervals; suppress ambient overlap<br/>Unmappable segments excluded only from B<br/>SupervisorAudioTimeline.swift:24"}
-    BEVALUATE["Three-second coalescing; one request in flight<br/>Read existing Memory/profile; quota pause<br/>SupervisorService.swift:351"]
+    BEVALUATE["Three-second coalescing; one request in flight<br/>Read existing Memory/profile; quota pause<br/>SupervisorService.swift:373"]
     BAPI["POST /v1/supervisor/evaluate<br/>One managed Gemini call, no tools or writes<br/>desktop_supervisor.py:81"]
     BNOTE{"wait / guide_next_turn / intervene<br/>Private note expires; owner/session/context fenced<br/>SupervisorModels.swift:1"}
     AINIT["Admit supervisor voice turn without mic<br/>Idle, notification/snooze/frequency gates; PTT priority<br/>RealtimeHubController+Supervisor.swift:23"]
@@ -113,20 +113,20 @@ flowchart TD
   subgraph AREA_10["10 · Notifications and conversation continuity · Mac"]
     NOTIFY{"Owner, enabled, snooze and frequency checks<br/>NotificationService.sendNotification<br/>NotificationService.swift:374"}
     CARD["Show floating-bar card and journal message<br/>presentNotification<br/>FloatingControlBarWindow.swift:3855"]
-    CARDCONTEXT["Attach quoted card context to typed follow-up<br/>notificationContextSuffixIfNeeded<br/>FloatingControlBarWindow.swift:4715"]
+    CARDCONTEXT["Attach quoted card context to typed follow-up<br/>notificationContextSuffixIfNeeded<br/>FloatingControlBarWindow.swift:4698"]
     CARDVOICE["Supply silent reference to native Live<br/>NotchCardVoiceDelivery.cardPresented<br/>NotchCardVoiceDelivery.swift:59"]
     SYSTEMNOTICE["OS notice / reminder<br/>Functional capture-reset action is separate<br/>NotificationService.swift:258"]
   end
 
   subgraph AREA_11["11 · Chat context, transport and accepted journal · Mac"]
-    TEXT["User types in Home or floating bar<br/>ChatProvider.sendMessage<br/>ChatProvider.swift:3740"]
-    CHATGATE{"Owner, quota, session and concurrent-send checks<br/>ChatProvider.swift:3740"}
-    CONTEXT["Collect profile, Memory, goals, tasks and surface context<br/>prepareKernelQueryContext<br/>ChatProvider.swift:1742"]
+    TEXT["User types in Home or floating bar<br/>ChatProvider.sendMessage<br/>ChatProvider.swift:3651"]
+    CHATGATE{"Owner, quota, session and concurrent-send checks<br/>ChatProvider.swift:3651"}
+    CONTEXT["Collect profile, Memory, goals, tasks and surface context<br/>prepareKernelQueryContext<br/>ChatProvider.swift:1653"]
     BRIDGE["Swift ↔ Node JSONL request/result transport<br/>AgentRuntimeProcess<br/>AgentRuntimeProcess.swift:227"]
     PROJECTION["Accepted journal → shared Home/floating transcript<br/>ChatProvider journal projection<br/>ChatProvider+JournalProjection.swift:3"]
     CHATUI["Visible answer text and resources<br/>ChatMessagesView<br/>ChatMessagesView.swift:74"]
-    CHATSTOP["User stop / watchdog → interrupt active run<br/>ChatProvider.stopAgent<br/>ChatProvider.swift:3195"]
-    VOICECONTEXT["Reuse kernel-rendered context for Live<br/>prepareRealtimeVoiceContextSnapshot<br/>ChatProvider.swift:1862"]
+    CHATSTOP["User stop / watchdog → interrupt active run<br/>ChatProvider.stopAgent<br/>ChatProvider.swift:3106"]
+    VOICECONTEXT["Reuse kernel-rendered context for Live<br/>prepareRealtimeVoiceContextSnapshot<br/>ChatProvider.swift:1773"]
   end
 
   subgraph AREA_12["12 · Local Node kernel, Pi and tools"]
@@ -241,8 +241,8 @@ flowchart TD
     CHILDVOICE["AgentCompletionVoiceDelivery<br/>Deliver bounded delta; checkpoint only after send<br/>AgentCompletionVoiceDelivery.swift:19"]
     ARTIFACTQUEUE["Separate desktop action/delivery queue<br/>Automatic consumer UNVERIFIED<br/>kernel-artifacts.ts:119"]
     FLOATROUTE["Floating typed / batch-voice route<br/>Same main Chat journal, different presentation<br/>FloatingControlBarWindow.swift:3532"]
-    RESOURCES["Accepted answer resources and child artifacts<br/>ChatProvider terminalization<br/>ChatProvider.swift:3535"]
-    DRAFTS["Swift-owned drafts and attachment bytes<br/>Runtime receives materialized references<br/>ChatProvider.swift:3740"]
+    RESOURCES["Accepted answer resources and child artifacts<br/>ChatProvider terminalization<br/>ChatProvider.swift:3446"]
+    DRAFTS["Swift-owned drafts and attachment bytes<br/>Runtime receives materialized references<br/>ChatProvider.swift:3651"]
   end
 
   subgraph AREA_21["21 · Retained agent tools and results"]
@@ -283,6 +283,7 @@ flowchart TD
   SEGMENTS -->|"Capture clock provenance; storage remains unchanged"| ECHOGATE
   ECHOGATE -->|"Correct by segment ID; omit overlapping speech"| OBSERVE
   HUB -->|"Direct transcripts, turn boundaries and playback outcome"| OBSERVE
+  FLOATROUTE -->|"Accepted fallback exchange; terminal playback outcome; original owner/session"| OBSERVE
   HUB -.->|"Direct A-C interval takes precedence"| ECHOGATE
   OBSERVE -->|"Latest pending bounded snapshot"| BEVALUATE
   MEMSTORE -->|"Existing bounded memories; empty is valid"| BEVALUATE
@@ -294,7 +295,7 @@ flowchart TD
   BNOTE -->|"Valid latest guidance only"| AINIT
   AINIT -->|"realtimeInput.text; no microphone activity markers"| HUB
   PTT -->|"Immediate interruption priority"| AINIT
-  HUB -->|"Assistant-only initiated entry and delivery status"| PROJECTION
+  HUB -->|"Assistant-only initiated entry; saved lifecycle separate from delivery outcome"| PROJECTION
   HUB -->|"Terminal playback outcome and pinned A prompt"| AEXAMPLE
   BNOTE -->|"Decision correlation and B prompt version"| AEXAMPLE
   CHATUI -->|"Helpful / unhelpful"| AEXAMPLE
