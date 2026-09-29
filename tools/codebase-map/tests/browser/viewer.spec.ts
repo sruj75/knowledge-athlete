@@ -76,8 +76,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await page.setViewportSize(viewport);
     await overview(page);
     await expect(content(page)).toHaveAttribute("data-area-count", "23");
-    await expect(content(page)).toHaveAttribute("data-node-count", "210");
-    await expect(content(page)).toHaveAttribute("data-edge-count", "422");
+    await expect(content(page)).toHaveAttribute("data-node-count", "307");
+    await expect(content(page)).toHaveAttribute("data-edge-count", "684");
     await expect(page.getByTestId("area-diagram")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^(Zoom in|Zoom out|Fit diagram)$/ })).toHaveCount(0);
     await expect(page.getByTestId("area-card-AREA_01")).toHaveAccessibleName(/Start, sign in, permissions and owner changes/);
@@ -104,15 +104,18 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     const positions = await regionPositions(page);
     expect(new Set(positions.map(region => region.x)).size).toBeGreaterThan(5);
     expect(new Set(positions.map(region => region.y)).size).toBeGreaterThan(5);
-    const order = (id: string) => positions.find(region => region.id === id)!;
-    expect(order("AREA_13").y).toBeLessThan(order("AREA_01").y);
-    expect(order("AREA_01").y).toBeLessThan(order("AREA_11").y);
-    expect(order("AREA_11").y).toBeLessThan(order("AREA_07").y);
-    expect(order("AREA_02").x).toBeLessThan(order("AREA_16").x);
-    expect(order("AREA_08").y).toBeLessThan(order("AREA_10").y);
+    // Geography follows the current authored graph; every region must remain disjoint.
+    for (let index = 0; index < positions.length; index += 1) {
+      const first = positions[index];
+      for (const second of positions.slice(index + 1)) {
+        const overlap = first.x < second.x + second.width && second.x < first.x + first.width
+          && first.y < second.y + second.height && second.y < first.y + first.height;
+        expect(overlap, `${first.id} overlaps ${second.id}`).toBe(false);
+      }
+    }
     const groupedEdges = await page.locator(".map-connection-group").evaluateAll(groups => groups.flatMap(group => JSON.parse(group.getAttribute("data-edge-ids")!) as string[]));
-    expect(groupedEdges).toHaveLength(261);
-    expect(new Set(groupedEdges).size).toBe(261);
+    expect(groupedEdges).toHaveLength(382);
+    expect(new Set(groupedEdges).size).toBe(382);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     const extent = await canvas(page).evaluate(element => {
       const content = element.querySelector('[data-testid="diagram-content"]')!.getBoundingClientRect();
@@ -144,7 +147,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await outgoing.focus();
     await page.keyboard.press("Home");
     await expect.poll(() => outgoing.evaluate(element => element.scrollTop)).toBe(0);
-    const destination = outgoing.getByRole("button", { name: "To 07 · Local archive authorities", exact: true });
+    const destination = outgoing.getByRole("listitem").filter({ hasText: "Close old pool and retarget owner directory" })
+      .getByRole("button", { name: "To 07 · Local archive authorities", exact: true });
     await destination.focus();
     await page.keyboard.press("Enter");
     await expect(content(page)).toHaveAttribute("data-active-area", "AREA_07");
@@ -247,7 +251,7 @@ test("detail views inspect and navigate connected subsystems without replacing t
   }
 });
 
-test("all 23 cached views preserve 210 nodes and 422 connections including areas without internal edges", async ({ page }) => {
+test("all 23 cached views preserve 307 nodes and 684 connections including areas without internal edges", async ({ page }) => {
   test.setTimeout(120_000);
   await overview(page);
   const errors: string[] = [];
@@ -277,16 +281,16 @@ test("all 23 cached views preserve 210 nodes and 422 connections including areas
     }), `${id} opened without a visible node`).toBe(true);
     for (const node of await diagram.locator("[data-node-id]").evaluateAll(items => items.map(item => item.getAttribute("data-node-id")!))) nodes.add(node);
     for (const edge of await diagram.locator('[data-edge-id][data-edge-kind="internal"]').evaluateAll(items => items.map(item => item.getAttribute("data-edge-id")!))) internalEdges.add(edge);
-    if (["AREA_20", "AREA_21"].includes(id)) await expect(diagram.locator("[data-edge-id]")).toHaveCount(0);
+    if (["AREA_20"].includes(id)) await expect(diagram.locator("[data-edge-id]")).toHaveCount(0);
     expect(await diagram.innerText()).not.toMatch(/<br\s*\/?\s*>/i);
     svgIds.set(id, (await areaSvg(page, id).getAttribute("id"))!);
   }
-  expect(nodes.size).toBe(210);
-  expect(internalEdges.size).toBe(161);
-  expect(externalEdges).toHaveLength(261);
+  expect(nodes.size).toBe(307);
+  expect(internalEdges.size).toBe(302);
+  expect(externalEdges).toHaveLength(382);
   expect(inflows.sort()).toEqual([...externalEdges].sort());
   expect(outflows.sort()).toEqual([...externalEdges].sort());
-  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(422);
+  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(684);
   for (const id of ["AREA_01", "AREA_07", "AREA_15", "AREA_20", "AREA_21"]) {
     await focusArea(page, id);
     expect(await areaSvg(page, id).getAttribute("id")).toBe(svgIds.get(id));
@@ -435,7 +439,7 @@ test("a failed area render exposes retry and allows returning to the overview", 
   await expect(areaSvg(page)).toBeVisible();
   await expect(notice).toBeHidden();
   await expect(content(page)).toHaveAttribute("data-active-area", "AREA_01");
-  await expect(areaDiagram(page, "AREA_01").locator("[data-node-id]")).toHaveCount(8);
+  await expect(areaDiagram(page, "AREA_01").locator("[data-node-id]")).toHaveCount(21);
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(areaCards(page)).toHaveCount(23);
 });
