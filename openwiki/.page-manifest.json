@@ -65,11 +65,11 @@
       "completedRunId": "4017ff86-c454-4f95-9c13-b3633921b32d"
     },
     "/openwiki/codebase/operations/codebase-map.md": {
+      "gitHead": "05448c05ba581dec52caaf13d392d3da4371f1eb",
+      "sourceFingerprint": "sha256:f363405f0345a51a59137cdc42418e2e9dded9abc5653abfad4959c0292744a0",
       "pageVersion": "sha256:db33c9526ff63a194595314ae71c5e354f3f8fa577bffb5bcaf129ccef949db0",
       "completedBy": "codex",
-      "completedRunId": "507a19d9-aced-4acd-a757-9e73e6629e18",
-      "gitHead": "05448c05ba581dec52caaf13d392d3da4371f1eb",
-      "sourceFingerprint": "sha256:f363405f0345a51a59137cdc42418e2e9dded9abc5653abfad4959c0292744a0"
+      "completedRunId": "507a19d9-aced-4acd-a757-9e73e6629e18"
     },
     "/openwiki/codebase/operations/development.md": {
       "gitHead": "05448c05ba581dec52caaf13d392d3da4371f1eb",
