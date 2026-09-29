@@ -26,6 +26,8 @@ sources:
     resource: repo://desktop/macos/agent/scripts/generate-tool-surfaces.mjs
   - id: openwiki-source-edc5df9f3e1eaa7250675764
     resource: repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts
+  - id: openwiki-source-c57ad1aa5ebff4b5cedb6833
+    resource: repo://docs/architecture/intentive-codeflow-review.md
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
@@ -42,10 +44,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-29T10:27:33.893Z" }
+generated: { by: "codex", at: "2026-09-29T14:00:45.500Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-29T10:27:33.893Z
+    at: 2026-09-29T14:00:45.500Z
 ---
 # Development and wiki maintenance
 
@@ -81,11 +83,11 @@ From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` f
 
 Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
 
-The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 307 nodes and 684 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 365 nodes and 830 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
 
 ## Product map and PR handoff
 
-The [Mermaid product map](../../../docs/architecture/intentive-codeflow.mmd) is a single tracked diagram. Its sections and source anchors support following product flows; it is maintained through reviewed edits when those flows change. There is no automatic graph-generation stage in setup or PR closeout.
+The [Mermaid product map](../../../docs/architecture/intentive-codeflow.mmd) is a single tracked diagram. Its sections and source anchors support following product flows; it is maintained through reviewed edits when those flows change. There is no automatic graph-generation stage in setup or PR closeout. The [second source-review receipt](../../../docs/architecture/intentive-codeflow-review.md) records coverage and remaining limits for each of the 23 areas.
 
 The viewer reads this file during its static build and links to the exact source commit. Its Vercel setup publishes main and PR previews, with deployment skipping disabled; automatic publication does not update the diagram's meaning. Follow the [authored closeout rule](../../INSTRUCTIONS.md#pr-closeout) to review the map before closing a code change and update affected flows/source references in that PR. The PR template records an updated or reviewed-unchanged result.
 

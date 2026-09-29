@@ -3,7 +3,7 @@
 A public, read-only Next.js viewer for the canonical
 [Mermaid product map](../../docs/architecture/intentive-codeflow.mmd).
 The build reads that file directly and statically exports one page. The browser
-renders its 23 areas, 307 nodes and 684 connections with Mermaid ELK. The overview
+renders its 23 areas, 365 nodes and 830 connections with Mermaid ELK. The overview
 uses the original diagram's geography to place readable subsystem regions.
 Clicking a subsystem opens its internal flow at a fixed readable size. There is no database, runtime GitHub request,
 browser editor, or separately maintained overview map.
@@ -140,3 +140,9 @@ After setup, verify a feature-branch preview's commit/source link and rendered m
 After the PR merges, verify the production address shows the merged SHA and map.
 Code-only merges also deploy so the displayed commit remains aligned with main.
 An already-open tab is a snapshot; reload it to see a newer deployment.
+
+The [second source-review record](../../docs/architecture/intentive-codeflow-review.md)
+covers all 23 areas individually, including unchanged areas, the code inspected,
+newly exposed behavior and remaining limits. The map is the reasoning surface;
+this record makes the review coverage inspectable without treating the diagram
+as proof of every possible code path or of deployed behavior.

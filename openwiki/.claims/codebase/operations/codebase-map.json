@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:db33c9526ff63a194595314ae71c5e354f3f8fa577bffb5bcaf129ccef949db0",
+  "pageVersion": "sha256:d12740df53c843178104872024337a8ae402ec9bf71ff3166794d39d7b8eed32",
   "claims": [
     {
       "id": "claim_bc9a204738d04450b5bca74ceb84a45c",
@@ -48,7 +48,7 @@
     },
     {
       "id": "claim_8bf03b0f057a49b2b094dfea405bbd36",
-      "statement": "The manifest-selected local and CI viewer suite builds the static page, tests source provenance and spatial layout, and exercises complete 23-area/307-node/684-edge rendering, click-only navigation, native scrolling, cache reuse, reduced motion, error recovery and exact commit links in Chromium; CI provisioning follows the same manifest selection.",
+      "statement": "The manifest-selected local and CI viewer suite builds the static page, tests source provenance and spatial layout, and exercises complete 23-area/365-node/830-edge rendering, click-only navigation, native scrolling, cache reuse, reduced motion, error recovery and exact commit links in Chromium; CI provisioning follows the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -64,7 +64,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:5e23d15a8d518aa1b49db50f9f18516ec4e56ef91b5165189080369559776fe4"
+          "version": "repo-file-v1:sha256:38862e936a9719b4569b3f72fee2bedfa8a789df9637db8c010a3f01d365be0f"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -116,7 +116,7 @@
     },
     {
       "id": "claim_cb5b5fd44b67482d9472320d0de9d0d4",
-      "statement": "The selected subsystem shows independently scrollable Inflow and Outflow lists directly below its title in reserved space, with clickable remote subsystems, per-area scroll reset and keyboard-focus restoration; browser checks account for all 382 cross-subsystem edges on both sides.",
+      "statement": "The selected subsystem shows independently scrollable Inflow and Outflow lists directly below its title in reserved space, with clickable remote subsystems, per-area scroll reset and keyboard-focus restoration; browser checks account for all 448 cross-subsystem edges on both sides.",
       "evidence": [
         {
           "resource": "repo://tools/codebase-map/app/components/map-chrome.tsx#L24-L71",
@@ -132,7 +132,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L254-L302",
-          "version": "repo-lines-v1:sha256:ff192a1c84223758f5ba96d8ba76943f9e31f72b0325196ca0d7460ce9135f28:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU3MjU0MGIzZjJlZmJlZjkwYTQwYTVmNjdkMzAxZTc2ZjMwZmIyYjU1NWRhMTg2OWVkZmY0Y2JlZjFmY2U1YTgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMWVhMTVhMGY3YjFkNzc0MWMwOTJkZTgwMmQzOWZkYTQ0MzRlY2YwNWY5NDM1OGM2ZjM2OWNhOTExNmUyMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0M2QyZGZiMWFhNWQ1YWI4YWVhZDBlNWI3M2JiYTc4OTdmZDUyZDZlMzYyNTA1MTY4YTAyM2UyYTFmYTM2ZmUifQ"
+          "version": "repo-lines-v1:sha256:d9ea39e92c3458dc35686f5a91021ea02d3daf12cb09086af79a3f6b68633ce0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwMzFmYmI0MzVkMDExNWM4MTZiODdlMjliMTlmODRmZmU2NDhhODRiY2JkN2E4NGU4OTlkYzExMDgyMTU0NzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMWVhMTVhMGY3YjFkNzc0MWMwOTJkZTgwMmQzOWZkYTQ0MzRlY2YwNWY5NDM1OGM2ZjM2OWNhOTExNmUyMmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0M2QyZGZiMWFhNWQ1YWI4YWVhZDBlNWI3M2JiYTc4OTdmZDUyZDZlMzYyNTA1MTY4YTAyM2UyYTFmYTM2ZmUifQ"
         }
       ]
     },
@@ -154,7 +154,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts#L75-L123",
-          "version": "repo-lines-v1:sha256:e5bc159dd113bd0b4876dfc52a4589300aa0a8272868389f64894263044881e5:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MDJhYmQ0YTAzY2Y3ZTg4NWU0MzZhMmU0ZTE2ZmMwNzhiODdmNTEyMmUyYTU2NjFjZjM1ZGY2NzQyYWI5YWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ZDU4YmJiM2JmMTE3YjM3NTQ2NDJiMzA4ZGZkMGVlMzQwOTM2ZmM1YTFjN2IwYmIyOThjY2Y0YzkxZGZmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlYTM5MWE1ZDI0N2ZkYzA2ZDg0Y2E1YzVmNGU0MmVkZWY5YjBkM2M4ZTUzY2I5MTVlMmQxMDQ1ZDQ2YzY0MmQifQ"
+          "version": "repo-lines-v1:sha256:005e7762e585db2e2f48cfbaf44a45b5edc7dda4935a4935c9e39d4f5af841a0:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MDJhYmQ0YTAzY2Y3ZTg4NWU0MzZhMmU0ZTE2ZmMwNzhiODdmNTEyMmUyYTU2NjFjZjM1ZGY2NzQyYWI5YWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg5ZDU4YmJiM2JmMTE3YjM3NTQ2NDJiMzA4ZGZkMGVlMzQwOTM2ZmM1YTFjN2IwYmIyOThjY2Y0YzkxZGZmNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlYTM5MWE1ZDI0N2ZkYzA2ZDg0Y2E1YzVmNGU0MmVkZWY5YjBkM2M4ZTUzY2I5MTVlMmQxMDQ1ZDQ2YzY0MmQifQ"
         }
       ]
     },
@@ -219,10 +219,24 @@
           "version": "repo-lines-v1:sha256:e3bfe61a3b8808bde92d0cfa2bd7cc3b3310a68342e2606d3428766883f16cec:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc5OWZiYzA2MzFjNDAzMjFmMjViNjNmMmNkMjA1YzY3OWFiZDdlNjY0ZGZmZjVjOGY5OWUyMGFkYWRjOGI4ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhMjUxZmM2ZjU5YTlhM2Y4MWY2ZDNhOGY2ZTZmNTA3ZDVkY2RkMjYzYTJlNjJjZGFhM2M3NDIwMTIzMTU1MjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEzNWQ2Nzk5YThlYWNjMDcxZDY2NjMzYjBkNjEzZDYyNTM1OWE0ZDY0ZGQ3MGQ4MzY4ZDg2YzE1YzI2OGMzZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxYzViYzg0YjUwMjQ4NDQ2ODRmMDg4ZTY3YTg5MTBjMTI5ZGM4NGMxM2VhYWNhODE1YmZkYTQ5NjY5ZmRhN2QifQ"
         }
       ]
+    },
+    {
+      "id": "claim_f532107c0a9647ac8f4d3b68c15c0885",
+      "statement": "The second source-review receipt covers every one of the 23 areas with source links and box counts, identifies area 02 as unchanged, expands component 06 policies for all five assistants, and records database-recovery, export, task-vector and Pi screenshot-delivery limits as source findings without product fixes or runtime acceptance.",
+      "evidence": [
+        {
+          "resource": "repo://docs/architecture/intentive-codeflow-review.md",
+          "version": "repo-file-v1:sha256:2f6f89305b0dc28d01dd7f99247dc9d16af8eec6527685dfd1a0ce730bf3788b"
+        },
+        {
+          "resource": "repo://docs/architecture/intentive-codeflow.mmd#L1-L8",
+          "version": "repo-lines-v1:sha256:7214996f98161fae1373ab3bade842720e45ce7a1e7a1c417d215e78315a64ce:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2Q0NjY0ZTJkYTg1OWFjMjZmNzY0MTllNDlmZTYwNTBmODVhYjE4YzVjYzVmZGMxYjJhNDM5OGU0ZTRmN2UxOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDgyYTIxZmVhODQ4NzNkZDcwYmRmZjcwY2I0ODlmYmExMTA2N2QxMmIyMjc0NTU4NTcxZjIxOTE5YzFlNDdmOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmM4NzEzYzBlMWY4YzMwOWFmOTdiYjg2ZDFjNzg5NWQ4N2FmYTc1MzkyMzg0NDU3ZDBhMmI1OWZlYmE2ZjNjMSJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-29T10:36:44.738Z"
+    "at": "2026-09-29T13:57:45.671Z"
   }
 }

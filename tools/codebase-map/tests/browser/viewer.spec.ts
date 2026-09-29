@@ -76,8 +76,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
     await page.setViewportSize(viewport);
     await overview(page);
     await expect(content(page)).toHaveAttribute("data-area-count", "23");
-    await expect(content(page)).toHaveAttribute("data-node-count", "307");
-    await expect(content(page)).toHaveAttribute("data-edge-count", "684");
+    await expect(content(page)).toHaveAttribute("data-node-count", "365");
+    await expect(content(page)).toHaveAttribute("data-edge-count", "830");
     await expect(page.getByTestId("area-diagram")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /^(Zoom in|Zoom out|Fit diagram)$/ })).toHaveCount(0);
     await expect(page.getByTestId("area-card-AREA_01")).toHaveAccessibleName(/Start, sign in, permissions and owner changes/);
@@ -114,8 +114,8 @@ for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844
       }
     }
     const groupedEdges = await page.locator(".map-connection-group").evaluateAll(groups => groups.flatMap(group => JSON.parse(group.getAttribute("data-edge-ids")!) as string[]));
-    expect(groupedEdges).toHaveLength(382);
-    expect(new Set(groupedEdges).size).toBe(382);
+    expect(groupedEdges).toHaveLength(448);
+    expect(new Set(groupedEdges).size).toBe(448);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     const extent = await canvas(page).evaluate(element => {
       const content = element.querySelector('[data-testid="diagram-content"]')!.getBoundingClientRect();
@@ -251,7 +251,7 @@ test("detail views inspect and navigate connected subsystems without replacing t
   }
 });
 
-test("all 23 cached views preserve 307 nodes and 684 connections including areas without internal edges", async ({ page }) => {
+test("all 23 cached views preserve 365 nodes and 830 connections including areas without internal edges", async ({ page }) => {
   test.setTimeout(120_000);
   await overview(page);
   const errors: string[] = [];
@@ -285,12 +285,12 @@ test("all 23 cached views preserve 307 nodes and 684 connections including areas
     expect(await diagram.innerText()).not.toMatch(/<br\s*\/?\s*>/i);
     svgIds.set(id, (await areaSvg(page, id).getAttribute("id"))!);
   }
-  expect(nodes.size).toBe(307);
-  expect(internalEdges.size).toBe(302);
-  expect(externalEdges).toHaveLength(382);
+  expect(nodes.size).toBe(365);
+  expect(internalEdges.size).toBe(382);
+  expect(externalEdges).toHaveLength(448);
   expect(inflows.sort()).toEqual([...externalEdges].sort());
   expect(outflows.sort()).toEqual([...externalEdges].sort());
-  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(684);
+  expect(new Set([...internalEdges, ...externalEdges]).size).toBe(830);
   for (const id of ["AREA_01", "AREA_07", "AREA_15", "AREA_20", "AREA_21"]) {
     await focusArea(page, id);
     expect(await areaSvg(page, id).getAttribute("id")).toBe(svgIds.get(id));
@@ -439,7 +439,7 @@ test("a failed area render exposes retry and allows returning to the overview", 
   await expect(areaSvg(page)).toBeVisible();
   await expect(notice).toBeHidden();
   await expect(content(page)).toHaveAttribute("data-active-area", "AREA_01");
-  await expect(areaDiagram(page, "AREA_01").locator("[data-node-id]")).toHaveCount(21);
+  await expect(areaDiagram(page, "AREA_01").locator("[data-node-id]")).toHaveCount(22);
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await expect(areaCards(page)).toHaveCount(23);
 });

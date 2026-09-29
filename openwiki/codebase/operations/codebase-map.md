@@ -6,12 +6,14 @@ tags: [intentive, codebase, development, diagrams]
 resource: repo://tools/codebase-map
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-29T10:36:44.738Z
+    at: 2026-09-29T13:57:45.671Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
   - id: openwiki-source-16d213dfcc8beae17f8096fe
     resource: repo://.github/scripts/prepare_codebase_map_check.py
+  - id: openwiki-source-c57ad1aa5ebff4b5cedb6833
+    resource: repo://docs/architecture/intentive-codeflow-review.md
   - id: openwiki-source-edbb4b2d1634e81e4a1c1600
     resource: repo://docs/architecture/intentive-codeflow.mmd
   - id: openwiki-source-898a1f4e66854529123c0957
@@ -48,7 +50,7 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-29T10:27:33.893Z" }
+generated: { by: "codex", at: "2026-09-29T13:57:45.671Z" }
 ---
 # Codebase map viewer
 
@@ -74,6 +76,13 @@ not establish that a path is safe to delete. Source configuration alone does not
 prove deployment, performance or runtime acceptance. The map supports reasoning
 through the recorded behavior, while consequential changes still require checking
 the linked source and tests.
+
+The [second source-review record](../../../docs/architecture/intentive-codeflow-review.md)
+records all 23 areas individually, including unchanged area 02, source links,
+before/after box counts and retained gaps. Component 06 now exposes separate
+policies for all five assistants. The map also records limits of database recovery,
+structured export, task-vector coverage and Pi screenshot delivery. These are
+reviewed source descriptions, not product fixes or runtime acceptance results.
 
 ## From repository to browser
 
@@ -178,7 +187,7 @@ npm --prefix tools/codebase-map run check
 
 The check generates route types, type-checks, exercises source provenance and
 spatial-layout tests, builds the static export, and runs Chromium against it.
-Browser checks account for all 23 areas, 307 nodes and 684 connections, including
+Browser checks account for all 23 areas, 365 nodes and 830 connections, including
 dense areas 07/15 and area 20 without internal edges. They cover readable
 overview titles, explicit click/keyboard entry, full labels at natural SVG size,
 wheel scrolling without opening or scaling diagrams, native touch scrolling,
@@ -186,7 +195,7 @@ mouse drag, restored positions, fixed geographic coordinates, cached layouts,
 connection inspection and destination focus, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
 projection, non-overlap and boundary-flow direction. Browser checks account for
-all 382 cross-subsystem edges on both inflow and outflow sides, including
+all 448 cross-subsystem edges on both inflow and outflow sides, including
 independent list scrolling, destination navigation, scroll reset and keyboard
 focus. No live backend or model is involved.
 
