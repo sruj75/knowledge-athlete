@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2686862a9d8f193edfe6e3f320c0fd705c9e04166f83229c11b7bb240e3e8e81",
+  "pageVersion": "sha256:f8316092f818ae5fb2d19e3e1f52239edc49ad825ef655c4d753450e16a82cf6",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -128,7 +128,7 @@
     },
     {
       "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
-      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 210 nodes and 422 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 365 nodes and 830 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
       "evidence": [
         {
           "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
@@ -144,7 +144,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:f48f88d10d7d24baf4e51b07196580dfbed62cdc1f6eafcbc7e06807b058b320"
+          "version": "repo-file-v1:sha256:38862e936a9719b4569b3f72fee2bedfa8a789df9637db8c010a3f01d365be0f"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -161,10 +161,20 @@
           "version": "repo-lines-v1:sha256:51dd13857f6b6c4bd68d7356cd32b125b71d88e5046c4a02e9b50592a52d0753:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjY1YThmMzYzMTVlZTFkNTBlYzdlOTU5ZTAxMGQ5ZTFhY2NjMDUwNzdhMmE1MjQyYmI3OGQ1NmY2YjA2Nzc5MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdiMDA5YmFjM2RmNDBjNTFjNWJjNWVkZGVmZmRkNzE4OTU1YjE2ODA1ZGJkMDRkMWJjYjhhYWQ0ZjczODFhOCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjI5MTMzMTZiNTY0OTc1ZGNkMTY3NWYwZDc4YTZhMGY1OWYxMDk5NTIxMDFhY2RkYWNmMzdmZmZiOTRkMzljYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzJjOWU5YjU4ZDBiYmQ1ZGM0YTZmNDg2MzgxMTViMjYyYTBhNDcyMzBlOTU2MmU5NjJiZTE1NzYyZTI3ZDg1YyJ9"
         }
       ]
+    },
+    {
+      "id": "claim_fe7c83f0cfb94634b4e93ce959f9f48f",
+      "statement": "The second source-review receipt records coverage and remaining limits for each of the 23 product-map areas.",
+      "evidence": [
+        {
+          "resource": "repo://docs/architecture/intentive-codeflow-review.md",
+          "version": "repo-file-v1:sha256:2f6f89305b0dc28d01dd7f99247dc9d16af8eec6527685dfd1a0ce730bf3788b"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-26T08:08:12.066Z"
+    "at": "2026-09-29T14:00:45.500Z"
   }
 }

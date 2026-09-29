@@ -3,7 +3,7 @@
 A public, read-only Next.js viewer for the canonical
 [Mermaid product map](../../docs/architecture/intentive-codeflow.mmd).
 The build reads that file directly and statically exports one page. The browser
-renders its 23 areas, 210 nodes and 422 connections with Mermaid ELK. The overview
+renders its 23 areas, 365 nodes and 830 connections with Mermaid ELK. The overview
 uses the original diagram's geography to place readable subsystem regions.
 Clicking a subsystem opens its internal flow at a fixed readable size. There is no database, runtime GitHub request,
 browser editor, or separately maintained overview map.
@@ -85,6 +85,17 @@ and open `http://127.0.0.1:4173`. Build first with `npm --prefix tools/codebase-
 
 ## Keep the map accurate
 
+The map exposes independently challengeable behavior: admission and defaults,
+inputs/outputs, local and remote storage, failure/recovery, controls and consumers.
+Its 23 areas are a review order, not a module count. Boxes have different sizes;
+edge labels distinguish calls, data, events and conditional relationships. The
+September 29 source review expanded startup, assistant settings, capture and
+retrieval, Chat/voice, backend compute, account controls and operations. Explicit
+caller/deployment gaps remain visible. Scope is active macOS, its Node runtime,
+and registered backend behavior, with dormant source branches marked where found;
+paused Windows, dependency internals and full build/release/test workflows are
+outside this product map. Source configuration is not evidence of live deployment.
+
 When code changes alter product flows, the coding agent updates the Mermaid map
 and its source references in the same PR. For other changes, record that the map
 was reviewed and remains accurate in the PR checklist. Complete the native
@@ -129,3 +140,9 @@ After setup, verify a feature-branch preview's commit/source link and rendered m
 After the PR merges, verify the production address shows the merged SHA and map.
 Code-only merges also deploy so the displayed commit remains aligned with main.
 An already-open tab is a snapshot; reload it to see a newer deployment.
+
+The [second source-review record](../../docs/architecture/intentive-codeflow-review.md)
+covers all 23 areas individually, including unchanged areas, the code inspected,
+newly exposed behavior and remaining limits. The map is the reasoning surface;
+this record makes the review coverage inspectable without treating the diagram
+as proof of every possible code path or of deployed behavior.

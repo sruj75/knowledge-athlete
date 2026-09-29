@@ -28,10 +28,10 @@ sources:
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-26T08:08:12.066Z" }
+generated: { by: "codex", at: "2026-09-29T13:57:45.671Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-26T08:08:12.066Z
+    at: 2026-09-29T13:57:45.671Z
 ---
 # Qualification and open obligations
 
@@ -51,7 +51,7 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
-The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 210 nodes and 422 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 365 nodes and 830 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
 
 ## Policy-change disclosure
 
