@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:e2bf90494e7924ec2a8e4f1acace6f69b608ebb51ea71610c39564575a0a7d2d",
+  "pageVersion": "sha256:2f0ec92b8a0c214ecb5e2281c8631568197d43a0511a42e748ee5c79eae7a32f",
   "claims": [
     {
       "id": "claim_e0c42d412c7d4d4c9c75fe075b140b3f",
@@ -74,7 +74,7 @@
     },
     {
       "id": "claim_cd91b439989d45c89302142c09043825",
-      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 205 nodes and 410 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
+      "statement": "The shared local/CI viewer check tests deterministic spatial layout and exercises all 23 areas, 342 nodes and 780 edges of the static canonical map, click-only entry and cache reuse, readable full labels, native scrolling and restored positions, keyboard/touch/mouse navigation, connection inspection and destination focus, reduced motion, local error recovery and commit links; CI dependency provisioning is conditional on the same manifest selection.",
       "evidence": [
         {
           "resource": "repo://.github/checks-manifest.yaml#L1-L18",
@@ -90,7 +90,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:8a2205daba566481544c1d7b6bda9c0c5ef74ddaf9898dbd3310b5b01e9c94e7"
+          "version": "repo-file-v1:sha256:c2fea96f906bb9753f98baf405a3d3a888b41420a64efb0a7c20799c3bb6afc1"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -133,6 +133,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-28T09:46:29.604Z"
+    "at": "2026-09-29T14:41:59.037Z"
   }
 }

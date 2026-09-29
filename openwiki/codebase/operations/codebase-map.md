@@ -9,6 +9,10 @@ sources:
     resource: repo://.github/checks-manifest.yaml
   - id: openwiki-source-16d213dfcc8beae17f8096fe
     resource: repo://.github/scripts/prepare_codebase_map_check.py
+  - id: openwiki-source-c57ad1aa5ebff4b5cedb6833
+    resource: repo://docs/architecture/intentive-codeflow-review.md
+  - id: openwiki-source-edbb4b2d1634e81e4a1c1600
+    resource: repo://docs/architecture/intentive-codeflow.mmd
   - id: openwiki-source-898a1f4e66854529123c0957
     resource: repo://tools/codebase-map/app/components/diagram-viewer.tsx
   - id: openwiki-source-c12807270fd9a39fb19a6dba
@@ -35,22 +39,51 @@ sources:
     resource: repo://tools/codebase-map/next.config.ts
   - id: openwiki-source-cadbf0c250f5afb51126591d
     resource: repo://tools/codebase-map/package.json
+  - id: openwiki-source-ca4237737e1f00bf166d7fb5
+    resource: repo://tools/codebase-map/README.md
   - id: openwiki-source-74eca9dc530951021748ada2
     resource: repo://tools/codebase-map/tests/area-flows.test.mjs
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
+generated: { by: "codex", at: "2026-09-29T14:41:59.037Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-28T09:46:29.604Z
+    at: 2026-09-29T14:41:59.037Z
 ---
 # Codebase map viewer
 
 The viewer is a public, read-only architecture browser. It shows subsystem regions
 and opens one internal flow when a subsystem is selected. It does not host
 owner-local product data or generate architecture from source code.
+
+## What the map covers
+
+The 23 areas organize a source review; they are not a count of implementation
+modules. Boxes expose responsibilities at different sizes. The expanded map
+records admission gates and defaults, local and remote persistence,
+failure/recovery paths, settings, and downstream consumers across startup,
+capture, Supervisor guidance, Chat/voice, backend compute, account controls and
+operations. Edge labels distinguish calls, data, events and conditional
+relationships rather than promising one execution order.
+
+The scope is active macOS, its Node runtime and registered backend behavior, with
+dormant branches marked where found. Paused Windows, dependency internals and full
+build/release/test workflows remain outside this product map. `NOT FOUND` and
+`UNVERIFIED` labels preserve unresolved caller or deployment questions; they do
+not establish that a path is safe to delete. Source configuration alone does not
+prove deployment, performance or runtime acceptance. Consequential changes still
+require checking the linked source and tests.
+
+The [second source-review record](../../../docs/architecture/intentive-codeflow-review.md)
+records all 23 areas at its historical `ed00649c` source, including unchanged areas,
+source links, before/after box counts and retained gaps. Its integration note
+separates that receipt from the current Supervisor graph. Area 06 now describes
+one owner-bound Supervisor and private Live guidance, replacing the five
+background assistants. The expanded map retains descriptions of database
+recovery, structured export, task-vector coverage and Pi screenshot delivery
+limits. The receipt and diagram are source descriptions, not runtime acceptance.
 
 ## From repository to browser
 
@@ -155,15 +188,15 @@ npm --prefix tools/codebase-map run check
 
 The check generates route types, type-checks, exercises source provenance and
 spatial-layout tests, builds the static export, and runs Chromium against it.
-Browser checks account for all 23 areas, 205 nodes and 410 connections, including
-dense areas 07/15 and areas 20/21 without internal edges. They cover readable
+Browser checks account for all 23 areas, 342 nodes and 780 connections, including
+dense areas 07/15 and area 20 without internal edges. They cover readable
 overview titles, explicit click/keyboard entry, full labels at natural SVG size,
 wheel scrolling without opening or scaling diagrams, native touch scrolling,
 mouse drag, restored positions, fixed geographic coordinates, cached layouts,
 connection inspection and destination focus, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
 projection, non-overlap and boundary-flow direction. Browser checks account for
-all 246 cross-subsystem edges on both inflow and outflow sides, including
+all 412 cross-subsystem edges on both inflow and outflow sides, including
 independent list scrolling, destination navigation, scroll reset and keyboard
 focus. No live backend or model is involved.
 

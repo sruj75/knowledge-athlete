@@ -1,64 +1,97 @@
 flowchart TD
-    %% One running-product diagram. Source anchors are also visible in each node.
+    %% Source-reviewed behavior map for requirements/deletion discussion, 2026-09-29.
+    %% Preserve the 23 review areas. Boxes are responsibilities, not a uniform module/requirement count.
+    %% Explicit gates/defaults, failures, side effects and consumers expose independently challengeable behavior.
+    %% Edges are labelled relationships, not an exhaustive direct-call graph or guaranteed execution order.
+    %% Configured branches describe source behavior, not live deployment, performance or acceptance proof.
+    %% NOT FOUND / UNVERIFIED means the caller or deployment is still a review gap; absence is not deletion proof.
+    %% Scope excludes paused Windows, dependency internals and full build/release/test workflows (see AREA_23).
   subgraph AREA_01["01 · Start, sign in, permissions and owner changes · Mac"]
-    APP["Launch normal app services<br/>AppDelegate.applicationDidFinishLaunching<br/>OmiApp.swift:279"]
-    DUPLICATE{"Reject duplicate same-bundle instance before stores open<br/>OmiApp.swift:264"}
-    AUTH["Restore or sign in<br/>AuthService<br/>AuthService.swift:21"]
-    PERM{"Check microphone, screen, system audio and accessibility<br/>AppState.checkAllPermissions<br/>AppState+Permissions.swift:97"}
-    OWNER{"Change account safely<br/>revoke work, quiesce capture, retarget stores<br/>RuntimeOwnerIdentity.swift:198"}
-    WARM["Start local workers and warm services<br/>StartupWarmupCoordinator<br/>StartupWarmupCoordinator.swift:4"]
+    APP["Normal launch: initialize auth, shortcuts, menu and services<br/>Async branches do not form one sequential pipeline<br/>OmiApp.swift:279"]
+    DUPLICATE{"Advisory lock per bundle AND launch mode<br/>Duplicate foregrounds existing instance and exits<br/>SingleInstanceGuard.swift:41"}
+    AUTH["Restore cached credentials or browser sign-in<br/>Forced refresh before publishing authenticated state<br/>AuthService.swift:496"]
+    PERM["Check mic, screen, system audio, notifications and accessibility<br/>Status refresh; lazy Dev skips accessibility; not an all-grants gate<br/>AppState+Permissions.swift:97"]
+    OWNER{"Exclusive owner/session-generation transition<br/>Block new work; stop old voice/capture; revoke Node; prepare storage<br/>RuntimeOwnerIdentity.swift:221"}
+    WARM["After first usable view: staged task reads, Chat and Memory worker<br/>Owner/session checks; failed DB gets bounded-backoff retry<br/>StartupWarmupCoordinator.swift:81"]
     SETTINGS["Local product settings and permissions UI<br/>SettingsPage.swift:8"]
-    STOP["Quit: stop hotkeys / voice / workers; flush Rewind<br/>OmiApp.swift:1214"]
+    STOP["Quit: mark app clean-exit; stop shortcuts/PTT/retry/startup work<br/>Flush Rewind up to 5s; only its clean marker waits for successful flush<br/>OmiApp.swift:1214"]
+    LOCKEXCEPT["Lock exceptions: export/probe paths; different modes coexist<br/>Unrecognized bundle or lock error continues without protection<br/>SingleInstanceGuard.swift:41; OmiApp.swift:268"]
+    LAUNCHMODE["--mode=rewind selects Rewind in the same Home shell<br/>Old standalone RewindOnlyView has only a preview caller in tree<br/>OmiApp.swift:15; DesktopHomeView.swift:51; RewindOnlyView.swift:358"]
+    INSTALLSTART["Eligible production DMG/translocated launch: install and relaunch<br/>Skip env respected; failure preserves copy; bounded attempts allow running in place<br/>AppInstaller.swift:54"]
+    AUTHRECOVERY["Restore failure: keep credentials for retry if temporary<br/>Proven absent/revoked identity invalidates session; local data UI stays gated<br/>AuthService.swift:550; DesktopHomeView.swift:104"]
+    HOMEADMIT{"Restoring / recovery / sign-in / onboarding / main content<br/>Normal local history UI requires authenticated completed setup<br/>DesktopHomeView.swift:85"}
+    DBSTART["Initialize owner-local DB before dismissing initial loading view<br/>DB failure still releases loading; defer DB work and retry<br/>ViewModelContainer.swift:50"]
+    RESTORECAPTURE{"Restore saved listening and screen intent on Home appearance<br/>Respect inactive onboarding Skip; screen also needs keys and permission<br/>DesktopHomeView.swift:632"}
+    OWNERRESET["Retarget stores and clear Supervisor, embedding, profile and usage caches<br/>Reject delayed results with old owner/session generation<br/>RuntimeOwnerIdentity.swift:331"]
+    PERMREQUEST["Per-feature grant/recovery UI: mic, screen, system audio, AX, banners<br/>Screen grant may require reopen; AX has window-lookup fallback<br/>PermissionsPage.swift:6; AppState+Permissions.swift:192; ScreenCaptureService.swift:663"]
+    MICGRANT["Microphone grant after onboarding starts transcription<br/>This is an action beyond reading permission status<br/>AppState+SystemActions.swift:9"]
+    NOTICEREPAIR["Startup notification registration repair<br/>Authorized to not-determined regression triggers repair/request<br/>OmiApp.swift:348; AppState+Permissions.swift:167"]
+    SHORTCUTMENU["Global Rewind/Ask/PTT shortcuts, Dock and menu-bar controls<br/>30s menu-icon repair; close-window lifecycle depends on onboarding<br/>OmiApp.swift:520; OmiApp.swift:1163"]
+    QUITAMBIENT["Separate quit observer asynchronously stops/drains ambient audio<br/>Attempts local conversation finish; termination does not await this Task<br/>AppState.swift:451"]
+    OWNERFAIL["Storage preparation fails: abort owner/credential publication<br/>Release transition reservation; old session remains, work may already be stopped<br/>LocalMutationAuthorization.swift:70; AuthOwnerTransition.swift:69"]
   end
 
   subgraph AREA_02["02 · Screen capture · Mac"]
-    MONITOR["Start background monitoring and capture timer<br/>startMonitoring<br/>ProactiveAssistantsPlugin.swift:191"]
+    MONITOR["Start screen monitoring and shared Supervisor observer<br/>Trial and screen grant/retries must pass<br/>ProactiveAssistantsPlugin.swift:191"]
     WINDOW["Observe frontmost app and window<br/>WindowMonitor<br/>WindowMonitor.swift:5"]
-    CAPTURE{"Privacy, owner, physical-input idle and timing gates<br/>captureFrame; refresh changed window context<br/>ProactiveAssistantsPlugin.swift:549"}
+    CAPTURE{"Owner, OS mode, external capture, idle and excluded-app gates<br/>App/window heartbeat, video-call throttle and preview similarity<br/>ProactiveAssistantsPlugin.swift:549"}
     SCREEN["Resolve and capture active window<br/>ScreenCaptureService<br/>ScreenCaptureService.swift:8"]
     FRAME["Build live CapturedFrame<br/>JPEG, app, title, time; screenshotId may be absent<br/>CapturedFrame.swift:5"]
+    SCREENFANOUT["Plugin feeds permitted live pixels to Supervisor and separate archive<br/>Current owner/context and exclusions gate B; archive can drop independently<br/>ProactiveAssistantsPlugin.swift:742"]
+    SCREENRECOVERY["Engine failure → recheck, recovery/polling, soft recovery/restart<br/>Exhaustion stops capture and offers permission repair<br/>ProactiveAssistantsPlugin.swift:1056; ProactiveAssistantsPlugin.swift:1323"]
   end
 
   subgraph AREA_03["03 · Rewind archive, search and recovery · Mac"]
-    INDEX["Archive branch: dedupe and admission<br/>RewindIndexer.processFrame<br/>RewindIndexer.swift:341"]
+    INDEX["Archive initialization/backoff and frame dedupe<br/>Only encoded frames get screenshot rows<br/>RewindIndexer.swift:472"]
     VIDEO["Append HEVC frame / rotate video chunk<br/>VideoChunkEncoder.addFrame<br/>VideoChunkEncoder.swift:277"]
-    OCR["Selected OCR; similar frames can skip OCR<br/>RewindIndexer.swift:24"]
+    OCR["Local Apple Vision OCR, en-US / accurate recognition<br/>Frequency or similar-image skips mark indexed without OCR text;<br/>OCR failure still leaves encoded screenshot row, no general OCR retry shown<br/>RewindIndexer.swift:504; RewindOCRService.swift:118"]
     SHOT[("Commit screenshot metadata and optional OCR<br/>RewindDatabase.insertScreenshot<br/>RewindDatabase+OwnerAuthorization.swift:6")]
-    OCREMB["Batch OCR embeddings; store vectors locally<br/>OCREmbeddingService<br/>OCREmbeddingService.swift:127"]
-    REWINDUI["Search timeline and inspect archived screen<br/>RewindViewModel.performSearch<br/>RewindViewModel.swift:216"]
+    OCREMB["Min text and hash dedupe → delayed/batched OCR embedding<br/>Current owner/generation required for vector insert<br/>OCREmbeddingService.swift:127"]
+    REWINDUI["Selected-day/app timeline and search<br/>Parallel lexical + semantic; semantic failure keeps lexical results<br/>RewindViewModel.swift:216"]
     FRAMELOAD["Read chunk and frame offset<br/>RewindStorage<br/>RewindStorage.swift:527"]
-    RETENTION["Run authorized retention cleanup<br/>RewindIndexer.runCleanup<br/>RewindIndexer.swift:758"]
+    RETENTION["Frame-triggered throttled retention cleanup<br/>Default 7 days; metadata before artifact deletion<br/>RewindIndexer.swift:741; RewindModels.swift:419"]
     FILECLEAN["Delete expired files / unreferenced chunks<br/>RewindStorage cleanup<br/>RewindStorage.swift:796"]
     FLUSH["Finalize current chunk or retain recovery marker<br/>flushCurrentVideoChunk<br/>RewindStorage.swift:685"]
-    RECOVER["Recover abandoned chunks<br/>rows first, file next, marker last<br/>RewindStorage.swift:624"]
+    RECOVER["Discard abandoned partial chunks<br/>Delete rows → file → durable marker; retry unfinished cleanup<br/>RewindStorage.swift:624"]
+    REWINDSEMANTIC["Flush pending embeddings; embed query remotely<br/>Local date/app-filtered vector ranking<br/>OCREmbeddingService.swift:457"]
+    OCRRETRY["Transient embed failure requeues current-owner batch<br/>Product limit drops batch; missing vectors use backfill<br/>OCREmbeddingService.swift:260; OCREmbeddingService.swift:294"]
   end
 
   subgraph AREA_04["04 · Ambient audio capture and transcription · Mac"]
     LISTEN["Setup completes or user enables listening<br/>AppState.startTranscription<br/>AppState+Transcription.swift:126"]
     CONVBEGIN["Create local conversation before capture<br/>beginLocalConversation<br/>AppState+Transcription.swift:1478"]
-    AUDIOCAPTURE{"Continuous mic / optional system audio<br/>reconcileCapture<br/>AppState+Transcription.swift:339"}
+    AUDIOCAPTURE{"Required mic; optional system audio<br/>Mic start failure stops listening; system failure leaves mic<br/>AppState+Transcription.swift:339"}
     MIC["Microphone capture and resampling<br/>AudioCaptureService<br/>AudioCaptureService.swift:9"]
     SYSTEMAUDIO["System audio process tap<br/>SystemAudioCaptureService<br/>SystemAudioCaptureService.swift:15"]
     SLEEPCAPTURE["Mac sleep pauses / wake restores enabled listening<br/>NSWorkspace lifecycle observers<br/>AppState.swift:493"]
-    LOCALSTT["Local Parakeet<br/>separate mic and system decoders<br/>LocalTranscriptionService.swift:89"]
+    LOCALSTT["Local Parakeet<br/>separate mic and system decoders<br/>LocalTranscriptionService.swift:96"]
     MIXER["Cloud route: combine mic and system PCM<br/>AudioMixer<br/>AudioMixer.swift:10"]
     AMBIENTWS["Stream mono 16 kHz PCM<br/>TranscriptionService /v4/listen<br/>TranscriptionService.swift:8"]
-    STTRECOVER["Local model fails: drain/stop then restart cloud<br/>handleLocalSTTFailure<br/>AppState+Transcription.swift:577"]
-    CLOUDRECOVER["Cloud reconnect fails: drain/stop then try local<br/>handleCloudSTTReconnectFailure<br/>AppState+Transcription.swift:634"]
+    STTRECOVER["Local failure → await exact teardown → restart cloud session<br/>Owner/generation fence; sticky local-failure state<br/>AppState+Transcription.swift:577"]
+    CLOUDRECOVER["Reconnect exhaustion → stop then restart locally if eligible<br/>Unavailable/already-failed local route stops listening<br/>AppState+Transcription.swift:634"]
     SEGMENTS["Upsert by segment ID; order by spoken time<br/>handleBackendSegments<br/>AppState+ListenEvents.swift:8"]
     LIVEUI["Publish current transcript<br/>LiveTranscriptMonitor<br/>LiveTranscriptMonitor.swift:6"]
     SEGSTORE[("Persist segments in local conversation<br/>TranscriptionStorage.upsertSegments<br/>TranscriptionStorage+LocalAuthority.swift:41")]
-    FINISH["Stop / finish local conversation<br/>finalizeSessionAndRefresh<br/>AppState+Transcription.swift:1502"]
+    FINISH["Stop: drain producer tails and seal local conversation<br/>Publish before and after deferred enrichment<br/>AppState+Transcription.swift:498; ConversationFinalizationService.swift:4"]
+    AMBIENTROTATE["Seal old conversation before admitting next<br/>4-hour rotation restarts capture; explicit Finish keeps listening intent<br/>AppState+Transcription.swift:20; AppState+Transcription.swift:917"]
+    MICRECOVERY["Silent mic → built-in device / shared CoreAudio rebuild<br/>Repeated recovery failure stops listening<br/>AppState+Transcription.swift:400; AppState+Transcription.swift:470"]
+    FAIRAUDIO["Managed-cloud allowance exhausted → prepare local producer<br/>Keep current conversation; readiness failure stops capture<br/>AppState+Transcription.swift:686"]
+    CONVLOCATION["Optional one-shot location after local session admission<br/>Current conversation, generation and owner required for local write<br/>AppState+Transcription.swift:1549"]
+    LOCALMODEL["Parakeet downloads/caches weights; English selects v2, other language v3<br/>Model/readiness failure or bounded audio overflow enters recovery<br/>LocalTranscriptionService.swift:181; LocalTranscriptionService.swift:199"]
+    R2LOCALFILTER["Local STT drops dead-silence windows and punctuation-only output<br/>System audio also passes music classifier; microphone bypasses music gate<br/>Model confidence is logged, not an admission threshold<br/>LocalTranscriptionService.swift:437"]
   end
 
   subgraph AREA_05["05 · Conversation enrichment and live notes · Mac"]
     FINALIZE["Finalize or recover unfinished work<br/>ConversationFinalizationService<br/>ConversationFinalizationService.swift:44"]
-    DISCARD{"Claim discard decision; failure keeps transcript<br/>ConversationDiscardAdmission<br/>ConversationDiscardAdmission.swift:3"}
-    STRUCTURE["Claim generation → compute title and summary<br/>ConversationStructureEnrichment<br/>ConversationStructureEnrichment.swift:48"]
-    CONVTASK["Find related local tasks → request candidates<br/>ConversationActionItemEnrichment<br/>ConversationActionItemEnrichment.swift:39"]
-    CONVCOMMIT[("Validate generation and commit accepted result<br/>TranscriptionStorage<br/>TranscriptionStorage+LocalAuthority.swift:1361")]
-    NOTES["Transcript word threshold → concise AI note<br/>LiveNotesMonitor.handleSegmentsUpdate<br/>LiveNotesMonitor.swift:233"]
+    DISCARD{"Empty → delete; over 100 words → keep locally<br/>Otherwise classify; compute failure keeps transcript<br/>ConversationDiscardAdmission.swift:49"}
+    STRUCTURE["Claim current generation → title, overview, emoji, category and commitments<br/>Manual title edits survive generated structure; failure leaves local transcript<br/>ConversationStructureEnrichment.swift:48; TranscriptionStorage+LocalAuthority.swift:1361"]
+    CONVTASK["Conversation tasks: up to 10 open recent related tasks, similarity ≥ 0.6<br/>Exclude this/merged conversation sources; lookup failure yields empty context<br/>Opaque task tokens → bounded create/update/complete proposals<br/>ConversationActionItemEnrichment.swift:69; TranscriptionStorage+LocalAuthority.swift:1421"]
+    CONVCOMMIT[("Validate content generation, attempt and candidate references<br/>Commit accepted conversation/task result locally<br/>TranscriptionStorage+LocalAuthority.swift:1361")]
+    NOTES["AI notes: active/enabled session, 50 new words, one request at a time<br/>Up to 500 unsummarized words + 20 prior notes; save before current-session UI<br/>Failure/empty output waits for later new words; no durable note retry queue<br/>LiveNotesAccumulator.swift:26; LiveNotesMonitor.swift:260"]
     NOTESTORE[("Create / edit / delete local conversation note<br/>NoteStorage<br/>NoteStorage.swift:6")]
+    CONVRECOVER["60-second durable-work retry; DB failure pauses timer<br/>Launch cutoff recovers abandoned recordings; never age-close live rows<br/>TranscriptionRetryService.swift:11; ConversationFinalizationService.swift:116"]
+    CONVWORK[("Local discard/structure/task work ledger<br/>Content generation + attempt claim rejects stale responses<br/>ConversationFinalizationService.swift:99; ConversationActionItemEnrichment.swift:79")]
+    R2CONVTASKCOMMIT["Conversation task batch commits atomically: create, update or complete<br/>Target must be supplied local task token; stale/invalid batch writes nothing<br/>Past due dates older than 24 hours discarded<br/>TranscriptionStorage+LocalAuthority.swift:1486"]
   end
 
   subgraph AREA_06["06 · Supervisor and private voice guidance · Mac and backend"]
@@ -78,204 +111,313 @@ flowchart TD
     DB[("Owner-partitioned heyintentive.db<br/>RewindDatabase; SQLite / GRDB<br/>RewindDatabase.swift:103")]
     MEMSTORE[("Memory assertions, transitions and work<br/>MemoryStorage<br/>MemoryStorage.swift:14")]
     TASKSTORE[("Task rows and recurrence authority<br/>ActionItemStorage<br/>ActionItemStorage.swift:5")]
-    GOALSTORE[("Local goals<br/>GoalStorage<br/>GoalStorage.swift:18")]
+    GOALSTORE[("Local goals; retained create/update/completion APIs<br/>Active reads feed context; active UI mutation path not found<br/>GoalStorage.swift:18")]
     FOCUSSTORE[("focus_sessions authority<br/>ProactiveStorage<br/>ProactiveStorage.swift:5")]
     CONVSTORE[("Conversation and transcript authority<br/>TranscriptionStorage<br/>TranscriptionStorage.swift:5")]
-    NODEDB[("heyintentive-agent.sqlite3<br/>Sessions, runs, context and chat journal<br/>sqlite-store.ts:43")]
+    NODEDB[("heyintentive-agent.sqlite3<br/>Owner-scoped Chat catalog/journal, context, runs, attempts,<br/>events, tool receipts, artifacts, grants and dispatch records<br/>sqlite-store.ts:98")]
+    R2TASKVECTOR["Task vectors: up to 5,000 existing vectors in owner-memory index<br/>Conversation enrichment loads and queries existing vectors<br/>Backfill helper exists; no production caller found in this review<br/>EmbeddingService.swift:198; EmbeddingService.swift:297"]
+    R2DBRECOVERY["Repeated query I/O/corruption → close/reopen; failed open → WAL repair<br/>Open corruption or maintenance I/O → backup/salvage; BUSY excluded<br/>Reopened pool epoch invalidates cached storage handles<br/>RewindDatabase.swift:198; RewindDatabase.swift:264; RewindDatabase.swift:620"]
+    R2DBSALVAGE["Recovery accepts a DB only when recovered screenshot count is positive<br/>Fallback salvages screenshot metadata only; otherwise creates fresh DB<br/>Keeps 5 corrupt DB backups; full product-data recovery is not guaranteed<br/>RewindDatabase.swift:767; RewindDatabase.swift:921"]
   end
 
   subgraph AREA_08["08 · Memory lifecycle and AI user profile · Mac"]
-    MEMWORK["Lease due work with owner and revision<br/>LocalMemoryLifecycleRunner.runOnce<br/>LocalMemoryLifecycleRunner.swift:79"]
-    MEMEXTRACT["Conversation → Memory candidates<br/>processExtractions<br/>LocalMemoryLifecycleRunner.swift:180"]
+    MEMWORK["Lease due normalization, extraction, embedding and consolidation<br/>Owner + pool generation + input revision/generation<br/>LocalMemoryLifecycleRunner.swift:79"]
+    MEMEXTRACT["Conversation Memory: first 500 transcript segments in bounded packet<br/>At most 32 candidates; then exact quote/speaker/source admission<br/>LocalMemoryLifecycleRunner.swift:180; LocalMemoryLifecycleRunner.swift:421"]
     NORMALIZE["Normalize assertion candidate<br/>LocalMemoryLifecycleRunner.swift:121"]
     MEMEMBED["Embed eligible Memory; store vectors locally<br/>LocalMemoryLifecycleRunner.swift:242"]
-    CONSOLIDATE["Compare candidate and active memories<br/>promote / merge / archive under revision checks<br/>LocalMemoryLifecycleRunner.swift:299"]
-    MEMSEARCH["Read local semantic Memory matches<br/>MemorySemanticRecall<br/>MemorySemanticRecall.swift:4"]
-    MEMDELETE{"Pending deletion → Undo deadline → final delete<br/>MemoryStorage.beginDeletion<br/>MemoryStorage.swift:620"}
-    PROFILE["Explicit profile regeneration<br/>AIUserProfileService.generateProfile<br/>AIUserProfileService.swift:333"]
+    CONSOLIDATE["Compare leased short-term candidates with relevant active Memory<br/>Propose complete bounded decision set; every source/target revision checked<br/>LocalMemoryLifecycleRunner.swift:299"]
+    MEMSEARCH["Embed query remotely, then search local Memory vectors<br/>Current owner; at most 20 matches<br/>MemorySemanticRecall.swift:7"]
+    MEMDELETE{"Hide pending deletion → Undo before deadline → purge<br/>Durable deadline survives process exit<br/>MemoryStorage.swift:620"}
+    PROFILE["Explicit profile regeneration; one job, at least one available source<br/>100 Memory + 50 tasks + active goals + 20 completed conversations over 7 days<br/>Up to 30 turns of resolved default main Chat; source failures omit that source<br/>AIUserProfileService.swift:4; AIUserProfileService.swift:333"]
     PROFILEMERGE["New facts + up to five past profiles<br/>Build second consolidation request<br/>AIUserProfileService.swift:427"]
-    PROFILESAVE["Accept final profile and insert ai_user_profiles<br/>Current-owner commit lease<br/>AIUserProfileService.swift:457"]
+    PROFILESAVE["Second-stage accepted profile → truncate to 10,000 characters and insert history<br/>Owner-current commit; failed generation retains previous saved profile<br/>AIUserProfileService.swift:464; AIUserProfileService.swift:75"]
     PROFILEREAD["Read latest saved profile when preparing context<br/>AIUserProfileService.getLatestProfile<br/>AIUserProfileService.swift:168"]
+    MEMMAINTENANCE["Startup/60-second Memory maintenance<br/>Recover leases, purge expired Undo, enqueue due short-term review<br/>LocalMemoryLifecycleRunner.swift:63; LocalMemoryLifecycleRunner.swift:93"]
+    R2MEMADMISSION["Memory assertion defaults to short-term with 30-day expiry<br/>Manual → normalize; automatic → consolidate; both enqueue embedding<br/>Correction advances revision, resets evidence/structure/vector and requeues work<br/>MemoryStorage.swift:155; MemoryStorage.swift:405"]
+    R2MEMQUOTE{"Conversation Memory requires exact quote unique to supplied segment,<br/>matching speaker/subject, bounded unique content and current generation<br/>Atomic idempotent acceptance; preserve source links and sensitivity labels<br/>LocalMemoryLifecycleRunner.swift:437; MemoryStorage.swift:1016"}
+    R2MEMPROMOTE{"All decisions: complete set + preserved evidence/subject/sensitivity<br/>Promotion only: durable user relation, no restricted labels or weak basis;<br/>third-party/unclear aboutness rejected; merge/replace only long-term targets<br/>LocalMemoryLifecycleRunner.swift:501; MemoryStorage.swift:1300"}
+    R2MEMTRANSITION["Promote → long-term; merge/replace also archives old targets<br/>Review → extend short-term 30 days; archive → hidden retained row<br/>Duplicate/reject → archive + dismissed; revisions/vectors updated atomically<br/>MemoryStorage.swift:1142; MemoryStorage.swift:1245"]
   end
 
   subgraph AREA_09["09 · Interface: Home, Memory, Tasks, Insights · Mac"]
     HOME["Main navigation and Chat/Home stages<br/>DesktopHomeView<br/>DesktopHomeView.swift:43"]
     DASH["Home cards and current work<br/>DashboardPage<br/>DashboardPage.swift:8"]
-    MEMUI["Memory list, literal search and record actions<br/>MemoriesViewModel<br/>MemoriesViewModel.swift:59"]
+    MEMUI["Local Memory page:100-row pages, layer/tag filters and literal search<br/>Search/filter cap10000; search failure scans loaded rows; stale scope ignored<br/>MemoriesViewModel.swift:223; MemoriesViewModel.swift:558"]
     CONVUI["Conversation list and detail<br/>ConversationsPage<br/>ConversationsPage.swift:6"]
     TASKUI["Tasks: create, edit, complete, delete and Undo<br/>TasksPage<br/>TasksPage.swift:635"]
     TASKS["TasksStore: authorized mutations and projection<br/>TasksStore.swift:16"]
-    REMINDER["Schedule and reconcile local task reminders<br/>TaskReminderService<br/>TaskReminderService.swift:44"]
-    FOCUSUI["Read existing saved Focus sessions<br/>FocusStorage / FocusPage<br/>FocusStorage.swift:172"]
+    REMINDER["Reconcile future incomplete task reminders; cancel stale requests<br/>Owner-fenced direct OS scheduling; separate from proactive policy<br/>TaskReminderService.swift:85"]
+    FOCUSUI["Read existing saved Focus sessions; automatic screen producer retired<br/>Focus history and manual deletion remain owner-local<br/>FocusStorage.swift:172"]
     INSIGHTUI["InsightStorage: projection of Memory tagged tips<br/>Insights / Home readers<br/>InsightStorage.swift:113"]
+    REMINDERERROR["Task remains committed when reminder scheduling fails<br/>Publish separate reminder warning<br/>TasksStore.swift:766"]
+    GOALWIDGET["GoalsWidget declares create/edit/complete callbacks<br/>No current desktop Sources/Tests instantiation found<br/>GoalsWidget.swift:4"]
+    GOALTEST["Non-production create_test_goal automation<br/>Only current source mutation caller found<br/>DesktopAutomationBridge.swift:2061"]
+    HOMEROWS["Up to four mixed Home rows: tasks, insight/tip and question<br/>Task hide is transient; Insight dismiss persists; questions only prefill Chat<br/>HomeKnowsComposer.swift:44; DashboardPage.swift:502"]
+    CAPTURECONTROLS["Manual Listening and Capture toggles preserve independent intent<br/>Explicit enable exits inactive Skip; screen start failure resets screen intent<br/>CaptureListeningLogic.swift:21; CaptureListeningLogic.swift:45"]
+    FOCUSMAINT["Focus startup/refresh/insert prunes older than30days and beyond500 rows<br/>User delete/clear persists before projection; durations derive from transitions<br/>ProactiveStorage.swift:86; FocusStorage.swift:208; FocusStorage.swift:257"]
+    INSIGHTACTIONS["Newest100 tips projected; read/dismiss flags persist<br/>Delete is immediate; Clear All removes tips across layers; failure retains projection<br/>InsightStorage.swift:181; MemoryStorage.swift:540"]
   end
 
   subgraph AREA_10["10 · Notifications and conversation continuity · Mac"]
-    NOTIFY{"Owner, enabled, snooze and frequency checks<br/>NotificationService.sendNotification<br/>NotificationService.swift:374"}
-    CARD["Show floating-bar card and journal message<br/>presentNotification<br/>FloatingControlBarWindow.swift:3855"]
+    NOTIFY{"Owner and snooze; proactive master/frequency admission<br/>Functional callers bypass master/frequency; default is in-app only<br/>NotificationService.swift:374"}
+    CARD["Present floating card without waiting for journal write<br/>Six-second dismissal advances queue; temporary bar re-hides if disabled<br/>FloatingControlBarWindow.swift:3855"]
     CARDCONTEXT["Attach quoted card context to typed follow-up<br/>notificationContextSuffixIfNeeded<br/>FloatingControlBarWindow.swift:4698"]
-    CARDVOICE["Supply silent reference to native Live<br/>NotchCardVoiceDelivery.cardPresented<br/>NotchCardVoiceDelivery.swift:59"]
-    SYSTEMNOTICE["OS notice / reminder<br/>Functional capture-reset action is separate<br/>NotificationService.swift:258"]
+    CARDVOICE["Newest pending card becomes silent untrusted Live reference<br/>Retry on connect/input window; confirm before dedupe; retain last50 delivered IDs<br/>NotchCardVoiceDelivery.swift:59; NotchCardVoiceDelivery.swift:98"]
+    SYSTEMNOTICE["macOS notice/reminder delivery<br/>Opt-in functional banners require OS grant; task scheduler separate<br/>NotificationService.swift:489; TaskReminderService.swift:184"]
+    NOTIFYFREQ["Proactive defaults: master ON, frequency OFF; launch migration sets Off once<br/>Enabled levels throttle globally and per source; Supervisor shares admission<br/>NotificationService.swift:34; NotificationService.swift:631; NotificationService.swift:770"]
+    CARDQUEUE["Floating window required; snooze drops/cancels cards<br/>Existing card or open AI conversation queues FIFO; owner change drops old queue<br/>FloatingControlBarWindow.swift:2682; FloatingControlBarWindow.swift:3188"]
+    CARDJOURNAL["Asynchronous owner-fenced journal admission once per notification ID<br/>Click waits for pending admission; rejected/missing write cannot open Chat<br/>FloatingControlBarWindow.swift:3811; FloatingControlBarWindow.swift:3950"]
+    NOTCHRECEIPT["While listening: newest new task aged at most120s<br/>Confirm active canonical row before Saved card; Undo deletes via TasksStore<br/>NotchMomentsCoordinator.swift:99; NotchMomentsCoordinator.swift:124"]
+    NOTCHEND["Listening stop edge counts new task IDs created since start baseline<br/>No conversation-ID filter; Review opens Tasks<br/>NotchMomentsCoordinator.swift:59; NotchMomentsCoordinator.swift:88"]
   end
 
   subgraph AREA_11["11 · Chat context, transport and accepted journal · Mac"]
     TEXT["User types in Home or floating bar<br/>ChatProvider.sendMessage<br/>ChatProvider.swift:3651"]
-    CHATGATE{"Owner, quota, session and concurrent-send checks<br/>ChatProvider.swift:3651"}
-    CONTEXT["Collect profile, Memory, goals, tasks and surface context<br/>prepareKernelQueryContext<br/>ChatProvider.swift:1653"]
-    BRIDGE["Swift ↔ Node JSONL request/result transport<br/>AgentRuntimeProcess<br/>AgentRuntimeProcess.swift:227"]
+    CHATGATE{"Nonempty text, owner, quota and catalog state;<br/>one shared send lock across main/floating Chat<br/>ChatProvider.swift:3651"}
+    CONTEXT["Select up to 30 Memory records, 20 unfinished tasks,<br/>active goals, cached profile, database schema and surface context<br/>ChatProvider.swift:1653"]
+    BRIDGE["Start/handshake local Node process; Swift ↔ Node JSONL<br/>Owner identity, context snapshots, journals, tools and run results<br/>AgentRuntimeProcess.swift:227"]
     PROJECTION["Accepted journal → shared Home/floating transcript<br/>ChatProvider journal projection<br/>ChatProvider+JournalProjection.swift:3"]
     CHATUI["Visible answer text and resources<br/>ChatMessagesView<br/>ChatMessagesView.swift:74"]
-    CHATSTOP["User stop / watchdog → interrupt active run<br/>ChatProvider.stopAgent<br/>ChatProvider.swift:3106"]
+    CHATSTOP["User stop, 60s bridge silence with no active tool,<br/>or 90s tool no-progress → revoke run and preserve partial output<br/>User stop is silent; watchdogs show typed timeout<br/>ChatProvider.swift:3106; ChatProvider.swift:3850"]
     VOICECONTEXT["Reuse kernel-rendered context for Live<br/>prepareRealtimeVoiceContextSnapshot<br/>ChatProvider.swift:1773"]
+    CHATCATALOG["Create/select/default Chat; list/filter stars and rename<br/>Owner-scoped selection; failed load restores previous chat<br/>ChatProvider.swift:1927"]
+    CHATCLEAR["Clear default in place; named clear deletes/replaces Chat<br/>Voice/journal exclusion; named clear also removes draft/GCs attachments;<br/>replacement Chat refreshes voice context<br/>ChatProvider.swift:2295"]
+    CHATCOMPUTE["New Chat greeting; first completed exchange title<br/>Bounded backend compute; accept locally under owner/selection fence<br/>ChatProvider.swift:2101"]
+    CHATRECOVERY["Show typed error and recovery action<br/>Retry prompt, restore sign-in/bridge, install runtime or dismiss<br/>ChatProvider.swift:5809"]
+    CHATATTACH["Stage up to four files; copy bytes into owner/chat storage<br/>Await managed copies before send; GC unreferenced owned copies<br/>File-backed image bytes loaded only up to 25 MiB<br/>LocalChatAttachmentStore.swift:21; ChatAttachment.swift:49"]
+    CHATSCREEN["When no image is already attached: explicit screen question → current capture;<br/>floating/pill turn → last ten minutes work summary;<br/>OS permission checked; this auto-attachment bypasses the Chat screen-sharing toggle<br/>ChatProvider.swift:4141"]
+    CHATINPUTWIRE["Attachment inference boundary<br/>Explicit image or first attached image supplies at most one image payload;<br/>all files add URI/metadata JSON, without automatic document extraction<br/>ChatProvider.swift:4124; kernel-core.ts:990"]
+    CHATJOURNAL["Atomic user + assistant-placeholder admission before inference<br/>Failure blocks send and keeps draft; accepted pair consumes attachment draft<br/>Final commit retries once; visible success stays successful on commit failure<br/>ChatProvider.swift:4029; ChatProvider.swift:3401; ChatProvider.swift:4643"]
   end
 
   subgraph AREA_12["12 · Local Node kernel, Pi and tools"]
     TRANSPORT{"Validate owner, session and expected snapshot<br/>JsonlTransport<br/>jsonl-transport.ts:84"}
-    KERNEL["Validate context snapshot; admit run/attempt and bind adapter<br/>KernelCore<br/>kernel-core.ts:159"]
-    PI["Pi subprocess: model → tool → model<br/>PiMonoAdapter<br/>pi-mono.ts:203"]
-    EXTENSION["Intentive provider extension<br/>Firebase Bearer headers; private tool pipe<br/>index.ts:375"]
-    CAPABILITY{"Authorize exact owner/session/run/attempt/tool<br/>Reject stale, revoked or replayed calls<br/>run-tool-capability.ts:59"}
-    NODETOOLS["Node control tools<br/>spawn agents and manage their runs<br/>direct-control-execution.ts:8"]
-    SWIFTTOOLS["Swift retained product tools<br/>ChatToolExecutor.execute<br/>ChatToolExecutor.swift:88"]
+    KERNEL["Validate context; admit run/attempt and bind adapter<br/>Stale Pi binding may retry within default two attempts;<br/>production transport supplies no general error-recovery hook<br/>kernel-core.ts:829; desktop/macos/agent/src/index.ts:1042"]
+    PI["Pi subprocess: managed model → registered tool → model<br/>Builtin tools, skills and implicit context/extensions disabled<br/>pi-mono.ts:267"]
+    EXTENSION["Intentive provider extension<br/>Firebase Bearer headers; private tool pipe<br/>desktop/macos/pi-mono-extension/index.ts:375"]
+    CAPABILITY{"Authorize owner/session/run/attempt, manifest, role and profile<br/>Single-use tool identity; reject revoked, stale or replayed calls<br/>run-tool-capability.ts:67"}
+    NODETOOLS["Node control tools: runs/agents, context, action queue,<br/>dispatches, artifact inspection and lifecycle<br/>control-tools.ts:351"]
+    SWIFTTOOLS["Owner-authorized Swift product tools<br/>Local reads, structured task writes, screen and permissions<br/>ChatToolExecutor.swift:88"]
     SWIFTWIRE["Node authorized_tool_execution → Swift<br/>Owner-checked execution → correlated return<br/>AgentRuntimeProcess.swift:3166"]
-    TOOLRESULT["Canonical tool result returns to active caller<br/>index.ts:813"]
+    TOOLRESULT["Canonical tool result returns to active caller<br/>desktop/macos/agent/src/index.ts:331"]
     AGENTRESULT["Background agent completion → existing journal row<br/>KernelAgentLifecycleMutation<br/>KernelTurnProjection.swift:71"]
+    CONTEXTSNAPSHOT["Render immutable context/capability snapshot<br/>Latest 64 journal turns, active/recent child runs and expiring sources;<br/>mark omitted older history; send updates to reused Pi binding<br/>context-snapshot.ts:183"]
+    WORKERS["Queue attempts on bounded Pi workers; reuse pinned sessions<br/>Default two Pi workers; retire eligible idle binding for capacity<br/>worker-pool.ts:7"]
+    TOOLSEMANTIC{"Tool proposal policy: SQL stays read-only;<br/>permission requests need current explicit intent;<br/>permission work cannot escape through delegation<br/>external-surface-tool-policy.ts:73"}
+    TOOLLEDGER["Persist prepared → dispatched → terminal tool evidence<br/>Revoked/timed-out dispatched work can have unknown physical outcome;<br/>8 KiB result overflow returns failed envelope + full-output artifact ref<br/>tool-invocation-ledger.ts:203; relay-tool-result.ts:103"]
+    AGENTINTENT["Validate spawn/continue proposal and canonical target<br/>One-use owner/surface decision; child leaf cannot redelegate<br/>kernel-coordinator.ts:240"]
+    ACTIONQUEUE["Derive attention queue from pending dispatches,<br/>failed/stale runs, artifact review and candidate rows<br/>kernel-coordinator.ts:165"]
+    DISPATCH["Create local approval/routing/review dispatch<br/>Trusted direct resolution may create exact expiring grant;<br/>policy evaluation is a callable tool, not a universal effect gate<br/>kernel-coordinator.ts:359"]
+    NODESTART["Node restart: orphan active attempts/runs and stale bindings<br/>Prepared tools fail; dispatched tools become outcome-unknown<br/>sqlite-store.ts:576"]
+    TOOLDEADLINES["Independent tool deadlines: Pi extension 30s, long control 10min;<br/>Node waits 120s for Swift executor; Chat tool no-progress 90s<br/>Expiry/revocation rejects late result; dispatched effect may already exist<br/>desktop/macos/pi-mono-extension/index.ts:105; desktop/macos/agent/src/index.ts:425"]
   end
 
   subgraph AREA_13["13 · Push-to-talk and native Gemini Live · Mac"]
-    PTT["Hold shortcut: begin physical voice turn<br/>PushToTalkManager.startListening<br/>PushToTalkManager.swift:462"]
-    PTTCAP["Capture and buffer 16 kHz microphone audio<br/>startAudioTranscription<br/>PushToTalkManager.swift:1495"]
+    PTT["User begins a physical voice turn<br/>Usage gate, configurable shortcut and microphone admission<br/>PushToTalkManager.swift:462"]
+    PTTCAP["Capture 16 kHz microphone PCM<br/>Keep bounded backup audio; warn when backup buffer fills<br/>PushToTalkManager.swift:1495"]
     HUB["RealtimeHubController<br/>Session, turn identity and output ownership<br/>RealtimeHubController.swift:8"]
-    LIVESETUP["Direct Google WebSocket<br/>setup: pinned managed A prompt; audio and transcripts<br/>RealtimeHubSession.swift:719"]
-    LIVEINPUT["PTT: activityStart → PCM/context → activityEnd<br/>Automatic speech: standalone realtimeInput.text<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:272"]
-    LIVEFUNCTION["Receive functionCalls; return functionResponses<br/>RealtimeHubSession.swift:641"]
-    LIVEOUTPUT["Read serverContent: transcripts and PCM<br/>turnComplete waits for pending tools<br/>RealtimeHubSession.swift:954"]
-    RECONNECT{"PTT: bounded reconnect; automatic turns never replay<br/>RealtimeHubController+SessionDelegate.swift:1119"}
+    LIVESETUP["Direct Google WebSocket setup: native audio + transcripts/tools<br/>Pinned managed A prompt and Charon voice; automatic VAD off;<br/>explicit PTT boundaries and sliding context-window compression<br/>RealtimeHubSession.swift:719"]
+    LIVEINPUT["PTT: activityStart → PCM/context → activityEnd<br/>Automatic speech: standalone realtimeInput.text, without microphone activity<br/>Native model owns the voice reasoning loop<br/>RealtimeHubSession.swift:272"]
+    LIVEFUNCTION["PTT manifested tools: product reads/task writes,<br/>permission requests and child agents; matching functionResponses<br/>Supervisor-origin automatic turns cannot execute tools<br/>RealtimeHubController+SessionDelegate.swift:725"]
+    LIVEOUTPUT["Read serverContent transcripts and PCM<br/>turnComplete waits for tools; tool-only cycle may request one continuation;<br/>logical success still waits for local playback and journal<br/>RealtimeHubSession.swift:985; RealtimeHubController+SessionDelegate.swift:890"]
+    RECONNECT{"PTT: one same-provider rebind/replay, then bounded batch recovery<br/>Automatic Supervisor turns never replay after ambiguous failure<br/>Separate next-turn rewarm:1.5s delay, max 5 strikes; auth/quota stop it<br/>RealtimeHubController+SessionDelegate.swift:1119; RealtimeHubController+SessionDelegate.swift:1279"}
+    PTTCONTROLS["Hold/release or double-tap lock/tap to submit; cancel<br/>Optional start/end sounds and system-audio mute/restore<br/>PushToTalkManager.swift:387"]
+    VOICESTATE["One voice-turn reducer owns capture, provider, tools,<br/>journal and output identities; ignores stale effects<br/>VoiceTurnCoordinator.swift:353"]
+    VOICEWARM["Warm owned Live session using current Chat snapshot<br/>Refresh context before admitting new audio; buffer while preparing<br/>RealtimeHubController+SessionLifecycle.swift:12"]
+    VOICEBARGE["New PTT interrupts playback/provider work<br/>Persist interrupted exchange → refresh context → replace session;<br/>also rotate completed-turn session before next PTT when required<br/>RealtimeHubController+PushToTalk.swift:13"]
+    VOICESCREEN["Freeze whole frontmost display before PTT overlay<br/>Ambiguous target or missing OS grant yields unavailable evidence;<br/>keep image local until matching authorized screenshot tool<br/>RealtimeScreenEvidence.swift:476"]
+    SCREENVERIFY{"Frozen image must enqueue within 5s; matching observation within 8s<br/>Local exact-call receipt + report gates provider text and audio;<br/>internal observation reopens answer; it is not the user-facing answer<br/>RealtimeScreenEvidence.swift:119; RealtimeHubController+ScreenEvidence.swift:79"}
+    VOICEJOURNAL["Persist streaming/final/interrupted/failed voice exchange<br/>Idempotent accepted shared journal before visible continuity;<br/>Supervisor-origin utterances are assistant-only entries<br/>RealtimeHubController+TurnPersistence.swift:31"]
+    VOICELANGUAGE["Voice languages: explicit selection or Mac preferred languages<br/>Live receives language guidance in prompt; native language setter is inert;<br/>batch uses selected/LID match or multi, separate from ambient STT<br/>RealtimeHubTools.swift:10"]
+    VOICEDEADLINES["Reducer stage limits: capture 3s, warm 1s, batch 12s,<br/>first response 20s, tools 30s, commit 8s, rebind 3s,<br/>playback 30s, journal 15s; warm/rebind → batch, other failures terminate<br/>VoiceTurnStateMachine.swift:1000; VoiceTurnStateMachine.swift:1847"]
+    SCREENFAILURE["Unavailable image/permission → structured error, native reply continues<br/>Expired/mismatched/missing report → replace provider output<br/>with locally journaled failure spoken through selected app voice<br/>RealtimeHubController+ScreenEvidence.swift:187; RealtimeHubController+ScreenEvidence.swift:289"]
   end
 
   subgraph AREA_14["14 · Voice recovery and spoken output · Mac"]
-    BATCH["Fallback: completed speech buffer → batch STT<br/>TranscriptionService.batchTranscribe<br/>TranscriptionService.swift:967"]
-    BATCHPOLICY{"Language, keywords and owner checks<br/>One multi-language retry after empty result<br/>PTTBatchTranscriptionPolicy.swift:6"}
-    SPEECHGATE{"Completed turn has usable speech?<br/>Reject silence before batch recovery<br/>PushToTalkManager.swift:1746"}
+    BATCH["Fallback: completed speech buffer → batch STT<br/>TranscriptionService.batchTranscribe<br/>TranscriptionService.swift:989"]
+    BATCHPOLICY{"Owner, language and explicit vocabulary checks<br/>One multi-language retry after empty recognition<br/>PTTBatchTranscriptionPolicy.swift:6"}
+    SPEECHGATE{"At release: enough speech for Live commit or batch recovery?<br/>Energy/duration then Silero quiet-speech rescue;<br/>too-short turn shows hint; silent turn discarded<br/>PushToTalkManager.swift:903"}
     TRANSCRIPTQUERY["Recognized text → floating Chat request<br/>PushToTalkManager.sendQuery<br/>PushToTalkManager.swift:1402"]
     PCM["Native PCM16 at 24 kHz<br/>StreamingPCMPlayer<br/>StreamingPCMPlayer.swift:53"]
-    OUTPUTLEASE{"Only current turn/session may play audio<br/>enqueueNativeAudio<br/>RealtimeHubController+VoiceOutput.swift:37"}
-    TTSQUEUE["Arriving text → sentence chunks<br/>FloatingBarVoicePlaybackService<br/>FloatingBarVoicePlaybackService.swift:159"]
+    OUTPUTLEASE{"Current turn/session owns one audible lane<br/>Native, selected-voice fallback and local replies compete;<br/>stale/cancelled synthesis and callbacks cannot reclaim output<br/>RealtimeHubController+VoiceOutput.swift:37; FloatingBarVoicePlaybackService.swift:597"}
+    TTSQUEUE["Admitted floating response text → sentence chunks<br/>Filler may speak while waiting; first answer text stops it<br/>Current PTT output lease required when turn is active<br/>FloatingBarVoicePlaybackService.swift:102; FloatingBarVoicePlaybackService.swift:159"]
     MP3["Selected OpenAI voice: play returned audio<br/>AVAudioPlayer<br/>FloatingBarVoicePlaybackService.swift:15"]
-    OSSPEECH["Selected system voice / cloud failure fallback<br/>AVSpeechSynthesizer<br/>FloatingBarVoicePlaybackService.swift:15"]
+    OSSPEECH["Cloud synthesis/playback failure → system speech<br/>Only current non-cancelled output may fall back;<br/>no system voice in shipped voice picker<br/>FloatingBarVoicePlaybackService.swift:597; ShortcutSettings.swift:471"]
     SPEAKER["Audible speech output<br/>Hardware playback completion<br/>StreamingPCMPlayer.swift:53"]
+    PTTDEVICE["Selected microphone; Automatic favors built-in with Bluetooth<br/>Silent mic → switch built-in or rebuild CoreAudio capture<br/>PushToTalkManager+InputDeviceRouting.swift:18"]
+    PTTVOCAB["Current-press OCR + explicit vocabulary correct transcript<br/>Only explicit settings terms cross batch-STT wire<br/>PTTContextVocabularyProvider.swift:5"]
+    PTTLOCALDECODE["Explicit voice languages enable separate Parakeet v3 model/cache<br/>Local decode chooses batch language; may replace empty/wrong-language<br/>Live transcript for journal continuity after at most 20s wait<br/>PTTLanguageIdentifier.swift:19; RealtimeHubController+PushToTalk.swift:529"]
+    SPEECHCHOICE{"Floating voice query speaks automatically;<br/>typed reply speech toggle defaults off<br/>Picker: OpenAI voices only, default Shimmer; independent of Live Charon<br/>ShortcutSettings.swift:471; ShortcutSettings.swift:544; ShortcutSettings.swift:597"}
   end
 
   subgraph AREA_15["15 · Managed inference and provider boundaries · Backend"]
-    SERVER["FastAPI startup, routers and bounded shutdown<br/>backend/main.py<br/>main.py:76"]
-    BEAUTH{"Firebase authentication and participant admission<br/>get_current_participant_uid<br/>endpoints.py:160"}
-    CHATAPI["POST /v2/models/model:streamGenerateContent<br/>Validate, quota, managed prompt, Gemini SSE<br/>desktop_chat.py:372"]
-    PROXY["POST /v1/proxy/gemini/path<br/>Candidate and embedding compute<br/>desktop_proxy.py:192"]
-    CONVAPI["Conversation discard / structure / action-items<br/>Return generation-tagged candidates<br/>conversation_compute.py:173"]
-    MEMAPI["Memory extract / normalize / consolidate<br/>Return validated candidates<br/>memory_compute.py:35"]
-    TOKENAPI["POST /v2/realtime/session<br/>Mint single-use Google credential<br/>desktop_realtime.py:113"]
-    STTAPI["POST /v2/voice-message/transcribe<br/>Fixed Modulate Velma-2 batch STT<br/>chat.py:280"]
-    TTSAPI["POST /v1/tts/synthesize<br/>OpenAI speech → MP3 bytes<br/>desktop_tts_updates.py:199"]
-    GREETING["Bounded greeting / session title compute<br/>No hosted Chat catalog<br/>chat_sessions.py:50"]
-    GOOGLE["Google Gemini<br/>Text/image reasoning and embeddings<br/>desktop_proxy.py:109"]
+    SERVER["FastAPI routers; validate credentials, billing and deletion dispatch<br/>Default-deny CORS; configured HTTP deadlines; bounded task/client shutdown<br/>backend/main.py:77"]
+    BEAUTH{"Hosted compute participant admission after Firebase auth<br/>Configured 1–5 humans plus release probe; invalid config rejects<br/>Local/offline exemption; backend/config/participant_admission.py:74"}
+    CHATAPI["Native Gemini SSE Chat; fixed model/contract and bounded payload<br/>Reject client keys; quota + Redis meter; record question before stream<br/>Typed provider errors; backend/routers/desktop_chat.py:374"]
+    PROXY["Candidate/embedding proxy; allowlisted model/actions + remap<br/>Trial, 5MB body, burst/daily meter; clamp supplied output limit<br/>Single upstream attempt; backend/routers/desktop_proxy.py:87; backend/routers/desktop_proxy.py:115"]
+    CONVAPI["Conversation discard / structure / action-item proposals<br/>Bound transcript and related task tokens; generation IDs; invalid result fails<br/>backend/routers/conversation_compute.py:173"]
+    MEMAPI["Memory extract / normalize / consolidate proposals<br/>Bounded inputs/output and token references; per-route rate limit + usage<br/>backend/routers/memory_compute.py:35"]
+    TOKENAPI["Mint one-use Google Live credential after trial gate<br/>Bounded start/expiry; typed provider mint errors<br/>backend/routers/desktop_realtime.py:115"]
+    STTAPI["Batch speech: bounded PCM or uploaded file → Modulate<br/>Trial/rate/duration budget; language/vocabulary; silence vs typed failure<br/>backend/routers/chat.py:280"]
+    TTSAPI["Bounded text + allowed voice → OpenAI MP3<br/>Trial; fail-closed Redis burst/daily chars; up to 3 upstream attempts<br/>Typed final failures; backend/routers/desktop_tts_updates.py:160"]
+    GREETING["Bounded local context → greeting or first-exchange title<br/>Per-user rate limit + usage; no hosted Chat catalog<br/>backend/routers/chat_sessions.py:50"]
+    GOOGLE["Google Gemini<br/>Text/image reasoning and embeddings<br/>desktop_proxy.py:104"]
     GOOGLELIVE["Google Gemini Live<br/>Direct audio WebSocket session<br/>RealtimeHubSession.swift:707"]
     MODULATE["Modulate speech recognition<br/>Streaming and prerecorded routes<br/>stt_provider_policy.py:15"]
     OPENAI["OpenAI text-to-speech<br/>gpt-4o-mini-tts<br/>desktop_tts_updates.py:21"]
+    HTTPAUTH{"Account-route auth: record best-effort client metadata after identity<br/>Account routes remain accessible outside participant list<br/>backend/utils/other/endpoints.py:142"}
+    REQUESTLIMITS{"Redis request meters: Chat/proxy/TTS fail closed<br/>Generic Memory/greeting/STT rate limits can fail open or shadow<br/>backend/utils/other/endpoints.py:378"}
+    MANAGEDPROMPT["Optional Langfuse production Chat system prompt; default TTL300s<br/>Prepend to kernel prompt; unavailable → blank managed fallback<br/>backend/utils/observability/langfuse_prompts.py:84"]
+    CHATTRACE[("Langfuse Chat tracing follows shared A/B export policy<br/>Normal metadata only; session opt-in permits bounded selected text<br/>No raw media, stored context or tool payload export<br/>backend/utils/observability/langfuse.py:151")]
+    STTSTREAM["Registered transcription-only WebSocket + Swift .ptt branch<br/>Trial/audio/rate/budget gates; active Mac initializer NOT FOUND<br/>backend/routers/chat.py:584"]
+    LIVEUSAGE["POST /v2/realtime/usage: client-reported text/audio/cache tokens<br/>Trial check; positive usage → daily cost/tokens + question count<br/>backend/routers/desktop_realtime.py:192"]
+    HTTPIDENTITY{"Verify Firebase HTTP token before route-specific admission<br/>Identity alone does not grant hosted-compute access<br/>backend/utils/other/endpoints.py:122"}
+    LLMFIXTURE["OMI_LLM_STUB configured on → deterministic Chat/proxy responses<br/>Chat skips quota/meter/provider; proxy retains trial but skips meter/provider<br/>Deployment flag NOT VERIFIED; backend/utils/llm/desktop_llm_stub.py:46"]
+    VOICEUPLOAD["Registered legacy POST /v2/voice-messages: first decoded upload → SSE<br/>Participant/rate/duration checks; temp-file cleanup; transient STT only<br/>No active Mac caller found; backend/routers/chat.py:162"]
   end
 
   subgraph AREA_16["16 · Ambient cloud session and translation · Backend"]
     LISTENAPI["GET WebSocket /v4/listen<br/>Validate fixed audio contract<br/>transcribe.py:26"]
-    LISTENRUN["Admit usage; supervise receive / heartbeat / output<br/>ListenSessionRuntime.run<br/>runtime.py:359"]
-    RECEIVER["Forward bounded PCM to Modulate<br/>ListenReceiver.receive_data<br/>receiver.py:138"]
+    LISTENRUN["Trial or missing account rejects; no credits warns and admits<br/>Supervise input/transcripts/heartbeat/usage; ready and typed failures<br/>Managed allowance may drop audio; backend/routers/listen/runtime.py:173"]
+    RECEIVER["Receive binary PCM; buffer/flush and drain Modulate socket<br/>Managed allowance exhaustion drops audio; monitor provider death<br/>backend/routers/listen/receiver.py:105"]
     TRANSIENT["Validate and emit transient segments<br/>TransientTranscriptProcessor.process_loop<br/>transcripts.py:67"]
-    TRANSLATE["Optional translation of accepted segment IDs<br/>Emit translation event<br/>transcripts.py:90"]
-    LISTENDRAIN["Flush transcript and usage; drain socket tasks<br/>No hosted conversation persistence<br/>runtime.py:386"]
+    TRANSLATE["Selected target → first-seen segment IDs; split/deduplicate/batch<br/>One attempt per ID/session; valid changed text emits by matching ID<br/>Failure retains source; backend/routers/listen/transcripts.py:80"]
+    LISTENDRAIN["Drain transcript/translation and usage; stop provider/tasks<br/>Clear session state only; no hosted conversation row<br/>backend/routers/listen/runtime.py:386"]
+    VADGATE{"Server VAD off/shadow/active; default off<br/>Active skips silence, keeps provider alive and remaps timestamps<br/>Initialization failure → direct; backend/utils/stt/vad_gate.py:43"}
+    TRANSLATIONMODEL["Gemini 2.5 Flash-Lite translation<br/>Strict result count/nonempty text; no alternate provider<br/>backend/utils/translation_core/providers.py:52"]
+    TRANSLATIONCACHE[("Session LRU + shared Redis translated-text cache when available<br/>Fingerprint/language key; default TTL14days, negative7days<br/>Session clear retains Redis; backend/config/translation.py:19<br/>backend/utils/translation_core/cache.py:74; backend/utils/translation.py:160")]
   end
 
   subgraph AREA_17["17 · Account sign-in and remote account authority"]
-    OAUTH["Sign-in browser → Google / Apple<br/>authorize and callback<br/>auth.py:287"]
-    TOKENEXCHANGE["Exchange one-time auth code<br/>Redirect and PKCE validation<br/>auth.py:546"]
+    OAUTH["Browser Google/Apple sign-in with allowlisted redirect + required S256<br/>Persist provider/redirect/state/challenge before provider redirect<br/>backend/routers/auth.py:287"]
+    TOKENEXCHANGE["Consume code first; bound format validates redirect + S256 verifier<br/>Legacy raw-credential format retained; custom token optional/default off<br/>Custom-token failure → 502; backend/routers/auth.py:546"]
     FIREBASE["Firebase Auth<br/>Identity verification and account lifecycle<br/>endpoints.py:36"]
-    DELETIONMARK[("Firestore account_deletions/uid<br/>Intent, claims, dispatch receipts and retry state<br/>users.py:220")]
-    ACCOUNTDATA[("Server account metadata and entitlement facts<br/>Firestore user projection<br/>users.py:66")]
+    DELETIONMARK[("Firestore account_deletions/uid<br/>Intent, claims, dispatch receipts and retry state<br/>backend/database/users.py:220")]
+    ACCOUNTDATA[("Firestore account profile/language/device metadata<br/>Entitlements, usage and content-free fair-use facts; no product catalog<br/>backend/database/users.py:83")]
     AUTHCACHE[("Scoped Keychain credentials<br/>Local auth restoration and refresh<br/>DesktopKeychainStore.swift:21")]
     SIGNOUT["Sign out through owner transition<br/>AuthOwnerTransition<br/>AuthOwnerTransition.swift:72"]
+    OAUTHSTATE[("Redis OAuth session 5min + short-lived exchange code<br/>Redirect/PKCE/provider state; code consumed before exchange validation<br/>backend/routers/auth.py:333")]
+    BOOTSTRAPAPI["Authenticated /v1/config/api-keys → Firebase bootstrap key<br/>APIKeyService fetches; no customer/provider master keys<br/>backend/routers/desktop_core.py:30"]
+    ACCOUNTLANG["Read/write account language; profile and LLM-cost reads<br/>Insight reads account language; batch STT may resolve preference<br/>backend/routers/users.py:226"]
   end
 
   subgraph AREA_18["18 · Subscription, usage and fair use"]
     PLANUI["Subscription/trial state presented locally<br/>TrialBannerService<br/>TrialBannerService.swift:12"]
-    PLANAPI["Get subscription / quota / trial / paywall<br/>Server-owned account limits<br/>users.py:254"]
+    PLANAPI["Authenticated subscription, quota, trial, paywall and usage APIs<br/>Resolve server plan/usage; present billing availability<br/>backend/routers/users.py:254"]
     CHECKOUT["Request checkout or customer portal URL<br/>payment.py:89"]
-    BILLING["Dodo provider and catalog<br/>BillingService<br/>service.py:57"]
-    WEBHOOK["Verify billing event and update entitlement projection<br/>payment.py:117"]
-    USAGE["Record usage; refresh credits and enforcement<br/>ListenSessionRuntime<br/>runtime.py:323"]
+    BILLING["Dodo catalog/checkout/portal/cancellation<br/>Mode disabled by default; explicit test/live credentials and catalog<br/>backend/utils/billing/config.py:52"]
+    WEBHOOK["Verify signature/receipt and reread current Dodo resource<br/>Payment associates customer/UID; subscription resolves association<br/>Atomic projection/receipt then cache invalidation; backend/utils/billing/service.py:127"]
+    USAGE["Periodic/final audio time + emitted words; speech only with VAD<br/>Optional fair-use checks; credit warning / local-STT handoff notices<br/>backend/routers/listen/runtime.py:232; backend/routers/listen/runtime.py:323"]
     REVIEW["Requested fair-use review<br/>Read bounded local conversation evidence<br/>FairUseReviewCoordinator.swift:127"]
-    REVIEWAPI["Classify once; record durable enforcement receipt<br/>Fair-use classification endpoint<br/>fair_use_reviews.py:68"]
+    REVIEWAPI["Validate requested evidence/window; claim classifier work<br/>Reuse durable receipt; recheck expiry and claim before enforcement<br/>backend/routers/fair_use_reviews.py:68"]
     FAIRNOTICE["Present owner-scoped fair-use warning<br/>FairUseWarningNotificationPresenter<br/>FairUseWarningNotification.swift:62"]
+    TRIALGATE{"Optional trial paywall; desktop platform required; default disabled<br/>3days from Firebase creation; paid plan bypass; lookup failure allows<br/>backend/utils/subscription.py:62"}
+    ENFORCEMENT[("Redis rolling speech, managed budget and pending-review cooldown<br/>Firestore content-free stage/receipts; warning → throttle → restrict<br/>backend/utils/fair_use.py:308")]
+    VOICEBUDGET{"Separate Redis daily batch/stream speech-duration budget<br/>Unavailable meter allows; oversized input/session still rejected<br/>backend/utils/voice_duration_limiter.py:127"}
+    FAIRADMIN["Secret-authenticated support inspect/resolve/reset/set-stage/case<br/>Retained server control surface; caller/deployment NOT VERIFIED<br/>backend/routers/fair_use_admin.py:109"]
+    FAIRUSEPOLICY{"Automatic fair use defaults OFF; kill switch/exemptions/plan caps<br/>Ambient rolling speech needs initialized VAD; managed duration is separate<br/>backend/utils/fair_use.py:30; backend/routers/listen/runtime.py:333"}
+    FREEEXHAUST["Soft caps + exhausted free plan → synthetic positive escalation<br/>Redis lock/cooldown; recheck exhaustion; no local-evidence classifier<br/>backend/utils/fair_use.py:682"]
+    FAIRRECOVERY["Authoritative read normalizes expired automatic stages<br/>30-day restrict → 7-day throttle → warning; timerless manual stages persist<br/>backend/database/fair_use.py:66; backend/database/fair_use.py:351"]
+    BILLINGRECORDS[("Firestore customer→UID associations + webhook receipts<br/>Duplicate/stale/deleted-user guards; outside users/uid wipe tree<br/>backend/database/billing.py:13; backend/database/billing.py:69")]
   end
 
   subgraph AREA_19["19 · Product controls, onboarding and user data"]
-    ONBOARD["Conversational onboarding<br/>SBOnboardingModel<br/>SBOnboardingModel.swift:49"]
+    ONBOARD["Resumable setup: promise, name, acquisition source and language<br/>Then permissions, two shortcuts and screen/voice demo<br/>SBOnboardingModel.swift:50"]
     ONBOARDGATE{"Runtime start gate<br/>Intent, quota, keys, permission, current state<br/>SBOnboardingModel.swift:565"}
-    ONBOARDEXIT["Final demo Continue or Skip for now → all-day<br/>Global Skip → inactive<br/>OnboardingExitExecutor<br/>OnboardingExitPolicy.swift:109"]
+    ONBOARDEXIT["Demo Continue or demo Skip: mic/system/screen/login intent ON<br/>Global Skip: capture/login OFF, no opener; persist either outcome<br/>OnboardingExitPolicy.swift:74"]
     PREFS[("Local capture, Supervisor, speech and privacy preferences<br/>AssistantSettings and companion settings owners<br/>AssistantSettings.swift:5")]
-    CONVACTIONS["Folders, stars, titles, speakers and deletion<br/>ConversationRepository<br/>ConversationRepository.swift:240"]
-    GOALSUI["Personalized Home question chips<br/>HomeSuggestionsStore<br/>HomeSuggestionsStore.swift:80"]
+    CONVACTIONS["Local folder/star/title/speaker edits and enrichment retry<br/>Also explicit destructive delete/merge branches; failures retain accepted projection<br/>ConversationRepository.swift:240; ConversationDetailView.swift:465; ConversationsPage.swift:786"]
+    GOALSUI["Home: one fixed question plus two personalized or static fallback chips<br/>Owner-local daily cache; empty successful generation also cached<br/>HomeSuggestionsStore.swift:45; HomeSuggestionsStore.swift:135"]
     MEMORYACTIONS["Create, correct, search/filter and delete Memory<br/>MemoriesPage and MemoryStorage<br/>MemoriesPage.swift:102"]
-    EXPORT["Save owner-consistent local JSON<br/>LocalUserDataExport<br/>LocalUserDataExport.swift:316"]
+    EXPORT["Read owner-fenced pages; encode deterministic JSON; atomic file write<br/>Owner change/read/write failure aborts; selecting Cancel never starts export<br/>LocalUserDataExport.swift:316; LocalUserDataExportAction.swift:23"]
     DELETEUI["Confirm account deletion<br/>Remote acceptance before local sign-out<br/>SettingsContentView+SettingsUpdates.swift:36"]
-    DELETEAPI["Durable deletion intent and dispatch receipt<br/>start_account_deletion<br/>account_deletion.py:213"]
-    WIPE["Cloud Tasks worker<br/>Cancel billing → delete Auth → wipe account data<br/>account_deletion.py:76"]
-    DELETERETRY["Recover pending/failed deletion work<br/>Startup and periodic reconciliation<br/>main.py:152"]
-    SERVEREXPORT["GET /v1/users/export<br/>Retained account metadata only<br/>data_export.py:38"]
+    DELETEAPI["Persist deletion intent and attempt before enqueue<br/>Accept only queue receipt or same-job worker proof; failure stays retryable<br/>backend/services/users/account_deletion.py:213"]
+    WIPE["Claimed worker confirms billing cancellation, then removes Firebase Auth<br/>Recursively delete users/uid tree, including historical subcollections<br/>Separate receipts/caches remain; backend/services/users/account_deletion.py:54; backend/database/users.py:751"]
+    DELETERETRY["Startup + process-local 300s reconciliation of orphan/failed work<br/>Requeue durable tasks; no scale-to-zero timing guarantee<br/>backend/main.py:168"]
+    SERVEREXPORT["Account-auth GET /v1/users/export: allowlisted account fields<br/>Subscription, current-month usage and total managed-AI cost<br/>Metadata-only JSON; backend/services/users/data_export.py:38"]
+    DELETEQUEUE["Durable named Cloud Task with opaque job ID and OIDC identity<br/>Isolated local/test dispatcher is separate; hosted startup validates config<br/>backend/utils/cloud_tasks.py:148"]
+    DELETECLAIM{"Verify OIDC: job ID needs canonical audience; legacy UID needs legacy audience<br/>Claim/run lock; busy or intermediate failure retries; terminal failure ACK retains state<br/>Invalid/completed/non-actionable ACK; backend/routers/users.py:120"}
+    ONBOARDANSWERS["Name write is serialized; acquisition answer goes to analytics<br/>Language stays local; persisted step supports Back and resume<br/>SBOnboardingModel.swift:305; SBOnboardingModel.swift:469"]
+    ONBOARDPERMS["Request/skip mic, system audio, screen and accessibility individually<br/>Poll independently; system-audio consent primes a real capture attempt<br/>SBOnboardingModel+Steps.swift:9"]
+    ONBOARDDEMO["Choose/test Open and Talk shortcuts; run screen/voice demo<br/>Warm Node bridge before arming PTT; unavailable offers retry or skip<br/>SBOnboardingModel+Steps.swift:408; SBOnboardingModel+Steps.swift:443"]
+    LOGINITEM["Launch at Login via macOS service registration<br/>Completion requests ON; global Skip OFF; only stable/Beta may register<br/>LaunchAtLoginManager.swift:95"]
+    ONBOARDREPLAY["Replay setup: reset onboarding state and relaunch<br/>Explicit settings action; existing product data is a separate authority<br/>AppState+SystemActions.swift:146"]
+    PRESENTATIONPREFS["Local font scale/window reset and floating-bar display controls<br/>Shortcuts, Ask mode and speech preferences are independent choices<br/>SettingsContentView+General.swift:220; SettingsContentView+FloatingBarAndChat.swift:1; SettingsContentView+Advanced.swift:73"]
+    CONVDELETE["Delete conversation atomically with exact linked tasks, Memory and work<br/>Session children cascade; unrelated rows survive; failure rolls back; no Undo<br/>TranscriptionStorage+LocalAuthority.swift:719"]
+    CONVMERGE["Merge at least 2 completed conversations into a new local identity<br/>Remap times/speakers and linked task/Memory provenance; replace originals atomically<br/>Then re-enrich without discard; TranscriptionStorage+LocalAuthority.swift:751"]
+    MEMORYBULK["Bulk Delete removes Short-term and Long-term rows, including hidden filters<br/>Archive survives; immediate authorized delete, separate from single-row Undo<br/>MemoriesViewModel.swift:421; MemoryStorage.swift:700"]
+    EXPORTSCOPE["Structured conversations, Memory incl Archive/dismissed, tasks/goals/Chat/Focus/settings<br/>Focus capped at 500; no Rewind video/OCR, raw databases, secrets or full-device backup<br/>LocalUserDataExport.swift:351; LocalUserDataExport.swift:509"]
   end
 
   subgraph AREA_20["20 · Detailed retrieval, controls and recovery"]
     REWINDDELETE["Delete selected screenshot and owned artifacts<br/>deleteScreenshotAndArtifacts<br/>RewindDatabase+OwnerAuthorization.swift:162"]
-    REBUILD["Rebuild Rewind index from finalized video files<br/>rebuildFromVideoFiles<br/>RewindIndexer.swift:982"]
+    REBUILD["Rebuild from video sample timeline, replacing each chunk transactionally<br/>Restores frames/time; app Unknown, no window/OCR/device provenance<br/>Individual failures retain old chunk rows and surface aggregate failure<br/>RewindIndexer.swift:982; RewindIndexer.swift:1059"]
     EXCLUSIONS{"Excluded apps stop both screen branches<br/>RewindSettings.excludedApps<br/>RewindModels.swift:367"}
-    TASKUNDO["Delete task → timed Undo → purge<br/>Tasks page deletion handling<br/>TasksPage.swift:291"]
-    RECURRENCE["Complete repeating task → next occurrence once<br/>ActionItemStorage<br/>ActionItemStorage.swift:352"]
-    MEMRETRY["Failed Memory work → durable retry<br/>No accepted state from failed compute<br/>LocalMemoryLifecycleRunner.swift:384"]
-    MEMORYSCOPE["Short-term / Long-term / Archive states<br/>Memory lifecycle transitions<br/>MemoryStorage.swift:1142"]
-    CHILDVOICE["AgentCompletionVoiceDelivery<br/>Deliver bounded delta; checkpoint only after send<br/>AgentCompletionVoiceDelivery.swift:19"]
-    ARTIFACTQUEUE["Separate desktop action/delivery queue<br/>Automatic consumer UNVERIFIED<br/>kernel-artifacts.ts:119"]
-    FLOATROUTE["Floating typed / batch-voice route<br/>Same main Chat journal, different presentation<br/>FloatingControlBarWindow.swift:3532"]
-    RESOURCES["Accepted answer resources and child artifacts<br/>ChatProvider terminalization<br/>ChatProvider.swift:3446"]
-    DRAFTS["Swift-owned drafts and attachment bytes<br/>Runtime receives materialized references<br/>ChatProvider.swift:3651"]
+    TASKUNDO["Accepted soft delete → in-memory Undo stack, up to 10<br/>Each delete resets shared 5-second timer; expiry purges user tombstones<br/>Restart does not restore Undo; startup maintenance purges stranded rows<br/>TasksPage.swift:291; TasksStore.swift:740"]
+    RECURRENCE["First completion creates/reuses next open occurrence in one transaction<br/>Advance to first future date; daily/weekdays/weekly/biweekly/monthly<br/>Reopening parent does not remove child<br/>TasksStore.swift:807; ActionItemStorage.swift:352"]
+    MEMRETRY["Durable retry: 5 then 10 minutes; third failure terminal<br/>No accepted state from failed compute<br/>MemoryStorage.swift:901"]
+    MEMORYSCOPE["Short-term / Long-term / Archive read scope<br/>Default reads exclude Archive, expiry, dismissal and pending delete<br/>MemoryStorage.swift:253; MemoryStorage.swift:88"]
+    CHILDVOICE["Background terminal delta → silent untrusted Live context<br/>Requires started observer/live input capability; retry on connect,<br/>input-window-open or new terminal event; checkpoint only after send<br/>AgentCompletionVoiceDelivery.swift:117"]
+    ARTIFACTQUEUE["Artifact-delivery persistence API<br/>No in-tree production enqueue/delivery caller found<br/>kernel-artifacts.ts:120"]
+    FLOATROUTE["Floating typed / batch-voice → shared main Chat journal<br/>Authorized same-owner follow-up stops/supersedes active response;<br/>otherwise show shared-provider busy<br/>FloatingControlBarWindow.swift:3532"]
+    RESOURCES["Keep answer/child artifact metadata on producing message<br/>Reload refreshes missing-resource metadata from kernel;<br/>does not regenerate missing file bytes<br/>ChatProvider.swift:5744"]
+    DRAFTS["Persist owner/surface drafts and materialized attachment refs<br/>Unsent content stays separate from accepted Chat journal<br/>ChatDraftStore.swift:89"]
+    AGENTPILLS["Canonical child runs → pills; inspect/follow up/stop<br/>Dismiss removes pill and cancels unfinished run;<br/>tool dismissal also saves attention override; viewed finished pills expire<br/>Canonical journal retained; AgentPill.swift:822; AgentPill.swift:985"]
+    TASKMAINTENANCE["Startup/load recovery purges stranded task Undo rows<br/>Owner-fenced local maintenance<br/>TasksStore.swift:740"]
   end
 
   subgraph AREA_21["21 · Retained agent tools and results"]
-    READTOOLS["Read: SQL, screen history, recap,<br/>conversations, Memory and tasks<br/>GeneratedToolExecutors.swift:5"]
-    WRITETOOLS["Write tasks; screen/work context;<br/>check/request permissions<br/>GeneratedToolExecutors.swift:8"]
-    LIVETOOLS["Hub-executed live handlers<br/>get_tasks, screenshot, report_screen_observation<br/>GeneratedToolExecutors.swift:22"]
-    JOURNALREPAIR["Repair orphan turns / replay contiguous journal<br/>ConversationJournal<br/>conversation-journal.ts:22"]
-    BRIDGERESTART["Process exit / handshake failure<br/>Fence old stdout; fail pending requests<br/>AgentRuntimeProcess.swift:260"]
+    READTOOLS["Read-only SQL; Rewind semantic search and daily recap;<br/>conversation/task reads and semantic Memory search; work context<br/>GeneratedToolExecutors.swift:4"]
+    WRITETOOLS["Create/update/complete/delete tasks;<br/>capture screen; check/request Intentive OS permissions<br/>GeneratedToolExecutors.swift:8"]
+    LIVETOOLS["Hub handlers: due tasks and authorized frozen screenshot;<br/>local observation; Hub screenshot bypasses the Chat screen-sharing toggle<br/>RealtimeHubController+SessionDelegate.swift:442"]
+    JOURNALREPAIR["Repair orphan turns; replay contiguous journal by ID/sequence<br/>Preserve accepted text, tool blocks, resources and child results<br/>conversation-journal.ts:22"]
+    BRIDGERESTART["Process exit / handshake failure<br/>Fence old stdout; fail pending requests; restart on next send<br/>AgentRuntimeProcess.swift:2949; AgentRuntimeProcess.swift:3627"]
+    TOOLSCREEN{"Screen sharing setting default on + OS screen grant<br/>Chat capture writes current mouse-display fullframe/detail WebP files;<br/>returns paths; no Rewind archive write<br/>ChatToolExecutor.swift:358; ScreenCaptureManager.swift:168"}
+    SCREENFILES[("Documents/Intentive/Screenshots: fullframe + tile WebP files<br/>Separate from owner Chat attachments and Rewind archive;<br/>older than 24h pruned on next capture, no scheduled purge here<br/>ScreenCaptureManager.swift:168; ScreenCaptureManager.swift:207")]
+    SCREENWIREGAP["Source-contract gap in Pi capture_screen image delivery<br/>Swift returns WebP paths; Node wraps them in JSON text;<br/>Pi scans unwrapped PNG/JPEG lines only → no image match on this path<br/>relay-tool-result.ts:37; desktop/macos/pi-mono-extension/index.ts:284"]
   end
 
   subgraph AREA_22["22 · Runtime updates, feedback and privacy"]
-    UPDATER["Check/install signed app update<br/>UpdaterViewModel / Sparkle<br/>UpdaterViewModel.swift:608"]
-    APPCAST["Appcast and manual recovery policy<br/>Runtime update feed, not release publishing<br/>updates.py:851"]
-    UPDATEPOLICY["Show dismissible/required update prompt<br/>DesktopUpdatePolicyManager<br/>DesktopUpdatePolicyManager.swift:7"]
-    ANALYTICS["Consented product analytics<br/>PostHogManager<br/>PostHogManager.swift:42"]
-    CONSENT["Product analytics sharing preference<br/>ProductAnalyticsConsentController<br/>ProductAnalyticsConsentController.swift:40"]
+    UPDATER["Sparkle channel-bound signed update checks/downloads<br/>Managed release auto-update; development auto-update disabled<br/>UpdaterViewModel.swift:778"]
+    APPCAST["Sparkle feed: pointer/cache → validated LKG → exact-channel legacy<br/>Explicit legacy mode bypasses pointers; Beta identity requires Beta enclosure<br/>backend/routers/updates.py:529; backend/routers/updates.py:850"]
+    UPDATEPOLICY["Refresh recovery prompt at most every5min unless forced<br/>Required cannot dismiss; optional dismissal keyed by ID; fetch failure clears prompt<br/>CTA opens supplied HTTP(S) URL or GitHub latest-release fallback<br/>DesktopUpdatePolicyManager.swift:45; APIClient+Settings.swift:362"]
+    ANALYTICS["PostHog events, screen views and feature-flag preload<br/>Gated by sharing preference, build and owned configuration<br/>PostHogManager.swift:52"]
+    CONSENT["Product analytics sharing defaults ON<br/>Opt-out stops sharing/resets identity; nonproduction disabled<br/>ProductAnalyticsConsentController.swift:74"]
     FEEDBACK["Submit report / save diagnostics locally<br/>Notes, name and email stay on device<br/>FeedbackView.swift:51"]
-    REPORTAPI["Sentry: sanitized user report<br/>Optional redacted diagnostic attachment<br/>FeedbackView.swift:167"]
+    REPORTAPI["Sentry enqueue: sanitized report + optional redacted diagnostics<br/>UI shows success immediately; no remote delivery acknowledgment awaited<br/>FeedbackView.swift:167"]
     DIAGNOSTICS["Bounded local diagnostics and fallback events<br/>DesktopDiagnosticsManager<br/>DesktopDiagnosticsManager.swift:89"]
-    ADVICEAPI["Registered backend advice CRUD<br/>No active Mac caller found; separate from suggestions<br/>advice.py:40"]
-    ADVICEDB[("Firestore users/uid/advice<br/>Exposed backend branch only<br/>advice.py:27")]
+    ADVICEAPI["Account-auth advice CRUD; dismissed filter, read/dismiss and read-all<br/>Registered retained branch; no active Mac caller found<br/>backend/routers/advice.py:40"]
+    ADVICEDB[("Firestore users/uid/advice<br/>Exposed backend branch only<br/>backend/database/advice.py:27")]
+    BACKENDOPS["Static public health/version; METRICS_SECRET-protected metrics<br/>Configured pools/semaphores/HTTP deadlines and bounded shutdown<br/>backend/routers/desktop_core.py:15; backend/routers/metrics.py:13"]
+    UPDATESTORE[("Immutable Firestore release manifests + stable/Beta pointers<br/>Redis current TTL5min / LKG30days; exact-channel GitHub fallback<br/>backend/database/desktop_update_channels.py:12; backend/utils/desktop_update_resolver.py:19")]
+    UPDATEPOLICYAPI["GET /v2/desktop/update-policy → Firestore recovery policy<br/>Build/platform filter; absent or unavailable → inactive prompt<br/>backend/routers/updates.py:1188"]
+    RELEASECONTROL["Secret-controlled manifest registration + stable promotion/cache clear<br/>Qualified Beta reserve/admit; pause, rollback and emergency rollout<br/>backend/routers/updates.py:1233"]
+    PREVIEWCONTROL["Separate-secret preview publish/delist with generation checks<br/>Public slug/SHA download; delist removes current pointer only<br/>backend/routers/updates.py:1112; backend/database/desktop_previews.py:259"]
+    LEGACYRELEASE["Also registered: /appcast.xml /updates/latest /download<br/>Secret release create/promote uses separate releases collection<br/>Active Mac caller NOT FOUND; backend/routers/desktop_tts_updates.py:238"]
+    UPDATEIDLE{"Downloaded release update waits for ambient/finalization, voice/tools/token<br/>and Chat idle; resample without timeout; Dev installs on quit<br/>UpdateInstallationAdmission.swift:17; UpdaterViewModel.swift:580"}
+    UPDATERELAUNCH["Install and restore prior window presentation on relaunch<br/>Verify target build; show what-changed card after update<br/>OmiApp.swift:311; OmiApp.swift:440"]
+    ANALYTICSIDENTITY["When analytics active: identify account UID plus available email/name<br/>Separate from content-free event claims or anonymous operation<br/>PostHogManager.swift:93"]
+    CRASHREPORT["Sentry errors/crashes, heartbeat and resource diagnostics<br/>Separate from PostHog toggle; native crash/hang handlers disabled in Dev<br/>OmiApp.swift:355; OmiApp.swift:588"]
+    RESOURCEMON["Sample CPU, memory, disk and retained buffers<br/>Threshold diagnostics/remediation; separate resource-monitor lifecycle<br/>ResourceMonitor.swift:183; ResourceMonitor.swift:384"]
+    MEMORYRELAUNCH["Extreme memory in production: report, schedule open -n, terminate<br/>Abort termination if launching the helper throws; no update-idle gate here<br/>ResourceMonitor.swift:393"]
+    MANUALDOWNLOAD["Public latest/Beta installer landing pages share channel resolver<br/>Missing Beta-identity DMG may use stable-identity DMG in beta channel<br/>backend/routers/updates.py:933"]
+    BETAEVIDENCE{"Qualified Beta rechecks fresh GitHub release/merged source/run evidence<br/>Exact artifact digests + optional owner-manual bundle; control-generation fence<br/>backend/utils/qualified_beta_promotion.py:527; backend/routers/updates.py:1254"}
+    PREVIEWSTORE[("Separate preview manifests by slug/SHA + mutable current pointer<br/>Canonical storage URL and preview identity; delist retains immutable download<br/>backend/database/desktop_previews.py:21; backend/database/desktop_previews.py:259")]
+    DIAGNOSTICFILE["Save bounded redacted diagnostics to chosen local file off main thread<br/>Offline; reveal in Finder on success; failure is logged<br/>FeedbackView.swift:216; DesktopDiagnosticsManager.swift:870"]
   end
 
   subgraph AREA_23["23 · Codebase map publishing · GitHub and Vercel"]
     MAPREVIEW["Agent reviews flows and source anchors in the same PR<br/>openwiki/INSTRUCTIONS.md"]
-    MAPSOURCE[("Canonical reviewed Mermaid product map<br/>docs/architecture/intentive-codeflow.mmd")]
-    MAPBUILD["Read diagram and exact source commit at build time<br/>tools/codebase-map/lib/diagram-source.mjs"]
+    MAPSOURCE[("Authored product behavior map with source anchors<br/>23 review areas; boxes are mixed-size responsibilities<br/>docs/architecture/intentive-codeflow.mmd")]
+    MAPBUILD["Read canonical source at build time; attach full hosted commit SHA<br/>Missing/empty/over200000chars or invalid hosted identity rejects build<br/>Dirty local checkout has no immutable source link; tools/codebase-map/lib/diagram-source.mjs:9"]
     MAPPAGE["Statically export the viewer page<br/>tools/codebase-map/app/page.tsx"]
-    MAPVIEW["Explore subsystem geography, inflow and outflow<br/>Click to open; full labels; cached Mermaid ELK layouts<br/>tools/codebase-map/app/components/diagram-viewer.tsx"]
+    MAPVIEW["Browse static build snapshot; no runtime code/diagram fetch<br/>Inflow/outflow and full labels; local ELK cache persists until reload<br/>tools/codebase-map/app/components/diagram-viewer.tsx:13"]
     MAPREVIEW -->|"Commit relevant map updates with code"| MAPSOURCE
-    MAPSOURCE -->|"GitHub-connected Vercel build"| MAPBUILD
     MAPBUILD -->|"Source text and immutable GitHub link"| MAPPAGE
     MAPPAGE -->|"Public browser; main production / PR preview"| MAPVIEW
+    MAPSCOPE["Review scope: active Mac, local Node and registered backend behavior<br/>Edges name data/control/conditions, not guaranteed runtime order<br/>Windows, dependency internals and full build/release/test workflows excluded<br/>openwiki/INSTRUCTIONS.md:7; tools/codebase-map/README.md"]
+    MAPDEPLOY["Publishing requires pushed source + configured remote Vercel project<br/>Git linkage/public access/production branch are external settings: UNVERIFIED here<br/>Local commits alone do not update hosted page; tools/codebase-map/README.md:112"]
+    MAPRETRY["Parse/global layout failure: page retry; one-area failure: area retry<br/>Rejected cache evicted; navigation remains available; never infer product correctness<br/>tools/codebase-map/app/components/diagram-viewer.tsx:43; tools/codebase-map/lib/mermaid-runtime.ts:43"]
   end
 
   FRAME -->|"Latest permitted frame; changed visual evidence"| OBSERVE
@@ -318,18 +460,14 @@ flowchart TD
   APP -->|"Fetch current recovery policy"| UPDATEPOLICY
   APP -->|"On application termination"| STOP
   APP -->|"Open main interface"| HOME
-  APP -->|"Refresh OS permissions"| PERM
   APP -->|"Restore credentials"| AUTH
   APP -->|"Runtime update initialization"| UPDATER
   APP -->|"Start completion observer"| CHILDVOICE
   APPCAST -->|"Channel-correct update metadata"| UPDATER
   AUTH -->|"Authenticated owner changes"| OWNER
-  AUTH -->|"Authenticated user needs onboarding"| ONBOARD
   AUTH -->|"Read/write scoped credential state"| AUTHCACHE
-  AUTH -->|"Start authorized work"| WARM
   AUTH -->|"Start browser sign-in"| OAUTH
   AUTH -->|"Validate identity"| FIREBASE
-  BATCH -->|"Final recognized text"| TRANSCRIPTQUERY
   BATCH -->|"Recorded mono PCM"| STTAPI
   BATCHPOLICY -->|"Admitted non-silent recording"| BATCH
   BEAUTH -->|"Admitted Chat"| CHATAPI
@@ -340,8 +478,6 @@ flowchart TD
   BEAUTH -->|"Admitted greeting/title"| GREETING
   BEAUTH -->|"Admitted model proxy"| PROXY
   BEAUTH -->|"Admitted speech synthesis"| TTSAPI
-  BEAUTH -->|"Authenticated account read"| PLANAPI
-  BEAUTH -->|"Authenticated metadata export route"| SERVEREXPORT
   BEAUTH -->|"Authenticated participant WebSocket"| LISTENAPI
   BILLING -->|"Checkout or portal URL"| CHECKOUT
   BILLING -->|"Idempotent entitlement projection"| ACCOUNTDATA
@@ -353,35 +489,24 @@ flowchart TD
   CAPABILITY -->|"authorized_tool_execution"| SWIFTWIRE
   CAPTURE -->|"Only admitted window"| SCREEN
   CARD -->|"Card presentation"| CARDVOICE
-  CARD -->|"User opens/follows up in floating input"| FLOATROUTE
-  CARD -->|"User types follow-up"| TEXT
   CARD -->|"When user follows up in text"| CARDCONTEXT
   CARDCONTEXT -.->|"Quoted reference context"| CONTEXT
   CARDVOICE -.->|"Silent reference; no speech requested"| HUB
-  CHATAPI -->|"Native generateContent stream"| GOOGLE
-  CHATAPI -->|"Quota question and LLM usage facts"| ACCOUNTDATA
   CHATAPI -->|"SSE response through managed-provider fetch"| EXTENSION
-  CHATGATE -->|"Admitted request"| CONTEXT
   CHATSTOP -->|"Cancel current run; revoke later output"| KERNEL
   CHATUI -->|"Stop action"| CHATSTOP
-  CHATUI -->|"Voice query or typed-speech setting"| TTSQUEUE
   CHECKOUT -->|"Checkout web flow / portal in default browser"| SETTINGS
   CHECKOUT -->|"Server catalog offer / customer"| BILLING
   CHILDVOICE -.->|"Silent context; checkpoint after successful send"| HUB
-  CLOUDRECOVER -->|"After current-session teardown; if local available"| LOCALSTT
   CONSENT -->|"Sharing enabled, eligible build and owned configuration"| ANALYTICS
   CONSOLIDATE -->|"Current candidates and active Memory"| MEMAPI
-  CONSOLIDATE -->|"Validated revision-bound transition"| MEMORYSCOPE
   CONTEXT -->|"Update context sources / read snapshot"| BRIDGE
-  CONVACTIONS -->|"Owner-authorized local transactions"| CONVSTORE
-  CONVAPI -->|"Returned candidates"| CONVCOMMIT
   CONVAPI -->|"Structured generation"| GOOGLE
   CONVBEGIN -->|"Arm capture policy"| AUDIOCAPTURE
   SLEEPCAPTURE -->|"Stop on sleep"| FINISH
   SLEEPCAPTURE -->|"Previously active and still enabled on wake"| LISTEN
   CONVBEGIN -->|"Local session before input"| CONVSTORE
   CONVBEGIN -->|"Start session and load existing notes"| NOTES
-  CONVCOMMIT -->|"Accepted task changes"| TASKSTORE
   CONVCOMMIT -->|"Accepted title and summary"| CONVSTORE
   CONVSTORE -->|"Conversation tables"| DB
   CONVSTORE -->|"List/search current-owner conversations"| CONVUI
@@ -393,38 +518,30 @@ flowchart TD
   DB -->|"Latest saved ai_user_profiles row"| PROFILEREAD
   DB -->|"Owner-fenced matching rows"| REWINDUI
   DB -.->|"Saved profile and schema"| CONTEXT
-  DELETEAPI -->|"Accepted request: stop capture then sign out"| SIGNOUT
-  DELETEAPI -->|"Durable Cloud Tasks dispatch"| WIPE
   DELETEAPI -->|"Persist intent and dispatch receipt"| DELETIONMARK
-  DELETERETRY -->|"Retry pending/failed durable work"| WIPE
   DELETEUI -->|"Authenticated DELETE request"| DELETEAPI
   DELETIONMARK -->|"Find pending or failed dispatches"| DELETERETRY
   DIAGNOSTICS -->|"Bounded diagnostic attachment"| FEEDBACK
   DISCARD -->|"Discard accepted generation"| CONVSTORE
   DISCARD -->|"Kept or failed-keep"| STRUCTURE
   DISCARD -->|"Kept or failed-keep; parallel with structure"| CONVTASK
-  DRAFTS -->|"Materialized attachment metadata"| BRIDGE
-  DUPLICATE -->|"First matching instance only"| APP
   EXCLUSIONS -.->|"Pre-fanout privacy gate"| CAPTURE
   EXTENSION -->|"Firebase-authenticated Gemini request"| CHATAPI
-  EXTENSION -->|"Private pipe tool_use and capability ref"| CAPABILITY
+  EXTENSION -->|"Private pipe tool_use and capability ref"| TOOLSEMANTIC
   EXTENSION -->|"Provider stream / resolved matching tool call"| PI
   FAIRNOTICE -->|"Visible quota/fair-use state"| PLANUI
   FEEDBACK -->|"Build redacted report or save local bundle"| DIAGNOSTICS
   FEEDBACK -->|"Explicit submit: sanitized event only"| REPORTAPI
-  FINALIZE -->|"After structure/task workers finish"| MEMEXTRACT
   FINALIZE -->|"Discard work admission"| DISCARD
   FINISH -->|"End or clear current note session"| NOTES
   FINISH -->|"Finish local conversation"| CONVSTORE
   FINISH -->|"Process persisted work"| FINALIZE
-  FIREBASE -->|"Authenticated UID"| BEAUTH
   FLOATROUTE -->|"Admitted main-journal request with presentation mode"| TEXT
   FOCUSSTORE -->|"Focus tables"| DB
   FOCUSSTORE -->|"Local focus history"| EXPORT
   FOCUSSTORE -->|"Reload history / stats"| FOCUSUI
   FOCUSUI -->|"Home focus cards"| DASH
   FRAMELOAD -->|"Reconstructed image"| REWINDUI
-  GOALSTORE -->|"Active goal projection"| DASH
   GOALSTORE -->|"Active goals"| PROFILE
   GOALSTORE -->|"Goal tables"| DB
   GOALSTORE -->|"Local goal pages"| EXPORT
@@ -441,7 +558,6 @@ flowchart TD
   HOME -->|"Home stage"| DASH
   HOME -->|"Insights section"| INSIGHTUI
   HOME -->|"Insights → Focus segment"| FOCUSUI
-  HOME -->|"Listening control"| LISTEN
   HOME -->|"Memory section"| MEMUI
   HOME -->|"Memory → Conversations"| CONVUI
   HOME -->|"Open Rewind"| REWINDUI
@@ -449,9 +565,7 @@ flowchart TD
   HOME -->|"Personalized question chips"| GOALSUI
   HOME -->|"Tasks section"| TASKUI
   HUB -->|"No usable Live session"| SPEECHGATE
-  HUB -->|"Only accepted voice journal update"| PROJECTION
-  HUB -->|"Open direct provider session"| LIVESETUP
-  HUB -->|"Press / audio chunks / release"| LIVEINPUT
+  HUB -->|"PTT input or admitted automatic text turn"| LIVEINPUT
   HUB -->|"Record fallback and failure events"| DIAGNOSTICS
   HUB -->|"Request prepared voice context"| VOICECONTEXT
   HUB -->|"Request temporary credential"| TOKENAPI
@@ -460,24 +574,18 @@ flowchart TD
   INDEX -->|"Schedule cleanup"| RETENTION
   INSIGHTUI -->|"Dismiss flag / clear tips via Memory authority"| MEMSTORE
   INSIGHTUI -->|"Home insight cards"| DASH
-  INSIGHTUI -->|"Staged delete through Memory authority"| MEMDELETE
   JOURNALREPAIR -->|"Accepted contiguous journal"| PROJECTION
-  KERNEL -->|"Bound execution attempt"| PI
   KERNEL -->|"Child-run completion"| AGENTRESULT
   KERNEL -->|"Context, session, run and journal writes"| NODEDB
   KERNEL -->|"Correlated events and terminal result"| BRIDGE
-  KERNEL -->|"Durable delivery rows / derived action queue"| ARTIFACTQUEUE
   LISTEN -->|"Create session"| CONVBEGIN
-  LISTEN -->|"Microphone admission"| PERM
   LISTEN -->|"Stop recording / finalize"| FINISH
   LISTENAPI -->|"Validated audio contract"| LISTENRUN
   LISTENRUN -->|"Periodic and final audio usage"| USAGE
   LISTENRUN -->|"Stop / disconnect / task failure"| LISTENDRAIN
   LISTENRUN -->|"Supervised input receiver"| RECEIVER
   LIVEFUNCTION -->|"functionResponses; model continues"| GOOGLELIVE
-  LIVEFUNCTION -->|"get_tasks / screenshot: authorize external run"| CAPABILITY
-  LIVEFUNCTION -->|"report_screen_observation: local grounding only"| LIVETOOLS
-  LIVEINPUT -->|"16 kHz PCM with explicit turn boundaries"| GOOGLELIVE
+  LIVEINPUT -->|"PTT: bounded 16 kHz PCM; automatic: standalone text"| GOOGLELIVE
   LIVEOUTPUT -->|"Final text with no accepted native PCM: selected-voice fallback"| TTSQUEUE
   LIVEOUTPUT -->|"Native audio chunks"| OUTPUTLEASE
   LIVEOUTPUT -->|"Owned transcript/text events"| HUB
@@ -486,17 +594,14 @@ flowchart TD
   LIVETOOLS -->|"Return authorized call result with captured identity"| SWIFTWIRE
   LIVEUI -->|"Transcript changes"| NOTES
   LOCALSTT -->|"Local model failure"| STTRECOVER
-  LOCALSTT -->|"Timed speaker segments"| SEGMENTS
   AUDIOCAPTURE -->|"Microphone while listening"| MIC
   AUDIOCAPTURE -->|"macOS 14.4+, consent and System Audio enabled"| SYSTEMAUDIO
-  MEMAPI -->|"Local validation then revision-fenced commit"| MEMSTORE
   MEMAPI -->|"Memory proposal compute"| GOOGLE
   MEMDELETE -->|"Pending, restored or finalized record"| MEMSTORE
   MEMEMBED -->|"Commit current-revision embedding"| MEMSTORE
   MEMEMBED -->|"Embedding compute"| PROXY
   MEMEXTRACT -->|"Bounded transcript segments"| MEMAPI
   MEMORYACTIONS -->|"Accept manual assertion / correction"| MEMSTORE
-  MEMORYSCOPE -->|"Promote / merge / archive commit"| MEMSTORE
   MEMRETRY -->|"Lease when retry is due"| MEMWORK
   MEMSTORE -->|"All exportable Memory including tips"| EXPORT
   MEMSTORE -->|"Bounded memories"| PROFILE
@@ -532,7 +637,6 @@ flowchart TD
   NOTES -->|"Bounded note prompt"| PROXY
   NOTESTORE -->|"Local notes"| DB
   NOTESTORE -->|"Stored notes in conversation detail"| CONVUI
-  NOTIFY -->|"Accepted in-app presentation"| CARD
   NOTIFY -->|"Explicit functional banner only"| SYSTEMNOTICE
   OAUTH -->|"Callback returns exchangeable auth code"| TOKENEXCHANGE
   OCR -->|"Optional OCR plus chunk metadata"| SHOT
@@ -555,9 +659,9 @@ flowchart TD
   PLANAPI -->|"Read subscription and usage facts"| ACCOUNTDATA
   PLANAPI -->|"Returned plan and trial state"| PLANUI
   PLANUI -.->|"Quota/paywall presentation"| CHATGATE
-  PREFS -.->|"Capture and assistant controls"| MONITOR
+  PREFS -.->|"Screen capture controls"| MONITOR
   PREFS -.->|"Listening on/off and optional system audio"| AUDIOCAPTURE
-  PREFS -.->|"Master/frequency/assistant notice controls"| NOTIFY
+  PREFS -.->|"Master/frequency notice controls"| NOTIFY
   PREFS -.->|"Selected voice and speech settings"| TTSQUEUE
   PROFILE -->|"First synthesis request"| PROXY
   PROFILEMERGE -->|"Second request with past profiles"| PROXY
@@ -574,9 +678,8 @@ flowchart TD
   PTT -->|"Begin current voice turn"| PTTCAP
   PTTCAP -->|"PCM plus bounded recovery buffer"| HUB
   REBUILD -->|"Reindex finalized video files"| SHOT
-  RECEIVER -->|"Streaming PCM"| MODULATE
-  RECONNECT -->|"Bounded same-provider rebind / replay while current"| HUB
-  RECONNECT -->|"Recovery exhausted"| SPEECHGATE
+  RECONNECT -->|"PTT-only bounded rebind/replay while current"| HUB
+  RECONNECT -->|"PTT recovery exhausted"| SPEECHGATE
   RECURRENCE -->|"Create next occurrence once"| TASKSTORE
   REMINDER -->|"Owner-scoped scheduled reminder"| SYSTEMNOTICE
   RESOURCES -->|"Render resource cards with accepted answer"| CHATUI
@@ -589,17 +692,13 @@ flowchart TD
   REVIEWAPI -->|"Receipt / typed retryable failure"| REVIEW
   REWINDDELETE -->|"Clean only owned, unreferenced artifacts"| FILECLEAN
   REWINDDELETE -->|"Delete row before owned file cleanup"| DB
-  REWINDUI -->|"Local FTS and vector retrieval"| DB
   REWINDUI -->|"Selected chunk and offset"| FRAMELOAD
   REWINDUI -->|"User chooses rebuild"| REBUILD
   REWINDUI -->|"User deletes selected frame"| REWINDDELETE
-  SCREEN -->|"Captured pixels and metadata"| FRAME
-  SCREEN -->|"Independent archival branch; drop while busy"| INDEX
   SEGMENTS -->|"After live publication, attempt current-session durable upsert"| SEGSTORE
   SEGMENTS -->|"Publish live text"| LIVEUI
   SEGSTORE -->|"Durable transcript"| CONVSTORE
   SERVER -->|"Account metadata authority"| ACCOUNTDATA
-  SERVER -->|"Protected request dependency"| BEAUTH
   SERVER -->|"Registered HTTP routes; no Mac caller found"| ADVICEAPI
   SERVER -->|"Startup and periodic reconciliation"| DELETERETRY
   SETTINGS -->|"Edit shared excluded-app list"| EXCLUSIONS
@@ -616,8 +715,7 @@ flowchart TD
   SHOT -->|"Queue eligible OCR after commit"| OCREMB
   SHOT -->|"SQLite screenshot row"| DB
   SIGNOUT -->|"Exclusive owner transition"| OWNER
-  SPEECHGATE -->|"Usable current-turn audio only"| BATCHPOLICY
-  STOP -->|"Finish active capture"| FINISH
+  SPEECHGATE -->|"Fallback selected; usable completed audio"| BATCHPOLICY
   STOP -->|"Flush within shutdown deadline"| FLUSH
   STRUCTURE -->|"Transcript and generation"| CONVAPI
   STTAPI -->|"Batch recognition"| MODULATE
@@ -625,10 +723,7 @@ flowchart TD
   STTRECOVER -->|"Allowed cloud recovery"| AMBIENTWS
   SWIFTTOOLS -->|"Admitted screenshot tool"| SCREEN
   SWIFTTOOLS -->|"Constrained SQL / Rewind retrieval"| DB
-  SWIFTTOOLS -->|"Dispatch retained mutation/context tool"| WRITETOOLS
   SWIFTTOOLS -->|"Dispatch retained read/search tool"| READTOOLS
-  SWIFTTOOLS -->|"Local conversation operations"| CONVSTORE
-  SWIFTTOOLS -->|"Memory reads and mutations"| MEMSTORE
   SWIFTTOOLS -->|"Permission tools"| PERM
   SWIFTTOOLS -->|"Semantic Memory retrieval"| MEMSEARCH
   SWIFTTOOLS -->|"Task reads and mutations"| TASKSTORE
@@ -649,7 +744,6 @@ flowchart TD
   TASKSTORE -.->|"Recent unfinished tasks"| CONTEXT
   TASKUI -->|"User deletes or undoes within deadline"| TASKUNDO
   TASKUI -->|"User task operations"| TASKS
-  TASKUNDO -->|"Soft deletion / restore / purge"| TASKSTORE
   TEXT -->|"Maintain local drafts and attachment bytes"| DRAFTS
   TEXT -->|"Submit message"| CHATGATE
   TEXT -->|"Terminal response artifacts and completion-delta artifacts"| RESOURCES
@@ -661,30 +755,451 @@ flowchart TD
   TRANSCRIPTQUERY -->|"Voice-only floating request with turn identity"| FLOATROUTE
   TRANSIENT -->|"Optional selected language"| TRANSLATE
   TRANSIENT -->|"Segment events"| AMBIENTWS
-  TRANSLATE -->|"Bounded translation compute"| GOOGLE
   TRANSLATE -->|"Translation events"| AMBIENTWS
   TRANSPORT -->|"Admitted current request"| KERNEL
   TTSAPI -->|"Eligible synthesis failure; local fallback"| OSSPEECH
   TTSAPI -->|"Returned MP3"| MP3
   TTSAPI -->|"Speech synthesis request"| OPENAI
   TTSQUEUE -->|"Selected cloud voice and text chunks"| TTSAPI
-  TTSQUEUE -->|"Selected system voice"| OSSPEECH
-  UPDATEPOLICY -->|"Update-policy request"| APPCAST
   UPDATER -->|"Fetch signed appcast"| APPCAST
-  USAGE -->|"Review-request event via ambient socket"| REVIEW
   USAGE -->|"Usage/enforcement facts"| ACCOUNTDATA
   VIDEO -->|"Encoded frame offset available"| OCR
-  VOICECONTEXT -->|"Reuse typed kernel source preparation"| CONTEXT
   VOICECONTEXT -.->|"Exact kernel-rendered voice snapshot"| HUB
-  WARM -->|"Initialize background monitoring"| MONITOR
-  WARM -->|"Initialize storage; reconcile abandoned chunks"| RECOVER
   WARM -->|"Start local Memory worker"| MEMWORK
   WEBHOOK -->|"Verified provider event"| BILLING
   WINDOW -->|"App switch requests capture on next tick"| CAPTURE
   WIPE -->|"Claim / running / failed / completed state"| DELETIONMARK
   WIPE -->|"Confirm subscription cancellation first"| BILLING
   WIPE -->|"Then delete identity"| FIREBASE
-  WIPE -->|"Then wipe retained account data"| ACCOUNTDATA
+
+  HOME -->|"Chat history controls"| CHATCATALOG
+  CHATCATALOG -->|"Catalog operations through owned runtime"| BRIDGE
+  CHATCATALOG -->|"Selected journal"| PROJECTION
+  CHATCATALOG -->|"Clear or delete action"| CHATCLEAR
+  CHATCATALOG -->|"New chat / first completed exchange"| CHATCOMPUTE
+  CHATCOMPUTE -->|"Bounded greeting/title request"| GREETING
+  CHATCOMPUTE -->|"Owner-current accepted greeting/title"| NODEDB
+  CHATCLEAR -->|"Clear/delete canonical catalog and turns"| BRIDGE
+  CHATCLEAR -->|"Reconcile draft and retained file refs"| CHATATTACH
+  CHATCLEAR -->|"New or selected replacement Chat invalidates next-turn context"| VOICEWARM
+  CHATCATALOG -->|"Selected chat changes voice continuity"| VOICEWARM
+  TEXT -->|"Local preparation/provider/runtime failure"| CHATRECOVERY
+  CHATRECOVERY -->|"User retry"| TEXT
+  CHATRECOVERY -->|"Sign-in recovery"| AUTH
+  DRAFTS -->|"Materialize selected files; retain draft refs"| CHATATTACH
+  NODEDB -->|"Retained journal attachment refs for GC"| CHATATTACH
+  CONTEXT -->|"Versioned source updates through bridge"| CONTEXTSNAPSHOT
+  NODEDB -->|"Canonical recent history and run state"| CONTEXTSNAPSHOT
+  CONTEXTSNAPSHOT -->|"Expected snapshot required for run admission"| KERNEL
+  CONTEXTSNAPSHOT -->|"Exact voice renderer"| VOICECONTEXT
+  VOICECONTEXT -->|"Prepare typed sources through Chat"| CONTEXT
+  KERNEL -->|"Admitted attempt and immutable profile"| WORKERS
+  WORKERS -->|"Exclusive Pi binding"| PI
+  CAPABILITY -->|"Prepared/dispatched/completed effect receipt"| TOOLLEDGER
+  TOOLLEDGER -->|"Ledger and full-output artifact metadata"| NODEDB
+  TOOLLEDGER -->|"Bounded canonical output"| TOOLRESULT
+  NODETOOLS -->|"Inspect/read/search full artifact output"| TOOLLEDGER
+  LIVEFUNCTION -->|"All external tool proposals except observation"| TOOLSEMANTIC
+  TOOLSEMANTIC -->|"Admitted exact tool proposal"| CAPABILITY
+  LIVEFUNCTION -->|"Internal observation report"| SCREENVERIFY
+  NODETOOLS -->|"Validated spawn/continue proposal"| AGENTINTENT
+  AGENTINTENT -->|"Canonical child run with inherited context/profile"| KERNEL
+  NODETOOLS -->|"Awareness/action queue inspection"| ACTIONQUEUE
+  NODETOOLS -->|"Callable policy evaluation/create dispatch"| DISPATCH
+  DISPATCH -->|"Durable pending/resolved dispatch and optional grant"| NODEDB
+  NODEDB -->|"Attention facts"| ACTIONQUEUE
+  ARTIFACTQUEUE -->|"Persistence interface only"| NODEDB
+  BRIDGE -->|"Open/reconcile Node store on process start"| NODESTART
+  NODESTART -->|"Durable terminal/orphan recovery"| NODEDB
+  NODESTART -->|"Repair visible unfinished exchanges"| JOURNALREPAIR
+  AGENTRESULT -->|"Canonical status/events and terminal resources"| AGENTPILLS
+  AGENTPILLS -->|"Materialize terminal result in producing journal"| PROJECTION
+  PREFS -.->|"PTT enabled, shortcut, lock, sounds and mute"| PTTCONTROLS
+  PTTCONTROLS -->|"Physical begin/finalize/cancel"| PTT
+  PTT -->|"Begin or supersede logical turn"| VOICESTATE
+  VOICESTATE -->|"Identity-owned physical capture"| PTTCAP
+  PTT -->|"Freeze visual evidence at press"| VOICESCREEN
+  PTTCAP -->|"Input route and silent-mic recovery"| PTTDEVICE
+  PTTDEVICE -->|"Current capture route/rebuild"| PTTCAP
+  PREFS -.->|"Selected PTT input device"| PTTDEVICE
+  PTT -->|"Interrupt previous response at new press"| VOICEBARGE
+  VOICEBARGE -->|"Interrupted exchange continuity obligation"| VOICEJOURNAL
+  VOICEBARGE -->|"Refresh/rebind after accepted continuity"| VOICEWARM
+  HUB -->|"Prepare or replace owned session"| VOICEWARM
+  VOICEWARM -->|"Token and snapshot ready"| LIVESETUP
+  HUB -->|"Streaming, final and failure persistence"| VOICEJOURNAL
+  VOICEJOURNAL -->|"Accepted canonical exchange"| PROJECTION
+  VOICEJOURNAL -->|"Durable shared Chat journal"| NODEDB
+  VOICESTATE -->|"Own provider/tool/output effects"| HUB
+  VOICESCREEN -->|"Exact frozen evidence for authorized screenshot"| LIVETOOLS
+  LIVETOOLS -->|"Exact tool-response transport receipt"| SCREENVERIFY
+  SCREENVERIFY -->|"Accepted observation or explicit failure result"| LIVEFUNCTION
+  SCREENVERIFY -->|"Grounded output admission"| OUTPUTLEASE
+  VOICESCREEN -->|"Immediate OCR vocabulary only"| PTTVOCAB
+  PREFS -.->|"Explicit STT vocabulary"| PTTVOCAB
+  PTTVOCAB -->|"Before recognition: explicit settings terms only"| BATCHPOLICY
+  BATCH -->|"After STT: local correction"| PTTVOCAB
+  PTTVOCAB -->|"After correction: current-turn transcript"| TRANSCRIPTQUERY
+  SWIFTTOOLS -->|"Retained structured writes and screen/permission controls"| WRITETOOLS
+  SWIFTTOOLS -->|"Memory list reads"| MEMSTORE
+  SWIFTTOOLS -->|"Local conversation reads/search"| CONVSTORE
+  WRITETOOLS -->|"capture_screen physical admission"| TOOLSCREEN
+  PREFS -.->|"Screen Sharing in Chat preference"| TOOLSCREEN
+  PERM -.->|"OS Screen Recording grant"| TOOLSCREEN
+  TEXT -->|"Select image and optional screen context"| CHATSCREEN
+  PERM -.->|"Screen Recording grant for capture"| CHATSCREEN
+  DB -->|"Bounded local work-context summary"| CHATSCREEN
+  CHATSCREEN -->|"Expiring screen source and optional image"| CONTEXT
+  CHATSCREEN -->|"Image payload in admitted query"| BRIDGE
+  PREFS -.->|"Voice-language selection"| VOICELANGUAGE
+  VOICELANGUAGE -->|"Live instruction language guidance"| LIVESETUP
+  VOICELANGUAGE -->|"Independent PTT batch-language choice"| BATCHPOLICY
+  PTTCAP -->|"Release with completed buffer"| SPEECHGATE
+  SPEECHGATE -->|"Live route ready; enough speech: commit"| LIVEINPUT
+  FIREBASE -->|"Separate WebSocket identity dependency"| BEAUTH
+  HTTPAUTH -->|"Account and quota reads"| PLANAPI
+  HTTPAUTH -->|"Metadata-only export; no participant restriction"| SERVEREXPORT
+  HTTPAUTH -->|"Deletion remains available"| DELETEAPI
+  HTTPAUTH -->|"Record admitted HTTP client metadata"| ACCOUNTDATA
+  HTTPAUTH -->|"Bootstrap configuration"| BOOTSTRAPAPI
+  BOOTSTRAPAPI -->|"Firebase public API configuration"| AUTH
+  HTTPAUTH -->|"Profile, language and total-cost endpoints"| ACCOUNTLANG
+  ACCOUNTLANG -->|"Read/write language; read profile/cost"| ACCOUNTDATA
+  OAUTH -->|"Store bounded redirect/provider/PKCE state"| OAUTHSTATE
+  OAUTHSTATE -->|"Callback resolves session and emits exchange code"| TOKENEXCHANGE
+  TOKENEXCHANGE -->|"Consume exchange code"| OAUTHSTATE
+  TOKENEXCHANGE -->|"Optional custom-token creation"| FIREBASE
+  SERVER -->|"HTTP auth dependency"| HTTPAUTH
+  MANAGEDPROMPT -->|"Resolved prompt composed with kernel instruction"| CHATAPI
+  TTSAPI -->|"Fail-closed burst/character meter"| REQUESTLIMITS
+  MEMAPI -->|"Generic per-operation request limit"| REQUESTLIMITS
+  GREETING -->|"Generic request limit"| REQUESTLIMITS
+  STTAPI -->|"Generic request limit"| REQUESTLIMITS
+  STTAPI -->|"Charge admitted recorded-audio duration"| VOICEBUDGET
+  BEAUTH -->|"Registered transcription-only socket"| STTSTREAM
+  STTSTREAM -->|"Audio-only streaming; no conversation persistence"| MODULATE
+  STTSTREAM -->|"Separate daily duration allowance"| VOICEBUDGET
+  STTSTREAM -->|"Generic request limit"| REQUESTLIMITS
+  TOKENAPI -->|"Google auth-token HTTP mint for direct Live"| GOOGLELIVE
+  LIVEOUTPUT -->|"At turn finish; asynchronous best-effort report"| LIVEUSAGE
+  HTTPAUTH -->|"Firebase-only usage reporting route"| LIVEUSAGE
+  LIVEUSAGE -->|"Daily token/cost usage and quota question"| ACCOUNTDATA
+  PLANAPI -->|"Expose configured trial state"| TRIALGATE
+  PROXY -->|"Desktop trial check"| TRIALGATE
+  TOKENAPI -->|"Desktop trial check"| TRIALGATE
+  TTSAPI -->|"Desktop trial check; not unconditional paid-only"| TRIALGATE
+  STTAPI -->|"Desktop trial check before provider"| TRIALGATE
+  STTSTREAM -->|"Desktop trial check before provider"| TRIALGATE
+  LISTENRUN -->|"Trial check before provider"| TRIALGATE
+  TRIALGATE -->|"Plan and Firebase creation facts; cached expiry"| ACCOUNTDATA
+  RECEIVER -->|"Configured VAD wrapper or direct path"| VADGATE
+  VADGATE -->|"Active speech or off/shadow full PCM"| MODULATE
+  USAGE -->|"Quota/local-STT handoff event"| AMBIENTWS
+  REVIEWAPI -->|"Bounded submitted evidence classification"| GOOGLE
+  REVIEWAPI -->|"Claim/pending review and enforce durable receipt"| ENFORCEMENT
+  ENFORCEMENT -->|"Content-free durable state"| ACCOUNTDATA
+  BEAUTH -->|"Admit requested evidence classification"| REVIEWAPI
+  SERVER -->|"Registered independently admin-authenticated routes"| FAIRADMIN
+  FAIRADMIN -->|"Inspect/change stages and resolve events"| ENFORCEMENT
+  BILLING -->|"Applied projection invalidates trial/credit/fair-use caches"| ENFORCEMENT
+  TRANSLATE -->|"Read/write text-result cache"| TRANSLATIONCACHE
+  TRANSLATE -->|"Cache misses only"| TRANSLATIONMODEL
+  LISTENDRAIN -->|"Clear session LRU; shared Redis survives"| TRANSLATIONCACHE
+  DELETEAPI -->|"Dispatch attempt awaiting queue acknowledgement"| DELETEQUEUE
+  DELETEQUEUE -->|"Receipt or same-job observed delivery required"| DELETEAPI
+  DELETEAPI -->|"Genuine acceptance permits stop/sign-out"| SIGNOUT
+  DELETEAPI -->|"Unconfirmed dispatch fails; remain signed in for retry"| DELETEUI
+  DELETEQUEUE -->|"OIDC-authenticated delivery/retry"| DELETECLAIM
+  DELETECLAIM -->|"Claimed current job only"| WIPE
+  DELETECLAIM -->|"Read/claim job state; fence repeated delivery"| DELETIONMARK
+  DELETERETRY -->|"Requeue recoverable durable job"| DELETEQUEUE
+  SERVER -->|"Health and secret-gated metrics"| BACKENDOPS
+  SERVER -->|"Registered release-control endpoints; operational callers"| RELEASECONTROL
+  SERVER -->|"Registered preview endpoints"| PREVIEWCONTROL
+  SERVER -->|"Separate registered release API; caller unknown"| LEGACYRELEASE
+  UPDATEPOLICY -->|"Fetch recovery policy separately from appcast"| UPDATEPOLICYAPI
+  UPDATEPOLICYAPI -->|"Return inactive/dismissible/required policy"| UPDATEPOLICY
+  FIREBASE -->|"HTTP token verification"| HTTPIDENTITY
+  HTTPIDENTITY -->|"Account routes; no participant restriction"| HTTPAUTH
+  HTTPIDENTITY -->|"Compute route additionally checks participant"| BEAUTH
+  BEAUTH -->|"HTTP metadata only after participant admitted"| ACCOUNTDATA
+  LIVEUSAGE -->|"Desktop trial check"| TRIALGATE
+  SCREEN -->|"Pixels returned to capture orchestrator"| SCREENFANOUT
+  SCREENFANOUT -->|"Current-owner allowed live frame"| FRAME
+  SCREENFANOUT -->|"Separate archive Task; drop if prior frame busy"| INDEX
+  SCREEN -->|"Repeated engine failure"| SCREENRECOVERY
+  SCREENRECOVERY -->|"Successful recovery resumes timer"| CAPTURE
+  SCREENRECOVERY -->|"Exhausted: explicit functional reset notice"| NOTIFY
+  PREFS -.->|"Archive retention days"| INDEX
+  PREFS -.->|"Rewind interval and power/app capture cadence"| CAPTURE
+  REWINDUI -->|"Lexical FTS, parallel with semantic branch"| DB
+  REWINDUI -->|"Semantic branch; failure is nonfatal"| REWINDSEMANTIC
+  REWINDSEMANTIC -->|"Query embedding compute"| PROXY
+  REWINDSEMANTIC -->|"Local vector reads and matching metadata"| DB
+  REWINDSEMANTIC -->|"Additional ranked matches"| REWINDUI
+  OCREMB -->|"Failed or gated batch"| OCRRETRY
+  OCRRETRY -->|"Current-owner retry or missing-vector backfill"| OCREMB
+  FLUSH -->|"Abandonment/marker failure reconciliation"| RECOVER
+  RECOVER -->|"Delete unusable chunk rows before file cleanup"| DB
+  RECOVER -->|"Owned partial file then recovery marker removal"| FILECLEAN
+  LISTEN -->|"Four-hour maximum session timer"| AMBIENTROTATE
+  REWINDUI -->|"User finishes conversation and continues listening"| AMBIENTROTATE
+  AMBIENTROTATE -->|"Seal old row before next admission"| CONVSTORE
+  AMBIENTROTATE -->|"Detached enrichment of sealed conversation"| FINALIZE
+  AMBIENTROTATE -->|"Next conversation before producer reconnect"| CONVBEGIN
+  AMBIENTROTATE -->|"Four-hour path restarts through admission"| LISTEN
+  AUDIOCAPTURE -->|"Required mic start failure"| FINISH
+  MIC -->|"Silent input / shared capture failure"| MICRECOVERY
+  MICRECOVERY -->|"Reconcile replacement capture services"| AUDIOCAPTURE
+  MICRECOVERY -->|"Repeated silence exhausts recovery"| FINISH
+  STTRECOVER -->|"After exact teardown; current owner/generation restart"| LISTEN
+  CLOUDRECOVER -->|"Local route eligible; restart admission"| LISTEN
+  CLOUDRECOVER -->|"No eligible local fallback"| FINISH
+  AMBIENTWS -->|"Managed cloud allowance exhaustion event"| FAIRAUDIO
+  FAIRAUDIO -->|"Ready local producer; preserve current session"| LOCALSTT
+  FAIRAUDIO -->|"Unavailable local capture"| FINISH
+  FAIRAUDIO -->|"Server reset/support facts"| FAIRNOTICE
+  CONVBEGIN -->|"Optional one-shot location capture"| CONVLOCATION
+  PREFS -.->|"Conversation location opt-in"| CONVLOCATION
+  CONVLOCATION -->|"Owner-current local location metadata"| CONVSTORE
+  CONVRECOVER -->|"Reclaim eligible abandoned/closed work"| FINALIZE
+  CONVSTORE -->|"Durable enrichment work rows"| CONVWORK
+  CONVWORK -->|"Claim current generation and attempt"| DISCARD
+  CONVWORK -->|"Retry eligible structure/task work"| CONVRECOVER
+  STRUCTURE -->|"Record typed compute/commit failure"| CONVWORK
+  CONVTASK -->|"Record typed compute/commit failure"| CONVWORK
+  DISCARD -->|"Short nonempty transcript only: classify"| CONVAPI
+  TASKSTORE -->|"Related local task candidates/token map"| CONVTASK
+  FINALIZE -->|"After workers return, enqueue generation-bound extraction"| MEMSTORE
+  GOALTEST -->|"Owner-authorized local create"| GOALSTORE
+  MEMWORK -->|"Maintenance before leased operations"| MEMMAINTENANCE
+  MEMMAINTENANCE -->|"Lease recovery and due lifecycle work"| MEMSTORE
+  MEMMAINTENANCE -->|"Finalize expired pending deletion"| MEMDELETE
+  MEMSEARCH -->|"Query embedding compute"| PROXY
+  MEMSEARCH -->|"Read current-owner local vector matches"| MEMSTORE
+  MEMORYACTIONS -->|"Manual assertions enqueue normalize and embed"| MEMWORK
+  TASKUNDO -->|"Use canonical delete/restore/finalize operations"| TASKS
+  TASKS -->|"Startup/load stranded-delete recovery"| TASKMAINTENANCE
+  TASKMAINTENANCE -->|"Purge accepted local tombstones"| TASKSTORE
+  REMINDER -->|"Schedule failure after task commit"| REMINDERERROR
+  REMINDERERROR -->|"Separate warning in task projection"| TASKS
+  MONITOR -->|"Power source change or monitoring stop finalizes current chunk"| FLUSH
+  LOCALSTT -->|"Initialize decoder model and readiness buffer"| LOCALMODEL
+  LOCALMODEL -->|"Model load or readiness failure"| STTRECOVER
+  LAUNCHMODE -->|"Mode is part of lock identity"| DUPLICATE
+  DUPLICATE -->|"Lock acquired, exempt or failed-open"| APP
+  DUPLICATE -->|"Separate mode, export/probe or lock failure"| LOCKEXCEPT
+  APP -->|"Early location check may exit and relaunch"| INSTALLSTART
+  APP -->|"Shared window with mode-selected initial page"| LAUNCHMODE
+  APP -->|"Install callbacks and UI controls"| SHORTCUTMENU
+  APP -->|"Initialize repair mechanism"| NOTICEREPAIR
+  APP -->|"Configure separately from product analytics"| CRASHREPORT
+  APP -->|"Start periodic resource checks"| RESOURCEMON
+  APP -->|"Initialize preference-gated analytics"| CONSENT
+  AUTH -->|"Current phase determines accessible UI"| HOMEADMIT
+  AUTH -->|"Temporary refresh failure"| AUTHRECOVERY
+  AUTHRECOVERY -->|"User retries stored credentials"| AUTH
+  HOME -->|"Body selects auth/setup state"| HOMEADMIT
+  HOMEADMIT -->|"Authenticated, setup incomplete"| ONBOARD
+  HOMEADMIT -->|"Authenticated main-content task"| DBSTART
+  HOMEADMIT -->|"Main content appears"| PERM
+  HOMEADMIT -->|"Restore capabilities from saved choices"| RESTORECAPTURE
+  DBSTART -->|"Initial DB attempt finishes; background stages begin"| WARM
+  DBSTART -->|"Open owner-local storage"| DB
+  RESTORECAPTURE -->|"Listening intent survives admission"| LISTEN
+  RESTORECAPTURE -->|"Screen intent and startup gates pass"| MONITOR
+  OWNER -->|"After old work quiesces and storage preparation succeeds"| OWNERRESET
+  OWNERRESET -->|"Purge old projections and retarget authority"| DB
+  PERM -->|"Missing/broken grant can expose recovery UI"| PERMREQUEST
+  PERM -->|"Observed notification authorization regression"| NOTICEREPAIR
+  SETTINGS -->|"Explicit grant/reset/reopen controls"| PERMREQUEST
+  PERMREQUEST -->|"Request microphone permission"| MICGRANT
+  MICGRANT -->|"Granted and onboarding already complete"| LISTEN
+  LISTEN -->|"Missing microphone grant requests admission"| MICGRANT
+  APP -->|"Termination notification also reaches AppState"| QUITAMBIENT
+  QUITAMBIENT -->|"Best-effort owner-authorized finish"| CONVSTORE
+  ONBOARD -->|"Collect and persist answers/resume step"| ONBOARDANSWERS
+  ONBOARDANSWERS -->|"Acquisition source when analytics enabled"| ANALYTICS
+  ONBOARDANSWERS -->|"Write name through current auth owner"| AUTH
+  ONBOARDANSWERS -->|"Local language preference"| PREFS
+  ONBOARD -->|"Permission stages"| ONBOARDPERMS
+  ONBOARDPERMS -->|"Actual grants and status checks"| PERMREQUEST
+  ONBOARD -->|"Shortcut stages and final demonstration"| ONBOARDDEMO
+  ONBOARDDEMO -->|"Warm bridge before arming voice"| BRIDGE
+  ONBOARDDEMO -->|"Demo uses physical voice path"| PTT
+  ONBOARDEXIT -->|"Apply selected login intent"| LOGINITEM
+  SETTINGS -->|"User controls login item"| LOGINITEM
+  SETTINGS -->|"Explicit replay setup"| ONBOARDREPLAY
+  ONBOARDREPLAY -->|"Relaunch into setup"| ONBOARD
+  SETTINGS -->|"Independent presentation preferences"| PRESENTATIONPREFS
+  PRESENTATIONPREFS -->|"Local preference writes"| PREFS
+  CONSENT -->|"Active sharing may identify signed-in account"| ANALYTICSIDENTITY
+  ANALYTICSIDENTITY -->|"Account-associated analytics"| ANALYTICS
+  RESOURCEMON -->|"Production diagnostic events/context"| CRASHREPORT
+  RESOURCEMON -->|"Extreme production memory threshold"| MEMORYRELAUNCH
+  MEMORYRELAUNCH -->|"New process attempts ordinary launch"| DUPLICATE
+  UPDATER -->|"Downloaded update ready for installation"| UPDATEIDLE
+  LISTEN -.->|"Ambient lifecycle contributes busy state"| UPDATEIDLE
+  HUB -.->|"Voice/tools/token/playback contribute busy state"| UPDATEIDLE
+  TEXT -.->|"Chat sending/streaming contributes busy state"| UPDATEIDLE
+  UPDATEIDLE -->|"Idle release install / separate quit install path"| UPDATERELAUNCH
+  UPDATERELAUNCH -->|"New build re-enters launch"| APP
+  MAPSCOPE -->|"Defines what this review map includes"| MAPREVIEW
+
+  CHATGATE -->|"Stage owned exchange before inference"| CHATJOURNAL
+  CHATJOURNAL -->|"Atomic journal transaction via bridge"| BRIDGE
+  CHATJOURNAL -->|"Accepted pair permits context/query preparation"| CONTEXT
+  CHATJOURNAL -->|"Accepted visible rows"| PROJECTION
+  BRIDGE -->|"Terminal result to bounded journal finalization"| CHATJOURNAL
+  CHATATTACH -->|"Managed attachments after materialization"| CHATINPUTWIRE
+  CHATINPUTWIRE -->|"At most one image plus file URI/metadata"| BRIDGE
+  EXTENSION -->|"Model tool wait deadline"| TOOLDEADLINES
+  SWIFTWIRE -->|"Physical executor receipt deadline"| TOOLDEADLINES
+  CHATSTOP -->|"Run authority revoked while tools pending"| TOOLDEADLINES
+  TOOLDEADLINES -->|"Node 120s timeout or run revocation: physical outcome evidence"| TOOLLEDGER
+  VOICESTATE -->|"Arm deadlines only for current stage"| VOICEDEADLINES
+  VOICEDEADLINES -->|"Warm/rebind fallback with retained PCM"| SPEECHGATE
+  VOICEDEADLINES -->|"Other expired stages terminalize owned turn"| VOICESTATE
+  PTTCAP -->|"Current-turn PCM only"| PTTLOCALDECODE
+  VOICELANGUAGE -->|"Only explicitly configured candidates enable decode"| PTTLOCALDECODE
+  PTTLOCALDECODE -->|"Configured-language verdict"| BATCHPOLICY
+  PTTLOCALDECODE -->|"Policy-selected replacement transcript"| VOICEJOURNAL
+  SCREENVERIFY -->|"Unavailable evidence or failed protocol"| SCREENFAILURE
+  SCREENFAILURE -->|"Unavailable capture: provider continuation"| LIVEFUNCTION
+  SCREENFAILURE -->|"Protocol failure: authoritative local answer"| VOICEJOURNAL
+  SCREENFAILURE -->|"Protocol failure: one-shot selected-voice output"| TTSQUEUE
+  CHATUI -->|"Floating response playback policy"| SPEECHCHOICE
+  PREFS -.->|"Typed speech toggle and selected OpenAI voice"| SPEECHCHOICE
+  SPEECHCHOICE -->|"Voice query or enabled typed speech"| TTSQUEUE
+  TTSQUEUE -->|"PTT fallback acquires same output authority"| OUTPUTLEASE
+  MP3 -->|"Playback start/decode failure while current"| OSSPEECH
+  TOOLSCREEN -->|"Write full frame and detail tiles"| SCREENFILES
+  TOOLSCREEN -->|"Return path text through canonical result"| TOOLRESULT
+  TOOLRESULT -->|"capture_screen finalized JSON string to extension"| SCREENWIREGAP
+  SCREENFILES -->|"Produced WebP paths expected by converter"| SCREENWIREGAP
+  SCREENWIREGAP -.->|"Current source emits text; image conversion mismatch retained"| PI
+  AGENTPILLS -->|"Stop/continue/inspect; unfinished dismiss cancels"| NODETOOLS
+  AGENTPILLS -->|"Tool-string dismissal records attention override"| ACTIONQUEUE
+  FLOATROUTE -->|"Authorized superseding follow-up"| CHATSTOP
+  CHATAPI -->|"Normal provider mode: native generateContent stream"| GOOGLE
+  PROXY -->|"Normal provider mode: candidate or embedding request"| GOOGLE
+  CHATAPI -->|"Normal provider mode: fail-closed request meter"| REQUESTLIMITS
+  PROXY -->|"Normal provider mode: fail-closed burst/daily meter"| REQUESTLIMITS
+  CHATAPI -->|"Normal provider mode: quota snapshot checks desktop trial"| TRIALGATE
+  CHATAPI -->|"Explicit environment fixture branch"| LLMFIXTURE
+  PROXY -->|"Explicit environment fixture branch after trial/path/body checks"| LLMFIXTURE
+  BEAUTH -->|"Registered legacy upload-SSE transcription"| VOICEUPLOAD
+  VOICEUPLOAD -->|"Generic voice:message rate limit"| REQUESTLIMITS
+  VOICEUPLOAD -->|"Charge first decoded WAV duration when readable"| VOICEBUDGET
+  VOICEUPLOAD -->|"First decoded WAV; transcription only"| MODULATE
+  CONVAPI -->|"Observed provider token usage by feature"| ACCOUNTDATA
+  MEMAPI -->|"Observed provider token usage by feature"| ACCOUNTDATA
+  GREETING -->|"Observed provider token usage by feature"| ACCOUNTDATA
+  VADGATE -->|"Only initialized shadow/active gate supplies speech deltas"| USAGE
+  RECEIVER -->|"Sent-audio duration for optional managed allowance tracking"| USAGE
+  USAGE -->|"Configured automatic checks"| FAIRUSEPOLICY
+  FAIRUSEPOLICY -->|"Enabled: rolling usage/current allowance/pending reviews"| ENFORCEMENT
+  ENFORCEMENT -->|"Exhausted restricted allowance drops audio and notifies"| RECEIVER
+  ENFORCEMENT -->|"Hard daily ceiling drops audio without allowance-handoff notice"| RECEIVER
+  USAGE -->|"Enabled, soft caps exceeded, free credits exhausted"| FREEEXHAUST
+  FREEEXHAUST -->|"Synthetic score updates retained stages/events"| ENFORCEMENT
+  ENFORCEMENT -->|"Read authoritative timed state"| FAIRRECOVERY
+  FAIRRECOVERY -->|"Persist normalized automatic stage"| ACCOUNTDATA
+  WEBHOOK -->|"Customer association + transactional dedup/projection receipt"| BILLINGRECORDS
+  BILLINGRECORDS -->|"Resolve owner before subscription projection"| WEBHOOK
+  WIPE -->|"Then delete users/uid and every child collection"| ACCOUNTDATA
+  WIPE -->|"Advice child collection included in recursive wipe"| ADVICEDB
+  WIPE -.->|"Outside this worker subtree; billing records retained"| BILLINGRECORDS
+  WIPE -.->|"Shared Redis cache is not visited by this worker"| TRANSLATIONCACHE
+  HTTPAUTH -->|"Retained advice remains account-authenticated"| ADVICEAPI
+  HTTPAUTH -->|"Checkout and portal account identity"| CHECKOUT
+  APPCAST -->|"Primary mode: cache/pointer/LKG then exact-channel fallback"| UPDATESTORE
+  MANUALDOWNLOAD -->|"Same channel resolver; installer identity fallback differs"| UPDATESTORE
+  SERVER -->|"Public installer landing routes"| MANUALDOWNLOAD
+  RELEASECONTROL -->|"Qualified Beta branch independently verifies evidence"| BETAEVIDENCE
+  BETAEVIDENCE -->|"Admit only matching control generation/candidate"| UPDATESTORE
+  PREVIEWCONTROL -->|"Publish immutable manifest; mutate/delist current pointer"| PREVIEWSTORE
+  RELEASECONTROL -->|"Manifest registration, stable promotion and separate Beta admin controls"| UPDATESTORE
+  USAGE -->|"Enabled fair use, capped non-free-exhausted account: pending-review event"| REVIEW
+  CHATAPI -->|"Normal provider mode: pre-stream quota question and usage facts"| ACCOUNTDATA
+  CHATAPI -->|"Normal provider mode: before provider request"| MANAGEDPROMPT
+  CHATAPI -->|"Normal provider mode: shared metadata/selected-session export policy"| CHATTRACE
+  TASKSTORE -->|"Existing embedding blobs when index is loaded"| R2TASKVECTOR
+  R2TASKVECTOR -->|"Existing similarity candidates or empty context"| CONVTASK
+  LOCALSTT -->|"Independent mic/system decode windows"| R2LOCALFILTER
+  R2LOCALFILTER -->|"Accepted timed speech with source identity"| SEGMENTS
+  CONVCOMMIT -->|"Accepted action-item response under generation and attempt claim"| R2CONVTASKCOMMIT
+  R2CONVTASKCOMMIT -->|"All accepted task operations in one transaction"| TASKSTORE
+  DB -->|"Open/query or maintenance storage failure"| R2DBRECOVERY
+  R2DBRECOVERY -->|"Successful reopen and pool refresh"| DB
+  R2DBSALVAGE -->|"Recovered or fresh shared authority"| DB
+  MEMSTORE -->|"Source-specific assertion/correction work"| R2MEMADMISSION
+  R2MEMADMISSION -->|"Durable per-revision work kinds"| MEMWORK
+  R2MEMQUOTE -->|"Only validated batch accepted locally"| MEMSTORE
+  R2MEMPROMOTE -->|"Accepted revision-bound transaction"| R2MEMTRANSITION
+  R2MEMTRANSITION -->|"Resulting layer/expiry/dismissal determines retrieval"| MEMORYSCOPE
+  R2MEMTRANSITION -->|"Durable transitions and embedding work"| MEMSTORE
+  MEMAPI -->|"Returned extraction candidates"| R2MEMQUOTE
+  MEMAPI -->|"Returned consolidation decisions"| R2MEMPROMOTE
+  MEMAPI -->|"Returned normalization proposal"| NORMALIZE
+  NORMALIZE -->|"Validated current-revision normalization"| MEMSTORE
+  MEMORYSCOPE -->|"Apply requested layer and visibility filters to reads"| MEMSTORE
+  CONVAPI -->|"Returned structure or action-item candidates"| CONVCOMMIT
+  CONVAPI -->|"Returned short-conversation discard classification"| DISCARD
+  R2DBRECOVERY -->|"Open corruption or maintenance I/O backup and salvage"| R2DBSALVAGE
+  OWNER -->|"Physical storage preparation throws"| OWNERFAIL
+  DASH -->|"Compose current local state"| HOMEROWS
+  GOALSUI -->|"Question candidates"| HOMEROWS
+  HOMEROWS -->|"Task row opens Tasks"| TASKUI
+  HOMEROWS -->|"Insight row / durable dismiss"| INSIGHTACTIONS
+  HOMEROWS -->|"Question/tip selection prefills draft; Send is separate"| TEXT
+  HOME -->|"Persistent shell controls"| CAPTURECONTROLS
+  CAPTURECONTROLS -->|"Enable listening after mic grant; toggle-off stops"| LISTEN
+  CAPTURECONTROLS -->|"Enable/disable screen monitoring"| MONITOR
+  CAPTURECONTROLS -->|"Grant missing mic/screen access"| PERMREQUEST
+  CAPTURECONTROLS -->|"Persist selected capability intent"| PREFS
+  FOCUSUI -->|"Refresh/prune or user deletion"| FOCUSMAINT
+  FOCUSMAINT -->|"Owner-authorized retention/delete/clear"| FOCUSSTORE
+  INSIGHTUI -->|"Read/dismiss/delete/clear"| INSIGHTACTIONS
+  INSIGHTACTIONS -->|"Mutate canonical tips Memory rows"| MEMSTORE
+  APP -->|"One-time default-Off migration"| NOTIFYFREQ
+  PREFS -.->|"Local master/frequency settings"| NOTIFYFREQ
+  NOTIFYFREQ -.->|"Proactive admission policy; functional callers bypass"| NOTIFY
+  NOTIFY -->|"In-app delivery attempt; not guaranteed visible"| CARDQUEUE
+  CARDQUEUE -->|"When idle and owner current"| CARD
+  CARDQUEUE -->|"May begin journal write before queued presentation"| CARDJOURNAL
+  CARD -->|"Idempotent journal write if still missing"| CARDJOURNAL
+  CARDJOURNAL -->|"Accepted exchange in canonical Chat journal"| NODEDB
+  CARDJOURNAL -->|"User click after admitted history"| FLOATROUTE
+  TASKS -->|"Incomplete task projection changes"| NOTCHRECEIPT
+  TASKSTORE -->|"Verify canonical active task"| NOTCHRECEIPT
+  LISTEN -->|"Listening state edges"| NOTCHEND
+  TASKS -->|"Current incomplete IDs and creation times"| NOTCHEND
+  NOTCHRECEIPT -->|"Direct floating delivery: bypass master/frequency, retain snooze"| CARDQUEUE
+  NOTCHEND -->|"Direct floating delivery: bypass master/frequency, retain snooze"| CARDQUEUE
+  NOTCHRECEIPT -->|"User Undo action"| TASKS
+  NOTCHEND -->|"User Review action"| TASKUI
+  CONVACTIONS -->|"User confirms permanent conversation deletion"| CONVDELETE
+  CONVDELETE -->|"Delete session and dependent rows in one local transaction"| CONVSTORE
+  CONVDELETE -->|"Delete only exact conversation-linked tasks"| TASKSTORE
+  CONVDELETE -->|"Delete exact linked assertions and pending work"| MEMSTORE
+  CONVUI -->|"Multi-select completed conversations"| CONVMERGE
+  CONVMERGE -->|"Atomic new conversation and replaced originals"| CONVSTORE
+  CONVMERGE -->|"Reassign exact source linkage"| TASKSTORE
+  CONVMERGE -->|"Reassign assertions/work provenance"| MEMSTORE
+  CONVMERGE -->|"Admit structure/task work; skip discard"| CONVWORK
+  CONVACTIONS -->|"Manual retry of failed enrichment"| CONVWORK
+  MEMORYACTIONS -->|"Explicit bulk-delete confirmation"| MEMORYBULK
+  MEMORYBULK -->|"Permanent Short-term/Long-term deletion"| MEMSTORE
+  EXPORTSCOPE -.->|"Defines included rows and excluded data"| EXPORT
+  PREFS -->|"Allowlisted settings only"| EXPORT
+  FEEDBACK -->|"User chooses Save Diagnostics"| DIAGNOSTICFILE
+  DIAGNOSTICS -->|"Redacted snapshots and bounded logs"| DIAGNOSTICFILE
+  MAPSOURCE -->|"Push authorized changes; remote build trigger required"| MAPDEPLOY
+  MAPDEPLOY -->|"Configured deployment checks out revision"| MAPBUILD
+  MAPVIEW -->|"Parser or layout rejection"| MAPRETRY
+  MAPRETRY -->|"Explicit retry of current build source"| MAPVIEW
+  CONVACTIONS -->|"Owner-authorized folder, star, title and speaker edits"| CONVSTORE
 
     classDef store fill:#fef3c7,stroke:#92400e,color:#111827;
     classDef gate fill:#fff7ed,stroke:#c2410c,color:#111827;
@@ -692,7 +1207,13 @@ flowchart TD
     classDef cloud fill:#ecfdf5,stroke:#047857,color:#111827;
     classDef gap fill:#fef2f2,stroke:#b91c1c,color:#111827;
     class SHOT,SEGSTORE,CONVCOMMIT,NOTESTORE,DB,MEMSTORE,TASKSTORE,GOALSTORE,FOCUSSTORE,CONVSTORE,NODEDB,DELETIONMARK,ACCOUNTDATA,AUTHCACHE,PREFS,ADVICEDB store;
-    class DUPLICATE,PERM,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
+    class DUPLICATE,OWNER,CAPTURE,AUDIOCAPTURE,DISCARD,MEMDELETE,NOTIFY,CHATGATE,TRANSPORT,CAPABILITY,RECONNECT,BATCHPOLICY,SPEECHGATE,OUTPUTLEASE,BEAUTH,ONBOARDGATE,EXCLUSIONS gate;
     class SETTINGS,REWINDUI,LIVEUI,HOME,DASH,MEMUI,CONVUI,TASKUI,FOCUSUI,INSIGHTUI,CARD,SYSTEMNOTICE,TEXT,CHATUI,PTT,SPEAKER,PLANUI,FAIRNOTICE,ONBOARD,GOALSUI,MEMORYACTIONS,DELETEUI,RESOURCES,UPDATEPOLICY,FEEDBACK surface;
     class SERVER,CHATAPI,PROXY,CONVAPI,MEMAPI,TOKENAPI,STTAPI,TTSAPI,GREETING,GOOGLE,GOOGLELIVE,MODULATE,OPENAI,LISTENAPI,LISTENRUN,RECEIVER,TRANSIENT,TRANSLATE,LISTENDRAIN,OAUTH,TOKENEXCHANGE,FIREBASE,PLANAPI,CHECKOUT,BILLING,WEBHOOK,USAGE,REVIEWAPI,DELETEAPI,WIPE,DELETERETRY,SERVEREXPORT,APPCAST,REPORTAPI cloud;
     class ARTIFACTQUEUE,ADVICEAPI gap;
+    class LAUNCHMODE,GOALWIDGET,STTSTREAM,LEGACYRELEASE gap;
+    class HOMEADMIT,RESTORECAPTURE,TOOLSEMANTIC,SCREENVERIFY,HTTPAUTH,REQUESTLIMITS,HTTPIDENTITY,VADGATE,TRIALGATE,VOICEBUDGET,DELETECLAIM,TOOLSCREEN,UPDATEIDLE gate;
+    class CONVWORK,CHATTRACE,TRANSLATIONCACHE,OAUTHSTATE,ENFORCEMENT,UPDATESTORE store;
+    class R2MEMQUOTE,R2MEMPROMOTE,SPEECHCHOICE,FAIRUSEPOLICY,BETAEVIDENCE gate;
+    class R2TASKVECTOR,LLMFIXTURE,VOICEUPLOAD,SCREENWIREGAP,MAPDEPLOY gap;
+    class BILLINGRECORDS,SCREENFILES,PREVIEWSTORE store;

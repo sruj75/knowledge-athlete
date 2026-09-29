@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b678e8d150879d6d4126b0177ebb1a3e51557d3bc6b699d72ae4544e2e5a1f68",
+  "pageVersion": "sha256:b7781ea9838e18a97499d7505f90506778e4fd3589f44b04e48a7777e53dd622",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -128,7 +128,7 @@
     },
     {
       "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
-      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 205 nodes and 410 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 342 nodes and 780 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
       "evidence": [
         {
           "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
@@ -144,7 +144,7 @@
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:8a2205daba566481544c1d7b6bda9c0c5ef74ddaf9898dbd3310b5b01e9c94e7"
+          "version": "repo-file-v1:sha256:c2fea96f906bb9753f98baf405a3d3a888b41420a64efb0a7c20799c3bb6afc1"
         },
         {
           "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
@@ -205,6 +205,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-28T09:46:29.604Z"
+    "at": "2026-09-29T14:41:59.037Z"
   }
 }
