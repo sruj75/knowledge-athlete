@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:eb1728746ce99d75f1bdff5d0cfaeba06259a58286ac90a15b7557ebe79017b9",
+  "pageVersion": "sha256:0cd9d4ec0b0109ffa1240da5a14b59161920f69a90a3a5c2bfe27844e51c9852",
   "claims": [
     {
       "id": "claim_0dba16a239c049318e6212ef970fb9ce",
@@ -26,7 +26,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift",
-          "version": "repo-file-v1:sha256:820dda777ac10c21f1ed4505b5cb86a160edbb6df8beb41128143d3e00936e4e"
+          "version": "repo-file-v1:sha256:66b12ff5f3a6ad3ef4e2a9534690c73e2be53b4295801d56092b2b1021b3454e"
         }
       ]
     },
@@ -73,10 +73,20 @@
           "version": "repo-lines-v1:sha256:fd89ca7d93f07da7eb437591e5aed432f11e07793a4a4fe7e9162034d3da06e8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJmYzRlYzQ4Y2IzNDlhNDE2NjQ3MDg2YjJlOGEwYTRkNWQ4OWNjZGZmNWVmMTNhNzUyNGUyNTE0NWM1M2QzY2ZjIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0NzI2ODY1ODdlYmE1NGYxM2QwMjdjZGZjMWJiNzAyNTM2ODI1NWIwMThlNGQwYTM0ZTllYjc5OGUyZThmYmJiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI1N2E3MTkwZDc2ZDFmMGI0NmMwNmYyNGViYmMyMDZlYmVkNGQxOWNlYTRlNDExMjkxY2IwMTAxNzIzYjI2ZjZkIn0"
         }
       ]
+    },
+    {
+      "id": "claim_5ddf8aaa3a9b4a5d9efa9af1c685f931",
+      "statement": "Update admission treats an open logical conversation and connecting/reconnecting states as active even between individual replies.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift#L16-L37",
+          "version": "repo-lines-v1:sha256:cf40c9bfa8ad8e8b9e7d8d9c28c561f99e5e5fc7ee9958e45555d7a5128281b4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MTllYTY0MjdkYTNlMDUzMmNmYWM2NjI4YTIwZTAxYTkzNDFkMTdlOTViMDU3MWZhZjliY2QwM2VmOGYzNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkYzhlMmM0Njk2OTU5YzU4NzE0OWEwMzk4MTA2ZWUxMmQ3MjAzYTZjMWUyNDQ1ZmE1M2NjNWJmYzIxYzhjZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T14:14:00.034Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

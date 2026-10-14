@@ -21,27 +21,12 @@ private actor FloatingOwnerPauseGate {
 }
 
 @MainActor
-private final class FloatingOwnerBox {
-  var value: String?
-
-  init(_ value: String?) {
-    self.value = value
-  }
-}
-
-@MainActor
 private final class FloatingOwnerAuthorizationBox {
   var isCurrent: Bool
 
   init(_ isCurrent: Bool) {
     self.isCurrent = isCurrent
   }
-}
-
-private enum SpawnOutcome: Sendable, Equatable {
-  case rejectedBeforeDispatch
-  case staleReceipt(String)
-  case accepted(String)
 }
 
 @MainActor
@@ -173,73 +158,6 @@ final class FloatingOwnerProjectionTests: XCTestCase {
 
     let admitted = await admission.value
     XCTAssertNil(admitted)
-  }
-
-  @MainActor
-  func testPillTerminalSuspendedAcrossOwnerSwitchCannotAttachToReplacementOwner() async {
-    let owner = FloatingOwnerBox("owner-a")
-    let gate = FloatingOwnerPauseGate()
-
-    let terminal = Task { @MainActor in
-      await FloatingControlBarManager.performOwnerBoundPillTerminalAdmission(
-        ownerID: "owner-a",
-        currentOwnerID: { owner.value },
-        record: {
-          await gate.pause()
-          return "owner-a-terminal-turn"
-        })
-    }
-    await gate.waitUntilStarted()
-    owner.value = "owner-b"
-    await gate.release()
-
-    let admitted = await terminal.value
-    XCTAssertNil(admitted)
-  }
-
-  @MainActor
-  func testSpawnReceiptSuspendedAcrossOwnerSwitchIsRejectedAsStale() async {
-    let owner = FloatingOwnerBox("owner-a")
-    let gate = FloatingOwnerPauseGate()
-
-    let operation = Task { @MainActor in
-      let result = await AgentPillsManager.performOwnerBoundSpawn(
-        ownerID: "owner-a",
-        currentOwnerID: { owner.value },
-        dispatch: {
-          await gate.pause()
-          return "owner-a-run"
-        })
-      switch result {
-      case .rejectedBeforeDispatch:
-        return SpawnOutcome.rejectedBeforeDispatch
-      case .staleReceipt(let runID):
-        return .staleReceipt(runID)
-      case .accepted(let runID):
-        return .accepted(runID)
-      }
-    }
-    await gate.waitUntilStarted()
-    owner.value = "owner-b"
-    await gate.release()
-
-    switch await operation.value {
-    case .staleReceipt(let runID):
-      XCTAssertEqual(runID, "owner-a-run")
-    case .accepted, .rejectedBeforeDispatch:
-      XCTFail("owner A's late receipt must not enter owner B's pill projection")
-    }
-  }
-
-  @MainActor
-  func testOwnerTransitionPurgesRenderedPills() {
-    let manager = AgentPillsManager.shared
-    _ = manager.replaceWithAutomationPills(count: 2)
-    XCTAssertEqual(manager.pills.count, 2)
-
-    NotificationCenter.default.post(name: .runtimeOwnerDidChange, object: nil)
-
-    XCTAssertTrue(manager.pills.isEmpty)
   }
 
   @MainActor

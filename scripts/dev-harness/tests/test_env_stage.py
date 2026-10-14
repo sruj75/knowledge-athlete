@@ -40,6 +40,7 @@ def test_child_env_for_real_mode() -> None:
     child = config.child_env_for(cfg)
     assert child["PROVIDER_MODE"] == "real"
     assert child["BASE_API_URL"] == cfg.backend_url
+    assert child["SUPERVISOR_DAILY_REQUEST_LIMIT"] == "6000"
 
 
 def test_nondefault_port_offset_propagates_to_surviving_harness_services() -> None:

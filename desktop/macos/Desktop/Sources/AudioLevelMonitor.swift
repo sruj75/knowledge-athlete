@@ -33,13 +33,58 @@ class AudioLevelMonitor: ObservableObject {
   private var pendingMicLevel: Float = 0.0
   private var pendingSysLevel: Float = 0.0
 
-  private init() {}
+  struct ConversationReceipt: Equatable, Sendable {
+    fileprivate let id: UUID
+  }
+  private var conversationReceipt: ConversationReceipt?
+
+  init() {}
+
+  func beginConversationMeter() -> ConversationReceipt {
+    let receipt = ConversationReceipt(id: UUID())
+    conversationReceipt = receipt
+    clearVoiceLevels()
+    return receipt
+  }
+
+  func updateConversationMicrophoneLevel(_ level: Float, receipt: ConversationReceipt) {
+    guard conversationReceipt == receipt else { return }
+    publishMicrophoneLevel(level)
+  }
+
+  func updateConversationPlaybackLevel(_ level: Float, receipt: ConversationReceipt) {
+    guard conversationReceipt == receipt else { return }
+    liveVoicePlaybackLevel = Self.bounded(level)
+  }
+
+  func endConversationMeter(receipt: ConversationReceipt) {
+    guard conversationReceipt == receipt else { return }
+    conversationReceipt = nil
+    clearVoiceLevels()
+  }
+
+  private func clearVoiceLevels() {
+    microphoneLevel = 0
+    liveMicrophoneLevel = 0
+    liveVoicePlaybackLevel = 0
+    lastMicUpdate = 0
+  }
+
+  private static func bounded(_ level: Float) -> Float {
+    level.isFinite ? min(1, max(0, level)) : 0
+  }
 
   /// Update microphone level - called from audio capture callback.
   /// Throttled to ~5 Hz to prevent excessive SwiftUI re-renders.
   func updateMicrophoneLevel(_ level: Float) {
+    pendingMicLevel = Self.bounded(level)
+    guard conversationReceipt == nil else { return }
+    publishMicrophoneLevel(pendingMicLevel)
+  }
+
+  private func publishMicrophoneLevel(_ sample: Float) {
+    let level = Self.bounded(sample)
     liveMicrophoneLevel = level
-    pendingMicLevel = level
     let now = CACurrentMediaTime()
     if now - lastMicUpdate >= updateInterval {
       lastMicUpdate = now
@@ -51,7 +96,8 @@ class AudioLevelMonitor: ObservableObject {
   /// the realtime PCM player's output tap. Un-throttled; see
   /// `liveVoicePlaybackLevel`.
   func updateVoicePlaybackLevel(_ level: Float) {
-    liveVoicePlaybackLevel = level
+    guard conversationReceipt == nil else { return }
+    liveVoicePlaybackLevel = Self.bounded(level)
   }
 
   /// Update system audio level - called from audio capture callback.
@@ -65,12 +111,10 @@ class AudioLevelMonitor: ObservableObject {
     }
   }
 
-  /// Reset both levels to zero
+  /// Reset ambient levels without revoking an active conversation meter.
   func reset() {
-    microphoneLevel = 0.0
+    if conversationReceipt == nil { clearVoiceLevels() }
     systemLevel = 0.0
-    liveMicrophoneLevel = 0.0
-    liveVoicePlaybackLevel = 0.0
     pendingMicLevel = 0.0
     pendingSysLevel = 0.0
   }

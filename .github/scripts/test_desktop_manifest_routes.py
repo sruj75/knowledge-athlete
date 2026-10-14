@@ -67,8 +67,42 @@ class DesktopManifestRoutesTests(unittest.TestCase):
         for check in macos_checks:
             fixture_paths = [path for trigger in check.triggers for path in _materialize_trigger(trigger)]
             with self.subTest(check_id=check.id, paths=fixture_paths):
-                self.assertTrue(fixture_paths, "macOS-only checks need at least one materializable trigger")
+                self.assertTrue(
+                    fixture_paths,
+                    "macOS-only checks need at least one materializable trigger",
+                )
                 self.assertIn(check.id, resolve_macos_only(fixture_paths, self.manifest))
+
+    def test_storage_checks_run_in_both_lanes_without_execution_gauntlets(self) -> None:
+        for lane in ("local", "ci"):
+            selected = {
+                selection.check.id
+                for selection in resolve_check_selections(
+                    self.manifest,
+                    [
+                        "desktop/macos/agent/src/conversation-storage.ts",
+                        "desktop/macos/scripts/prepare-agent-runtime.sh",
+                    ],
+                    lane,
+                    include_pr_body_checks=False,
+                    platform="linux",
+                )
+            }
+            with self.subTest(lane=lane):
+                self.assertTrue(
+                    {
+                        "desktop-conversation-storage-runtime",
+                        "desktop-conversation-storage-layout",
+                        "desktop-conversation-storage-cache",
+                    }.issubset(selected)
+                )
+        retired = {
+            "desktop-agent-runtime-contract-conformance",
+            "desktop-spawn-receipt-fixtures-v1",
+            "agent-continuity-gauntlet-self-check",
+            "gauntlet-evidence-at-head-tests",
+        }
+        self.assertFalse(retired.intersection(check.id for check in self.manifest.checks))
 
     def test_portable_checks_do_not_move_to_the_exclusive_macos_phase(self) -> None:
         manifest = Manifest(
@@ -91,9 +125,14 @@ class DesktopManifestRoutesTests(unittest.TestCase):
             ),
             exempt=(),
         )
-        self.assertEqual(resolve_macos_only(["desktop/macos/Desktop/Sources/App.swift"], manifest), ["mac-only"])
+        self.assertEqual(
+            resolve_macos_only(["desktop/macos/Desktop/Sources/App.swift"], manifest),
+            ["mac-only"],
+        )
 
-    def test_releasable_desktop_path_skips_verifier_only_without_macos_work(self) -> None:
+    def test_releasable_desktop_path_skips_verifier_only_without_macos_work(
+        self,
+    ) -> None:
         # Resource edits retain the stable exact-SHA aggregate but have no
         # manifest-owned macOS static phase. A verifier skip is therefore an
         # explicit resolver decision, not an unmaintained workflow regex.

@@ -11,9 +11,8 @@ from utils.llm import clients, model_config
 from utils.llm.model_config import WorkloadLifecycle
 
 EXPECTED_ROUTES = {
-    'chat_agent': ('gemini', 'gemini-3.7-flash'),
+    'conversation': ('gemini', 'gemini-3.8-flash'),
     'chat_greeting': ('gemini', 'gemini-3.7-flash'),
-    'conv_action_items': ('gemini', 'gemini-3.7-flash'),
     'conv_discard': ('gemini', 'gemini-3.7-flash'),
     'conv_structure': ('gemini', 'gemini-3.7-flash'),
     'fair_use': ('gemini', 'gemini-3.7-flash'),
@@ -21,7 +20,7 @@ EXPECTED_ROUTES = {
     'memory_l1': ('gemini', 'gemini-3.7-flash'),
     'memory_l2': ('gemini', 'gemini-3.7-flash'),
     'session_titles': ('gemini', 'gemini-2.5-flash-lite'),
-    'supervisor': ('gemini', 'gemini-3.7-flash'),
+    'supervisor': ('gemini', 'gemini-3.8-flash'),
     'translation': ('gemini', 'gemini-2.5-flash-lite'),
 }
 

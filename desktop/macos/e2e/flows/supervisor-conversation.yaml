@@ -1,55 +1,78 @@
 version: 2
 name: supervisor-conversation
 tier: manual
-description: Qualify the complete A-B-C interaction using authenticated Gemini and physical audio
+description: Qualify continuous A and private B guidance with authenticated providers and human-heard physical audio
 app: non-prod
 covers:
-  - desktop/macos/Desktop/Sources/Chat/ChatMessage.swift
-  - desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift
+  - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnDeadlineAdmission.swift
+  - desktop/macos/Desktop/Sources/Audio/AudioLevelDelivery.swift
+  - desktop/macos/Desktop/Sources/AudioLevelMonitor.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationAudioLevel.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationPresentation.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingConversationOpening.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/NotchChromeLayout.swift
+  - desktop/macos/Desktop/Sources/Automation/ConversationPresentationPreview.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationPreviewActions.swift
+  - desktop/macos/Desktop/Sources/AIObservability/ConversationDeliveryOutcome+Observation.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationOpeningRequest.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationOutputAdmission.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationPendingAudio.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeSessionSetup.swift
   - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift
   - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift
-  - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
-  - desktop/macos/Desktop/Sources/AIObservability/APIClient+Supervisor.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+Supervisor.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/FloatingControlBarManager+RealtimeStreamingJournal.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+StreamingJournal.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+TurnPersistence.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/VoiceTurnCoordinator.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/ChatBubble.swift
-  - desktop/macos/Desktop/Sources/VoiceTurnDomain/VoiceTurnStateMachine.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionDelegate.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController+SessionLifecycle.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSession.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubSessionTypes.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeSessionSetup.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
+  - desktop/macos/Desktop/Sources/AIObservability/ConversationContracts.swift
+  - desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift
+  - desktop/macos/Desktop/Sources/Chat/ChatMessage.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationTextTurnLease.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTransportFailure.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorModels.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorScreenPolicy.swift
+  - desktop/macos/Desktop/Sources/ResourceMonitor.swift
+  - desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift
+  - desktop/macos/Desktop/Sources/Chat/KernelTurnProjection.swift
+  - desktop/macos/Desktop/Sources/Providers/ChatProvider+Conversation.swift
+  - desktop/macos/Desktop/Sources/AIObservability/ConversationPromptBindingStore.swift
+  - desktop/macos/Desktop/Sources/AIObservability/APIClient+Conversation.swift
+  - desktop/macos/Desktop/Sources/AIObservability/APIClient+Supervisor.swift
+  - desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLifecycle.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLiveSession.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationPlaybackQueue.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationSpeechRenderer.swift
+  - desktop/macos/Desktop/Sources/FloatingControlBar/ConversationSpeechSegmentation.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+  - desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorWebcamService.swift
 preconditions:
   - named_test_bundle_only
   - auth_ready
-  - screen_recording_ready
   - microphone_ready
   - authenticated_gemini_ready
   - managed_live_and_supervisor_prompts_ready
 steps:
   - id: S1
-    name: Cold and warm proactive admission
-    do: "On the exact named development bundle, enable Supervisor and capture, allow proactive speech with nonzero frequency, and show a controlled screen/transcript cue. Check that B begins after usable evidence and privately causes A to speak without opening microphone capture. Repeat on a warm Live session. Record input-ready, evaluation-start and playback-start times separately. Verify an assistant-only journal row appears with no private note or invented user message."
+    name: User and proactive multi-reply conversations
+    do: "Use the exact uniquely named development bundle and record its source/backend fingerprints. Tap Talk once, hear A, and exchange at least three replies without another tap. Repeat after permitted B initiation using controlled non-sensitive context. Verify both starts reveal the same original notch and floating conversation surface, with blue opening glow and thinking feedback. The microphone wave must track real input levels while listening, including natural replies; playback feedback must track rendered output. Both starts use one logical conversation, the surface remains visible between replies and on focus loss, and B initiation creates no invented user message. Explicit hide/snooze must end an open conversation; rapid close/reopen must not let an old dismiss hide the replacement. Save only IDs, timestamps, counts and outcome evidence. A separate non-production debug_bar_state preview may inspect these visuals without capture, but synthetic meter levels do not pass physical acceptance; restore idle after preview."
   - id: S2
-    name: Physical reply and interruption
-    do: "While A speaks through speakers, physically hold PTT, interrupt and reply. Verify A stops promptly, microphone capture begins immediately, and buffered audio reaches the required fresh Live session once it is ready within its replacement deadline. The ordinary warm timer must not force fallback during that replacement, and readiness must reuse the admitted input window without starting another replacement. Verify captured PCM and activity-end are sent exactly once. Verify B receives the direct exchange plus interrupted playback status without ambient duplicates. Repeat using headphones. Separately force the replacement timeout: ordinary fallback must still work, and its canonically accepted exchange and final playback outcome must reach B under the original owner/session admission. Keep archive transcripts intact."
+    name: Natural interruption on physical routes
+    do: "While A speaks through speakers, interrupt by speaking normally. Confirm a person heard A, output stops promptly, the new utterance is admitted without waiting for prior journal acknowledgement, and A's own voice does not trigger itself. Repeat through headphones and one supported Bluetooth route. Correlate nonzero microphone capture, utterance ID, connection generation and interrupted delivery outcome. Injected PCM or returned provider audio alone cannot pass this step."
   - id: S3
-    name: Silent next-turn guidance and speech gates
-    do: "Exercise wait and guide_next_turn with a controlled managed prompt. Verify wait produces no utterance and guide_next_turn is consumed only at the next PTT window. Verify busy voice, snooze, disabled notifications and frequency zero prevent unsolicited speech while ordinary PTT remains available. Switch applications and wait beyond thirty seconds to verify stale guidance is discarded."
+    name: End conditions and listening silence
+    do: "Verify explicit shortcut closure; then A's end_conversation closes only after final playback. Interrupt an ending reply and verify newer user speech defeats the obsolete end. Check 60 seconds of silence while input is available closes the conversation, with generation, playback, reconnect and fallback processing excluded. B activity and system audio must not reset the timer."
   - id: S4
-    name: Terminal feedback and normal export
-    do: "With evaluation sharing off, rate the resulting assistant message Helpful or Unhelpful. Verify the receipt joins the observation, B decision, A turn and both prompt versions. Inspect only safe trace metadata: no conversation, guidance, image, audio, memory/profile or tool payload is exported. Verify completed delivery means playback drained, and interruption is cancelled. Inspect the accepted assistant-only journal row: its persisted delivery outcome survives replay, and the UI labels an interrupted utterance as Interrupted rather than a save failure. Genuine journal rejection must retain its save-failure warning."
+    name: Persistent fallback and shared typed history
+    do: "Force bounded Live recovery to exhaust. Continue at least three exchanges through processed microphone, Silero, batch STT, direct A and controlled TTS. Interrupt playback and type a reply. Verify the same prompt receipt and canonical conversation remain, fallback stays selected, late callbacks are rejected, and no Pi execution occurs. A proactive opening with ambiguous delivery must never be replayed."
   - id: S5
-    name: Selected session and revocation
-    do: "Explicitly select a disposable evaluation session and repeat a controlled exchange. Confirm only bounded conversation and guidance text is added. Disable sharing while an evaluation or credential lookup is pending, re-enable it, and verify old queued text is not released. End monitoring and sign out separately; both must revoke sharing and pending notes."
+    name: Silent guidance and transcript revisions
+    do: "Deliver a permitted fresh B cue during output. Verify playback is uninterrupted, the cue waits for an idle boundary, clientContent uses turnComplete false, and no competing speech begins. A later user reply may incorporate the cue without exposing it as a user message. Verify partial transcript revisions replace prior versions for B, completed and interrupted playback remain distinct, and expired or changed-account/context cues are rejected. Provider failure of silent append is a blocker, not a pass from wire shape alone."
   - id: S6
-    name: Failure and permission boundaries
-    do: "Exclude the current app, disable each observation input, remove memory/profile context, and exercise quota exhaustion. Verify B uses only allowed inputs or visibly pauses and PTT still works. Break the Live connection after automatic initiation; verify no duplicate automatic utterance or batch-STT fallback. Verify the diagnostic records only the failure stage and bounded kind/code or admission flags, with no private guidance or raw provider reason. Make prompts or telemetry unavailable and verify PTT remains usable and B safely returns wait."
+    name: Independent inputs and isolation
+    do: "Test microphone, system audio, screen and webcam controls independently. Deny camera, enable then disconnect it, disable it, lock/sleep and change account. Confirm invalid frames and pending guidance are cleared, old callbacks cannot repopulate them, and other permitted inputs continue. Confirm no webcam recording is produced. Keep an unchanged screen visible beyond the old idle threshold; B receives fresh permitted observations without multiplying archival/OCR writes."
+  - id: S7
+    name: Prompt and telemetry boundaries
+    do: "Record the pinned prompt receipt once, then reconnect, use typed input and force fallback. Verify all routes retain its exact version and report actual returned model versions. With sharing off, inspect safe trace metadata only: no dialogue, guidance, copied profile/Memory, raw audio or images. With explicit disposable-session opt-in, verify bounded conversation/transcript text only; private B guidance must still be absent. Revoke sharing during pending work; reenabling must not export old queued text. Never alter coaching prompts as part of this implementation run."
+  - id: S8
+    name: Quota and eight-hour resource soak
+    do: "Run an eight-hour observation/resource soak on the named development bundle after the physical/provider steps pass. Record memory, CPU, inference counts, exclusive tokens, image capture age, queue/provider/end-to-end latency, skipped evaluations and quota gaps. Changed events and quiet checks share one budget with no backlog or concurrent inference. Force quota exhaustion and verify visible degraded status, no retries before permitted reset even across lock/unlock, and resumption afterward. Compare quiet, changed and bursty profiles with the fake-clock benchmark; simulated eight hours do not establish real resource stability."

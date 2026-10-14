@@ -285,6 +285,8 @@ def child_env_for(cfg: HarnessConfig, *, include_observability: bool = False) ->
         "OMI_ENV_STAGE": "offline" if cfg.provider_mode == "offline" else "local",
     }
     if cfg.provider_mode != "offline":
+        # Local observation benchmark allowance. Hosted defaults remain backend-owned.
+        extra["SUPERVISOR_DAILY_REQUEST_LIMIT"] = "6000"
         extra.update(provider_secrets_from_file(cfg))
         if include_observability:
             parsed = parse_secrets_file(cfg)

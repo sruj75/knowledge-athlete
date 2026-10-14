@@ -1,19 +1,5 @@
 {
-  "max_skip_count": 2,
-  "allowed_tests": [
-    "ChatDiscoverabilityTests/testAgentControlCapabilitiesMatchCanonicalManifest",
-    "ChatDiscoverabilityTests/testDesktopCapabilitiesExistInAgentToolDeclarations"
-  ],
-  "skips": [
-    {
-      "test": "ChatDiscoverabilityTests/testAgentControlCapabilitiesMatchCanonicalManifest",
-      "issue": "https://github.com/BasedHardware/omi/issues/9030",
-      "reason": "Swift DesktopCapabilityRegistry, agent control-tool-manifest.ts, and the desktop chat prompt have drifted; reconciling the canonical tool set is a product decision."
-    },
-    {
-      "test": "ChatDiscoverabilityTests/testDesktopCapabilitiesExistInAgentToolDeclarations",
-      "issue": "https://github.com/BasedHardware/omi/issues/9030",
-      "reason": "Swift DesktopCapabilityRegistry, agent control-tool-manifest.ts, and the desktop chat prompt have drifted; reconciling the canonical tool set is a product decision."
-    }
-  ]
+  "max_skip_count": 0,
+  "allowed_tests": [],
+  "skips": []
 }

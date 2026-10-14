@@ -201,9 +201,6 @@ environments:
             LANGFUSE_TRACING_ENVIRONMENT:
               value: development
               category: model_observability
-            LANGFUSE_PROMPT_NAME:
-              value: intentive-chat-system
-              category: model_observability
             LANGFUSE_PROMPT_CACHE_TTL_SECONDS:
               value: '300'
               category: model_observability
@@ -441,9 +438,6 @@ environments:
               category: model_observability
             LANGFUSE_TRACING_ENVIRONMENT:
               value: production
-              category: model_observability
-            LANGFUSE_PROMPT_NAME:
-              value: intentive-chat-system
               category: model_observability
             LANGFUSE_PROMPT_CACHE_TTL_SECONDS:
               value: '300'

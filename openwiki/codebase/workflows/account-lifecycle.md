@@ -16,12 +16,14 @@ sources:
     resource: repo://backend/tests/services/users/test_account_deletion.py
   - id: openwiki-source-f16497173de6b612a819df04
     resource: repo://desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift
+  - id: openwiki-source-579038dc53c8195eeb78fd6d
+    resource: repo://desktop/macos/Desktop/Tests/FocusLocalAuthorityTests.swift
   - id: openwiki-source-cb90a059e7b10b55978b48aa
     resource: repo://desktop/macos/Desktop/Tests/LocalUserDataExportTests.swift
-generated: { by: "codex", at: "2026-09-15T15:29:21.904Z" }
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T15:29:21.904Z
+    at: 2026-10-14T14:40:28.560Z
 ---
 # Account lifecycle and export
 
@@ -29,7 +31,9 @@ An account transition crosses several local and hosted owners. The Mac's authori
 
 ## Export My Data
 
-The local exporter collects paginated product projections, including conversations, Memories, tasks, goals, Chat journal/catalog, Focus and an allowlisted settings projection. It encodes a deterministic JSON document with sorted keys and explicit date/key strategies. It checks the captured authorization before serialization and again while holding the file-commit lease. The writer uses an atomic temporary-file path, and failures must leave no partial export.
+The local exporter collects paginated product projections, including conversations, Memories, historical tasks/goals/Focus, the shared typed/voice Chat journal/catalog and an allowlisted settings projection. It encodes a deterministic JSON document with sorted keys and explicit date/key strategies. It checks the captured authorization before serialization and again while holding the file-commit lease. The writer uses an atomic temporary-file path, and failures must leave no partial export.
+
+Retirement does not delete historical product records or tips-tagged Memories. Focus export advances through 500-row pages ordered by timestamp and ID, so more than 500 rows and equal-timestamp rows are retained. Independent ambient microphone and system-audio preferences remain in the approved settings projection.
 
 Tests exercise complete pagination, repeatable output, owner revocation before writing, account transition waiting for physical commit, read/write failure cleanup and the settings allowlist. This is a local product export; hosted account metadata has a different API owner. Export does not require dumping raw databases or credentials.
 

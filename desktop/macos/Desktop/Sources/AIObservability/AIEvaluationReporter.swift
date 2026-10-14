@@ -49,7 +49,7 @@ final class AIEvaluationReporter: ObservableObject {
   /// The backend resolves Chat's real prompt receipt from this managed request.
   func recordChatTerminal(
     turnID: String, requestID: String?, authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
-    userText: String, assistantText: String
+    userText: String, assistantText: String, endedAt: TimeInterval
   ) {
     guard let admission = admissions.removeValue(forKey: "chat:\(turnID)"), let requestID,
       admission.authorization == authorizationSnapshot,
@@ -71,7 +71,7 @@ final class AIEvaluationReporter: ObservableObject {
     enqueue(
       .chatTerminal(
         sessionID: admission.sessionID, turnID: turnID, requestID: requestID, outcome: .completed,
-        durationMs: Int(max(0, ProcessInfo.processInfo.systemUptime - admission.startedAt) * 1_000),
+        durationMs: Int(max(0, endedAt - admission.startedAt) * 1_000),
         conversation: conversation),
       authorization: admission.authorization, ticket: admission.consent)
   }
@@ -84,7 +84,7 @@ final class AIEvaluationReporter: ObservableObject {
 
   func recordVoiceTerminal(
     turnID: String, continuityKey: String, decisionID: String?, prompt: AIManagedPrompt?,
-    outcome: AIVoiceTurnOutcome, conversation: [SupervisorConversationInput]
+    outcome: AIVoiceTurnOutcome, endedAt: TimeInterval? = nil, conversation: [SupervisorConversationInput]
   ) {
     guard let admission = admissions.removeValue(forKey: turnID),
       RuntimeOwnerIdentity.isAuthorizationCurrent(admission.authorization),
@@ -101,7 +101,7 @@ final class AIEvaluationReporter: ObservableObject {
       .terminal(
         sessionID: admission.sessionID, turnID: turnID, decisionID: decisionID, prompt: prompt,
         outcome: outcome,
-        durationMs: Int(max(0, ProcessInfo.processInfo.systemUptime - admission.startedAt) * 1_000),
+        durationMs: Int(max(0, (endedAt ?? ProcessInfo.processInfo.systemUptime) - admission.startedAt) * 1_000),
         conversation: conversation),
       authorization: admission.authorization, ticket: admission.consent)
   }
@@ -119,8 +119,7 @@ final class AIEvaluationReporter: ObservableObject {
     enqueue(
       .decision(
         sessionID: request.sessionID, decisionID: response.decisionID, observationID: request.observationID,
-        prompt: response.prompt, transcripts: request.transcripts, conversation: request.conversation,
-        note: response.note),
+        prompt: response.prompt, transcripts: request.transcripts, conversation: request.conversation),
       authorization: authorizationSnapshot, ticket: ticket)
   }
 

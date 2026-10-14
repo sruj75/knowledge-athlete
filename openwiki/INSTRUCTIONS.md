@@ -108,20 +108,23 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 
 - Protect Capture → Understand → Remember → Retrieve → Act through reliable ownership, recovery,
   grounding and durable harnesses. Use neutral/white UI; purple is forbidden (`INV-UI-1`).
-- Primary navigation is Home, Memory, Tasks and Insights. Chat is a Home stage; Memory contains
-  Memories/Conversations and Insights contains Insights/Focus. No hosted dashboard fallback.
+- Primary navigation is Home and Memory. Chat is a Home stage; Memory contains
+  Memories/Conversations. Tasks, simple goals, Insights and Focus are retired active features.
+  Preserve their historical data and authorized exports; no hosted dashboard fallback.
 - Conversations, Rewind OCR/video/vectors, Memory, tasks, simple goals, Focus, Insights and AI Profile
   remain owner-local. Never restore hosted product-data authority, reconciliation or fallback stores.
   Conversation IDs originate locally; recovery selects rows before the fixed app-launch cutoff.
 - Node SQLite owns the Chat catalog/journal; Swift owns drafts/attachment bytes. Home/floating Chat
   share one accepted journal projection (`INV-6`), including proactive-notification continuity.
   Backend greeting/title/assistant work is bounded transient compute, not a hosted catalog.
-- Normal Chat/background work uses managed Gemini 3.7 Flash, preserving native tool/image/thinking
-  payloads and signatures. No account-unavailable background 2.5 defaults or public provider/model/
-  working-directory selector. Segment translation remains Gemini 2.5 Flash-Lite.
-- Realtime is Gemini Live: same-provider reconnect first, then bounded PCM and existing silence-gated
-  batch STT → Chat → OpenAI TTS recovery. OpenAI is spoken output only with system-voice fallback.
-  Ambient STT, voice-message STT and physical PTT remain distinct.
+- Direct conversational A and Supervisor B use the pinned managed Gemini 3.8 Flash route with low
+  thinking. Retained background Memory/summary compute keeps its existing route. A has no general
+  tool execution; only the fixed end_conversation lifecycle signal is permitted. No public provider/
+  model/working-directory selector. Segment translation remains Gemini 2.5 Flash-Lite.
+- Realtime is Gemini Live with automatic VAD and continuous conversation: bounded same-provider
+  reconnect first, then processed microphone → Silero segmentation → batch STT → direct A → TTS
+  for the rest of that logical conversation. OpenAI is spoken output only with system-voice fallback.
+  Both generated and system speech use the controlled duplex output; ambient STT stays separate.
 - Speech is Mac-local Parakeet or managed Modulate. `/v4/listen` is one Firebase-authenticated,
   transient fixed mono 16 kHz signed PCM stream with snapshotted language/translation/vocabulary,
   stable UUID segments and numeric speakers. The backend never creates/finalizes a stored conversation.
@@ -134,10 +137,10 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - New Memory begins Short-term; normal reads show active Short-term/Long-term rows. Preserve Archive,
   expiry, dismissal, pending deletion, provenance, Undo and revision-bound lifecycle receipts.
   Insights are `tips` Memory records, not another authority.
-- Tasks keep local CRUD/order/reminders/recurrence/source linkage/five-second Undo; simple goals keep
-  local identity and active/completed state. No ranking/staging/productivity-score/task-chat system.
-  Existing Focus history remains readable; automatic screen-derived Focus creation is retired.
-  AI Profile keeps five prior profiles.
+- Tasks/goals/Insights/Focus have no active UI, reminders, extraction or coaching inputs. Retained
+  tables, migrations, decoding, referenced content and owner-authorized exports remain; pending
+  action-item jobs become superseded without blocking retained enrichment. Generic Memory and
+  tips-tagged history remain available. AI Profile keeps five prior profiles.
 - Assistant/notification controls stay local. Cloud FCM, hosted Focus/Profile/assistant settings,
   Daily Summary, People/voice identity, cloud recordings/playback and public sharing remain retired.
   Quota/fair-use facts remain server-authoritative with truthful owner-local presentation.
@@ -157,7 +160,10 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
 - Before changing a boundary, locate owning code/tests and its applicable archived IR decision.
   Cite the applicable principle or concrete guard when declining a product change.
 
-### First A–B–C interaction decision
+### First A–B–C interaction decision (historical)
+
+The October 14 conversational-product decision below supersedes the earlier PTT, no-webcam,
+physical-session prompt pinning and change-only scheduling choices in this historical record.
 
 Authorized by the user in the September 27, 2026 implementation request:
 
@@ -192,6 +198,50 @@ Authorized by the user in the September 27, 2026 implementation request:
 - No webcam, hands-free conversation, raw-audio reasoning for B, STT rewrite, second conversation
   database or new agent platform. Measure evaluation volume and latency before claiming all-day
   coverage. Native physical speaker/headphone qualification remains distinct from repository tests.
+
+### Conversational product decision
+
+Authorized by the user's October 14, 2026 implementation plan in this workspace:
+
+- B is one owner-bound multimodal observer of permitted screen and webcam images plus microphone/
+  system transcripts. Webcam is independently opt-in, latest-frame-only, 1 fps, 640-pixel long edge,
+  JPEG at most 256 KB and five-second freshness. No camera recording or local emotion classifier.
+- A is the sole spoken/typed communicator. User shortcut and proactive B initiation share one
+  closed → connecting → open → reconnecting → ending lifecycle. Tapping the shortcut closes an open
+  conversation; focus loss does not. Replies and spoken interruptions do not require another tap.
+- Preserve the pre-refactor notch and floating conversation interface. Both starts reveal the same
+  surface, which stays visibly open between replies. Connect the original blue opening glow and
+  thinking feedback to A's lifecycle, the input wave to processed microphone levels during replies
+  and interruptions, and playback feedback to rendered output. Retiring execution does not retire Chat.
+- End explicitly, on A's fixed completion signal after playback, or after 60 seconds of listening-only
+  silence. Busy output, unavailable input and recovery pause that timer. Newer user activity defeats
+  an obsolete completion signal. System audio and B activity cannot reset listening silence.
+- Resolve A's immutable prompt receipt before Live setup and reuse its exact Langfuse version across
+  typed, Live, reconnect and fallback routes. One versioned tool-free repository fallback is allowed
+  only at logical conversation creation. Backend owns system instructions and provider construction.
+- Keep the existing Node/SQLite journal as storage only: owner/generation fences, stable identities,
+  acceptance before visibility, idempotency, recovery and truthful delivered/interrupted outcomes.
+  Remove Pi, general tools, delegation, execution brokers and child-agent UI; no second database.
+- Observe up to once a second, dispatch changed context after a fixed one-second coalescing window,
+  and acquire fresh permitted images for quiet reconsideration after 30 seconds. One inference in
+  flight and one replaceable pending snapshot share a capacity-three bucket refilling every five
+  seconds. Supervisor refresh must not multiply Rewind archive/OCR writes. Lock/sleep/account changes
+  revoke invalid inputs and guidance; an unchanged scene is not automatically stale.
+- B cues are bounded, account/context scoped, acknowledged once and expire 30 seconds after admitted
+  observation. An open A receives them privately at an idle boundary with turnComplete false, never
+  as visible user history or a competing answer. Closed A may open only under proactive controls.
+- Keep mic, system audio, screen and webcam controls independent. Keep screen's 2 MB decoded cap and
+  a 4 MB total request cap. Preserve hosted quota limits; the local development allowance is 6,000
+  B requests/day with separate accounting. Expose quota degradation until the permitted retry time.
+- Langfuse owns coaching instructions. Explicit session opt-in permits bounded conversation/transcript
+  examples only. Private B guidance, image bytes, raw audio and copied Memory/profile context never
+  enter observability exports, including selected evaluation sessions. Record actual
+  model versions, exclusive token counts, queue/capture/provider/end-to-end timing and skipped work.
+- Required physical acceptance is continuous natural voice and spoken interruption through speakers,
+  headphones and a supported Bluetooth route, using a uniquely named development bundle. Provider
+  calls and hermetic tests do not establish human-heard success. Silent provider cue delivery and
+  natural interruption are feasibility blockers; an eight-hour resource soak remains separate from
+  fake-clock benchmarks. No publishing, deployment, production quota or Langfuse prompt changes.
 
 ### All-day listening decision
 
@@ -270,12 +320,11 @@ and [desktop E2E](codebase/testing/desktop-e2e.md) for implementation and operat
 - Reducer publication is atomic; synchronous callbacks enqueue FIFO without recursive reduction.
   Dictionary construction needs explicit non-trapping merge policy unless uniqueness is statically proven.
 - INV-6: one main Chat provider/replaceable turn handler/opaque turn idempotency key; journal acceptance
-  before visibility, ordered replay/upsert by canonical ID. Floating views/pills are derived: no second
-  transcript, text-based identity or suppression boolean. Resources stay on their producing message;
-  agent previews use the prompt. Extend schemas, cross-surface decode and behavioral tests together.
-- Kernel capability policy and immutable execution profiles authorize tools; request IDs only correlate.
-  Keep context/capability fingerprints distinct, DDL store-owned and generated protocol surfaces synchronized.
-  Realtime owns the voice session, not Chat routing; tool effects still require kernel authorization.
+  before visibility, ordered replay/upsert by canonical ID. Floating views are derived: no second
+  transcript, text-based identity or suppression boolean. Resources stay on their producing message. Extend schemas, cross-surface decode and behavioral tests together.
+- The Node subprocess stores canonical conversations and cannot execute tools or model requests.
+  Keep DDL store-owned and generated API surfaces synchronized. The logical conversation controller
+  owns voice lifecycle and provider turns; correlation IDs never grant authority.
 - Telemetry emits one terminal outcome; Stop/supersession is cancellation. Chat latency ends at visible
   answer, voice latency at playback drain. Later persistence failure cannot rewrite delivered output.
   Authority never depends on telemetry. PostHog remains shape-only with protected diagnostic storage.
@@ -307,17 +356,17 @@ Use the [tier commands and evidence boundaries](codebase/testing/desktop-e2e.md)
 | Changed surface | Minimum evidence |
 | --- | --- |
 | Transcription/audio; Rewind persistence/recovery/privacy | T2 |
-| Chat provider/runtime | T0 + T3; agent-logic harness |
+| Chat provider/storage | T0 + T3; retained Node storage and conversation seam suites |
 | Primary navigation | T1 |
-| Home stage; Memories/tasks CRUD | T2 (Home includes home-stage flow) |
-| Secondary detail/vocabulary/goals/billing/privacy | T2 + Live P2 for manual-only paths |
+| Home stage; Memories CRUD | T2 (Home includes home-stage flow) |
+| Secondary detail/vocabulary/billing/privacy | T2 + Live P2 for manual-only paths |
 | Beta promotion | Exact signed-artifact digest gate + T0 + T2 + Fault |
 
 - Acceptance runs affected component suites: `backend/test.sh`, `desktop/macos/test.sh` and Node build/tests.
-- Continuity/write-path changes need hermetic INV-6 tests and the named-bundle continuity gauntlet.
-  Prompt/gateway changes need prompt gauntlets; RC uses all. CI uses hermetic self-checks only.
-- Voice UX proof is natural authenticated physical PTT with nonzero capture; controller/injected-PCM
-  probes are diagnostic only. Provider mint/payload changes also need the deploy-inline probe.
+- Continuity/write-path changes need hermetic INV-6 storage tests and named-bundle continuous
+  conversation acceptance. Prompt changes need exact-version/provider contract checks. CI stays hermetic.
+- Voice UX proof is authenticated continuous physical conversation with spoken interruption and
+  nonzero capture; controller/injected-PCM probes are diagnostic only. Provider mint/payload changes also need the deploy-inline probe.
 - Green QA evidence binds clean full source SHA and matching backend/harness fingerprint. Preserve
   hash/size-only gauntlet receipts, no raw content/media/secrets and no model-wrongness retries.
 - Test auth/onboarding through their real flows. Destructive account actions remain manual: automated

@@ -56,12 +56,6 @@ export interface RecordJournalExchangeResult {
   firstCompletedRealExchange: CompletedRealExchange | null;
 }
 
-export interface TerminalizeJournalTurnResult {
-  turn: ConversationTurn;
-  firstCompletedRealPair: boolean;
-  firstCompletedRealExchange: CompletedRealExchange | null;
-}
-
 export interface UpdateJournalTurnResult {
   turn: ConversationTurn;
   firstCompletedRealPair: boolean;
@@ -93,39 +87,6 @@ export interface UpdateJournalTurnInput {
 export interface RepairOrphanedJournalTurnsInput {
   ownerId: string;
   turnIds: readonly string[];
-  nowMs?: number;
-}
-
-export interface TerminalizeJournalTurnInput {
-  ownerId: string;
-  conversationId: string;
-  turnId: string;
-  producingRunId: string;
-  producingAttemptId: string;
-  disposition: "accept" | "discard";
-  content?: string;
-  replaceContentBlocks?: readonly ConversationContentBlock[];
-  replaceResources?: readonly ConversationResource[];
-  nowMs?: number;
-}
-
-export interface ProducingJournalTurnAdmissionInput {
-  ownerId: string;
-  conversationId: string;
-  sessionId: string;
-  turnId: string;
-}
-
-export interface BindProducingJournalTurnInput extends ProducingJournalTurnAdmissionInput {
-  runId: string;
-  attemptId: string;
-  nowMs?: number;
-}
-
-export interface DiscardProducingJournalTurnInput {
-  ownerId: string;
-  runId: string;
-  attemptId: string;
   nowMs?: number;
 }
 
@@ -455,69 +416,6 @@ function updateJournalTurnMutation(store: AgentStore, input: UpdateJournalTurnIn
   });
 }
 
-export function validateProducingJournalTurnAdmission(
-  store: AgentStore,
-  input: ProducingJournalTurnAdmissionInput,
-): void {
-  assertProducingJournalTurnMapping(store, input);
-  const turn = requireJournalTurn(store, input.conversationId, nonEmpty(input.turnId, "producingTurnId"));
-  if (turn.role !== "assistant" || !["pending", "streaming"].includes(turn.status)) {
-    throw new Error("Producing turn admission requires a pending or streaming assistant turn");
-  }
-  if (turn.producingRunId !== null || turn.producingAttemptId !== null) {
-    throw new Error("Producing turn is already bound to a canonical run attempt");
-  }
-}
-
-export function bindProducingJournalTurn(
-  store: AgentStore,
-  input: BindProducingJournalTurnInput,
-): ConversationTurn {
-  return store.withTransaction(() => {
-    assertProducingJournalTurnMapping(store, input);
-    const authority = store.getOptionalRow(
-      `SELECT r.session_id, s.owner_id, a.attempt_no,
-              (SELECT latest.attempt_id FROM run_attempts latest
-               WHERE latest.run_id = r.run_id ORDER BY latest.attempt_no DESC LIMIT 1) AS latest_attempt_id
-       FROM runs r
-       JOIN sessions s ON s.session_id = r.session_id
-       JOIN run_attempts a ON a.run_id = r.run_id AND a.attempt_id = ?
-       WHERE r.run_id = ?`,
-      [input.attemptId, input.runId],
-    );
-    if (
-      !authority
-      || String(authority.owner_id) !== input.ownerId
-      || String(authority.session_id) !== input.sessionId
-      || String(authority.latest_attempt_id) !== input.attemptId
-    ) {
-      throw new Error("Producing turn admission run attempt is not the latest canonical session authority");
-    }
-    const turn = requireJournalTurn(store, input.conversationId, nonEmpty(input.turnId, "producingTurnId"));
-    if (turn.role !== "assistant" || !["pending", "streaming"].includes(turn.status)) {
-      throw new Error("Producing turn admission requires a pending or streaming assistant turn");
-    }
-    if (turn.producingRunId !== null && turn.producingRunId !== input.runId) {
-      throw new Error("Producing turn is already bound to a different canonical run");
-    }
-    return updateJournalTurn(store, {
-      ownerId: input.ownerId,
-      conversationId: input.conversationId,
-      turnId: turn.turnId,
-      producingRunId: input.runId,
-      producingAttemptId: input.attemptId,
-      nowMs: input.nowMs,
-    });
-  });
-}
-
-/**
- * Repair assistant turns after their UI projection releases its send lock.
- *
- * Turn IDs are globally unique, so this resolves the canonical conversation
- * from the producing turn instead of trusting the caller's selected surface.
- * Active runs retain mutation authority.
- */
 export function repairOrphanedJournalTurns(
   store: AgentStore,
   input: RepairOrphanedJournalTurnsInput,
@@ -534,12 +432,8 @@ export function repairOrphanedJournalTurns(
       ? null
       : store.getOptionalRow("SELECT status FROM runs WHERE run_id = ?", [current.producingRunId]);
     const runStatus = producingRun ? String(producingRun.status) : null;
-    if (
-      runStatus !== null
-      && ["queued", "starting", "running", "waiting_input", "waiting_approval", "cancelling"].includes(runStatus)
-    ) {
-      continue;
-    }
+    // General-purpose runs are retired. Historical unfinished rows cannot
+    // become active again; current conversation writes are fenced by storage.
 
     repaired.push(updateJournalTurn(store, {
       ownerId: input.ownerId,
@@ -613,146 +507,6 @@ export function assertPublicJournalUpdatePolicy(
   }
 }
 
-export function discardProducingJournalTurnForRunAttempt(
-  store: AgentStore,
-  input: DiscardProducingJournalTurnInput,
-): ConversationTurn | null {
-  return store.withTransaction(() => {
-    const rows = store.allRows(
-      `SELECT conversation_id, turn_id
-       FROM conversation_turns
-       WHERE producing_run_id = ? AND producing_attempt_id = ?
-       ORDER BY conversation_id, turn_id`,
-      [input.runId, input.attemptId],
-    );
-    if (rows.length === 0) return null;
-    if (rows.length !== 1) throw new Error("Canonical run attempt is bound to multiple producing turns");
-    return terminalizeJournalTurn(store, {
-      ownerId: input.ownerId,
-      conversationId: String(rows[0]!.conversation_id),
-      turnId: String(rows[0]!.turn_id),
-      producingRunId: input.runId,
-      producingAttemptId: input.attemptId,
-      disposition: "discard",
-      nowMs: input.nowMs,
-    });
-  });
-}
-
-/**
- * Authenticated terminal mutation for runtime-produced turns. Callers provide
- * the exact canonical run/attempt proof and final material, while the kernel
- * alone derives success or failure from durable run state.
- */
-export function terminalizeJournalTurn(
-  store: AgentStore,
-  input: TerminalizeJournalTurnInput,
-): ConversationTurn {
-  return terminalizeJournalTurnWithReceipt(store, input).turn;
-}
-
-export function terminalizeJournalTurnWithReceipt(
-  store: AgentStore,
-  input: TerminalizeJournalTurnInput,
-): TerminalizeJournalTurnResult {
-  const now = input.nowMs ?? Date.now();
-  const producingRunId = nonEmpty(input.producingRunId, "producingRunId");
-  const producingAttemptId = nonEmpty(input.producingAttemptId, "producingAttemptId");
-  const contentBlocks = input.replaceContentBlocks === undefined
-    ? undefined
-    : validateContentBlocks(input.replaceContentBlocks);
-  const resources = input.replaceResources === undefined
-    ? undefined
-    : validateResources(input.replaceResources);
-  return store.withTransaction(() => {
-    if (
-      input.disposition === "discard"
-      && (input.content !== undefined || contentBlocks !== undefined || resources !== undefined)
-    ) {
-      throw new Error("Discarded journal terminalization cannot apply late material");
-    }
-    assertConversationOwner(store, input.conversationId, input.ownerId);
-    const authority = store.getOptionalRow(
-      `SELECT r.status AS run_status, r.session_id, a.status AS attempt_status,
-              (SELECT latest.attempt_id
-               FROM run_attempts latest
-               WHERE latest.run_id = r.run_id
-               ORDER BY latest.attempt_no DESC
-               LIMIT 1) AS latest_attempt_id
-       FROM runs r
-       JOIN sessions s ON s.session_id = r.session_id
-       JOIN run_attempts a ON a.run_id = r.run_id AND a.attempt_id = ?
-       WHERE r.run_id = ? AND s.owner_id = ?`,
-      [producingAttemptId, producingRunId, input.ownerId],
-    );
-    if (!authority) throw new Error("Journal terminalization run or attempt is unknown or outside owner scope");
-    if (String(authority.latest_attempt_id) !== producingAttemptId) {
-      throw new Error("Journal terminalization requires the latest canonical run attempt");
-    }
-    if (!store.getOptionalRow(
-      `SELECT 1 FROM surface_conversations
-       WHERE conversation_id = ? AND owner_id = ? AND agent_session_id = ?
-       LIMIT 1`,
-      [input.conversationId, input.ownerId, String(authority.session_id)],
-    )) {
-      throw new Error("Journal terminalization run is not bound to the canonical conversation session");
-    }
-    const status = input.disposition === "discard"
-      ? "failed"
-      : journalTerminalStatus(authority.run_status, authority.attempt_status);
-    const current = requireJournalTurn(store, input.conversationId, input.turnId);
-    const existingCompletedRealExchange = firstCompletedRealExchange(store, input.conversationId);
-    if (current.producingRunId !== producingRunId) {
-      throw new Error("Journal terminalization run does not match the producing turn");
-    }
-    if (current.producingAttemptId !== producingAttemptId) {
-      throw new Error("Journal terminalization attempt does not match the producing turn");
-    }
-    const content = input.content ?? current.content;
-    const finalContentBlocks = input.disposition === "accept" && contentBlocks !== undefined
-      ? monotonicAcceptContentBlocks(current.contentBlocks, contentBlocks)
-      : contentBlocks ?? current.contentBlocks;
-    const finalResources = input.disposition === "accept" && resources !== undefined
-      ? monotonicAcceptResources(current.resources, resources)
-      : resources ?? current.resources;
-    const metadata = parseObjectJson(current.metadataJson) as Record<string, unknown>;
-    const metadataJson = input.disposition === "discard"
-      ? JSON.stringify({ ...metadata, terminalMarker: "discarded_terminal" })
-      : current.metadataJson;
-    const exactReplay = current.status === status
-      && current.content === content
-      && stableJson(current.contentBlocks) === stableJson(finalContentBlocks)
-      && stableJson(current.resources) === stableJson(finalResources)
-      && stableJson(parseObjectJson(current.metadataJson)) === stableJson(parseObjectJson(metadataJson));
-    if (exactReplay) {
-      return { turn: current, firstCompletedRealPair: false, firstCompletedRealExchange: null };
-    }
-    if (terminalTurnStatus(current.status) && current.producingAttemptId !== null) {
-      throw new Error("Journal turn is already terminalized with different canonical material");
-    }
-    const terminalized = updateJournalTurnMutation(store, {
-      ownerId: input.ownerId,
-      conversationId: input.conversationId,
-      turnId: input.turnId,
-      status,
-      content,
-      replaceContentBlocks: finalContentBlocks,
-      replaceResources: finalResources,
-      producingRunId,
-      producingAttemptId,
-      metadataJson,
-      nowMs: now,
-    });
-    const completedRealExchange = firstCompletedRealExchange(store, input.conversationId);
-    const firstCompletedRealPair = existingCompletedRealExchange === null && completedRealExchange !== null;
-    return {
-      turn: terminalized,
-      firstCompletedRealPair,
-      firstCompletedRealExchange: firstCompletedRealPair ? completedRealExchange : null,
-    };
-  });
-}
-
 function firstCompletedRealExchange(
   store: AgentStore,
   conversationId: string,
@@ -789,43 +543,6 @@ function firstCompletedRealExchange(
   return null;
 }
 
-function monotonicAcceptContentBlocks(
-  current: readonly ConversationContentBlock[],
-  incoming: readonly ConversationContentBlock[],
-): ConversationContentBlock[] {
-  const protectedCurrent = new Map(
-    current
-      .filter((block) => block.type === "agentSpawn" || block.type === "agentCompletion")
-      .map((block) => [block.id, block] as const),
-  );
-  const result = incoming.map((block) => structuredClone(protectedCurrent.get(block.id) ?? block));
-  const resultIds = new Set(result.map((block) => block.id));
-  for (const block of protectedCurrent.values()) {
-    if (!resultIds.has(block.id)) result.push(structuredClone(block));
-  }
-  return result;
-}
-
-function monotonicAcceptResources(
-  current: readonly ConversationResource[],
-  incoming: readonly ConversationResource[],
-): ConversationResource[] {
-  const currentById = new Map(current.map((resource) => [resource.id, resource] as const));
-  const result = incoming.map((resource) => structuredClone(currentById.get(resource.id) ?? resource));
-  const resultIds = new Set(result.map((resource) => resource.id));
-  for (const resource of current) {
-    if (!resultIds.has(resource.id)) result.push(structuredClone(resource));
-  }
-  return result;
-}
-
-/**
- * Atomically re-homes the current canonical turn graph into another owned
- * conversation. This is the migration boundary for surface consolidation:
- * callers must never copy `conversation_turns` directly because doing so
- * drops typed blocks/resources, revision visibility, delivery identity, and
- * the destination journal sequence.
- */
 export function migrateJournalConversation(
   store: AgentStore,
   input: MigrateJournalConversationInput,
@@ -1153,22 +870,6 @@ function assertConversationOwner(store: AgentStore, conversationId: string, owne
   if (!row) throw new Error("Journal conversation is outside owner scope");
 }
 
-function assertProducingJournalTurnMapping(
-  store: AgentStore,
-  input: ProducingJournalTurnAdmissionInput,
-): void {
-  assertConversationOwner(store, input.conversationId, input.ownerId);
-  const mapping = store.getOptionalRow(
-    `SELECT 1 FROM surface_conversations
-     WHERE conversation_id = ? AND owner_id = ? AND agent_session_id = ?
-     LIMIT 1`,
-    [input.conversationId, input.ownerId, input.sessionId],
-  );
-  if (!mapping) {
-    throw new Error("Producing turn admission requires the exact canonical owner/session/conversation mapping");
-  }
-}
-
 function assertProducingRunOwner(store: AgentStore, runId: string | null, ownerId: string): void {
   if (runId === null) return;
   const row = store.getOptionalRow(
@@ -1255,19 +956,6 @@ function assertTurnStatusTransition(from: ConversationTurnStatus, to: Conversati
 
 function terminalTurnStatus(status: ConversationTurnStatus): boolean {
   return status === "completed" || status === "failed";
-}
-
-function journalTerminalStatus(runStatus: unknown, attemptStatus: unknown): ConversationTurnStatus {
-  const terminal = new Set(["succeeded", "failed", "cancelled", "timed_out", "orphaned"]);
-  const run = String(runStatus);
-  const attempt = String(attemptStatus);
-  if (!terminal.has(run) || !terminal.has(attempt)) {
-    throw new Error("Journal terminalization requires a terminal canonical run and attempt");
-  }
-  if ((run === "succeeded") !== (attempt === "succeeded")) {
-    throw new Error("Journal terminalization run and attempt outcomes disagree");
-  }
-  return run === "succeeded" ? "completed" : "failed";
 }
 
 function boundedLimit(limit: number): number {

@@ -6,11 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/app-config.sh"
 DESKTOP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 AGENT_DIR="$DESKTOP_DIR/agent"
-PI_MONO_DIR="$DESKTOP_DIR/pi-mono-extension"
 NODE_RESOURCE="$DESKTOP_DIR/Desktop/Sources/Resources/node"
 PACKAGED_RUNTIME_DIR="$DESKTOP_DIR/.harness/agent-runtime"
 AGENT_PACKAGED_NODE_MODULES="$PACKAGED_RUNTIME_DIR/agent-node_modules"
-PI_MONO_PACKAGED_NODE_MODULES="$PACKAGED_RUNTIME_DIR/pi-mono-extension-node_modules"
 CACHE_STAMP="$PACKAGED_RUNTIME_DIR/cache.stamp"
 CACHE_LOCK="$DESKTOP_DIR/.harness/agent-runtime-prepare.lock.d"
 NODE_ARCHIVE_CACHE_DIR="${OMI_AGENT_RUNTIME_ARCHIVE_CACHE_DIR:-$(intentive_archive_cache_dir)}"
@@ -37,7 +35,7 @@ Prepares the desktop Intentive agent runtime:
   - compiles agent/dist
   - stages production-only node_modules for app packaging
   - stages Desktop/Sources/Resources/node for SwiftPM resource bundling
-  - validates bridge, piMono, and extension files that the app launches at runtime
+  - validates conversation storage files that the app launches at runtime
 
 Modes:
   --universal-node  Download checksum-verified darwin arm64/x64 Node and lipo it.
@@ -158,23 +156,6 @@ install_agent_deps_and_build() {
     npm run build --silent
   )
   stage_production_node_modules "$AGENT_DIR" "$AGENT_PACKAGED_NODE_MODULES"
-}
-
-install_pi_mono_deps() {
-  require_file "$PI_MONO_DIR/package-lock.json"
-  require_file "$PI_MONO_DIR/package.json"
-
-  if [ "$SKIP_NPM" = "1" ]; then
-    return
-  fi
-
-  log "Installing pi-mono-extension production dependencies for packaging"
-  (
-    cd "$PI_MONO_DIR"
-    npm ci --omit=dev --no-fund --no-audit
-  )
-  stage_production_node_modules "$PI_MONO_DIR" "$PI_MONO_PACKAGED_NODE_MODULES"
-  dedupe_pi_mono_packaged_node_modules
 }
 
 stage_production_node_modules() {
@@ -329,7 +310,6 @@ walk(nodeModulesPath, (entryPath, entry) => {
   }
 });
 
-removePath(path.join(nodeModulesPath, "@mariozechner", "pi-coding-agent", "docs"));
 
 for (const koffiDir of [
   path.join(nodeModulesPath, "koffi", "build", "koffi"),
@@ -354,116 +334,6 @@ NODE
   # symlink behind. Broken launchers are not useful in the shipped runtime and
   # make output validation ambiguous, so remove them before cache validation.
   arc_remove_broken_symlinks "$package_dir/node_modules/.bin"
-}
-
-dedupe_pi_mono_packaged_node_modules() {
-  node - "$AGENT_PACKAGED_NODE_MODULES" "$PI_MONO_PACKAGED_NODE_MODULES" <<'NODE'
-const fs = require("node:fs");
-const path = require("node:path");
-
-const agentNodeModules = process.argv[2];
-const piNodeModules = process.argv[3];
-
-if (!fs.existsSync(agentNodeModules) || !fs.existsSync(piNodeModules)) {
-  process.exit(0);
-}
-
-let linkedCount = 0;
-let linkedBytes = 0;
-
-function directorySizeBytes(targetPath) {
-  const stat = fs.lstatSync(targetPath);
-  if (stat.isSymbolicLink()) {
-    return 0;
-  }
-  if (stat.isFile()) {
-    return stat.size;
-  }
-  if (!stat.isDirectory()) {
-    return 0;
-  }
-
-  let total = 0;
-  for (const entry of fs.readdirSync(targetPath, { withFileTypes: true })) {
-    total += directorySizeBytes(path.join(targetPath, entry.name));
-  }
-  return total;
-}
-
-function packageJson(packagePath) {
-  const jsonPath = path.join(packagePath, "package.json");
-  if (!fs.existsSync(jsonPath)) {
-    return undefined;
-  }
-  return JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-}
-
-function samePackageVersion(piPackagePath, agentPackagePath) {
-  const piPackage = packageJson(piPackagePath);
-  const agentPackage = packageJson(agentPackagePath);
-  return Boolean(
-    piPackage &&
-      agentPackage &&
-      piPackage.name === agentPackage.name &&
-      piPackage.version === agentPackage.version
-  );
-}
-
-function finalBundleSymlinkTarget(packageName) {
-  if (packageName.startsWith("@")) {
-    return `../../../agent/node_modules/${packageName}`;
-  }
-  return `../../agent/node_modules/${packageName}`;
-}
-
-function linkPackage(piPackagePath, packageName) {
-  linkedBytes += directorySizeBytes(piPackagePath);
-  fs.rmSync(piPackagePath, { recursive: true, force: true });
-  fs.symlinkSync(finalBundleSymlinkTarget(packageName), piPackagePath, "dir");
-  linkedCount += 1;
-}
-
-for (const entry of fs.readdirSync(piNodeModules, { withFileTypes: true })) {
-  if (entry.name === ".bin" || entry.name === ".package-lock.json") {
-    continue;
-  }
-
-  const piEntryPath = path.join(piNodeModules, entry.name);
-  const agentEntryPath = path.join(agentNodeModules, entry.name);
-
-  if (entry.isDirectory() && entry.name.startsWith("@")) {
-    if (!fs.existsSync(agentEntryPath)) {
-      continue;
-    }
-    for (const scopedEntry of fs.readdirSync(piEntryPath, { withFileTypes: true })) {
-      if (!scopedEntry.isDirectory()) {
-        continue;
-      }
-      const piPackagePath = path.join(piEntryPath, scopedEntry.name);
-      const agentPackagePath = path.join(agentEntryPath, scopedEntry.name);
-      const packageName = `${entry.name}/${scopedEntry.name}`;
-      if (samePackageVersion(piPackagePath, agentPackagePath)) {
-        linkPackage(piPackagePath, packageName);
-      }
-    }
-    continue;
-  }
-
-  if (!entry.isDirectory() || !samePackageVersion(piEntryPath, agentEntryPath)) {
-    continue;
-  }
-  linkPackage(piEntryPath, entry.name);
-}
-
-if (linkedCount > 0) {
-  const linkedMiB = (linkedBytes / 1024 / 1024).toFixed(1);
-  console.log(`[agent-runtime] Deduped ${linkedCount} pi-mono package(s) via symlink (${linkedMiB} MiB)`);
-}
-NODE
-  # Dedupe replaces shared packages with final-bundle-relative symlinks. npm's
-  # launchers for those packages cannot resolve in the staging layout and are
-  # unnecessary in the shipped extension, so remove them before validation.
-  arc_remove_broken_symlinks "$PI_MONO_PACKAGED_NODE_MODULES/.bin"
 }
 
 stage_unsafe_local_node() {
@@ -573,18 +443,10 @@ stage_universal_node() {
 validate_runtime_tree() {
   local required
   [ -x "$NODE_RESOURCE" ] || return 1
-  for required in \
-    "$AGENT_DIR/dist/index.js" \
-    "$AGENT_DIR/src/runtime/control-tool-manifest.ts" \
-    "$AGENT_DIR/src/runtime/omi-tool-manifest.ts" \
-    "$AGENT_DIR/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" \
-    "$AGENT_PACKAGED_NODE_MODULES/@earendil-works/pi-coding-agent/dist/cli.js" \
-    "$PI_MONO_DIR/index.ts" \
-    "$PI_MONO_DIR/package.json"; do
+  for required in "$AGENT_DIR/dist/index.js" "$AGENT_DIR/dist/conversation-storage.js"; do
     [ -f "$required" ] || return 1
   done
-
-  [ -d "$PI_MONO_PACKAGED_NODE_MODULES" ] || return 1
+  [ -d "$AGENT_PACKAGED_NODE_MODULES" ] || return 1
   validate_packaged_symlinks || return 1
 
   local staged_version
@@ -601,7 +463,7 @@ validate_runtime_tree() {
 }
 
 validate_packaged_symlinks() {
-  arc_validate_packaged_symlinks "$AGENT_PACKAGED_NODE_MODULES" "$PI_MONO_PACKAGED_NODE_MODULES"
+  arc_validate_packaged_symlinks "$AGENT_PACKAGED_NODE_MODULES"
 }
 
 compute_cache_key() {
@@ -609,7 +471,7 @@ compute_cache_key() {
   node_version="$(node --version 2>/dev/null || printf missing)"
   npm_version="$(npm --version 2>/dev/null || printf missing)"
   {
-    printf 'cache-schema=1\nmode=%s\nskip_npm=%s\nnode_runtime=%s\n' "$MODE" "$SKIP_NPM" "$NODE_VERSION"
+    printf 'cache-schema=2\nmode=%s\nskip_npm=%s\nnode_runtime=%s\n' "$MODE" "$SKIP_NPM" "$NODE_VERSION"
     printf 'build-node=%s\nbuild-npm=%s\nos=%s\narch=%s\n' "$node_version" "$npm_version" "$(uname -s)" "$(uname -m)"
     arc_hash_paths \
       "$SCRIPT_DIR/prepare-agent-runtime.sh" \
@@ -618,23 +480,19 @@ compute_cache_key() {
       "$AGENT_DIR/package-lock.json" \
       "$AGENT_DIR/tsconfig.json" \
       "$AGENT_DIR/src" \
-      "$AGENT_DIR/scripts" \
-      "$PI_MONO_DIR/package.json" \
-      "$PI_MONO_DIR/package-lock.json" \
-      "$PI_MONO_DIR/index.ts"
+      "$AGENT_DIR/scripts"
   } | arc_sha256_stream
 }
 
 compute_output_digest() {
-  # run.sh copies these four prepared outputs wholesale. Hash their complete
+  # run.sh copies these three prepared outputs wholesale. Hash their complete
   # contents and filesystem metadata so no unvalidated file can ride a HIT.
   # Deliberately exclude AGENT_DIR/node_modules: it is a working build input,
   # not an app-bundle output.
   arc_hash_paths \
     "$NODE_RESOURCE" \
     "$AGENT_DIR/dist" \
-    "$AGENT_PACKAGED_NODE_MODULES" \
-    "$PI_MONO_PACKAGED_NODE_MODULES"
+    "$AGENT_PACKAGED_NODE_MODULES"
 }
 
 cleanup() {
@@ -675,7 +533,6 @@ fi
 rm -f "$CACHE_STAMP"
 
 install_agent_deps_and_build
-install_pi_mono_deps
 case "$MODE" in
   local)
     stage_unsafe_local_node
@@ -689,7 +546,7 @@ validate_runtime_tree || {
   exit 1
 }
 
-log "Runtime validated: node=$("$NODE_RESOURCE" --version), agent dist and piMono files present"
+log "Runtime validated: node=$("$NODE_RESOURCE" --version), conversation storage files present"
 if [ "$CACHE_ELIGIBLE" = "1" ]; then
   OUTPUT_DIGEST="$(compute_output_digest)"
   arc_write_stamp "$CACHE_STAMP" "$CACHE_KEY" "$OUTPUT_DIGEST"

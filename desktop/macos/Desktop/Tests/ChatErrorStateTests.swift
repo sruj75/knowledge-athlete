@@ -39,17 +39,12 @@ final class ChatErrorStateMappingTests: XCTestCase {
     XCTAssertNil(ChatErrorState.from(BridgeError.stopped))
     XCTAssertNotNil(ChatErrorState.from(BridgeError.timeout))
     XCTAssertNotNil(ChatErrorState.from(BridgeError.notRunning))
-    XCTAssertNotNil(ChatErrorState.from(BridgeError.restarting))
     XCTAssertNotNil(ChatErrorState.from(BridgeError.authMissing))
 
     // These must NOT map — they fall through to the legacy banner.
     XCTAssertNil(ChatErrorState.from(BridgeError.encodingError))
     XCTAssertNil(ChatErrorState.from(BridgeError.agentError("foo")))
-    XCTAssertNil(ChatErrorState.from(BridgeError.requestAlreadyActive))
-    XCTAssertNil(
-      ChatErrorState.from(
-        BridgeError.quotaExceeded(plan: "free", unit: "msg", used: 100, limit: 100, resetAtUnix: nil)
-      ))
+
   }
 }
 
@@ -131,50 +126,8 @@ final class ChatErrorStateTests: XCTestCase {
   }
 
   func testFromBridgeErrorReturnsNilForUnmappableCases() {
-    // These should fall through to the existing generic errorMessage banner
-    // / paywall sheets rather than the new card.
     XCTAssertNil(ChatErrorState.from(.encodingError))
-    XCTAssertNil(
-      ChatErrorState.from(
-        .quotaExceeded(
-          plan: "Free", unit: "cost_usd", used: 5.0, limit: 5.0, resetAtUnix: nil)
-      )
-    )
-    XCTAssertNil(ChatErrorState.from(.agentError("something opaque went wrong")))
-    XCTAssertNil(
-      ChatErrorState.from(
-        .agentRuntimeFailure(
-          AgentRuntimeFailure(
-            code: "adapter_config_invalid",
-            userMessage: "OpenClaw needs a config migration.",
-            technicalMessage: nil,
-            source: "adapter_process",
-            adapterId: "openclaw",
-            provider: nil,
-            retryable: false
-          )
-        )
-      )
-    )
-  }
-
-  func testStructuredAgentRuntimeFailureKeepsUserMessage() {
-    let error = BridgeError.agentRuntimeFailure(
-      AgentRuntimeFailure(
-        code: "adapter_config_invalid",
-        userMessage: "OpenClaw needs a config migration. Run `openclaw doctor --fix`, then retry.",
-        technicalMessage: "OpenClaw config is invalid",
-        source: "adapter_process",
-        adapterId: "openclaw",
-        provider: nil,
-        retryable: false
-      )
-    )
-
-    XCTAssertEqual(
-      error.localizedDescription,
-      "OpenClaw needs a config migration. Run `openclaw doctor --fix`, then retry."
-    )
+    XCTAssertNil(ChatErrorState.from(.agentError("storage request rejected")))
   }
 
   // MARK: - Bridge-unavailable reason coverage
@@ -194,28 +147,11 @@ final class ChatErrorStateTests: XCTestCase {
       ChatErrorState.from(.processExited),
       .bridgeUnavailable(reason: .crashed)
     )
-    XCTAssertEqual(
-      ChatErrorState.from(.outOfMemory),
-      .bridgeUnavailable(reason: .crashed)
-    )
-  }
-
-  func testTypedBridgeStartFailureSurfacesARecoverableRetryCard() {
-    let error = BridgeError.failedToStart(.handshakeTimedOut)
-    XCTAssertEqual(
-      ChatErrorState.from(error),
-      .bridgeUnavailable(reason: .failedToStart(.handshakeTimedOut)))
-    XCTAssertEqual(ChatErrorState.from(error)?.primaryRecovery, .retry)
-    XCTAssertEqual(ChatErrorState.from(error)?.userFacingSummary, "AI took too long to start. Try again.")
   }
 
   func testBridgeUnavailableReasonsCoverUnknown() {
     XCTAssertEqual(
       ChatErrorState.from(.notRunning),
-      .bridgeUnavailable(reason: .unknown)
-    )
-    XCTAssertEqual(
-      ChatErrorState.from(.restarting),
       .bridgeUnavailable(reason: .unknown)
     )
   }
@@ -227,36 +163,17 @@ final class ChatErrorStateTests: XCTestCase {
     XCTAssertEqual(mapped, .authRequired)
   }
 
-  func testFromBridgeErrorMapsInvalidTokenAgentErrorToAuthRequired() {
-    let mapped = ChatErrorState.from(.agentError("401 \"invalid_token\""))
-    XCTAssertEqual(mapped, .authRequired)
-    XCTAssertTrue(BridgeError.agentError("401 \"invalid_token\"").isSessionAuthenticationFailure)
-  }
-
-  func testFromBridgeErrorMapsUnauthorizedAgentErrorToAuthRequired() {
-    let mapped = ChatErrorState.from(.agentError("Unauthorized - please sign in again"))
-    XCTAssertEqual(mapped, .authRequired)
-  }
-
-  func testFromBridgeErrorMapsTokenAgentErrorToAuthRequired() {
-    let mapped = ChatErrorState.from(.agentError("401 auth token rejected"))
-    XCTAssertEqual(mapped, .authRequired)
+  func testStorageErrorTextCannotInvalidateTheAccountSession() {
+    for text in ["401 invalid_token", "Unauthorized - please sign in again", "401 auth token rejected"] {
+      XCTAssertNil(ChatErrorState.from(.agentError(text)))
+      XCTAssertFalse(BridgeError.agentError(text).isSessionAuthenticationFailure)
+    }
   }
 
   func testFromBridgeErrorDoesNotMapManagedServiceAuthFailuresToSessionAuthRequired() {
     XCTAssertNil(ChatErrorState.from(.agentError("AI service authentication failed")))
     XCTAssertNil(ChatErrorState.from(.agentError("invalid key")))
     XCTAssertFalse(BridgeError.agentError("AI service authentication failed").isSessionAuthenticationFailure)
-  }
-
-  func testEnsureBridgeStartedMapsAuthMissingToAuthRequired() throws {
-    let source = try sourceFile("Providers/ChatProvider.swift")
-    XCTAssertTrue(source.contains("ChatErrorState.from(bridgeError)"))
-    let range = source.range(of: "Failed to start agent bridge")
-    XCTAssertNotNil(range)
-    let snippet = String(source[range!.lowerBound...]).prefix(500)
-    XCTAssertTrue(snippet.contains("currentError = card"))
-    XCTAssertFalse(snippet.contains("\"AI not available: Please sign in"))
   }
 
   func testSendPreservesDraftUntilTurnIsAccepted() throws {

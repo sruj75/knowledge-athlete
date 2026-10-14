@@ -1,196 +1,10 @@
 import CryptoKit
 import Foundation
 
-struct KernelVoiceContextSnapshot: Equatable, Sendable {
-  static let empty = KernelVoiceContextSnapshot(
-    surface: .realtimeVoice(chatId: "default"),
-    sessionId: "",
-    conversationId: "",
-    context: "",
-    freshnessIdentity: "",
-    contextPlanID: "",
-    stableCacheIdentity: "",
-    dynamicContextIdentity: "",
-    semanticGuidance: "",
-    turnIDs: []
-  )
-
-  let surface: AgentSurfaceReference
-  let sessionId: String
-  let conversationId: String
-  let context: String
-  let freshnessIdentity: String
-  let contextPlanID: String
-  /// Opaque cache identities are safe to include in diagnostics.
-  let stableCacheIdentity: String
-  let dynamicContextIdentity: String
-  let semanticGuidance: String
-  let turnIDs: Set<String>
-
-  init(
-    surface: AgentSurfaceReference = .realtimeVoice(chatId: "default"),
-    sessionId: String,
-    conversationId: String,
-    context: String,
-    freshnessIdentity: String,
-    contextPlanID: String,
-    stableCacheIdentity: String,
-    dynamicContextIdentity: String,
-    semanticGuidance: String,
-    turnIDs: Set<String>
-  ) {
-    self.surface = surface
-    self.sessionId = sessionId
-    self.conversationId = conversationId
-    self.context = context
-    self.freshnessIdentity = freshnessIdentity
-    self.contextPlanID = contextPlanID
-    self.stableCacheIdentity = stableCacheIdentity
-    self.dynamicContextIdentity = dynamicContextIdentity
-    self.semanticGuidance = semanticGuidance
-    self.turnIDs = turnIDs
-  }
-
-  /// `.empty` is a transport/bridge failure sentinel, not a valid blank
-  /// conversation. A valid new conversation may render no text, but it still
-  /// has a kernel session and a deterministic freshness identity.
-  var isResolved: Bool {
-    !sessionId.isEmpty && !freshnessIdentity.isEmpty
-  }
-}
-
 struct KernelAutomationTurnRange: Equatable, Sendable {
   let conversationId: String
+  let generation: Int
   let turns: [KernelJournalTurn]
-}
-
-/// Pure lifecycle mutation used by the journal writer and its behavioral
-/// tests. A terminal agent fact enriches the assistant row that originally
-/// produced the matching `agentSpawn`; it never creates a second chat turn.
-@MainActor
-enum KernelAgentLifecycleMutation {
-  struct Result {
-    let sourceTurn: KernelJournalTurn
-    let message: ChatMessage
-    let completionBlock: ChatContentBlock
-    let resources: [ChatResource]
-  }
-
-  static func completion(
-    in revisions: [KernelJournalTurn],
-    pillID: UUID,
-    sessionID: String?,
-    runID: String?,
-    title: String,
-    promptSnippet: String,
-    output: String,
-    status: String,
-    resources: [ChatResource]
-  ) -> Result? {
-    var latestByTurnID: [String: KernelJournalTurn] = [:]
-    for revision in revisions {
-      if let current = latestByTurnID[revision.turnId], current.turnSeq >= revision.turnSeq {
-        continue
-      }
-      latestByTurnID[revision.turnId] = revision
-    }
-
-    let normalizedRunID = normalized(runID)
-    guard
-      let sourceTurn = latestByTurnID.values
-        .filter({ $0.role == "assistant" })
-        .filter({ turn in
-          let blocks = ChatContentBlockCodec.decode(turn.contentBlocksJSON) ?? []
-          return blocks.contains { block in
-            guard case .agentSpawn(_, let spawnPillID, _, let spawnRunID, _, _) = block else {
-              return false
-            }
-            if spawnPillID == pillID { return true }
-            guard let normalizedRunID else { return false }
-            return normalized(spawnRunID) == normalizedRunID
-          }
-        })
-        .max(by: { $0.turnSeq < $1.turnSeq })
-    else { return nil }
-
-    var message = sourceTurn.chatMessage()
-    let completionID = stableCompletionBlockID(pillID: pillID, runID: normalizedRunID)
-    let completion = ChatContentBlock.agentCompletion(
-      id: completionID,
-      pillId: pillID,
-      sessionId: normalized(sessionID),
-      runId: normalizedRunID,
-      title: normalized(title) ?? "Background agent",
-      promptSnippet: normalized(promptSnippet) ?? "Background agent",
-      output: output.trimmingCharacters(in: .whitespacesAndNewlines),
-      status: normalized(status) ?? "completed"
-    )
-
-    if let index = message.contentBlocks.firstIndex(where: {
-      guard case .agentCompletion(let id, let existingPillID, _, let existingRunID, _, _, _, _) = $0
-      else { return false }
-      if id == completionID { return true }
-      if let normalizedRunID { return normalized(existingRunID) == normalizedRunID }
-      return existingPillID == pillID && normalized(existingRunID) == nil
-    }) {
-      message.contentBlocks[index] = completion
-    } else {
-      message.contentBlocks.append(completion)
-    }
-
-    for resource in resources {
-      if let index = message.resources.firstIndex(where: { $0.id == resource.id }) {
-        message.resources[index] = resource
-      } else {
-        message.resources.append(resource)
-      }
-    }
-    return Result(
-      sourceTurn: sourceTurn,
-      message: message,
-      completionBlock: completion,
-      resources: resources
-    )
-  }
-
-  static func atomicAppendUpdate(_ result: Result) -> KernelJournalTurnUpdate {
-    KernelJournalTurnUpdate(
-      turnId: result.sourceTurn.turnId,
-      status: nil,
-      content: nil,
-      contentBlocksJSON: nil,
-      appendContentBlocksJSON: ChatContentBlockCodec.encode([
-        result.completionBlock
-      ]) ?? "[]",
-      resourcesJSON: nil,
-      appendResourcesJSON: ChatResource.encodeResourcesForPersistence(
-        result.resources
-      ) ?? "[]",
-      metadataJSON: nil
-    )
-  }
-
-  nonisolated static func stableSpawnBlockID(pillID: UUID) -> String {
-    stableDigest(prefix: "agent_spawn", identity: pillID.uuidString.lowercased())
-  }
-
-  nonisolated static func stableCompletionBlockID(pillID: UUID, runID: String?) -> String {
-    stableDigest(
-      prefix: "agent_completion",
-      identity: normalized(runID) ?? pillID.uuidString.lowercased()
-    )
-  }
-
-  nonisolated private static func stableDigest(prefix: String, identity: String) -> String {
-    let digest = SHA256.hash(data: Data("\(prefix)\u{0}\(identity)".utf8))
-    return prefix + "_" + digest.prefix(12).map { String(format: "%02x", $0) }.joined()
-  }
-
-  nonisolated private static func normalized(_ value: String?) -> String? {
-    guard let value else { return nil }
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
-  }
 }
 
 /// Main-chat projection over the kernel-owned journal. Runtime notifications
@@ -502,7 +316,8 @@ final class KernelTurnProjection {
           continuityKey: continuityKey,
           sessionId: sessionId,
           messageSource: messageSource
-        )
+        ),
+        expectedGeneration: try await currentGeneration(client: client, surface: surface, lease: lease)
       )
       guard isCurrent(lease) else { return nil }
       _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
@@ -527,7 +342,8 @@ final class KernelTurnProjection {
       let result = try await client.updateJournalTurnWithReceipt(
         surface: surface,
         ownerID: lease.ownerID,
-        update: message.journalUpdate(status: status)
+        update: message.journalUpdate(status: status),
+        expectedGeneration: try await currentGeneration(client: client, surface: surface, lease: lease)
       )
       guard let turn = result.turn else { return nil }
       guard isCurrent(lease) else { return nil }
@@ -550,62 +366,6 @@ final class KernelTurnProjection {
   }
 
   @discardableResult
-  func terminalizeTurn(
-    surface: AgentSurfaceReference,
-    turnId: String,
-    message: ChatMessage?,
-    producingRunId: String,
-    producingAttemptId: String,
-    disposition: KernelJournalTerminalDisposition,
-    acceptedContent: String? = nil,
-    acceptedResources: [ChatResource]? = nil,
-    ownerID: String
-  ) async -> KernelJournalTurn? {
-    guard let lease = captureOwnerLease(ownerID: ownerID), let host else { return nil }
-    guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return nil }
-    let acceptedText = Self.acceptedTerminalContent(message: message, acceptedContent: acceptedContent)
-    let acceptedBlocks = Self.acceptedTerminalContentBlocks(message: message, acceptedContent: acceptedContent)
-    let terminalization = KernelJournalTurnTerminalization(
-      turnId: turnId,
-      producingRunId: producingRunId,
-      producingAttemptId: producingAttemptId,
-      disposition: disposition,
-      content: disposition == .accept ? acceptedText : nil,
-      contentBlocksJSON: disposition == .accept ? ChatContentBlockCodec.encode(acceptedBlocks) : nil,
-      resourcesJSON: disposition == .accept
-        ? message.flatMap { ChatResource.encodeResourcesForPersistence($0.displayResources) }
-          ?? acceptedResources.flatMap { resources in
-            resources.isEmpty ? nil : ChatResource.encodeResourcesForPersistence(resources)
-          }
-        : nil
-    )
-    do {
-      let result = try await client.terminalizeJournalTurn(
-        surface: surface,
-        ownerID: lease.ownerID,
-        terminalization: terminalization
-      )
-      let turn = result.turn
-      guard isCurrent(lease) else { return nil }
-      _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
-      guard isCurrent(lease) else { return nil }
-      if result.firstCompletedRealPair, let exchange = result.firstCompletedRealExchange {
-        scheduleCatalogTitleGeneration(
-          host: host,
-          chatID: surface.externalRefId,
-          ownerID: lease.ownerID,
-          userText: exchange.userText,
-          assistantText: exchange.assistantText
-        )
-      }
-      return isCurrent(lease) ? turn : nil
-    } catch {
-      log("KernelTurnProjection: journal terminalization failed (code=journal_terminalize_failed)")
-      return nil
-    }
-  }
-
-  @discardableResult
   func repairNonterminalTurns(
     surface: AgentSurfaceReference,
     turnIDs: [String],
@@ -620,7 +380,8 @@ final class KernelTurnProjection {
       let repaired = try await client.repairJournalTurns(
         surface: surface,
         ownerID: lease.ownerID,
-        turnIDs: turnIDs
+        turnIDs: turnIDs,
+        expectedGeneration: try await currentGeneration(client: client, surface: surface, lease: lease)
       )
       guard isCurrent(lease) else { return 0 }
       _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
@@ -669,7 +430,8 @@ final class KernelTurnProjection {
       let turn = try await client.updateJournalTurn(
         surface: surface,
         ownerID: lease.ownerID,
-        update: .statusOnly(turnId: turnId, status: status)
+        update: .statusOnly(turnId: turnId, status: status),
+        expectedGeneration: try await currentGeneration(client: client, surface: surface, lease: lease)
       )
       guard isCurrent(lease) else { return nil }
       _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
@@ -693,7 +455,8 @@ final class KernelTurnProjection {
     assistantContentBlocks: [ChatContentBlock] = [],
     resources: [ChatResource] = [],
     ownerID: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    expectedGeneration: Int? = nil
   ) async -> Bool {
     let baseDate = Date()
     var writes: [KernelJournalTurnWrite] = []
@@ -738,7 +501,8 @@ final class KernelTurnProjection {
       surface: surface,
       writes: writes,
       ownerID: ownerID,
-      authorizationSnapshot: authorizationSnapshot
+      authorizationSnapshot: authorizationSnapshot,
+      expectedGeneration: expectedGeneration
     ) != nil
   }
 
@@ -754,7 +518,8 @@ final class KernelTurnProjection {
     sessionId: String? = nil,
     messageSource: String,
     ownerID: String? = nil,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    expectedGeneration: Int? = nil
   ) async -> [KernelJournalTurn]? {
     let writes = turns.map { entry in
       entry.message.journalWrite(
@@ -769,7 +534,7 @@ final class KernelTurnProjection {
       surface: surface,
       writes: writes,
       ownerID: ownerID,
-      authorizationSnapshot: authorizationSnapshot)
+      authorizationSnapshot: authorizationSnapshot, expectedGeneration: expectedGeneration)
   }
 
   @discardableResult
@@ -777,7 +542,9 @@ final class KernelTurnProjection {
     surface: AgentSurfaceReference,
     writes: [KernelJournalTurnWrite],
     ownerID: String?,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?,
+    expectedGeneration: Int? = nil,
+    revise: Bool = false
   ) async -> [KernelJournalTurn]? {
     guard !writes.isEmpty, writes.count <= 2 else { return nil }
     let roles = writes.map(\.role)
@@ -809,12 +576,9 @@ final class KernelTurnProjection {
             writes,
             lease.authorizationSnapshot)
         } else {
-          try await client.recordJournalExchange(
-            surface: surface,
-            ownerID: lease.ownerID,
-            turns: writes,
-            authorizationSnapshot: lease.authorizationSnapshot
-          )
+          try await persistExchange(
+            client: client, surface: surface, lease: lease,
+            writes: writes, expectedGeneration: expectedGeneration, revise: revise)
         }
       guard isCurrent(lease), result.operation == "record_exchange" else { return nil }
       let expectedTurnIDs = Set(writes.map(\.turnId))
@@ -845,6 +609,59 @@ final class KernelTurnProjection {
     }
   }
 
+  /// Revisions preserve stable IDs and use explicit update semantics; a cleared
+  /// generation can never be resurrected by a delayed partial or final response.
+  @discardableResult
+  func recordOrReviseConversationExchange(
+    surface: AgentSurfaceReference,
+    turns: [ExchangeTurn],
+    origin: String,
+    continuityKey: String,
+    messageSource: String,
+    ownerID: String? = nil,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    expectedGeneration: Int
+  ) async -> [KernelJournalTurn]? {
+    let writes = turns.map {
+      $0.message.journalWrite(
+        origin: origin, status: $0.status,
+        continuityKey: continuityKey, messageSource: messageSource)
+    }
+    return await recordExchange(
+      surface: surface, writes: writes, ownerID: ownerID,
+      authorizationSnapshot: authorizationSnapshot, expectedGeneration: expectedGeneration, revise: true)
+  }
+
+  private func currentGeneration(client: AgentClient.Session, surface: AgentSurfaceReference, lease: OwnerLease)
+    async throws -> Int
+  {
+    let page = try await listJournalTurns(
+      client: client, surface: surface, ownerID: lease.ownerID, afterTurnSeq: 0, limit: 1)
+    guard isCurrent(lease) else { throw BridgeError.authMissing }
+    return page.conversationGeneration
+  }
+
+  private func persistExchange(
+    client: AgentClient.Session, surface: AgentSurfaceReference, lease: OwnerLease,
+    writes: [KernelJournalTurnWrite], expectedGeneration: Int?, revise: Bool
+  ) async throws -> AgentRuntimeProcess.JournalOperationResult {
+    let generation: Int
+    if let expectedGeneration {
+      generation = expectedGeneration
+    } else {
+      generation = try await currentGeneration(client: client, surface: surface, lease: lease)
+    }
+    guard isCurrent(lease) else { throw BridgeError.authMissing }
+    if revise {
+      return try await client.recordOrReviseConversationExchange(
+        surface: surface, ownerID: lease.ownerID,
+        turns: writes, authorizationSnapshot: lease.authorizationSnapshot, expectedGeneration: generation)
+    }
+    return try await client.recordJournalExchange(
+      surface: surface, ownerID: lease.ownerID,
+      turns: writes, authorizationSnapshot: lease.authorizationSnapshot, expectedGeneration: generation)
+  }
+
   private func scheduleCatalogTitleGeneration(
     host: ChatProvider,
     chatID: String,
@@ -860,71 +677,6 @@ final class KernelTurnProjection {
         assistantText: assistantText
       )
     }
-  }
-
-  /// Append one deterministic terminal block to the assistant turn that
-  /// produced the matching agent spawn. The bounded retry closes the race where
-  /// a fast child finishes before the parent spawn projection reaches SQLite.
-  @discardableResult
-  func appendAgentCompletion(
-    surface: AgentSurfaceReference,
-    ownerID: String? = nil,
-    pillID: UUID,
-    sessionID: String?,
-    runID: String?,
-    title: String,
-    promptSnippet: String,
-    output: String,
-    status: String,
-    resources: [ChatResource] = [],
-    maxLookupAttempts: Int = 8,
-    retryDelayNanoseconds: UInt64 = 150_000_000
-  ) async -> KernelJournalTurn? {
-    guard let lease = captureOwnerLease(ownerID: ownerID), let host else { return nil }
-    guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return nil }
-    let attempts = max(1, min(maxLookupAttempts, 8))
-    for attempt in 0..<attempts {
-      guard isCurrent(lease) else { return nil }
-      do {
-        let revisions = try await journalRevisions(
-          client: client,
-          surface: surface,
-          lease: lease
-        )
-        guard isCurrent(lease) else { return nil }
-        if let mutation = KernelAgentLifecycleMutation.completion(
-          in: revisions,
-          pillID: pillID,
-          sessionID: sessionID,
-          runID: runID,
-          title: title,
-          promptSnippet: promptSnippet,
-          output: output,
-          status: status,
-          resources: resources
-        ) {
-          let turn = try await client.updateJournalTurn(
-            surface: surface,
-            ownerID: lease.ownerID,
-            update: KernelAgentLifecycleMutation.atomicAppendUpdate(mutation)
-          )
-          guard isCurrent(lease) else { return nil }
-          _ = await refresh(surface: surface, lease: lease, publishPartialResults: true)
-          guard isCurrent(lease) else { return nil }
-          return turn
-        }
-      } catch {
-        if isCurrent(lease) {
-          log("KernelTurnProjection: agent completion update failed (code=journal_agent_completion_failed)")
-        }
-      }
-      if attempt + 1 < attempts, retryDelayNanoseconds > 0 {
-        try? await Task.sleep(nanoseconds: retryDelayNanoseconds)
-        guard isCurrent(lease) else { return nil }
-      }
-    }
-    log("KernelTurnProjection: matching agent spawn unavailable (code=journal_agent_spawn_missing)")
-    return nil
   }
 
   func clear(
@@ -1034,33 +786,6 @@ final class KernelTurnProjection {
     )
   }
 
-  func fetchVoiceContextSnapshot(
-    surface: AgentSurfaceReference
-  ) async -> KernelVoiceContextSnapshot {
-    guard let lease = captureOwnerLease(), let host else {
-      return .empty
-    }
-    guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else {
-      return .empty
-    }
-    do {
-      let session = try await client.resolveSurfaceSession(surface)
-      guard isCurrent(lease) else { return .empty }
-      let snapshot = try await client.getContextSnapshot(
-        sessionId: session.sessionId,
-        surfaceKind: surface.surfaceKind)
-      guard isCurrent(lease) else { return .empty }
-      return Self.voiceContextSnapshot(
-        from: snapshot,
-        sessionId: session.sessionId,
-        surface: surface
-      )
-    } catch {
-      log("KernelTurnProjection: voice context snapshot fetch failed: \(error.localizedDescription)")
-      return .empty
-    }
-  }
-
   func fetchJournalTurnTail(
     surface: AgentSurfaceReference,
     limit: Int = 8
@@ -1068,56 +793,17 @@ final class KernelTurnProjection {
     guard let lease = captureOwnerLease(), let host else { return nil }
     guard await host.ensureBridgeStartedForKernel(), isCurrent(lease), let client else { return nil }
     do {
-      let boundedLimit = max(1, min(limit, 100))
-      var page = try await listJournalTurns(
-        client: client,
-        surface: surface,
-        ownerID: lease.ownerID,
-        afterTurnSeq: 0,
-        limit: 1
-      )
+      let page = try await client.listJournalTurnTail(
+        surface: surface, ownerID: lease.ownerID, limit: limit,
+        authorizationSnapshot: lease.authorizationSnapshot)
       guard isCurrent(lease) else { return nil }
-      guard !page.conversationId.isEmpty else {
-        return KernelAutomationTurnRange(conversationId: "", turns: [])
-      }
-
-      // The first range supplies the generation and high-water mark. Read from
-      // the calculated tail boundary, retrying if a concurrent append moves the
-      // high-water mark beyond the returned range.
-      for _ in 0..<3 {
-        let afterTurnSeq = max(
-          page.generationBaseTurnSeq,
-          page.highWaterTurnSeq - boundedLimit
-        )
-        page = try await listJournalTurns(
-          client: client,
-          surface: surface,
-          ownerID: lease.ownerID,
-          afterTurnSeq: afterTurnSeq,
-          limit: 100
-        )
-        guard isCurrent(lease) else { return nil }
-        let current = page.turns
-          .filter { $0.conversationGeneration == page.conversationGeneration }
-          .sorted { $0.turnSeq < $1.turnSeq }
-        if page.highWaterTurnSeq <= page.generationBaseTurnSeq
-          || current.last?.turnSeq == page.highWaterTurnSeq
-        {
-          return KernelAutomationTurnRange(
-            conversationId: page.conversationId,
-            turns: Array(current.suffix(boundedLimit))
-          )
-        }
-      }
-      let current = page.turns
-        .filter { $0.conversationGeneration == page.conversationGeneration }
-        .sorted { $0.turnSeq < $1.turnSeq }
+      // Storage returns latest payloads in their original admission order.
+      // Sorting by revision sequence would reorder an earlier revised turn.
       return KernelAutomationTurnRange(
-        conversationId: page.conversationId,
-        turns: Array(current.suffix(boundedLimit))
-      )
+        conversationId: page.conversationId, generation: page.conversationGeneration,
+        turns: page.turns)
     } catch {
-      log("KernelTurnProjection: journal tail range fetch failed: \(error.localizedDescription)")
+      log("KernelTurnProjection: journal tail fetch failed (code=journal_tail_failed)")
       return nil
     }
   }
@@ -1299,27 +985,4 @@ final class KernelTurnProjection {
     return "turn_" + digest.prefix(16).map { String(format: "%02x", $0) }.joined()
   }
 
-  nonisolated static func voiceContextSnapshot(
-    from snapshot: AgentContextSnapshot,
-    sessionId: String = "",
-    surface: AgentSurfaceReference = .realtimeVoice(chatId: "default")
-  ) -> KernelVoiceContextSnapshot {
-    let freshnessIdentity = [
-      snapshot.version,
-      snapshot.rendererFingerprint,
-      snapshot.capabilityVersion,
-    ].joined(separator: ":")
-    return KernelVoiceContextSnapshot(
-      surface: surface,
-      sessionId: sessionId,
-      conversationId: snapshot.conversationId,
-      context: snapshot.renderedContext,
-      freshnessIdentity: freshnessIdentity,
-      contextPlanID: snapshot.contextPlan.planId,
-      stableCacheIdentity: snapshot.contextPlan.stableCacheIdentity,
-      dynamicContextIdentity: snapshot.contextPlan.dynamicContextIdentity,
-      semanticGuidance: snapshot.contextPlan.semanticGuidance,
-      turnIDs: Set(snapshot.typedRecentTurns.map(\.turnId))
-    )
-  }
 }

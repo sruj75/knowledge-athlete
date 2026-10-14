@@ -35,7 +35,6 @@ final class APIClientAuthRecoveryTests: XCTestCase {
     let callSites = [
       "Providers/ChatProvider.swift",
       "AppState/AppState+DataLoading.swift",
-      "Stores/TasksStore.swift",
       "MainWindow/Pages/MemoriesPage.swift",
     ]
     for relative in callSites {

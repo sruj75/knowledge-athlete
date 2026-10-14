@@ -5,7 +5,8 @@ import pytest
 from scripts.route_policy_inventory import generate_backend_route_inventory
 
 PARTICIPANT_HTTP_PATHS = {
-    "/v2/models/{model}:streamGenerateContent",
+    "/v1/conversation/session",
+    "/v1/conversation/respond",
     "/v2/chat/initial-message",
     "/v2/chat/generate-title",
     "/v2/voice-messages",
@@ -18,7 +19,6 @@ PARTICIPANT_HTTP_PATHS = {
     "/v1/memory/compute/consolidate",
     "/v1/conversation-compute/discard",
     "/v1/conversation-compute/structure",
-    "/v1/conversation-compute/action-items",
     "/v1/fair-use/reviews/{review_id}/classify",
 }
 

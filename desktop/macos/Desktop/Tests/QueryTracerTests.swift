@@ -191,10 +191,11 @@ final class QueryTracerTests: XCTestCase {
     XCTAssertNil(trace.request?.messages)
     XCTAssertNil(trace.request?.response_text)
     XCTAssertEqual(trace.request?.has_screenshot, true)
-    XCTAssertEqual(trace.tool_executions?.first?.name, "websearch")
+    XCTAssertEqual(trace.tool_executions?.first?.name, "other")
     XCTAssertEqual(trace.tool_executions?.first?.input, "")
     XCTAssertEqual(trace.tool_executions?.first?.output, "")
-    XCTAssertEqual(tracer.toolNameForTrace("Read: /Users/person/private.txt"), "read")
+    XCTAssertEqual(tracer.toolNameForTrace("Read: /Users/person/private.txt"), "other")
+    XCTAssertEqual(tracer.toolNameForTrace("END_CONVERSATION: private context"), "end_conversation")
   }
 
   func testTraceFilesArePrivate() throws {

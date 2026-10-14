@@ -163,17 +163,15 @@ extension ChatErrorState {
       return .bridgeUnavailable(reason: .nodeMissing)
     case .bridgeScriptNotFound:
       return .bridgeUnavailable(reason: .runtimeMissing)
-    case .processExited, .outOfMemory:
+    case .processExited:
       return .bridgeUnavailable(reason: .crashed)
-    case .failedToStart(let failure):
-      return .bridgeUnavailable(reason: .failedToStart(failure))
-    case .notRunning, .restarting:
+    case .notRunning:
       return .bridgeUnavailable(reason: .unknown)
     case .authMissing:
       return .authRequired
     case .agentError(let message):
       return BridgeError.agentError(message).isSessionAuthenticationFailure ? .authRequired : nil
-    case .encodingError, .quotaExceeded, .agentRuntimeFailure, .requestAlreadyActive:
+    case .encodingError:
       return nil
     }
   }

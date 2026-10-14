@@ -50,16 +50,6 @@ extension ChatProvider {
           divergences.insert(.value)
         }
       }
-      for block in projected.contentBlocks {
-        guard case .agentSpawn(_, let projectedPillID, _, _, _, _) = block,
-          let pillID = projectedPillID
-        else { continue }
-        AgentPillsManager.shared.bindProducingJournalSurface(
-          pillID: pillID,
-          surface: expected
-        )
-      }
-
       let isEmptyTerminalPlaceholder =
         turn.status == .failed
         && projected.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

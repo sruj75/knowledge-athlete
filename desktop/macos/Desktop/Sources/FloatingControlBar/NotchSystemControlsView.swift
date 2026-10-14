@@ -11,7 +11,7 @@ import SwiftUI
 struct NotchSystemControlsView: View {
   let progress: CGFloat
 
-  @ObservedObject private var focusStorage = FocusStorage.shared
+  @ObservedObject private var capture = ProactiveAssistantsPlugin.shared
   @ObservedObject private var shortcuts = ShortcutSettings.shared
   /// Toggle state lives in UserDefaults and plugin state rather than in an observable, so
   /// it is sampled when the surface opens and after each toggle instead of being bound.
@@ -19,7 +19,7 @@ struct NotchSystemControlsView: View {
   @State private var audioRecordingOn = false
 
   private var currentAppName: String? {
-    let name = focusStorage.detectedAppName ?? focusStorage.currentApp
+    let name = capture.currentAppName
     guard let name, !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
     return name
   }

@@ -2,7 +2,7 @@ import OmiTheme
 import SwiftUI
 
 /// The constant floating top bar that replaces the left nav rail: primary
-/// navigation (Home / Memory / Tasks / Insights), Capture/Listening, permission
+/// navigation (Home / Memory), Capture/Listening, permission
 /// recovery when needed, and Settings.
 struct DesktopTopBar: View {
   @Binding var selectedIndex: Int
@@ -65,7 +65,6 @@ struct DesktopTopBar: View {
     } else {
       Button {
         dismissMemoryDropdown()
-        preparePrimaryNavigation(item)
         OmiMotion.withGated(.easeOut(duration: 0.08)) {
           selectedIndex = item.index
         }
@@ -139,7 +138,6 @@ struct DesktopTopBar: View {
         } else {
           Button {
             dismissMemoryDropdown()
-            preparePrimaryNavigation(item)
             OmiMotion.withGated(.easeOut(duration: 0.08)) { selectedIndex = item.index }
           } label: {
             TopNavigationPill(
@@ -255,11 +253,6 @@ struct DesktopTopBar: View {
   private func dismissMemoryDropdown() {
     memoryDropdownTask?.cancel()
     memoryDropdownState.dismiss()
-  }
-
-  private func preparePrimaryNavigation(_ item: TopNavigationItem) {
-    guard item.index == DesktopDestination.insights.rawValue else { return }
-    InsightsHubNavigationStore.shared.request(segment: .insights)
   }
 
 }
@@ -417,10 +410,6 @@ enum TopNavigationPillMetrics {
       baseWidth = 88
     case DesktopDestination.memory.rawValue:
       baseWidth = 128
-    case DesktopDestination.tasks.rawValue:
-      baseWidth = 84
-    case DesktopDestination.insights.rawValue:
-      baseWidth = 100
     default:
       baseWidth = 88
     }

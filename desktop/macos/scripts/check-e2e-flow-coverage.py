@@ -18,7 +18,9 @@ DEFAULT_FLOWS_DIR = Path("desktop/macos/e2e/flows")
 FORMATTER_WRAPPER = Path("desktop/macos/scripts/swift-format-wrapper.sh")
 FORMATTER_CONFIG = Path("desktop/macos/Desktop/.swift-format")
 GIT_ENV_DROP = {"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"}
-IMPORT_DECLARATION = re.compile(r"^\s*(?:(?:@testable|@preconcurrency|@_exported)\s+)?import\s+[A-Za-z_][A-Za-z0-9_.]*\s*$")
+IMPORT_DECLARATION = re.compile(
+    r"^\s*(?:(?:@testable|@preconcurrency|@_exported)\s+)?import\s+[A-Za-z_][A-Za-z0-9_.]*\s*$"
+)
 
 
 @dataclass(frozen=True)
@@ -272,7 +274,12 @@ def swift_semantic_fingerprint(source: str) -> str:
 
     def append_code(character: str) -> None:
         nonlocal pending_whitespace
-        if pending_whitespace and output and is_identifier_character(output[-1][-1]) and is_identifier_character(character):
+        if (
+            pending_whitespace
+            and output
+            and is_identifier_character(output[-1][-1])
+            and is_identifier_character(character)
+        ):
             output.append(" ")
         output.append(character)
         pending_whitespace = False
@@ -376,8 +383,14 @@ def changed_files_from_git(root: Path, base: str | None, staged: bool, formatter
     files.extend(run_git(root, ["diff", "--name-only", "--diff-filter=ACMR", "HEAD"]))
     files.extend(run_git(root, ["ls-files", "--others", "--exclude-standard", str(DESKTOP_SWIFT_ROOT)]))
     baseline = merge_base(root, resolved_base) if resolved_base else "HEAD"
-    unique_files = sorted(dict.fromkeys(files))
-    return semantic_changed_files(root, unique_files, baseline, staged=False, formatter=formatter) if baseline else unique_files
+    # Committed branch additions can be retired by a later worktree delta.
+    # Coverage describes the final source tree, not every intermediate commit.
+    unique_files = sorted(path for path in dict.fromkeys(files) if (root / path).is_file())
+    return (
+        semantic_changed_files(root, unique_files, baseline, staged=False, formatter=formatter)
+        if baseline
+        else unique_files
+    )
 
 
 def canonical_path(value: str | Path) -> str:
@@ -474,10 +487,7 @@ def harness_command(root: Path, flow: FlowCoverage) -> str:
             rel = flow.flow_path.relative_to(root / "desktop/macos").as_posix()
         except ValueError:
             rel = flow.flow_path.as_posix()
-        return (
-            f"cd desktop/macos && python3 scripts/omi-harness run {rel} "
-            f"--lane bridge --port <automation-port>"
-        )
+        return f"cd desktop/macos && python3 scripts/omi-harness run {rel} " f"--lane bridge --port <automation-port>"
     return (
         "cd desktop/macos && ./scripts/desktop-core-harness.sh "
         f"--tier {tier} --bundle omi-core-e2e --port <automation-port> --keep-stack"

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b63273a6446a7556749cecfe8208a24ba79f12608a8811d32d240a8968adc1b1",
+  "pageVersion": "sha256:82238937f21fa1050440603322895b0731dbbe50dd7e20f62af5ab336ac3ec33",
   "claims": [
     {
       "id": "claim_a15c40aa331e4669b9cd04381539f009",
@@ -22,7 +22,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/test.sh",
-          "version": "repo-file-v1:sha256:ef6c007cb85432bf9653c6e09f61d4dc197f960e8d3e43c60430031e3b823064"
+          "version": "repo-file-v1:sha256:8442adc39d33b262419daf0ef5889085a8121e243338e117b11b5ab3dd4663e6"
         }
       ]
     },
@@ -74,7 +74,7 @@
       "evidence": [
         {
           "resource": "repo://.github/scripts/check-desktop-changelog.py#L121-L171",
-          "version": "repo-lines-v1:sha256:419eb1c317b8f07f4077cd470c6f596fdefcbdcd7c65d1e93601f075491b9bce:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ZjdjMDUwZTBjNjc0NzYwYmE5MzZhYzE1NGY3ZDhiM2NjNmY3N2I1Mzg0MTNhZDAwZWU0N2EyYzA1NWFkYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlNzU3NWMzYjc3NzZjZjJmOWMyYmZiY2E0NGYyMTQ4MTNhNzgyN2VhYTljMzg0NTRjNzAzYjY4OWE3NDQzODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwMTEzY2I0OTkzMmU1YjA1NDZhNjE5ZThhMmYxMDZhNzFkYWZlNTBjYTgyNjEzZjQ1YWNkYjQ2MzgwOWMwYzgifQ"
+          "version": "repo-lines-v1:sha256:90d69d2825d6665e36b5cdcb7a77a864d01293489704507d57491a7f18fd259e:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ZjdjMDUwZTBjNjc0NzYwYmE5MzZhYzE1NGY3ZDhiM2NjNmY3N2I1Mzg0MTNhZDAwZWU0N2EyYzA1NWFkYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlNzU3NWMzYjc3NzZjZjJmOWMyYmZiY2E0NGYyMTQ4MTNhNzgyN2VhYTljMzg0NTRjNzAzYjY4OWE3NDQzODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkwMTEzY2I0OTkzMmU1YjA1NDZhNjE5ZThhMmYxMDZhNzFkYWZlNTBjYTgyNjEzZjQ1YWNkYjQ2MzgwOWMwYzgifQ"
         },
         {
           "resource": "repo://.github/scripts/check-desktop-changelog.py#L73-L74",
@@ -82,13 +82,65 @@
         },
         {
           "resource": "repo://.github/scripts/test_desktop_changelog.py#L74-L157",
-          "version": "repo-lines-v1:sha256:5f5e47854f961f536ba26987eb5e677fd52869a1ac9c472c4898ca9cf399f351:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQzOWEzNWM2MTkwN2RmOTBlMGNlYWU0MDViZjUyODRhNmE3MjNhMThhYmU0ZDQ0YThiMmMwZDNlZTM5ZDI4MmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiZWRkODUzY2ExOTRkNTQ1YTY5ZDFjZjAxNzU1MTAyYjc0YjRkNWYyZGEwOWViZTdmOTU5ZThjYTIwM2YyNWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhMTYzMDI4ZjBmNTdkYzRiZTkxODgyNGZlODkyZGM5OThkNDY2MjhjYzFmYjRmNzMxYjNkMWM5MjUxMDM5ZDciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkOGJjOTc1N2E2Y2IzODFlMzc4MzY0OTFmOTgzM2NiMmRhNTMxZDZmYTQ3ODg1NzdhMTEzMDczYzhjZWE2MDgifQ"
+          "version": "repo-lines-v1:sha256:90e46191a8121ffea959de0cec222a46c0c2ec3c288fcbbfc97bc0d58587020e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkMzlhMzVjNjE5MDdkZjkwZTBjZWFlNDA1YmY1Mjg0YTZhNzIzYTE4YWJlNGQ0NGE4YjJjMGQzZWUzOWQyODJiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwYmVkZDg1M2NhMTk0ZDU0NWE2OWQxY2YwMTc1NTEwMmI3NGI0ZDVmMmRhMDllYmU3Zjk1OWU4Y2EyMDNmMjVkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIyYTE2MzAyOGYwZjU3ZGM0YmU5MTg4MjRmZTg5MmRjOTk4ZDQ2NjI4Y2MxZmI0ZjczMWIzZDFjOTI1MTAzOWQ3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwZDhiYzk3NTdhNmNiMzgxZTM3ODM2NDkxZjk4MzNjYjJkYTUzMWQ2ZmE0Nzg4NTc3YTExMzA3M2M4Y2VhNjA4In0"
+        }
+      ]
+    },
+    {
+      "id": "claim_ba675ee707ea4e5abd3b09814f1986e2",
+      "statement": "Conversational regression tests exercise lifecycle/audio, observation guidance, authenticated provider contracts and canonical journal/history preservation, with physical/provider/soak acceptance separately specified in the manual flow.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_conversation.py",
+          "version": "repo-file-v1:sha256:1c723f1878432d8571169c4e8182f6aa017463799e34d35268dd4c0a7d462327"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift",
+          "version": "repo-file-v1:sha256:375972a7b9fe4caf21dcf256f56b2e448094bebd242d8366f97efe8c35ec9475"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationOutputAdmissionTests.swift",
+          "version": "repo-file-v1:sha256:fb81cea2e49dad20a95b9e346799ebd4c17eb3bc6eb615ad12304c38cdf3f422"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift",
+          "version": "repo-file-v1:sha256:73ef361b0ba6e24a50c5d1802cad98102511862118479877f8bf16371f574ea8"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/conversation-storage.test.ts",
+          "version": "repo-file-v1:sha256:ab1ce4b07bf12efcb88422c84178480dd38a7ad9ec59383ae26e178920079bd5"
+        },
+        {
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
+          "version": "repo-file-v1:sha256:16f080692068cb818586fd241dbd658dc9bba82fc14ff64c65a9242dc77d5b25"
+        }
+      ]
+    },
+    {
+      "id": "claim_92a1c010451d4f3c82dfffccbed12be2",
+      "statement": "Conversation presentation and audio-meter tests cover logical visual phases, barge-in priority, real-buffer RMS, scoped meter isolation and stale callback rejection; preview tests substitute only the window boundary and preserve a real conversation or protected user content during cleanup.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationAudioLevelTests.swift",
+          "version": "repo-file-v1:sha256:60f29ccb067e1b4ba9cfba7356ed9b7013e7fa7059d1fcf663d5265c0368583a"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationMeterDeliveryTests.swift",
+          "version": "repo-file-v1:sha256:10baa3078f33aed34cec42293add8993ad7012ed7f7263b1d032c38f9e559df4"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationPresentationPreviewTests.swift",
+          "version": "repo-file-v1:sha256:e7f6e74f49055ff5d93ed6734fdf9a88ffe1b35e500dab657da569bd6105eb88"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationPresentationTests.swift",
+          "version": "repo-file-v1:sha256:91b5d24853d0371f42163fe45df87f7435d094ae973e7eb345d275108a32aceb"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T16:15:28.553Z"
+    "at": "2026-10-14T15:50:15.263Z"
   }
 }

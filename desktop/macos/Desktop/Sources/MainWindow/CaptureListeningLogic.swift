@@ -23,11 +23,6 @@ enum CaptureListeningLogic {
   ) {
     let enabled = !appState.isTranscribing
     if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
-    if enabled && !appState.hasMicrophonePermission {
-      appState.requestMicrophonePermission()
-      return
-    }
-
     isTogglingListening.wrappedValue = true
     transcriptionEnabled.wrappedValue = enabled
     AssistantSettings.shared.transcriptionEnabled = enabled

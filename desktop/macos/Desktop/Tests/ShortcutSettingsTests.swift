@@ -29,35 +29,4 @@ final class ShortcutSettingsTests: XCTestCase {
     XCTAssertEqual(ShortcutHintLayout.visibleTokens(for: tokens), tokens)
   }
 
-  func testExplicitPTTMicrophoneOverridesAutomaticBluetoothFallback() {
-    XCTAssertEqual(
-      PTTInputDeviceRouting.overrideDeviceID(
-        selectedDeviceID: 41,
-        outputIsBluetooth: true,
-        builtInDeviceID: 86
-      ),
-      41
-    )
-  }
-
-  func testAutomaticPTTMicrophoneUsesBuiltInForBluetoothOutput() {
-    XCTAssertEqual(
-      PTTInputDeviceRouting.overrideDeviceID(
-        selectedDeviceID: nil,
-        outputIsBluetooth: true,
-        builtInDeviceID: 86
-      ),
-      86
-    )
-  }
-
-  func testAutomaticPTTMicrophoneUsesSystemDefaultForNonBluetoothOutput() {
-    XCTAssertNil(
-      PTTInputDeviceRouting.overrideDeviceID(
-        selectedDeviceID: nil,
-        outputIsBluetooth: false,
-        builtInDeviceID: 86
-      )
-    )
-  }
 }

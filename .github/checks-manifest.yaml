@@ -34,21 +34,6 @@ checks:
     triggers: ["desktop/macos/scripts/pre-tag-readiness.sh", "desktop/macos/scripts/qualification-runner-self-clean.py", "desktop/macos/scripts/qualification-watchdog.py", "desktop/macos/tests/test_pre_tag_readiness_behavior.py", ".github/scripts/git_bash.py", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "a disposable source and authenticated capability fakes prove the real readiness orchestrator emits its exact-SHA receipt only after ordered cleanup"
-  - id: gauntlet-evidence-at-head-tests
-    command: ["bash", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh"]
-    triggers: ["desktop/macos/scripts/check-gauntlet-evidence-at-head.sh", "desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/omi-hardening-smoke.sh", "desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh", "scripts/pre-push", ".github/checks-manifest.yaml"]
-    lanes: ["local", "ci"]
-    reason: "PR #46 carried stale-SHA Tier-2 evidence and the S-31 final review found raw prompts, replies, identities, logs, screenshots, and audio beside its scrubbed manifest; the bounded pre-push audience must reject incomplete, stale, red, or non-private gauntlet bundles"
-  - id: agent-continuity-gauntlet-self-check
-    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh"]
-    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/scripts/agent-continuity-gauntlet-self-check.sh", "desktop/macos/scripts/desktop_flow_contract.py", "desktop/macos/tests/test-agent-continuity-gauntlet-self-check.sh", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
-    lanes: ["local", "ci"]
-    reason: "the S-31 final review found authenticated health returning a state envelope and the shared CI route lacking the gauntlet's locked Vitest dependency; required action discovery must follow the shared automation source inventory when registrations are extracted"
-  - id: agent-continuity-gauntlet-source-provenance-test
-    command: ["bash", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh"]
-    triggers: ["desktop/macos/scripts/agent-continuity-gauntlet-lib.py", "desktop/macos/tests/test-agent-continuity-gauntlet-source-provenance.sh", "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift", "desktop/macos/Desktop/Sources/DesktopAutomationBridge.swift", ".github/checks-manifest.yaml"]
-    lanes: ["local", "ci"]
-    reason: "the S-31 final review found the gauntlet requesting authenticated state while asserting unauthenticated launch provenance; the production ensure-bridge path must select the public health contract"
   - id: verify-pre-tag-readiness-tests
     command: ["python3", ".github/scripts/test_verify_pre_tag_readiness.py"]
     triggers: [".github/scripts/verify-pre-tag-readiness.py", ".github/scripts/test_verify_pre_tag_readiness.py", ".github/checks-manifest.yaml"]
@@ -471,11 +456,6 @@ checks:
     lanes: ["local", "ci"]
     platforms: ["macos"]
     reason: "#9843 Ticket 09: semantic feature sentinels prove flags are active; negative control proves silent-acceptance trap"
-  - id: desktop-hub-controller-ratchet
-    command: ["python3", "desktop/macos/scripts/check-hub-controller-ratchet.py"]
-    triggers: ["desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift", "desktop/macos/scripts/check-hub-controller-ratchet.py"]
-    lanes: ["local", "ci"]
-    reason: "realtime hub extracted-type ownership anti-regrowth ratchet"
   - id: desktop-auth-session-ratchet
     command: ["python3", ".github/scripts/check_desktop_auth_session.py"]
     triggers: ["desktop/macos/Desktop/Sources/APIClient.swift", "desktop/macos/Desktop/Sources/AuthService.swift", "desktop/macos/Desktop/Sources/AuthSessionCoordinator.swift", "desktop/macos/Desktop/Sources/DesktopKeychainStore.swift", "desktop/macos/Desktop/Sources/OmiApp.swift", "desktop/macos/Desktop/Sources/Auth/**/*.swift", ".github/scripts/check_desktop_auth_session.py"]
@@ -486,21 +466,6 @@ checks:
     triggers: ["desktop/macos/Desktop/Sources/**/*.swift", "desktop/macos/Desktop/Tests/**/*.swift", "desktop/macos/scripts/check_desktop_test_quality.py", "desktop/macos/scripts/swift-test-suites.sh"]
     lanes: ["local", "ci"]
     reason: "desktop Swift production or test structure changed"
-  - id: desktop-agent-runtime-convergence-ratchet
-    command: ["python3", "desktop/macos/scripts/check-agent-runtime-convergence-ratchet.py"]
-    triggers: ["desktop/macos/Desktop/Sources/Providers/ChatProvider.swift", "desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift", "desktop/macos/Desktop/Sources/Chat/AgentRuntimeBridgeLifecycle.swift", "desktop/macos/scripts/check-agent-runtime-convergence-ratchet.py", "desktop/macos/scripts/agent-runtime-convergence-ratchet.json"]
-    lanes: ["local", "ci"]
-    reason: "#9688 keeps bridge lifecycle/context decisions extracted and both historic coordinator files bounded"
-  - id: desktop-agent-runtime-contract-conformance
-    command: ["bash", "desktop/macos/scripts/test-tool-surfaces.sh"]
-    triggers: ["desktop/macos/agent/contracts/**", "desktop/macos/agent/src/adapters/**/*.ts", "desktop/macos/agent/src/runtime/control-tools.ts", "desktop/macos/agent/src/runtime/contract-schema.ts", "desktop/macos/agent/src/runtime/relay-tool-result.ts", "desktop/macos/agent/src/runtime/tool-result-envelope.ts", "desktop/macos/agent/tests/agent-runtime-contract-fixtures.test.ts", "desktop/macos/agent/tests/control-tools.test.ts", "desktop/macos/agent/tests/relay-tool-result.test.ts", "desktop/macos/agent/tests/runtime-adapter-contract-conformance.test.ts", "desktop/macos/scripts/test-tool-surfaces.sh", "desktop/macos/scripts/agent-logic-harness.sh", "desktop/macos/scripts/check-spawn-receipt-fixtures.sh"]
-    lanes: ["local", "ci"]
-    reason: "#9688 gates adapter lifecycle fixtures and artifact-backed bounded tool-result delivery"
-  - id: desktop-spawn-receipt-fixtures-v1
-    command: ["bash", "desktop/macos/scripts/check-spawn-receipt-fixtures.sh"]
-    triggers: ["desktop/macos/agent/src/runtime/agent-spawn-journal.ts", "desktop/macos/agent/fixtures/spawn-receipt/**", "desktop/macos/agent/tests/spawn-receipt-fixtures.test.ts", "desktop/macos/scripts/check-spawn-receipt-fixtures.sh", "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeSpawnReceipt.swift", "desktop/macos/Desktop/Tests/RealtimeHubSpawnAgentTests.swift"]
-    lanes: ["local", "ci"]
-    reason: "cross-language realtime spawn receipt producer/consumer contract"
   - id: release-eligibility-contract
     command: ["python3", ".github/scripts/check_release_eligibility.py"]
     triggers: [".github/workflows/release-eligibility.yml", ".github/actions/release-eligibility/**", ".github/scripts/verify_release_eligibility.py", ".github/scripts/check_release_eligibility.py", ".github/scripts/test_check_release_eligibility.py", ".github/checks-manifest.yaml"]
@@ -608,6 +573,22 @@ checks:
     triggers: [".github/scripts/publish_guardrail_pulse.py", ".github/scripts/test_publish_guardrail_pulse.py", ".github/scripts/guardrail_pulse.py", ".github/workflows/guardrail-baseline-pulse.yml", ".github/guardrail-pulse-history.jsonl", ".github/checks-manifest.yaml"]
     lanes: ["local", "ci"]
     reason: "the dedicated reporting bot may push only an appended history row, with bounded fast-forward retries and no unrelated file mutations"
+
+  - id: desktop-conversation-storage-runtime
+    command: ["bash", "desktop/macos/scripts/test-conversation-storage.sh"]
+    triggers: ["desktop/macos/agent/**", "desktop/macos/scripts/test-conversation-storage.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the retained Node storage process must preserve owner-scoped histories, journal outcomes, and startup recovery without agent execution"
+  - id: desktop-conversation-storage-layout
+    command: ["bash", "desktop/macos/scripts/tests/test-conversation-storage-runtime-layout.sh"]
+    triggers: ["desktop/macos/scripts/prepare-agent-runtime.sh", "desktop/macos/scripts/agent-runtime-cache.sh", "desktop/macos/scripts/tests/test-conversation-storage-runtime-layout.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "the packaged storage-only runtime must require its compiled storage entry, supported Node version, and contained dependency symlinks"
+  - id: desktop-conversation-storage-cache
+    command: ["bash", "desktop/macos/scripts/tests/test-agent-runtime-cache.sh"]
+    triggers: ["desktop/macos/scripts/prepare-agent-runtime.sh", "desktop/macos/scripts/agent-runtime-cache.sh", "desktop/macos/scripts/tests/test-agent-runtime-cache.sh", ".github/checks-manifest.yaml"]
+    lanes: ["local", "ci"]
+    reason: "runtime packaging cache identity must follow retained storage sources and dependencies"
 
 exempt:
   - path: ".github/scripts/guardrail_pulse.py"

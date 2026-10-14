@@ -30,22 +30,12 @@ final class ConversationSemanticRecallTests: XCTestCase {
       overview: "Roadmap priorities and delivery sequencing")
     let embedder = ConversationEmbeddingFake()
     let recall = ConversationSemanticRecall(storage: owner.storage, embedder: embedder)
-    let tools = LocalConversationToolService(storage: owner.storage, semanticRecall: recall)
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
 
-    let first = await ChatToolExecutor.execute(
-      ToolCall(
-        name: "search_conversations",
-        arguments: ["query": "ORBIT", "limit": 2],
-        thoughtSignature: nil),
-      expectedOwnerID: snapshot.ownerID,
-      authorizationSnapshot: snapshot,
-      localConversationTools: tools)
-
-    XCTAssertLessThan(
-      try XCTUnwrap(first.range(of: keyword.conversationId)?.lowerBound),
-      try XCTUnwrap(first.range(of: semantic.conversationId)?.lowerBound))
-    XCTAssertEqual(first.components(separatedBy: keyword.conversationId).count - 1, 1)
+    let first = try await recall.search(
+      query: "ORBIT", startDate: nil, endDate: nil,
+      limit: 2, authorizationSnapshot: snapshot)
+    XCTAssertEqual(first.map(\.conversationId), [keyword.conversationId, semantic.conversationId])
     let firstBatchCount = await embedder.documentBatchCount()
     XCTAssertEqual(firstBatchCount, 1)
 

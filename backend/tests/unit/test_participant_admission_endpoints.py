@@ -13,7 +13,7 @@ import main
 from config.participant_admission import RELEASE_PROBE_UID
 from database import users as database_users
 from routers import chat as voice_chat
-from routers import chat_sessions, desktop_chat, transcribe
+from routers import chat_sessions, desktop_conversation, transcribe
 from services.users import account_deletion, data_export
 from utils.other import endpoints as auth
 
@@ -116,9 +116,9 @@ def test_legacy_principal_can_export_delete_real_account_but_not_use_managed_com
     client = TestClient(main.app)
     headers = {"Authorization": "Bearer valid-firebase-token"}
     compute = client.post(
-        "/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+        "/v1/conversation/session",
         headers=headers,
-        json={"contents": [{"role": "user", "parts": [{"text": "hello"}]}]},
+        json={"conversation_id": "conversation-1"},
     )
     account = client.get("/v1/users/export", headers=headers)
     deletion = client.delete("/v1/users/delete-account", headers=headers)
@@ -167,15 +167,15 @@ def test_real_chat_route_denies_before_handler_provider_or_metering_work(monkeyp
     monkeypatch.setattr(auth, "verify_token", lambda _token: "legacy-unlisted-user")
     monkeypatch.setattr(auth, "record_user_platform", lambda *_args: calls.append("platform"))
     monkeypatch.setattr(auth, "record_client_device", lambda *_args, **_kwargs: calls.append("device"))
-    monkeypatch.setattr(desktop_chat, "llm_stub_enabled", lambda: calls.append("provider") or True)
-    monkeypatch.setattr(desktop_chat, "_meter_server_request", lambda *_args: calls.append("meter"))
+    monkeypatch.setattr(desktop_conversation, "llm_stub_enabled", lambda: calls.append("provider") or True)
+    monkeypatch.setattr(desktop_conversation, "enforce_conversation_quota", lambda *_args: calls.append("meter"))
     app = FastAPI()
-    app.include_router(desktop_chat.router)
+    app.include_router(desktop_conversation.router)
 
     response = TestClient(app).post(
-        "/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+        "/v1/conversation/session",
         headers={"Authorization": "Bearer valid-firebase-token"},
-        json={"contents": [{"role": "user", "parts": [{"text": "hello"}]}]},
+        json={"conversation_id": "conversation-1"},
     )
 
     assert response.status_code == 403
@@ -212,14 +212,18 @@ def test_real_chat_route_admits_reserved_release_probe_after_human_config_valida
     monkeypatch.setattr(auth, "verify_token", lambda _token: RELEASE_PROBE_UID)
     monkeypatch.setattr(auth, "record_user_platform", lambda *_args: None)
     monkeypatch.setattr(auth, "record_client_device", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(desktop_chat, "llm_stub_enabled", lambda: True)
+    from utils.observability.conversation_prompts import conversation_prompt_receipt, _fallback
+
+    monkeypatch.setattr(
+        desktop_conversation, "bootstrap_conversation_prompt", lambda: conversation_prompt_receipt(_fallback())
+    )
     app = FastAPI()
-    app.include_router(desktop_chat.router)
+    app.include_router(desktop_conversation.router)
 
     response = TestClient(app).post(
-        "/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+        "/v1/conversation/session",
         headers={"Authorization": "Bearer release-probe-firebase-token"},
-        json={"contents": [{"role": "user", "parts": [{"text": "hello"}]}]},
+        json={"conversation_id": "conversation-1"},
     )
 
     assert response.status_code == 200

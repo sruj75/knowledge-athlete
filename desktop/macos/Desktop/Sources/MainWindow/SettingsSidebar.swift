@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - Search Data Model
 
 enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
+  case microphone = "general.microphone"
   case systemAudio = "general.systemaudio"
   case generalNotifications = "general.notifications"
   case fontSize = "general.fontsize"
@@ -40,17 +41,13 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
   case floatingBar = "floatingbar.show"
   case floatingBarBackground = "floatingbar.background"
   case floatingBarDraggable = "floatingbar.draggable"
-  case typedVoiceAnswers = "floatingbar.typedvoiceanswers"
   case screenSharing = "floatingbar.screenshare"
-  case voiceSpeed = "floatingbar.voicespeed"
   case openOmiShortcut = "floatingbar.shortcut"
   case pushToTalk = "floatingbar.ptt"
-  case pushToTalkDoubleTap = "floatingbar.doubletap"
-  case pushToTalkSounds = "floatingbar.pttsounds"
 
   var section: SettingsContentView.SettingsSection {
     switch self {
-    case .systemAudio, .generalNotifications, .fontSize: return .general
+    case .microphone, .systemAudio, .generalNotifications, .fontSize: return .general
     case .rewindStorage, .rewindExcludedApps, .rewindBattery, .rewindRetention: return .rewind
     case .languageMode, .voiceLanguages, .vocabulary, .conversationLocation, .vadGate:
       return .transcription
@@ -65,10 +62,10 @@ enum SettingsDestination: String, CaseIterable, Hashable, Sendable {
     case .resetOnboarding, .aiUserProfile, .stats, .askMode, .multipleChats,
       .launchAtLogin, .advancedReportIssue:
       return .advanced
-    case .floatingBar, .floatingBarBackground, .floatingBarDraggable, .typedVoiceAnswers,
-      .screenSharing, .voiceSpeed:
+    case .floatingBar, .floatingBarBackground, .floatingBarDraggable,
+      .screenSharing:
       return .floatingBar
-    case .openOmiShortcut, .pushToTalk, .pushToTalkDoubleTap, .pushToTalkSounds:
+    case .openOmiShortcut, .pushToTalk:
       return .shortcuts
     }
   }
@@ -161,6 +158,10 @@ struct SettingsSearchItem: Identifiable {
   static let allSearchableItems: [SettingsSearchItem] = [
     // General
     SettingsSearchItem(
+      name: "Microphone", subtitle: "Include microphone audio while Listening is on",
+      keywords: ["microphone", "mic", "listening", "ambient", "audio"],
+      section: .general, icon: "mic", destination: .microphone),
+    SettingsSearchItem(
       name: "System Audio", subtitle: "When to record audio from other apps",
       keywords: [
         "system audio", "meeting", "zoom", "google meet", "teams", "call", "capture", "recording",
@@ -200,7 +201,7 @@ struct SettingsSearchItem: Identifiable {
       icon: "waveform", destination: .languageMode),
     SettingsSearchItem(
       name: "Voice Assistant Languages",
-      subtitle: "Languages you speak to Intentive over push-to-talk",
+      subtitle: "Languages you speak with Intentive",
       keywords: ["voice", "push to talk", "ptt", "language", "russian", "multilingual"],
       section: .transcription, icon: "person.wave.2",
       destination: .voiceLanguages),
@@ -314,21 +315,15 @@ struct SettingsSearchItem: Identifiable {
       subtitle: "Allow repositioning the floating bar by dragging it",
       keywords: ["drag", "move", "reposition", "draggable"], section: .floatingBar,
       icon: "sparkles", destination: .floatingBarDraggable),
-    SettingsSearchItem(
-      name: "Typed Questions", subtitle: "Speak replies aloud for typed floating-bar questions",
-      keywords: ["typed", "text", "speech", "tts", "audio answers"], section: .floatingBar,
-      icon: "sparkles", destination: .typedVoiceAnswers),
+
     SettingsSearchItem(
       name: "Screen Sharing in Chat",
       subtitle: "Let Intentive capture your screen when you ask about it",
       keywords: ["screenshot", "screen", "capture", "share screen", "vision", "see my screen"],
       section: .floatingBar, icon: "camera.viewfinder", destination: .screenSharing),
+
     SettingsSearchItem(
-      name: "Voice Speed", subtitle: "Adjust the playback speed for voice replies",
-      keywords: ["voice speed", "speech speed", "playback speed", "tts speed"],
-      section: .floatingBar, icon: "sparkles", destination: .voiceSpeed),
-    SettingsSearchItem(
-      name: "Shortcuts", subtitle: "Configure Open Intentive and push-to-talk keyboard shortcuts",
+      name: "Shortcuts", subtitle: "Configure app and conversation keyboard shortcuts",
       keywords: ["shortcuts", "keyboard", "hotkeys", "push to talk"], section: .shortcuts,
       icon: "keyboard", destination: .openOmiShortcut),
     SettingsSearchItem(
@@ -336,19 +331,9 @@ struct SettingsSearchItem: Identifiable {
       keywords: ["shortcut", "hotkey", "keyboard", "global shortcut"], section: .shortcuts,
       icon: "keyboard", destination: .openOmiShortcut),
     SettingsSearchItem(
-      name: "Push to Talk", subtitle: "Hold a key to speak, release to send your question to AI",
-      keywords: ["push to talk", "ptt", "hold to talk", "microphone key"], section: .shortcuts,
+      name: "Talk to Intentive", subtitle: "Tap to start or end a natural conversation",
+      keywords: ["talk", "conversation", "microphone", "voice", "shortcut"], section: .shortcuts,
       icon: "keyboard", destination: .pushToTalk),
-    SettingsSearchItem(
-      name: "Double-tap for Locked Mode",
-      subtitle: "Double-tap the push-to-talk key to keep listening hands-free",
-      keywords: ["double tap", "locked mode", "hands free", "listening"], section: .shortcuts,
-      icon: "keyboard", destination: .pushToTalkDoubleTap),
-    SettingsSearchItem(
-      name: "Push-to-Talk Sounds",
-      subtitle: "Play audio feedback when starting and ending voice input",
-      keywords: ["sounds", "audio feedback", "ptt sounds"], section: .shortcuts, icon: "keyboard",
-      destination: .pushToTalkSounds),
     SettingsSearchItem(
       name: "Multiple Chat Sessions", subtitle: "Create separate chat threads",
       keywords: ["multi chat", "threads"], section: .advanced, icon: "slider.horizontal.3",

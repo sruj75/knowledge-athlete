@@ -27,6 +27,72 @@ final class AmbientCaptureLifecycleTests: XCTestCase {
     XCTAssertFalse(system.capturing)
   }
 
+  func testDisablingMicrophoneKeepsSystemAudioListeningAndReportsEachSource() async {
+    let (state, microphone, system) = makeCapture()
+    await state.reconcileCapture()
+
+    AssistantSettings.shared.ambientMicrophoneEnabled = false
+    await state.reconcileCapture()
+
+    XCTAssertTrue(state.isTranscribing)
+    XCTAssertFalse(microphone.capturing)
+    XCTAssertTrue(system.capturing)
+    XCTAssertEqual(state.supervisorAudioAvailability.0, .disabled)
+    XCTAssertEqual(state.supervisorAudioAvailability.1, .available)
+  }
+
+  func testDeniedMicrophoneDoesNotPreventSystemCapture() async {
+    let (state, microphone, system) = makeCapture()
+    state.hasMicrophonePermission = false
+
+    await state.reconcileCapture()
+
+    XCTAssertEqual(microphone.startCount, 0)
+    XCTAssertTrue(system.capturing)
+    XCTAssertTrue(state.isTranscribing)
+  }
+
+  func testBothInputsCanBeDisabledAndIndependentlyReenabledWhileListeningIsArmed() async {
+    let (state, microphone, system) = makeCapture()
+    AssistantSettings.shared.ambientMicrophoneEnabled = false
+    AssistantSettings.shared.systemAudioCaptureMode = .never
+    await state.reconcileCapture()
+    XCTAssertFalse(microphone.capturing)
+    XCTAssertFalse(system.capturing)
+    XCTAssertTrue(state.isTranscribing)
+
+    AssistantSettings.shared.ambientMicrophoneEnabled = true
+    await state.reconcileCapture()
+    XCTAssertTrue(microphone.capturing)
+    XCTAssertFalse(system.capturing)
+    XCTAssertEqual(state.supervisorAudioAvailability.1, .disabled)
+  }
+
+  func testDisabledMicrophoneCannotFinishAnAsyncStartAfterItsConsentChanges() async {
+    let entered = expectation(description: "microphone startup suspended")
+    let gate = CaptureStartGate(entered: entered)
+    let (state, microphone, system) = makeCapture(microphone: TestMicrophone(gate: gate))
+    let startup = Task { await state.reconcileCapture() }
+    await fulfillment(of: [entered], timeout: 2)
+    AssistantSettings.shared.ambientMicrophoneEnabled = false
+    await state.reconcileCapture()
+    await gate.release()
+    await startup.value
+    XCTAssertFalse(microphone.capturing)
+    XCTAssertTrue(system.capturing)
+    XCTAssertTrue(state.isTranscribing)
+  }
+
+  func testNoUsableRequestedInputStopsListening() async {
+    let (state, microphone, system) = makeCapture(
+      microphone: TestMicrophone(fails: true), system: TestSystemAudio(fails: true))
+    await state.reconcileCapture()
+    await state.transcriptionStopTask?.value
+    XCTAssertFalse(state.isTranscribing)
+    XCTAssertFalse(microphone.capturing)
+    XCTAssertFalse(system.capturing)
+  }
+
   func testStopDuringMicrophoneStartupDoesNotStartAnotherAudioSource() async {
     let entered = expectation(description: "microphone startup suspended")
     let gate = CaptureStartGate(entered: entered)
@@ -71,16 +137,16 @@ final class AmbientCaptureLifecycleTests: XCTestCase {
     XCTAssertFalse(oldMicrophone.capturing)
   }
 
-  func testRequiredMicrophoneFailureStopsListening() async {
+  func testMicrophoneFailurePreservesPermittedSystemListening() async {
     let (state, microphone, system) = makeCapture(microphone: TestMicrophone(fails: true))
 
     await state.reconcileCapture()
     await state.transcriptionStopTask?.value
 
-    XCTAssertFalse(state.isTranscribing)
+    XCTAssertTrue(state.isTranscribing)
     XCTAssertFalse(microphone.capturing)
-    XCTAssertFalse(system.capturing)
-    XCTAssertEqual(system.startCount, 0)
+    XCTAssertTrue(system.capturing)
+    XCTAssertEqual(system.startCount, 1)
   }
 
   func testOptionalSystemAudioFailurePreservesMicrophoneListening() async {
@@ -145,11 +211,16 @@ final class AmbientCaptureLifecycleTests: XCTestCase {
     microphone: TestMicrophone = TestMicrophone(),
     system: TestSystemAudio = TestSystemAudio()
   ) -> (AppState, TestMicrophone, TestSystemAudio) {
-    let keys = ["systemAudioCaptureMode", "disableSystemAudioCapture", "transcriptionEnabled"]
+    let keys = [
+      "systemAudioCaptureMode", "disableSystemAudioCapture", "transcriptionEnabled", "ambientMicrophoneEnabled",
+    ]
     let saved = keys.map { ($0, UserDefaults.standard.object(forKey: $0)) }
     UserDefaults.standard.set(mode.rawValue, forKey: .systemAudioCaptureMode)
     UserDefaults.standard.set(false, forKey: .disableSystemAudioCapture)
+    UserDefaults.standard.set(true, forKey: .ambientMicrophoneEnabled)
+    UserDefaults.standard.set(true, forKey: .transcriptionEnabled)
     let state = AppState()
+    state.hasMicrophonePermission = true
     state.audioCaptureService = microphone
     state.systemAudioCaptureService = system
     state.isTranscribing = true

@@ -5,13 +5,9 @@ import XCTest
 private struct StubHomeSuggestionLocalSources: HomeSuggestionLocalSources {
   let memories: String?
   let conversations: String?
-  let tasks: String?
-  let goals: String?
 
   func memoryContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? { memories }
   func conversationContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? { conversations }
-  func taskContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? { tasks }
-  func goalContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? { goals }
 }
 
 final class HomeChatCatalogTests: XCTestCase {
@@ -28,28 +24,6 @@ final class HomeChatCatalogTests: XCTestCase {
       continuation?.resume()
       continuation = nil
     }
-  }
-
-  private func goal(id: Int64, title: String) -> LocalGoal {
-    LocalGoal(
-      id: "local_\(id)",
-      rowID: id,
-      title: title,
-      description: nil,
-      isActive: true,
-      completedAt: nil,
-      createdAt: .distantPast,
-      updatedAt: .distantPast
-    )
-  }
-
-  private func task(id: Int64, description: String) -> TaskActionItem {
-    TaskActionItem(
-      id: "local_\(id)",
-      description: description,
-      completed: false,
-      createdAt: .distantPast
-    )
   }
 
   private final class DeletionProbe: @unchecked Sendable {
@@ -281,58 +255,6 @@ final class HomeChatCatalogTests: XCTestCase {
     XCTAssertNil(staleOwnerASession)
     XCTAssertEqual(provider.currentSession?.id, ownerBID)
     XCTAssertFalse(provider.isCreatingSession)
-  }
-
-  @MainActor
-  func testOwnerTransitionRevokesDelayedGoalPromptContext() async {
-    var ownerID = "owner-a"
-    let provider = ChatProvider()
-    let goalReadStarted = expectation(description: "owner A goal read started")
-    let goalReadGate = GreetingGate()
-    provider.runtimeOwnerIdForTests = { ownerID }
-    provider.refreshMemoriesForPromptForTests = {}
-    provider.loadGoalsForTests = {
-      goalReadStarted.fulfill()
-      await goalReadGate.wait()
-      return [self.goal(id: 1, title: "Owner A secret goal")]
-    }
-    provider.loadTasksForTests = { [] }
-    provider.loadAIProfileForTests = { "" }
-
-    let warming = Task { @MainActor in await provider.warmupPromptContext() }
-    await fulfillment(of: [goalReadStarted], timeout: 2)
-    ownerID = "owner-b"
-    NotificationCenter.default.post(name: .runtimeOwnerDidChange, object: nil)
-    await goalReadGate.open()
-    await warming.value
-
-    XCTAssertFalse(provider.promptContextSectionsForTests().goals.contains("Owner A secret goal"))
-  }
-
-  @MainActor
-  func testOwnerTransitionRevokesDelayedTaskPromptContext() async {
-    var ownerID = "owner-a"
-    let provider = ChatProvider()
-    let taskReadStarted = expectation(description: "owner A task read started")
-    let taskReadGate = GreetingGate()
-    provider.runtimeOwnerIdForTests = { ownerID }
-    provider.refreshMemoriesForPromptForTests = {}
-    provider.loadGoalsForTests = { [] }
-    provider.loadTasksForTests = {
-      taskReadStarted.fulfill()
-      await taskReadGate.wait()
-      return [self.task(id: 1, description: "Owner A secret task")]
-    }
-    provider.loadAIProfileForTests = { "" }
-
-    let warming = Task { @MainActor in await provider.warmupPromptContext() }
-    await fulfillment(of: [taskReadStarted], timeout: 2)
-    ownerID = "owner-b"
-    NotificationCenter.default.post(name: .runtimeOwnerDidChange, object: nil)
-    await taskReadGate.open()
-    await warming.value
-
-    XCTAssertFalse(provider.promptContextSectionsForTests().tasks.contains("Owner A secret task"))
   }
 
   @MainActor
@@ -751,7 +673,7 @@ final class HomeChatCatalogTests: XCTestCase {
 
     let rejectedSend = await provider.sendMessage("Do not admit this")
     XCTAssertNil(rejectedSend)
-    XCTAssertEqual(provider.errorMessage, "Wait for chat deletion to finish before sending.")
+    XCTAssertEqual(provider.errorMessage, "Wait for this chat to finish opening or updating before sending.")
     let rejectedCreation = await provider.createNewSession(skipGreeting: true)
     XCTAssertNil(rejectedCreation)
     XCTAssertEqual(
@@ -801,7 +723,7 @@ final class HomeChatCatalogTests: XCTestCase {
     XCTAssertNil(prematureSend)
     XCTAssertEqual(
       provider.errorMessage,
-      "Wait for the new chat to finish opening before sending."
+      "Wait for this chat to finish opening or updating before sending."
     )
 
     await provider.deleteSession(pendingSession)
@@ -1073,7 +995,7 @@ final class HomeChatCatalogTests: XCTestCase {
   func testRetiredChatRawValueResolvesSemanticallyToCanonicalHomeWithoutRenumbering() {
     XCTAssertNil(DesktopNavigationPolicy.destination(forRawValue: 2))
     XCTAssertEqual(DesktopDestination.memories.rawValue, 3)
-    XCTAssertEqual(DesktopDestination.tasks.rawValue, 4)
+    XCTAssertNil(DesktopNavigationPolicy.destination(forRawValue: 4))
     XCTAssertEqual(DesktopDestination.rewind.rawValue, 7)
     XCTAssertEqual(DesktopDestination.settings.rawValue, 9)
     XCTAssertEqual(
@@ -1103,16 +1025,14 @@ final class HomeLocalSourceTests: XCTestCase {
   }
 
   @MainActor
-  func testGeneratorLoadsAllFourLocalSourceAdapters() async throws {
+  func testGeneratorLoadsRetainedMemoryAndConversationSources() async throws {
     let fixture = RuntimeOwnerAuthorityTestFixture()
     await fixture.establish(authOwnerID: "owner-a")
     let snapshot = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
     let generator = GeminiHomeSuggestionGenerator(
       sources: StubHomeSuggestionLocalSources(
         memories: "Local memory",
-        conversations: "Local conversation",
-        tasks: "Local task",
-        goals: "Local goal"
+        conversations: "Local conversation"
       )
     )
 
@@ -1122,9 +1042,7 @@ final class HomeLocalSourceTests: XCTestCase {
       context,
       .available(
         memories: "Local memory",
-        conversations: "Local conversation",
-        tasks: "Local task",
-        goals: "Local goal"
+        conversations: "Local conversation"
       )
     )
     await fixture.restore()
@@ -1139,8 +1057,9 @@ final class HomeLocalSourceTests: XCTestCase {
       .appendingPathComponent("Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift")
     let source = try String(contentsOf: path, encoding: .utf8)
 
-    XCTAssertTrue(source.contains("ActionItemStorage.shared.getLocalActionItems"))
-    XCTAssertTrue(source.contains("GoalStorage.shared.getLocalGoals"))
+    XCTAssertTrue(source.contains("MemoryStorage.shared.list"))
+    XCTAssertFalse(source.contains("ActionItemStorage.shared.getLocalActionItems"))
+    XCTAssertFalse(source.contains("GoalStorage.shared.getLocalGoals"))
     XCTAssertTrue(source.contains("LocalAuthorityConversationDataSource().list"))
     XCTAssertFalse(source.contains("APIClient.shared.getActionItems"))
     XCTAssertFalse(source.contains("APIClient.shared.getGoals"))

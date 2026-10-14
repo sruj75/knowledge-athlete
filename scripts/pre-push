@@ -593,34 +593,10 @@ check_desktop_launcher_tests_if_needed() {
   )
 }
 
-check_desktop_tool_surfaces_if_needed() {
-  local file
-  for file in "${CHANGED_FILES[@]}"; do
-    case "$file" in
-      desktop/macos/agent/*|desktop/macos/agent/**/*|desktop/macos/pi-mono-extension/*|desktop/macos/pi-mono-extension/**/*|desktop/macos/run.sh|desktop/macos/scripts/prepare-agent-runtime.sh|desktop/macos/scripts/test-tool-surfaces.sh)
-        desktop/macos/scripts/test-tool-surfaces.sh
-        return
-        ;;
-    esac
-  done
-}
-
-check_gauntlet_evidence_if_needed() {
-  if [ "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE:-}" = "1" ]; then
-    if [ -z "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE:-}" ] || [ -z "${PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON:-}" ]; then
-      echo "FAIL: PRE_PUSH_SKIP_GAUNTLET_EVIDENCE=1 requires PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE and PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON." >&2
-      return 1
-    fi
-    if [[ ! "$PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE" =~ ^#[0-9]+$ \
-      && ! "$PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE" =~ ^https://github\.com/[^/]+/[^/]+/issues/[0-9]+$ ]]; then
-      echo "FAIL: PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE must be a GitHub issue number or URL." >&2
-      return 1
-    fi
-    echo "Skipping gauntlet evidence check under $PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_ISSUE: $PRE_PUSH_SKIP_GAUNTLET_EVIDENCE_REASON"
-    return
+check_desktop_conversation_storage_if_needed() {
+  if changed_matches 'desktop/macos/agent/*' 'desktop/macos/agent/**/*' 'desktop/macos/scripts/test-conversation-storage.sh'; then
+    bash desktop/macos/scripts/test-conversation-storage.sh
   fi
-
-  desktop/macos/scripts/check-gauntlet-evidence-at-head.sh block
 }
 
 run_step check_pr_preflight
@@ -638,8 +614,7 @@ run_step check_desktop_flow_lint_if_needed
 run_step check_windows_kgworker_native_closure_if_needed
 run_step check_desktop_swift_if_needed
 run_step check_desktop_launcher_tests_if_needed
-run_step check_desktop_tool_surfaces_if_needed
-run_step check_gauntlet_evidence_if_needed
+run_step check_desktop_conversation_storage_if_needed
 run_step check_python_formatting
 
 print_ci_prediction_summary

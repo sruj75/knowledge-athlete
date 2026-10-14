@@ -39,33 +39,29 @@ enum ConversationDeferredPostProcessFlow {
   }
 }
 
-/// Closes local capture and drives the three independent, durable compute work items.
+/// Closes local capture and drives the retained durable enrichment work.
 /// Conversation authority never leaves the owner-scoped GRDB database.
 actor ConversationFinalizationService {
   static let shared = ConversationFinalizationService(
     storage: .shared,
     discard: .shared,
     structure: .shared,
-    actionItems: .shared,
     memoryRunner: .shared)
 
   private let storage: TranscriptionStorage
   private let discard: ConversationDiscardAdmission
   private let structure: ConversationStructureEnrichment
-  private let actionItems: ConversationActionItemEnrichment
   private let memoryRunner: LocalMemoryLifecycleRunner?
 
   init(
     storage: TranscriptionStorage,
     discard: ConversationDiscardAdmission,
     structure: ConversationStructureEnrichment,
-    actionItems: ConversationActionItemEnrichment,
     memoryRunner: LocalMemoryLifecycleRunner? = nil
   ) {
     self.storage = storage
     self.discard = discard
     self.structure = structure
-    self.actionItems = actionItems
     self.memoryRunner = memoryRunner
   }
 
@@ -88,9 +84,7 @@ actor ConversationFinalizationService {
   }
 
   func processEnrichmentWithoutDiscard(conversationId: String) async {
-    async let structureResult = structure.process(conversationId: conversationId)
-    async let actionResult = actionItems.process(conversationId: conversationId)
-    _ = await (structureResult, actionResult)
+    _ = await structure.process(conversationId: conversationId)
     await enqueueAndProcessMemoryExtraction(conversationId: conversationId)
   }
 
@@ -135,10 +129,6 @@ actor ConversationFinalizationService {
       for conversationId in structureIds where !discardIds.contains(conversationId) {
         _ = await structure.process(conversationId: conversationId)
       }
-      let actionIds = Set(work.filter { $0.kind == .actionItems }.map(\.conversationId))
-      for conversationId in actionIds where !discardIds.contains(conversationId) {
-        _ = await actionItems.process(conversationId: conversationId)
-      }
       _ = await memoryRunner?.runOnce()
     } catch {
       logError("ConversationFinalization: Local recovery failed", error: error)
@@ -149,9 +139,7 @@ actor ConversationFinalizationService {
     let admission = await discard.process(conversationId: conversationId)
     switch admission {
     case .kept, .failedKeep:
-      async let structureResult = structure.process(conversationId: conversationId)
-      async let actionResult = actionItems.process(conversationId: conversationId)
-      _ = await (structureResult, actionResult)
+      _ = await structure.process(conversationId: conversationId)
       await enqueueAndProcessMemoryExtraction(conversationId: conversationId)
     case .deleted, .stale, .noPendingWork:
       break

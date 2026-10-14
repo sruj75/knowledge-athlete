@@ -107,40 +107,6 @@ final class FocusLocalAuthorityTests: XCTestCase {
     XCTAssertFalse(retained.contains { $0.description == "Expired session" })
   }
 
-  @MainActor
-  func testRefreshDurablyRepairsRetentionWithoutANewAdmission() async throws {
-    let now = Date()
-    let maybePool = await RewindDatabase.shared.getDatabaseQueue()
-    let pool = try XCTUnwrap(maybePool)
-    try await pool.write { db in
-      for index in 0..<501 {
-        try FocusSessionRecord(
-          status: "focused",
-          appOrSite: "App \(index)",
-          description: "Refresh repair \(index)",
-          createdAt: now.addingTimeInterval(TimeInterval(-index))
-        ).insert(db)
-      }
-      try FocusSessionRecord(
-        status: "distracted",
-        appOrSite: "Expired",
-        description: "Refresh must delete this row",
-        createdAt: now.addingTimeInterval(-31 * 24 * 60 * 60)
-      ).insert(db)
-    }
-
-    let storage = FocusStorage(startAutomatically: false)
-    await storage.refreshLocal()
-
-    let retained = try await ProactiveStorage.shared.getFocusSessions(
-      from: .distantPast,
-      to: .distantFuture,
-      limit: 1_000)
-    XCTAssertEqual(retained.count, 500)
-    XCTAssertEqual(storage.sessions.count, 500)
-    XCTAssertFalse(retained.contains { $0.description == "Refresh must delete this row" })
-  }
-
   func testDeleteAndClearAreDurableOwnerAuthorizedMutations() async throws {
     let first = try await ProactiveStorage.shared.insertFocusSession(
       FocusSessionRecord(status: "focused", appOrSite: "Xcode", description: "First"),
@@ -161,6 +127,27 @@ final class FocusLocalAuthorityTests: XCTestCase {
     try await ProactiveStorage.shared.clearFocusSessions(authorization: .unrestricted)
     let afterClear = try await focusDescriptions()
     XCTAssertEqual(afterClear, [])
+  }
+
+  func testHistoricalFocusExportPagesPastFiveHundredWithoutPruning() async throws {
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let maybePool = await RewindDatabase.shared.getDatabaseQueue()
+    let pool = try XCTUnwrap(maybePool)
+    let historicalDate = Date(timeIntervalSince1970: 1_600_000_000)
+    try await pool.write { db in
+      for index in 0..<1_001 {
+        try FocusSessionRecord(
+          status: "focused", appOrSite: "Historical app",
+          description: "Historical session \(index)", createdAt: historicalDate
+        ).insert(db)
+      }
+    }
+
+    let exported = try await LocalUserDataExportLiveReader.shared.focusData(authorization: authorization)
+    XCTAssertEqual(exported.count, 1_001)
+    XCTAssertEqual(Set(exported.compactMap(\.id)).count, 1_001)
+    let remaining = try await ProactiveStorage.shared.getTotalFocusSessionCount()
+    XCTAssertEqual(remaining, 1_001, "Export must not prune frozen history")
   }
 
   private func focusDescriptions() async throws -> [String] {

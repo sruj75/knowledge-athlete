@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:66ed32a31ad97017aa521c3cceca822f659ead349039dd96eb9043bec46dc928",
+  "pageVersion": "sha256:a8e7d79419a1297ba2e880c9572aaa1cc3162840057d83e74ed66faeb6dc11aa",
   "claims": [
     {
       "id": "claim_7d09f9ba3efd4bf1965b959c0cdc7060",
@@ -101,10 +101,28 @@
           "version": "repo-lines-v1:sha256:07569c3dc5d399098ff07525135d505f0d6f7ecf2039adc1b74e341c606215c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIxOWM5MjdhMjgwOTE3MDgyNzVlMjY2NmE4ZDkzY2Y5MTU3ODViYmE4ZGRlODE4ZmUwN2I4NGZjYmRlMWZiZWY3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4OWFkM2RmZmQ4Yjg5MWQ2OGNhODI1YWVmYTg3YTBlZTRjOWMxMzJjMTJkYmY4ZWFiM2Y2NDJiMzFmMjJjMDEwIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjM2M1M2RkYzU1Y2U4ZTNlZmE2M2QyZDc0MGZkMjA0Y2YwYjllY2VjNTkyNzQzOGZiZDAyODMxMTk1YTMxYWExIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwOWRjNjBkZmQyYjI2MDU4NmYzMjNkZmUxNTcxY2M3Yzg4YmIxYTUwYWI1NzU1MWQ5MzFhOTYyMWY2NmRlZDllIn0"
         }
       ]
+    },
+    {
+      "id": "claim_e026d14e22c749f79f1e13cb0ab59214",
+      "statement": "Owner-authorized local export retains historical Tasks/goals/Focus, pages Focus beyond 500 records and includes independent ambient microphone/system preferences in its settings allowlist.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift",
+          "version": "repo-file-v1:sha256:c8d7e7e5d7d8cd33d03cec8c535f3f501e7453d46bd655cfd2e736de5d5eb0d5"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/FocusLocalAuthorityTests.swift",
+          "version": "repo-file-v1:sha256:4336cb30c2842f61951c567f186d81816b7920fd76ff857ed115f70e5b0fbab7"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/LocalUserDataExportTests.swift",
+          "version": "repo-file-v1:sha256:c80b9b0275256bf0524d0e3c3e2779988dd3d888806bbe911b34826fe418400c"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T15:29:21.904Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

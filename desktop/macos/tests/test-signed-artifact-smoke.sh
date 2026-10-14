@@ -177,9 +177,7 @@ make_signed_smoke_fixture() {
     "$app/Contents/MacOS" \
     "$app/Contents/Frameworks/Sparkle.framework" \
     "$app/Contents/Resources/agent/dist" \
-    "$app/Contents/Resources/agent/node_modules/@earendil-works/pi-coding-agent/dist" \
-    "$app/Contents/Resources/agent/src/runtime" \
-    "$app/Contents/Resources/pi-mono-extension" \
+    "$app/Contents/Resources/agent/node_modules/zod" \
     "$app/Contents/Resources/Omi Computer_Omi Computer.bundle"
   cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -218,9 +216,7 @@ ENV
     "$app/Contents/Frameworks/libwebp.7.dylib" \
     "$app/Contents/Frameworks/libsharpyuv.0.dylib" \
     "$app/Contents/Resources/agent/dist/index.js" \
-    "$app/Contents/Resources/agent/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" \
-    "$app/Contents/Resources/pi-mono-extension/index.ts" \
-    "$app/Contents/Resources/agent/src/runtime/omi-tool-manifest.ts"
+    "$app/Contents/Resources/agent/dist/conversation-storage.js"
 }
 
 mock_bin="$tmp_root/mock-bin"

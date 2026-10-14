@@ -10,7 +10,6 @@ extension ChatProvider {
   /// mutate the user's normal main-chat history.
   func clearOnboardingJournal() async -> Bool {
     let surface = AgentSurfaceReference.onboarding()
-    AgentRuntimeStatusStore.shared.clear(surface: surface)
     return await kernelTurnProjection.clear(surface: surface, deleteBackend: false)
   }
 

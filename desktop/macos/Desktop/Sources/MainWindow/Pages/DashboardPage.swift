@@ -3,26 +3,21 @@ import OmiTheme
 import SwiftUI
 
 /// Canonical ordinary Chat host. Home renders the owner-scoped local catalog,
-/// journal timeline, composer, local task/Focus/Insight rows, and daily local
-/// suggestions through the single shared `ChatProvider` instance.
+/// journal timeline and conversational composer through the shared `ChatProvider`.
 struct DashboardPage: View {
   private enum HomeComposerFocus: Hashable {
     case hub
     case chat
   }
 
-  @ObservedObject var tasksStore: TasksStore
   @ObservedObject var appState: AppState
   @ObservedObject var chatProvider: ChatProvider
   @ObservedObject var memoriesViewModel: MemoriesViewModel
   @Binding var selectedIndex: Int
 
   @ObservedObject private var homeSuggestionsStore = HomeSuggestionsStore.shared
-  @ObservedObject private var focusStorage = FocusStorage.shared
-  @ObservedObject private var insightStorage = InsightStorage.shared
 
   @State private var homeMode: HomeStageMode = .hub
-  @State private var dismissedKnowsTaskIDs: Set<String> = []
   @State private var homeAskFocusPolicy = HomeAskFocusPolicy()
   @FocusState private var homeComposerFocus: HomeComposerFocus?
   @State private var citedConversation: LocalConversation?
@@ -69,7 +64,6 @@ struct DashboardPage: View {
       refreshNonTaskHomeState()
     }
     .onReceive(NotificationCenter.default.publisher(for: .runtimeOwnerDidChange)) { _ in
-      dismissedKnowsTaskIDs = []
       citationGeneration &+= 1
       citedConversation = nil
       isLoadingCitation = false
@@ -162,9 +156,6 @@ struct DashboardPage: View {
           .foregroundStyle(OmiColors.textTertiary)
       }
       .multilineTextAlignment(.center)
-
-      homeKnowsList
-        .frame(maxWidth: 560)
 
       Spacer(minLength: 12)
       homeComposer(focus: .hub)
@@ -275,10 +266,6 @@ struct DashboardPage: View {
       onRetry: { Task { await chatProvider.retryLoad() } },
       localSendToken: chatProvider.localSendToken,
       onCancelTurn: { chatProvider.stopAgent(owner: .mainChat) },
-      onOpenAgent: { agentID, completion in
-        FloatingControlBarManager.shared.openAgentChatFromTimeline(agentID: agentID, completion: completion)
-      },
-      onOpenAgentRef: FloatingControlBarManager.shared.openAgentChatFromTimeline(ref:completion:),
       horizontalContentPadding: 0,
       verticalContentPadding: OmiSpacing.sm,
       trailingContentPadding: OmiSpacing.md,
@@ -361,56 +348,7 @@ struct DashboardPage: View {
             .fill(OmiColors.backgroundSecondary)
         )
       }
-      if let error = tasksStore.homeTaskError, !error.isEmpty {
-        Text(error)
-          .scaledFont(size: OmiType.caption)
-          .foregroundStyle(OmiColors.textTertiary)
-      }
     }
-  }
-
-  private var homeKnowsList: some View {
-    VStack(spacing: OmiSpacing.sm) {
-      ForEach(homeKnowsRows) { row in
-        HStack(spacing: OmiSpacing.sm) {
-          Button {
-            openKnowsRow(row)
-          } label: {
-            HStack(spacing: OmiSpacing.sm) {
-              Image(systemName: icon(for: row.kind))
-                .frame(width: 18)
-              Text(row.text).lineLimit(1)
-              Spacer()
-            }
-            .foregroundStyle(OmiColors.textSecondary)
-            .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-
-          if dismissible(row.kind) {
-            Button {
-              dismissKnowsRow(row)
-            } label: {
-              Image(systemName: "xmark")
-                .scaledFont(size: OmiType.micro)
-                .foregroundStyle(OmiColors.textQuaternary)
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        .padding(.horizontal, OmiSpacing.md)
-        .frame(height: 38)
-        .background(
-          RoundedRectangle(cornerRadius: 11)
-            .fill(OmiColors.homeTile.opacity(0.72))
-        )
-        .overlay {
-          RoundedRectangle(cornerRadius: 11)
-            .stroke(OmiColors.homeHairline.opacity(0.7), lineWidth: 1)
-        }
-      }
-    }
-    .accessibilityIdentifier("home-knows-list")
   }
 
   private var homeQuestionChips: some View {
@@ -430,33 +368,8 @@ struct DashboardPage: View {
     }
   }
 
-  private var homeKnowsRows: [HomeKnowsRow] {
-    HomeKnowsListComposer.compose(
-      tasks: homeTaskCandidates,
-      insights: insightStorage.visibleInsights.prefix(12).map {
-        HomeKnowsInsightCandidate(id: $0.id, text: $0.insight.insight)
-      },
-      tip: homeActionTip,
-      questions: homeSuggestedQuestions,
-      dismissedTaskIDs: dismissedKnowsTaskIDs
-    )
-  }
-
-  private var homeTaskCandidates: [HomeKnowsTaskCandidate] {
-    tasksStore.homeTasks
-      .filter { !$0.completed && $0.deleted != true }
-      .map { HomeKnowsTaskCandidate(id: $0.id, text: $0.description) }
-  }
-
   private var homeSuggestedQuestions: [String] {
     HomeSuggestionComposer.compose(personalized: homeSuggestionsStore.personalizedQuestions)
-  }
-
-  private var homeActionTip: String? {
-    if focusStorage.currentStatus == .distracted { return "Help me get back on track" }
-    return homeTaskCandidates.count >= 5
-      ? "Sort my open tasks — which 3 actually matter today?"
-      : "Recap what I got done today"
   }
 
   private var homeGreeting: String {
@@ -464,68 +377,7 @@ struct DashboardPage: View {
     return name.isEmpty ? "I'm ready." : "Hey \(name). I'm ready."
   }
 
-  private var homeDailyBrief: String {
-    let count = tasksStore.openTaskCount
-    let tail =
-      count == 0 ? "nothing's waiting on you." : count == 1 ? "one thing needs you." : "\(count) things need you."
-    let lead: String?
-    switch focusStorage.currentStatus {
-    case .focused:
-      let app = (focusStorage.currentApp ?? focusStorage.detectedAppName ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      lead =
-        app.isEmpty || app.localizedCaseInsensitiveContains("unknown") ? "Heads-down today" : "Deep in \(app) today"
-    case .distracted: lead = "A scattered stretch just now"
-    case nil: lead = nil
-    }
-    if let lead { return "\(lead) — \(tail)" }
-    return tail.prefix(1).uppercased() + tail.dropFirst()
-  }
-
-  private func icon(for kind: HomeKnowsRowKind) -> String {
-    switch kind {
-    case .task: return "circle"
-    case .insight: return "lightbulb"
-    case .focus: return "eye"
-    case .question: return "bubble.left"
-    }
-  }
-
-  private func dismissible(_ kind: HomeKnowsRowKind) -> Bool {
-    switch kind {
-    case .task, .insight: return true
-    case .focus, .question: return false
-    }
-  }
-
-  private func openKnowsRow(_ row: HomeKnowsRow) {
-    switch row.kind {
-    case .task(let id):
-      if let task = tasksStore.homeTasks.first(where: { $0.id == id }) {
-        TaskNavigationRequestStore.shared.request(task: task)
-      }
-      navigate(to: .tasks)
-    case .insight(let id):
-      guard InsightsHubNavigationStore.shared.request(segment: .insights, insightID: id) else {
-        return
-      }
-      navigate(to: .insights)
-    case .focus:
-      guard InsightsHubNavigationStore.shared.request(segment: .focus) else { return }
-      navigate(to: .insights)
-    case .question:
-      chatProvider.draftText = row.text
-      openHomeChat(source: "homeKnowsQuestion")
-    }
-  }
-
-  private func dismissKnowsRow(_ row: HomeKnowsRow) {
-    switch row.kind {
-    case .task(let id): dismissedKnowsTaskIDs.insert(id)
-    case .insight(let id): Task { await insightStorage.dismissInsight(id) }
-    case .focus, .question: break
-    }
-  }
+  private var homeDailyBrief: String { "What would you like to work on?" }
 
   private func sendFromHomeAskBar(_ draft: String) {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -588,15 +440,12 @@ struct DashboardPage: View {
 
   private func syncHomeState() {
     Task {
-      await tasksStore.loadHomeTasks()
-      await insightStorage.refresh()
       await homeSuggestionsStore.refreshIfNeeded()
     }
   }
 
   private func refreshNonTaskHomeState() {
     Task {
-      await insightStorage.refresh()
       await homeSuggestionsStore.refreshIfNeeded()
     }
   }
@@ -642,7 +491,6 @@ struct DashboardPage: View {
 #if canImport(PreviewsMacros)
   #Preview {
     DashboardPage(
-      tasksStore: TasksStore(observesNotifications: false),
       appState: AppState(),
       chatProvider: ChatProvider(),
       memoriesViewModel: MemoriesViewModel(),

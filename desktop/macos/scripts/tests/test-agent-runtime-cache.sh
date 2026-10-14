@@ -42,13 +42,13 @@ esac
 mkdir -p \
   "$TMP_ROOT/runtime-actual/agent-node_modules/pkg" \
   "$TMP_ROOT/runtime-actual/agent-node_modules/.bin" \
-  "$TMP_ROOT/runtime-actual/pi-node-modules"
+  "$TMP_ROOT/runtime-actual/additional-node-modules"
 printf 'cli\n' >"$TMP_ROOT/runtime-actual/agent-node_modules/pkg/cli"
 ln -s ../pkg/cli "$TMP_ROOT/runtime-actual/agent-node_modules/.bin/tool"
 ln -s "$TMP_ROOT/runtime-actual" "$TMP_ROOT/runtime-link-root"
 arc_validate_packaged_symlinks \
   "$TMP_ROOT/runtime-link-root/agent-node_modules" \
-  "$TMP_ROOT/runtime-link-root/pi-node-modules" \
+  "$TMP_ROOT/runtime-link-root/additional-node-modules" \
   || fail "valid npm link under a symlinked runtime root was rejected"
 
 CHECKSUM_FILE="$TMP_ROOT/checksum-file"

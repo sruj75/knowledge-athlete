@@ -46,4 +46,32 @@ Counts above were checked against the before-review Mermaid snapshot and the mer
 
 ## Integration with the Supervisor branch
 
-The `live-voice-and-supervisor` integration retains this dated review of `ed00649c` as history. The current diagram combines its retained product detail with the branch's owner-bound Supervisor, native Live conversation and evaluation flow. The five background assistants and their scheduling, prompts and automatic writers are retired on this branch; their rows and counts above describe the earlier reviewed source. Current graph counts are asserted by the viewer's browser tests and reported in its README. The integration does not extend this historical receipt into physical or provider acceptance of the Supervisor.
+The `live-voice-and-supervisor` integration retains the September 29 review of
+`ed00649c` above as history. Its 23-area counts, file references, Pi/tool execution,
+and Tasks/Insights/Focus behavior describe that earlier source; deleted paths are
+historical references, not current entrypoints.
+
+On **2026-10-14**, the current [product body diagram](intentive-codeflow.mmd)
+replaces that architecture with **six areas, 37 nodes and 57 connections**:
+account ownership; permitted audio/screen/webcam inputs; Supervisor B; one logical
+A conversation; canonical history and retained knowledge; and instructions and
+measurement. It records the pinned prompt receipt shared by typed/native/fallback
+conversation, safe idle private cues, persistent conversation and interruption,
+60-second available-input listening expiry, independent sensor status, and the
+storage-only Node journal. The original notch and floating conversation surface
+remain: both initiators reveal the same view, the lifecycle drives opening/thinking
+feedback, and actual processed microphone/rendered output levels drive the retained
+waveforms. The conversation stays visible between replies and on focus loss.
+Memory, Rewind and historical export remain; Pi/general
+tool execution and active Tasks/Insights/Focus producers are retired. These are
+source contracts, not a claim that the smaller graph exhaustively covers the
+repository.
+
+The [viewer](../../tools/codebase-map/README.md) consumes this same Mermaid source.
+Its integration checks now use the semantic area IDs and account for all 37 nodes,
+38 internal connections and 19 boundary connections, including instructions with
+no internal edges. Desktop/mobile navigation, readable labels, inflow/outflow,
+cache reuse, scrolling and error recovery are exercised against the static build.
+This receipt establishes source/viewer integration only. It does not establish
+physical Mac audio, provider acceptance, hosted deployment, release readiness or
+an eight-hour cost/latency result.

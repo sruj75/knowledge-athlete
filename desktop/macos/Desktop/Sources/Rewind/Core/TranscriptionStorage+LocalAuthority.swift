@@ -419,8 +419,6 @@ extension TranscriptionStorage {
         } else {
           try Self.admitWork(
             database, conversationId: conversationId, generation: generation, kind: .structure, now: now)
-          try Self.admitWork(
-            database, conversationId: conversationId, generation: generation, kind: .actionItems, now: now)
         }
         guard
           let row = try Row.fetchOne(
@@ -709,8 +707,6 @@ extension TranscriptionStorage {
         } else {
           try Self.admitWork(
             database, conversationId: conversationId, generation: generation, kind: .structure, now: now)
-          try Self.admitWork(
-            database, conversationId: conversationId, generation: generation, kind: .actionItems, now: now)
         }
       }
     }
@@ -929,8 +925,6 @@ extension TranscriptionStorage {
           arguments: [ConversationLifecycleState.processing.rawValue, now, replacementId.lowercased()])
         try Self.admitWork(
           database, conversationId: replacementId.lowercased(), generation: 1, kind: .structure, now: now)
-        try Self.admitWork(
-          database, conversationId: replacementId.lowercased(), generation: 1, kind: .actionItems, now: now)
         guard
           let replacement = try Row.fetchOne(
             database,
@@ -1144,9 +1138,6 @@ extension TranscriptionStorage {
         try Self.admitWork(
           database, conversationId: conversationId, generation: newGeneration,
           kind: .structure, now: now)
-        try Self.admitWork(
-          database, conversationId: conversationId, generation: newGeneration,
-          kind: .actionItems, now: now)
         guard
           let updated = try Row.fetchOne(
             database,
@@ -1165,6 +1156,27 @@ extension TranscriptionStorage {
   ) async throws -> [ConversationEnrichmentWork] {
     let db = try await localAuthorityDatabase()
     return try await db.write { database in
+      // Retired jobs remain as historical rows, but can never be retried or
+      // hold a conversation open after its retained enrichment finishes.
+      try database.execute(
+        sql: """
+          UPDATE conversation_enrichment_work SET state = ?, updatedAt = ?
+          WHERE kind = ? AND state IN (?, ?)
+          """,
+        arguments: [
+          ConversationEnrichmentState.superseded.rawValue, now,
+          ConversationEnrichmentKind.actionItems.rawValue,
+          ConversationEnrichmentState.pending.rawValue, ConversationEnrichmentState.running.rawValue,
+        ])
+      let processing = try Row.fetchAll(
+        database,
+        sql: "SELECT conversationId, contentGeneration FROM transcription_sessions WHERE status = ?",
+        arguments: [ConversationLifecycleState.processing.rawValue])
+      for row in processing {
+        try Self.completeConversationWhenEnrichmentIsTerminal(
+          database,
+          conversationId: row["conversationId"], generation: row["contentGeneration"], now: now)
+      }
       let staleCutoff = now.addingTimeInterval(-minimumRunningAge)
       let staleDiscardRows = try Row.fetchAll(
         database,
@@ -1195,8 +1207,6 @@ extension TranscriptionStorage {
         guard database.changesCount == 1 else { continue }
         try Self.admitWork(
           database, conversationId: conversationId, generation: generation, kind: .structure, now: now)
-        try Self.admitWork(
-          database, conversationId: conversationId, generation: generation, kind: .actionItems, now: now)
         try database.execute(
           sql: """
             UPDATE transcription_sessions SET status = ?, lastError = ?, updatedAt = ?
@@ -1321,6 +1331,7 @@ extension TranscriptionStorage {
     kind: ConversationEnrichmentKind,
     authorization: LocalMutationAuthorization
   ) async throws -> ConversationDiscardWorkClaim? {
+    guard kind != .actionItems else { return nil }
     let db = try await localAuthorityDatabase()
     return try await authorization.withCommitLease {
       try await db.write { database in
@@ -1483,109 +1494,6 @@ extension TranscriptionStorage {
     }
   }
 
-  func completeActionItemsWork(
-    conversationId: String,
-    contentGeneration: Int,
-    attemptCount: Int,
-    response: ConversationActionItemsComputeResponse,
-    tokenMap: [ConversationActionTaskToken],
-    authorization: LocalMutationAuthorization,
-    now: Date = Date(),
-    failAfterOperations: Int? = nil
-  ) async throws -> ConversationStructureCommitResult {
-    let tokens = Dictionary(lastWriteWins: tokenMap.map { ($0.token, $0.localRowId) })
-    let db = try await localAuthorityDatabase()
-    return try await authorization.withCommitLease {
-      try await db.write { database in
-        try authorization.require()
-        guard try database.tableExists("action_items") else {
-          throw TranscriptionStorageError.invalidState("action_items table unavailable")
-        }
-        guard
-          let generation = try Int.fetchOne(
-            database,
-            sql: "SELECT contentGeneration FROM transcription_sessions WHERE conversationId = ?",
-            arguments: [conversationId])
-        else { return .missing }
-        guard generation == contentGeneration else { return .stale }
-        let work = try Row.fetchOne(
-          database,
-          sql:
-            "SELECT state, attemptCount FROM conversation_enrichment_work WHERE conversationId = ? AND contentGeneration = ? AND kind = ?",
-          arguments: [conversationId, contentGeneration, ConversationEnrichmentKind.actionItems.rawValue])
-        guard
-          work?["state"] as String? == ConversationEnrichmentState.running.rawValue,
-          work?["attemptCount"] as Int? == attemptCount
-        else { return .missing }
-
-        var operationCount = 0
-        for candidate in response.candidates {
-          let description = candidate.description.trimmingCharacters(in: .whitespacesAndNewlines)
-          guard !description.isEmpty, description.count <= 4_096 else {
-            throw TranscriptionStorageError.invalidState("invalid action-item candidate")
-          }
-          let dueAt = candidate.dueAt.flatMap {
-            $0 >= now.addingTimeInterval(-24 * 60 * 60) ? $0 : nil
-          }
-          switch candidate.action {
-          case .create:
-            guard candidate.targetTaskToken == nil else {
-              throw TranscriptionStorageError.invalidState("create candidate contains target")
-            }
-            try database.execute(
-              sql: """
-                INSERT INTO action_items
-                  (description, completed, deleted, source, conversationId,
-                   dueAt, createdAt, updatedAt)
-                VALUES (?, 0, 0, 'conversation', ?, ?, ?, ?)
-                """,
-              arguments: [description, conversationId, dueAt, now, now])
-          case .update, .complete:
-            guard let token = candidate.targetTaskToken, let localRowId = tokens[token] else {
-              throw TranscriptionStorageError.invalidState("candidate target was not supplied")
-            }
-            if candidate.action == .update {
-              try database.execute(
-                sql: """
-                  UPDATE action_items SET description = ?, dueAt = ?, updatedAt = ?
-                  WHERE id = ? AND completed = 0 AND deleted = 0
-                  """,
-                arguments: [description, dueAt, now, localRowId])
-            } else {
-              try database.execute(
-                sql: """
-                  UPDATE action_items SET completed = 1, completedAt = ?, updatedAt = ?
-                  WHERE id = ? AND completed = 0 AND deleted = 0
-                  """,
-                arguments: [now, now, localRowId])
-            }
-            guard database.changesCount == 1 else {
-              throw TranscriptionStorageError.invalidState("candidate target is no longer open")
-            }
-          }
-          operationCount += 1
-          if failAfterOperations == operationCount {
-            throw TranscriptionStorageError.invalidState("injected action-item failure")
-          }
-        }
-        try database.execute(
-          sql: """
-            UPDATE conversation_enrichment_work SET state = ?, lastError = NULL, updatedAt = ?
-            WHERE conversationId = ? AND contentGeneration = ? AND kind = ? AND state = ? AND attemptCount = ?
-            """,
-          arguments: [
-            ConversationEnrichmentState.succeeded.rawValue, now, conversationId, contentGeneration,
-            ConversationEnrichmentKind.actionItems.rawValue, ConversationEnrichmentState.running.rawValue,
-            attemptCount,
-          ])
-        guard database.changesCount == 1 else { return .missing }
-        try Self.completeConversationWhenEnrichmentIsTerminal(
-          database, conversationId: conversationId, generation: contentGeneration, now: now)
-        return .applied
-      }
-    }
-  }
-
   func failEnrichmentWork(
     conversationId: String,
     contentGeneration: Int,
@@ -1676,8 +1584,6 @@ extension TranscriptionStorage {
         guard database.changesCount == 1 else { return .missing }
         try Self.admitWork(
           database, conversationId: conversationId, generation: contentGeneration, kind: .structure, now: now)
-        try Self.admitWork(
-          database, conversationId: conversationId, generation: contentGeneration, kind: .actionItems, now: now)
         try database.execute(
           sql: "UPDATE transcription_sessions SET status = ?, updatedAt = ? WHERE conversationId = ?",
           arguments: [ConversationLifecycleState.processing.rawValue, now, conversationId])
@@ -1723,8 +1629,6 @@ extension TranscriptionStorage {
         guard database.changesCount == 1 else { return .missing }
         try Self.admitWork(
           database, conversationId: conversationId, generation: contentGeneration, kind: .structure, now: now)
-        try Self.admitWork(
-          database, conversationId: conversationId, generation: contentGeneration, kind: .actionItems, now: now)
         try database.execute(
           sql: "UPDATE transcription_sessions SET status = ?, lastError = ?, updatedAt = ? WHERE conversationId = ?",
           arguments: [ConversationLifecycleState.processing.rawValue, reason, now, conversationId])
@@ -1880,6 +1784,7 @@ extension TranscriptionStorage {
     kind: ConversationEnrichmentKind,
     now: Date
   ) throws {
+    guard kind != .actionItems else { return }
     try database.execute(
       sql: """
         INSERT OR IGNORE INTO conversation_enrichment_work
@@ -1901,12 +1806,11 @@ extension TranscriptionStorage {
         sql: """
           SELECT COUNT(*) FROM conversation_enrichment_work
           WHERE conversationId = ? AND contentGeneration = ?
-            AND kind IN (?, ?) AND state IN (?, ?)
+            AND kind = ? AND state IN (?, ?)
           """,
         arguments: [
           conversationId, generation,
           ConversationEnrichmentKind.structure.rawValue,
-          ConversationEnrichmentKind.actionItems.rawValue,
           ConversationEnrichmentState.pending.rawValue,
           ConversationEnrichmentState.running.rawValue,
         ]) ?? 0

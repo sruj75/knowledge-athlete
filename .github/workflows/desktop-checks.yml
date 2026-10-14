@@ -45,7 +45,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             desktop/macos/agent/package-lock.json
-            desktop/macos/pi-mono-extension/package-lock.json
 
-      - name: Check desktop agent runtime
-        run: desktop/macos/scripts/test-tool-surfaces.sh
+      - name: Check conversation storage
+        working-directory: desktop/macos/agent
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm test

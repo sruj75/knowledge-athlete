@@ -1,20 +1,9 @@
 import Foundation
 
-struct YourStatsTaskCounts: Equatable, Sendable {
-  let todo: Int
-  let done: Int
-  let deleted: Int
-}
-
 struct YourStatsSnapshot: Equatable, Sendable {
   let conversations: Int
   let chatMessages: Int
   let screenshots: Int
-  let focusSessions: Int
-  let tasksTodo: Int
-  let tasksDone: Int
-  let tasksDeleted: Int
-  let goals: Int
   let memories: Int
 }
 
@@ -49,15 +38,10 @@ enum YourStatsChatCatalogReader {
 @MainActor
 struct YourStatsLocalReaders {
   typealias CountReader = @MainActor (RuntimeOwnerAuthorizationSnapshot) async throws -> Int
-  typealias TaskCountReader =
-    @MainActor (RuntimeOwnerAuthorizationSnapshot) async throws -> YourStatsTaskCounts
 
   var conversations: CountReader
   var chatMessages: CountReader
   var screenshots: CountReader
-  var focusSessions: CountReader
-  var taskCounts: TaskCountReader
-  var goals: CountReader
   var memories: CountReader
 
   static let live = YourStatsLocalReaders(
@@ -72,20 +56,6 @@ struct YourStatsLocalReaders {
     },
     screenshots: { snapshot in
       try await RewindDatabase.shared.getScreenshotCount(authorizationSnapshot: snapshot)
-    },
-    focusSessions: { snapshot in
-      try await ProactiveStorage.shared.getTotalFocusSessionCount(authorizationSnapshot: snapshot)
-    },
-    taskCounts: { snapshot in
-      let counts = try await ActionItemStorage.shared.getFilterCounts(
-        authorizationSnapshot: snapshot)
-      return YourStatsTaskCounts(todo: counts.todo, done: counts.done, deleted: counts.deleted)
-    },
-    goals: { snapshot in
-      try await GoalStorage.shared.getLocalGoals(
-        activeOnly: false,
-        authorizationSnapshot: snapshot
-      ).count
     },
     memories: { snapshot in
       try await MemoryStorage.shared.getStats(authorizationSnapshot: snapshot).total
@@ -105,9 +75,6 @@ enum YourStatsLocalLoader {
     async let conversationsRead = readers.conversations(authorization)
     async let chatMessagesRead: Int? = try? await readers.chatMessages(authorization)
     async let screenshotsRead: Int? = try? await readers.screenshots(authorization)
-    async let focusSessionsRead = readers.focusSessions(authorization)
-    async let taskCountsRead = readers.taskCounts(authorization)
-    async let goalsRead = readers.goals(authorization)
     async let memoriesRead = readers.memories(authorization)
 
     let conversations = try await conversationsRead
@@ -119,15 +86,6 @@ enum YourStatsLocalLoader {
     let screenshots = await screenshotsRead ?? 0
     guard isCurrent(authorization) else { return nil }
 
-    let focusSessions = try await focusSessionsRead
-    guard isCurrent(authorization) else { return nil }
-
-    let tasks = try await taskCountsRead
-    guard isCurrent(authorization) else { return nil }
-
-    let goals = try await goalsRead
-    guard isCurrent(authorization) else { return nil }
-
     let memories = try await memoriesRead
     guard isCurrent(authorization) else { return nil }
 
@@ -135,11 +93,6 @@ enum YourStatsLocalLoader {
       conversations: conversations,
       chatMessages: chatMessages,
       screenshots: screenshots,
-      focusSessions: focusSessions,
-      tasksTodo: tasks.todo,
-      tasksDone: tasks.done,
-      tasksDeleted: tasks.deleted,
-      goals: goals,
       memories: memories
     )
   }

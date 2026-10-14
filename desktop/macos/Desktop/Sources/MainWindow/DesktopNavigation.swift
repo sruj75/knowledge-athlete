@@ -4,8 +4,6 @@ enum DesktopDestination: Int, CaseIterable, Sendable {
   case home = 0
   case memory = 1
   case memories = 3
-  case tasks = 4
-  case insights = 5
   case rewind = 7
   case settings = 9
   case permissions = 10
@@ -15,8 +13,6 @@ enum DesktopDestination: Int, CaseIterable, Sendable {
     case .home: return "Home"
     case .memory: return "Memory"
     case .memories: return "Memories"
-    case .tasks: return "Tasks"
-    case .insights: return "Insights"
     case .rewind: return "Rewind"
     case .settings: return "Settings"
     case .permissions: return "Permissions"
@@ -28,8 +24,6 @@ enum DesktopDestination: Int, CaseIterable, Sendable {
     case .home: return "house.fill"
     case .memory: return "brain"
     case .memories: return "brain.head.profile"
-    case .tasks: return "checklist"
-    case .insights: return "lightbulb.fill"
     case .rewind: return "clock.arrow.circlepath"
     case .settings: return "gearshape.fill"
     case .permissions: return "exclamationmark.triangle.fill"
@@ -41,7 +35,6 @@ enum DesktopNavigationEffect: Equatable, Sendable {
   case none
   case openHomeChat
   case selectMemory(MemoryHubDestination)
-  case selectInsights(InsightsHubSegment)
 }
 
 struct DesktopNavigationResolution: Equatable, Sendable {
@@ -50,7 +43,7 @@ struct DesktopNavigationResolution: Equatable, Sendable {
 }
 
 enum DesktopNavigationPolicy {
-  static let primaryDestinations: [DesktopDestination] = [.home, .memory, .tasks, .insights]
+  static let primaryDestinations: [DesktopDestination] = [.home, .memory]
 
   static func destination(forRawValue rawValue: Int) -> DesktopDestination? {
     DesktopDestination(rawValue: rawValue)
@@ -64,8 +57,6 @@ enum DesktopNavigationPolicy {
     switch normalized(shortcut) {
     case "1", "home", "dashboard": return .home
     case "2", "memory", "memories": return .memories
-    case "3", "tasks": return .tasks
-    case "4", "insight", "insights": return .insights
     case ",", "comma", "settings": return .settings
     default: return nil
     }
@@ -81,12 +72,6 @@ enum DesktopNavigationPolicy {
       return DesktopNavigationResolution(destination: .home, effect: .openHomeChat)
     case "memories":
       return DesktopNavigationResolution(destination: .memory, effect: .selectMemory(.memories))
-    case "tasks":
-      return DesktopNavigationResolution(destination: .tasks, effect: .none)
-    case "focus":
-      return DesktopNavigationResolution(destination: .insights, effect: .selectInsights(.focus))
-    case "insight", "insights":
-      return DesktopNavigationResolution(destination: .insights, effect: .selectInsights(.insights))
     case "rewind":
       return DesktopNavigationResolution(destination: .rewind, effect: .none)
     case "settings":
@@ -99,7 +84,7 @@ enum DesktopNavigationPolicy {
   }
 
   static func returnsHomeOnUnhandledEscape(from destination: DesktopDestination) -> Bool {
-    [.memory, .memories, .tasks, .rewind].contains(destination)
+    [.memory, .memories, .rewind].contains(destination)
   }
 
   static func isRewindShortcut(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {

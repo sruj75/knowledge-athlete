@@ -10,18 +10,24 @@ sources:
     resource: repo://backend/tests/unit/test_memory_compute.py
   - id: openwiki-source-577b743ef6d29a4ab11ce6a1
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift
+  - id: openwiki-source-065e1413f2209aa55896a4ac
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+  - id: openwiki-source-a3d51a297b17a104757cdbe1
+    resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift
   - id: openwiki-source-83de7f0f3608399f3b050de3
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift
+  - id: openwiki-source-09ee795cdf804c9c27a7a9a6
+    resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift
   - id: openwiki-source-67c279c1fb27efbebf9fa81a
     resource: repo://desktop/macos/Desktop/Tests/LocalMemoryLifecycleRunnerTests.swift
   - id: openwiki-source-c40e9e241b6526aaeb39d5dc
     resource: repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T19:56:49.848Z
+    at: 2026-10-14T14:40:28.560Z
 ---
 # Memory lifecycle
 
@@ -29,9 +35,9 @@ MemoryStorage is the local archive owner. Intake starts as local assertions and 
 
 ## Supervisor reads and retired screen writers
 
-The [A–B–C supervisor](supervisor-conversation.md) reads up to twenty existing local Memories and the latest profile under captured owner authorization. Those reads are bounded and empty results are valid; they do not regenerate a profile or add semantic retrieval. B returns only private conversation guidance and has no product-write capability.
+The [Supervisor B](supervisor-conversation.md) reads up to twenty existing local Memories and the latest profile under captured owner authorization. Those reads are bounded and empty results are valid; they do not regenerate a profile or add semantic retrieval. B returns only private conversation guidance and has no product-write capability. Frozen tasks/goals are excluded from active coaching and profile inputs.
 
-The five old screen workers no longer register or run, so they no longer create Memory, Tasks, Focus or Insights from screenshots. Their records remain readable, and the local Memory lifecycle, archive/search, manual operations and independent conversation enrichment continue through their existing owners. The retention flow checks this separation; changing the supervisor does not replace the lifecycle described below.
+The five old screen workers no longer register or run, so they no longer create Memory, Tasks, Focus or Insights from screenshots. Their records remain preserved. Generic Memory extraction, normalization, consolidation, embeddings, manual Memory operations, archive/search and profile generation continue through their existing owners. Existing tips-tagged Memories remain available. Tasks/goals/Insights/Focus navigation and task action-item extraction are retired, including retries and admissions after edits or merges; recovery supersedes pending retired jobs so structure processing can finish. The retention flow checks this separation; changing the supervisor does not replace the lifecycle described below.
 
 ## Processing loop
 

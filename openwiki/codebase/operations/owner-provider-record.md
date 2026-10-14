@@ -26,10 +26,10 @@ sources:
     resource: repo://desktop/macos/scripts/desktop-core-harness.sh
   - id: openwiki-source-3ff70d80feb2d0ad64f504ba
     resource: repo://scripts/dev-harness/dev_harness/providers.py
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-10-14T14:40:28.560Z
 ---
 # Owner and provider record
 
@@ -96,7 +96,7 @@ project. Project membership for that email was not queried.
 | Desktop artifact bucket | `knowledge-athlete-desktop-updates-dev`; private, uniform bucket-level access |
 | Account-deletion queue | Cloud Tasks `account-deletion`, `us-west1`; 1 concurrent dispatch, 5 attempts |
 | Cost settings | Recorded INR 100 monthly alert budget, thresholds 50%/80%/100%, recipient `srujan@heyintentive.com`; Gemini prepaid auto-reload off. Alerts do not cap spending. |
-| Langfuse | `https://us.cloud.langfuse.com`; tracing environment `development`; prompts `intentive-chat-system`, `intentive-live-system` and `intentive-supervisor-system`; label defaults to `production` and can be selected by `LANGFUSE_PROMPT_LABEL`; cache TTL defaults to 300 seconds |
+| Langfuse | `https://us.cloud.langfuse.com`; tracing environment `development`; prompts `intentive-live-system` for all A routes and `intentive-supervisor-system` for B; label defaults to `production` and can be selected by `LANGFUSE_PROMPT_LABEL`; cache TTL defaults to 300 seconds |
 | PostHog | US ingestion: `https://us.i.posthog.com` |
 
 ### Cloud service identities
@@ -118,14 +118,15 @@ Recorded WIF provider:
 
 | Provider | Model / setting | Responsibility |
 | --- | --- | --- |
-| Gemini | `gemini-3.7-flash` | Chat, supervisor, greeting, conversation processing, Memory compute, and fair-use classification |
+| Gemini | `gemini-3.8-flash`, low thinking | Direct conversational A and Supervisor B |
+| Gemini | `gemini-3.7-flash` | Retained greeting, conversation processing, Memory compute, and fair-use classification |
 | Gemini | `gemini-2.5-flash-lite` | Session titles and segment translation |
 | Gemini | `gemini-embedding-001` | Embedding generation |
 | Gemini Live | `gemini-3.1-flash-live-preview` | Native realtime voice |
 | OpenAI | `gpt-4o-mini-tts` | Text-to-speech; recorded key scope `/v1/audio/speech` |
 | Modulate | `velma-2-stt-streaming`, `velma-2-stt-batch` | Live and prerecorded transcription; recorded key limit 500 credits |
 
-Managed prompt names and label selection describe the current resolver, not a guarantee that those versions exist in a hosted project. A pins its prompt to the physical Live session; B resolves it per evaluation. Local test labels can be selected without changing the default production label. See [provider behavior](../integrations/providers.md) and the [evaluation export policy](../integrations/telemetry.md).
+Managed prompt names and label selection describe the current resolver, not a guarantee that those versions exist in a hosted project. A pins its exact prompt version/hash to the logical conversation across typed, Live, reconnect and fallback routes; B resolves it per evaluation. The versioned repository A fallback is chosen only at creation. Local test labels can be selected without changing the default production label. See [provider behavior](../integrations/providers.md) and the [evaluation export policy](../integrations/telemetry.md).
 
 ## Build, updates, and website
 

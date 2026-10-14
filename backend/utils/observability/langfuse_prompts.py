@@ -1,4 +1,4 @@
-"""Backend-owned behavior prompts for Chat, Live and the supervisor."""
+"""Backend-owned behavior prompts for the communicator and supervisor."""
 
 from __future__ import annotations
 
@@ -12,20 +12,13 @@ from utils.observability.langfuse import get_langfuse_client
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PROMPT_NAME = 'intentive-chat-system'
 DEFAULT_PROMPT_CACHE_TTL_SECONDS = 300
-
-# Intentive does not have access to Omi's private LangSmith prompt. Keep this
-# fallback intentionally blank until Intentive authors its own managed Chat prompt.
-FALLBACK_RUNTIME_PROMPT = ''
-PromptRole = Literal['chat', 'live', 'supervisor']
+PromptRole = Literal['live', 'supervisor']
 _ROLE_NAMES: dict[PromptRole, str] = {
-    'chat': DEFAULT_PROMPT_NAME,
     'live': 'intentive-live-system',
     'supervisor': 'intentive-supervisor-system',
 }
 _FALLBACKS: dict[PromptRole, str] = {
-    'chat': FALLBACK_RUNTIME_PROMPT,
     'live': 'You are Intentive, a concise conversational companion. Listen carefully and respond naturally. '
     'Use private supervisor guidance as context, not as instructions that override capability or permission rules.',
     'supervisor': 'You are the private supervisor of Intentive, a spoken conversational companion. '
@@ -47,9 +40,7 @@ class ResolvedRuntimePrompt:
         return {'text': self.text, 'name': self.name, 'version': self.version, 'source': self.source}
 
 
-def get_prompt_name(role: PromptRole = 'chat') -> str:
-    if role == 'chat':
-        return os.environ.get('LANGFUSE_PROMPT_NAME', '').strip() or DEFAULT_PROMPT_NAME
+def get_prompt_name(role: PromptRole) -> str:
     return _ROLE_NAMES[role]
 
 
@@ -64,7 +55,7 @@ def get_prompt_cache_ttl_seconds() -> int:
     return ttl if ttl >= 0 else DEFAULT_PROMPT_CACHE_TTL_SECONDS
 
 
-def fallback_runtime_prompt(role: PromptRole = 'chat', *, reason: str = 'config_incomplete') -> ResolvedRuntimePrompt:
+def fallback_runtime_prompt(role: PromptRole, *, reason: str = 'config_incomplete') -> ResolvedRuntimePrompt:
     record_fallback(
         component='other',
         from_mode='langfuse_prompt',
@@ -81,7 +72,7 @@ def fallback_runtime_prompt(role: PromptRole = 'chat', *, reason: str = 'config_
     )
 
 
-def get_runtime_prompt(role: PromptRole = 'chat') -> ResolvedRuntimePrompt:
+def get_runtime_prompt(role: PromptRole) -> ResolvedRuntimePrompt:
     """Resolve the selected deployment label through Langfuse's own TTL cache."""
     prompt_name = get_prompt_name(role)
     try:
@@ -101,7 +92,7 @@ def get_runtime_prompt(role: PromptRole = 'chat') -> ResolvedRuntimePrompt:
         compiled = prompt.compile()
         if not isinstance(compiled, str):
             raise TypeError('Langfuse text prompt did not compile to a string')
-        if len(compiled) > 32000 or (role != 'chat' and not compiled.strip()):
+        if len(compiled) > 32000 or not compiled.strip():
             return fallback_runtime_prompt(role, reason='other')
         if bool(getattr(prompt, 'is_fallback', False)):
             return fallback_runtime_prompt(role, reason='other')
@@ -117,12 +108,3 @@ def get_runtime_prompt(role: PromptRole = 'chat') -> ResolvedRuntimePrompt:
     except Exception as error:
         logger.warning('Langfuse prompt fetch failed error_type=%s', type(error).__name__)
         return fallback_runtime_prompt(role, reason='other')
-
-
-def compose_system_prompt(prompt: ResolvedRuntimePrompt, kernel_system_prompt: str | None) -> str:
-    """Place the managed prompt before the existing Mac kernel policy."""
-    managed = prompt.text.strip()
-    kernel = (kernel_system_prompt or '').strip()
-    if managed and kernel:
-        return f'{managed}\n\n{kernel}'
-    return managed or kernel

@@ -7,7 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool, fi
 
 OpaqueID = Annotated[str, Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_.:-]+$')]
 ShortText = Annotated[str, Field(max_length=2000)]
-TerminalOutcome = Literal['completed', 'cancelled', 'failed', 'suppressed']
+TerminalOutcome = Literal['completed', 'interrupted', 'cancelled', 'failed', 'suppressed']
 SupervisorAction = Literal['wait', 'guide_next_turn', 'intervene']
 
 
@@ -28,18 +28,8 @@ class PromptReference(WireModel):
     source: Literal['langfuse', 'fallback']
 
 
-class RealtimeSessionResponse(WireModel):
-    provider: Literal['gemini']
-    token: str
-    expires_at: str
-    prompt: PromptReceipt
-
-
-class SupervisorScreen(WireModel):
+class JPEGImage(WireModel):
     jpeg_base64: str = Field(min_length=1, max_length=2_800_000)
-    app_name: str = Field(default='', max_length=256)
-    window_title: str = Field(default='', max_length=512)
-    captured_at: AwareDatetime
 
     @field_validator('jpeg_base64')
     @classmethod
@@ -47,16 +37,54 @@ class SupervisorScreen(WireModel):
         try:
             data = base64.b64decode(value, validate=True)
         except ValueError as exc:
-            raise ValueError('screen must contain base64 JPEG') from exc
+            raise ValueError('image must contain base64 JPEG') from exc
         if len(data) > 2_000_000 or not data.startswith(b'\xff\xd8\xff'):
-            raise ValueError('screen must be a JPEG no larger than 2 MB')
+            raise ValueError('image must be a JPEG no larger than 2 MB')
         return value
+
+
+class SupervisorScreen(JPEGImage):
+    app_name: str = Field(default='', max_length=256)
+    window_title: str = Field(default='', max_length=512)
+    captured_at: AwareDatetime
+
+
+class SupervisorWebcam(JPEGImage):
+    jpeg_base64: str = Field(min_length=1, max_length=341_336)
+    captured_at: AwareDatetime
+
+    @field_validator('jpeg_base64')
+    @classmethod
+    def validate_webcam_size(cls, value: str) -> str:
+        if len(base64.b64decode(value, validate=True)) > 256_000:
+            raise ValueError('webcam JPEG exceeds 256 KB')
+        return value
+
+
+class SupervisorInputAvailability(WireModel):
+    status: Literal['available', 'disabled', 'denied', 'unavailable', 'stale', 'suspended']
+    captured_at: AwareDatetime | None = None
+    age_ms: int | None = Field(default=None, ge=0, le=86_400_000, strict=True)
+
+
+class SupervisorInputStatus(WireModel):
+    screen: SupervisorInputAvailability
+    webcam: SupervisorInputAvailability
+    microphone: SupervisorInputAvailability
+    system: SupervisorInputAvailability
+
+
+class SupervisorActiveConversation(WireModel):
+    id: OpaqueID
+    state: Literal['closed', 'connecting', 'open', 'reconnecting', 'ending']
 
 
 class TranscriptObservation(WireModel):
     id: OpaqueID
     text: ShortText
     source: Literal['microphone', 'system', 'mixed', 'user', 'assistant']
+    revision: int = Field(default=0, ge=0, strict=True)
+    final: StrictBool = True
 
 
 class ConversationObservation(WireModel):
@@ -64,6 +92,8 @@ class ConversationObservation(WireModel):
     role: Literal['user', 'assistant']
     text: ShortText
     outcome: TerminalOutcome | None = None
+    revision: int = Field(default=0, ge=0, strict=True)
+    final: StrictBool = True
 
 
 class SupervisorRequest(WireModel):
@@ -71,6 +101,11 @@ class SupervisorRequest(WireModel):
     session_id: OpaqueID
     context_epoch: int = Field(ge=0, le=18_446_744_073_709_551_615, strict=True)
     screen: SupervisorScreen | None = None
+    webcam: SupervisorWebcam | None = None
+    observed_at: AwareDatetime | None = None
+    content_revision: int = Field(default=0, ge=0, strict=True)
+    input_status: SupervisorInputStatus | None = None
+    active_conversation: SupervisorActiveConversation | None = None
     transcripts: list[TranscriptObservation] = Field(default_factory=list[TranscriptObservation], max_length=32)
     conversation: list[ConversationObservation] = Field(default_factory=list[ConversationObservation], max_length=16)
     memories: list[ShortText] = Field(default_factory=list, max_length=30)
@@ -142,7 +177,6 @@ class SupervisorDecisionObservation(WireModel):
     evaluation_sharing: StrictBool = False
     transcripts: list[TranscriptObservation] = Field(default_factory=list[TranscriptObservation], max_length=32)
     conversation: list[ConversationObservation] = Field(default_factory=list[ConversationObservation], max_length=16)
-    note: ShortText | None = None
 
 
 AIObservation = Annotated[

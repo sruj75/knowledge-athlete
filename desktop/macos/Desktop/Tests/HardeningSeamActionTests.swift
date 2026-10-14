@@ -4,8 +4,6 @@ import XCTest
 
 /// Harness seams for the last runtime-blocked hardening rows:
 ///
-/// - TASK-05: `reorder_task` commits through the local-authoritative task path;
-///   the retired backend-sync flush control must not survive on the harness API.
 /// - CHAT-07: `simulate_system_wake` posts `NSWorkspace.didWakeNotification` on
 ///   the workspace notification center, then AppState re-broadcasts `.systemDidWake`
 ///   so post-wake restart paths run without physically sleeping the machine.
@@ -14,17 +12,6 @@ import XCTest
 /// in the test host, so these pin the wiring; the behavior is the runtime lane
 /// (SKILL §2k/§2l).
 final class HardeningSeamActionTests: XCTestCase {
-
-  func testReorderTaskHasNoRetiredBackendSyncFlushControl() throws {
-    let source = try tasksPageSource()
-    guard let start = source.range(of: "name: \"reorder_task\"") else {
-      return XCTFail("reorder_task registration not found")
-    }
-    let block = String(source[start.lowerBound...].prefix(2200))
-    XCTAssertFalse(block.contains("\"flush\""))
-    XCTAssertFalse(block.contains("flushSortOrderSyncForAutomation"))
-    XCTAssertTrue(block.contains("await self.reorderTask"))
-  }
 
   func testSimulateSystemWakeIsRegisteredNonProdGatedAndPostsTheRealSignal() throws {
     let source = try bridgeSource()
@@ -116,15 +103,6 @@ final class HardeningSeamActionTests: XCTestCase {
       .deletingLastPathComponent()
       .appendingPathComponent("Sources/AuthService.swift")
     // omi-test-quality: source-inspection -- static contract: AUTH-03 token seams stay double-gated on AppBuild.isNonProduction, never return token material, and force expiry via saveTokens (real storage) not a UserDefaults key.
-    return try String(contentsOf: url, encoding: .utf8)
-  }
-
-  private func tasksPageSource() throws -> String {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/TasksPage.swift")
-    // omi-test-quality: source-inspection -- static contract: the reorder_task flush seam must stay param-gated with a flush=true default; it runs through the registry against the @MainActor store and can't be unit-run.
     return try String(contentsOf: url, encoding: .utf8)
   }
 

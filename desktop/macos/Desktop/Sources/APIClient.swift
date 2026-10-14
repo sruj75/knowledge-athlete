@@ -190,7 +190,7 @@ actor APIClient {
     }
   }
 
-  private func performRealtimeMintRequest(
+  func performRealtimeMintRequest(
     _ request: URLRequest,
     provider: ManagedInferenceProvider?,
     authPolicy: RequestAuthPolicy,
@@ -277,7 +277,9 @@ actor APIClient {
     inputAudio: Int,
     inputCached: Int,
     outputText: Int,
-    outputAudio: Int
+    outputAudio: Int,
+    thinking: Int = 0,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async {
     let base = baseURL
     guard !base.isEmpty else { return }
@@ -288,7 +290,13 @@ actor APIClient {
     request.timeoutInterval = 15
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     do {
-      let headers = try await buildHeaders(requireAuth: true)
+      var policy = RequestAuthPolicy.providerCredentialBoundary
+      policy.expectedAuthOwnerId = authorizationSnapshot?.ownerID
+      policy.authorizationSnapshot = authorizationSnapshot
+      try validateExpectedOwner(policy)
+      let headers = try await buildHeaders(
+        requireAuth: true, expectedAuthOwnerId: authorizationSnapshot?.ownerID)
+      try validateExpectedOwner(policy)
       for (k, v) in headers { request.setValue(v, forHTTPHeaderField: k) }
       let body: [String: Any] = [
         "input_text_tokens": inputText,
@@ -296,8 +304,10 @@ actor APIClient {
         "input_cached_tokens": inputCached,
         "output_text_tokens": outputText,
         "output_audio_tokens": outputAudio,
+        "thinking_tokens": thinking,
       ]
       request.httpBody = try JSONSerialization.data(withJSONObject: body)
+      try validateExpectedOwner(policy)
       _ = try await session.data(for: request)
     } catch {
       log("APIClient: realtime usage report failed: \(error.localizedDescription)")
@@ -363,7 +373,7 @@ actor APIClient {
   }
 
   /// Refresh auth and build a retry request. Returns nil when already retried (caller should throw).
-  private func authorizedRetryRequest(
+  func authorizedRetryRequest(
     from request: URLRequest,
     retriedAuth: Bool,
     authPolicy: RequestAuthPolicy
@@ -490,7 +500,7 @@ actor APIClient {
       return
     }
     guard let expectedOwnerId = authPolicy.expectedAuthOwnerId else { return }
-    guard AuthorizedToolExecution.isOwnerCurrent(expectedOwnerId) else {
+    guard RuntimeOwnerIdentity.isAuthenticatedOwnerCurrent(expectedOwnerId) else {
       throw AuthError.userChangedDuringRequest
     }
   }

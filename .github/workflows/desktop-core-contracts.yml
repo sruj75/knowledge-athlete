@@ -5,7 +5,6 @@ on:
     paths:
       - ".github/workflows/desktop-core-contracts.yml"
       - "desktop/macos/scripts/desktop-core-harness.sh"
-      - "desktop/macos/scripts/agent-continuity-gauntlet-lib.py"
       - "desktop/macos/scripts/desktop-flow-lint.py"
       - "desktop/macos/scripts/desktop_flow_contract.py"
       - "desktop/macos/e2e/**"
@@ -13,8 +12,6 @@ on:
       - "desktop/macos/Desktop/Sources/Automation/DesktopAutomationHealth.swift"
       - "desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift"
       - "desktop/macos/Desktop/Sources/DesktopAutomationOpenOmiShortcutQA.swift"
-      - "desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController.swift"
-      - "desktop/macos/Desktop/Sources/MainWindow/Pages/TasksPage.swift"
       - "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesPage.swift"
       - "desktop/macos/Desktop/Sources/MainWindow/Pages/MemoriesViewModel.swift"
       - "desktop/macos/Desktop/Sources/Rewind/Core/RewindArtifactGauntlet.swift"
@@ -31,10 +28,6 @@ jobs:
 
       - name: Install flow lint dependency
         run: python3 -m pip install PyYAML
-
-      - name: Install agent runtime for gauntlet self-check
-        working-directory: desktop/macos/agent
-        run: npm ci
 
       - name: Desktop core E2E self-check (T0)
         run: ./desktop/macos/scripts/desktop-core-harness.sh --self-check

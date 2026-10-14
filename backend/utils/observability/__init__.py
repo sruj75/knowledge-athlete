@@ -16,7 +16,6 @@ from .langfuse import (
 )
 from .langfuse_prompts import (
     ResolvedRuntimePrompt,
-    compose_system_prompt,
     fallback_runtime_prompt,
     get_runtime_prompt,
 )
@@ -28,7 +27,6 @@ __all__ = [
     "safe_label",
     "ChatGeneration",
     "ResolvedRuntimePrompt",
-    "compose_system_prompt",
     "create_chat_trace_id",
     "fallback_runtime_prompt",
     "get_langfuse_client",

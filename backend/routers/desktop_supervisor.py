@@ -1,22 +1,20 @@
 """One bounded, private supervisor judgment; it never executes desktop tools."""
 
 import json
+import asyncio
 import os
-from collections.abc import Coroutine, Callable
-from typing import Any
 from time import monotonic
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.routing import APIRoute
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, ValidationError
-from starlette.types import Message
+from utils.bounded_ai_route import BoundedAIRoute
 
 from models.desktop_ai import AIObservation, PromptReceipt, SupervisorDecision, SupervisorRequest, SupervisorResponse
 from services.desktop_inference import (
     authorized_desktop_user,
-    enforce_desktop_gemini_quota,
+    enforce_supervisor_quota,
     enforce_ai_observation_quota,
 )
 from utils.executors import llm_executor, run_blocking
@@ -25,7 +23,12 @@ from utils.observability.fallback import record_fallback
 from utils.observability.langfuse_prompts import fallback_runtime_prompt, get_runtime_prompt
 from utils.llm.desktop_llm_stub import llm_stub_enabled
 from utils.llm.model_config import get_model
-from utils.observability.ai_evaluation import record_client_observation, record_supervisor_observation
+from utils.llm.gemini_usage import GeminiUsage
+from utils.observability.ai_evaluation import (
+    record_client_observation,
+    record_supervisor_observation,
+    start_supervisor_observation,
+)
 
 _MODEL = get_model('supervisor')
 _CONTRACT = (
@@ -35,29 +38,7 @@ _CONTRACT = (
 )
 
 
-class _BoundedAIRoute(APIRoute):
-    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
-        handler = super().get_route_handler()
-
-        async def bounded(request: Request) -> Response:
-            received = 0
-            receive = request.receive
-
-            async def bounded_receive() -> Message:
-                nonlocal received
-                message = await receive()
-                if message['type'] == 'http.request':
-                    received += len(message.get('body', b''))
-                    if received > 3_000_000:
-                        raise HTTPException(status_code=413, detail='Request body is too large')
-                return message
-
-            return await handler(Request(request.scope, receive=bounded_receive))
-
-        return bounded
-
-
-router = APIRouter(route_class=_BoundedAIRoute)
+router = APIRouter(route_class=BoundedAIRoute)
 
 
 class _ProviderPart(BaseModel):
@@ -75,6 +56,8 @@ class _ProviderCandidate(BaseModel):
 
 class _ProviderResponse(BaseModel):
     candidates: list[_ProviderCandidate] = Field(min_length=1)
+    usageMetadata: GeminiUsage | None = None
+    modelVersion: str | None = None
 
 
 @router.post('/v1/supervisor/evaluate', response_model=SupervisorResponse)
@@ -113,20 +96,27 @@ async def evaluate_supervisor(
             duration_ms=0,
         )
         return result
-    await enforce_desktop_gemini_quota(uid)
+    await enforce_supervisor_quota(uid)
     key = os.environ.get('GEMINI_API_KEY', '').strip()
     if not key:
         raise HTTPException(status_code=503, detail='Managed Gemini is not configured')
-    observation = request.model_dump(mode='json', exclude={'screen', 'evaluation_sharing'})
-    parts: list[dict[str, object]] = [{'text': json.dumps(observation, separators=(',', ':'))}]
-    if request.screen is not None:
-        parts.append({'text': json.dumps(request.screen.model_dump(mode='json', exclude={'jpeg_base64'}))})
-        parts.append({'inlineData': {'mimeType': 'image/jpeg', 'data': request.screen.jpeg_base64}})
+    observation = request.model_dump(
+        mode='json', exclude={'screen', 'webcam', 'evaluation_sharing', 'profile', 'memories'}
+    )
+    parts: list[dict[str, object]] = [
+        {'text': json.dumps({'profile': request.profile, 'memories': request.memories}, separators=(',', ':'))},
+        {'text': json.dumps(observation, separators=(',', ':'))},
+    ]
+    for source, frame in [('screen', request.screen), ('webcam', request.webcam)]:
+        if frame is not None:
+            metadata = {'source': source, **frame.model_dump(mode='json', exclude={'jpeg_base64'})}
+            parts.append({'text': json.dumps(metadata, separators=(',', ':'))})
+            parts.append({'inlineData': {'mimeType': 'image/jpeg', 'data': frame.jpeg_base64}})
     payload = {
         'systemInstruction': {'parts': [{'text': prompt.text + _CONTRACT}]},
         'contents': [{'role': 'user', 'parts': parts}],
         'generationConfig': {
-            'temperature': 0.2,
+            'thinkingConfig': {'thinkingLevel': 'low'},
             'maxOutputTokens': 1024,
             'responseMimeType': 'application/json',
             'responseSchema': {
@@ -143,6 +133,16 @@ async def evaluate_supervisor(
     outcome = 'completed'
     failure: HTTPException | None = None
     fallback_reason: str | None = None
+    usage: GeminiUsage | None = None
+    model_version: str | None = None
+    generation = await run_blocking(
+        llm_executor,
+        start_supervisor_observation,
+        uid=uid,
+        request=request,
+        decision_id=decision_id,
+        prompt=prompt,
+    )
     try:
         async with get_gemini_semaphore():
             response = await get_gemini_client().post(
@@ -153,8 +153,13 @@ async def evaluate_supervisor(
             )
         response.raise_for_status()
         provider_body = _ProviderResponse.model_validate(response.json())
+        usage = provider_body.usageMetadata
+        model_version = provider_body.modelVersion
         text = ''.join(part.text for part in provider_body.candidates[0].content.parts if not part.thought)
         decision = SupervisorDecision.model_validate_json(text)
+    except asyncio.CancelledError:
+        generation.cancel()
+        raise
     except httpx.HTTPStatusError as error:
         status = error.response.status_code
         fallback_reason = {402: 'quota', 429: 'provider_429', 401: 'auth', 403: 'auth'}.get(
@@ -193,6 +198,9 @@ async def evaluate_supervisor(
         response=result,
         prompt_client=prompt.prompt_client,
         duration_ms=int((monotonic() - started) * 1000),
+        generation=generation,
+        usage=usage,
+        model_version=model_version,
     )
     if failure is not None:
         raise failure

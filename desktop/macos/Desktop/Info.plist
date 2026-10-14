@@ -37,6 +37,8 @@
 	<string>Intentive needs screen recording permission to monitor your focus and detect distractions.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Intentive needs microphone access to transcribe your conversations in real-time.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>When you enable Webcam, Intentive uses current camera images to understand your context and guide conversation.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Intentive can attach one location snapshot to a conversation when you allow it.</string>
     <key>NSAudioCaptureUsageDescription</key>

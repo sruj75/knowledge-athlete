@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:05ddbc25c542647c6a81ff7b2c75acd613d7eb19cc7cc6ae1c6711b3f50c3ed3",
+  "pageVersion": "sha256:ca10faf1a4a5ea7f528b0166ef4c79429c28d56c38a49f87a6fa678fccc6e55c",
   "claims": [
     {
       "id": "claim_a27d784147154d4482309535c1bb46f4",
@@ -45,36 +45,50 @@
       "statement": "The supervisor reads at most twenty existing Memories and the latest local profile under owner authorization, accepting empty results without creating records or invoking semantic search.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L374-L421",
-          "version": "repo-lines-v1:sha256:39af7756d6b766a8c44e6fd652618f14b0c97b21e7a17ce836ce2d91c37e27e9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjZGI5YjZkZDQzNDY2ZDFjMzRhYmE1ZjNmNDAxMWQ1NTJlMDA1Y2RmNTQ2ZWUxODdjMGJjZDY5ZWI0OWNmNzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwOGI5MzVlMmRhMjM0ZDE1YjQ0M2EwODkxZDQwOGFhYzlkMDZlNzlhZWVjZjlhMDg1ZTNkNWQ1NGQ4ZWEyZDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwMDBhZWZhODM5ODUxY2IzZjEwYTAzNTkxYWFhNmQzMGQxNTkyYTJiNzI4NzdiMjdiMjE0NzJiNDY3MWMyMmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiOWYxZTAxNDA5MWFmMmM1NjU5ZmE4NzQxYmM0NGZiY2U3MjcyZjU1OWExZTU2OTYyZjkyZTAwZTc1Njk5OGQifQ"
-        },
-        {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
-          "version": "repo-lines-v1:sha256:97f333da924c49d5cdc3ea2ea0460035382e6ee8fcee0732c2f1668553bc8cd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhYjZkZjgzMzVhMDFhM2UxZTIzMmFjN2EyOTM1OWExMDIzMzdkZTVkOTg5YTBmMmMzODQ4NmQyNzk0ZTM4Y2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkMTNiYjBlMWE2Mjc4ZDYwNmZlZjI0OWMyZTU2MzM4MWI0NzZiYTM2YjZmNDE1MzM3ODU4MTE3Y2M3YjY4NTkifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
+          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
         }
       ]
     },
     {
       "id": "claim_89c885531a76421d9ba9deb0094be428",
-      "statement": "Screen observation now hands permitted frames to the supervisor while the retained independent capture/storage path remains; the retention flow checks that retired screen workers do not recreate product records.",
+      "statement": "Screen observation hands permitted frames to the supervisor while independent capture/storage retains archival ownership; retired screen workers and action-item producers do not recreate product records.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L738-L784",
-          "version": "repo-lines-v1:sha256:2d444492842279d1bb2fff0dd203d33aeee7b91861042215053ae9a5bd4c1cdd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhNjQ4NjgwYzE3NTkxOTk4MGM0YmY3ODViNDQ5OGM3MDM2YWI1ODU5NWFjZGFiMjA2ZDg0ZGE5Njk0YmE2NDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ2ZTI0YjdlZDkwNWRmYzQ2M2FiODBjYjAzOTc3MTNjOTM4YWY4MWY3OTQ3MzA4Mjg3MDA3NTRmNDM3Y2E3ODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ3MjEzOGVmNWVmYzIwZTY5YmZhZDJkOGVhYWQyNTMzYzE3NTU4YzRlYjAzNWI3NTc0MGYzZjllNDVhZDdhNDAifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L748-L774",
+          "version": "repo-lines-v1:sha256:f638572ce85e3e6b6000aca39c7bc6ee1e43eaa0ce73952bbebdfa3f524ac4bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM1NTAxY2RjOGY4MzNiNTIyM2YzN2JhZGRkZGE2YWU4ZjQ5NmU1NWU5YTRhMDk3MmM4YmNiMzBlN2QxYjM4N2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MjJjNDJjZDE5YzZkMDNkODA4YzQ1MjcyMDU1MjgyNWI3ZWExYzViNDkxYjIxODUxMWNhYzc0MTVjZjlkOWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFkYzBiYWQ0NzcyZGYyNTdhNGE0NjMxM2VmNGVmZGVlNzAyZTY4Yzk1NGZkZTM3ZTFiY2RmZWMwMTU2NTBhM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU5NmI1MDIyMTA2ZjA3MDdmMDI4ZjA4MDFlZmNjZGY5NTRhYWVmYmI1ZjE2YmU3MzY5MjQzNjZlNTVlMTgyMjUifQ"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift#L823-L866",
-          "version": "repo-lines-v1:sha256:5ebc2d411497f94bb6db137f1ab9feefe8b08e3fb7a9f564dc5f479e441f3d12:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzZTYwNDExMWI5MGIyMGQzZTQ5Yzc2YWFmOTQzZjczZDRhZGIwMjEwMDc1MzEzOThhZTFiNmVjYjI5NWVmNWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc3MDJlY2Q0ZGFhZjliZjc5MTIyZTQzMzQzY2ZjN2U1NjEwYjZmY2U2MWI3MWQ2NmUwOTlkNjQ0ZTNlZmVjODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4NzJlOGIwNDM1N2FhM2QzNjJkN2JiNjA0NzFkYWE0ZTMyOTNmYTFiZWFkNzFhY2Q3OWI4YWZlNzU3NDkwNmIifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L1150-L1180",
+          "version": "repo-lines-v1:sha256:5e43513a656b7bc55c7c294d6174c4b3e2d10d0bc6ff1bc923e0300ab1fac13d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4N2JkZjUxNmM0MTI2ZjQyYzJkZDU5M2NmYzU0NzJiYWYyZTRiYTljYzRkZmU5MGU5OWY5MmQ2ZTJiOWEyOTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhkZDBlNzk3NTc3M2MyYzQ4OTQ3MTM0ODA3NWEzYjBjNWVmNjc4MjM5YTEzNzllYTQ0Mjg4YzEzZjQxYWMzOTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkZDMzYmRjYmZlMWM3YmFiYTQ2ZDA3Yzc0N2I0MGIyMTRhMjNiMDdlNDdkNzhjMGI2ZmIxN2ViNzVkMDI0MmQifQ"
         },
         {
           "resource": "repo://desktop/macos/e2e/flows/proactive-memory-writers-retention.yaml",
-          "version": "repo-file-v1:sha256:e7c5db121db3695e102e60c7462851567e864e8e8c1bea874e395de3e1ecdb0f"
+          "version": "repo-file-v1:sha256:c676f0bbb8cef6a5b843473a3c29e0f79746ed1b90d741ce84e5512db3334522"
+        }
+      ]
+    },
+    {
+      "id": "claim_0a184e482d6b4ea599aa583f23ff0e89",
+      "statement": "Active profile context excludes retired Tasks and goals while generic Memory lifecycle and existing profile generation remain.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift",
+          "version": "repo-file-v1:sha256:8ccfb437e32368ae409120819c604ed7cf1f4c9d6322dcec937ae20d01e7dfd8"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift",
+          "version": "repo-file-v1:sha256:39dab477cbfee2b6bd0f0f33511ccc4f7ead892f509fb5311b1b64f4cbb6a5f0"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift",
+          "version": "repo-file-v1:sha256:2ca7aea09eff444d4a9e0c7dcd473bdefa26c801ddf24bcb53418e5d4ce4be5b"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T19:56:49.848Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

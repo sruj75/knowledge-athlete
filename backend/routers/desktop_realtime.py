@@ -11,9 +11,15 @@ from google.cloud import firestore
 from pydantic import BaseModel, ConfigDict, StrictInt
 
 from database._client import get_firestore_client
-from models.desktop_ai import RealtimeSessionResponse
+from models.desktop_ai import OpaqueID
+from models.desktop_conversation import ConversationPromptReference, RealtimeSessionResponse
 from utils.executors import db_executor, llm_executor, run_blocking
-from utils.observability.langfuse_prompts import get_runtime_prompt
+from utils.observability.conversation_prompts import (
+    ConversationPromptMismatchError,
+    ConversationPromptUnavailableError,
+    conversation_prompt_receipt,
+    resolve_conversation_prompt,
+)
 from utils.other.endpoints import get_current_participant_uid, get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
@@ -29,6 +35,8 @@ _TRIAL_EXPIRED_MESSAGE = "Desktop trial expired. Upgrade to continue managed voi
 
 class MintRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    conversation_id: OpaqueID
+    prompt_ref: ConversationPromptReference
 
 
 class UsageReport(BaseModel):
@@ -39,6 +47,7 @@ class UsageReport(BaseModel):
     input_cached_tokens: StrictInt = 0
     output_text_tokens: StrictInt = 0
     output_audio_tokens: StrictInt = 0
+    thinking_tokens: StrictInt = 0
 
 
 def _error(
@@ -118,6 +127,12 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_part
             status_code=402,
             content={"error": "trial_expired", "message": _TRIAL_EXPIRED_MESSAGE},
         )
+    try:
+        prompt = await run_blocking(llm_executor, resolve_conversation_prompt, request.prompt_ref)
+    except ConversationPromptMismatchError:
+        return _error(409, 'prompt_reference_mismatch', 'Pinned conversation instructions do not match')
+    except ConversationPromptUnavailableError:
+        return _error(503, 'prompt_unavailable', 'Pinned conversation instructions are unavailable', retryable=True)
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         return _error(503, "provider_not_configured", "Gemini realtime is not configured", "Gemini", retryable=True)
@@ -136,8 +151,14 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_part
     token = data.get("name") if data else None
     if not isinstance(token, str):
         return _error(502, "provider_mint_transport_error", "gemini mint: no token name in response", retryable=True)
-    prompt = await run_blocking(llm_executor, get_runtime_prompt, 'live')
-    return JSONResponse({"provider": "gemini", "token": token, "expires_at": expires_at, 'prompt': prompt.receipt()})
+    return JSONResponse(
+        {
+            "provider": "gemini",
+            "token": token,
+            "expires_at": expires_at,
+            'prompt': conversation_prompt_receipt(prompt).model_dump(),
+        }
+    )
 
 
 def _record_usage(
@@ -145,6 +166,7 @@ def _record_usage(
     input_tokens: int,
     output_tokens: int,
     cached_tokens: int,
+    thinking_tokens: int,
     total_tokens: int,
     cost: float,
 ) -> None:
@@ -156,6 +178,7 @@ def _record_usage(
             {
                 f"{prefix}.input_tokens": firestore.Increment(input_tokens),
                 f"{prefix}.output_tokens": firestore.Increment(output_tokens),
+                f"{prefix}.thinking_tokens": firestore.Increment(thinking_tokens),
                 f"{prefix}.cache_read_tokens": firestore.Increment(cached_tokens),
                 f"{prefix}.cache_write_tokens": firestore.Increment(0),
                 f"{prefix}.total_tokens": firestore.Increment(total_tokens),
@@ -171,7 +194,8 @@ def _record_usage(
 
 
 def _usage_cost(report: UsageReport) -> float:
-    rates = (0.75, 3.0, 0.075, 4.5, 12.0)
+    # Live thinking tokens use the text-output rate and stay exclusive in the ledger.
+    rates = (0.75, 3.0, 0.075, 4.5, 12.0, 4.5)
     return (
         sum(
             value * rate
@@ -182,6 +206,7 @@ def _usage_cost(report: UsageReport) -> float:
                     max(report.input_cached_tokens, 0),
                     max(report.output_text_tokens, 0),
                     max(report.output_audio_tokens, 0),
+                    max(report.thinking_tokens, 0),
                 ),
                 rates,
             )
@@ -200,7 +225,8 @@ async def report_usage(report: UsageReport, uid: str = Depends(get_current_user_
     input_tokens = max(report.input_text_tokens, 0) + max(report.input_audio_tokens, 0)
     output_tokens = max(report.output_text_tokens, 0) + max(report.output_audio_tokens, 0)
     cached_tokens = max(report.input_cached_tokens, 0)
-    total_tokens = input_tokens + output_tokens + cached_tokens
+    thinking_tokens = max(report.thinking_tokens, 0)
+    total_tokens = input_tokens + output_tokens + cached_tokens + thinking_tokens
     if total_tokens <= 0:
         return Response(status_code=204)
     try:
@@ -211,6 +237,7 @@ async def report_usage(report: UsageReport, uid: str = Depends(get_current_user_
             input_tokens,
             output_tokens,
             cached_tokens,
+            thinking_tokens,
             total_tokens,
             _usage_cost(report),
         )

@@ -73,7 +73,6 @@ final class AIUserProfileLocalAuthorityTests: XCTestCase {
 
   func testInputAndHistoryBoundsAreExplicit() {
     XCTAssertEqual(AIUserProfileInputPolicy.memoryLimit, 100)
-    XCTAssertEqual(AIUserProfileInputPolicy.taskLimit, 50)
     XCTAssertEqual(AIUserProfileInputPolicy.conversationLimit, 20)
     XCTAssertEqual(AIUserProfileInputPolicy.conversationLookbackDays, 7)
     XCTAssertEqual(AIUserProfileInputPolicy.journalMessageLimit, 30)
@@ -91,8 +90,6 @@ final class AIUserProfileLocalAuthorityTests: XCTestCase {
       dataSourceLoader: { _ in
         AIUserProfileInputs(
           memories: ["[interesting] Local evidence"],
-          tasks: [],
-          goals: [],
           conversations: [],
           journalMessages: [])
       })
@@ -114,8 +111,6 @@ final class AIUserProfileLocalAuthorityTests: XCTestCase {
       dataSourceLoader: { _ in
         AIUserProfileInputs(
           memories: ["[interesting] Owner A evidence"],
-          tasks: [],
-          goals: [],
           conversations: [],
           journalMessages: [])
       })

@@ -640,8 +640,7 @@ import XCTest
           sessionID: "evaluation-session", decisionID: "decision", observationID: "observation",
           prompt: .init(text: "PRIVATE_PROMPT", name: "intentive-supervisor-system", version: "7", source: "langfuse"),
           transcripts: [.init(id: "segment", text: "PRIVATE_AMBIENT", source: .mixed)],
-          conversation: [.init(turnID: "turn", role: "assistant", text: "PRIVATE_MESSAGE", outcome: "completed")],
-          note: "PRIVATE_NOTE"))
+          conversation: [.init(turnID: "turn", role: "assistant", text: "PRIVATE_MESSAGE", outcome: "completed")]))
     }
 
     func testChatObservationRevocationDuringAuthLookupStripsSelectedContent() async throws {

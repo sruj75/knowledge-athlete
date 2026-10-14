@@ -3,7 +3,7 @@
 A public, read-only Next.js viewer for the canonical
 [Mermaid product map](../../docs/architecture/intentive-codeflow.mmd).
 The build reads that file directly and statically exports one page. The browser
-renders its 23 areas, 342 nodes and 780 connections with Mermaid ELK. The overview
+renders its six areas, 37 nodes and 57 connections with Mermaid ELK. The overview
 uses the original diagram's geography to place readable subsystem regions.
 Clicking a subsystem opens its internal flow at a fixed readable size. There is no database, runtime GitHub request,
 browser editor, or separately maintained overview map.
@@ -11,7 +11,7 @@ browser editor, or separately maintained overview map.
 ## Explore the map
 
 - Click a subsystem or use **Jump to area** to open its internal flow. Full node
-  labels and source references appear immediately at their natural 14-pixel size.
+  labels appear immediately at their natural 14-pixel size.
 - Scroll, swipe, or drag to move around the map or an open diagram. The viewer
   has no zoom gestures, zoom buttons, or animated detail transitions. Browser
   accessibility zoom remains available.
@@ -87,15 +87,20 @@ and open `http://127.0.0.1:4173`. Build first with `npm --prefix tools/codebase-
 
 The map exposes independently challengeable behavior: admission and defaults,
 inputs/outputs, local and remote storage, failure/recovery, controls and consumers.
-Its 23 areas are a review order, not a module count. Boxes have different sizes;
-edge labels distinguish calls, data, events and conditional relationships. The
-September 29 source review expanded startup, Supervisor settings, capture and
-retrieval, Chat/voice, backend compute, account controls and operations. Explicit
-caller/deployment gaps remain visible. Scope is active macOS, its Node runtime,
-and registered backend behavior, with dormant source branches marked where found;
-paused Windows, dependency internals and full build/release/test workflows are
-outside this product map. Source configuration is not evidence of live deployment.
+Its six areas follow account ownership, permitted inputs, Supervisor B, the A
+conversation, canonical history, and instructions/measurement. They are product
+boundaries, not a module count. The current map records persistent native Live,
+the same pinned A prompt for typed and fallback conversation, private B cues,
+and the storage-only Node journal. It distinguishes retained Memory/Rewind and
+historical data from retired Pi execution and Tasks/Insights/Focus producers.
+The 57 connections comprise 38 internal connections and 19 boundary connections;
+all remain inspectable in the viewer.
 
+Scope is the current macOS conversational product and its backend/storage
+boundaries. The October 14 integration replaces the earlier 23-area architecture;
+the dated September 29 review remains historical evidence. Passing render checks
+is not evidence of provider acceptance, physical audio, deployment, or an
+eight-hour run.
 When code changes alter product flows, the coding agent updates the Mermaid map
 and its source references in the same PR. For other changes, record that the map
 was reviewed and remains accurate in the PR checklist. Complete the native
@@ -105,8 +110,8 @@ Deployments publish the committed map; they do not infer new architecture from
 code. Passing render checks proves that the diagram is usable, not that its
 description of the product is semantically correct.
 
-The map includes its own viewer/publishing flow. Keep this section updated if the
-viewer or deployment contract changes.
+The viewer/publishing contract is documented below, separately from the product
+body diagram. Keep it updated when the viewer or deployment contract changes.
 
 ## Vercel project settings
 
@@ -142,7 +147,6 @@ Code-only merges also deploy so the displayed commit remains aligned with main.
 An already-open tab is a snapshot; reload it to see a newer deployment.
 
 The [second source-review record](../../docs/architecture/intentive-codeflow-review.md)
-covers all 23 areas individually, including unchanged areas, the code inspected,
-newly exposed behavior and remaining limits. The map is the reasoning surface;
-this record makes the review coverage inspectable without treating the diagram
-as proof of every possible code path or of deployed behavior.
+preserves the historical 23-area audit and appends the current six-area integration
+receipt. The map is the reasoning surface; the receipt distinguishes current
+source/render checks from the earlier audit and from unverified runtime behavior.

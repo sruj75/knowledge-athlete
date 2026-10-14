@@ -32,52 +32,6 @@ final class SupervisorVoiceDeliveryJournalTests: XCTestCase {
     XCTAssertEqual(updated["sessionId"] as? String, "session-fixture")
   }
 
-  func testFinalOnlySupervisorWriteSeparatesAcceptedJournalFromEveryDeliveryOutcome() throws {
-    let projection = RealtimeStreamingJournalProjection(
-      ownerID: "owner-fixture", continuityKey: "supervisor:decision-fixture",
-      admissionSurface: .realtimeVoice(chatId: "chat-fixture"))
-    let expected: [(AIVoiceTurnOutcome, String?)] = [
-      (.completed, nil), (.cancelled, "Interrupted"),
-      (.failed, "Voice reply incomplete"), (.suppressed, "Not spoken"),
-    ]
-    for (outcome, label) in expected {
-      let terminal = projection.terminalAssistantTurn(text: "Generated assistant reply", deliveryOutcome: outcome)
-      let write = terminal.message.journalWrite(
-        origin: "realtime_voice", status: terminal.status,
-        continuityKey: projection.continuityKey, messageSource: projection.messageSource)
-      let metadata = try metadataObject(write.metadataJSON)
-      XCTAssertEqual(write.role, "assistant")
-      XCTAssertEqual(write.status, .completed, "Accepted journal storage does not assert complete playback")
-      XCTAssertEqual(write.turnId, projection.assistantTurnID)
-      XCTAssertEqual(metadata["voiceDeliveryOutcome"] as? String, outcome.rawValue)
-      XCTAssertEqual(Set(metadata.keys), ["continuityKey", "messageSource", "voiceDeliveryOutcome"])
-
-      let replayed = try XCTUnwrap(KernelJournalTurn(dictionary: write.dictionary)).chatMessage()
-      XCTAssertEqual(replayed.journalDeliveryStatusLabel, label)
-      XCTAssertFalse(replayed.isStreaming)
-    }
-  }
-
-  func testStreamingFinalizationPreservesOneAssistantIdentityAndCancelledDelivery() throws {
-    let projection = RealtimeStreamingJournalProjection(
-      ownerID: "owner-fixture", continuityKey: "supervisor:streamed-fixture",
-      admissionSurface: .realtimeVoice(chatId: "chat-fixture"))
-    let admission = projection.admissionTurns(userText: "")
-    XCTAssertEqual(admission.count, 1, "An automatic turn must never fabricate a user entry")
-    let pending = try XCTUnwrap(admission.first)
-    XCTAssertTrue(pending.message.isStreaming)
-    XCTAssertNil(pending.message.voiceDeliveryOutcome, "Generated text is not proof of playback")
-
-    let terminal = projection.terminalAssistantTurn(text: "Partly spoken reply", deliveryOutcome: .cancelled)
-    let update = terminal.message.journalUpdate(status: terminal.status)
-    let metadata = try metadataObject(XCTUnwrap(update.metadataJSON))
-    XCTAssertEqual(update.turnId, pending.message.id)
-    XCTAssertEqual(update.status, .completed)
-    XCTAssertEqual(metadata["voiceDeliveryOutcome"] as? String, "cancelled")
-    XCTAssertEqual(metadata["continuityKey"] as? String, "supervisor:streamed-fixture")
-    XCTAssertEqual(metadata["messageSource"] as? String, "supervisor")
-  }
-
   func testActualJournalFailureKeepsWarningEvenWhenDeliveryWasInterruptedOrCompleted() {
     for outcome in [AIVoiceTurnOutcome.cancelled, .completed, .failed, .suppressed] {
       let message = ChatMessage(

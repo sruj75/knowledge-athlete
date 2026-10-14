@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b80583d470b338987d4c29623fc8364b22c01a948b8efd99f2cb3887cf30e9dc",
+  "pageVersion": "sha256:f1e3155d5daf34f7ffe3b6b077f7fd1578ec65eb72aae70b8f6214ab3e147bb8",
   "claims": [
     {
       "id": "claim_bcfdcf6429f94cc0a0c4863bf55e1407",
@@ -39,10 +39,46 @@
           "version": "repo-file-v1:sha256:f3f0ddad2fce718455ba495d1a2ec7f9a6c397a7a1ad6264f5af63df1f5b174e"
         }
       ]
+    },
+    {
+      "id": "claim_fa7717b1964341359f450e3b4e7d5091",
+      "statement": "The bundled Node runtime stages a conversation-storage package whose only production npm dependency is zod.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/agent/package.json",
+          "version": "repo-file-v1:sha256:d76bacea894904b2e5bfca5af67a989b454274b4889e61ef9c1359b960384550"
+        },
+        {
+          "resource": "repo://desktop/macos/scripts/prepare-agent-runtime.sh",
+          "version": "repo-file-v1:sha256:85ea05bfef0cd32133c2863c93faf39a8baf9f879816843d6e6a9cb28fdbcb35"
+        }
+      ]
+    },
+    {
+      "id": "claim_8599113158ef4dbcad6a648b3c3e9367",
+      "statement": "Development and release app entitlements declare camera access and the app Info.plist supplies its usage description; webcam remains separately opt-in in application settings.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Info.plist#L40-L41",
+          "version": "repo-lines-v1:sha256:3f0d93e6cdbbf6a3b99e25ce91f0e38551b275d9460ee99ae597ca33a246b901:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDU4NjZiMzJlNmYyZTIwZDNmOGY1ZGU4ODAyMTkwNjA4NTQzODRjOTU0NDEzODIyMWIyMmViMDRhMjIyYTBmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzYxNTE1MGE0MTA3NWQyNDY5OTZjOGI3NDU2ZjY0ZDNkOTA3YTcxZDBiMDFlNWM2MGMxYWUyMTcxY2I4Y2Q2YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNThlMTZkZmNjM2JhODU2ODI1NTJmZTE5MTlhZmI2OTMyMjBiN2FiYzk5ZjM0MmRiYTAwZWY1NmJjNWQ3M2YxYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTJmODI3OGZhZjU4MWVlOTE4Y2Y4YWQ4ZjhhNjc0NDZlNjgyOTUwOTcwODhhNWE4MDNiNWVjOWZlYjJiNDZlNSJ9"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Omi-Release.entitlements",
+          "version": "repo-file-v1:sha256:de869ac893ec080b438ac059d4e4ca6fdaf7a0c9474b73340efcf6ee6e38b676"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Omi.entitlements",
+          "version": "repo-file-v1:sha256:211c724933ccfe6b0fbc6436d92d88b045837b5263f7238a9b9b585c2a4a8b63"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift",
+          "version": "repo-file-v1:sha256:cd9fa32cd118214b57614cf6e34d4001cf6e76f3026fc12569894dfca0b0075a"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T14:14:00.034Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

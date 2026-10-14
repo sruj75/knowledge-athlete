@@ -213,7 +213,7 @@ struct SBOnboardingView: View {
       }
     case .accessibility:
       permStepWidget(
-        "accessibility", "Accessibility", "global push-to-talk + precise Rewind and Focus window targeting"
+        "accessibility", "Accessibility", "the global Talk shortcut and precise Rewind window targeting"
       ) {
         model.answerAccessibility()
       }
@@ -459,7 +459,7 @@ struct SBOnboardingView: View {
           Text(
             model.shortcutPressed
               ? "Perfect, that works."
-              : (isTalk ? "Now hold it and say something." : "Now give it a tap.")
+              : (isTalk ? "Tap it to start talking. Tap it again to end the conversation." : "Now give it a tap.")
           )
           .geist(size: 15, weight: .medium)
           .foregroundStyle(model.shortcutPressed ? sb.ink(.w85) : sb.ink(.w6))
@@ -494,12 +494,12 @@ struct SBOnboardingView: View {
       if model.screenDemoPTTReady {
         VStack(alignment: .leading, spacing: 6) {
           HStack(spacing: 5) {
-            Text("Hold").geist(size: 14).foregroundStyle(sb.ink(.w85))
+            Text("Tap").geist(size: 14).foregroundStyle(sb.ink(.w85))
             ForEach(model.voiceChordTokens, id: \.self) { tok in keycap(tok) }
-            Text("and ask me about it, out loud.").geist(size: 14).foregroundStyle(sb.ink(.w85))
+            Text("and start talking.").geist(size: 14).foregroundStyle(sb.ink(.w85))
           }
           Text(
-            "Try \u{201c}what's on my screen right now?\u{201d} I can see it, and I answer at the top of your screen."
+            "Keep replying naturally. Tap the shortcut again when you are finished."
           )
           .geist(size: 12.5).foregroundStyle(sb.ink(.w45))
           .fixedSize(horizontal: false, vertical: true)

@@ -8,8 +8,6 @@ sources:
     resource: repo://.github/checks-manifest.yaml
   - id: openwiki-source-19d91df3181544492a10253e
     resource: repo://.github/scripts/check_policy_change_review.py
-  - id: openwiki-source-16d213dfcc8beae17f8096fe
-    resource: repo://.github/scripts/prepare_codebase_map_check.py
   - id: openwiki-source-2086e730056d335da93dacd1
     resource: repo://.github/scripts/publish_guardrail_pulse.py
   - id: openwiki-source-54aa0818a69c7dc32f892aa8
@@ -26,24 +24,16 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
   - id: openwiki-source-38a1b3c7a8acf2ceea409825
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
-  - id: openwiki-source-bcd362fbbe23cf1c0d8329bd
-    resource: repo://desktop/macos/scripts/check-gauntlet-evidence-at-head.sh
-  - id: openwiki-source-275b2622aa4001b497c886f2
-    resource: repo://desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh
-  - id: openwiki-source-cadbf0c250f5afb51126591d
-    resource: repo://tools/codebase-map/package.json
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-  - id: openwiki-source-add0ec364ed6744f53f1bc54
-    resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-29T14:41:59.037Z" }
+generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-29T14:41:59.037Z
+    at: 2026-10-14T15:50:15.263Z
 ---
 # Qualification and open obligations
 
-Qualification binds evidence to the exact source and artifact being accepted. The continuity evidence gate reads local harness manifests and verifies their full Git identity, green completion, expected rows and privacy-safe evidence. A convenient historical run or a successful fake-provider response is not a substitute for a missing real-provider row.
+Qualification binds evidence to the exact source and artifact being accepted. Component tests, named offline launches, live-provider probes and human-heard conversation are separate evidence. The retired Pi/PTT continuity gauntlet is not an acceptance route for the new conversation architecture.
 
 ## Evidence boundaries
 
@@ -52,24 +42,28 @@ Qualification binds evidence to the exact source and artifact being accepted. Th
 | Component and contract tests | Controlled behavior of the checked-out implementation |
 | Hermetic E2E | Wiring and lifecycle under deterministic local dependencies |
 | Named-bundle manifests | Behavior of the actual identified test binary |
-| Natural PTT/provider continuity | Physical capture and retained live-provider behavior |
+| Natural spoken conversation | Physical capture and retained live-provider behavior |
 | Deployment/release records | Exact serving source or signed artifact and operational transitions |
 
-`check-gauntlet-evidence-at-head.sh` validates source identity and rejects incomplete, dirty or privacy-unsafe records. Its stricter final-closeout requirements are branch-sensitive; do not infer universal green coverage from a nonblocking branch invocation. The underlying continuity harness and source-evidence tests own the concrete row contract.
+Record the full source SHA, dirty-state qualification, bundle identity, backend fingerprint and privacy-safe observations for a named run. An offline startup or returned PCM cannot establish what a person heard.
 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
-The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all 23 areas, 342 nodes and 780 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all six areas, 37 nodes and 57 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
 
-## A–B–C qualification
+## Conversational product qualification
 
-The manual `supervisor-conversation` flow binds the new interaction to a named development bundle, authenticated Gemini and managed A/B prompts. It separates cold/warm unsolicited admission, physical PTT interruption with speakers and headphones, silent next-turn guidance, speech controls, assistant-only journal acceptance, feedback correlation, sharing revocation and provider/permission failures. Failure qualification also checks bounded stage/kind/code diagnostics without private guidance or raw provider reasons.
+The manual `supervisor-conversation` flow requires the exact named development bundle, authenticated Gemini and identified A/B instructions. Both user and B starts must support several replies without another shortcut press. Natural interruption must be heard and exercised on speakers, headphones and a supported Bluetooth route, with output stopped promptly and no self-trigger from A's playback.
 
-For a reply after automatic speech, verify that the required replacement owns its bounded connection deadline and admits the buffered microphone input exactly once. A ready socket must not trigger another replacement. Separately force replacement timeout and verify that the canonically accepted fallback exchange and final playback outcome reach B under the original owner/session. Journal replay must distinguish accepted text from spoken delivery, showing an interruption without a false save-failure warning.
+Both starts must reveal the same original notch/chat surface, with blue opening glow, thinking, real microphone-level input waves and rendered-playback feedback. Check visibility between replies and after focus loss, rapid close/reopen, and clean conversation termination on explicit hide/snooze. The non-production `debug_bar_state` preview can render these phases with declared synthetic levels without starting capture or providers. Restore `idle` after preview; these images establish presentation only and cannot pass physical voice acceptance.
 
-Rate a fresh assistant message in the same monitoring session before restarting the app. The thumbs controls share the message metadata row's hover/keyboard reveal and require an in-memory evaluation receipt. A restored journal row alone cannot reconstruct that receipt after restart.
+Verify explicit close, completion after final playback, newer activity superseding an old end signal and 60 seconds of available-input listening silence. Generation, playback and recovery pause the timer. Forced Live failure must preserve the same conversation and exact instruction receipt through multiple sticky batch exchanges with interruption and no Pi invocation.
 
-Record usable-input time, B evaluation start and audible-playback start separately. A passed scheduling test does not remove transcription or model latency, and an evaluation count from a brief test does not establish all-day quota coverage. Repository tests, offline T2/T3, managed prompt fetches and physical audio outcomes remain distinct evidence classes. The [Supervisor workflow](../workflows/supervisor-conversation.md) and [desktop E2E](../testing/desktop-e2e.md) locate their respective seams.
+Private guidance must wait through generation/playback and append at an idle boundary without unsolicited competing speech. Wire shape alone does not prove this provider behavior. Check partial transcript revisions, interrupted delivery, stale cue rejection, independent permissions, camera denial/disconnection and account/lock/sleep isolation. An unchanged scene must remain observable without duplicate archive/OCR writes.
+
+Prompt pinning, telemetry privacy and quota retry behavior have separate assertions. Private guidance/images never enter history or observability, even in a selected evaluation session. Metadata receipts may correlate B decisions, actual delivery and feedback; old journal rows do not recreate in-memory feedback receipts after restart.
+
+After provider and physical checks pass, perform the real eight-hour observation/resource soak, measuring CPU/memory, evaluation counts, exclusive tokens, capture/queue/provider/end-to-end timing, skipped work and quota gaps. Fake-clock scheduling profiles support comparison but establish neither real resource stability nor a production cost ceiling. Missing provider access, silent-append failure or natural-interruption failure remains an explicit qualification blocker.
 
 ## Policy-change disclosure
 
@@ -99,8 +93,6 @@ Use [desktop E2E](../testing/desktop-e2e.md) to select a test surface and [relea
 
 ## Source evidence
 
-- [desktop/macos/scripts/check-gauntlet-evidence-at-head.sh](../../../desktop/macos/scripts/check-gauntlet-evidence-at-head.sh)
-- [desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh](../../../desktop/macos/tests/test-check-gauntlet-evidence-at-head.sh)
 - [.github/checks-manifest.yaml](../../../.github/checks-manifest.yaml)
 - [Pushed-candidate checks](../../../scripts/pre-push)
 - [Weekly report workflow](../../../.github/workflows/guardrail-baseline-pulse.yml)

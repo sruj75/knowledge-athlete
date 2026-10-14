@@ -37,7 +37,7 @@ Options:
   --port PORT                 Automation bridge port (default: OMI_AUTOMATION_PORT or 47777)
   --keep-stack                On T2+, leave dev-up running after the run
   --fault-suite               Start omi-fault-inject + omi-fault bundle; run chat-fault-5xx flow
-  --self-check                Desktop static checks (flow lint + gauntlet self-check)
+  --self-check                Desktop static checks (flow lint)
   --readiness                 Pre-tag readiness: self-check + offline dev-stack probe (no app launch, no E2E flows)
   --help                      Show this help
 USAGE
@@ -190,7 +190,6 @@ PY
 run_self_check() {
   echo "=== desktop-core-harness self-check ==="
   python3 "$SCRIPT_DIR/desktop-flow-lint.py"
-  python3 "$SCRIPT_DIR/agent-continuity-gauntlet-lib.py" --self-check
   echo "desktop-core-harness self-check passed (desktop static checks only)"
 }
 
@@ -1169,24 +1168,6 @@ case "$TIER" in
       PASSED=false
     fi
     FLOW_RESULTS=$(python3 - "$FLOW_RESULTS" "spatial-overlay-swift" "$overlay_status" "$DESKTOP_DIR/.harness/spatial-overlay" <<'PY'
-import json
-import sys
-rows = json.loads(sys.argv[1])
-name, status, out_dir = sys.argv[2:5]
-rows.append({"name": name, "passed": int(status) == 0, "artifacts": out_dir})
-print(json.dumps(rows))
-PY
-)
-  fi
-  if [[ "$TIER" -eq 3 ]]; then
-    set +e
-    OMI_AUTOMATION_PORT="$PORT" "$SCRIPT_DIR/agent-continuity-gauntlet.sh" --bundle-id "com.heyintentive.intentive.dev.${BUNDLE}"
-    gauntlet_status=$?
-    set -e
-    if [[ "$gauntlet_status" -ne 0 ]]; then
-      PASSED=false
-    fi
-    FLOW_RESULTS=$(python3 - "$FLOW_RESULTS" "agent-continuity-gauntlet" "$gauntlet_status" "$DESKTOP_DIR/.harness/agent-continuity-gauntlet" <<'PY'
 import json
 import sys
 rows = json.loads(sys.argv[1])

@@ -8,11 +8,21 @@ the deleted agent harness.
 
 import types
 
+import pytest
+
 from utils.retrieval.safety import (
     is_transient_provider_error,
     provider_fallback_reason,
     should_retry_provider_error,
 )
+
+
+@pytest.fixture
+def allowed_fallback_reasons():
+    # Resolve the shared registry during setup; the call measures classification.
+    from utils.observability.fallback import ALLOWED_REASONS
+
+    return ALLOWED_REASONS
 
 
 class ReadTimeout(Exception):
@@ -91,11 +101,9 @@ class TestProviderFallbackReason:
         assert provider_fallback_reason(RemoteProtocolError()) == 'other'
         assert provider_fallback_reason(BadRequestError()) == 'other'
 
-    def test_reasons_are_in_the_shared_bounded_set(self):
-        from utils.observability.fallback import ALLOWED_REASONS
-
+    def test_reasons_are_in_the_shared_bounded_set(self, allowed_fallback_reasons):
         for error in (ReadTimeout(), InternalServerError(), RateLimitError(), BadRequestError()):
-            assert provider_fallback_reason(error) in ALLOWED_REASONS
+            assert provider_fallback_reason(error) in allowed_fallback_reasons
 
 
 class TestShouldRetryProviderError:

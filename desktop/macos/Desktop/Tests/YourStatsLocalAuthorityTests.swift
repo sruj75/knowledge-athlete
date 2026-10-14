@@ -32,9 +32,6 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
     case conversations
     case chatMessages
     case screenshots
-    case focusSessions
-    case taskCounts
-    case goals
     case memories
   }
 
@@ -59,11 +56,6 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
         conversations: 1,
         chatMessages: 2,
         screenshots: 3,
-        focusSessions: 4,
-        tasksTodo: 5,
-        tasksDone: 6,
-        tasksDeleted: 7,
-        goals: 8,
         memories: 9
       )
     )
@@ -172,9 +164,6 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
       conversations: { _ in 1 },
       chatMessages: { _ in 2 },
       screenshots: { _ in 3 },
-      focusSessions: { _ in 4 },
-      taskCounts: { _ in YourStatsTaskCounts(todo: 5, done: 6, deleted: 7) },
-      goals: { _ in 8 },
       memories: { _ in 9 }
     )
   }
@@ -212,21 +201,6 @@ final class YourStatsLocalAuthorityTests: XCTestCase {
       result.screenshots = { _ in
         await gate.pause()
         return 3
-      }
-    case .focusSessions:
-      result.focusSessions = { _ in
-        await gate.pause()
-        return 4
-      }
-    case .taskCounts:
-      result.taskCounts = { _ in
-        await gate.pause()
-        return YourStatsTaskCounts(todo: 5, done: 6, deleted: 7)
-      }
-    case .goals:
-      result.goals = { _ in
-        await gate.pause()
-        return 8
       }
     case .memories:
       result.memories = { _ in

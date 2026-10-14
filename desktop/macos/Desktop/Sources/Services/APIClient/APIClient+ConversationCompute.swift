@@ -158,13 +158,6 @@ struct ConversationActionItemsComputeResponse: Codable, Equatable, Sendable {
   }
 }
 
-protocol ConversationActionItemsComputing: Sendable {
-  func computeActionItems(
-    _ request: ConversationActionItemsComputeRequest,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) async throws -> ConversationActionItemsComputeResponse
-}
-
 extension APIClient: ConversationDiscardComputing {
   func computeDiscard(
     _ request: ConversationDiscardComputeRequest,
@@ -184,18 +177,6 @@ extension APIClient: ConversationStructureComputing {
   ) async throws -> ConversationStructureComputeResponse {
     try await post(
       "v1/conversation-compute/structure",
-      body: request,
-      authorizationSnapshot: authorizationSnapshot)
-  }
-}
-
-extension APIClient: ConversationActionItemsComputing {
-  func computeActionItems(
-    _ request: ConversationActionItemsComputeRequest,
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot?
-  ) async throws -> ConversationActionItemsComputeResponse {
-    try await post(
-      "v1/conversation-compute/action-items",
       body: request,
       authorizationSnapshot: authorizationSnapshot)
   }

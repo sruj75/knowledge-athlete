@@ -3,21 +3,8 @@ import XCTest
 @testable import Omi_Computer
 @testable import VoiceTurnDomain
 
-/// Guards the fix for the too-short PTT tap (BL-031 / MIC-02): a press+release
-/// faster than capture spins up produces a turn with no usable audio. `finalize()`
-/// discards such turns in each mode's silence gate (hub / omni / batch). All gates
-/// now route a *too-short* turn (below `minTurnAudioSeconds`) to
-/// `finishTooShortPTTTurnWithHint(reason:)`, which shows "Hold longer to record" via
-/// the bar's `pttHintText` and resets after ~2s; longer-but-quiet turns keep the
-/// quiet reset.
-///
-/// The hint renders through a dedicated `FloatingControlBarState.pttHintText` bound
-/// in `FloatingControlBarView` — the legacy `voiceTranscript` field is write-only and
-/// displayed by no view. `PushToTalkManager` is a `@MainActor` singleton not
-/// constructible in a unit test, so these are source-scrape assertions (the same
-/// pattern as `PushToTalkStateMachineTests`). User-visible behavior is verified at
-/// runtime on a named bundle in the default (hub) config — see
-/// `.omi-hardening/slices/003-ptt-empty-batch/`.
+/// Retained CoreAudio teardown safety and legacy journal/UI projection coverage.
+/// Conversation tap behavior is covered by ConversationLifecycleTests.
 final class PTTAudioCaptureRaceTests: XCTestCase {
   func testDeferredCoreAudioReconfigurationCannotRestartAfterOwnerTeardown() {
     XCTAssertTrue(
@@ -34,17 +21,6 @@ final class PTTAudioCaptureRaceTests: XCTestCase {
         isReconfiguring: false))
   }
 
-  func testAllModeGatesRouteTooShortTurnsToHint() throws {
-    let source = try managerSource()
-
-    // hub, omni/batch, and the empty-buffer backstop all route to the hint.
-    let hintCalls = source.components(separatedBy: "finishTooShortPTTTurnWithHint(reason:").count - 1
-    XCTAssertGreaterThanOrEqual(hintCalls, 3)
-    // Only when the turn was too short — reusing the existing threshold.
-    XCTAssertTrue(source.contains("if totalSec < Self.minTurnAudioSeconds {"))
-    XCTAssertTrue(source.contains("reason: \"hub"))
-  }
-
   func testHintUsesPTTHintTextAndKeepsBarVoiceSized() throws {
     let reducer = VoiceTurnReducer()
     let turnID = VoiceTurnID()
@@ -57,11 +33,7 @@ final class PTTAudioCaptureRaceTests: XCTestCase {
     XCTAssertTrue(finished.model.turn?.deadlines.contains(.hintVisibility) == true)
   }
 
-  /// Review fixes for the hint path (cubic P1/P2): the omni/batch discard path
-  /// leaves the manager in `.finalizing`, so the hint must reset `state` to idle
-  /// (or a new press inside the 2s window is dropped — `handleShortcutDown` ignores
-  /// `.finalizing`), and the reset timer must be tagged so a rapid follow-up tap's
-  /// hint isn't cleared early.
+  /// A terminal projection must clear its own hint without reopening the turn.
   func testHintPathResetsStateAndTagsHint() throws {
     let reducer = VoiceTurnReducer()
     let turnID = VoiceTurnID()
@@ -94,12 +66,9 @@ final class PTTAudioCaptureRaceTests: XCTestCase {
     XCTAssertTrue(view.contains("state.isVoiceListening && state.pttHintText.isEmpty"))
     XCTAssertFalse(view.contains("showingNotchPttHint"))
     XCTAssertFalse(view.contains("notchPttHintRow"))
-    // Waveform no longer excludes open chat; thinking still does (chat has its own loader).
+    // Waveform remains available in open chat. Continuous-conversation thinking
+    // is separately exercised by ConversationNotchPresentationTests.
     XCTAssertFalse(view.contains("!state.isVoiceFollowUp && !state.showingAIConversation"))
-    XCTAssertNotNil(
-      view.range(
-        of: #"&& !state\.showingAIConversation\s*&& !state\.isVoiceListening"#,
-        options: .regularExpression))
 
     let window = try source(relativePath: "Sources/FloatingControlBar/FloatingControlBarWindow.swift")
     XCTAssertTrue(window.contains("pttHintRowHeight"))
@@ -111,10 +80,6 @@ final class PTTAudioCaptureRaceTests: XCTestCase {
       window.contains(
         "guard !self.state.showingAIConversation else { return }\n                self.resizeAnchored(\n                    to: self.currentSurfaceSizeForCurrentScreen()"
       ))
-  }
-
-  private func managerSource() throws -> String {
-    try source(relativePath: "Sources/FloatingControlBar/PushToTalkManager.swift")
   }
 
   private func source(relativePath: String) throws -> String {

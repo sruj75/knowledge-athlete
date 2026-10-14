@@ -3,9 +3,6 @@ type: Codebase guide
 title: Delivery and updates
 description: Trace backend exact-SHA deployment and desktop qualification, promotion, signed artifacts and idle relaunch.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-15T14:14:00.034Z
 sources:
   - id: openwiki-source-44eedcfce6140b49b80aa902
     resource: repo://.github/scripts/desktop-release-source-identity.py
@@ -25,7 +22,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/UpdaterViewModel.swift
   - id: openwiki-source-8870fabff52713e7a9cb9151
     resource: repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift
-generated: { by: "codex", at: "2026-09-15T14:14:00.034Z" }
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-14T14:40:28.560Z
 ---
 # Delivery and updates
 
@@ -58,7 +58,7 @@ Stable promotion has its own `prod` environment and non-canceling lock. It check
 
 ## Installed update behavior
 
-The updater passes a current local activity snapshot into installation admission. Capture, voice and Chat activity can keep installation scheduled for quit; the policy must not use a timeout to interrupt active work. Window restoration is a separate concern: the relaunch policy persists an attempt record and whether the main window should be restored, then consumes that record after relaunch.
+The updater passes a current local activity snapshot into installation admission. Ambient startup/finalization, an open logical conversation, active provider/playback, connection/reconnection and typed streaming keep installation scheduled for quit; the policy must not use a timeout to interrupt active work. Waiting between conversation replies does not make the open conversation idle for update purposes. Retired general tool work contributes no active count. Window restoration is a separate concern: the relaunch policy persists an attempt record and whether the main window should be restored, then consumes that record after relaunch.
 
 Before changing delivery tooling, trace the precise workflow, script and contract tests that own the transition. Production configuration, signed/notarized acceptance and owner/legal destinations include outstanding authored obligations; repository source is not live deployment evidence.
 

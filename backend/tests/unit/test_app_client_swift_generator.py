@@ -38,8 +38,9 @@ def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
         'struct ConversationDiscardResponse:',
         'struct ConversationCandidateRequest:',
         'struct ConversationStructureResponse:',
-        'struct ConversationActionItemsRequest:',
-        'struct ConversationActionItemsResponse:',
+        'struct ConversationSessionRequest:',
+        'struct ConversationSessionResponse:',
+        'struct ConversationRespondRequest:',
         'struct MemoryExtractRequest:',
         'struct MemoryExtractResponse:',
         'struct MemoryNormalizeRequest:',
@@ -50,7 +51,7 @@ def test_swift_dto_file_covers_desktop_high_traffic_read_schemas():
         assert f'public {name}' in generated, f'OmiAPI.{name} missing from generated Swift DTOs'
 
     # Enums the desktop consumes via the wire.
-    assert 'public struct ConversationActionCandidate:' in generated
+    assert 'public struct ConversationPromptReceipt:' in generated
     assert 'public enum OmiPatchField<Value: Codable>: Codable {' in generated
     for retired in ('ActionItemResponse', 'GoalResponse', 'CandidateRecord', 'WorkstreamDetailProjection'):
         assert retired not in generated

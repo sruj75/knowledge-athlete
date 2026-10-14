@@ -25,7 +25,8 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
   exit 1
 fi
 "$PYTHON_BIN" -m pytest -q \
-  tests/unit/test_desktop_chat.py \
+  tests/unit/test_desktop_conversation.py \
+  tests/unit/test_desktop_supervisor.py \
   tests/unit/test_desktop_core.py \
   tests/unit/test_desktop_proxy.py \
   tests/unit/test_desktop_realtime.py \

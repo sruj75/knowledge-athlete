@@ -559,50 +559,62 @@ def _cleanup_chat_client(saved):
         del sys.modules[k]
 
 
+@pytest.fixture
+def chat_client():
+    # Build/import the route harness before timing its real request behavior.
+    client, module, saved = _make_chat_client()
+    try:
+        yield client, module
+    finally:
+        client.close()
+        _cleanup_chat_client(saved)
+
+
+@pytest.fixture
+def mock_transcribe(chat_client):
+    # Patch the same provider boundary where the already-built router uses it.
+    with patch.object(chat_client[1], 'transcribe_pcm_bytes') as transcribe:
+        yield transcribe
+
+
 class TestVoiceMessageTranscribeEndpoint:
     """Test /v2/voice-message/transcribe content-type dispatch and validation."""
 
-    def test_openapi_declares_typed_transcription_failures(self):
-        client, module, saved = _make_chat_client()
-        try:
-            operation = client.get('/openapi.json').json()['paths']['/v2/voice-message/transcribe']['post']
-            for status in ('400', '502', '503', '504'):
-                schema = operation['responses'][status]['content']['application/json']['schema']
-                assert schema['$ref'].endswith('/TranscriptionErrorResponse')
-        finally:
-            _cleanup_chat_client(saved)
+    def test_openapi_declares_typed_transcription_failures(self, chat_client):
+        client, module = chat_client
+        operation = client.get('/openapi.json').json()['paths']['/v2/voice-message/transcribe']['post']
+        for status in ('400', '502', '503', '504'):
+            schema = operation['responses'][status]['content']['application/json']['schema']
+            assert schema['$ref'].endswith('/TranscriptionErrorResponse')
 
-    def test_legacy_voice_messages_stream_is_transient_stt_only(self):
-        client, module, saved = _make_chat_client()
-        try:
-            with (
-                patch.object(module, 'retrieve_file_paths', return_value=['/tmp/test-uid_voice-input']),
-                patch.object(module, 'decode_files_to_wav', return_value=['/tmp/test-uid_voice-input.wav']),
-                patch.object(module, 'read_wav_duration_ms', return_value=1_000),
-                patch.object(module, 'try_consume_budget', return_value=(True, 1_000, 1_000)),
-                patch.object(
-                    module,
-                    '_transcribe_voice_message_file',
-                    new_callable=AsyncMock,
-                    return_value=('Transient transcript', 'en'),
-                ) as transcribe,
-            ):
-                response = client.post(
-                    '/v2/voice-messages',
-                    files={'files': ('voice.m4a', b'audio', 'audio/mp4')},
-                )
+    def test_legacy_voice_messages_stream_is_transient_stt_only(self, chat_client):
+        client, module = chat_client
+        with (
+            patch.object(module, 'retrieve_file_paths', return_value=['/tmp/test-uid_voice-input']),
+            patch.object(module, 'decode_files_to_wav', return_value=['/tmp/test-uid_voice-input.wav']),
+            patch.object(module, 'read_wav_duration_ms', return_value=1_000),
+            patch.object(module, 'try_consume_budget', return_value=(True, 1_000, 1_000)),
+            patch.object(
+                module,
+                '_transcribe_voice_message_file',
+                new_callable=AsyncMock,
+                return_value=('Transient transcript', 'en'),
+            ) as transcribe,
+        ):
+            response = client.post(
+                '/v2/voice-messages',
+                files={'files': ('voice.m4a', b'audio', 'audio/mp4')},
+            )
 
-            assert response.status_code == 200
-            frame = response.text.removeprefix('message: ').strip()
-            payload = json.loads(base64.b64decode(frame).decode('utf-8'))
-            assert payload['text'] == 'Transient transcript'
-            assert payload['sender'] == 'human'
-            assert transcribe.call_count == 1
-            assert not hasattr(module, 'process_voice_message_segment_stream')
-        finally:
-            _cleanup_chat_client(saved)
+        assert response.status_code == 200
+        frame = response.text.removeprefix('message: ').strip()
+        payload = json.loads(base64.b64decode(frame).decode('utf-8'))
+        assert payload['text'] == 'Transient transcript'
+        assert payload['sender'] == 'human'
+        assert transcribe.call_count == 1
+        assert not hasattr(module, 'process_voice_message_segment_stream')
 
-    def test_multipart_wav_uses_request_local_bytes_without_gcs(self):
+    def test_multipart_wav_uses_request_local_bytes_without_gcs(self, chat_client):
         from utils import chat as chat_helpers
 
         wav_buffer = io.BytesIO()
@@ -613,226 +625,187 @@ class TestVoiceMessageTranscribeEndpoint:
             wav_file.writeframes(b'\x01\x00' * 160)
         wav_bytes = wav_buffer.getvalue()
 
-        client, _module, saved = _make_chat_client()
+        client, _module = chat_client
         fail_on_touch = MagicMock(side_effect=AssertionError('voice transcription touched GCS'))
-        try:
+        with (
+            patch.object(sys.modules['google.cloud.storage'], 'Client', fail_on_touch),
+            patch.object(
+                chat_helpers,
+                'get_prerecorded_service',
+                return_value=('modulate', 'en', 'modulate-velma-2'),
+            ),
+            patch.object(chat_helpers, '_validated_wav_is_silent', return_value=False),
+            patch.object(chat_helpers, 'prerecorded_from_bytes', return_value=[object()]) as transcribe,
+            patch.object(chat_helpers, 'postprocess_words', return_value=[SimpleNamespace(text='Local bytes')]),
+        ):
+            response = client.post(
+                '/v2/voice-message/transcribe',
+                data={'language': 'en'},
+                files={'files': ('audio.wav', wav_bytes, 'audio/wav')},
+            )
+
+        assert response.status_code == 200
+        assert response.json()['transcript'] == 'Local bytes'
+        transcribe.assert_called_once_with(wav_bytes, diarize=False, language='en', return_language=False)
+        fail_on_touch.assert_not_called()
+
+    def test_file_voice_admission_bounds_bytes_until_provider_completion(self, chat_client):
+        client, module = chat_client
+
+        async def scenario():
+            admission = asyncio.Semaphore(1)
+            provider_entered = asyncio.Event()
+            release_provider = asyncio.Event()
+            loaded_paths = []
+            provider_calls = 0
+
+            async def fake_run_blocking(_executor, function, *args, **kwargs):
+                nonlocal provider_calls
+                if function is module.load_voice_message_segment_bytes:
+                    loaded_paths.append(args[0])
+                    return b"wav", "en", None
+                if function is module.transcribe_voice_message_bytes:
+                    provider_calls += 1
+                    if provider_calls == 1:
+                        provider_entered.set()
+                        await release_provider.wait()
+                    return "transcript", "en"
+                raise AssertionError(f"unexpected blocking function: {function}")
+
             with (
-                patch.object(sys.modules['google.cloud.storage'], 'Client', fail_on_touch),
-                patch.object(
-                    chat_helpers,
-                    'get_prerecorded_service',
-                    return_value=('modulate', 'en', 'modulate-velma-2'),
-                ),
-                patch.object(chat_helpers, '_validated_wav_is_silent', return_value=False),
-                patch.object(chat_helpers, 'prerecorded_from_bytes', return_value=[object()]) as transcribe,
-                patch.object(chat_helpers, 'postprocess_words', return_value=[SimpleNamespace(text='Local bytes')]),
+                patch.object(module, "get_stt_semaphore", return_value=admission),
+                patch.object(module, "run_blocking", side_effect=fake_run_blocking),
             ):
-                response = client.post(
-                    '/v2/voice-message/transcribe',
-                    data={'language': 'en'},
-                    files={'files': ('audio.wav', wav_bytes, 'audio/wav')},
-                )
+                first = asyncio.create_task(module._transcribe_voice_message_file("first.wav", "uid", "en"))
+                await provider_entered.wait()
+                second = asyncio.create_task(module._transcribe_voice_message_file("second.wav", "uid", "en"))
+                await asyncio.sleep(0)
 
-            assert response.status_code == 200
-            assert response.json()['transcript'] == 'Local bytes'
-            transcribe.assert_called_once_with(wav_bytes, diarize=False, language='en', return_language=False)
-            fail_on_touch.assert_not_called()
-        finally:
-            _cleanup_chat_client(saved)
+                assert loaded_paths == ["first.wav"]
+                release_provider.set()
+                assert await asyncio.gather(first, second) == [("transcript", "en"), ("transcript", "en")]
+                assert loaded_paths == ["first.wav", "second.wav"]
 
-    def test_file_voice_admission_bounds_bytes_until_provider_completion(self):
-        client, module, saved = _make_chat_client()
-        try:
+        asyncio.run(scenario())
 
-            async def scenario():
-                admission = asyncio.Semaphore(1)
-                provider_entered = asyncio.Event()
-                release_provider = asyncio.Event()
-                loaded_paths = []
-                provider_calls = 0
-
-                async def fake_run_blocking(_executor, function, *args, **kwargs):
-                    nonlocal provider_calls
-                    if function is module.load_voice_message_segment_bytes:
-                        loaded_paths.append(args[0])
-                        return b"wav", "en", None
-                    if function is module.transcribe_voice_message_bytes:
-                        provider_calls += 1
-                        if provider_calls == 1:
-                            provider_entered.set()
-                            await release_provider.wait()
-                        return "transcript", "en"
-                    raise AssertionError(f"unexpected blocking function: {function}")
-
-                with (
-                    patch.object(module, "get_stt_semaphore", return_value=admission),
-                    patch.object(module, "run_blocking", side_effect=fake_run_blocking),
-                ):
-                    first = asyncio.create_task(module._transcribe_voice_message_file("first.wav", "uid", "en"))
-                    await provider_entered.wait()
-                    second = asyncio.create_task(module._transcribe_voice_message_file("second.wav", "uid", "en"))
-                    await asyncio.sleep(0)
-
-                    assert loaded_paths == ["first.wav"]
-                    release_provider.set()
-                    assert await asyncio.gather(first, second) == [("transcript", "en"), ("transcript", "en")]
-                    assert loaded_paths == ["first.wav", "second.wav"]
-
-            asyncio.run(scenario())
-        finally:
-            client.close()
-            _cleanup_chat_client(saved)
-
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_returns_transcript(self, mock_transcribe):
+    def test_octet_stream_returns_transcript(self, mock_transcribe, chat_client):
         """application/octet-stream should dispatch to PCM path and return JSON."""
         mock_transcribe.return_value = ('Hello world', 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?keywords=Aarav,Ansh,Aarav',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data['transcript'] == 'Hello world'
-            assert data['language'] == 'en'
-            assert data['stt_provider'] == 'modulate'
-            assert data['stt_model'] == 'modulate-velma-2'
-            assert data['outcome'] == 'success'
-            assert mock_transcribe.call_args.kwargs['keywords'] == ['Aarav', 'Ansh']
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?keywords=Aarav,Ansh,Aarav',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['transcript'] == 'Hello world'
+        assert data['language'] == 'en'
+        assert data['stt_provider'] == 'modulate'
+        assert data['stt_model'] == 'modulate-velma-2'
+        assert data['outcome'] == 'success'
+        assert mock_transcribe.call_args.kwargs['keywords'] == ['Aarav', 'Ansh']
 
-    def test_octet_stream_empty_body_400(self):
+    def test_octet_stream_empty_body_400(self, chat_client):
         """Empty octet-stream body should return 400."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe',
-                content=b'',
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert 'No audio data' in resp.json()['detail']
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe',
+            content=b'',
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert 'No audio data' in resp.json()['detail']
 
-    def test_octet_stream_bad_sample_rate_400(self):
+    def test_octet_stream_bad_sample_rate_400(self, chat_client):
         """Non-integer sample_rate returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?sample_rate=abc',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?sample_rate=abc',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    def test_octet_stream_bad_channels_400(self):
+    def test_octet_stream_bad_channels_400(self, chat_client):
         """Non-integer channels returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?channels=',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?channels=',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    def test_octet_stream_sample_rate_zero_400(self):
+    def test_octet_stream_sample_rate_zero_400(self, chat_client):
         """sample_rate=0 returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?sample_rate=0',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?sample_rate=0',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    def test_octet_stream_channels_zero_400(self):
+    def test_octet_stream_channels_zero_400(self, chat_client):
         """channels=0 returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?channels=0',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?channels=0',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_no_speech_empty_transcript(self, mock_transcribe):
+    def test_octet_stream_no_speech_empty_transcript(self, mock_transcribe, chat_client):
         """No speech detected should return 200 with empty transcript (not 422)."""
         mock_transcribe.return_value = (None, 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 200
-            assert resp.json()['transcript'] == ''
-            assert resp.json()['outcome'] == 'expected_silence'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 200
+        assert resp.json()['transcript'] == ''
+        assert resp.json()['outcome'] == 'expected_silence'
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_runtime_error_returns_safe_502(self, mock_transcribe):
+    def test_octet_stream_runtime_error_returns_safe_502(self, mock_transcribe, chat_client):
         """Provider failures return a typed safe payload without exception text."""
         mock_transcribe.side_effect = RuntimeError('secret upstream response body')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 502
-            detail = resp.json()['detail']
-            assert detail['error'] == 'stt_upstream_error'
-            assert detail['outcome'] == 'upstream_error'
-            assert detail['retryable'] is True
-            assert 'secret upstream response body' not in resp.text
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 502
+        detail = resp.json()['detail']
+        assert detail['error'] == 'stt_upstream_error'
+        assert detail['outcome'] == 'upstream_error'
+        assert detail['retryable'] is True
+        assert 'secret upstream response body' not in resp.text
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_timeout_returns_safe_504(self, mock_transcribe):
+    def test_octet_stream_timeout_returns_safe_504(self, mock_transcribe, chat_client):
         """A typed timeout has distinct status and safe retry metadata."""
         from utils.stt.outcomes import TranscriptionFailure, TranscriptionOutcome
 
         mock_transcribe.side_effect = TranscriptionFailure(TranscriptionOutcome.TIMEOUT, provider='managed_stt')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe',
-                content=b'\x01' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 504
-            assert resp.json()['detail']['outcome'] == 'timeout'
-            assert resp.json()['detail']['retryable'] is True
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe',
+            content=b'\x01' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 504
+        assert resp.json()['detail']['outcome'] == 'timeout'
+        assert resp.json()['detail']['retryable'] is True
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_provider_empty_returns_safe_502(self, mock_transcribe):
+    def test_octet_stream_provider_empty_returns_safe_502(self, mock_transcribe, chat_client):
         """Speech-positive empty output is distinct from the 200 silence path."""
         from utils.stt.outcomes import TranscriptionFailure, TranscriptionOutcome
 
@@ -840,66 +813,58 @@ class TestVoiceMessageTranscribeEndpoint:
             TranscriptionOutcome.EMPTY_UNEXPECTED,
             provider='managed_stt',
         )
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe',
-                content=b'\x01' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 502
-            assert resp.json()['detail']['outcome'] == 'empty_unexpected'
-            assert resp.json()['detail']['retryable'] is True
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe',
+            content=b'\x01' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 502
+        assert resp.json()['detail']['outcome'] == 'empty_unexpected'
+        assert resp.json()['detail']['retryable'] is True
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_missing_managed_configuration_returns_controlled_503(self, mock_transcribe):
+    def test_octet_stream_missing_managed_configuration_returns_controlled_503(self, mock_transcribe, chat_client):
         """A selected provider missing runtime config must not escape as a generic 500."""
         from utils.stt.pre_recorded import PrerecordedSTTConfigurationError
 
         mock_transcribe.side_effect = PrerecordedSTTConfigurationError()
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?language=en',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 503
-            detail = resp.json()['detail']
-            assert detail['error'] == 'stt_provider_configuration_error'
-            assert detail['outcome'] == 'config_error'
-            assert detail['provider'] == 'modulate'
-            assert detail['retryable'] is False
-            assert 'MODULATE_API_KEY' not in resp.text
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?language=en',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 503
+        detail = resp.json()['detail']
+        assert detail['error'] == 'stt_provider_configuration_error'
+        assert detail['outcome'] == 'config_error'
+        assert detail['provider'] == 'modulate'
+        assert detail['retryable'] is False
+        assert 'MODULATE_API_KEY' not in resp.text
 
     @pytest.mark.parametrize(
         ('suffix', 'content_type'),
         [('webm', 'audio/webm'), ('mp4', 'audio/mp4')],
     )
-    def test_multipart_browser_container_preserves_extension_for_prerecorded_stt(self, suffix, content_type):
+    def test_multipart_browser_container_preserves_extension_for_prerecorded_stt(
+        self, suffix, content_type, chat_client
+    ):
         """Browser MediaRecorder uploads must not be stored as WAV files."""
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(
-                module,
-                '_transcribe_voice_message_file',
-                new_callable=AsyncMock,
-                return_value=('Hello world', 'en'),
-            ) as transcribe:
-                response = client.post(
-                    '/v2/voice-message/transcribe',
-                    files={'files': (f'audio.{suffix}', b'containerized-audio', content_type)},
-                )
+        client, module = chat_client
+        with patch.object(
+            module,
+            '_transcribe_voice_message_file',
+            new_callable=AsyncMock,
+            return_value=('Hello world', 'en'),
+        ) as transcribe:
+            response = client.post(
+                '/v2/voice-message/transcribe',
+                files={'files': (f'audio.{suffix}', b'containerized-audio', content_type)},
+            )
 
-            assert response.status_code == 200
-            assert response.json()['transcript'] == 'Hello world'
-            assert transcribe.call_args.args[0].endswith(f'.{suffix}')
-        finally:
-            _cleanup_chat_client(saved)
+        assert response.status_code == 200
+        assert response.json()['transcript'] == 'Hello world'
+        assert transcribe.call_args.args[0].endswith(f'.{suffix}')
 
 
 # ---------------------------------------------------------------------------
@@ -910,141 +875,117 @@ class TestVoiceMessageTranscribeEndpoint:
 class TestTranscribeStreamWebSocket:
     """Test /v2/voice-message/transcribe-stream WebSocket endpoint."""
 
-    def test_ws_connects_and_receives_segments(self):
+    def test_ws_connects_and_receives_segments(self, chat_client):
         """WebSocket accepts connection and forwards managed STT segments."""
-        client, module, saved = _make_chat_client()
-        try:
-            mock_stt_socket = MagicMock()
-            mock_stt_socket.is_connection_dead = False
-            mock_stt_socket.death_reason = None
+        client, module = chat_client
+        mock_stt_socket = MagicMock()
+        mock_stt_socket.is_connection_dead = False
+        mock_stt_socket.death_reason = None
 
-            async def mock_process_audio_modulate(stream_transcript, sample_rate, language):
-                def fake_send(data):
-                    stream_transcript(
-                        [
-                            {
-                                'speaker': 'SPEAKER_00',
-                                'start': 0.0,
-                                'end': 1.0,
-                                'text': 'Hello',
-                                'is_user': False,
-                                'person_id': None,
-                            }
-                        ]
-                    )
-                    return True
+        async def mock_process_audio_modulate(stream_transcript, sample_rate, language):
+            def fake_send(data):
+                stream_transcript(
+                    [
+                        {
+                            'speaker': 'SPEAKER_00',
+                            'start': 0.0,
+                            'end': 1.0,
+                            'text': 'Hello',
+                            'is_user': False,
+                            'person_id': None,
+                        }
+                    ]
+                )
+                return True
 
-                mock_stt_socket.send = MagicMock(side_effect=fake_send)
-                mock_stt_socket.finalize = MagicMock()
-                mock_stt_socket.finish = MagicMock()
-                return mock_stt_socket
+            mock_stt_socket.send = MagicMock(side_effect=fake_send)
+            mock_stt_socket.finalize = MagicMock()
+            mock_stt_socket.finish = MagicMock()
+            return mock_stt_socket
 
-            with patch.object(module, 'check_budget', return_value=(True, 0, 7200000)):
-                with patch.object(module, 'process_audio_modulate', side_effect=mock_process_audio_modulate):
-                    with client.websocket_connect(
-                        '/v2/voice-message/transcribe-stream?language=en&sample_rate=16000'
-                    ) as ws:
-                        # Send enough audio to trigger a 30ms flush (16000 * 2 * 0.03 = 960 bytes)
-                        ws.send_bytes(b'\x00' * 960)
-                        data = ws.receive_json()
-                        assert isinstance(data, list)
-                        assert len(data) == 1
-                        assert data[0]['text'] == 'Hello'
-                        assert data[0]['speaker'] == 'SPEAKER_00'
-        finally:
-            _cleanup_chat_client(saved)
+        with patch.object(module, 'check_budget', return_value=(True, 0, 7200000)):
+            with patch.object(module, 'process_audio_modulate', side_effect=mock_process_audio_modulate):
+                with client.websocket_connect(
+                    '/v2/voice-message/transcribe-stream?language=en&sample_rate=16000'
+                ) as ws:
+                    # Send enough audio to trigger a 30ms flush (16000 * 2 * 0.03 = 960 bytes)
+                    ws.send_bytes(b'\x00' * 960)
+                    data = ws.receive_json()
+                    assert isinstance(data, list)
+                    assert len(data) == 1
+                    assert data[0]['text'] == 'Hello'
+                    assert data[0]['speaker'] == 'SPEAKER_00'
 
-    def test_ws_provider_connection_failure_closes_1011(self):
+    def test_ws_provider_connection_failure_closes_1011(self, chat_client):
         """A managed adapter connection failure closes with 1011."""
-        client, module, saved = _make_chat_client()
-        try:
+        client, module = chat_client
 
-            async def mock_process_audio_modulate_fail(stream_transcript, sample_rate, language):
-                return None
+        async def mock_process_audio_modulate_fail(stream_transcript, sample_rate, language):
+            return None
 
-            with patch.object(module, 'process_audio_modulate', side_effect=mock_process_audio_modulate_fail):
-                with pytest.raises(Exception):
-                    with client.websocket_connect('/v2/voice-message/transcribe-stream') as ws:
-                        ws.receive_json()  # Should not get here
-        finally:
-            _cleanup_chat_client(saved)
+        with patch.object(module, 'process_audio_modulate', side_effect=mock_process_audio_modulate_fail):
+            with pytest.raises(Exception):
+                with client.websocket_connect('/v2/voice-message/transcribe-stream') as ws:
+                    ws.receive_json()  # Should not get here
 
 
 class TestVoiceMessageTranscribeBoundary:
     """Boundary tests for /v2/voice-message/transcribe REST endpoint."""
 
-    def test_octet_stream_sample_rate_above_48000_rejected(self):
+    def test_octet_stream_sample_rate_above_48000_rejected(self, chat_client):
         """sample_rate > 48000 returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?sample_rate=96000',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?sample_rate=96000',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    def test_octet_stream_channels_above_2_rejected(self):
+    def test_octet_stream_channels_above_2_rejected(self, chat_client):
         """channels > 2 returns a typed invalid-input failure."""
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?channels=3',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 400
-            assert resp.json()['detail']['outcome'] == 'invalid_input'
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?channels=3',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 400
+        assert resp.json()['detail']['outcome'] == 'invalid_input'
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_accepts_boundary_sample_rate_8000(self, mock_transcribe):
+    def test_octet_stream_accepts_boundary_sample_rate_8000(self, mock_transcribe, chat_client):
         """sample_rate=8000 (lower bound) should be accepted."""
         mock_transcribe.return_value = ('hello', 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?sample_rate=8000',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 200
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?sample_rate=8000',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 200
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_accepts_boundary_sample_rate_48000(self, mock_transcribe):
+    def test_octet_stream_accepts_boundary_sample_rate_48000(self, mock_transcribe, chat_client):
         """sample_rate=48000 (upper bound) should be accepted."""
         mock_transcribe.return_value = ('hello', 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?sample_rate=48000',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 200
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?sample_rate=48000',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 200
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_accepts_channels_2(self, mock_transcribe):
+    def test_octet_stream_accepts_channels_2(self, mock_transcribe, chat_client):
         """channels=2 (upper bound) should be accepted."""
         mock_transcribe.return_value = ('hello', 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            resp = client.post(
-                '/v2/voice-message/transcribe?channels=2',
-                content=b'\x00' * 3200,
-                headers={'Content-Type': 'application/octet-stream'},
-            )
-            assert resp.status_code == 200
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        resp = client.post(
+            '/v2/voice-message/transcribe?channels=2',
+            content=b'\x00' * 3200,
+            headers={'Content-Type': 'application/octet-stream'},
+        )
+        assert resp.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -1055,90 +996,73 @@ class TestVoiceMessageTranscribeBoundary:
 class TestDurationBudgetEnforcement:
     """Test daily budget enforcement across all three endpoints."""
 
-    def test_octet_stream_budget_exhausted_429(self):
+    def test_octet_stream_budget_exhausted_429(self, chat_client):
         """Octet-stream request with exhausted budget should return 429."""
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, 'try_consume_budget', return_value=(False, 7200000, 0)):
-                resp = client.post(
-                    '/v2/voice-message/transcribe',
-                    content=b'\x00' * 3200,
-                    headers={'Content-Type': 'application/octet-stream'},
-                )
-                assert resp.status_code == 429
-                assert 'budget exhausted' in resp.json()['detail']
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        with patch.object(module, 'try_consume_budget', return_value=(False, 7200000, 0)):
+            resp = client.post(
+                '/v2/voice-message/transcribe',
+                content=b'\x00' * 3200,
+                headers={'Content-Type': 'application/octet-stream'},
+            )
+            assert resp.status_code == 429
+            assert 'budget exhausted' in resp.json()['detail']
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_octet_stream_budget_consumed_with_correct_duration(self, mock_transcribe):
+    def test_octet_stream_budget_consumed_with_correct_duration(self, mock_transcribe, chat_client):
         """Successful octet-stream request should consume budget with correct duration_ms."""
         mock_transcribe.return_value = ('hello', 'en')
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, 'try_consume_budget', return_value=(True, 1000, 7199000)) as mock_budget:
-                resp = client.post(
-                    '/v2/voice-message/transcribe',
-                    # 32000 bytes at 16kHz mono = 1 second = 1000ms
-                    content=b'\x00' * 32000,
-                    headers={'Content-Type': 'application/octet-stream'},
-                )
-                assert resp.status_code == 200
-                mock_budget.assert_called_once()
-                call_args = mock_budget.call_args[0]
-                assert call_args[0] == 'test-uid'
-                assert call_args[1] == 1000  # 32000 / (16000*1*2) * 1000
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        with patch.object(module, 'try_consume_budget', return_value=(True, 1000, 7199000)) as mock_budget:
+            resp = client.post(
+                '/v2/voice-message/transcribe',
+                # 32000 bytes at 16kHz mono = 1 second = 1000ms
+                content=b'\x00' * 32000,
+                headers={'Content-Type': 'application/octet-stream'},
+            )
+            assert resp.status_code == 200
+            mock_budget.assert_called_once()
+            call_args = mock_budget.call_args[0]
+            assert call_args[0] == 'test-uid'
+            assert call_args[1] == 1000  # 32000 / (16000*1*2) * 1000
 
-    def test_multipart_budget_exhausted_429(self):
+    def test_multipart_budget_exhausted_429(self, chat_client):
         """Multipart upload with exhausted budget should return 429."""
         import io
 
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, 'read_wav_duration_ms', return_value=60_000):
-                with patch.object(module, 'try_consume_budget', return_value=(False, 7200000, 0)):
-                    resp = client.post(
-                        '/v2/voice-message/transcribe',
-                        files=[('files', ('test.wav', io.BytesIO(b'\x00' * 100), 'audio/wav'))],
-                    )
-                    assert resp.status_code == 429
-                    assert 'budget exhausted' in resp.json()['detail']
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        with patch.object(module, 'read_wav_duration_ms', return_value=60_000):
+            with patch.object(module, 'try_consume_budget', return_value=(False, 7200000, 0)):
+                resp = client.post(
+                    '/v2/voice-message/transcribe',
+                    files=[('files', ('test.wav', io.BytesIO(b'\x00' * 100), 'audio/wav'))],
+                )
+                assert resp.status_code == 429
+                assert 'budget exhausted' in resp.json()['detail']
 
 
 class TestWsBudgetAndSessionCap:
     """Test WS budget gate and actual duration recording."""
 
-    def test_ws_budget_exhausted_rejects_at_connect(self):
+    def test_ws_budget_exhausted_rejects_at_connect(self, chat_client):
         """WS should close with 1008 if daily budget is exhausted at connect."""
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, 'check_budget', return_value=(False, 7200000, 0)):
-                with pytest.raises(Exception):
-                    with client.websocket_connect('/v2/voice-message/transcribe-stream') as ws:
-                        ws.receive_json()
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        with patch.object(module, 'check_budget', return_value=(False, 7200000, 0)):
+            with pytest.raises(Exception):
+                with client.websocket_connect('/v2/voice-message/transcribe-stream') as ws:
+                    ws.receive_json()
 
 
 class TestOctetStreamBodySizeGuard:
     """Test that octet-stream rejects oversized payloads before buffering."""
 
-    @patch('utils.chat.transcribe_pcm_bytes')
-    def test_oversized_body_rejected_413(self, mock_transcribe):
+    def test_oversized_body_rejected_413(self, mock_transcribe, chat_client):
         """Body exceeding _MAX_PCM_BODY_BYTES should be rejected with 413."""
-        client, module, saved = _make_chat_client()
-        try:
-            with patch.object(module, '_MAX_PCM_BODY_BYTES', 1000):
-                resp = client.post(
-                    '/v2/voice-message/transcribe',
-                    content=b'\x00' * 1500,
-                    headers={'Content-Type': 'application/octet-stream'},
-                )
-                assert resp.status_code == 413
-                mock_transcribe.assert_not_called()
-        finally:
-            _cleanup_chat_client(saved)
+        client, module = chat_client
+        with patch.object(module, '_MAX_PCM_BODY_BYTES', 1000):
+            resp = client.post(
+                '/v2/voice-message/transcribe',
+                content=b'\x00' * 1500,
+                headers={'Content-Type': 'application/octet-stream'},
+            )
+            assert resp.status_code == 413
+            mock_transcribe.assert_not_called()

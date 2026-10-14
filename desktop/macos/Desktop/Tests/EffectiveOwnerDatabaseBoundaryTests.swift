@@ -106,67 +106,6 @@ final class EffectiveOwnerDatabaseBoundaryTests: XCTestCase {
     temporaryApplicationSupportDirectory = nil
   }
 
-  func testOwnerTransitionWaitsForACommitThenAdmitsBWithBPool() async throws {
-    let ownerA = makeOwnerID("pool-owner-a")
-    let ownerB = makeOwnerID("pool-owner-b")
-    await setOwner(ownerA)
-    try await RewindDatabase.shared.initialize()
-    let maybeOwnerAPool = await RewindDatabase.shared.getDatabaseQueue()
-    let ownerAPool = try XCTUnwrap(maybeOwnerAPool)
-    try await ownerAPool.write { db in
-      try db.execute(sql: "CREATE TABLE owner_probe (value TEXT NOT NULL)")
-    }
-
-    let observer = OwnerDatabaseCommitObserver()
-    ownerAPool.add(transactionObserver: observer, extent: .nextTransaction)
-    let ownerAWrite = Task.detached {
-      try await ChatToolExecutor.executeWriteQuery(
-        "INSERT INTO owner_probe(value) VALUES ('owner-a')",
-        dbQueue: ownerAPool,
-        expectedOwnerID: ownerA,
-        ownerIsCurrent: { expected in
-          RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: false) == expected
-        })
-    }
-
-    await observer.waitUntilWillCommit()
-    let transition = Task { @MainActor in
-      await self.setOwner(ownerB)
-    }
-    await EffectiveOwnerTransitionFence.shared.waitUntilTransitionIsPending()
-    XCTAssertEqual(
-      RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: false),
-      ownerA,
-      "the owner must not change while A still has a physical commit lease")
-
-    observer.allowCommit()
-    let ownerAResult = try await ownerAWrite.value
-    XCTAssertEqual(
-      ownerAResult,
-      ChatToolExecutor.authorizedOwnerChangedResult(),
-      "A may commit before the queued transition, but its result must not publish into B")
-    await transition.value
-
-    let ownerBAuthorization = LocalMutationAuthorization {
-      RuntimeOwnerIdentity.currentOwnerId(allowAutomationOverride: false) == ownerB
-    }
-    try await ownerBAuthorization.withCommitLease {
-      try await RewindDatabase.shared.initialize()
-      let maybeOwnerBPool = await RewindDatabase.shared.getDatabaseQueue()
-      let ownerBPool = try XCTUnwrap(maybeOwnerBPool)
-      try await ownerBPool.write { db in
-        try db.execute(sql: "CREATE TABLE owner_probe (value TEXT NOT NULL)")
-        try db.execute(sql: "INSERT INTO owner_probe(value) VALUES ('owner-b')")
-      }
-    }
-
-    await RewindDatabase.shared.close()
-    let ownerAValues = try readProbeValues(ownerID: ownerA)
-    let ownerBValues = try readProbeValues(ownerID: ownerB)
-    XCTAssertEqual(ownerAValues, ["owner-a"])
-    XCTAssertEqual(ownerBValues, ["owner-b"])
-  }
-
   private func setOwner(_ ownerID: String) async {
     do {
       try await RuntimeOwnerIdentity.performEffectiveOwnerTransition(

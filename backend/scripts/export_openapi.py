@@ -34,6 +34,7 @@ DEFAULT_SPEC_PATH = ROOT_DIR / 'docs' / 'api-reference' / 'app-client-openapi.js
 APP_CLIENT_PREFIXES = (
     '/v1/ai/observations',
     '/v1/conversation-compute',
+    '/v1/conversation',
     '/v1/fair-use',
     '/v1/memory/compute',
     '/v1/payment-methods',
@@ -46,6 +47,7 @@ APP_CLIENT_PREFIXES = (
     '/v2/chat/initial-message',
     '/v2/messages',
     '/v2/realtime/session',
+    '/v2/realtime/usage',
     '/v2/voice-messages',
     '/v2/voice-message',
     '/v3/upload-audio',

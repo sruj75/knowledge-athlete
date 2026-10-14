@@ -18,7 +18,7 @@ enum DesktopLifecycleIdentityCopy {
   static let rewindBatteryDetail =
     "On battery, Intentive captures your screen less often to save power while keeping text recognition accurate."
   static let transcriptionLanguageDetail =
-    "Languages you speak to Intentive over push-to-talk — the first is your primary. Intentive identifies which one you're speaking each turn."
+    "Languages you speak to Intentive in voice conversations — the first is your primary. Intentive identifies which one you're speaking each turn."
   static let insightsEmptyState =
     "Proactive insights from Intentive will appear here as you work.\nEnable the Insight Assistant to start seeing them."
   static let chatLimitDetail =

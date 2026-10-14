@@ -1,63 +1,65 @@
 ---
 type: Codebase guide
-title: Local agent runtime
-description: Explain Pi, kernel, owner fencing, journal durability, transport and Swift tool execution.
-tags: [intentive, codebase]
+title: Local conversation storage service
+description: Explain the retained Node SQLite catalog and journal, owner isolation, revision ordering, recovery and Swift admission.
+tags: [intentive, codebase, storage]
 resource: repo://desktop/macos/agent/src
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-15T13:05:19.246Z
+    at: 2026-10-14T14:40:28.560Z
 sources:
-  - id: openwiki-source-6d9806be21ba9aa0842c9e19
-    resource: repo://desktop/macos/agent/src/adapters/pi-mono.ts
-  - id: openwiki-source-22fbe8e419c78e59a910956c
-    resource: repo://desktop/macos/agent/src/runtime/conversation-journal.ts
-  - id: openwiki-source-1abc263ea013010fb0b5800b
-    resource: repo://desktop/macos/agent/src/runtime/runtime-owner-authority.ts
+  - id: openwiki-source-d02a185b5b5f1d238504f680
+    resource: repo://desktop/macos/agent/src/conversation-protocol.ts
+  - id: openwiki-source-38614bd92321bf87a35d14d5
+    resource: repo://desktop/macos/agent/src/conversation-storage.ts
+  - id: openwiki-source-1828e0387b3ea260d979be69
+    resource: repo://desktop/macos/agent/src/index.ts
   - id: openwiki-source-3eb0ec1c43b91d71c14390ba
     resource: repo://desktop/macos/agent/src/runtime/sqlite-store.ts
-  - id: openwiki-source-62d945a031f8cfbb45021e15
-    resource: repo://desktop/macos/agent/tests/conversation-journal.test.ts
-  - id: openwiki-source-8fcabb3a3201e7524ed5bc3f
-    resource: repo://desktop/macos/agent/tests/runtime-owner-authority.test.ts
-generated: { by: "codex", at: "2026-09-15T13:05:19.246Z" }
+  - id: openwiki-source-3980081a58a01382ad067c02
+    resource: repo://desktop/macos/agent/tests/conversation-storage.test.ts
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 ---
-# Local agent runtime
+# Local conversation storage service
 
-Swift launches the bundled Node runtime through `AgentRuntimeProcess`. Node receives typed JSONL commands and owns the durable session, run and conversation journal. Its kernel coordinates execution policy, adapter bindings and tool capabilities. Pi performs the model/tool loop; Swift executes the retained desktop tools against local app state.
-
-## Process and control flow
+Swift launches one bundled Node process through `AgentRuntimeProcess`. It is a small storage service for the existing Chat catalog and canonical conversation journal. It does not call models, execute tools, run Pi, delegate work or start child agents. The old `agent/` directory and `heyintentive-agent.sqlite3` filename remain to preserve the existing database and packaging location.
 
 ```mermaid
 flowchart LR
-  Home[Swift Chat and voice] --> Transport[Node JSONL transport]
-  Transport --> Kernel[Kernel and SQLite journal]
-  Kernel --> Pi[Pi RPC subprocess]
-  Pi --> Gateway[Authenticated Gemini gateway]
-  Pi --> Relay[Private tool relay]
-  Relay --> Swift[Swift local tools]
-  Swift --> Kernel
+  UI[Swift typed and voice conversation] --> Bridge[Owner-bound JSONL client]
+  Bridge --> Store[Node conversation storage]
+  Store --> DB[Existing SQLite catalog and journal]
+  DB --> Projection[Shared accepted history projection]
+  UI --> Compute[Authenticated direct A or Gemini Live]
 ```
 
-`PiMonoAdapter.start` launches Pi in RPC mode with the bundled Intentive extension and the pinned Gemini model. Built-in tools, arbitrary skills, context files and other extensions are disabled. The adapter scrubs provider API-key environment variables before supplying the Firebase token to the managed extension. The adapter's old file-header description of an in-process session is superseded by the actual subprocess implementation.
+## Admission and identity
 
-## Durable ownership
+The process requires an owner ID and state directory at startup. The strict version-2 protocol accepts only fixed catalog and journal operations, checks each request's owner, validates allowed surfaces and limits input size. It accepts no provider credentials, arbitrary query, execution or tool method. Account transition tears down the prior process through Swift's owner boundary; a message cannot change the storage owner's identity.
 
-SQLite stores session identity and owner IDs separately from execution attempts, events and artifacts. Conversation turns are journal records; UI projections and transient model sessions are consumers of that authority. An accepted tool result must retain the run/invocation identity expected by the kernel rather than being treated as an unrelated chat message.
+A conversation ID is separate from a provider connection and an utterance ID. Writes carry the current conversation generation. Clearing advances that generation, so a delayed result cannot restore cleared content. Existing tombstones, owner checks, transaction boundaries and idempotent identities remain in the retained storage implementation.
 
-Owner-scoped work is unavailable before Swift's owner handshake. Token refresh can establish the first owner or refresh the same owner, but cannot replace an active owner. Revocation commits the inert authority before terminalization callbacks and requires an exact previous-owner receipt for a duplicate request. This prevents delayed owner-A work from being admitted after switching to owner B.
+## Ordered history and delivery
 
-## Change and test seams
+`recordOrReviseExchange` accepts an assistant-only proactive exchange or a user/assistant pair. Revisions retain the turn's role and origin; foreign execution-owned rows cannot be rewritten as new direct conversation output. The canonical tail returns the latest revision of each logical turn in its original admission order, including equal-timestamp user/assistant pairs.
 
-Extend transport shapes in `protocol.ts`, execution policy in the kernel, and actual desktop effects in the Swift tool owner. Read [desktop guidance](../../INSTRUCTIONS.md#desktop-guidance) before changing these boundaries. Runtime-owner tests exercise uninitialized admission, mismatched refresh and correlated revocation; journal tests cover durable turns. See [Chat and voice](../workflows/chat-voice.md) for how visible conversations reach these components.
+Swift waits for initial canonical admission before showing or playing the response. Later terminal updates describe what was actually completed, interrupted, failed or not spoken; a final journal acknowledgement is separate from the physical playback boundary. Journal-change wakes refresh the shared Home/floating projection, rather than introducing another conversation database.
+
+Live pending/streaming turns are protected by a process-local active-turn set. Restart loses that set intentionally, allowing the retained orphan-repair operation to terminalize abandoned work. Historic schema, old artifacts and referenced attachment content stay decodable and owner-authorized; their presence does not reactivate execution.
+
+## Extension and verification
+
+Extend the narrow storage protocol and owner/generation transaction seam together. `conversation-entry`, `conversation-protocol` and `conversation-storage` tests cover startup and rejection, historical reopen, owner isolation, idempotency, generation fences, ordering and repair. Run the package build before tests because the stdio test consumes the generated entrypoint. Its only production npm dependency is `zod`; SQLite uses the existing Node store.
+
+See [Chat and voice](../workflows/chat-voice.md), [local archive](local-data.md) and [account export](../workflows/account-lifecycle.md) for the surrounding owners.
 
 ## Source evidence
 
-- [desktop/macos/agent/src/adapters/pi-mono.ts](../../../desktop/macos/agent/src/adapters/pi-mono.ts#L260-L335)
-- [desktop/macos/agent/src/runtime/runtime-owner-authority.ts](../../../desktop/macos/agent/src/runtime/runtime-owner-authority.ts)
-- [desktop/macos/agent/tests/runtime-owner-authority.test.ts](../../../desktop/macos/agent/tests/runtime-owner-authority.test.ts)
-- [desktop/macos/agent/src/runtime/sqlite-store.ts](../../../desktop/macos/agent/src/runtime/sqlite-store.ts#L98-L135)
-- [desktop/macos/agent/src/runtime/conversation-journal.ts](../../../desktop/macos/agent/src/runtime/conversation-journal.ts)
-- [desktop/macos/agent/tests/conversation-journal.test.ts](../../../desktop/macos/agent/tests/conversation-journal.test.ts)
+- [Process entry](../../../desktop/macos/agent/src/index.ts)
+- [Protocol](../../../desktop/macos/agent/src/conversation-protocol.ts)
+- [Storage](../../../desktop/macos/agent/src/conversation-storage.ts)
+- [Retained journal](../../../desktop/macos/agent/src/runtime/conversation-journal.ts)
+- [Storage regressions](../../../desktop/macos/agent/tests/conversation-storage.test.ts)
+- [Swift process owner](../../../desktop/macos/Desktop/Sources/Chat/AgentRuntimeProcess.swift)
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

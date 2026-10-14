@@ -101,14 +101,16 @@ actor ProactiveStorage {
   }
 
   /// Get focus sessions for a date range
-  func getFocusSessions(from startDate: Date, to endDate: Date, limit: Int = 500) async throws -> [FocusSessionRecord] {
+  func getFocusSessions(
+    from startDate: Date, to endDate: Date, limit: Int = 500, offset: Int = 0
+  ) async throws -> [FocusSessionRecord] {
     let db = try await ensureInitialized()
 
     return try await db.read { database in
       try FocusSessionRecord
         .filter(Column("createdAt") >= startDate && Column("createdAt") <= endDate)
-        .order(Column("createdAt").desc)
-        .limit(limit)
+        .order(Column("createdAt").desc, Column("id").desc)
+        .limit(limit, offset: offset)
         .fetchAll(database)
     }
   }

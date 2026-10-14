@@ -693,20 +693,17 @@ assert_helper_runtime_integrity() {
   local resources="$APP_BUNDLE/Contents/Resources"
   [[ -d "$resources/agent" ]] || fail "agent runtime missing"
   [[ -f "$resources/agent/dist/index.js" ]] || fail "compiled agent runtime missing"
-  [[ -f "$resources/agent/src/runtime/omi-tool-manifest.ts" ]] || fail "agent tool manifest missing"
-  [[ -f "$resources/agent/node_modules/@earendil-works/pi-coding-agent/dist/cli.js" ]] \
-    || fail "bundled Pi CLI missing"
-  [[ -d "$resources/pi-mono-extension" ]] || fail "pi-mono-extension missing"
-  [[ -f "$resources/pi-mono-extension/index.ts" ]] || fail "owned Pi extension missing"
+  [[ -f "$resources/agent/dist/conversation-storage.js" ]] || fail "conversation storage missing"
+  [[ ! -e "$resources/pi-mono-extension" ]] || fail "retired Pi extension remains"
   [[ -x "$resources/Omi Computer_Omi Computer.bundle/node" ]] || fail "bundled node missing"
 
   local retired_asset
-  retired_asset="$(find "$resources/agent" "$resources/pi-mono-extension" \
+  retired_asset="$(find "$resources/agent" \
     \( -name 'acp.js' -o -name 'hermes.js' -o -name 'openclaw.js' \
        -o -name 'local-subprocess.js' -o -name 'one-shot-cli.js' \
        -o -name 'omi-tools-http.js' -o -name 'omi-tools-stdio.js' \
        -o -name 'patched-acp-entry.mjs' -o -name 'acp-bridge' \
-       -o -name 'playwright' \) -print -quit)"
+       -o -name 'pi-coding-agent' -o -name 'playwright' \) -print -quit)"
   [[ -z "$retired_asset" ]] || fail "retired agent runtime asset present: $retired_asset"
   pass "Native helper/runtime bundle integrity passed"
 }

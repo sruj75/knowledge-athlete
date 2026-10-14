@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:79d625fd6f6192b5e24a93345c49995a0d59373c49ac8d13c7b15df88a3106c8",
+  "pageVersion": "sha256:df5eee270f2e818b672285b7479a27985f5a6db1f39e54f11a4ea21f49f0d2c8",
   "claims": [
     {
       "id": "claim_653e55c893d04eb989b61a16192bf920",
@@ -43,10 +43,42 @@
           "version": "repo-file-v1:sha256:f7d415592ec4ebc1194b679d96bf49c0d0184f0f38984cc5b80c6c1d51afefa4"
         }
       ]
+    },
+    {
+      "id": "claim_d63be0887ba0493b99167989c1d4acbd",
+      "statement": "Retired action-item enrichment is superseded on recovery and rejected at admission and claim, while retained structure work and historical records remain.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L1150-L1180",
+          "version": "repo-lines-v1:sha256:5e43513a656b7bc55c7c294d6174c4b3e2d10d0bc6ff1bc923e0300ab1fac13d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4N2JkZjUxNmM0MTI2ZjQyYzJkZDU5M2NmYzU0NzJiYWYyZTRiYTljYzRkZmU5MGU5OWY5MmQ2ZTJiOWEyOTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhkZDBlNzk3NTc3M2MyYzQ4OTQ3MTM0ODA3NWEzYjBjNWVmNjc4MjM5YTEzNzllYTQ0Mjg4YzEzZjQxYWMzOTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkZDMzYmRjYmZlMWM3YmFiYTQ2ZDA3Yzc0N2I0MGIyMTRhMjNiMDdlNDdkNzhjMGI2ZmIxN2ViNzVkMDI0MmQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L1328-L1340",
+          "version": "repo-lines-v1:sha256:5e6d63d821c6e95bffeb24babdac3cad1c3183fa0710c001ec5e72e5077dc4ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmYzc1NzUyMDAxY2IyZjFhYWUyYjgxYjBlNjk1OWRiMzVkMzU2NGViOTc5ZDY0Yzg2NWM1MTc1NGExMTY0ZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFjMDhjYjdiODU0OTI2NGYxNWIyNGMyM2EzOTJiOTQ2YjM0ODM1ZTMyMDg1NGUwYWM1YTA1MzNjNTZjOWMzNmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJkYmVhZDk2OGM0NjgyOGQwZGYzOWUyYTdmNGYyYTZjMGIzZmU1YzczYjI0NjZmYjQxN2Q3OGJlMDM5NGI1NTUifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/TranscriptionStorage%2BLocalAuthority.swift#L1780-L1795",
+          "version": "repo-lines-v1:sha256:0e2c5e0f9516a3b60d84baf00684982c9dd27c88804d6385699d4cab399a0912:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyZTg2MDk0OWU1ZTFmNGZlNzI5NzgxMWJkNjIxNWEyNDY4YjllZTYxM2NmNmYwNDgwZmNjYWNkMmFjZWNjMjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRlMjQ1OWYwMWZkMmQzMDM1NmQ0M2QxYTA5OWU1ODIwMDIyMTU2NjhhOGEyZjM4NjZhNjJkNjk0M2UyODE1YjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4MWU0YThmNTZiOTcxN2VkYTNhMWIwNDUwMTNlNzBkYzIxM2Q5ZTM2ZjM3MDkzZWJjNTA1ZjJmZjdhMzBjMjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c257291290df4a0fa1747095df998670",
+      "statement": "Owner-authorized Focus export iterates paginated historical sessions beyond 500 rows.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift#L509-L530",
+          "version": "repo-lines-v1:sha256:df06d1f0821ed5dbf343de5e1489a2b2780f32f4ec88a189d048fb511c9be942:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzMDM3ZDViZGY3MWQ1MWQyNDJhODUzNDZkMWM5YTk3ZDZkNmE4ZmJhYTMxNjc5NThmYjhjYzRlMjM0ODg1NTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzMTA0NGFjNGU2OTU2MmZkZWJlYzdjMzRkN2U4ZWZiYmQ5NWMyZjI0YjA3YTg3ODExMjI2ZjllNmM0M2M3NDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzZjFjMjQyNDliZjc0NWMyZDU5OTZjZGM0YzM2YTA3MWI1Yjk2MDM3OTQwNzVlM2U2ODE3MDFjZmZkODk3YmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4N2FmZDk3ZTYwMTVjYzMxYjAwNGUwYmQ0ZTVlNTBmOTRkMjNiZjAzNmNlZjFkMzQyMjQ4ODdiZmQ3MDYwMTMifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/FocusLocalAuthorityTests.swift",
+          "version": "repo-file-v1:sha256:4336cb30c2842f61951c567f186d81816b7920fd76ff857ed115f70e5b0fbab7"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

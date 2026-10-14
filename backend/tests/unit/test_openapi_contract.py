@@ -7,19 +7,29 @@ from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict
 
 from scripts import export_openapi
-from routers import desktop_realtime, desktop_supervisor
+from routers import desktop_realtime, desktop_supervisor, desktop_conversation
 
 
 def test_live_supervisor_and_evaluation_contracts_include_typed_prompt_receipts():
     app = FastAPI()
+    app.include_router(desktop_conversation.router)
     app.include_router(desktop_realtime.router)
     app.include_router(desktop_supervisor.router)
     schema = export_openapi.build_app_client_openapi(app)
-    assert set(schema['paths']) == {'/v2/realtime/session', '/v1/supervisor/evaluate', '/v1/ai/observations'}
+    assert set(schema['paths']) == {
+        '/v2/realtime/session',
+        '/v2/realtime/usage',
+        '/v1/supervisor/evaluate',
+        '/v1/ai/observations',
+        '/v1/conversation/session',
+        '/v1/conversation/respond',
+    }
     models = schema['components']['schemas']
-    assert models['RealtimeSessionResponse']['properties']['prompt']['$ref'].endswith('/PromptReceipt')
+    assert models['RealtimeSessionResponse']['properties']['prompt']['$ref'].endswith('/ConversationPromptReceipt')
     assert models['SupervisorResponse']['properties']['action']['enum'] == ['wait', 'guide_next_turn', 'intervene']
     assert 'jpeg_base64' not in models['SupervisorDecisionObservation']['properties']
+    assert 'note' not in models['SupervisorDecisionObservation']['properties']
+    assert models['UsageReport']['properties']['thinking_tokens']['default'] == 0
     assert models['ScoreObservation']['additionalProperties'] is False
 
 

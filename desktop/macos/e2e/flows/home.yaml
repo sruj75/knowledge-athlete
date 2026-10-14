@@ -1,20 +1,20 @@
 version: 2
 name: home
 tier: manual
-description: Home tab — embedded chat, insight cards, Capture/Listening status (v0.12.119+ redesign, replaces dashboard.yaml)
+description: Home tab — conversational coaching, retained history, and Capture/Listening status
 app: non-prod
 covers:
+  - desktop/macos/Desktop/Sources/MainWindow/Components/NewBadge.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopHomeView.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopTopBar.swift
   - desktop/macos/Desktop/Sources/MainWindow/DesktopWindowLayoutPolicy.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Pages/FocusPage.swift
 preconditions:
   - auth_ready
 
 steps:
   - id: S1
     name: Verify Home tab is active
-    do: "Verify the app shows the Home tab. Top nav bar should have Home, Memory, and Tasks buttons, with no Apps destination. Home should be the active/selected tab."
+    do: "Verify the app shows the Home tab. Top nav bar should have Home and Memory buttons. Home should be the active/selected tab."
     expect:
       interactive_count: { min: 6 }
       text_visible:
@@ -33,8 +33,8 @@ steps:
       interactive_count: { min: 2 }
 
   - id: S4
-    name: Verify insight cards
-    do: "Check the Home page content area for insight cards or status banners. These may include screen recording permission warnings, task suggestions, or conversation observations."
+    name: Verify conversation history
+    do: "Check that the Home page can display retained conversations and permission status banners. Verify the composer starts a coaching conversation."
     expect:
       interactive_count: { min: 1 }
 

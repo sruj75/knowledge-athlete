@@ -10,7 +10,7 @@ extension SettingsContentView {
       settingsCard(destination: .supervisor) {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           settingRow(
-            title: "Supervisor", subtitle: "Use permitted screen context and transcripts to guide conversation"
+            title: "Supervisor", subtitle: "Use permitted screen, webcam and transcript context to guide conversation"
           ) {
             Toggle("Supervisor", isOn: $supervisor.enabled)
               .toggleStyle(OmiToggleStyle())
@@ -24,7 +24,30 @@ extension SettingsContentView {
           )
           .scaledFont(size: OmiType.caption)
           .foregroundColor(OmiColors.textTertiary)
+          Divider()
+          settingRow(title: "Webcam", subtitle: "Use current camera images while this Mac is awake and unlocked") {
+            Toggle("Webcam", isOn: $supervisorWebcam.enabled)
+              .toggleStyle(OmiToggleStyle())
+              .labelsHidden()
+          }
+          if supervisorWebcam.enabled {
+            Picker("Camera", selection: $supervisorWebcam.selectedDeviceID) {
+              Text("Built-in camera").tag(Optional<String>.none)
+              ForEach(supervisorWebcam.devices.filter { !$0.builtIn }) { device in
+                Text(device.name).tag(Optional(device.id))
+              }
+            }
+            Text(webcamStatusText)
+              .scaledFont(size: OmiType.caption)
+              .foregroundColor(OmiColors.textTertiary)
+          }
+          Text(
+            "Only the latest camera image is held in memory. Camera images are not recorded or included in evaluation sharing."
+          )
+          .scaledFont(size: OmiType.caption)
+          .foregroundColor(OmiColors.textTertiary)
         }
+        .task { await supervisorWebcam.refreshDevices() }
       }
       // Notifications
       settingsCard(destination: .notificationSettings) {
@@ -64,8 +87,20 @@ extension SettingsContentView {
     case .idle: return "Ready for new context"
     case .observing: return "Observing permitted context"
     case .evaluating: return "Considering the latest context"
-    case .paused: return "Supervisor paused by a service limit or temporary failure. Push-to-talk remains available."
+    case .paused:
+      return "Monitoring is waiting for a service limit or temporary failure to clear. Conversation remains available."
+    case .suspended: return "Monitoring is paused while this Mac is asleep or locked"
     case .disabled: return "Supervisor is off"
+    }
+  }
+
+  private var webcamStatusText: String {
+    switch supervisorWebcam.availability {
+    case .available: return "Camera context is available"
+    case .denied: return "Allow camera access for Intentive in System Settings → Privacy & Security → Camera"
+    case .disabled: return "Webcam is off"
+    case .suspended: return "Camera is paused while monitoring is unavailable"
+    case .stale, .unavailable: return "The selected camera is unavailable. Other permitted inputs continue working."
     }
   }
 
@@ -88,7 +123,7 @@ extension SettingsContentView {
         VStack(alignment: .leading, spacing: OmiSpacing.md) {
           settingRow(
             title: "Share this evaluation session",
-            subtitle: "Include bounded conversation and guidance text to help evaluate Intentive"
+            subtitle: "Include bounded conversation and transcript text to help evaluate Intentive"
           ) {
             Toggle("Share this evaluation session", isOn: $supervisor.evaluationSharing)
               .toggleStyle(OmiToggleStyle())

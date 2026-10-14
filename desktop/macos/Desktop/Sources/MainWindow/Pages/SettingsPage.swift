@@ -95,6 +95,7 @@ struct SettingsContentView: View {
   // Log export state
 
   @ObservedObject var supervisor = SupervisorService.shared
+  @ObservedObject var supervisorWebcam = SupervisorWebcamService.shared
 
   // Downgrade confirmation alert
   @State var showDowngradeAlert = false
@@ -174,6 +175,7 @@ struct SettingsContentView: View {
   @State var transcriptionLanguage: String = "en"
   @State var conversationLocationEnabled: Bool = false
   @State var vadGateEnabled: Bool = false
+  @State var ambientMicrophoneEnabled = true
   @State var systemAudioCaptureMode: AssistantSettings.SystemAudioCaptureMode = .always
 
   // Multi-chat mode setting
@@ -252,7 +254,6 @@ struct SettingsContentView: View {
     case resetOnboarding = "Reset Onboarding"
     case aiUserProfile = "AI User Profile"
     case stats = "Your Stats"
-    case goals = "Goals"
     case preferences = "Preferences"
     case troubleshooting = "Troubleshooting"
 
@@ -261,7 +262,6 @@ struct SettingsContentView: View {
       case .resetOnboarding: return "arrow.counterclockwise"
       case .aiUserProfile: return "brain"
       case .stats: return "chart.bar"
-      case .goals: return "target"
       case .preferences: return "slider.horizontal.3"
       case .troubleshooting: return "wrench.and.screwdriver"
       }
@@ -294,6 +294,7 @@ struct SettingsContentView: View {
     _vadGateEnabled = State(initialValue: settings.vadGateEnabled)
     _transcriptionLanguage = State(initialValue: settings.transcriptionLanguage)
     _transcriptionAutoDetect = State(initialValue: settings.transcriptionAutoDetect)
+    _ambientMicrophoneEnabled = State(initialValue: settings.ambientMicrophoneEnabled)
     _systemAudioCaptureMode = State(initialValue: settings.systemAudioCaptureMode)
   }
 
@@ -399,12 +400,6 @@ struct SettingsContentView: View {
         loadSubscriptionInfo()
         AppState.current?.fetchTrialMetadata()
         Task { await FloatingBarUsageLimiter.shared.fetchPlan() }
-      }
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
-      selectedSection = .notifications
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-        highlightedSettingId = SettingsDestination.supervisor.rawValue
       }
     }
     .onReceive(NotificationCenter.default.publisher(for: .navigateToFloatingBarSettings)) { _ in

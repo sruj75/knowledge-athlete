@@ -22,5 +22,5 @@ def test_shared_conversation_compute_and_listen_surfaces_remain() -> None:
     websocket_paths = {route.path for route in main.app.routes if getattr(route, 'path', None)}
 
     assert ('POST', '/v1/conversation-compute/structure') in route_keys
-    assert ('POST', '/v1/conversation-compute/action-items') in route_keys
+    assert ('POST', '/v1/conversation-compute/action-items') not in route_keys
     assert '/v4/listen' in websocket_paths

@@ -551,7 +551,7 @@ final class DesktopAutomationActionRegistry {
     registerOpenOmiShortcutActionsForQA()
     register(
       name: "refresh_all_data",
-      summary: "Refresh conversations, chat, tasks, and memories (same as Cmd+R)"
+      summary: "Refresh conversations, chat, and memories (same as Cmd+R)"
     ) { _ in
       NotificationCenter.default.post(name: .refreshAllData, object: nil)
       return nil
@@ -799,44 +799,6 @@ final class DesktopAutomationActionRegistry {
       }
     }
 
-    register(
-      name: "tasks_snapshot",
-      summary: "Return tasks store counts for harness assertions",
-      params: []
-    ) { _ in
-      guard AuthState.shared.isSignedIn else {
-        return [
-          "is_signed_in": "false",
-          "load_state": "signed_out",
-          "task_count_valid": "false",
-        ]
-      }
-      let store = TasksStore.shared
-      await store.loadTasksIfNeeded()
-      let deadline = Date().addingTimeInterval(30)
-      while store.isLoading, Date() < deadline {
-        try? await Task.sleep(nanoseconds: 100_000_000)
-      }
-      let total = store.tasksWithoutDueDate.count + store.overdueTasks.count + store.todaysTasks.count
-      let loadState: String
-      if store.error != nil {
-        loadState = "error"
-      } else if store.isLoading {
-        loadState = "loading"
-      } else {
-        loadState = "loaded"
-      }
-      return [
-        "is_signed_in": "true",
-        "load_state": loadState,
-        "task_count": "\(total)",
-        "overdue_count": "\(store.overdueTasks.count)",
-        "today_count": "\(store.todaysTasks.count)",
-        "task_count_valid": loadState == "loaded" ? "true" : "false",
-        "has_error": store.error != nil ? "true" : "false",
-      ]
-    }
-
     registerPTTActions()
 
     if OnboardingResetAutomationPolicy.isAvailable(isProductionBundle: AppBuild.isProductionBundle) {
@@ -1032,26 +994,7 @@ final class DesktopAutomationActionRegistry {
       return ["sent": query, "submission_generation": "\(generation)"]
     }
 
-    // Force the floating-bar active state so the pill↔notch-island morph and the
-    // "thinking" animation can be exercised without a mic. Same flags a real PTT
-    // turn sets; non-prod bridge only. state = idle|listening|thinking|answering.
-    register(
-      name: "debug_bar_state",
-      summary: "Force floating-bar state: idle|listening|thinking|answering (visual verification)",
-      params: ["state"]
-    ) { params in
-      let s = (params["state"] ?? "thinking").lowercased()
-      guard let debugState = VoiceTurnDebugPresentationState(rawValue: s) else {
-        return ["error": "state must be idle, listening, thinking, or answering"]
-      }
-      let mgr = FloatingControlBarManager.shared
-      guard let bar = mgr.barState else { return ["error": "no bar state"] }
-      if s != "idle", !mgr.isVisible { mgr.show() }
-      guard VoiceTurnCoordinator.shared.applyDebugPresentationState(debugState) else {
-        return ["error": "a non-debug voice turn is active"]
-      }
-      return ["state": s, "usesNotchIsland": bar.usesNotchIsland ? "true" : "false"]
-    }
+    registerConversationPresentationPreviewActions()
 
     register(
       name: "debug_reach_error",
@@ -1322,34 +1265,6 @@ final class DesktopAutomationActionRegistry {
     }
 
     register(
-      name: "suspend_agent_stream",
-      summary:
-        "Freeze the agent stdio stream (SIGSTOP) to induce a chat stall; auto-resumes after durationMs. Non-prod only.",
-      params: ["durationMs"]
-    ) { params in
-      guard AppBuild.isNonProduction else {
-        return ["error": "suspend_agent_stream is disabled on production bundles"]
-      }
-      // Default just past the 180s send watchdog so CHAT-02 can assert the
-      // "Response took too long" error + recoverable retry; capped at 300s.
-      let durationMs = intParam(params["durationMs"], default: 190_000)
-      return await AgentRuntimeProcess.shared.debugSuspendStream(durationMs: durationMs)
-    }
-
-    register(
-      name: "resume_agent_stream",
-      summary: "Resume a suspended agent stdio stream (SIGCONT) immediately. Non-prod only.",
-      params: []
-    ) { _ in
-      guard AppBuild.isNonProduction else {
-        return ["error": "resume_agent_stream is disabled on production bundles"]
-      }
-      // debugResumeStream is nonisolated (off-actor SIGCONT) so it returns promptly
-      // even when the actor is blocked writing to the frozen process.
-      return AgentRuntimeProcess.shared.debugResumeStream()
-    }
-
-    register(
       name: "floating_bar_chat_snapshot",
       summary: "Export floating-bar chat transcript and stream state for harness assertions",
       params: ["limit"]
@@ -1594,178 +1509,6 @@ final class DesktopAutomationActionRegistry {
           return ["error": error.localizedDescription]
         }
       }
-    }
-
-    register(
-      name: "seed_subagents",
-      summary: "Seed synthetic floating-bar subagents for deterministic UI benchmarks",
-      params: ["count"]
-    ) { params in
-      let count = intParam(params["count"], default: 3)
-      return await FloatingControlBarManager.shared.seedSubagentsForAutomation(count: count)
-    }
-
-    register(
-      name: "open_seeded_subagent",
-      summary: "Open a seeded subagent in the floating-bar chat",
-      params: ["index", "wait"]
-    ) { params in
-      let index = intParam(params["index"], default: 0)
-      let wait = boolParam(params["wait"], default: true)
-      return await FloatingControlBarManager.shared.openSeededSubagentForAutomation(index: index, wait: wait)
-    }
-
-    register(
-      name: "back_from_subagent",
-      summary: "Return from the selected subagent to the main Ask Intentive chat",
-      params: ["wait"]
-    ) { params in
-      let wait = boolParam(params["wait"], default: true)
-      return await FloatingControlBarManager.shared.backFromSubagentForAutomation(wait: wait)
-    }
-
-    register(
-      name: "coordinator_awareness_snapshot",
-      summary: "Read the Swift coordinator awareness projection for Agents & Attention debugging",
-      params: ["limit"]
-    ) { params in
-      let limit = max(1, min(200, intParam(params["limit"], default: 50)))
-      let snapshot = try await DesktopCoordinatorService.shared.awarenessSnapshotJSON(limit: limit)
-      return ["snapshot": snapshot]
-    }
-
-    register(
-      name: "agent_lifecycle_convergence_snapshot",
-      summary: "Read canonical child-run status alongside the rendered pill and journal-completion projection",
-      params: ["runIds"],
-      category: "read",
-      surfaces: ["floating_bar", "main_chat", "realtime"],
-      safety: "read_only"
-    ) { params in
-      let runIDs = Set(
-        (params["runIds"] ?? "")
-          .split(separator: ",")
-          .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-          .filter { !$0.isEmpty }
-          .prefix(20)
-      )
-      return ["snapshot": await AgentPillsManager.shared.lifecycleConvergenceSnapshot(runIDs: runIDs)]
-    }
-
-    register(
-      name: "coordinator_inspect_run",
-      summary: "Inspect one owner-scoped kernel run and its bounded tool-invocation ledger",
-      params: ["runId"]
-    ) { params in
-      guard let runId = params["runId"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !runId.isEmpty
-      else {
-        throw DesktopAutomationActionError.invalidParams("missing runId")
-      }
-      let run = try await DesktopCoordinatorService.shared.inspectRun(runId: runId)
-      return ["run": run]
-    }
-
-    register(
-      name: "coordinator_continue_agent",
-      summary: "Continue one owner-scoped canonical agent session and return its new run handles",
-      params: ["sessionId", "prompt", "surfaceKind"]
-    ) { params in
-      guard let sessionId = params["sessionId"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !sessionId.isEmpty
-      else {
-        throw DesktopAutomationActionError.invalidParams("missing sessionId")
-      }
-      guard let prompt = params["prompt"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-        !prompt.isEmpty
-      else {
-        throw DesktopAutomationActionError.invalidParams("missing prompt")
-      }
-      let inspection = try await DesktopCoordinatorService.shared.continueAgent(
-        sessionId: sessionId,
-        prompt: prompt,
-        originSurface: DesktopCoordinatorOriginSurface(surfaceKind: params["surfaceKind"])
-      )
-      return [
-        "session_id": inspection.sessionId ?? "",
-        "run_id": inspection.runId ?? "",
-        "attempt_id": inspection.attemptId ?? "",
-        "status": inspection.status,
-        "error": inspection.errorMessage ?? "",
-      ]
-    }
-
-    register(
-      name: "coordinator_action_queue",
-      summary: "Read the derived Swift coordinator attention queue",
-      params: ["limit"]
-    ) { params in
-      let limit = intParam(params["limit"], default: 20)
-      let queue = try await DesktopCoordinatorService.shared.actionQueueJSON(limit: max(1, limit))
-      return ["items": queue]
-    }
-
-    register(
-      name: "coordinator_route_intent",
-      summary: "Route a structured proposal through the canonical agent kernel",
-      params: [
-        "intent", "surfaceKind", "taskId", "proposal", "snapshotVersion",
-        "sessionId", "runId", "parentRunId", "agentCount",
-      ]
-    ) { params in
-      let proposal: DesktopCoordinatorIntentProposal
-      switch params["proposal"] {
-      case "spawn_agent": proposal = .spawnAgent
-      case "continue_run": proposal = .continueRun
-      case "clarify": proposal = .clarify(missing: ["automation_input"])
-      default: proposal = .answerInline
-      }
-      let syntaxFacts = DesktopCoordinatorIntentSyntaxFacts(
-        delegationNegated: nil,
-        explicitSessionId: params["sessionId"],
-        explicitRunId: params["runId"],
-        parentRunId: params["parentRunId"],
-        requestedAgentCount: params["agentCount"].flatMap(Int.init))
-      let decision = try await DesktopCoordinatorService.shared.routeIntentJSON(
-        intent: params["intent"] ?? "",
-        surfaceKind: params["surfaceKind"],
-        taskId: params["taskId"],
-        snapshotVersion: params["snapshotVersion"],
-        proposal: proposal,
-        syntaxFacts: syntaxFacts
-      )
-      return ["decision": decision]
-    }
-
-    register(
-      name: "coordinator_create_dispatch",
-      summary: "Create a coordinator dispatch through the runtime control path for Agents & Attention testing",
-      params: ["kind", "title", "decisionPrompt", "recommendedDefault", "sourceSessionId", "sourceRunId"]
-    ) { params in
-      let dispatch = try await DesktopCoordinatorService.shared.createDispatchJSON(
-        kind: params["kind"] ?? "routing_choice",
-        title: params["title"] ?? "Coordinator attention",
-        decisionPrompt: params["decisionPrompt"] ?? "Review this coordinator attention item.",
-        recommendedDefault: params["recommendedDefault"],
-        sourceSessionId: params["sourceSessionId"],
-        sourceRunId: params["sourceRunId"]
-      )
-      return ["dispatch": dispatch]
-    }
-
-    register(
-      name: "coordinator_resolve_dispatch",
-      summary: "Resolve a coordinator dispatch through the runtime control path",
-      params: ["dispatchId", "resolution"]
-    ) { params in
-      guard let dispatchId = params["dispatchId"], !dispatchId.isEmpty else {
-        throw DesktopAutomationActionError.invalidParams("missing dispatchId")
-      }
-      let dispatch = try await DesktopCoordinatorService.shared.resolveDispatchJSON(
-        dispatchId: dispatchId,
-        resolution: params["resolution"] ?? "resolved"
-      )
-      return ["dispatch": dispatch]
     }
 
     register(
@@ -2035,53 +1778,6 @@ final class DesktopAutomationActionRegistry {
       return [
         "saved": "true",
         "term_count": "\(terms.count)",
-      ]
-    }
-
-    register(
-      name: "goals_snapshot",
-      summary: "Return dashboard goals state for harness assertions"
-    ) { _ in
-      let goals = (try? await GoalStorage.shared.getLocalGoals(activeOnly: false)) ?? []
-      let titles = goals.map(\.title)
-      let titlesJSON: String
-      if let data = try? JSONSerialization.data(withJSONObject: titles),
-        let encoded = String(data: data, encoding: .utf8)
-      {
-        titlesJSON = encoded
-      } else {
-        titlesJSON = "[]"
-      }
-      return [
-        "goal_count": "\(goals.count)",
-        "titles_json": titlesJSON,
-      ]
-    }
-
-    register(
-      name: "create_test_goal",
-      summary: "Create a hermetic local dashboard goal",
-      params: ["title", "description"]
-    ) { params in
-      guard AppBuild.isNonProduction else {
-        return ["error": "create_test_goal is disabled on production bundles"]
-      }
-      let title = params["title"] ?? "[[MARKER:goals-dashboard]] harness goal"
-      guard let snapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else {
-        return ["error": "no active local owner"]
-      }
-      let goal = try await GoalStorage.shared.createGoal(
-        title: title,
-        description: params["description"],
-        authorization: LocalMutationAuthorization {
-          RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot)
-        }
-      )
-      let goals = (try? await GoalStorage.shared.getLocalGoals(activeOnly: false)) ?? []
-      return [
-        "created": "true",
-        "goal_id": goal.id,
-        "goal_count": "\(goals.count)",
       ]
     }
 
@@ -2828,7 +2524,6 @@ final class DesktopAutomationBridge: @unchecked Sendable {
         statusCode: 403)
     }
     if request.method == "GET", request.path == "/health", request.headers["authorization"] == nil {
-      let runtime = await AgentRuntimeProcess.shared.diagnosticsSnapshot()
       return jsonResponse(
         DesktopAutomationHealth(
           ok: true,
@@ -2842,11 +2537,7 @@ final class DesktopAutomationBridge: @unchecked Sendable {
           backendEnvironment: DesktopBackendEnvironment.shouldUseDevelopmentBackends ? "development" : "production",
           backendURL: DesktopBackendEnvironment.backendBaseURL(),
           sourceGitSHA: AppBuild.sourceProvenance?.gitSHA,
-          sourceTreeDirty: AppBuild.sourceProvenance?.sourceTreeDirty,
-          agentRuntimeRunning: runtime.running,
-          agentRuntimeExpectedProtocolVersion: AgentRuntimeProcess.expectedProtocolVersion,
-          agentRuntimeProtocolVersion: runtime.protocolVersion,
-          agentRuntimeVersion: runtime.runtimeVersion
+          sourceTreeDirty: AppBuild.sourceProvenance?.sourceTreeDirty
         )
       )
     }

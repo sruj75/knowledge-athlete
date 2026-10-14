@@ -57,22 +57,10 @@ enum ChatQueryFailureDisposition: Equatable, Sendable {
         return .failed(.authentication)
       case .agentError where bridgeError.isSessionAuthenticationFailure:
         return .failed(.authentication)
-      case .agentRuntimeFailure(let failure) where failure.failureCode == .authentication:
-        return .failed(.authentication)
-      case .failedToStart:
-        return .failed(.bridgeStartFailed)
-      case .nodeNotFound, .bridgeScriptNotFound, .notRunning, .processExited, .restarting:
+      case .nodeNotFound, .bridgeScriptNotFound, .notRunning, .processExited:
         return .failed(.bridgeUnavailable)
-      case .outOfMemory:
-        return .failed(.resourceExhausted)
       case .encodingError:
         return .failed(.encoding)
-      case .requestAlreadyActive:
-        return .failed(.concurrentRequest)
-      case .quotaExceeded:
-        return .failed(.quota)
-      case .agentRuntimeFailure:
-        return .failed(.agentRuntime)
       case .agentError:
         return .failed(.agentError)
       }
@@ -119,15 +107,7 @@ struct ChatQueryTelemetryContext: Equatable, Sendable {
 }
 
 enum ChatTelemetryDimension {
-  private static let allowedToolNames: Set<String> = {
-    let generated = GeneratedToolCapabilities.capabilities.map { $0.toolName.lowercased() }
-    let runtimeBuiltins = [
-      "bash", "browser", "computer", "edit", "glob", "grep", "image", "multiedit",
-      "notebookedit", "read", "shell", "skill", "task", "todowrite",
-      "webfetch", "websearch", "write",
-    ]
-    return Set(generated + runtimeBuiltins)
-  }()
+  private static let allowedToolNames: Set<String> = ["end_conversation"]
 
   private static let allowedScreenFailureCodes = Set(ScreenContextFailureCode.allCases.map(\.rawValue))
 
@@ -239,14 +219,6 @@ struct ChatQueryErrorDetail: Equatable, Sendable {
         failureSource: nil,
         adapterId: nil,
         provider: nil)
-    case .agentRuntimeFailure(let failure):
-      return ChatQueryErrorDetail(
-        errorCode: failure.failureCode.rawValue,
-        retryable: failure.retryable,
-        failureCode: failure.code,
-        failureSource: failure.source,
-        adapterId: failure.adapterId,
-        provider: failure.provider)
     default:
       return nil
     }

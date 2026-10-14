@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import httpx
@@ -6,6 +7,18 @@ from pydantic import ValidationError
 
 from routers import desktop_realtime
 from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
+
+
+def _mint_request():
+    return desktop_realtime.MintRequest(
+        conversation_id='conversation-1',
+        prompt_ref={
+            'name': 'intentive-live-system',
+            'version': '7',
+            'source': 'langfuse',
+            'sha256': hashlib.sha256(b'Live behavior').hexdigest(),
+        },
+    )
 
 
 class _Client:
@@ -37,15 +50,15 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
     )
 
     async def run(_executor, function, *_args):
-        if function is getattr(desktop_realtime, 'get_runtime_prompt', None):
-            assert _args == ('live',)
+        if function is desktop_realtime.resolve_conversation_prompt:
+            assert _args == (_mint_request().prompt_ref,)
             return ResolvedRuntimePrompt('Live behavior', 'intentive-live-system', '7', 'langfuse')
         assert function is desktop_realtime.is_trial_paywalled
         return False
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
+    response = await desktop_realtime.mint_session(_mint_request(), "user-1")
 
     assert response.status_code == 200
     body = json.loads(response.body)
@@ -57,6 +70,7 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
         'name': 'intentive-live-system',
         'version': '7',
         'source': 'langfuse',
+        'sha256': hashlib.sha256(b'Live behavior').hexdigest(),
     }
 
 
@@ -72,12 +86,14 @@ async def test_mint_classifies_provider_quota_error(monkeypatch):
     )
 
     async def run(_executor, function, *_args):
+        if function is desktop_realtime.resolve_conversation_prompt:
+            return ResolvedRuntimePrompt('Live behavior', 'intentive-live-system', '7', 'langfuse')
         assert function is desktop_realtime.is_trial_paywalled
         return False
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
+    response = await desktop_realtime.mint_session(_mint_request(), "user-1")
 
     assert response.status_code == 429
     assert json.loads(response.body) == {
@@ -107,6 +123,7 @@ async def test_usage_clamps_negative_tokens_and_records_realtime_breakdown(monke
         input_cached_tokens=-2,
         output_text_tokens=5,
         output_audio_tokens=-3,
+        thinking_tokens=-4,
     )
 
     response = await desktop_realtime.report_usage(report, "user-1")
@@ -114,7 +131,7 @@ async def test_usage_clamps_negative_tokens_and_records_realtime_breakdown(monke
     assert response.status_code == 204
     _, args = calls[0]
     assert args[0] == "user-1"
-    assert args[1:] == (10, 5, 0, 15, 0.0000525)
+    assert args[1:] == (10, 5, 0, 0, 15, 0.0000525)
 
 
 @pytest.mark.asyncio
@@ -164,7 +181,7 @@ async def test_trial_expiry_copy_offers_managed_recovery_not_customer_keys(monke
 
     monkeypatch.setattr(desktop_realtime, "run_blocking", run)
 
-    response = await desktop_realtime.mint_session(desktop_realtime.MintRequest(), "user-1")
+    response = await desktop_realtime.mint_session(_mint_request(), "user-1")
 
     assert response.status_code == 402
     body = json.loads(response.body)
@@ -173,3 +190,46 @@ async def test_trial_expiry_copy_offers_managed_recovery_not_customer_keys(monke
         "message": "Desktop trial expired. Upgrade to continue managed voice.",
     }
     assert "key" not in body["message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_live_usage_keeps_thinking_exclusive_in_ledger_total_and_cost(monkeypatch):
+    writes = []
+
+    class Ledger:
+        def collection(self, _name):
+            return self
+
+        def document(self, _name):
+            return self
+
+        def set(self, updates, *, merge):
+            assert merge is True
+            writes.append(updates)
+
+    async def run(_executor, function, *args):
+        if function is desktop_realtime.is_trial_paywalled:
+            return False
+        return function(*args)
+
+    monkeypatch.setattr(desktop_realtime, 'run_blocking', run)
+    monkeypatch.setattr(desktop_realtime, 'get_firestore_client', Ledger)
+    monkeypatch.setattr(desktop_realtime.firestore, 'Increment', lambda value: value)
+    response = await desktop_realtime.report_usage(
+        desktop_realtime.UsageReport(
+            input_text_tokens=40,
+            input_cached_tokens=60,
+            output_text_tokens=10,
+            thinking_tokens=7,
+        ),
+        'owner',
+    )
+    assert response.status_code == 204
+    assert len(writes) == 1
+    for prefix in ['desktop_chat', 'desktop_chat_realtime']:
+        assert writes[0][f'{prefix}.input_tokens'] == 40
+        assert writes[0][f'{prefix}.cache_read_tokens'] == 60
+        assert writes[0][f'{prefix}.output_tokens'] == 10
+        assert writes[0][f'{prefix}.thinking_tokens'] == 7
+        assert writes[0][f'{prefix}.total_tokens'] == 117
+        assert writes[0][f'{prefix}.cost_usd'] == pytest.approx((40 * 0.75 + 60 * 0.075 + 17 * 4.5) / 1_000_000)

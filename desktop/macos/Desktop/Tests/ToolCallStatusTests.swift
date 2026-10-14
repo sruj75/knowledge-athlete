@@ -35,103 +35,16 @@ final class ToolCallStatusTests: XCTestCase {
     XCTAssertFalse(ToolCallsGroupExpansionPolicy.initiallyExpanded())
   }
 
-  // MARK: - Stall tracking-id derivation
-
-  /// The `StallDetector` registration site and the `applyStallTransitions`
-  /// match site MUST derive a tool's tracking key the same way, or stall
-  /// transitions for `toolUseId`-less tools are silently dropped. Both go
-  /// through `ChatProvider.stallTrackingId`; this locks its contract.
-  func testStallTrackingIdUsesToolUseIdWhenPresent() {
-    XCTAssertEqual(
-      ChatProvider.stallTrackingId(toolUseId: "abc123", name: "execute_sql"),
-      "abc123"
-    )
-  }
-
-  func testStallTrackingIdFallsBackToNameWhenToolUseIdMissing() {
-    XCTAssertEqual(
-      ChatProvider.stallTrackingId(toolUseId: nil, name: "execute_sql"),
-      "untracked-execute_sql"
-    )
-  }
-
-  // MARK: - Bridge status mapping
-
-  func testBridgeTerminalFailureStatusesMapToFailed() {
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("failed"), .failed)
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("cancelled"), .failed)
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("interrupted"), .failed)
+  // Historical journal tool blocks retain their status mapping for rendering.
+  func testHistoricalFailureStatusesMapToFailed() {
     XCTAssertEqual(ToolCallStatus.fromBridgeStatus("failed"), .failed)
     XCTAssertEqual(ToolCallStatus.fromBridgeStatus("cancelled"), .failed)
     XCTAssertEqual(ToolCallStatus.fromBridgeStatus("interrupted"), .failed)
   }
 
-  func testBridgeStartedAndCompletedStatusesMapToExpectedStates() {
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("started"), .running)
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("completed"), .completed)
+  func testHistoricalStartedAndCompletedStatusesMapToExpectedStates() {
     XCTAssertEqual(ToolCallStatus.fromBridgeStatus("started"), .running)
     XCTAssertEqual(ToolCallStatus.fromBridgeStatus("completed"), .completed)
-  }
-
-  func testIntentionalStoppedErrorCompletesRemainingToolsWithoutFailureUI() {
-    XCTAssertEqual(
-      ChatProvider.remainingToolStatusAfterPartialResponseError(BridgeError.stopped),
-      .completed
-    )
-  }
-
-  func testBridgeFailuresMarkRemainingToolsFailed() {
-    XCTAssertEqual(
-      ChatProvider.remainingToolStatusAfterPartialResponseError(BridgeError.timeout),
-      .failed
-    )
-  }
-
-  func testSystemStopsAndFailedPreconditionsMarkRemainingToolsFailed() {
-    XCTAssertEqual(
-      ChatProvider.remainingToolStatusAfterPartialResponseError(
-        BridgeError.stopped,
-        watchdogFired: true
-      ),
-      .failed
-    )
-    XCTAssertEqual(
-      ChatProvider.remainingToolStatusAfterPartialResponseError(
-        BridgeError.stopped,
-        toolStallAbortFired: true
-      ),
-      .failed
-    )
-    XCTAssertEqual(
-      ChatProvider.remainingToolStatusAfterPartialResponseError(
-        BridgeError.stopped,
-        stopReason: .browserExtensionMissing
-      ),
-      .failed
-    )
-  }
-
-  func testLateResultToolStatusPreservesTerminalTruth() {
-    XCTAssertEqual(
-      ChatProvider.lateResultToolStatus(watchdogFired: false, toolStallAbortFired: false),
-      .completed
-    )
-    XCTAssertEqual(
-      ChatProvider.lateResultToolStatus(watchdogFired: true, toolStallAbortFired: false),
-      .failed
-    )
-    XCTAssertEqual(
-      ChatProvider.lateResultToolStatus(watchdogFired: false, toolStallAbortFired: true),
-      .failed
-    )
-    XCTAssertEqual(
-      ChatProvider.lateResultToolStatus(
-        watchdogFired: false,
-        toolStallAbortFired: false,
-        stopReason: .browserExtensionMissing
-      ),
-      .failed
-    )
   }
 
   @MainActor

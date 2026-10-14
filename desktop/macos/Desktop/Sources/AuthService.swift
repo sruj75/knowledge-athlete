@@ -1717,7 +1717,7 @@ class AuthService {
       return authorizationSnapshot.ownerID == expectedOwnerID
         && RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot)
     }
-    return AuthorizedToolExecution.isOwnerCurrent(expectedOwnerID)
+    return RuntimeOwnerIdentity.isAuthenticatedOwnerCurrent(expectedOwnerID)
   }
 
   /// Try to get name from Firebase user (after OAuth sign-in)

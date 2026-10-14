@@ -55,7 +55,7 @@ class DevFeedbackTests(unittest.TestCase):
 
     def test_constructs_the_required_focused_commands(self) -> None:
         swift = dev_feedback.test_command_for(self.desktop_root, "swift", "ChatTests/testSendsMessage")
-        python = dev_feedback.test_command_for(self.desktop_root, "python", "tests/unit/test_desktop_chat.py")
+        python = dev_feedback.test_command_for(self.desktop_root, "python", "tests/unit/test_desktop_conversation.py")
 
         self.assertEqual(
             swift.command,
@@ -70,7 +70,7 @@ class DevFeedbackTests(unittest.TestCase):
             ),
         )
         self.assertEqual(swift.cwd, self.desktop_root.resolve())
-        self.assertEqual(python.command, (".venv/bin/python", "-m", "pytest", "tests/unit/test_desktop_chat.py"))
+        self.assertEqual(python.command, (".venv/bin/python", "-m", "pytest", "tests/unit/test_desktop_conversation.py"))
         self.assertEqual(python.cwd, self.desktop_root.resolve().parent.parent / "backend")
 
     def test_watch_roots_are_limited_to_the_selected_component_inputs(self) -> None:
@@ -91,7 +91,7 @@ class DevFeedbackTests(unittest.TestCase):
         self.assertIn("../../backend/database", python_roots)
 
     def test_watch_continues_after_a_failed_test_and_coalesces_saves(self) -> None:
-        command = dev_feedback.test_command_for(self.desktop_root, "python", "tests/unit/test_desktop_chat.py")
+        command = dev_feedback.test_command_for(self.desktop_root, "python", "tests/unit/test_desktop_conversation.py")
         calls: list[tuple[tuple[str, ...], Path, bool]] = []
         output: list[str] = []
         exit_codes = iter((1, 0))

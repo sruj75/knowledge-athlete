@@ -151,12 +151,10 @@ final class SBOnboardingModel: ObservableObject {
   /// response). The screen-demo Continue button stays hidden until then, so the
   /// user can't skip past before seeing the "fun part" work.
   @Published var screenDemoDone = false
-  /// The hold-to-talk demo is armed only after the bridge has initialized its
-  /// kernel context. Showing the chord sooner invites a first PTT turn while its
-  /// only response route is still cold.
+  /// The Talk shortcut is armed after the canonical journal bridge is ready.
   @Published var screenDemoPTTReady = false
   /// Bridge startup can fail before an authenticated response route exists. In
-  /// that state, leave PTT unarmed and offer an explicit retry or skip instead
+  /// that state, leave Talk unarmed and offer an explicit retry or skip instead
   /// of presenting a shortcut which cannot answer.
   @Published var screenDemoPTTUnavailable = false
   var voiceCancellable: AnyCancellable?
@@ -286,11 +284,11 @@ final class SBOnboardingModel: ObservableObject {
       return "Let me see your screen, so I can help with whatever you're looking at."
     case .accessibility:
       return
-        "Turn on Accessibility so your global push-to-talk shortcut works, and Rewind and Focus can target the exact window you're using."
+        "Turn on Accessibility so your global Talk shortcut works and Rewind can target the exact window you're using."
     case .shortcutOpen:
       return "How do you want to open me? Just press one of these to set it."
     case .shortcutTalk:
-      return "And to talk to me, hands-free? Just hold one of these and say something."
+      return "Choose a Talk shortcut. Tap it to start a conversation, and tap it again to end it."
     case .screenDemo:
       return "Here's the fun part."
     }

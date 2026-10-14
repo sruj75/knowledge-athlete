@@ -134,15 +134,10 @@ PY
 }
 
 arc_validate_packaged_symlinks() {
-  python3 - "$1" "$2" <<'PY'
+  python3 - "$@" <<'PYCODE'
 import os
 import sys
-
-# The packaged-runtime root may itself be a worktree-local symlink to external
-# build storage. Compare resolved roots so valid internal npm links do not look
-# like escapes merely because their caller used the worktree path.
-agent_modules, pi_modules = map(os.path.realpath, sys.argv[1:])
-for root in (agent_modules, pi_modules):
+for root in map(os.path.realpath, sys.argv[1:]):
     if not os.path.isdir(root):
         raise SystemExit(1)
     for current, dirs, files in os.walk(root, followlinks=False):
@@ -150,23 +145,10 @@ for root in (agent_modules, pi_modules):
             link = os.path.join(current, name)
             if not os.path.islink(link):
                 continue
-            target = os.readlink(link)
-            resolved = os.path.realpath(os.path.join(current, target))
-            if os.path.exists(resolved):
-                try:
-                    if os.path.commonpath((resolved, root)) == root:
-                        continue
-                except ValueError:
-                    pass
+            resolved = os.path.realpath(link)
+            if not os.path.exists(resolved) or os.path.commonpath((resolved, root)) != root:
                 raise SystemExit(1)
-            marker = "agent/node_modules/"
-            normalized = target.replace("\\", "/")
-            if marker not in normalized:
-                raise SystemExit(1)
-            package_path = normalized.split(marker, 1)[1]
-            if not os.path.exists(os.path.join(agent_modules, package_path)):
-                raise SystemExit(1)
-PY
+PYCODE
 }
 
 arc_write_stamp() {

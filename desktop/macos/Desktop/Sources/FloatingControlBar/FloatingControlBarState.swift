@@ -70,25 +70,19 @@ enum FloatingConversationSurface: Equatable {
   case closed
   case mainInput
   case mainResponse
-  case agent(UUID)
 
   var isOpen: Bool {
     switch self {
     case .closed: return false
-    case .mainInput, .mainResponse, .agent: return true
+    case .mainInput, .mainResponse: return true
     }
   }
 
   var isResponseLike: Bool {
     switch self {
-    case .mainResponse, .agent: return true
+    case .mainResponse: return true
     case .closed, .mainInput: return false
     }
-  }
-
-  var agentID: UUID? {
-    guard case .agent(let id) = self else { return nil }
-    return id
   }
 
   var measurementKey: String {
@@ -96,7 +90,6 @@ enum FloatingConversationSurface: Equatable {
     case .closed: return "closed"
     case .mainInput: return "mainInput"
     case .mainResponse: return "mainResponse"
-    case .agent(let id): return "agent:\(id.uuidString)"
     }
   }
 }
@@ -248,6 +241,10 @@ class FloatingControlBarState: NSObject, ObservableObject {
 
   // AI conversation chrome (not transcript content)
   @Published var showingAIConversation: Bool = false
+  /// The conversation owner projects lifecycle and physical audio into the
+  /// retained notch visuals without transferring capture ownership to a turn.
+  @Published private(set) var conversationPresentation = ConversationPresentation.closed
+  var conversationMicrophoneOpen: Bool { conversationPresentation.microphoneOpen }
   @Published var showingAIResponse: Bool = false
   @Published var isAILoading: Bool = true
   @Published var aiInputText: String = "" {
@@ -270,7 +267,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
   /// that is not (yet) on the shared provider timeline.
   @Published private(set) var localAnswerOverride: ChatMessage? = nil
   @Published var lastConversationActivityAt: Date? = nil
-  @Published var activeAgentChatPillID: UUID? = nil
   @Published var conversationSurface: FloatingConversationSurface = .closed
   private var activeAIDraftKey = ChatDraftKey.floatingMain
   private var isRestoringAIDraft = false
@@ -347,14 +343,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
     aiInputText = ""
   }
 
-  /// Subagent switcher visibility state, shared by both display modes.
-  /// On notched displays the menu opens on hover over the notch; on
-  /// non-notched displays it opens pinned via an explicit click on the
-  /// pill's agents affordance. Mirrored from the SwiftUI view so the
-  /// window can account for an expanded switcher when resizing.
-  @Published var agentSwitcherPinned: Bool = false
-  @Published var agentSwitcherHovering: Bool = false
-  var isAgentSwitcherExpanded: Bool { agentSwitcherPinned || agentSwitcherHovering }
   @Published private(set) var notchHoverMenuOpen: Bool = false
   var canShowNotchHoverMenu: Bool {
     NotchHoverSurfacePolicy.allowsMenu(
@@ -370,10 +358,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
   func setNotchHoverMenuOpen(_ open: Bool) {
     notchHoverMenuOpen = open
     isHoveringBar = open
-    agentSwitcherHovering = open
-    if !open {
-      agentSwitcherPinned = false
-    }
   }
 
   /// Voice presentation owns the notch from recording through response playback.
@@ -393,29 +377,44 @@ class FloatingControlBarState: NSObject, ObservableObject {
     }
   }
 
-  // Push-to-talk presentation is one atomic reducer projection. Individual
-  // fields are read-only derivations so observers cannot see or create a
-  // partially applied voice state.
+  // Active conversations project their logical/physical state atomically.
+  // The per-turn projection remains the fallback for retained onboarding and
+  // debug presentation; it cannot overwrite an open conversation's visuals.
   @Published private(set) var voiceProjection = VoiceTurnUIProjection.idle
   var isVoiceListening: Bool {
-    voiceProjection.isListening || !voiceProjection.hint.isEmpty
+    if conversationPresentation.isOpen { return conversationPresentation.phase == .listening }
+    return voiceProjection.isListening || !voiceProjection.hint.isEmpty
   }
-  var isVoiceLocked: Bool { voiceProjection.isLocked }
+  var isVoiceLocked: Bool { !conversationPresentation.isOpen && voiceProjection.isLocked }
   var voiceTranscript: String { voiceProjection.transcript }
-  /// Transient inline status shown only for actionable PTT failures.
-  var pttHintText: String { VoiceTurnUICopy.statusBannerText(for: voiceProjection) }
-  var isVoiceResponseActive: Bool { voiceProjection.isResponseActive }
-  var isVoiceResponseWaiting: Bool { voiceProjection.isResponseWaiting }
-  /// True while a committed Push-to-Talk query is being processed and no
-  /// response output (voice glow or conversation surface) has surfaced yet.
-  /// Drives the notch/pill "thinking" animation.
-  var isThinking: Bool { voiceProjection.isThinking }
+  /// Retained turn hints must not obscure an active conversation's waveform.
+  var pttHintText: String {
+    conversationPresentation.isOpen ? "" : VoiceTurnUICopy.statusBannerText(for: voiceProjection)
+  }
+  var isVoiceResponseActive: Bool {
+    if conversationPresentation.isOpen { return conversationPresentation.phase == .speaking }
+    return voiceProjection.isResponseActive
+  }
+  var isVoiceResponseWaiting: Bool {
+    if conversationPresentation.isOpen {
+      return conversationPresentation.phase == .opening || conversationPresentation.phase == .thinking
+    }
+    return voiceProjection.isResponseWaiting
+  }
+  /// The existing notch/pill thinking animation also covers connection setup.
+  var isThinking: Bool {
+    if conversationPresentation.isOpen {
+      return conversationPresentation.phase == .opening || conversationPresentation.phase == .thinking
+    }
+    return voiceProjection.isThinking
+  }
   var isVoiceResponseGlowActive: Bool {
     isVoiceResponseActive || isVoiceResponseWaiting
   }
   /// Any reducer-owned voice phase that reserves the notch surface.
   var isVoicePresentationActive: Bool {
-    isVoiceListening || isThinking || isVoiceResponseGlowActive || !pttHintText.isEmpty
+    conversationPresentation.isOpen || isVoiceListening || isThinking || isVoiceResponseGlowActive
+      || !pttHintText.isEmpty
   }
   /// True only when the notch-mode setting is enabled and the current display
   /// exposes a real camera housing safe area. External displays keep old pill UI.
@@ -424,6 +423,12 @@ class FloatingControlBarState: NSObject, ObservableObject {
 
   private func applyVoiceProjection(_ projection: VoiceTurnUIProjection) {
     voiceProjection = projection
+  }
+
+  func setConversationPresentation(_ presentation: ConversationPresentation) {
+    guard conversationPresentation != presentation else { return }
+    conversationPresentation = presentation
+    dismissNotchHoverForVoicePresentation()
   }
 
   /// Whether the current query originated from voice (PTT). Used to decide
@@ -439,7 +444,7 @@ class FloatingControlBarState: NSObject, ObservableObject {
   }
 
   var hasVisibleConversation: Bool {
-    conversationSurface.isOpen || activeAgentChatPillID != nil || hasMainConversation
+    conversationSurface.isOpen || hasMainConversation
   }
 
   var canRestoreVisibleConversation: Bool {
@@ -690,16 +695,9 @@ class FloatingControlBarState: NSObject, ObservableObject {
 
   func present(_ surface: FloatingConversationSurface) {
     conversationSurface = surface
-    activeAgentChatPillID = surface.agentID
     showingAIConversation = surface.isOpen
     showingAIResponse = surface.isResponseLike
     markConversationActivity()
-  }
-
-  func leaveAgentSurface() {
-    activeAgentChatPillID = nil
-    let nextSurface: FloatingConversationSurface = hasMainConversation ? .mainResponse : .mainInput
-    present(nextSurface)
   }
 
   func hideConversationSurface() {
@@ -711,7 +709,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
     FloatingControlBarManager.shared.cancelChat()
     // cancelListening() is already guarded by state != .idle.
     PushToTalkManager.shared.cancelListening()
-    activeAgentChatPillID = nil
     conversationSurface = .closed
     showingAIConversation = false
     showingAIResponse = false
@@ -760,7 +757,6 @@ class FloatingControlBarState: NSObject, ObservableObject {
       FloatingControlBarManager.shared.cancelChat()
       PushToTalkManager.shared.cancelListening()
     }
-    activeAgentChatPillID = nil
     conversationSurface = .closed
     responseContentHeights = [:]
     responseContentHeight = 0

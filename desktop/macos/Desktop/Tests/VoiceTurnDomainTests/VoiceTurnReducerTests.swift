@@ -208,10 +208,6 @@ final class VoiceTurnReducerTests: XCTestCase {
         .hubCommitAccepted(turnID: oldTurnID, sessionID: sessionID, responseID: nil)
       ).model
     XCTAssertEqual(model.turn?.phase, .awaitingResponse)
-    XCTAssertTrue(
-      PushToTalkManager.admitsListeningStart(
-        activeTurnID: oldTurnID,
-        phase: model.turn?.phase))
 
     let bargeIn = reduce(model, .start(turnID: newTurnID, ownerID: nil, intent: .hold))
     model = bargeIn.model
@@ -228,22 +224,6 @@ final class VoiceTurnReducerTests: XCTestCase {
     XCTAssertEqual(stale.model.turn?.id, newTurnID)
     XCTAssertEqual(stale.model.turn?.projection.transcript, "")
     XCTAssertEqual(stale.model.staleEventCount, 1)
-  }
-
-  func testListeningStartAdmissionPreservesIdleAndExistingCaptureExclusivity() {
-    let turnID = VoiceTurnID()
-
-    XCTAssertTrue(PushToTalkManager.admitsListeningStart(activeTurnID: nil, phase: nil))
-    XCTAssertTrue(
-      PushToTalkManager.admitsListeningStart(
-        activeTurnID: turnID,
-        phase: .pendingLockDecision))
-    XCTAssertFalse(
-      PushToTalkManager.admitsListeningStart(activeTurnID: turnID, phase: .recording))
-    XCTAssertFalse(
-      PushToTalkManager.admitsListeningStart(activeTurnID: turnID, phase: .lockedRecording))
-    XCTAssertFalse(
-      PushToTalkManager.admitsListeningStart(activeTurnID: turnID, phase: .finalizing))
   }
 
   func testHubBargeInPreservesProviderRuntimeForAtomicHandoff() {
@@ -1379,7 +1359,7 @@ final class VoiceTurnReducerTests: XCTestCase {
         .screenEvidenceProtocolStartedScoped(
           turnID: turnID,
           token: token,
-          expiresAfter: RealtimeScreenEvidenceProtocolPolicy.maximumReportWait)
+          expiresAfter: 8)
       ).model
     model =
       reduce(
@@ -1728,8 +1708,6 @@ final class VoiceTurnReducerTests: XCTestCase {
     let cancelled = reduce(model, .cancel(turnID: turnID, reason: .cancelled))
 
     XCTAssertTrue(cancelled.effects.contains(.cancelHub(turnID: turnID, route: route)))
-    XCTAssertTrue(PushToTalkManager.isHubRoute(route))
-    XCTAssertFalse(PushToTalkManager.isHubRoute(.managedBatch))
   }
 
   func testHintDeadlineOnlyClearsTheCurrentTurnHint() {

@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 import pytest
+from pydantic import ValidationError
 
 from models.desktop_ai import (
     SupervisorDecisionObservation,
@@ -45,7 +46,6 @@ def test_explicit_supervisor_example_exports_only_reviewed_text_when_enabled(mon
         evaluation_sharing=sharing,
         transcripts=[{'id': 't1', 'source': 'mixed', 'text': 'synthetic speech'}],
         conversation=[{'turn_id': 'turn-1', 'role': 'assistant', 'text': 'synthetic response'}],
-        note='synthetic guidance',
     )
     ai_evaluation.record_client_observation(uid='owner-1', event=event)
     assert len(started) == 1
@@ -54,7 +54,7 @@ def test_explicit_supervisor_example_exports_only_reviewed_text_when_enabled(mon
     exported = str(started) + str(updated)
     assert ('synthetic speech' in exported) is sharing
     assert ('synthetic response' in exported) is sharing
-    assert ('synthetic guidance' in exported) is sharing
+    assert 'synthetic guidance' not in exported
     assert started[0]['trace_context']['trace_id'] == ai_evaluation.trace_id('owner-1', 'session-1', 'decision-1')
 
 
@@ -88,6 +88,9 @@ def test_inflight_supervisor_trace_is_metadata_only_even_when_sharing_was_enable
         observation_id='obs',
         session_id='session',
         context_epoch=0,
+        observed_at='2026-10-14T10:00:00Z',
+        content_revision=8,
+        input_status={key: {'status': 'stale', 'age_ms': 5000} for key in ['screen', 'webcam', 'microphone', 'system']},
         evaluation_sharing=True,
         transcripts=[{'id': 't1', 'text': 'TRANSCRIPT_SENTINEL', 'source': 'mixed'}],
         memories=['MEMORY_SENTINEL'],
@@ -111,6 +114,10 @@ def test_inflight_supervisor_trace_is_metadata_only_even_when_sharing_was_enable
     assert 'intervene' in exported
     assert captured[0]['metadata']['observation_id'] == 'obs'
     assert captured[0]['metadata']['decision_id'] == 'decision'
+    summary = next(value['input'] for value in captured if 'input' in value)
+    assert summary['content_revision'] == 8
+    assert summary['observed_at'] == '2026-10-14T10:00:00+00:00'
+    assert summary['input_status']['webcam']['age_ms'] == 5000
 
 
 def test_repeated_scores_upsert_same_owner_scoped_record(monkeypatch):
@@ -295,3 +302,18 @@ def test_chat_terminal_rejects_client_prompt_and_provider_payloads():
     for forbidden in ['prompt', 'tools', 'memories', 'profile', 'screen', 'audio']:
         with pytest.raises(ValidationError):
             ChatTerminalObservation.model_validate({**event, forbidden: 'must never enter export'})
+
+
+def test_supervisor_observation_rejects_private_guidance_even_with_opt_in():
+    with pytest.raises(ValidationError):
+        SupervisorDecisionObservation.model_validate(
+            {
+                'kind': 'supervisor_decision',
+                'decision_id': 'decision',
+                'observation_id': 'observation',
+                'session_id': 'session',
+                'prompt': {'name': 'intentive-supervisor-system', 'version': '1', 'source': 'langfuse'},
+                'evaluation_sharing': True,
+                'note': 'private guidance',
+            }
+        )

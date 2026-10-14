@@ -96,9 +96,6 @@ for path in [
     "agent/package.json",
     "agent/package-lock.json",
     "agent/tsconfig.json",
-    "pi-mono-extension/package.json",
-    "pi-mono-extension/package-lock.json",
-    "pi-mono-extension/index.ts",
 ]:
     record_file(path)
 

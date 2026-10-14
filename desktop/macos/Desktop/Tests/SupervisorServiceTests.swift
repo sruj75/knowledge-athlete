@@ -6,7 +6,9 @@ import XCTest
 private final class SupervisorTestHarness {
   let authority = RuntimeOwnerAuthorizationAuthority()
   var owner: RuntimeOwnerAuthorizationSnapshot
-  var date = Date(timeIntervalSince1970: 1_800_000_000)
+  var date = Date(timeIntervalSince1970: 1_800_000_000) {
+    didSet { uptime += date.timeIntervalSince(oldValue) }
+  }
   var uptime: TimeInterval = 100
   var requests: [SupervisorEvaluationRequest] = []
   var delivered: [SupervisorGuidance] = []
@@ -43,6 +45,11 @@ private final class SupervisorTestHarness {
       action: action, note: action == .wait ? nil : "Ask about the present work.",
       prompt: .init(text: "", name: "supervisor", version: "1", source: "fallback"),
       outcome: "completed")
+  }
+
+  func evaluate() async {
+    date = date.addingTimeInterval(1)
+    await service.evaluatePendingObservation()
   }
 
   func segment(
@@ -83,34 +90,276 @@ private final class SupervisorRequestGate {
 
 @MainActor
 final class SupervisorServiceTests: XCTestCase {
-  func testProductionThreeSecondSchedulerCoalescesBurstIntoOneLatestRequest() async throws {
+  func testQuietContextIsReconsideredWithANewGuidanceLifetime() async throws {
     let h = try SupervisorTestHarness()
-    h.automaticallySchedule = true
-    let evaluated = expectation(description: "coalesced evaluation")
-    h.evaluation = { request, _ in
-      evaluated.fulfill()
-      return SupervisorTestHarness.response(request, action: .wait)
-    }
+    h.service.observeVoice(userText: "I am reading this document", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    let first = try XCTUnwrap(h.delivered.first)
+    h.date = h.date.addingTimeInterval(31)
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 2, "quiet observation is reconsidered after thirty seconds")
+    XCTAssertEqual(
+      h.requests.last?.observedAt, ISO8601DateFormatter().string(from: h.date),
+      "the request distinguishes admission time from the original content timestamp")
+    let latest = try XCTUnwrap(h.delivered.last)
+    XCTAssertNotEqual(latest.id, first.id)
+    XCTAssertTrue(
+      h.service.isCurrent(latest), "guidance lifetime begins with this admission, not the old content change")
+  }
+
+  func testChangesCoalesceFromTheFirstEventAndShareOneBudget() async throws {
+    let h = try SupervisorTestHarness()
     h.service.observeVoice(userText: "draft", turnID: "turn", outcome: "generated")
-    h.service.observeVoice(userText: "correction", turnID: "turn", outcome: "generated")
-    h.service.observeVoice(userText: "final", turnID: "turn", outcome: "completed")
+    await h.service.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty)
-    await fulfillment(of: [evaluated], timeout: 5)
-    XCTAssertEqual(h.requests.count, 1)
-    XCTAssertEqual(h.requests.first?.conversation.map(\.text), ["final"])
-    h.service.endSession()
+    h.date = h.date.addingTimeInterval(0.6)
+    h.service.observeVoice(userText: "latest", turnID: "turn", outcome: "generated")
+    h.date = h.date.addingTimeInterval(0.4)
+    await h.service.evaluatePendingObservation()
+    XCTAssertEqual(h.requests.first?.conversation.map(\.text), ["latest"])
+    for text in ["two", "three", "four"] {
+      h.service.observeVoice(userText: text, turnID: "turn", outcome: "generated")
+      await h.evaluate()
+    }
+    XCTAssertEqual(h.requests.count, 3, "the burst has only three tokens")
+    h.date = h.date.addingTimeInterval(2)
+    await h.service.evaluatePendingObservation()
+    XCTAssertEqual(h.requests.count, 4)
+    XCTAssertEqual(h.requests.last?.conversation.first?.text, "four")
   }
 
   func testFreshContextEvaluatesWithoutStoredHistoryAndExpiresItsAdvice() async throws {
     let h = try SupervisorTestHarness()
     h.service.observeVoice(userText: "I am writing a report", turnID: "turn", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1)
     XCTAssertTrue(h.requests[0].memories.isEmpty)
     let guidance = try XCTUnwrap(h.delivered.first)
     XCTAssertTrue(h.service.isCurrent(guidance))
     h.date = h.date.addingTimeInterval(31)
     XCTAssertFalse(h.service.isCurrent(guidance))
+  }
+
+  func testAcceptedGuidanceSurvivesOpeningConversationButNotRevocation() async throws {
+    let h = try SupervisorTestHarness()
+    h.service.observeVoice(userText: "Help me begin", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    let accepted = try XCTUnwrap(h.delivered.first)
+    XCTAssertTrue(h.service.isCurrent(accepted))
+    h.service.updateConversation(id: "opened-by-guidance", state: .connecting)
+    XCTAssertFalse(h.service.isCurrent(accepted), "the original pending admission is consumed")
+    XCTAssertTrue(h.service.isAcceptedGuidanceAllowed(accepted))
+    h.service.setSuspended(true)
+    XCTAssertFalse(h.service.isAcceptedGuidanceAllowed(accepted))
+    h.service.setSuspended(false)
+    XCTAssertFalse(h.service.isAcceptedGuidanceAllowed(accepted), "unlock cannot revive the old session")
+  }
+
+  func testAcceptedGuidanceIsRevokedWhenApplicationChangesDuringConversationWarmup() async throws {
+    let h = try SupervisorTestHarness()
+    h.service.applicationContextChanged(appName: "Editor", authorizationSnapshot: h.owner)
+    h.service.observeVoice(userText: "Help with this", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    let accepted = try XCTUnwrap(h.delivered.first)
+    h.service.updateConversation(id: "opening", state: .connecting)
+    XCTAssertTrue(h.service.isAcceptedGuidanceAllowed(accepted))
+    h.service.applicationContextChanged(appName: "Browser", authorizationSnapshot: h.owner)
+    XCTAssertFalse(h.service.isAcceptedGuidanceAllowed(accepted))
+  }
+
+  func testMeaningfulScreenChangeRevokesQueuedGuidanceButQuietRefreshPreservesIt() async throws {
+    let h = try SupervisorTestHarness()
+    let frame = CapturedFrame(
+      jpegData: Data(), appName: "Editor", windowTitle: "Document", frameNumber: 1, captureTime: h.date)
+    h.service.observeFrame(frame, authorizationSnapshot: h.owner, visualHash: 0)
+    await h.evaluate()
+    let guidance = try XCTUnwrap(h.delivered.first)
+    h.service.observeFrame(frame, authorizationSnapshot: h.owner, visualHash: 0)
+    XCTAssertTrue(h.service.isCurrent(guidance), "a fresh unchanged frame preserves queued guidance")
+    h.service.observeFrame(frame, authorizationSnapshot: h.owner, visualHash: 255)
+    XCTAssertFalse(h.service.isCurrent(guidance))
+    XCTAssertFalse(h.service.isAcceptedGuidanceAllowed(guidance))
+  }
+
+  func testScreenChangeSuppressesInFlightStaleDeliveryWithoutPostponingNextAdmission() async throws {
+    let h = try SupervisorTestHarness()
+    let gate = SupervisorRequestGate()
+    h.evaluation = { request, _ in
+      await gate.hold()
+      return SupervisorTestHarness.response(request)
+    }
+    let frame = CapturedFrame(
+      jpegData: Data(), appName: "Editor", windowTitle: "Document", frameNumber: 1, captureTime: h.date)
+    h.service.observeFrame(frame, authorizationSnapshot: h.owner, visualHash: 0)
+    let pending = Task { await h.evaluate() }
+    await gate.waitForStart()
+    h.service.observeFrame(frame, authorizationSnapshot: h.owner, visualHash: 255)
+    gate.release()
+    await pending.value
+    XCTAssertTrue(h.delivered.isEmpty)
+    h.evaluation = nil
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 2)
+    XCTAssertEqual(h.delivered.count, 1)
+  }
+
+  func testPartialRevisionsReplaceTextAndInterruptedPlaybackStaysDistinct() async throws {
+    let h = try SupervisorTestHarness()
+    h.service.updateConversation(id: "conversation", state: .open)
+    h.service.observeVoice(userText: "part", turnID: "turn", outcome: "generated", revision: 1, isFinal: false)
+    h.service.observeVoice(
+      userText: "partial revised", turnID: "turn", outcome: "generated", revision: 2, isFinal: false)
+    h.service.observeVoice(userText: "obsolete", turnID: "turn", outcome: "generated", revision: 1, isFinal: false)
+    await h.evaluate()
+    XCTAssertEqual(h.requests.last?.activeConversation?.id, "conversation")
+    XCTAssertEqual(h.requests.last?.conversation.first?.text, "partial revised")
+    XCTAssertEqual(h.requests.last?.conversation.first?.final, false)
+    h.service.observeVoice(assistantText: "unfinished answer", turnID: "turn", outcome: "interrupted")
+    await h.evaluate()
+    XCTAssertEqual(h.requests.last?.conversation.last?.outcome, "interrupted")
+  }
+
+  func testSuspensionRejectsOldFramesAndGuidanceWhileOtherInputCanResume() async throws {
+    let h = try SupervisorTestHarness()
+    let admission = try XCTUnwrap(h.service.captureVoiceObservationAdmission())
+    h.service.observeVoice(userText: "before lock", turnID: "old", outcome: "completed")
+    await h.evaluate()
+    let old = try XCTUnwrap(h.delivered.first)
+    h.service.setSuspended(true)
+    h.service.observeVoice(userText: "while locked", turnID: "new", outcome: "completed")
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 1)
+    XCTAssertFalse(h.service.isCurrent(old))
+    XCTAssertEqual(h.service.state, .suspended)
+    h.service.setSuspended(false)
+    h.service.observeVoice(userText: "late", turnID: "old", outcome: "completed", admission: admission)
+    h.service.observeVoice(userText: "after unlock", turnID: "new", outcome: "completed")
+    await h.evaluate()
+    XCTAssertEqual(h.requests.last?.conversation.map(\.text), ["after unlock"])
+  }
+
+  func testQuotaResetRetriesLatestContextWithoutRequiringAnotherEvent() async throws {
+    let h = try SupervisorTestHarness()
+    h.evaluation = { _, _ in throw SupervisorRequestError.rateLimited(reason: "burst_quota", retryAfterSeconds: 60) }
+    h.service.observeVoice(userText: "current work", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    XCTAssertNotNil(h.service.retryAt)
+    h.evaluation = nil
+    h.date = h.date.addingTimeInterval(59)
+    await h.service.evaluatePendingObservation()
+    XCTAssertEqual(h.requests.count, 1)
+    h.date = h.date.addingTimeInterval(1)
+    await h.service.evaluatePendingObservation()
+    XCTAssertEqual(h.requests.count, 2)
+    XCTAssertNil(h.service.retryAt)
+  }
+
+  func testKnownQuotaPauseSurvivesLockAndMonitoringToggle() async throws {
+    let h = try SupervisorTestHarness()
+    h.evaluation = { _, _ in throw SupervisorRequestError.rateLimited(reason: "daily_quota", retryAfterSeconds: 3_600) }
+    h.service.observeVoice(userText: "work", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    h.service.setSuspended(true)
+    h.service.setSuspended(false)
+    h.service.enabled = false
+    h.service.enabled = true
+    h.service.observeVoice(userText: "work after unlock", turnID: "next", outcome: "completed")
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 1, "session resets must not bypass a known owner quota pause")
+    XCTAssertNotNil(h.service.retryAt)
+  }
+
+  func testEightHoursOfQuietContextUsesOneHeartbeatEveryThirtySeconds() async throws {
+    let h = try SupervisorTestHarness()
+    h.evaluation = { request, _ in SupervisorTestHarness.response(request, action: .wait) }
+    h.service.observeVoice(userText: "reading", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    for _ in 1..<960 {
+      h.date = h.date.addingTimeInterval(30)
+      await h.service.evaluatePendingObservation()
+    }
+    XCTAssertEqual(h.requests.count, 960)
+    XCTAssertEqual(h.service.metrics.admitted, 960)
+    XCTAssertEqual(h.service.metrics.budgetDeferrals, 0)
+  }
+
+  func testDuplicateSettledTranscriptsDoNotConsumeAnotherEventBudget() async throws {
+    let h = try SupervisorTestHarness()
+    h.service.observeVoice(userText: "unchanged", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    h.service.observeVoice(userText: "unchanged", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 1)
+  }
+
+  func testQuietWebcamRefreshUsesLatestImageWithoutForcingAnotherDecision() async throws {
+    let h = try SupervisorTestHarness()
+    let first = Data([0xFF, 0xD8, 0xFF, 1])
+    let latest = Data([0xFF, 0xD8, 0xFF, 2])
+    h.service.observeWebcam(
+      jpegData: first, capturedAt: h.date, capturedUptime: h.uptime,
+      visualHash: 0, observationSessionID: h.service.sessionID, authorizationSnapshot: h.owner)
+    await h.evaluate()
+    let revision = h.requests[0].contentRevision
+    h.date = h.date.addingTimeInterval(29)
+    h.service.observeWebcam(
+      jpegData: latest, capturedAt: h.date, capturedUptime: h.uptime,
+      visualHash: 0, observationSessionID: h.service.sessionID, authorizationSnapshot: h.owner)
+    await h.evaluate()
+    XCTAssertEqual(h.requests.count, 2)
+    XCTAssertEqual(h.requests.last?.contentRevision, revision)
+    XCTAssertEqual(h.requests.last?.webcam?.jpegBase64, latest.base64EncodedString())
+    XCTAssertEqual(h.requests.last?.inputStatus.webcam.ageMs, 1_000)
+    h.date = h.date.addingTimeInterval(30)
+    await h.service.evaluatePendingObservation()
+    XCTAssertNil(h.requests.last?.webcam)
+    XCTAssertEqual(h.requests.last?.inputStatus.webcam.status, .stale)
+  }
+
+  func testOversizedAndOldSessionWebcamFramesNeverBecomeProviderInput() async throws {
+    let h = try SupervisorTestHarness()
+    let oldSession = h.service.sessionID
+    h.service.endSession()
+    h.service.observeWebcam(
+      jpegData: Data([0xFF, 0xD8, 0xFF]), capturedAt: h.date, capturedUptime: h.uptime,
+      visualHash: 0, observationSessionID: oldSession, authorizationSnapshot: h.owner)
+    h.service.observeWebcam(
+      jpegData: Data([0xFF, 0xD8, 0xFF]) + Data(repeating: 0, count: 256_000),
+      capturedAt: h.date, capturedUptime: h.uptime, visualHash: 0,
+      observationSessionID: h.service.sessionID, authorizationSnapshot: h.owner)
+    h.service.observeVoice(userText: "other inputs still work", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    XCTAssertNil(h.requests.last?.webcam)
+    XCTAssertEqual(h.requests.last?.conversation.first?.text, "other inputs still work")
+  }
+
+  func testEightHourAdaptiveProfilesRespectSharedBudgetAndSuspension() async throws {
+    var report: [String: Int] = [:]
+    for profile in ["changed", "bursty", "suspended"] {
+      let h = try SupervisorTestHarness()
+      h.evaluation = { request, _ in SupervisorTestHarness.response(request, action: .wait) }
+      for second in 0..<28_800 {
+        if profile == "suspended" { h.service.setSuspended(second >= 3_600) }
+        if profile != "bursty" || second % 60 < 10 {
+          h.service.observeVoice(
+            userText: "revision \(second)", turnID: "turn", outcome: "generated",
+            revision: second, isFinal: false)
+        }
+        await h.evaluate()
+      }
+      report[profile] = h.requests.count
+      XCTAssertLessThanOrEqual(h.requests.count, 5_763, "three initial tokens plus one per five seconds")
+      if profile == "changed" { XCTAssertGreaterThan(h.requests.count, 5_750) }
+      if profile == "bursty" {
+        XCTAssertGreaterThan(h.requests.count, 960)
+        XCTAssertLessThan(h.requests.count, 4_000)
+      }
+      if profile == "suspended" {
+        XCTAssertLessThanOrEqual(h.requests.count, 723)
+        XCTAssertEqual(h.service.state, .suspended)
+      }
+    }
+    print("Supervisor offline eight-hour request counts (fake clock, zero provider latency): \(report)")
   }
 
   func testSustainedSameContextChangesDoNotStarveSingleFlightAndLatestPendingWins() async throws {
@@ -121,23 +370,23 @@ final class SupervisorServiceTests: XCTestCase {
       return SupervisorTestHarness.response(request)
     }
     h.service.observeVoice(userText: "first", turnID: "turn", outcome: "generated")
-    let pending = Task { await h.service.evaluatePendingObservation() }
+    let pending = Task { await h.evaluate() }
     await gate.waitForStart()
     h.service.observeVoice(userText: "corrected", turnID: "turn", outcome: "completed")
     h.service.observeVoice(userText: "latest", turnID: "turn", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1)
     gate.release()
     await pending.value
     XCTAssertEqual(h.delivered.count, 1, "same-context events must not starve the current request")
     let firstGuidance = try XCTUnwrap(h.delivered.first)
     h.evaluation = nil
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 2)
     XCTAssertEqual(h.requests.last?.conversation.map(\.text), ["latest"])
     XCTAssertEqual(h.delivered.count, 2)
     XCTAssertFalse(h.service.isCurrent(firstGuidance), "only the latest accepted guidance remains actionable")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 2, "unchanged observations never poll the model")
   }
 
@@ -151,7 +400,7 @@ final class SupervisorServiceTests: XCTestCase {
     h.service.observeFrame(
       .init(jpegData: Data(), appName: "Editor", windowTitle: "Document", frameNumber: 1, captureTime: h.date),
       authorizationSnapshot: h.owner, visualHash: 0)
-    let pending = Task { await h.service.evaluatePendingObservation() }
+    let pending = Task { await h.evaluate() }
     await gate.waitForStart()
     h.service.applicationContextChanged(
       appName: "Browser", windowTitle: "New task", windowID: 2,
@@ -166,7 +415,7 @@ final class SupervisorServiceTests: XCTestCase {
     h.service.applicationContextChanged(
       appName: "Editor", windowTitle: "Document", windowID: 1, authorizationSnapshot: h.owner)
     h.service.observeVoice(userText: "Help with this document", turnID: "turn", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     let guidance = try XCTUnwrap(h.delivered.first)
     XCTAssertTrue(h.service.isCurrent(guidance))
     h.service.applicationContextChanged(
@@ -201,19 +450,19 @@ final class SupervisorServiceTests: XCTestCase {
     h.service.evaluationSharing = true
     let oldSession = h.service.sessionID
     h.service.observeVoice(userText: "old session", turnID: "old", outcome: "completed")
-    let pending = Task { await h.service.evaluatePendingObservation() }
+    let pending = Task { await h.evaluate() }
     await gate.waitForStart()
     h.service.endSession()
     XCTAssertFalse(h.service.evaluationSharing)
     XCTAssertNotEqual(h.service.sessionID, oldSession)
     h.service.observeVoice(userText: "new session", turnID: "new", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1)
     gate.release()
     await pending.value
     XCTAssertTrue(h.delivered.isEmpty)
     h.evaluation = nil
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 2)
     XCTAssertFalse(h.requests[1].evaluationSharing)
     XCTAssertEqual(h.requests[1].conversation.map(\.text), ["new session"])
@@ -227,7 +476,7 @@ final class SupervisorServiceTests: XCTestCase {
       return SupervisorTestHarness.response(request)
     }
     h.service.observeVoice(userText: "old owner generation", turnID: "old", outcome: "completed")
-    let pending = Task { await h.service.evaluatePendingObservation() }
+    let pending = Task { await h.evaluate() }
     await gate.waitForStart()
     h.authority.beginTransition()
     h.authority.endTransition(ownerID: "supervisor-test")
@@ -241,7 +490,6 @@ final class SupervisorServiceTests: XCTestCase {
     let h = try SupervisorTestHarness()
     let producer = UUID()
     h.service.observeVoiceActivity(turnID: "spoken", active: true, occurredAt: h.date)
-    h.uptime = 105
     h.date = h.date.addingTimeInterval(5)
     h.service.observeVoiceActivity(turnID: "spoken", active: false, occurredAt: h.date)
     h.uptime = 110
@@ -252,7 +500,7 @@ final class SupervisorServiceTests: XCTestCase {
       h.segment("after", id: "after", source: .mixed, capture: .init(start: 107, end: 109), producer: producer),
     ]
     h.service.observeAmbient(segments, sessionID: 1, authorizationSnapshot: h.owner)
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests[0].transcripts.map(\.text), ["before", "after"])
     XCTAssertEqual(h.requests[0].transcripts.last?.source, .mixed)
     XCTAssertEqual(segments.count, 4, "B does not mutate the recording/UI input")
@@ -263,11 +511,11 @@ final class SupervisorServiceTests: XCTestCase {
     let producer = UUID()
     h.service.observeAmbient([h.segment("draft", producer: producer)], sessionID: 7, authorizationSnapshot: h.owner)
     h.service.observeAmbient([h.segment("corrected", producer: producer)], sessionID: 7, authorizationSnapshot: h.owner)
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests[0].transcripts.map(\.text), ["corrected"])
     h.service.observeAmbient(
       [h.segment("uncertain", capture: nil, producer: producer)], sessionID: 7, authorizationSnapshot: h.owner)
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertTrue(h.requests[1].transcripts.isEmpty)
   }
 
@@ -285,7 +533,7 @@ final class SupervisorServiceTests: XCTestCase {
         userText: String(repeating: "u", count: 1_100), assistantText: "answer", turnID: "\(index)",
         outcome: "delivered")
     }
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     let request = h.requests[0]
     XCTAssertEqual(request.transcripts.count, 24)
     XCTAssertEqual(request.transcripts.first?.text.count, 1_000)
@@ -297,22 +545,23 @@ final class SupervisorServiceTests: XCTestCase {
     XCTAssertEqual(request.profile.count, 8_000)
     h.uptime = 230
     h.service.observeVoice(userText: "new observation", turnID: "new", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertTrue(h.requests[1].transcripts.isEmpty)
   }
 
   func testQuotaFailurePausesAndDoesNotRetryUnchangedOrImmediateNewEvents() async throws {
     let h = try SupervisorTestHarness()
-    h.evaluation = { _, _ in throw APIError.httpError(statusCode: 429, detail: "Daily Gemini request limit exceeded") }
+    h.evaluation = { _, _ in throw SupervisorRequestError.rateLimited(reason: "daily_quota", retryAfterSeconds: 86_400)
+    }
     h.service.observeVoice(userText: "first", turnID: "1", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.service.state, .paused)
     h.service.observeVoice(userText: "next", turnID: "2", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1)
     h.date = h.date.addingTimeInterval(61)
     h.service.observeVoice(userText: "after a minute", turnID: "3", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1, "daily exhaustion must not retry on the burst cooldown")
     XCTAssertEqual(h.service.state, .paused)
     XCTAssertTrue(h.delivered.isEmpty)
@@ -320,16 +569,16 @@ final class SupervisorServiceTests: XCTestCase {
 
   func testBurstQuotaRetriesOnlyFreshObservationsAfterCooldown() async throws {
     let h = try SupervisorTestHarness()
-    h.evaluation = { _, _ in throw APIError.httpError(statusCode: 429, detail: "Gemini request limit exceeded") }
+    h.evaluation = { _, _ in throw SupervisorRequestError.rateLimited(reason: "burst_quota", retryAfterSeconds: 60) }
     h.service.observeVoice(userText: "first", turnID: "1", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     h.evaluation = nil
     h.service.observeVoice(userText: "too soon", turnID: "2", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 1)
     h.date = h.date.addingTimeInterval(61)
     h.service.observeVoice(userText: "fresh observation", turnID: "3", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertEqual(h.requests.count, 2)
     XCTAssertEqual(h.delivered.count, 1)
   }
@@ -338,11 +587,11 @@ final class SupervisorServiceTests: XCTestCase {
     let h = try SupervisorTestHarness()
     h.evaluation = { request, _ in SupervisorTestHarness.response(request, action: .wait) }
     h.service.observeVoice(userText: "first", turnID: "1", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     XCTAssertTrue(h.delivered.isEmpty)
     h.evaluation = nil
     h.service.observeVoice(userText: "second", turnID: "2", outcome: "completed")
-    await h.service.evaluatePendingObservation()
+    await h.evaluate()
     let guidance = h.delivered[0]
     h.service.enabled = false
     XCTAssertFalse(h.service.isCurrent(guidance))

@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from langfuse import Langfuse, propagate_attributes
@@ -20,6 +21,8 @@ from utils.observability.langfuse import get_langfuse_client, create_chat_trace_
 from utils.observability.chat_evaluation import chat_prompt_reference
 from utils.observability.evaluation_policy import reviewed_example
 from utils.llm.model_config import get_model
+from utils.llm.gemini_usage import GeminiUsage
+from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,93 @@ def _failed_export(error: Exception) -> None:
     )
 
 
+@dataclass
+class SupervisorGeneration:
+    # Langfuse's external SDK exposes a union of observation handles.
+    observation: Any | None
+
+    def cancel(self) -> None:
+        if self.observation is None:
+            return
+        try:
+            try:
+                self.observation.update(level='WARNING', status_message='cancelled', output={'outcome': 'cancelled'})
+            finally:
+                self.observation.end()
+        except Exception as error:
+            _failed_export(error)
+
+
+def _start_supervisor_observation(
+    *,
+    uid: str,
+    request: SupervisorRequest,
+    decision_id: str,
+    prompt_name: str,
+    prompt_version: str,
+    prompt_source: str,
+    prompt_client: Any | None,
+    inference: bool,
+) -> SupervisorGeneration:
+    try:
+        client = get_langfuse_client()
+        if client is None:
+            return SupervisorGeneration(None)
+        with propagate_attributes(
+            user_id=uid,
+            session_id=request.session_id,
+            tags=['desktop', 'supervisor'],
+            metadata={
+                'prompt_name': prompt_name,
+                'prompt_version': prompt_version,
+                'prompt_source': prompt_source,
+                'decision_id': decision_id,
+                'observation_id': request.observation_id,
+            },
+        ):
+            observation = client.start_observation(
+                trace_context={'trace_id': trace_id(uid, request.session_id, decision_id)},
+                name='supervisor-evaluation',
+                as_type='generation' if inference else 'span',
+                model=get_model('supervisor'),
+                prompt=prompt_client,
+                input={
+                    'transcript_count': len(request.transcripts),
+                    'conversation_count': len(request.conversation),
+                    'has_screen': request.screen is not None,
+                    'has_webcam': request.webcam is not None,
+                    'memory_count': len(request.memories),
+                    'content_revision': request.content_revision,
+                    'observed_at': request.observed_at.isoformat() if request.observed_at else None,
+                    'input_status': request.input_status.model_dump(mode='json') if request.input_status else None,
+                },
+            )
+        return SupervisorGeneration(observation)
+    except Exception as error:
+        _failed_export(error)
+        return SupervisorGeneration(None)
+
+
+def start_supervisor_observation(
+    *,
+    uid: str,
+    request: SupervisorRequest,
+    decision_id: str,
+    prompt: ResolvedRuntimePrompt,
+) -> SupervisorGeneration:
+    """Open the real generation before provider I/O so its duration is meaningful."""
+    return _start_supervisor_observation(
+        uid=uid,
+        request=request,
+        decision_id=decision_id,
+        prompt_name=prompt.name,
+        prompt_version=prompt.version,
+        prompt_source=prompt.source,
+        prompt_client=prompt.prompt_client,
+        inference=True,
+    )
+
+
 def record_supervisor_observation(
     *,
     uid: str,
@@ -53,45 +143,40 @@ def record_supervisor_observation(
     response: SupervisorResponse,
     prompt_client: Any | None,
     duration_ms: int,
+    generation: SupervisorGeneration | None = None,
+    usage: GeminiUsage | None = None,
+    model_version: str | None = None,
 ) -> None:
-    """Always metadata only: sharing can be revoked while the provider is running."""
+    """Finish metadata only; a missing policy produces a span, never fake model usage."""
+    active = generation or _start_supervisor_observation(
+        uid=uid,
+        request=request,
+        decision_id=response.decision_id,
+        prompt_name=response.prompt.name,
+        prompt_version=response.prompt.version,
+        prompt_source=response.prompt.source,
+        prompt_client=prompt_client,
+        inference=False,
+    )
+    if active.observation is None:
+        return
     try:
-        client = get_langfuse_client()
-        if client is None:
-            return
-        with propagate_attributes(
-            user_id=uid,
-            session_id=request.session_id,
-            tags=['desktop', 'supervisor'],
-            metadata={
-                'prompt_name': response.prompt.name,
-                'prompt_version': response.prompt.version,
-                'prompt_source': response.prompt.source,
-                'decision_id': response.decision_id,
-                'observation_id': request.observation_id,
-            },
-        ):
-            observation = client.start_observation(
-                trace_context={'trace_id': trace_id(uid, request.session_id, response.decision_id)},
-                name='supervisor-evaluation',
-                as_type='generation',
-                model=get_model('supervisor'),
-                prompt=prompt_client,
-                input={
-                    'transcript_count': len(request.transcripts),
-                    'conversation_count': len(request.conversation),
-                    'has_screen': request.screen is not None,
-                    'memory_count': len(request.memories),
-                },
-            )
-            observation.update(
+        try:
+            active.observation.update(
                 output={
                     'action': response.action,
                     'outcome': 'unavailable_prompt' if response.prompt.source != 'langfuse' else response.outcome,
                 },
-                metadata={'duration_ms': duration_ms},
+                metadata={
+                    'duration_ms': duration_ms,
+                    'model_version': model_version,
+                    'usage_available': usage is not None,
+                },
+                usage_details=usage.langfuse() if usage else None,
+                level='WARNING' if response.outcome == 'degraded' else 'DEFAULT',
             )
-            observation.end()
+        finally:
+            active.observation.end()
     except Exception as error:
         _failed_export(error)
 

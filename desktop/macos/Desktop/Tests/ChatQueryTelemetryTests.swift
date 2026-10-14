@@ -29,14 +29,8 @@ final class ChatQueryTelemetryTests: XCTestCase {
     XCTAssertEqual(ChatTelemetryDimension.toolOutcome(""), "unknown")
   }
 
-  /// User Stop is not a tool defect. `ToolCallStatus` deliberately collapses
-  /// cancelled/interrupted into `.failed` for the UI, so the telemetry
-  /// dimension must stay independent of it or a Stop would count as a failure.
-  func testStopIsDistinguishableFromFailureEvenThoughBothMapToFailedStatus() {
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("cancelled"), .failed)
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("interrupted"), .failed)
-    XCTAssertEqual(ChatProvider.mapBridgeToolStatus("failed"), .failed)
-
+  /// Historical cancellation and failure remain separate bounded telemetry outcomes.
+  func testStopIsDistinguishableFromFailureInTelemetry() {
     XCTAssertNotEqual(
       ChatTelemetryDimension.toolOutcome("cancelled"),
       ChatTelemetryDimension.toolOutcome("failed"))
@@ -54,7 +48,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let detail = ChatQueryErrorDetail.from(
       BridgeError.agentError("400 Your credit balance is too low to access the managed AI API."))
     let event = ChatQueryTelemetryEvent.failed(
-      ChatQueryTelemetryContext(attemptId: "attempt-detail", surface: "main_chat", harness: "piMono"),
+      ChatQueryTelemetryContext(attemptId: "attempt-detail", surface: "main_chat", harness: "conversation"),
       durationMs: 1200,
       errorClass: .agentError,
       partialResponse: false,
@@ -69,30 +63,12 @@ final class ChatQueryTelemetryTests: XCTestCase {
       "raw exception text leaked into analytics properties")
   }
 
-  func testRuntimeFailureDetailCarriesDaemonTaxonomy() {
-    let failure = AgentRuntimeFailure(
-      code: "adapter_execution_failed",
-      failureCode: .authentication,
-      userMessage: "Authentication required",
-      source: "adapter_execution",
-      adapterId: "pi-mono",
-      provider: "gemini",
-      retryable: false
-    )
-    let detail = ChatQueryErrorDetail.from(BridgeError.agentRuntimeFailure(failure))
-    XCTAssertEqual(detail?.errorCode, "authentication")
-    XCTAssertEqual(detail?.failureCode, "adapter_execution_failed")
-    XCTAssertEqual(detail?.failureSource, "adapter_execution")
-    XCTAssertEqual(detail?.adapterId, "pi-mono")
-    XCTAssertEqual(detail?.retryable, false)
-  }
-
   func testAnalyticsPayloadUsesTypedAllowlist() {
     let event = ChatQueryTelemetryEvent.failed(
       ChatQueryTelemetryContext(
         attemptId: "attempt-private",
         surface: "main_chat",
-        harness: "pimono"
+        harness: "conversation"
       ),
       durationMs: 900,
       errorClass: .timeout,
@@ -132,10 +108,10 @@ final class ChatQueryTelemetryTests: XCTestCase {
       screenToolFailureCodes: ["permission_denied", "person@example.com"]
     )
 
-    XCTAssertEqual(metrics.toolNames, ["other", "read", "search_memories", "websearch"])
+    XCTAssertEqual(metrics.toolNames, ["other"])
     XCTAssertEqual(metrics.screenToolFailureCodes, ["permission_denied", "unknown"])
     let payload = ChatQueryTelemetryEvent.completed(
-      ChatQueryTelemetryContext(attemptId: "attempt-safe", surface: "main_chat", harness: "pimono"),
+      ChatQueryTelemetryContext(attemptId: "attempt-safe", surface: "main_chat", harness: "conversation"),
       durationMs: 1,
       metrics: metrics
     ).analyticsPayload
@@ -181,10 +157,6 @@ final class ChatQueryTelemetryTests: XCTestCase {
     XCTAssertTrue(
       ChatQueryFailureDisposition.classify(BridgeError.timeout).presentsUserError
     )
-    XCTAssertEqual(
-      ChatQueryFailureDisposition.classify(BridgeError.failedToStart(.launchFailed)),
-      .failed(.bridgeStartFailed)
-    )
   }
 
   @MainActor
@@ -194,7 +166,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-1",
       surface: "main_chat",
-      harness: "pimono",
+      harness: "conversation",
       elapsedMilliseconds: { elapsedMs },
       eventSink: { events.append($0) }
     )
@@ -221,7 +193,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
         ChatQueryTelemetryContext(
           attemptId: "attempt-1",
           surface: "main_chat",
-          harness: "pimono",
+          harness: "conversation",
           inputLengthBucket: "0_99"
         ))
     )
@@ -369,79 +341,6 @@ final class ChatQueryTelemetryTests: XCTestCase {
   }
 
   @MainActor
-  func testOwnerIsolationControlProbeUsesCredentialFreeAdmissionBeforeCanonicalExchange() async throws {
-    var events: [String] = []
-    var capturedWrites: [KernelJournalTurnWrite] = []
-    var requestedCredentials: Bool?
-    let surface = AgentSurfaceReference.mainChat(chatId: nil)
-    let recordedTurns = try [
-      XCTUnwrap(
-        KernelJournalTurn(dictionary: [
-          "conversationId": "conversation-b",
-          "turnId": "user-b",
-          "turnSeq": 1,
-          "role": "user",
-          "content": "PROBE request",
-          "origin": "typed_chat",
-          "status": "completed",
-          "surfaceKind": surface.surfaceKind,
-          "externalRefKind": surface.externalRefKind,
-          "externalRefId": surface.externalRefId,
-        ])),
-      XCTUnwrap(
-        KernelJournalTurn(dictionary: [
-          "conversationId": "conversation-b",
-          "turnId": "assistant-b",
-          "turnSeq": 2,
-          "role": "assistant",
-          "content": "PROBE",
-          "origin": "typed_chat",
-          "status": "completed",
-          "surfaceKind": surface.surfaceKind,
-          "externalRefKind": surface.externalRefKind,
-          "externalRefId": surface.externalRefId,
-        ])),
-    ]
-
-    let receipt = try await OwnerIsolationKernelProbe.run(
-      ownerID: "owner-b",
-      query: "PROBE request",
-      response: "PROBE",
-      registerRuntime: { requiresCredentials in
-        events.append("register")
-        requestedCredentials = requiresCredentials
-      },
-      synchronizeOwner: {
-        events.append("synchronize")
-        return true
-      },
-      resolveSurface: {
-        events.append("resolve_surface")
-        return ("conversation-b", "session-b")
-      },
-      recordExchange: { writes in
-        events.append("record_exchange")
-        capturedWrites = writes
-        return recordedTurns
-      }
-    )
-
-    XCTAssertEqual(events, ["register", "synchronize", "resolve_surface", "record_exchange"])
-    XCTAssertEqual(
-      requestedCredentials,
-      false,
-      "the synthetic owner has no Firebase credential and only needs the local control runtime"
-    )
-    XCTAssertEqual(capturedWrites.map(\.role), ["user", "assistant"])
-    XCTAssertEqual(capturedWrites.map(\.status), [.completed, .completed])
-    XCTAssertEqual(capturedWrites.map(\.content), ["PROBE request", "PROBE"])
-    XCTAssertEqual(receipt.ownerID, "owner-b")
-    XCTAssertEqual(receipt.conversationID, "conversation-b")
-    XCTAssertEqual(receipt.sessionID, "session-b")
-    XCTAssertEqual(receipt.turns, recordedTurns)
-  }
-
-  @MainActor
   func testBridgeCallbackEmittedBeforeReturnDrainsBeforeTurnCompletes() async {
     let lifecycle = ChatTurnLifecycle()
     let generation = ChatTestGenerationBox(7)
@@ -520,7 +419,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-visible",
       surface: "main_chat",
-      harness: "pimono",
+      harness: "conversation",
       eventSink: { event in
         switch event {
         case .started: order.append("started")
@@ -589,7 +488,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-stop",
       surface: "floating_chat",
-      harness: "piMono",
+      harness: "conversation",
       eventSink: { events.append($0) }
     )
 
@@ -608,7 +507,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let browserAttempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-browser",
       surface: "main_chat",
-      harness: "pimono",
+      harness: "conversation",
       eventSink: { browserEvents.append($0) }
     )
     XCTAssertTrue(browserAttempt.finish(stopReason: .browserExtensionMissing))
@@ -621,7 +520,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let supersededAttempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-superseded",
       surface: "floating_chat",
-      harness: "piMono",
+      harness: "conversation",
       eventSink: { supersededEvents.append($0) }
     )
     XCTAssertTrue(supersededAttempt.finish(stopReason: .superseded))
@@ -638,7 +537,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
     let attempt = ChatQueryTelemetryAttempt(
       attemptId: "attempt-auth-blocked",
       surface: "main_chat",
-      harness: "piMono",
+      harness: "conversation",
       eventSink: { events.append($0) }
     )
 
@@ -653,7 +552,7 @@ final class ChatQueryTelemetryTests: XCTestCase {
 
     let payload = terminal.analyticsPayload
     XCTAssertEqual(payload.properties["error_class"] as? String, "authentication")
-    XCTAssertEqual(payload.properties["harness"] as? String, "piMono")
+    XCTAssertEqual(payload.properties["harness"] as? String, "conversation")
     XCTAssertEqual(payload.properties["turn_disposition"] as? String, "auth_blocked")
     XCTAssertNil(payload.properties["session_adapter_id"])
     XCTAssertNil(payload.properties["bridge_mode_preference"])
@@ -662,20 +561,4 @@ final class ChatQueryTelemetryTests: XCTestCase {
     XCTAssertEqual(payload.properties["watchdog_fired"] as? Bool, false)
   }
 
-  @MainActor
-  func testRuntimeAuthenticationFailureClassifiesAsAuthentication() {
-    let failure = AgentRuntimeFailure(
-      code: "provider_auth_required",
-      failureCode: .authentication,
-      userMessage: "Managed agent authentication is required to continue this chat."
-    )
-    let disposition = ChatQueryFailureDisposition.classify(
-      BridgeError.agentRuntimeFailure(failure)
-    )
-    guard case .failed(let errorClass) = disposition else {
-      return XCTFail("expected failed disposition")
-    }
-    XCTAssertEqual(errorClass, .authentication)
-    XCTAssertTrue(BridgeError.agentRuntimeFailure(failure).isSessionAuthenticationFailure)
-  }
 }

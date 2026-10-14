@@ -6,71 +6,75 @@ tags: [intentive, codebase]
 sources:
   - id: openwiki-source-fcffbe3e28749eaf9a39557c
     resource: repo://backend/main.py
+  - id: openwiki-source-477ee7f176f7957c006c22b7
+    resource: repo://backend/routers/desktop_conversation.py
+  - id: openwiki-source-246adce1bd09822e870e6154
+    resource: repo://backend/routers/desktop_realtime.py
   - id: openwiki-source-62abf112d5ded48560527143
     resource: repo://backend/routers/memory_compute.py
-  - id: openwiki-source-6d9806be21ba9aa0842c9e19
-    resource: repo://desktop/macos/agent/src/adapters/pi-mono.ts
-  - id: openwiki-source-22fbe8e419c78e59a910956c
-    resource: repo://desktop/macos/agent/src/runtime/conversation-journal.ts
-  - id: openwiki-source-b84455af73b70bd37a1e4cd0
-    resource: repo://desktop/macos/Desktop/Sources/Chat/ChatMessage.swift
+  - id: openwiki-source-1828e0387b3ea260d979be69
+    resource: repo://desktop/macos/agent/src/index.ts
   - id: openwiki-source-8cccfc7e26d01ce730e0f49e
     resource: repo://desktop/macos/Desktop/Sources/Chat/KernelTurnJournal.swift
-  - id: openwiki-source-d961728264020390f7b3849f
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
-  - id: openwiki-source-e29c22c18eb45e7f7d2f3fc8
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BTurnPersistence.swift
-  - id: openwiki-source-4b674425e211b49d3fcdd759
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeTurnPersistence.swift
-  - id: openwiki-source-e0e1aceea6bbd06a72738ece
-    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+  - id: openwiki-source-65f1ed7dfa0d6b5cfc855b63
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift
+  - id: openwiki-source-e8cf31348baac3bf1e24a706
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/FloatingConversationOpening.swift
+  - id: openwiki-source-a3d51a297b17a104757cdbe1
+    resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift
   - id: openwiki-source-589f41062c2e58cbb24b065e
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift
-generated: { by: "codex", at: "2026-09-28T09:46:29.604Z" }
+generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-28T09:46:29.604Z
+    at: 2026-10-14T15:50:15.263Z
 ---
 # System architecture
 
-Intentive's active product combines a native macOS app, a bundled Node agent runtime, and a managed Python backend. The user-facing capture, archive and tool effects belong to the Mac. Node coordinates agent execution and stores Chat history. The backend authenticates requests, provides managed inference and retains account and delivery control data.
+Intentive has two cooperating models. B observes permitted context and returns private guidance. A conducts the user's spoken or typed conversation. The Mac owns input permissions, conversation lifecycle, audio and local product data; the backend supplies authenticated compute and versioned instructions. Node retains only the existing conversation catalog/journal.
 
 ```mermaid
-flowchart TB
-  User[User] --> Mac[macOS app]
-  Mac --> Local[Owner-scoped GRDB and files]
-  Mac <--> Node[Node kernel and Chat journal]
-  Node --> Pi[Bundled Pi adapter]
-  Pi --> API[Python backend]
-  Mac --> API
-  API --> Models[Managed model and speech providers]
-  API --> Control[Account usage and delivery state]
+flowchart LR
+  Inputs[Screen + webcam + audio transcripts] --> B[Supervisor B]
+  Memory[Local Memory + profile] --> B
+  B -->|Private guidance or permitted initiation| A[Communicator A]
+  User[User voice or typing] <--> A
+  A -->|Revisions and delivery outcomes| B
+  A --> Journal[Existing Node SQLite journal]
+  Langfuse[Versioned instructions] --> A
+  Langfuse --> B
 ```
 
 ## Authority map
 
 | Concern | Durable owner | Compute or presentation |
 | --- | --- | --- |
-| Conversations and transcript archive | Mac stores on GRDB | Local transcription or transient cloud STT; local views |
-| Memory lifecycle and vectors | Mac MemoryStorage | Backend candidate compute; local validation and commit |
-| Tasks and simple goals | Mac component stores | Home, Chat and voice tools |
-| Ordinary Chat identity and accepted turns | Node SQLite catalog/journal | Swift Home and managed Pi/Gemini |
-| Account, entitlements, usage and updates | Backend control-plane stores | Authenticated clients and release workflows |
+| Transcripts and ambient conversation archive | Mac GRDB stores | Local Parakeet or transient cloud STT |
+| Memory lifecycle, vectors and profile | Mac component stores | Backend proposals; local validation and commit |
+| Typed/voice identity and accepted turns | Existing Node SQLite journal | Swift surfaces; native Live or direct Gemini A |
+| Historical Tasks/goals/Insights/Focus | Retained owner-local tables | Decoding, references and authorized exports; active features retired |
+| Account, usage, entitlements and updates | Backend control-plane stores | Authenticated clients and delivery workflows |
 
-The distinction matters on failure: an unavailable compute provider can prevent enrichment or a reply, but it does not become permission to reload product data from a retired hosted authority. Account switching must fence work at both the Mac and Node boundaries.
+Provider failure does not authorize reloading product records from a retired hosted store. Account and generation checks fence delayed work at both Mac and Node boundaries. There is no Pi process, general tool loop or delegation path.
 
-## A–B–C conversation
+## One logical conversation
 
-The [Supervisor workflow](../workflows/supervisor-conversation.md) adds a separate observation path. B is one owner-bound Mac service that combines permitted screen evidence, corrected ambient transcripts, direct A–C exchanges and bounded existing Memory/profile reads. Its authenticated backend call returns a private decision without tools or product writes.
+User shortcut and permitted B initiation enter the same conversation owner. A stays open across ordinary replies and focus changes. Automatic voice detection and shared voice-processing audio support spoken interruption; bounded Live recovery can move the same conversation into sticky batch STT → direct A → TTS fallback. Typed replies join that owner and retain its prompt receipt and canonical history.
 
-A is the existing native Gemini Live conversation, owned by the voice reducer, session controller and playback service. B can guide the next PTT turn or admit an idle supervisor-origin turn without microphone capture. C's PTT interrupts that turn through the same voice owner. Swift projects the assistant-only result into the existing Node journal through `RealtimeHubController+TurnPersistence`; no second conversation database is introduced. Accepted journal state and speech delivery are separate: bounded delivery metadata preserves interruption or incomplete playback without mislabelling accepted text as a failed save.
+Both initiators reveal the original notch and floating conversation surface. A read-only presentation snapshot connects opening and thinking to the retained blue glow, listening to processed microphone levels, and playback feedback to rendered output. The surface stays visibly open between replies; explicit hide or snooze ends the active conversation. Removing execution capabilities does not remove this interface. See [chat and voice](../workflows/chat-voice.md) for visual and meter ownership.
 
-The old five workers, automatic screen-derived record creation and proactive card/glow path are removed. Capture, Rewind, saved records, manual tools and independent conversation/Memory enrichment retain their existing owners. Langfuse prompt receipts and bounded outcome reporting connect B's decision to A's delivery and user feedback; [telemetry](../integrations/telemetry.md) explains the export boundary.
+Initial journal admission precedes visible or audible output. Later speech delivery metadata distinguishes completed, interrupted, failed and unspoken results; playback completion and final persistence acknowledgement are separate boundaries. No second conversation database is introduced.
+
+## Observation and behavior
+
+B combines independent screen/webcam images, microphone/system transcripts, A conversation revisions and bounded existing Memory/profile. Its one-request scheduler coalesces changes, reconsiders quiet context with fresh images, and shares one token bucket across both triggers. Observation refresh does not multiply Rewind archive/OCR writes. Guidance expires and is invalidated on relevant context/account changes; active conversations receive it privately at an idle boundary.
+
+Langfuse supplies instructions: A is pinned per logical conversation and B per evaluation. Code owns lifecycle, permissions, quotas and schemas. Private guidance and images never enter history or observability exports. Retained summary, Memory extraction, consolidation, embeddings and profile generation continue; action-item producers and retired feature UI do not.
 
 ## Read by task
 
 - [Capture and transcription](../workflows/capture-transcription.md): audio becomes a local conversation.
-- [Chat, tools and voice](../workflows/chat-voice.md): a user turn becomes bounded agent work.
+- [Chat and voice](../workflows/chat-voice.md): one conversation carries typed and spoken exchanges.
 - [Memory](../workflows/memory.md): proposals become durable local assertions.
 - [Account lifecycle](../workflows/account-lifecycle.md): export and deletion cross different owners.
 - [Delivery](../operations/releases.md): exact source becomes a qualified artifact or deployment.
@@ -84,7 +88,8 @@ Before changing capture, metering, playback or voice recovery, read the [authore
 - [backend/main.py](../../../backend/main.py#L95-L119)
 - [desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift](../../../desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift)
 - [backend/routers/memory_compute.py](../../../backend/routers/memory_compute.py)
-- [desktop/macos/agent/src/adapters/pi-mono.ts](../../../desktop/macos/agent/src/adapters/pi-mono.ts#L260-L335)
+- [Conversation owner](../../../desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift)
+- [Direct A](../../../backend/routers/desktop_conversation.py)
 - [desktop/macos/agent/src/runtime/conversation-journal.ts](../../../desktop/macos/agent/src/runtime/conversation-journal.ts)
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

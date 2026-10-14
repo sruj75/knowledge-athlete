@@ -70,22 +70,6 @@ extension SettingsContentView {
         }
       }
 
-      settingsCard(destination: .typedVoiceAnswers) {
-        HStack(spacing: OmiSpacing.lg) {
-          VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-            Text("Typed Questions")
-              .scaledFont(size: OmiType.subheading, weight: .semibold)
-              .foregroundColor(OmiColors.textPrimary)
-            Text("Speak answers aloud when you submit a typed question from the floating bar.")
-              .scaledFont(size: OmiType.body)
-              .foregroundColor(OmiColors.textSecondary)
-          }
-          Spacer()
-          Toggle("", isOn: floatingBarTypedVoiceAnswersBinding)
-            .toggleStyle(OmiToggleStyle())
-        }
-      }
-
       settingsCard(destination: .screenSharing) {
         HStack(spacing: OmiSpacing.lg) {
           VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
@@ -104,12 +88,7 @@ extension SettingsContentView {
       }
 
       voicePicker(settingId: "floatingbar.voice")
-        .opacity(shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled ? 1 : 0.55)
-        .disabled(!shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled)
 
-      voiceSpeedSlider(destination: .voiceSpeed)
-        .opacity(shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled ? 1 : 0.55)
-        .disabled(!shortcutSettings.hasAnyFloatingBarVoiceAnswersEnabled)
     }
   }
 
@@ -117,7 +96,7 @@ extension SettingsContentView {
     settingsCard(settingId: settingId) {
       HStack(spacing: OmiSpacing.lg) {
         VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-          Text("Voice")
+          Text("Fallback Voice")
             .scaledFont(size: OmiType.subheading, weight: .semibold)
             .foregroundColor(OmiColors.textPrimary)
           Text(

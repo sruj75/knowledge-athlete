@@ -46,65 +46,10 @@ struct LocalChatSelectionStore {
   }
 }
 
-struct OwnerIsolationKernelProbeReceipt: Equatable {
-  let ownerID: String
-  let conversationID: String
-  let sessionID: String
-  let turns: [KernelJournalTurn]
-}
-
 /// Local owner-isolation probes explicitly skip model credentials: the synthetic
 /// owner has no Firebase session. Only ownership, a canonical surface mapping,
 /// and a fixed journal exchange run here; managed queries keep normal admission.
 @MainActor
-enum OwnerIsolationKernelProbe {
-  static func run(
-    ownerID: String,
-    query: String,
-    response: String,
-    registerRuntime: @MainActor (_ requiresCredentials: Bool) async throws -> Void,
-    synchronizeOwner: @MainActor () async -> Bool,
-    resolveSurface: @MainActor () async throws -> (conversationID: String, sessionID: String),
-    recordExchange: @MainActor ([KernelJournalTurnWrite]) async throws -> [KernelJournalTurn]
-  ) async throws -> OwnerIsolationKernelProbeReceipt {
-    try await registerRuntime(false)
-    guard await synchronizeOwner() else { throw BridgeError.authMissing }
-    let surface = try await resolveSurface()
-    let now = Int(Date().timeIntervalSince1970 * 1000)
-    let continuityID = UUID().uuidString
-    let turns = [
-      KernelJournalTurnWrite(
-        turnId: continuityID,
-        role: "user",
-        origin: "typed_chat",
-        status: .completed,
-        content: query,
-        contentBlocksJSON: "[]",
-        resourcesJSON: "[]",
-        metadataJSON: #"{"harness":"owner_isolation_probe"}"#,
-        createdAtMs: now
-      ),
-      KernelJournalTurnWrite(
-        turnId: "\(continuityID)-assistant",
-        role: "assistant",
-        origin: "typed_chat",
-        status: .completed,
-        content: response,
-        contentBlocksJSON: "[]",
-        resourcesJSON: "[]",
-        metadataJSON: #"{"harness":"owner_isolation_probe"}"#,
-        createdAtMs: now
-      ),
-    ]
-    let recorded = try await recordExchange(turns)
-    return OwnerIsolationKernelProbeReceipt(
-      ownerID: ownerID,
-      conversationID: surface.conversationID,
-      sessionID: surface.sessionID,
-      turns: recorded
-    )
-  }
-}
 
 private struct ChatJournalTerminalTarget {
   let surface: AgentSurfaceReference
@@ -809,20 +754,6 @@ enum ChatSystemPromptStyle {
 /// Complete local-agent request assembled by the one-assistant chat path.
 /// Keeping attachment identity inside this value prevents the UI state and
 /// agent transport calls from drifting into separate request shapes.
-struct ChatProviderAgentQueryInvocation {
-  let prompt: String
-  let session: AgentSurfaceSession
-  let surface: AgentSurfaceReference
-  let mode: String?
-  let imageData: Data?
-  let attachments: [AgentQueryAttachment]
-  let producingTurnId: String?
-  let expectedContext: AgentContextFreshness?
-  let reasoningEffort: String?
-}
-
-/// State management for local-authoritative managed Intentive chat.
-/// Swift presents the shared timeline while the Node runtime owns accepted turns and catalog metadata.
 @MainActor
 class ChatProvider: ObservableObject {
 
@@ -860,21 +791,6 @@ class ChatProvider: ObservableObject {
   /// the real main chat surface in-process — no synthetic mouse/keyboard
   /// input, so it never touches the user's actual cursor.
   static weak var mainInstance: ChatProvider?
-
-  // MARK: - Floating Bar System Prompt Prefix
-  /// Static prefix injected at the top of the system prompt for floating bar sessions.
-  /// Defined here so it can be referenced both at warmup time and at query time.
-  static let floatingBarSystemPromptPrefix = """
-    ================================================================================
-    🚨 FLOATING BAR MODE — READ THIS FIRST BEFORE ANYTHING ELSE 🚨
-    ================================================================================
-    Tool calls are untrusted capability proposals. The kernel owns the authoritative route, clarification decision, authorization, execution profile, and background-agent identity for this surface. Use returned Intentive data rather than inventing personal facts, and never claim a proposed action or agent start succeeded before its canonical tool result.
-    If a screenshot is attached and the user asks a deictic question like "which one", "which option", "which suits me", "what should I choose", or "what's on my screen", ground the answer in the visible options first and prefer what is actually on screen over unrelated context.
-    If the screenshot already clearly shows the relevant options, do not ignore it just because the query is short or ambiguous.
-    Respond concisely in 1-2 sentences. No lists. No headers.
-    A screenshot may be attached — use it silently only if relevant. Never mention or acknowledge it.
-    ================================================================================
-    """
 
   // MARK: - Published State
   @Published var chatMode: ChatMode = .act
@@ -1014,6 +930,19 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Agent client
   private var agentClient: AgentClient.Session?
+  private var activeConversationRequest: Task<ConversationResponseCompletion, Error>?
+  private var activeConversationText = ""
+  private var activeDirectConversation: (turnID: String, userText: String, generation: Int)?
+  private static let sharedConversationPromptBindings = ConversationPromptBindingStore<ConversationPromptScope>(
+    bootstrap: bootstrapConversationPrompt)
+  private static func bootstrapConversationPrompt(id: String, scope: ConversationPromptScope) async throws
+    -> ConversationPromptReceipt
+  {
+    try await APIClient.shared.bootstrapConversation(conversationID: id, authorizationSnapshot: scope.authorization)
+  }
+  var conversationPromptBindings: ConversationPromptBindingStore<ConversationPromptScope> {
+    Self.sharedConversationPromptBindings
+  }
 
   #if DEBUG
     var listChatCatalogForTests: (() async throws -> [LocalChatSummary])?
@@ -1028,13 +957,7 @@ class ChatProvider: ObservableObject {
     var garbageCollectChatAttachmentsForTests: ((String, Set<String>) async throws -> Void)?
     var runtimeOwnerIdForTests: (() -> String?)?
     var ensureBridgeStartedForTests: ((Int?) async -> Bool)?
-    var resolveKernelQuerySessionForTests: ((AgentSurfaceReference, String?) async throws -> AgentSurfaceSession)?
-    var prepareKernelQueryContextForTests:
-      ((AgentSurfaceReference, AgentSurfaceSession?) async throws -> (AgentSurfaceSession, AgentContextSnapshot))?
-    var warmupKernelQuerySessionForTests: ((AgentSurfaceSession) async -> Void)?
     var refreshMemoriesForPromptForTests: (() async -> Void)?
-    var loadGoalsForTests: (() async throws -> [LocalGoal])?
-    var loadTasksForTests: (() async throws -> [TaskActionItem])?
     var loadAIProfileForTests: (() async -> String?)?
     var recordStreamingJournalExchangeForTests: ((ChatMessage, ChatMessage) async -> [ChatMessage]?)?
     var initialMessageForTests: ((String, [String], String) async throws -> InitialMessageResponse)?
@@ -1052,19 +975,9 @@ class ChatProvider: ObservableObject {
       if let agentClientForTests { return agentClientForTests }
     #endif
     if let agentClient { return agentClient }
-    let session = AgentClient.makeSession(harnessMode: AgentHarnessMode.piMono.rawValue)
+    let session = AgentClient.makeSession()
     agentClient = session
     return session
-  }
-
-  /// Single fail-closed admission boundary for query results consumed by
-  /// ChatProvider surfaces. Missing, unknown, and non-success terminal states
-  /// must never become visible answer text or terminal journal success.
-  @discardableResult
-  static func requireSuccessfulQueryResult(
-    _ result: AgentClient.QueryResult
-  ) throws -> AgentClient.QueryResult {
-    try result.requireSucceeded()
   }
 
   lazy var kernelTurnProjection = KernelTurnProjection(host: self)
@@ -1146,14 +1059,8 @@ class ChatProvider: ObservableObject {
   // MARK: - Cached Context for Prompts
   private var cachedMemories: [MemoryItem] = []
   private var memoriesLoaded = false
-  private var cachedGoals: [LocalGoal] = []
-  private var goalsLoaded = false
-  private var cachedTasks: [TaskActionItem] = []
-  private var tasksLoaded = false
   private var cachedAIProfile: String = ""
   private var aiProfileLoaded = false
-  private var cachedDatabaseSchema: String = ""
-  private var schemaLoaded = false
 
   // MARK: - Current Session ID
   var currentSessionId: String? {
@@ -1177,7 +1084,7 @@ class ChatProvider: ObservableObject {
     pendingAttachmentsByDraftKey[activeDraftKey] = pendingAttachments
     isRestoringPendingAttachments = false
     restorePendingAttachmentScopes(pendingAttachments, for: activeDraftKey)
-    log("ChatProvider initialized, will start managed Pi on first use")
+    log("ChatProvider initialized with direct conversation transport")
 
     // Observe changes to multiChatEnabled setting
     multiChatObserver = UserDefaults.standard.publisher(for: \.multiChatEnabled)
@@ -1208,7 +1115,7 @@ class ChatProvider: ObservableObject {
         }
       }
 
-    // Tear down the agent bridge on sign-out. The pi-mono subprocess
+    // Tear down conversation storage on sign-out. The owner-bound subprocess
     // bakes OMI_API_KEY (Firebase ID token) at spawn and holds an
     // in-memory `piSessions` map keyed only by legacy harness scope ("main"). When
     // the user signs out + back in with a different account, the next
@@ -1227,7 +1134,6 @@ class ChatProvider: ObservableObject {
           }
           self.resetSessionStateForAuthChange()
           self.resetDraftAfterSignOut()
-          AgentRuntimeStatusStore.shared.reset()
         }
       }
 
@@ -1333,8 +1239,7 @@ class ChatProvider: ObservableObject {
 
   /// Drop a cached agent surface so the next query recreates it with fresh prompt context.
   func invalidateAgentSurface(surface: AgentSurfaceReference) async {
-    guard agentBridgeStarted else { return }
-    await resolvedAgentClient().invalidateSurface(surface)
+    conversationPromptBindings.reset()
   }
 
   /// Ensure the shared agent daemon is started (restarts only after process death).
@@ -1367,41 +1272,10 @@ class ChatProvider: ObservableObject {
   }
 
   private func performBridgeReadinessStartup() async throws -> Bool {
-    if agentBridgeStarted {
-      let alive = await resolvedAgentClient().isAlive
-      if alive {
-        return true
-      }
-      log("ChatProvider: agent bridge process died, will restart")
-      agentBridgeStarted = false
-      await resolvedAgentClient().prepareForCrashRecovery()
-    }
-    guard !agentBridgeStarted else { return true }
-    // Wait for API keys (Firebase, Calendar) before starting the bridge.
-    await APIKeyService.shared.waitForKeys()
-    await preparePromptContextIfNeeded()
+    if agentBridgeStarted, await resolvedAgentClient().isAlive { return true }
     try await resolvedAgentClient().start()
-    // Managed Pi never falls back when its Intentive credential is unavailable.
-    await resolvedAgentClient().setGlobalAuthHandlers(
-      onAuthRequired: { [weak self] _, _ in
-        Task { @MainActor [weak self] in
-          self?.errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
-        }
-      },
-      onAuthSuccess: { [weak self] in
-        Task { @MainActor [weak self] in
-          self?.errorMessage = nil
-        }
-      }
-    )
     await kernelTurnProjection.attachClient(resolvedAgentClient())
-    let warmSurfaces: [AgentSurfaceReference] = [.mainChat(chatId: nil), .floatingChat()]
-    for surface in warmSurfaces {
-      let session = try await resolvedAgentClient().resolveSurfaceSession(surface)
-      await resolvedAgentClient().warmupSession(session)
-    }
     agentBridgeStarted = true
-    log("ChatProvider: agent bridge ready")
     return true
   }
 
@@ -1409,8 +1283,7 @@ class ChatProvider: ObservableObject {
     _ error: Error,
     authoritativeGeneration: Int?
   ) async {
-    let context = await AgentRuntimeProcess.shared.consumePendingStartFailureDiagnostics()
-    logError("Failed to start agent bridge", error: error, context: context)
+    logError("Failed to start conversation storage", error: error)
     let mayMutateSendState = authoritativeGeneration.map { sendGeneration == $0 } ?? true
     guard mayMutateSendState else { return }
     if let bridgeError = error as? BridgeError, let card = ChatErrorState.from(bridgeError) {
@@ -1421,7 +1294,7 @@ class ChatProvider: ObservableObject {
     }
   }
 
-  /// Ensures prompt-backed local context is loaded before managed Pi starts.
+  /// Prepares retained Memory/profile context for conversational compute.
   private func preparePromptContextIfNeeded() async {
     await warmupPromptContext()
   }
@@ -1430,6 +1303,8 @@ class ChatProvider: ObservableObject {
     // These files are owned by the outgoing account's persisted drafts, not by
     // this in-memory projection. Clearing the projection must not destroy bytes
     // that need to rehydrate if the user switches back to that account.
+    activeConversationRequest?.cancel()
+    conversationPromptBindings.reset()
     catalogOwnerGeneration &+= 1
     catalogMutationGeneration &+= 1
     catalogFetchGeneration &+= 1
@@ -1483,14 +1358,8 @@ class ChatProvider: ObservableObject {
     restorePendingAttachmentScopes(restoredAttachments, for: activeDraftKey)
     cachedMemories = []
     memoriesLoaded = false
-    cachedGoals = []
-    goalsLoaded = false
-    cachedTasks = []
-    tasksLoaded = false
     cachedAIProfile = ""
     aiProfileLoaded = false
-    cachedDatabaseSchema = ""
-    schemaLoaded = false
   }
 
   private var runtimeOwnerId: String? {
@@ -1536,7 +1405,9 @@ class ChatProvider: ObservableObject {
     #if DEBUG
       if let beginRealtimeChatClearForTests { return beginRealtimeChatClearForTests(surface) }
     #endif
-    return RealtimeHubController.shared.beginChatClearBarrier(surface: surface)
+    ConversationVoiceController.shared.close()
+    conversationPromptBindings.reset()
+    return true
   }
 
   private func endRealtimeChatClear(surface: AgentSurfaceReference) {
@@ -1546,7 +1417,7 @@ class ChatProvider: ObservableObject {
         return
       }
     #endif
-    RealtimeHubController.shared.endChatClearBarrier(surface: surface)
+    // Clear-generation fencing is enforced by the canonical journal.
   }
 
   /// Acquires the same typed-send, catalog-mutation, and realtime persistence
@@ -1632,224 +1503,6 @@ class ChatProvider: ObservableObject {
     default: return "typed_chat"
     }
   }
-
-  private struct KernelQueryContext {
-    let session: AgentSurfaceSession
-    let snapshot: AgentContextSnapshot
-  }
-
-  private func resolveKernelQuerySession(
-    surface: AgentSurfaceReference,
-    requestedModelProfile _: String?
-  ) async throws -> AgentSurfaceSession {
-    #if DEBUG
-      if let resolveKernelQuerySessionForTests {
-        return try await resolveKernelQuerySessionForTests(surface, nil)
-      }
-    #endif
-    return try await resolvedAgentClient().resolveSurfaceSession(surface)
-  }
-
-  private func prepareKernelQueryContext(
-    surface: AgentSurfaceReference,
-    systemPromptStyle: ChatSystemPromptStyle,
-    systemPromptPrefix: String?,
-    systemPromptSuffix: String?,
-    notificationContext: String?,
-    screenPayload: [String: Any]?,
-    includeScreenSource: Bool = true,
-    requestedModelProfile: String? = nil,
-    pinnedSession: AgentSurfaceSession? = nil
-  ) async throws -> KernelQueryContext {
-    #if DEBUG
-      if let prepareKernelQueryContextForTests {
-        let context = try await prepareKernelQueryContextForTests(surface, pinnedSession)
-        return KernelQueryContext(session: context.0, snapshot: context.1)
-      }
-    #endif
-    let client = resolvedAgentClient()
-    let session: AgentSurfaceSession
-    if let pinnedSession {
-      session = pinnedSession
-    } else {
-      session = try await resolveKernelQuerySession(
-        surface: surface,
-        requestedModelProfile: requestedModelProfile
-      )
-    }
-    let initialSnapshot = try await client.getContextSnapshot(
-      sessionId: session.sessionId,
-      surfaceKind: surface.surfaceKind
-    )
-    let workspacePath = session.profile.workingDirectory
-    let memoryText = formatMemoriesSection()
-    let goalText = formatGoalSection()
-    let taskText = formatTasksSection()
-    let identityText = formatAIProfileSection()
-    var surfacePayload: [String: Any] = [
-      "presentation": systemPromptStyle == .floating ? "floating" : "main",
-      "onboarding": isOnboarding,
-    ]
-    if let systemPromptPrefix, !systemPromptPrefix.isEmpty {
-      surfacePayload["experienceContext"] = systemPromptPrefix
-    }
-    if let systemPromptSuffix, !systemPromptSuffix.isEmpty {
-      surfacePayload["responseContext"] = systemPromptSuffix
-    }
-    if let notificationContext, !notificationContext.isEmpty {
-      surfacePayload["notificationContext"] = notificationContext
-    }
-    let capturedAtMs = Int(Date().timeIntervalSince1970 * 1_000)
-    let screenOutcome: AgentContextSourceOutcome = screenPayload == nil ? .empty : .available
-    var sources: [(AgentContextSource, AgentContextSourceOutcome, [String: Any], Int?)] = [
-      (
-        .identity,
-        identityText.isEmpty ? .empty : .available,
-        identityText.isEmpty ? [:] : ["profile": identityText, "timeZone": TimeZone.current.identifier],
-        nil
-      ),
-      (
-        .memories,
-        memoryText.isEmpty ? .empty : .available,
-        memoryText.isEmpty ? [:] : ["content": memoryText],
-        nil
-      ),
-      (
-        .goals,
-        goalText.isEmpty ? .empty : .available,
-        goalText.isEmpty ? [:] : ["content": goalText],
-        nil
-      ),
-      (
-        .tasks,
-        taskText.isEmpty ? .empty : .available,
-        taskText.isEmpty ? [:] : ["content": taskText],
-        nil
-      ),
-      (
-        .workspace,
-        .available,
-        [
-          "workingDirectory": workspacePath,
-          "databaseSchema": cachedDatabaseSchema,
-        ],
-        nil
-      ),
-      (.surface, .available, surfacePayload, nil),
-    ]
-    if includeScreenSource {
-      sources.append(
-        (
-          .screen,
-          screenOutcome,
-          screenPayload ?? [:],
-          screenPayload == nil ? nil : capturedAtMs + 120_000
-        ))
-    }
-    for (source, outcome, payload, expiresAtMs) in sources {
-      let revision = try AgentContextRevision.make(source: source, payload: payload, outcome: outcome)
-      guard initialSnapshot.sourceRevision(for: source) != revision else { continue }
-      _ = try await client.updateContextSource(
-        sessionId: session.sessionId,
-        surfaceKind: surface.surfaceKind,
-        source: source,
-        sourceRevision: revision,
-        outcome: outcome,
-        capturedAtMs: capturedAtMs,
-        expiresAtMs: expiresAtMs,
-        payload: RuntimeJSONPayloadBox(payload)
-      )
-    }
-    let snapshot = try await client.getContextSnapshot(
-      sessionId: session.sessionId,
-      surfaceKind: surface.surfaceKind
-    )
-    return KernelQueryContext(session: session, snapshot: snapshot)
-  }
-
-  /// Publishes realtime inputs through the same typed kernel source path used
-  /// by main chat, then returns the kernel's exact surface renderer. Realtime
-  /// never selects, concatenates, or re-renders source material itself.
-  func prepareRealtimeVoiceContextSnapshot() async throws -> KernelVoiceContextSnapshot {
-    guard await ensureBridgeStartedForKernel() else { return .empty }
-    do {
-      let surface = realtimeVoiceSurfaceReference()
-      let context = try await prepareKernelQueryContext(
-        surface: surface,
-        systemPromptStyle: .floating,
-        systemPromptPrefix: nil,
-        systemPromptSuffix: nil,
-        notificationContext: nil,
-        screenPayload: nil,
-        includeScreenSource: false
-      )
-      return KernelTurnProjection.voiceContextSnapshot(
-        from: context.snapshot,
-        sessionId: context.session.sessionId,
-        surface: surface
-      )
-    } catch is CancellationError {
-      // Cancellation is caller-owned. A speculative key-down prefetch may
-      // suppress its own supersession, while a hard refresh/barge-in must
-      // observe cancellation and fail its continuity fence.
-      throw CancellationError()
-    } catch {
-      log("ChatProvider: realtime kernel context preparation failed: \(error.localizedDescription)")
-      return .empty
-    }
-  }
-
-  private static func queryAttachments(_ attachments: [ChatAttachment]) -> [AgentQueryAttachment] {
-    attachments.map { attachment in
-      AgentQueryAttachment(
-        attachmentId: attachment.id,
-        displayName: attachment.fileName,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.data?.count,
-        uri: attachment.localFileURL?.absoluteString
-      )
-    }
-  }
-
-  private func warmupKernelQuerySession(_ session: AgentSurfaceSession) async {
-    #if DEBUG
-      if let warmupKernelQuerySessionForTests {
-        await warmupKernelQuerySessionForTests(session)
-        return
-      }
-    #endif
-    await resolvedAgentClient().warmupSession(session)
-  }
-
-  private func performAgentQuery(
-    _ invocation: ChatProviderAgentQueryInvocation,
-    onTextDelta: @escaping AgentClient.TextDeltaHandler,
-    onToolActivity: @escaping AgentClient.ToolActivityHandler,
-    onThinkingDelta: @escaping AgentClient.ThinkingDeltaHandler,
-    onToolResultDisplay: @escaping AgentClient.ToolResultDisplayHandler,
-    onAuthRequired: @escaping AgentClient.AuthRequiredHandler,
-    onAuthSuccess: @escaping AgentClient.AuthSuccessHandler
-  ) async throws -> AgentClient.QueryResult {
-    return try await resolvedAgentClient().query(
-      prompt: invocation.prompt,
-      session: invocation.session,
-      surface: invocation.surface,
-      mode: invocation.mode,
-      imageData: invocation.imageData,
-      attachments: invocation.attachments,
-      producingTurnId: invocation.producingTurnId,
-      expectedContext: invocation.expectedContext,
-      reasoningEffort: invocation.reasoningEffort,
-      onTextDelta: onTextDelta,
-      onToolActivity: onToolActivity,
-      onThinkingDelta: onThinkingDelta,
-      onToolResultDisplay: onToolResultDisplay,
-      onAuthRequired: onAuthRequired,
-      onAuthSuccess: onAuthSuccess
-    )
-  }
-
-  // MARK: - Session Management
 
   private func listLocalChatCatalog() async throws -> LocalChatCatalogSnapshot {
     #if DEBUG
@@ -2076,7 +1729,7 @@ class ChatProvider: ObservableObject {
       }
       messages = []
       resetMessagesPagination()
-      RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
+      ConversationVoiceController.shared.close()
       log("Created new chat session: \(session.id)")
       AnalyticsManager.shared.chatSessionCreated()
 
@@ -2259,12 +1912,11 @@ class ChatProvider: ObservableObject {
       return
     }
     guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
-    await rehydrateMissingArtifactResourcesFromKernel()
     guard isChatSelectionLeaseCurrent(selectionGeneration, ownerLease: ownerLease) else { return }
     if let ownerID = ownerLease.ownerID {
       chatSelectionStore.setSelectedChatID(session.id, ownerID: ownerID)
     }
-    RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
+    ConversationVoiceController.shared.close()
     messagesPaginationOffset = messages.count
     hasMoreMessages = false
     chatSelectionRollbackState = nil
@@ -2351,7 +2003,6 @@ class ChatProvider: ObservableObject {
         errorMessage = "Failed to clear chat"
         return
       }
-      AgentRuntimeStatusStore.shared.clear(surface: surface)
       if isInDefaultChat && currentSession == nil {
         messages = []
         resetMessagesPagination()
@@ -2380,7 +2031,6 @@ class ChatProvider: ObservableObject {
       isInDefaultChat = true
       messages = []
       resetMessagesPagination()
-      AgentRuntimeStatusStore.shared.clear(surface: surface)
 
       do {
         try await garbageCollectChatAttachments(
@@ -2668,110 +2318,6 @@ class ChatProvider: ObservableObject {
 
   /// Refreshes user goals from the current owner's local SQLite database for
   /// every prompt so a task/goal mutation is visible on the next Chat turn.
-  private func loadGoalsIfNeeded() async {
-    let ownerLease = captureCatalogOwnerLease()
-    do {
-      let goals: [LocalGoal]
-      #if DEBUG
-        if let loadGoalsForTests {
-          goals = try await loadGoalsForTests()
-        } else {
-          goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
-        }
-      #else
-        goals = try await GoalStorage.shared.getLocalGoals(activeOnly: true)
-      #endif
-      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
-      cachedGoals = goals
-      goalsLoaded = true
-      log("ChatProvider loaded \(cachedGoals.count) goals from local DB")
-    } catch {
-      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
-      logError("Failed to load goals for chat context", error: error)
-    }
-  }
-
-  /// Formats goals into a prompt section
-  private func formatGoalSection() -> String {
-    guard !cachedGoals.isEmpty else { return "" }
-
-    var lines: [String] = ["\n<user_goals>"]
-    for goal in cachedGoals {
-      var line = "- \(goal.title)"
-      if let desc = goal.description, !desc.isEmpty {
-        line += ": \(desc)"
-      }
-      lines.append(line)
-    }
-    lines.append("</user_goals>")
-    return lines.joined(separator: "\n")
-  }
-
-  // MARK: - Load Tasks
-
-  /// Refreshes the latest 20 active tasks for every prompt. This deliberately
-  /// avoids a process-lifetime cache crossing local mutations or owner changes.
-  private func loadTasksIfNeeded() async {
-    let ownerLease = captureCatalogOwnerLease()
-    do {
-      let tasks: [TaskActionItem]
-      #if DEBUG
-        if let loadTasksForTests {
-          tasks = try await loadTasksForTests()
-        } else {
-          tasks = try await ActionItemStorage.shared.getLocalActionItems(
-            limit: 20,
-            completed: false
-          )
-        }
-      #else
-        tasks = try await ActionItemStorage.shared.getLocalActionItems(
-          limit: 20,
-          completed: false
-        )
-      #endif
-      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
-      cachedTasks = tasks
-      tasksLoaded = true
-      log("ChatProvider loaded \(cachedTasks.count) tasks for context")
-    } catch {
-      guard isCatalogOwnerLeaseCurrent(ownerLease) else { return }
-      logError("Failed to load tasks for chat context", error: error)
-      tasksLoaded = true
-    }
-  }
-
-  #if DEBUG
-    func promptContextSectionsForTests() -> (goals: String, tasks: String) {
-      (formatGoalSection(), formatTasksSection())
-    }
-  #endif
-
-  /// Formats cached tasks into a prompt section
-  private func formatTasksSection() -> String {
-    guard !cachedTasks.isEmpty else { return "" }
-
-    var lines: [String] = ["\n<user_tasks>", "Current tasks:"]
-    for task in cachedTasks {
-      var line = "- \(task.description)"
-      if let priority = task.priority {
-        line += " [priority: \(priority)]"
-      }
-      if let dueAt = task.dueAt {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        line += " [due: \(formatter.string(from: dueAt))]"
-      }
-      lines.append(line)
-    }
-    lines.append("</user_tasks>")
-    return lines.joined(separator: "\n")
-  }
-
-  // MARK: - Load AI User Profile
-
-  /// Fetches the latest AI-generated user profile from local database
   private func loadAIProfileIfNeeded() async {
     guard !aiProfileLoaded else { return }
     let ownerLease = captureCatalogOwnerLease()
@@ -2802,130 +2348,6 @@ class ChatProvider: ObservableObject {
   // MARK: - Load Database Schema
 
   /// Queries sqlite_master to build an up-to-date schema description for the prompt
-  private func loadSchemaIfNeeded() async {
-    guard !schemaLoaded else { return }
-
-    guard let dbQueue = await RewindDatabase.shared.getDatabaseQueue() else {
-      log("ChatProvider: database not available for schema introspection")
-      schemaLoaded = true
-      return
-    }
-
-    do {
-      let tables = try await dbQueue.read { db -> [(name: String, sql: String)] in
-        let rows = try Row.fetchAll(
-          db,
-          sql: """
-                SELECT name, sql FROM sqlite_master
-                WHERE type='table' AND sql IS NOT NULL
-                ORDER BY name
-            """)
-        return rows.compactMap { row -> (name: String, sql: String)? in
-          guard let name: String = row["name"],
-            let sql: String = row["sql"]
-          else { return nil }
-          return (name: name, sql: sql)
-        }
-      }
-
-      cachedDatabaseSchema = formatSchema(tables: tables)
-      schemaLoaded = true
-      log("ChatProvider loaded schema for \(tables.count) tables")
-    } catch {
-      logError("Failed to load database schema", error: error)
-      schemaLoaded = true
-    }
-  }
-
-  /// Formats raw DDL into a compact, LLM-friendly schema block
-  private func formatSchema(tables: [(name: String, sql: String)]) -> String {
-    var lines: [String] = ["**Database schema (\(DesktopProductIdentity.databaseFilename)):**", ""]
-
-    for (name, sql) in tables {
-      // Skip internal tables
-      if ChatPrompts.excludedTables.contains(name) { continue }
-      if ChatPrompts.excludedTablePrefixes.contains(where: { name.hasPrefix($0) }) { continue }
-      // Skip FTS virtual and shadow tables — documented in schemaFooter with MATCH patterns instead
-      if name.contains("_fts") { continue }
-
-      // Extract column names only, stripping types, constraints, and infrastructure columns
-      let columnNames = extractColumns(from: sql).compactMap { col -> String? in
-        let name =
-          col.components(separatedBy: .whitespaces).first?
-          .trimmingCharacters(in: CharacterSet(charactersIn: "\"'`")) ?? ""
-        return ChatPrompts.excludedColumns.contains(name) ? nil : name
-      }.filter { !$0.isEmpty }
-      guard !columnNames.isEmpty else { continue }
-
-      // Table header with annotation
-      let annotation = ChatPrompts.tableAnnotations[name] ?? ""
-      let header = annotation.isEmpty ? name : "\(name) — \(annotation)"
-      lines.append(header)
-
-      // Columns with annotations (key columns get descriptions, others are just names)
-      let tableAnnotations = ChatPrompts.columnAnnotations[name] ?? [:]
-      if tableAnnotations.isEmpty {
-        lines.append("  \(columnNames.joined(separator: ", "))")
-      } else {
-        let annotated = columnNames.map { col in
-          if let desc = tableAnnotations[col] {
-            return "\(col) — \(desc)"
-          }
-          return col
-        }
-        lines.append("  \(annotated.joined(separator: ", "))")
-      }
-      lines.append("")
-    }
-
-    // Append FTS documentation, relationships, and footer
-    lines.append(ChatPrompts.schemaFooter)
-
-    return lines.joined(separator: "\n")
-  }
-
-  /// Extracts column definitions from a CREATE TABLE SQL statement
-  /// Produces compact representations like: "id INTEGER PRIMARY KEY", "name TEXT NOT NULL"
-  private func extractColumns(from sql: String) -> [String] {
-    // Find content between first ( and last )
-    guard let openParen = sql.firstIndex(of: "("),
-      let closeParen = sql.lastIndex(of: ")")
-    else { return [] }
-
-    let body = String(sql[sql.index(after: openParen)..<closeParen])
-
-    // Split by commas, but respect parentheses (for REFERENCES(...) etc.)
-    var columns: [String] = []
-    var current = ""
-    var depth = 0
-    for char in body {
-      if char == "(" { depth += 1 } else if char == ")" { depth -= 1 }
-
-      if char == "," && depth == 0 {
-        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { columns.append(trimmed) }
-        current = ""
-      } else {
-        current.append(char)
-      }
-    }
-    let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !trimmed.isEmpty { columns.append(trimmed) }
-
-    // Filter out table constraints (UNIQUE, CHECK, FOREIGN KEY, etc.) — keep only column defs
-    return columns.filter { col in
-      let upper = col.uppercased().trimmingCharacters(in: .whitespaces)
-      return !upper.hasPrefix("UNIQUE") && !upper.hasPrefix("CHECK") && !upper.hasPrefix("FOREIGN")
-        && !upper.hasPrefix("CONSTRAINT") && !upper.hasPrefix("PRIMARY KEY")
-    }.map { col in
-      // Normalize whitespace
-      col.components(separatedBy: .whitespacesAndNewlines)
-        .filter { !$0.isEmpty }
-        .joined(separator: " ")
-    }
-  }
-
-  /// Initialize chat: fetch sessions and load messages
   func initialize() async {
     await initializeVisibleMessages()
     await warmupPromptContext()
@@ -2953,10 +2375,7 @@ class ChatProvider: ObservableObject {
   /// Warm local prompt context used by first send / bridge startup.
   func warmupPromptContext() async {
     await refreshMemoriesForPrompt()
-    await loadGoalsIfNeeded()
-    await loadTasksIfNeeded()
     await loadAIProfileIfNeeded()
-    await loadSchemaIfNeeded()
   }
 
   /// Reinitialize after settings change
@@ -3019,7 +2438,7 @@ class ChatProvider: ObservableObject {
     if let ownerID = ownerLease.ownerID {
       chatSelectionStore.setSelectedChatID("default", ownerID: ownerID)
     }
-    RealtimeHubController.shared.invalidateVoiceContextForChatSelectionChange()
+    ConversationVoiceController.shared.close()
     chatSelectionRollbackState = nil
     log("Switched to default chat")
   }
@@ -3074,7 +2493,6 @@ class ChatProvider: ObservableObject {
       return false
     }
     guard ownsSelection() else { return false }
-    await rehydrateMissingArtifactResourcesFromKernel()
     guard ownsSelection() else { return false }
     messagesPaginationOffset = messages.count
     hasMoreMessages = false
@@ -3109,68 +2527,31 @@ class ChatProvider: ObservableObject {
 
   @discardableResult
   func stopAgent(owner: ChatTurnOwner, reason: ChatTurnStopReason) -> Bool {
-    guard isSending else { return false }
-    guard let activeTurnOwner, owner.canInterrupt(activeTurnOwner) else {
-      log("ChatProvider: ignoring stop from non-owner turn")
-      return false
+    guard isSending, let activeTurnOwner, owner.canInterrupt(activeTurnOwner) else { return false }
+    let generation = sendGeneration
+    if let direct = activeDirectConversation, direct.generation == generation {
+      ConversationVoiceController.shared.observeTextOnlyTurn(
+        turnID: direct.turnID,
+        userText: direct.userText, assistantText: activeConversationText,
+        outcome: "interrupted", isFinal: true)
+      ConversationVoiceController.shared.finishTextOnlyTurn(turnID: direct.turnID)
+      activeDirectConversation = nil
+    } else if ConversationVoiceController.shared.isOpen {
+      ConversationVoiceController.shared.interruptReply()
     }
-    isStopping = true
-    let stoppedGen = sendGeneration
-    activeStopReason = (generation: stoppedGen, reason: reason)
-    if activeChatTurnLifecycle?.generation == stoppedGen {
-      activeChatTurnLifecycle?.lifecycle.revoke(.stop(reason))
-    }
+    activeStopReason = (generation, reason)
+    finishActiveChatTelemetry(
+      generation: generation, stopReason: reason,
+      partialResponse: !activeConversationText.isEmpty)
     sendGeneration += 1
-    let myGen = sendGeneration
-    Task {
-      let shouldInterruptBridge = await MainActor.run { () -> Bool in
-        guard self.isSending,
-          self.sendGeneration == myGen,
-          self.activeBridgeSendGeneration == stoppedGen
-        else {
-          return false
-        }
-        self.activeBridgeSendGeneration = nil
-        return true
-      }
-      if shouldInterruptBridge {
-        await resolvedAgentClient().interrupt()
-      }
-      // Normal path: interrupt → bridge emits final result or .stopped.
-      // Fallback: if the bridge drops the turn_end as "stray", force-release
-      // after a short grace so the user's next query is not silently swallowed.
-      try? await Task.sleep(nanoseconds: 3_000_000_000)
-      let shouldTerminalizeJournal = await MainActor.run { () -> Bool in
-        guard self.isSending,
-          self.sendGeneration == myGen,
-          self.sendLockOwnership.generation == stoppedGen
-        else { return false }
-        log("ChatProvider: interrupt didn't close stream in 3s — force-resetting isSending")
-        let activeClientTurnId = self.activeChatClientTurnId.flatMap {
-          $0.generation == stoppedGen ? $0.id : nil
-        }
-        let partialResponse =
-          activeClientTurnId.map { clientTurnId in
-            self.messages.contains {
-              $0.clientTurnId == clientTurnId
-                && $0.sender == .ai
-                && $0.isStreaming
-                && (!$0.text.isEmpty || !$0.contentBlocks.isEmpty)
-            }
-          } ?? false
-        self.finishActiveChatTelemetry(
-          generation: stoppedGen,
-          stopReason: reason,
-          partialResponse: partialResponse
-        )
-        self.releaseSendLock(sendGeneration: stoppedGen)
-        return true
-      }
-      if shouldTerminalizeJournal {
-        _ = await self.finishJournalTarget(generation: stoppedGen, status: .failed)
-      }
+    activeConversationRequest?.cancel()
+    activeConversationRequest = nil
+    streamingBuffer.cancelPendingFlush()
+    flushStreamingBuffer()
+    Task { [weak self] in
+      _ = await self?.finishJournalTarget(generation: generation, status: .failed)
     }
-    // Result flows back normally through the bridge with partial text
+    _ = releaseSendLock(sendGeneration: generation)
     return true
   }
 
@@ -3225,7 +2606,9 @@ class ChatProvider: ObservableObject {
     assistantMessage: ChatMessage,
     origin: String,
     sessionId: String?,
-    messageSource: String
+    messageSource: String,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    expectedGeneration: Int? = nil
   ) async -> Bool {
     #if DEBUG
       if let recordStreamingJournalExchangeForTests {
@@ -3247,7 +2630,9 @@ class ChatProvider: ObservableObject {
         continuityKey: continuityKey,
         sessionId: sessionId,
         messageSource: messageSource,
-        ownerID: ownerID
+        ownerID: ownerID,
+        authorizationSnapshot: authorizationSnapshot,
+        expectedGeneration: expectedGeneration
       )
     }
   }
@@ -3420,44 +2805,6 @@ class ChatProvider: ObservableObject {
         surface: target.surface,
         ownerID: target.ownerID
       )
-    }
-    journalOwnerByMessageID.removeValue(forKey: target.assistantMessageId)
-    target.onFinalized?(accepted)
-    return accepted
-  }
-
-  private func finishJournalTarget(
-    generation: Int,
-    queryResult: AgentClient.QueryResult,
-    disposition: KernelJournalTerminalDisposition
-  ) async -> Bool {
-    guard let target = journalTerminalTargets.claim(generation: generation) else {
-      return false
-    }
-    guard
-      await journalWriteCoordinator.beginTerminalization(
-        messageID: target.assistantMessageId
-      )
-    else {
-      target.onFinalized?(false)
-      return false
-    }
-    let message = messages.first(where: { $0.id == target.assistantMessageId })
-    let resultResources =
-      queryResult.artifacts.map(ChatResource.artifact)
-      + queryResult.completionDeltaArtifacts.map(ChatResource.artifact)
-    let accepted = await journalWriteCoordinator.retryTerminalization {
-      await self.kernelTurnProjection.terminalizeTurn(
-        surface: target.surface,
-        turnId: target.assistantMessageId,
-        message: message,
-        producingRunId: queryResult.runId,
-        producingAttemptId: queryResult.attemptId,
-        disposition: disposition,
-        acceptedContent: queryResult.text,
-        acceptedResources: resultResources,
-        ownerID: target.ownerID
-      ) != nil
     }
     journalOwnerByMessageID.removeValue(forKey: target.assistantMessageId)
     target.onFinalized?(accepted)
@@ -3643,7 +2990,7 @@ class ChatProvider: ObservableObject {
 
   // MARK: - Send Message
 
-  /// Send a message and get a response through managed Pi.
+  /// Send typed input through A using the logical conversation prompt receipt.
   /// Journals both the user turn and accepted assistant turn locally.
   /// - Parameters:
   ///   - text: The message text
@@ -3660,1324 +3007,259 @@ class ChatProvider: ObservableObject {
     onAccepted: (@MainActor () -> Void)? = nil,
     onJournalFinalized: (@MainActor (_ accepted: Bool) -> Void)? = nil
   ) async -> String? {
-    let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    let managedModel = ModelQoS.Gemini.chat
-    guard !trimmedText.isEmpty else { return nil }
-    guard !isClearing, !isLoading else {
-      errorMessage =
-        isClearing
-        ? "Wait for this chat to finish clearing before sending."
-        : "Wait for this chat to finish loading before sending."
+    let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty, text.count <= 12_000 else { return nil }
+    guard !isClearing, !isLoading, !isCreatingSession, deletingSessionIds.isEmpty else {
+      errorMessage = "Wait for this chat to finish opening or updating before sending."
       return nil
     }
-    guard !isCreatingSession else {
-      errorMessage = "Wait for the new chat to finish opening before sending."
-      return nil
-    }
-    guard deletingSessionIds.isEmpty else {
-      errorMessage = "Wait for chat deletion to finish before sending."
-      return nil
-    }
-    guard let turnAuthorizationSnapshot = authorizeTurn(for: runtimeOwnerId) else { return nil }
-    let capturedRuntimeOwnerID = turnAuthorizationSnapshot.ownerID
-    let usesMainComposer = turnOwner == .mainChat && surfaceRef == nil
-    let submittedDraftKey = activeDraftKey
-    let submittedIsDefaultChat = isInDefaultChat
-    let submittedSessionID = currentSession?.id
-    let submittedAttachments = usesMainComposer ? pendingAttachments : []
-    let submittedAttachmentIDs = Set(submittedAttachments.map(\.id))
-
-    // Guard against concurrent sendMessage calls.
-    // The bridge uses a single message continuation, so concurrent queries
-    // would cause responses to be consumed by the wrong caller.
-    guard !isSending, !sendLockOwnership.isHeld else {
-      log("ChatProvider: sendMessage called while already sending, ignoring")
-      return nil
-    }
-
-    let usageLimiter = FloatingBarUsageLimiter.shared
-
-    // QueryTracer: picked up from the TaskLocal context established by the
-    // floating-bar / PTT entry points (nil for non-traced call sites).
-    let tracer = QueryTracerContext.current
-
+    guard !isSending, !sendLockOwnership.isHeld,
+      let authorization = authorizeTurn(for: runtimeOwnerId)
+    else { return nil }
+    let surface = querySurface(
+      surfaceRef: surfaceRef, sessionId: currentSession?.id,
+      systemPromptStyle: systemPromptStyle)
+    let voice = ConversationVoiceController.shared
+    let joinsVoice = voice.acceptsTypedInput(surface: surface)
+    if voice.isOpen && !joinsVoice { voice.close() }
     sendGeneration += 1
-    let sendGen = sendGeneration
-    guard sendLockOwnership.acquire(generation: sendGen) else {
-      log("ChatProvider: bridge send lock was held while isSending=false; rejecting send")
-      return nil
-    }
+    let generation = sendGeneration
+    guard sendLockOwnership.acquire(generation: generation) else { return nil }
     isSending = true
     isStopping = false
     activeTurnOwner = turnOwner
+    activeSendChatID = surface.externalRefId
     errorMessage = nil
     currentError = nil
-    let telemetrySurface = Self.chatTelemetrySurface(
-      turnOwner: turnOwner,
-      isOnboarding: isOnboarding,
-      systemPromptStyle: systemPromptStyle
-    )
-    let telemetryAttempt = ChatQueryTelemetryAttempt(
+    lastFailedPrompt = text
+    let telemetry = ChatQueryTelemetryAttempt(
       attemptId: clientTurnId,
-      surface: telemetrySurface,
-      harness: AgentHarnessMode.piMono.rawValue,
-      runtimeSurface: surfaceRef?.surfaceKind,
-      inputLength: trimmedText.count,
-      attachmentCount: submittedAttachments.count,
-      hasImage: Self.chatTelemetryHasImage(
-        explicitImagePresent: imageData != nil,
-        stagedImageAttachmentPresent: submittedAttachments.contains(where: \.isImage)
-      )
-    )
-    let turnLifecycle = ChatTurnLifecycle()
-    let turnAttemptId = telemetryAttempt.context.attemptId
-    activeChatTelemetryAttempt = (generation: sendGen, attempt: telemetryAttempt)
-    activeChatTurnLifecycle = (generation: sendGen, lifecycle: turnLifecycle)
-    activeChatClientTurnId = (generation: sendGen, id: turnAttemptId)
-    let reportsChatEvaluation = turnOwner == .mainChat || turnOwner == .floatingDefault
-    if reportsChatEvaluation {
-      AIEvaluationReporter.shared.captureTurnStart(
-        turnID: "chat:\(turnAttemptId)", authorizationSnapshot: turnAuthorizationSnapshot)
-    }
-    defer { AIEvaluationReporter.shared.discardTurnAdmission(turnID: "chat:\(turnAttemptId)") }
-    activeSendChatID = submittedSessionID ?? "default"
-
-    // Ensure bridge is running
-    tracer?.begin("bridge_ensure")
-    let bridgeStarted = await ensureBridgeStarted(authoritativeGeneration: sendGen)
-    guard sendGeneration == sendGen, turnLifecycle.acceptsResult else {
-      tracer?.end("bridge_ensure", metadata: ["status": "cancelled"])
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    guard bridgeStarted else {
-      tracer?.end("bridge_ensure", metadata: ["error": "bridge_failed"])
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      if currentError == nil, errorMessage?.isEmpty ?? true {
-        errorMessage = "AI not available"
+      surface: surface.surfaceKind, harness: "conversation", runtimeSurface: surface.surfaceKind,
+      inputLength: text.count, attachmentCount: pendingAttachments.count,
+      hasImage: imageData != nil || pendingAttachments.contains(where: \.isImage))
+    activeChatTelemetryAttempt = (generation, telemetry)
+    defer {
+      if !telemetry.isTerminal {
+        telemetry.cancel(reason: .superseded, partialResponse: !activeConversationText.isEmpty)
       }
-      telemetryAttempt.fail(errorClass: .bridgeUnavailable)
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
+      clearChatTelemetryState(for: generation)
+      if sendGeneration == generation { activeConversationRequest = nil }
+      _ = releaseSendLock(sendGeneration: generation)
     }
-    tracer?.end("bridge_ensure", metadata: ["status": "ok"])
-
-    // Determine session ID based on mode
-    // In default chat mode (isInDefaultChat=true): no session ID (compatible with Flutter)
-    // In session mode: require session ID
-    var sessionId: String? = nil
-    if !submittedIsDefaultChat {
-      guard let sid = submittedSessionID else {
-        errorMessage = "Failed to create chat session"
-        tracer?.finalize(tokenCount: 0, model: managedModel)
-        telemetryAttempt.fail(errorClass: .sessionSetup)
-        clearChatTelemetryState(for: sendGen)
-        releaseSendLock(sendGeneration: sendGen)
-        return nil
-      }
-      sessionId = sid
-    }
-    guard sendGeneration == sendGen else {
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      telemetryAttempt.finish(stopReason: stopReason(for: sendGen))
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-
-    let resolvedSurface = querySurface(
-      surfaceRef: surfaceRef,
-      sessionId: sessionId,
-      systemPromptStyle: systemPromptStyle
-    )
-    let pinnedSession: AgentSurfaceSession
-    do {
-      pinnedSession = try await resolveKernelQuerySession(
-        surface: resolvedSurface,
-        requestedModelProfile: managedModel
-      )
-    } catch {
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      if ChatQueryResultAuthority.acceptsContinuation(
-        currentGeneration: sendGeneration,
-        turnGeneration: sendGen,
-        turnAcceptsResult: turnLifecycle.acceptsResult
-      ) {
-        errorMessage = "Could not prepare this chat session. Try again."
-        telemetryAttempt.fail(errorClass: .sessionSetup)
-      } else {
-        telemetryAttempt.finish(
-          stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen)
-        )
-      }
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    if usageLimiter.serverQuota == nil {
-      await usageLimiter.syncQuota()
-    }
-    guard
-      ChatQueryResultAuthority.acceptsContinuation(
-        currentGeneration: sendGeneration,
-        turnGeneration: sendGen,
-        turnAcceptsResult: turnLifecycle.acceptsResult
-      )
-    else {
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      telemetryAttempt.finish(
-        stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen)
-      )
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    if usageLimiter.isLimitReached {
-      log("ChatProvider: pinned Intentive session blocked by free-tier monthly limit")
-      errorMessage = "You've reached \(usageLimiter.limitDescription). Upgrade to keep chatting."
-      NotificationCenter.default.post(
-        name: .showUsageLimitPopup,
-        object: nil,
-        userInfo: ["reason": "chat"]
-      )
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-      telemetryAttempt.fail(errorClass: .quota)
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    // The generic watchdog owns only a silent bridge with no active tool.
-    // Active tools must reach their 90s no-progress watchdog first so their
-    // terminal cause and correlation survive the bridge interruption.
-    let turnStartMs = ChatProvider.monotonicNowMs()
-    let stallDetector = StallDetector(thresholds: .v1Defaults, startedAtMs: turnStartMs)
-    let watchdogAIMessageId = Self.messageIds(forAttemptId: turnAttemptId).assistant
-    let genericWatchdogTask = Task { [weak self] in
-      while !Task.isCancelled {
-        do {
-          try await Task.sleep(nanoseconds: UInt64(Self.genericWatchdogPollMs) * 1_000_000)
-        } catch {
-          return
-        }
-        let nowMs = ChatProvider.monotonicNowMs()
-        let canFire = await stallDetector.isSilentWithoutActiveTools(
-          durationMs: Self.genericWatchdogInactivityMs,
-          atMs: nowMs
-        )
-        guard canFire, let self else { continue }
-        let stillStuck = await MainActor.run { () -> Bool in
-          guard
-            self.isSending,
-            self.sendGeneration == sendGen,
-            self.activeBridgeSendGeneration == sendGen
-          else { return false }
-          log("ChatProvider: generic watchdog fired after 60s of silence — bridge is stuck; force-resetting")
-          // Mark this generation before interrupting: interrupt() resumes the
-          // in-flight request with `.stopped`, and the catch below uses this
-          // marker to surface the timeout instead of silently dropping the turn.
-          if turnLifecycle.revoke(.watchdogTimeout) {
-            self.sendWatchdogFiredGeneration = sendGen
-          } else if turnLifecycle.revocationReason == .toolStall {
-            log("ChatProvider: send watchdog preserving earlier tool-stall terminal cause")
-          }
-          return true
-        }
-        guard stillStuck else { return }
-        await self.resolvedAgentClient().interrupt()
-        // Fallback for the "stray turn_end" case where interrupt() does not
-        // route through the catch (no active request to resume): if the lock is
-        // somehow still held, force-release it and surface the timeout here.
-        // Deliberately does NOT clear sendWatchdogFiredGeneration — only the
-        // catch clears it, so if this fallback wins the race with the catch, the
-        // catch still sees the marker and surfaces the timeout instead of
-        // re-silencing the turn. A stale marker is harmless: generations only
-        // increase, so it never matches a later send.
-        let shouldTerminalizeJournal = await MainActor.run { () -> Bool in
-          guard self.isSending, self.sendGeneration == sendGen else { return false }
-          let revocationReason = turnLifecycle.revocationReason
-          let toolStallAbortFired =
-            self.sendToolStallAbortGeneration == sendGen
-            || revocationReason == .toolStall
-          let watchdogFired =
-            self.sendWatchdogFiredGeneration == sendGen
-            || revocationReason == .watchdogTimeout
-
-          // Preserve already-delivered output, but make every visible row
-          // terminal before releasing the provider for another send.
-          self.streamingBuffer.cancelPendingFlush()
-          self.flushStreamingBuffer()
-          var partialResponse = false
-          if let index = self.messages.firstIndex(where: { $0.id == watchdogAIMessageId }) {
-            partialResponse =
-              !self.messages[index].text.isEmpty
-              || !self.messages[index].contentBlocks.isEmpty
-            if partialResponse {
-              self.messages[index].isStreaming = false
-              ToolCallBlockUpdater.completeRemainingToolCalls(
-                in: &self.messages[index].contentBlocks,
-                terminalStatus: ChatProvider.lateResultToolStatus(
-                  watchdogFired: watchdogFired,
-                  toolStallAbortFired: toolStallAbortFired,
-                  stopReason: turnLifecycle.stopReason
-                )
-              )
-            } else {
-              self.messages.remove(at: index)
-            }
-          }
-
-          let traceReason = toolStallAbortFired ? "tool_stall" : "watchdog_timeout"
-          tracer?.mark("forced_terminal_fallback", metadata: ["reason": traceReason])
-          tracer?.end("ttft")
-          tracer?.end("generation")
-          tracer?.end("llm_request")
-          tracer?.finalize(tokenCount: 0, model: managedModel)
-
-          if let terminalMessage = ChatProvider.stoppedTurnErrorMessage(
-            watchdogFired: watchdogFired,
-            toolStallAbortFired: toolStallAbortFired
-          ) {
-            self.currentError = nil
-            self.errorMessage = terminalMessage
-          }
-          if !telemetryAttempt.isTerminal {
-            if toolStallAbortFired {
-              telemetryAttempt.fail(errorClass: .toolStall, partialResponse: partialResponse)
-            } else if watchdogFired {
-              telemetryAttempt.fail(
-                errorClass: .timeout,
-                partialResponse: partialResponse,
-                watchdogFired: true
-              )
-            } else {
-              telemetryAttempt.finish(
-                stopReason: turnLifecycle.stopReason ?? self.stopReason(for: sendGen),
-                partialResponse: partialResponse
-              )
-            }
-          }
-          self.clearChatTelemetryState(for: sendGen)
-          _ = self.releaseSendLock(sendGeneration: sendGen)
-          return true
-        }
-        if shouldTerminalizeJournal {
-          _ = await self.finishJournalTarget(generation: sendGen, status: .failed)
-        }
-        return
-      }
-    }
-    defer { genericWatchdogTask.cancel() }
-
-    // A journal turn may reference only an app-managed local copy.
-    var attachmentsForMessage: [ChatAttachment] = []
-    if !submittedAttachmentIDs.isEmpty {
-      let materializedAttachments = await awaitPendingAttachmentMaterialization(
-        targetKey: submittedDraftKey,
-        attachmentIDs: submittedAttachmentIDs
-      )
+    if !joinsVoice {
       guard
-        ChatQueryResultAuthority.acceptsContinuation(
-          currentGeneration: sendGeneration,
-          turnGeneration: sendGen,
-          turnAcceptsResult: turnLifecycle.acceptsResult
-        )
-      else {
-        tracer?.finalize(tokenCount: 0, model: managedModel)
-        telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
-        clearChatTelemetryState(for: sendGen)
-        releaseSendLock(sendGeneration: sendGen)
-        return nil
-      }
-      guard let materializedAttachments else {
-        errorMessage = "Some attachments could not be copied. Remove them and try again."
-        tracer?.finalize(tokenCount: 0, model: managedModel)
-        telemetryAttempt.fail(errorClass: .attachmentUpload)
-        clearChatTelemetryState(for: sendGen)
-        releaseSendLock(sendGeneration: sendGen)
-        return nil
-      }
-      attachmentsForMessage = materializedAttachments
+        voice.beginTextOnlyTurn(
+          turnID: clientTurnId, authorizationSnapshot: authorization,
+          cancel: { [weak self] in
+            guard let self, self.sendGeneration == generation else { return }
+            _ = self.stopAgent(owner: turnOwner)
+            voice.observeTextOnlyTurn(
+              turnID: clientTurnId, userText: text,
+              assistantText: self.activeConversationText, outcome: "interrupted", isFinal: true)
+            voice.finishTextOnlyTurn(turnID: clientTurnId)
+          })
+      else { return nil }
     }
-    usageLimiter.recordQuery()
-
-    // Attempt-derived IDs are the canonical local journal identities. No
-    // backend delivery may mint or preserve a second writer identity.
-    let turnMessageIds = Self.messageIds(forAttemptId: turnAttemptId)
-    let userMessageId = turnMessageIds.user
-    let capturedSessionId = sessionId
-    let journalOrigin = journalOrigin(for: resolvedSurface)
-    let userMessage = ChatMessage(
-      id: userMessageId,
-      clientTurnId: turnAttemptId,
-      text: trimmedText,
-      sender: .user,
-      attachments: attachmentsForMessage,
-      turnOwner: turnOwner
-    )
-    let aiMessageId = turnMessageIds.assistant
-    let aiMessage = ChatMessage(
-      id: aiMessageId,
-      clientTurnId: turnAttemptId,
-      text: "",
-      sender: .ai,
-      isStreaming: true,
-      turnOwner: turnOwner
-    )
-    // Both visible halves enter the journal under one SQLite transaction.
-    // If either identity/payload is rejected, neither row can project.
-    attachmentsAwaitingJournalAdmission.formUnion(submittedAttachmentIDs)
-    let recordedExchange = await recordStreamingJournalExchange(
-      surface: resolvedSurface,
-      ownerID: capturedRuntimeOwnerID,
-      continuityKey: turnAttemptId,
-      userMessage: userMessage,
-      assistantMessage: aiMessage,
-      origin: journalOrigin,
-      sessionId: capturedSessionId,
-      messageSource: journalOrigin
-    )
-    attachmentsAwaitingJournalAdmission.subtract(submittedAttachmentIDs)
-    let shouldRegisterJournalTerminalTarget: Bool
-    #if DEBUG
-      shouldRegisterJournalTerminalTarget = recordStreamingJournalExchangeForTests == nil
-    #else
-      shouldRegisterJournalTerminalTarget = true
-    #endif
-    if recordedExchange, shouldRegisterJournalTerminalTarget {
-      journalOwnerByMessageID[aiMessageId] = capturedRuntimeOwnerID
+    if !joinsVoice {
+      activeDirectConversation = (clientTurnId, text, generation)
+      AIEvaluationReporter.shared.captureTurnStart(
+        turnID: "chat:\(clientTurnId)",
+        authorizationSnapshot: authorization)
+    }
+    defer {
+      if !joinsVoice {
+        voice.finishTextOnlyTurn(turnID: clientTurnId)
+        AIEvaluationReporter.shared.discardTurnAdmission(turnID: "chat:\(clientTurnId)")
+      }
+      if activeDirectConversation?.generation == generation { activeDirectConversation = nil }
+    }
+    activeConversationText = ""
+    let submittedDraftKey = activeDraftKey
+    let attachmentIDs = Set((turnOwner == .mainChat && surfaceRef == nil ? pendingAttachments : []).map(\.id))
+    do {
+      let attachments: [ChatAttachment]
+      if attachmentIDs.isEmpty {
+        attachments = []
+      } else {
+        guard
+          let materialized = await awaitPendingAttachmentMaterialization(
+            targetKey: submittedDraftKey, attachmentIDs: attachmentIDs)
+        else { throw ConversationJournalError.unavailable }
+        attachments = materialized
+      }
+      guard sendGeneration == generation,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+      else { return nil }
+      if joinsVoice {
+        let result = try await voice.submitTypedMessage(
+          text: text, clientTurnID: clientTurnId,
+          image: try Self.conversationImage(imageData ?? attachments.first(where: \.isImage)?.data),
+          attachments: attachments,
+          onJournalFinalized: { accepted in onJournalFinalized?(accepted) },
+          onAccepted: { [weak self] in
+            guard let self, self.sendGeneration == generation,
+              RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+            else { return }
+            self.consumeSubmittedAttachments(attachments, key: submittedDraftKey)
+            onAccepted?()
+          }, onTextDelta: { _ in })
+        if let result {
+          telemetry.complete(metrics: Self.conversationCompletionMetrics(responseLength: result.count))
+        } else {
+          telemetry.finish(error: CancellationError(), partialResponse: false)
+        }
+        return result
+      }
+      let journal = try await snapshotConversationJournal(surface: surface)
+      let binding = try await pinnedConversation(context: journal)
+      voice.bindTextOnlyConversation(turnID: clientTurnId, conversationID: binding.id)
+      let savedContext = await conversationContextText(authorizationSnapshot: authorization)
+      guard sendGeneration == generation,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+      else { return nil }
+      let image = try Self.conversationImage(imageData ?? attachments.first(where: \.isImage)?.data)
+      let ids = Self.messageIds(forAttemptId: clientTurnId)
+      let user = ChatMessage(
+        id: ids.user, clientTurnId: clientTurnId, text: text,
+        sender: .user, attachments: attachments, turnOwner: turnOwner)
+      let assistant = ChatMessage(
+        id: ids.assistant, clientTurnId: clientTurnId, text: "",
+        sender: .ai, isStreaming: true, turnOwner: turnOwner)
+      attachmentsAwaitingJournalAdmission.formUnion(attachmentIDs)
+      let accepted = await recordStreamingJournalExchange(
+        surface: surface, ownerID: authorization.ownerID, continuityKey: clientTurnId,
+        userMessage: user, assistantMessage: assistant, origin: "typed_chat",
+        sessionId: surface.externalRefId, messageSource: "typed_chat",
+        authorizationSnapshot: authorization, expectedGeneration: journal.generation)
+      attachmentsAwaitingJournalAdmission.subtract(attachmentIDs)
+      guard accepted else { throw ConversationJournalError.writeRejected }
+      journalOwnerByMessageID[ids.assistant] = authorization.ownerID
       journalTerminalTargets.register(
         ChatJournalTerminalTarget(
-          surface: resolvedSurface,
-          assistantMessageId: aiMessageId,
-          ownerID: capturedRuntimeOwnerID,
-          onFinalized: onJournalFinalized
-        ), generation: sendGen)
-    }
-    if multiChatEnabled {
-      await fetchSessions()
-    }
-    guard
-      ChatQueryResultAuthority.acceptsContinuation(
-        currentGeneration: sendGeneration,
-        turnGeneration: sendGen,
-        turnAcceptsResult: turnLifecycle.acceptsResult
-      )
-    else {
-      if recordedExchange {
-        _ = await finishJournalTarget(generation: sendGen, status: .failed)
-      }
-      telemetryAttempt.finish(
-        stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen)
-      )
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    guard recordedExchange else {
-      errorMessage = "Could not save this message. Try again."
-      telemetryAttempt.fail(errorClass: .sessionSetup)
-      clearChatTelemetryState(for: sendGen)
-      releaseSendLock(sendGeneration: sendGen)
-      return nil
-    }
-    if !submittedAttachmentIDs.isEmpty {
-      for attachment in attachmentsForMessage {
-        pendingAttachmentScopes.removeValue(forKey: attachment.id)
-      }
-      var remaining = pendingAttachmentsByDraftKey[submittedDraftKey] ?? []
-      remaining.removeAll { submittedAttachmentIDs.contains($0.id) }
-      pendingAttachmentsByDraftKey[submittedDraftKey] = remaining
-      ChatDraftStore.shared.setAttachments(remaining, for: submittedDraftKey)
-      if activeDraftKey == submittedDraftKey {
-        isRestoringPendingAttachments = true
-        pendingAttachments = remaining
-        isRestoringPendingAttachments = false
-      }
-    }
-    // Signal to ChatMessagesView only after the complete exchange exists so
-    // anchoring can never expose a user row without its response target.
-    localSendToken = LocalSendToken(generation: sendGen)
-    onAccepted?()
-
-    // Track onboarding user-message shape without content.
-    if isOnboarding {
-      AnalyticsManager.shared.onboardingChatMessageDetailed(
-        role: "user", text: trimmedText, step: "chat"
-      )
-    }
-
-    // Analytics: track tool usage; the telemetry attempt owns wall-clock timing.
-    let toolTiming = ChatToolTimingState()
-    let responseMetrics = ChatResponseMetrics()
-    var completedResponseText: String?
-    var screenContextEligibleForTurn = false
-    var correlatedTerminalResult: AgentClient.QueryResult?
-    var agentQueryStarted = false
-
-    // Refresh data inputs each turn. The kernel renders these sources under
-    // its own pinned policy; Swift never supplies a system instruction.
-    await refreshMemoriesForPrompt()
-    do {
-      // If the caller didn't provide explicit imageData (e.g. screen-capture
-      // assistant), fall back to the first image attached by the user.
-      var effectiveImageData = imageData
-      if effectiveImageData == nil {
-        effectiveImageData = attachmentsForMessage.first(where: { $0.isImage })?.data
-      }
-      var notificationContext: String?
-      if systemPromptSuffix == nil {
-        let aiMessages = messages.filter { $0.sender == .ai && !$0.isStreaming }
-        if let lastAI = aiMessages.last, let ctx = lastAI.notificationContext {
-          notificationContext = ctx
-          if effectiveImageData == nil, let screenshotData = lastAI.notificationScreenshot {
-            effectiveImageData = screenshotData
-          }
-        }
-      }
-      var screenPayload: [String: Any]?
-      if effectiveImageData == nil,
-        let screenContextReason = ScreenContextAutoIncludePolicy.reason(
-          userText: trimmedText,
-          systemPromptStyle: systemPromptStyle,
-          turnOwner: turnOwner,
-          onboardingActive: !UserDefaults.standard.bool(forKey: DefaultsKey.hasCompletedOnboarding)
-        )
-      {
-        let screenRecordingGranted = CGPreflightScreenCaptureAccess()
-        if !screenRecordingGranted && !screenContextReason.isExplicitScreenRequest {
-          // Ambient floating turns are allowed to use screen context when already granted,
-          // but they must not manufacture a screen-permission request for generic utterances.
-          // Still tell the model WHY there is no screen context, so a
-          // screen-dependent question gets an honest "enable Screen
-          // Recording" lead-in instead of a silently blind answer.
-          screenPayload = [
-            "permission": [
-              "screen_recording": "not_granted"
-            ],
-            "reason": "ambient_surface_context",
-            "context": ScreenContextWorkContextBuilder.ambientPermissionUnavailablePayload(),
-          ]
-        } else {
-          screenContextEligibleForTurn = true
-          let screenContextPayload: [String: Any]
-          if screenContextReason.isExplicitScreenRequest {
-            // An explicit current-screen question gets one capture
-            // scoped to this exact turn. Never let a Rewind frame or
-            // OCR summary impersonate the image the model receives.
-            if screenRecordingGranted {
-              effectiveImageData = await Task.detached(priority: .userInitiated) {
-                ScreenCaptureManager.captureScreenData()
-              }.value
-            }
-            screenContextPayload = ScreenContextWorkContextBuilder.explicitCurrentScreenPayload(
-              screenRecordingGranted: screenRecordingGranted,
-              imageAttached: effectiveImageData != nil
-            )
-          } else {
-            let rawScreenContextPayloadBox = await ScreenContextWorkContextBuilder.payloadBox(
-              arguments: RuntimeJSONPayloadBox(["minutes": 10]),
-              authorizationSnapshot: turnAuthorizationSnapshot
-            )
-            let rawScreenContextPayload = rawScreenContextPayloadBox.value
-            screenContextPayload = ScreenContextWorkContextBuilder.ambientPayload(from: rawScreenContextPayload)
-          }
-          screenPayload = [
-            "permission": [
-              "screen_recording": screenRecordingGranted ? "granted" : "not_granted"
-            ],
-            "reason": screenContextReason.isExplicitScreenRequest
-              ? "explicit_screen_request"
-              : "ambient_surface_context",
-            "context": screenContextPayload,
-          ]
-          responseMetrics.recordToolRequested(name: "get_work_context")
-          if let contextData = try? JSONSerialization.data(
-            withJSONObject: screenContextPayload,
-            options: [.sortedKeys]
-          ), let contextJSON = String(data: contextData, encoding: .utf8) {
-            responseMetrics.recordToolResult(name: "get_work_context", result: contextJSON)
-          }
-        }
-      }
-      let kernelContext = try await prepareKernelQueryContext(
-        surface: resolvedSurface,
-        systemPromptStyle: systemPromptStyle,
-        systemPromptPrefix: systemPromptPrefix,
-        systemPromptSuffix: systemPromptSuffix,
-        notificationContext: notificationContext,
-        screenPayload: screenPayload,
-        requestedModelProfile: managedModel,
-        pinnedSession: pinnedSession
-      )
-      await warmupKernelQuerySession(kernelContext.session)
-      let effectiveRequestModel = kernelContext.session.profile.modelProfile
-
-      // Callbacks for agent bridge
-      //
-      // QueryTracer: responseMetrics marks TTFT on the very first output of
-      // any kind (text delta OR tool_use start). It also brackets the
-      // text-streaming window so the `generation` span excludes tool time.
-      // Kernel control tools (spawn_agent, list_agent_sessions, …) execute in
-      // the Node runtime and only surface via tool_activity + tool_result_display.
-      // Pair started input with completed output for QueryTracer.tool_executions.
-      let pendingToolTraceInputs = ChatToolTraceInputStore()
-      let callbackQueue = ChatTurnCallbackQueue(
-        generation: sendGen,
-        lifecycle: turnLifecycle,
-        currentGeneration: { [weak self] in self?.sendGeneration ?? .min }
-      )
-      let textDeltaHandler: AgentClient.TextDeltaHandler = { [weak self] delta in
-        callbackQueue.submit { @MainActor [weak self] in
-          guard let self else { return }
-          let nowMs = ChatProvider.monotonicNowMs()
-          if responseMetrics.markFirstOutputIfNeeded() {
-            tracer?.end("ttft")
-            tracer?.markTTFT()
-          }
-          if responseMetrics.markGenerationStartedIfNeeded() {
-            tracer?.begin("generation")
-          }
-          self.appendToMessage(id: aiMessageId, text: delta)
-          let transitions = await stallDetector.step(kind: .other, atMs: nowMs)
-          self.applyStallTransitions(messageId: aiMessageId, transitions: transitions)
-        }
-      }
-      let toolActivityHandler: AgentClient.ToolActivityHandler = { [weak self] name, status, toolUseId, input in
-        let inputBox = input.map { ChatProviderSendableBox(value: $0) }
-        callbackQueue.submit { @MainActor [weak self] in
-          guard let self else { return }
-          let input = inputBox?.value
-          let nowMs = ChatProvider.monotonicNowMs()
-          // Tools without a toolUseId still get tracked under a
-          // synthetic key so the detector's per-tool timer fires.
-          let trackedId = ChatProvider.stallTrackingId(toolUseId: toolUseId, name: name)
-          let toolStatus = ChatProvider.mapBridgeToolStatus(status)
-          let detectorKind: StallDetector.EventKind
-          switch status {
-          case "started":
-            detectorKind = .toolStarted(id: trackedId)
-          case "progress":
-            detectorKind = .toolProgress(id: trackedId)
-          default:
-            detectorKind = .toolCompleted(id: trackedId)
-          }
-          // Trace mutation is admitted through the same generation gate
-          // as UI mutation, so a revoked callback cannot extend a turn.
-          let traceToolName =
-            tracer?.toolNameForTrace(name)
-            ?? ChatTelemetryDimension.toolName(name)
-          let spanKey = "tool:\(toolUseId ?? traceToolName)"
-          if status == "started" {
-            if responseMetrics.markFirstOutputIfNeeded() {
-              tracer?.end("ttft")
-              tracer?.markTTFT()
-            }
-            tracer?.begin(spanKey, metadata: ["tool": traceToolName])
-            if let input {
-              let inputJson =
-                (try? String(
-                  data: JSONSerialization.data(withJSONObject: input),
-                  encoding: .utf8
-                )) ?? "\(input)"
-              pendingToolTraceInputs.record(id: trackedId, inputJson: inputJson)
-            }
-          } else if toolStatus != .running {
-            tracer?.end(spanKey)
-          }
-          self.addToolActivity(
-            messageId: aiMessageId,
-            toolName: name,
-            status: toolStatus,
-            toolUseId: toolUseId,
-            input: input
-          )
-          if status == "started" {
-            toolTiming.toolNames.append(name)
-            responseMetrics.recordToolRequested(name: name)
-            toolTiming.toolStartTimes[trackedId] = Date()
-          } else if toolStatus != .running,
-            let startTime = toolTiming.toolStartTimes.removeValue(forKey: trackedId)
-          {
-            let durationMs = Int(Date().timeIntervalSince(startTime) * 1000)
-            AnalyticsManager.shared.chatToolCallCompleted(
-              toolName: name, durationMs: durationMs, outcome: status)
-          }
-          let transitions = await stallDetector.step(kind: detectorKind, atMs: nowMs)
-          self.applyStallTransitions(messageId: aiMessageId, transitions: transitions)
-        }
-      }
-      let thinkingDeltaHandler: AgentClient.ThinkingDeltaHandler = { [weak self] text in
-        callbackQueue.submit { @MainActor [weak self] in
-          guard let self else { return }
-          let nowMs = ChatProvider.monotonicNowMs()
-          self.appendThinking(messageId: aiMessageId, text: text)
-          let transitions = await stallDetector.step(kind: .other, atMs: nowMs)
-          self.applyStallTransitions(messageId: aiMessageId, transitions: transitions)
-        }
-      }
-      let toolResultDisplayHandler: AgentClient.ToolResultDisplayHandler = { [weak self] toolUseId, name, output in
-        callbackQueue.submit { @MainActor [weak self] in
-          guard let self else { return }
-          let nowMs = ChatProvider.monotonicNowMs()
-          if let tracer {
-            let trackedId = ChatProvider.stallTrackingId(toolUseId: toolUseId, name: name)
-            let pending = pendingToolTraceInputs.take(id: trackedId)
-            let inputJson = pending?.inputJson ?? ""
-            let durationMs = pending.map { (ContinuousClock.now - $0.started).milliseconds }
-            tracer.captureToolExecution(
-              toolUseId: toolUseId.isEmpty ? nil : toolUseId,
-              name: name,
-              input: inputJson,
-              output: output,
-              durationMs: durationMs
-            )
-          }
-          self.addToolResult(messageId: aiMessageId, toolUseId: toolUseId, name: name, output: output)
-          responseMetrics.recordToolResult(name: name, result: output)
-          let transitions = await stallDetector.step(kind: .other, atMs: nowMs)
-          self.applyStallTransitions(messageId: aiMessageId, transitions: transitions)
-        }
-      }
-
-      // Periodic tick task surfaces stall promotions during silent
-      // gaps when no bridge events arrive. Cancelled via defer on
-      // scope exit (success or throw).
-      let stallTickTask = Task { [weak self] in
-        var issuedToolStallAbort = false
-        while !Task.isCancelled {
-          try? await Task.sleep(nanoseconds: 500_000_000)  // 500ms
-          if Task.isCancelled { break }
-          let nowMs = ChatProvider.monotonicNowMs()
-          let transitions = await stallDetector.tick(atMs: nowMs)
-          if !transitions.isEmpty {
-            await MainActor.run { [weak self] in
-              guard let self,
-                self.sendGeneration == sendGen,
-                turnLifecycle.acceptsResult
-              else { return }
-              self.applyStallTransitions(messageId: aiMessageId, transitions: transitions)
-            }
-          }
-          if !issuedToolStallAbort {
-            let overdueToolIds = await stallDetector.toolIdsWithoutProgress(
-              durationMs: Self.perToolStallAbortMs,
-              atMs: nowMs
-            )
-            if !overdueToolIds.isEmpty {
-              issuedToolStallAbort = true
-              let shouldInterrupt = await MainActor.run { () -> Bool in
-                guard let self, self.isSending, self.sendGeneration == sendGen else { return false }
-                self.sendToolStallAbortGeneration = sendGen
-                turnLifecycle.revoke(.toolStall)
-                log(
-                  "ChatProvider: tool no-progress guard fired at \(Self.perToolStallAbortMs / 1_000)s "
-                    + "(active_tools=\(overdueToolIds.count)); interrupting bridge"
-                )
-                return true
-              }
-              if shouldInterrupt {
-                await self?.resolvedAgentClient().interrupt()
-              }
-            }
-          }
-        }
-      }
-      defer { stallTickTask.cancel() }
-
-      // QueryTracer records the kernel snapshot identity, not a Swift-built
-      // policy string. The clock starts here so ttft measures input to first output.
-      if let tracer {
-        let tracedModel = effectiveRequestModel ?? "unknown"
-        tracer.captureRequest(
-          systemPrompt:
-            "kernel-context:\(kernelContext.snapshot.version):\(kernelContext.snapshot.snapshotGeneration):\(kernelContext.snapshot.rendererPolicyVersion):\(kernelContext.snapshot.rendererFingerprint)",
-          messages: Array(messages.suffix(40)).map {
-            ["role": $0.sender == .user ? "user" : "assistant", "content": $0.text]
-          },
-          hasScreenshot: effectiveImageData != nil
-        )
-        tracer.begin("llm_request", metadata: ["model": tracedModel])
-        tracer.begin("ttft")
-      }
-
-      // Stop can arrive while prompt context/backfill is still awaiting.
-      // Do not launch a bridge query after ownership was revoked.
-      guard
-        ChatQueryResultAuthority.acceptsContinuation(
-          currentGeneration: sendGeneration,
-          turnGeneration: sendGen,
-          turnAcceptsResult: turnLifecycle.acceptsResult
-        )
+          surface: surface,
+          assistantMessageId: ids.assistant, ownerID: authorization.ownerID,
+          onFinalized: onJournalFinalized), generation: generation)
+      guard sendGeneration == generation,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
       else {
-        tracer?.end("ttft")
-        tracer?.end("llm_request")
-        tracer?.finalize(tokenCount: 0, model: managedModel)
-        if let index = messages.firstIndex(where: { $0.id == aiMessageId }),
-          messages[index].text.isEmpty,
-          messages[index].contentBlocks.isEmpty
-        {
-          messages.remove(at: index)
-        }
-        telemetryAttempt.finish(stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen))
-        clearChatTelemetryState(for: sendGen)
-        _ = await finishJournalTarget(generation: sendGen, status: .failed)
-        releaseSendLock(sendGeneration: sendGen)
+        _ = await finishJournalTarget(generation: generation, status: .failed)
         return nil
       }
-
-      _ = await stallDetector.step(kind: .other, atMs: ChatProvider.monotonicNowMs())
-      activeBridgeSendGeneration = sendGen
-      agentQueryStarted = true
-      let queryResult: AgentClient.QueryResult
-      do {
-        let invocation = ChatProviderAgentQueryInvocation(
-          prompt: trimmedText,
-          session: kernelContext.session,
-          surface: resolvedSurface,
-          mode: chatMode.rawValue,
-          imageData: effectiveImageData,
-          attachments: Self.queryAttachments(attachmentsForMessage),
-          producingTurnId: aiMessageId,
-          expectedContext: kernelContext.snapshot.freshness,
-          reasoningEffort: turnOwner.reasoningEffort
-        )
-        queryResult = try await performAgentQuery(
-          invocation,
-          onTextDelta: textDeltaHandler,
-          onToolActivity: toolActivityHandler,
-          onThinkingDelta: thinkingDeltaHandler,
-          onToolResultDisplay: toolResultDisplayHandler,
-          onAuthRequired: { [weak self] _, _ in
-            callbackQueue.submit { @MainActor [weak self] in
-              guard let self else { return }
-              self.errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
-            }
-          },
-          onAuthSuccess: { [weak self] in
-            callbackQueue.submit { @MainActor [weak self] in
-              guard let self else { return }
-              self.errorMessage = nil
-            }
-          }
-        )
-      } catch {
-        await callbackQueue.drain()
-        throw error
+      consumeSubmittedAttachments(attachments, key: submittedDraftKey)
+      localSendToken = LocalSendToken(generation: generation)
+      onAccepted?()
+      voice.observeTextOnlyTurn(turnID: clientTurnId, userText: text, assistantText: "", outcome: "partial")
+      let guidance = voice.takeTextOnlyGuidance(turnID: clientTurnId)
+      let request = ConversationResponseRequest(
+        conversationID: binding.id, turnID: clientTurnId,
+        promptReference: binding.prompt.reference, history: journal.history,
+        message: text, context: savedContext,
+        guidance: guidance.map { String(($0.note + "\n" + $0.context).prefix(2_000)) }, image: image)
+      let task = Task {
+        try await APIClient.shared.respondToConversation(
+          request: request,
+          authorizationSnapshot: authorization
+        ) { [weak self] delta in
+          guard let self, self.sendGeneration == generation,
+            RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+          else { return }
+          self.appendToMessage(id: ids.assistant, text: delta)
+          self.activeConversationText += delta
+          voice.observeTextOnlyTurn(
+            turnID: clientTurnId, userText: text,
+            assistantText: self.activeConversationText, outcome: "partial")
+        }
       }
-      await callbackQueue.drain()
-      correlatedTerminalResult = queryResult
-      if activeBridgeSendGeneration == sendGen {
-        activeBridgeSendGeneration = nil
+      activeConversationRequest = task
+      let completion = try await withTaskCancellationHandler {
+        try await task.value
+      } onCancel: {
+        task.cancel()
       }
-      try Self.requireSuccessfulQueryResult(queryResult)
-
-      let watchdogFiredBeforeResult = sendWatchdogFiredGeneration == sendGen
-      let toolStallAbortFiredBeforeResult = sendToolStallAbortGeneration == sendGen
-      guard
-        ChatQueryResultAuthority.accepts(
-          currentGeneration: sendGeneration,
-          resultGeneration: sendGen,
-          turnAcceptsResult: turnLifecycle.acceptsResult,
-          watchdogFired: watchdogFiredBeforeResult,
-          toolStallAbortFired: toolStallAbortFiredBeforeResult
-        )
-      else {
-        // A stopped/timed-out bridge may still deliver a late success.
-        // Never let it resurrect the old bubble, overwrite a newer
-        // turn's bridge ownership, or persist a response the user did
-        // not accept. Remove only this turn's buffered segments.
-        streamingBuffer.discardPendingSegments(messageId: aiMessageId)
-        var hadPartialResponse = false
-        if let index = messages.firstIndex(where: { $0.id == aiMessageId }) {
-          hadPartialResponse =
-            !messages[index].text.isEmpty
-            || !messages[index].contentBlocks.isEmpty
-          if messages[index].text.isEmpty && messages[index].contentBlocks.isEmpty {
-            messages.remove(at: index)
-          } else {
-            messages[index].isStreaming = false
-            ToolCallBlockUpdater.completeRemainingToolCalls(
-              in: &messages[index].contentBlocks,
-              terminalStatus: ChatProvider.lateResultToolStatus(
-                watchdogFired: watchdogFiredBeforeResult,
-                toolStallAbortFired: toolStallAbortFiredBeforeResult,
-                stopReason: turnLifecycle.stopReason
-              )
-            )
-          }
-        }
-
-        let stopProvenance: String
-        switch turnLifecycle.revocationReason {
-        case .stop(.browserExtensionMissing): stopProvenance = "browser_extension_missing"
-        case .stop(.superseded): stopProvenance = "superseded"
-        case .stop(.userStop): stopProvenance = "user_stop"
-        case .toolStall: stopProvenance = "tool_stall"
-        case .watchdogTimeout: stopProvenance = "watchdog_timeout"
-        case nil: stopProvenance = "generation_superseded"
-        }
-        tracer?.mark("late_result_discarded", metadata: ["reason": stopProvenance])
-        tracer?.end("ttft")
-        tracer?.end("generation")
-        tracer?.end("llm_request")
-        // A revoked adapter result is not product-authoritative. Do not
-        // copy even its result metrics into the accepted-turn trace.
-        tracer?.finalize(tokenCount: 0, model: effectiveRequestModel)
-
-        if !telemetryAttempt.isTerminal {
-          if toolStallAbortFiredBeforeResult {
-            telemetryAttempt.fail(
-              errorClass: .toolStall,
-              partialResponse: hadPartialResponse
-            )
-          } else if watchdogFiredBeforeResult {
-            telemetryAttempt.fail(
-              errorClass: .timeout,
-              partialResponse: hadPartialResponse,
-              watchdogFired: true
-            )
-          } else {
-            telemetryAttempt.finish(
-              stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen),
-              partialResponse: hadPartialResponse
-            )
-          }
-        }
-        clearChatTelemetryState(for: sendGen)
-
-        // The projection may have removed an empty placeholder already.
-        // finishJournalUpdate falls back to a status-only kernel update,
-        // which terminalizes the canonical row without late result data.
-        _ = await finishJournalTarget(
-          generation: sendGen,
-          queryResult: queryResult,
-          disposition: .discard
-        )
-
-        if sendGeneration == sendGen {
-          if let timeoutMessage = ChatProvider.stoppedTurnErrorMessage(
-            watchdogFired: watchdogFiredBeforeResult,
-            toolStallAbortFired: toolStallAbortFiredBeforeResult
-          ) {
-            errorMessage = timeoutMessage
-          }
-        }
-        releaseSendLock(sendGeneration: sendGen)
-        log("ChatProvider: discarded late result for revoked generation \(sendGen)")
-        return nil
-      }
-
-      // Flush any remaining buffered streaming text before finalizing
+      guard sendGeneration == generation,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+      else { return nil }
       streamingBuffer.cancelPendingFlush()
       flushStreamingBuffer()
-
-      // Determine the final text to display and save
-      let messageText: String
-      let metricsSnapshot = responseMetrics.snapshot()
-      if screenContextEligibleForTurn, !metricsSnapshot.screenContext.screenToolRequested {
-        ScreenContextToolTelemetry.trackInvariant(
-          "eligible_run_missing_get_work_context",
-          context: ScreenContextTelemetryContext.from(surfaceRef: resolvedSurface),
-          toolName: "get_work_context"
-        )
-      }
-      if let index = messages.firstIndex(where: { $0.id == aiMessageId }) {
-        // Message still in memory — update it in-place
-        messageText = messages[index].text.isEmpty ? queryResult.text : messages[index].text
-        messages[index].text = messageText
+      let result = messages.first(where: { $0.id == ids.assistant })?.text
+      if let index = messages.firstIndex(where: { $0.id == ids.assistant }) {
         messages[index].isStreaming = false
-        // Merge the parent agent's own artifacts with any produced by
-        // sub-agents that completed since the last coordinator check, so
-        // a finished sub-agent's file surfaces as a card on this response.
-        let deltaResources = queryResult.completionDeltaArtifacts.map(ChatResource.artifact)
-        messages[index].resources = mergedResources(
-          existing: messages[index].resources,
-          adding: queryResult.artifacts.map(ChatResource.artifact) + deltaResources
-        )
         messages[index].metadata = MessageMetadata(
-          model: effectiveRequestModel,
-          inputTokens: queryResult.inputTokens,
-          outputTokens: queryResult.outputTokens,
-          cacheReadTokens: queryResult.cacheReadTokens,
-          cacheWriteTokens: queryResult.cacheWriteTokens,
-          costUsd: queryResult.costUsd,
-          systemPrompt: "kernel-context:\(kernelContext.snapshot.version):\(kernelContext.snapshot.snapshotGeneration)",
-          hasScreenshot: effectiveImageData != nil,
-          screenshotSizeBytes: effectiveImageData?.count,
-          toolNames: toolTiming.toolNames,
-          sqlRowsReturned: metricsSnapshot.sqlRowsReturned,
-          sqlQueryCount: metricsSnapshot.sqlQueryCount
-        )
-        completeRemainingToolCalls(
-          messageId: aiMessageId,
-          terminalStatus: .completed,
-          scheduleJournal: false
-        )
-      } else {
-        // Message no longer in memory (user switched away from this session).
-        messageText = queryResult.text
-        log("Chat response arrived after session switch")
+          model: completion.modelVersion,
+          inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens,
+          cacheReadTokens: completion.usage?.cachedInputTokens, hasScreenshot: image != nil,
+          toolNames: [], sqlRowsReturned: 0, sqlQueryCount: 0)
       }
-
-      // QueryTracer: success path — record the response, close the remaining
-      // spans (end calls are no-ops if already closed), and write the trace
-      // with real token / cache / cost numbers from the bridge result.
-      tracer?.captureResponse(text: messageText)
-      tracer?.end("ttft")
-      tracer?.end("generation")
-      tracer?.end("llm_request")
-      tracer?.finalize(
-        tokenCount: queryResult.outputTokens,
-        model: effectiveRequestModel,
-        inputTokens: queryResult.inputTokens,
-        outputTokens: queryResult.outputTokens,
-        cacheReadTokens: queryResult.cacheReadTokens,
-        cacheWriteTokens: queryResult.cacheWriteTokens,
-        costUsd: queryResult.costUsd
-      )
-
-      // The user-visible query is complete as soon as the final response
-      // is in the timeline. Persistence and title generation are separate
-      // background reliability concerns and must not inflate query latency
-      // or turn a successful answer into a failed attempt.
-      let completionMetrics = ChatQueryCompletionMetrics(
-        toolCallCount: toolTiming.toolNames.count,
-        toolNames: toolTiming.toolNames,
-        costUsd: queryResult.costUsd,
-        responseLength: messageText.count,
-        screenToolRequested: metricsSnapshot.screenContext.screenToolRequested,
-        screenToolSucceeded: metricsSnapshot.screenContext.screenToolSucceeded,
-        screenToolApprovalRequired: metricsSnapshot.screenContext.screenToolApprovalRequired,
-        screenToolFailureCodes: metricsSnapshot.screenContext.screenToolFailureCodes,
-        runtimeRunId: queryResult.runId,
-        runtimeAttemptId: queryResult.attemptId
-      )
-      let journalAccepted = await ChatVisibleTurnCompletion.finish(
-        lifecycle: turnLifecycle,
-        telemetryAttempt: telemetryAttempt,
-        metrics: completionMetrics,
-        afterTerminal: { [weak self] in
-          self?.clearChatTelemetryState(for: sendGen)
-        },
-        journalCommit: { [weak self] in
-          guard let self else { return false }
-          return await self.finishJournalTarget(
-            generation: sendGen,
-            queryResult: queryResult,
-            disposition: .accept
-          )
-        }
-      )
-
-      if journalAccepted, reportsChatEvaluation {
-        AIEvaluationReporter.shared.recordChatTerminal(
-          turnID: turnAttemptId, requestID: queryResult.managedRequestID,
-          authorizationSnapshot: turnAuthorizationSnapshot, userText: trimmedText,
-          assistantText: queryResult.text.isEmpty ? messageText : queryResult.text)
+      let visibleCompletionUptime = ProcessInfo.processInfo.systemUptime
+      telemetry.complete(metrics: Self.conversationCompletionMetrics(responseLength: result?.count ?? 0))
+      guard await finishJournalTarget(generation: generation, status: .completed) else {
+        throw ConversationJournalError.writeRejected
       }
-
-      // The kernel journal commit releases the turn.
-      releaseSendLock(sendGeneration: sendGen)
-
-      // Auto-generate title after first exchange (user message + AI response)
-      if journalAccepted, multiChatEnabled {
-        await fetchSessions()
+      voice.observeTextOnlyTurn(
+        turnID: clientTurnId, userText: text,
+        assistantText: result ?? "", outcome: "completed", isFinal: true)
+      AIEvaluationReporter.shared.recordChatTerminal(
+        turnID: clientTurnId, requestID: clientTurnId,
+        authorizationSnapshot: authorization, userText: text, assistantText: result ?? "",
+        endedAt: visibleCompletionUptime)
+      if completion.endConversation {
+        endPinnedConversation(id: binding.id)
+        voice.finishTextOnlyTurn(turnID: clientTurnId, conversationEnded: true)
       }
-
-      log("Chat response complete")
-
-      // Track onboarding response shape and bounded tool dimensions without content.
-      if isOnboarding {
-        let aiText = messages.first(where: { $0.id == aiMessageId })?.text ?? queryResult.text
-        AnalyticsManager.shared.onboardingChatMessageDetailed(
-          role: "assistant",
-          text: aiText,
-          step: "chat",
-          toolCalls: toolTiming.toolNames.isEmpty ? nil : toolTiming.toolNames,
-          model: effectiveRequestModel
-        )
+      lastFailedPrompt = nil
+      if let result {
+        await catalogDidAcceptFirstCompletedExchange(
+          chatID: surface.externalRefId,
+          ownerID: authorization.ownerID, userText: text, assistantText: result)
       }
-
-      // Skip client-side cost telemetry because the native managed Gemini route
-      // already logs Intentive-account token/cost usage server-side. Question
-      // quota is recorded by the transient inference endpoint, so model calls
-      // and helper calls cannot double-count.
-      completedResponseText = messageText
+      return result
     } catch {
-      if activeBridgeSendGeneration == sendGen {
-        activeBridgeSendGeneration = nil
-      }
-      // QueryTracer: error path — close spans and write the (partial) trace
-      // so failed/timed-out queries still show up in benchmarks.
-      tracer?.end("ttft")
-      tracer?.end("generation")
-      tracer?.end("llm_request")
-      tracer?.finalize(tokenCount: 0, model: managedModel)
-
-      // A stop, timeout, or superseding send revokes product authority even
-      // if its telemetry fallback has not fired yet. Handle that before
-      // touching shared presentation/error state or the send lock.
-      if !ChatQueryResultAuthority.acceptsContinuation(
-        currentGeneration: sendGeneration,
-        turnGeneration: sendGen,
-        turnAcceptsResult: turnLifecycle.acceptsResult
-      ) {
-        streamingBuffer.discardPendingSegments(messageId: aiMessageId)
-        let watchdogFired =
-          sendWatchdogFiredGeneration == sendGen
-          || turnLifecycle.revocationReason == .watchdogTimeout
-        let toolStallAbortFired =
-          sendToolStallAbortGeneration == sendGen
-          || turnLifecycle.revocationReason == .toolStall
-        var hadPartialResponse = false
-        if let index = messages.firstIndex(where: { $0.id == aiMessageId }) {
-          hadPartialResponse =
-            !messages[index].text.isEmpty
-            || !messages[index].contentBlocks.isEmpty
-          if messages[index].text.isEmpty && messages[index].contentBlocks.isEmpty {
-            messages.remove(at: index)
-          } else {
-            messages[index].isStreaming = false
-            ToolCallBlockUpdater.completeRemainingToolCalls(
-              in: &messages[index].contentBlocks,
-              terminalStatus: ChatProvider.lateResultToolStatus(
-                watchdogFired: watchdogFired,
-                toolStallAbortFired: toolStallAbortFired,
-                stopReason: turnLifecycle.stopReason
-              )
-            )
-          }
-        }
-        if !telemetryAttempt.isTerminal {
-          if toolStallAbortFired {
-            telemetryAttempt.fail(
-              errorClass: .toolStall,
-              partialResponse: hadPartialResponse
-            )
-          } else if watchdogFired {
-            telemetryAttempt.fail(
-              errorClass: .timeout,
-              partialResponse: hadPartialResponse,
-              watchdogFired: true
-            )
-          } else {
-            telemetryAttempt.finish(
-              stopReason: turnLifecycle.stopReason ?? stopReason(for: sendGen),
-              partialResponse: hadPartialResponse
-            )
-          }
-        }
-        clearChatTelemetryState(for: sendGen)
-        if let correlatedTerminalResult {
-          _ = await finishJournalTarget(
-            generation: sendGen,
-            queryResult: correlatedTerminalResult,
-            disposition: .discard
-          )
-        } else {
-          _ = await finishJournalTarget(generation: sendGen, status: .failed)
-        }
-        releaseSendLock(sendGeneration: sendGen)
-        log("ChatProvider: discarded late failure for revoked generation \(sendGen)")
-        return nil
-      }
-
-      // Kernel context readiness happens before the model query. Never
-      // interrupt a session that has not been queried yet: doing so turns
-      // a recoverable setup timeout into a misleading query failure.
-      if let bridgeError = error as? BridgeError, case .timeout = bridgeError {
-        if Self.shouldInterruptTimedOutAgentQuery(queryStarted: agentQueryStarted) {
-          log("ChatProvider: agent query timed out, sending interrupt to cancel stuck session")
-          await resolvedAgentClient().interrupt()
-        } else {
-          log("ChatProvider: kernel context preparation timed out before an agent query started")
-        }
-      }
-
-      // Flush any remaining buffered streaming text before handling the error
+      guard sendGeneration == generation,
+        RuntimeOwnerIdentity.isAuthorizationCurrent(authorization)
+      else { return nil }
       streamingBuffer.cancelPendingFlush()
       flushStreamingBuffer()
-      let watchdogFired = (sendWatchdogFiredGeneration == sendGen)
-      let toolStallAbortFired = (sendToolStallAbortGeneration == sendGen)
-      let explicitStopReason = turnLifecycle.stopReason
-      let hadPartialResponse =
-        messages.first(where: { $0.id == aiMessageId }).map {
-          !$0.text.isEmpty || !$0.contentBlocks.isEmpty
-        } ?? false
-
-      // Only remove the AI message if it's still empty (no streamed text yet).
-      // If text was already streamed and visible, keep it and just stop streaming.
-      if let index = messages.firstIndex(where: { $0.id == aiMessageId }) {
-        if messages[index].text.isEmpty && messages[index].contentBlocks.isEmpty {
-          messages[index].isStreaming = false
-        } else {
-          messages[index].isStreaming = false
-          completeRemainingToolCalls(
-            messageId: aiMessageId,
-            terminalStatus: ChatProvider.remainingToolStatusAfterPartialResponseError(
-              error,
-              watchdogFired: watchdogFired,
-              toolStallAbortFired: toolStallAbortFired,
-              stopReason: explicitStopReason
-            ),
-            scheduleJournal: false
-          )
-          log("Bridge error after partial response — keeping \(messages[index].text.count) chars of streamed text")
-        }
-      }
-
-      if !watchdogFired, !toolStallAbortFired, let explicitStopReason {
-        telemetryAttempt.finish(
-          stopReason: explicitStopReason,
-          partialResponse: hadPartialResponse
-        )
-        if explicitStopReason == .browserExtensionMissing {
-          logError(
-            "Failed to get AI response attempt_id=\(telemetryAttempt.context.attemptId) error_class=\(ChatQueryErrorClass.browserExtensionMissing.rawValue)",
-            error: error
-          )
-        } else {
-          log(
-            "Chat query cancelled attempt_id=\(telemetryAttempt.context.attemptId) reason=\(explicitStopReason)"
-          )
-        }
-      } else {
-        let telemetryDisposition = ChatQueryFailureDisposition.classify(
-          error,
-          watchdogFired: watchdogFired,
-          toolStallAbortFired: toolStallAbortFired
-        )
-        switch telemetryDisposition {
-        case .failed(let errorClass):
-          telemetryAttempt.fail(
-            errorClass: errorClass,
-            partialResponse: hadPartialResponse,
-            detail: .from(error),
-            watchdogFired: watchdogFired
-          )
-          logError(
-            "Failed to get AI response attempt_id=\(telemetryAttempt.context.attemptId) error_class=\(errorClass.rawValue)",
-            error: error
-          )
-        case .cancelled(let reason):
-          telemetryAttempt.cancel(reason: reason, partialResponse: hadPartialResponse)
-          log(
-            "Chat query cancelled attempt_id=\(telemetryAttempt.context.attemptId) reason=\(reason.rawValue)"
-          )
-        }
-      }
-      clearChatTelemetryState(for: sendGen)
-      if let correlatedTerminalResult {
-        let disposition: KernelJournalTerminalDisposition
-        if case .invalid = correlatedTerminalResult.terminalStatus {
-          disposition = .discard
-        } else {
-          disposition = .accept
-        }
-        _ = await finishJournalTarget(
-          generation: sendGen,
-          queryResult: correlatedTerminalResult,
-          disposition: disposition
-        )
-      } else {
-        _ = await finishJournalTarget(generation: sendGen, status: .failed)
-      }
-
-      // Preserve only a bounded error class in analytics. Raw details stay
-      // in the local log and Sentry error above.
-      if isOnboarding {
-        let messageOutcome: String
-        if !watchdogFired, !toolStallAbortFired, let explicitStopReason {
-          messageOutcome = explicitStopReason == .browserExtensionMissing ? "error" : "cancelled"
-        } else {
-          messageOutcome =
-            ChatQueryFailureDisposition.classify(
-              error,
-              watchdogFired: watchdogFired,
-              toolStallAbortFired: toolStallAbortFired
-            ).presentsUserError ? "error" : "cancelled"
-        }
-        AnalyticsManager.shared.onboardingChatMessageDetailed(
-          role: messageOutcome,
-          text: trimmedText,
-          step: "chat",
-          error: messageOutcome == "error" ? String(describing: error) : nil
-        )
-      }
-
-      // Show error to user (unless they intentionally stopped).
-      //
-      // Prefer the structured ChatErrorState card when the error
-      // maps cleanly. Falls through to the legacy errorMessage
-      // banner for unmappable BridgeError cases (encodingError,
-      // quotaExceeded, .agentError with a free-form message).
-      // Both surfaces coexist — only one is active at a time per
-      // turn.
-      if let bridgeError = error as? BridgeError, case .stopped = bridgeError {
-        // `.stopped` normally means the user pressed Stop (silent). But if the
-        // 180s watchdog fired for THIS send, the `.stopped` came from the
-        // watchdog's own interrupt() — the turn timed out, so surface it
-        // instead of letting the turn vanish (the watchdog's own error-set
-        // races this catch and bails once `isSending` is released here).
-        sendWatchdogFiredGeneration = nil
-        sendToolStallAbortGeneration = nil
-        if let timeoutMessage = ChatProvider.stoppedTurnErrorMessage(
-          watchdogFired: watchdogFired,
-          toolStallAbortFired: toolStallAbortFired
-        ) {
-          currentError = nil
-          errorMessage = timeoutMessage
-        } else if stopReason(for: sendGen) == .userStop, hadPartialResponse {
-          currentError = .interrupted
-          lastFailedPrompt = nil
-          errorMessage = nil
-        } else {
-          currentError = nil
-          lastFailedPrompt = nil
-          errorMessage = nil
-        }
-      } else if !ChatQueryFailureDisposition.classify(
-        error,
-        watchdogFired: watchdogFired,
-        toolStallAbortFired: toolStallAbortFired
-      ).presentsUserError {
-        lastFailedPrompt = nil
-        currentError = nil
-        errorMessage = nil
-      } else if let bridgeError = error as? BridgeError,
-        case .agentRuntimeFailure(let failure) = bridgeError,
-        failure.failureCode == .authentication
-      {
-        currentError = nil
-        errorMessage = DesktopLifecycleIdentityCopy.managedAIAuthenticationRequired
-        lastFailedPrompt = trimmedText
-      } else if let bridgeError = error as? BridgeError,
-        let card = ChatErrorState.from(bridgeError)
-      {
-        currentError = card
-        lastFailedPrompt = trimmedText
-        errorMessage = nil
-      } else {
-        errorMessage = error.localizedDescription
-        currentError = nil  // ensure the card is dismissed if it was up
-      }
+      telemetry.finish(error: error, partialResponse: !activeConversationText.isEmpty)
+      _ = await finishJournalTarget(generation: generation, status: .failed)
+      voice.observeTextOnlyTurn(
+        turnID: clientTurnId, userText: text,
+        assistantText: activeConversationText, outcome: "failed", isFinal: true)
+      errorMessage = error is CancellationError ? nil : "Could not complete this reply. Try again."
+      return nil
     }
-
-    releaseSendLock(sendGeneration: sendGen)
-
-    return completedResponseText
   }
 
-  // MARK: - Post-onboarding opener
+  private static func conversationCompletionMetrics(responseLength: Int) -> ChatQueryCompletionMetrics {
+    ChatQueryCompletionMetrics(
+      toolCallCount: 0, toolNames: [], costUsd: 0,
+      responseLength: responseLength, screenToolRequested: false, screenToolSucceeded: false,
+      screenToolApprovalRequired: false, screenToolFailureCodes: [])
+  }
 
-  /// Compose and present the personalized opener the instant the Chat tab
-  /// appears after onboarding. Composed synchronously from locally-known
-  /// facts (name and normal Home suggestion chips) so it is instant
-  /// and never blank.
+  private func consumeSubmittedAttachments(_ attachments: [ChatAttachment], key: ChatDraftKey) {
+    guard !attachments.isEmpty else { return }
+    let ids = Set(attachments.map(\.id))
+    for attachment in attachments { pendingAttachmentScopes.removeValue(forKey: attachment.id) }
+    var remaining = pendingAttachmentsByDraftKey[key] ?? []
+    remaining.removeAll { ids.contains($0.id) }
+    pendingAttachmentsByDraftKey[key] = remaining
+    ChatDraftStore.shared.setAttachments(remaining, for: key)
+    if activeDraftKey == key {
+      isRestoringPendingAttachments = true
+      pendingAttachments = remaining
+      isRestoringPendingAttachments = false
+    }
+  }
+
+  private static func conversationImage(_ data: Data?) throws -> ConversationImage? {
+    guard let data else { return nil }
+    guard let bitmap = NSBitmapImageRep(data: data),
+      let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.75]),
+      jpeg.count <= 2_000_000
+    else { throw ConversationAPIError.requestTooLarge }
+    return ConversationImage(jpegBase64: jpeg.base64EncodedString())
+  }
+
   func presentOnboardingOpener() {
     let name = Self.firstName(AuthService.shared.givenName)
     let baseStarters = HomeSuggestionComposer.compose(
@@ -5307,505 +3589,6 @@ class ChatProvider: ObservableObject {
     scheduleJournalUpdate(messageId: messages[index].id)
   }
 
-  private func addToolActivity(
-    messageId: String, toolName: String, status: ToolCallStatus, toolUseId: String? = nil, input: [String: Any]? = nil
-  ) {
-    guard
-      let index = streamingBuffer.applyToolActivity(
-        messageId: messageId,
-        toolName: toolName,
-        status: status,
-        toolUseId: toolUseId,
-        input: input,
-        messages: &messages,
-        normalizeText: { message, text in
-          if message.sender == .ai {
-            return Self.normalizeAssistantSentenceSpacing(text)
-          }
-          return text
-        }
-      )
-    else { return }
-    if status == .completed {
-      attachGeneratedFileResources(
-        messageIndex: index,
-        toolName: toolName,
-        toolUseId: toolUseId,
-        extraTexts: []
-      )
-    }
-    scheduleJournalUpdate(messageId: messageId, status: .streaming)
-  }
-
-  /// Add tool result output to an existing tool call block
-  private func addToolResult(messageId: String, toolUseId: String, name: String, output: String) {
-    guard
-      let index = streamingBuffer.applyToolResult(
-        messageId: messageId,
-        toolUseId: toolUseId,
-        name: name,
-        output: output,
-        messages: &messages,
-        normalizeText: { message, text in
-          if message.sender == .ai {
-            return Self.normalizeAssistantSentenceSpacing(text)
-          }
-          return text
-        }
-      )
-    else { return }
-    attachGeneratedFileResources(
-      messageIndex: index,
-      toolName: name,
-      toolUseId: toolUseId,
-      extraTexts: [output]
-    )
-    if let spawnedAgent = Self.materializeAgentSpawnBlockIfNeeded(
-      in: &messages[index].contentBlocks,
-      toolUseId: toolUseId,
-      toolName: name
-    ), !spawnedAgent.sessionID.isEmpty, !spawnedAgent.runID.isEmpty {
-      // The transcript and notch must project the same accepted kernel
-      // run. Without this handoff, main-chat spawn receipts render a
-      // structured card while the compact notch still sees an empty
-      // AgentPillsManager (white mark and no hover row).
-      AgentPillsManager.shared.upsertSpawnedPill(
-        id: spawnedAgent.pillID,
-        query: spawnedAgent.objective,
-        title: spawnedAgent.title,
-        sessionId: spawnedAgent.sessionID,
-        runId: spawnedAgent.runID,
-        attemptId: nil,
-        producingJournalSurface: mainChatSurfaceReference()
-      )
-    }
-    scheduleJournalUpdate(messageId: messageId, status: .streaming)
-  }
-
-  struct SpawnedAgentPillProjection: Equatable, Sendable {
-    let pillID: UUID
-    let sessionID: String
-    let runID: String
-    let title: String
-    let objective: String
-  }
-
-  /// When `spawn_agent` completes, append a structured `.agentSpawn` block so
-  /// cross-surface identity does not depend on tool-output text alone (INV-6 #4),
-  /// then return the same receipt for the floating pill projection.
-  @discardableResult
-  nonisolated static func materializeAgentSpawnBlockIfNeeded(
-    in blocks: inout [ChatContentBlock],
-    toolUseId: String?,
-    toolName: String
-  ) -> SpawnedAgentPillProjection? {
-    let cleanName: String
-    if toolName.hasPrefix("mcp__") {
-      cleanName = String(toolName.split(separator: "__").last ?? Substring(toolName))
-    } else {
-      cleanName = toolName
-    }
-    guard cleanName == "spawn_agent" else { return nil }
-
-    guard
-      let toolIndex = blocks.lastIndex(where: { block in
-        guard case .toolCall(_, let name, let status, let existingToolUseId, _, let output) = block,
-          !status.isInFlight,
-          output != nil
-        else { return false }
-        let blockName: String
-        if name.hasPrefix("mcp__") {
-          blockName = String(name.split(separator: "__").last ?? Substring(name))
-        } else {
-          blockName = name
-        }
-        guard blockName == "spawn_agent" else { return false }
-        if let toolUseId, !toolUseId.isEmpty {
-          return existingToolUseId == toolUseId || existingToolUseId == nil
-        }
-        return true
-      })
-    else { return nil }
-
-    guard case .toolCall(_, _, _, _, let input, _) = blocks[toolIndex] else { return nil }
-    let spawnSource = blocks[toolIndex]
-    guard let pillId = spawnSource.spawnedAgentID else { return nil }
-    let sessionId = spawnSource.spawnedAgentSessionID ?? ""
-    let runId = spawnSource.spawnedAgentRunID ?? ""
-
-    // Idempotent: do not append a second spawn card for the same pill/run.
-    let alreadyPresent = blocks.contains { block in
-      if case .agentSpawn(_, let existingPill, _, let existingRun, _, _) = block {
-        if let existingPill, existingPill == pillId { return true }
-        if !runId.isEmpty, existingRun == runId { return true }
-      }
-      return false
-    }
-    let titleFromOutput = spawnSource.spawnedAgentTitle
-    let title =
-      (titleFromOutput?.isEmpty == false)
-      ? (titleFromOutput ?? "Background agent")
-      : (input?.summary.isEmpty == false ? input!.summary : "Background agent")
-    let objective =
-      (input?.details?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
-      ? (input?.details ?? "")
-      : (input?.summary ?? "")
-    let projection = SpawnedAgentPillProjection(
-      pillID: pillId,
-      sessionID: sessionId,
-      runID: runId,
-      title: title,
-      objective: objective
-    )
-
-    // A repeat display event must still restore the matching notch pill if
-    // its in-memory projection was evicted, but must not add a duplicate
-    // transcript block.
-    guard !alreadyPresent else { return projection }
-
-    let stableSpawnIdentity = !runId.isEmpty ? runId : pillId.uuidString.lowercased()
-    let spawnBlock = ChatContentBlock.agentSpawn(
-      id: "agent_spawn_\(stableSpawnIdentity)",
-      pillId: pillId,
-      sessionId: sessionId,
-      runId: runId,
-      title: title,
-      objective: objective
-    )
-    // Keep the tool block for in-session progress; insert structured spawn
-    // immediately after it so reload/metadata durability has a first-class card.
-    let insertAt = min(toolIndex + 1, blocks.count)
-    blocks.insert(spawnBlock, at: insertAt)
-    return projection
-  }
-
-  private func attachGeneratedFileResources(
-    messageIndex index: Int,
-    toolName: String,
-    toolUseId: String?,
-    extraTexts: [String]
-  ) {
-    let discoveredResources = localFileResources(
-      fromToolName: toolName,
-      texts: toolResourceCandidateTexts(
-        in: messages[index].contentBlocks,
-        toolName: toolName,
-        toolUseId: toolUseId,
-        extraTexts: extraTexts
-      )
-    )
-    if !discoveredResources.isEmpty {
-      messages[index].resources = mergedResources(
-        existing: messages[index].resources,
-        adding: discoveredResources
-      )
-    }
-  }
-
-  private func mergedResources(existing: [ChatResource], adding newResources: [ChatResource]) -> [ChatResource] {
-    guard !newResources.isEmpty else { return existing }
-    var seen = Set(existing.map(\.id))
-    var merged = existing
-    for resource in newResources where !seen.contains(resource.id) {
-      seen.insert(resource.id)
-      merged.append(resource)
-    }
-    return merged
-  }
-
-  private func toolResourceCandidateTexts(
-    in blocks: [ChatContentBlock],
-    toolName: String,
-    toolUseId: String?,
-    extraTexts: [String]
-  ) -> [String] {
-    let normalizedToolUseId = toolUseId?.isEmpty == false ? toolUseId : nil
-    var texts = extraTexts
-    for block in blocks {
-      guard case .toolCall(_, let blockName, _, let blockToolUseId, let input, let output) = block else {
-        continue
-      }
-      let idsMatch = normalizedToolUseId != nil && blockToolUseId == normalizedToolUseId
-      let namesMatch = Self.normalizedToolNameHead(blockName) == Self.normalizedToolNameHead(toolName)
-      guard idsMatch || (normalizedToolUseId == nil && namesMatch) else {
-        continue
-      }
-      if let summary = input?.summary {
-        texts.append(summary)
-      }
-      if let details = input?.details {
-        texts.append(details)
-      }
-      if let output {
-        texts.append(output)
-      }
-    }
-    return texts
-  }
-
-  private func localFileResources(fromToolName name: String, texts: [String]) -> [ChatResource] {
-    let normalizedName = Self.normalizedToolNameHead(name)
-    guard ["write", "edit", "multiedit"].contains(normalizedName) else { return [] }
-    return localFileURLs(from: texts.joined(separator: "\n")).map { url in
-      let mimeType = mimeType(forLocalFile: url)
-      return ChatResource.localGeneratedFile(
-        id: "generated-file:\(url.path)",
-        title: url.lastPathComponent,
-        subtitle: localFileSubtitle(url: url, mimeType: mimeType),
-        mimeType: mimeType,
-        uri: url.absoluteString
-      )
-    }
-  }
-
-  private func localFileURLs(from output: String) -> [URL] {
-    let pattern = #"(?:"file://)?(/[^\n"`]+)"#
-    guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-    let nsRange = NSRange(output.startIndex..<output.endIndex, in: output)
-    var urls: [URL] = []
-    var seen = Set<String>()
-    for match in regex.matches(in: output, range: nsRange) {
-      guard match.numberOfRanges > 1,
-        let range = Range(match.range(at: 1), in: output)
-      else { continue }
-      let rawPath = String(output[range])
-        .trimmingCharacters(in: CharacterSet(charactersIn: " \t\r\n.。,:;)'\"]"))
-      let url = URL(fileURLWithPath: rawPath)
-      var isDirectory: ObjCBool = false
-      guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-        !isDirectory.boolValue,
-        !seen.contains(url.path)
-      else { continue }
-      seen.insert(url.path)
-      urls.append(url)
-    }
-    return urls
-  }
-
-  private static func normalizedToolNameHead(_ name: String) -> String {
-    let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    return normalized.split(separator: ":", maxSplits: 1).first.map(String.init) ?? normalized
-  }
-
-  private func mimeType(forLocalFile url: URL) -> String {
-    if let type = UTType(filenameExtension: url.pathExtension),
-      let mime = type.preferredMIMEType
-    {
-      return mime
-    }
-    return "application/octet-stream"
-  }
-
-  private func localFileSubtitle(url: URL, mimeType: String) -> String {
-    var parts = [mimeType]
-    if let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-      let size = attrs[.size] as? NSNumber
-    {
-      parts.append(ByteCountFormatter.string(fromByteCount: size.int64Value, countStyle: .file))
-    }
-    return parts.joined(separator: " • ")
-  }
-
-  /// Append thinking text to the streaming message via the shared buffer.
-  private func appendThinking(messageId: String, text: String) {
-    streamingBuffer.appendThinking(messageId: messageId, text: text) { [weak self] in
-      self?.flushStreamingBuffer()
-    }
-  }
-
-  /// Mark any remaining in-flight tool call blocks as terminal in a message.
-  /// Called when a query finishes (success or interrupt) so spinners don't spin forever.
-  /// Matches `.running`, `.slow`, and `.stalled` (any state where `isInFlight` is true)
-  /// so detector-promoted blocks resolve when the turn ends.
-  private func completeRemainingToolCalls(
-    messageId: String,
-    terminalStatus: ToolCallStatus = .completed,
-    scheduleJournal: Bool = true
-  ) {
-    streamingBuffer.completeRemainingToolCalls(
-      messageId: messageId,
-      terminalStatus: terminalStatus,
-      messages: &messages,
-      normalizeText: { message, text in
-        if message.sender == .ai {
-          return Self.normalizeAssistantSentenceSpacing(text)
-        }
-        return text
-      }
-    )
-    if scheduleJournal {
-      scheduleJournalUpdate(messageId: messageId)
-    }
-  }
-
-  /// Monotonic millisecond timestamp for elapsed-time stall detection.
-  /// Unlike wall-clock time, system uptime is unaffected by NTP or
-  /// manual clock changes.
-  nonisolated private static func monotonicNowMs() -> Int {
-    Int(ProcessInfo.processInfo.systemUptime * 1000)
-  }
-
-  /// The key the `StallDetector` tracks a tool under. Tools that arrive
-  /// without a real `toolUseId` fall back to a name-derived synthetic
-  /// key so their per-tool timer still fires. Registration (in the tool
-  /// activity handler) and the transition match in `applyStallTransitions`
-  /// MUST derive the key identically — routing both through this single
-  /// helper keeps them from diverging (a mismatch silently drops every
-  /// stall transition for `toolUseId`-less tools).
-  nonisolated static func stallTrackingId(toolUseId: String?, name: String) -> String {
-    toolUseId ?? "untracked-\(name)"
-  }
-
-  nonisolated static func mapBridgeToolStatus(_ status: String) -> ToolCallStatus {
-    ToolCallStatus.fromBridgeStatus(status)
-  }
-
-  /// Intentional user stops should not make in-flight tool rows look
-  /// like execution errors. Real bridge failures still surface as failed.
-  nonisolated static func remainingToolStatusAfterPartialResponseError(
-    _ error: Error,
-    watchdogFired: Bool = false,
-    toolStallAbortFired: Bool = false,
-    stopReason: ChatTurnStopReason? = nil
-  ) -> ToolCallStatus {
-    if watchdogFired || toolStallAbortFired || stopReason == .browserExtensionMissing {
-      return .failed
-    }
-    if let bridgeError = error as? BridgeError, case .stopped = bridgeError {
-      return .completed
-    }
-    return .failed
-  }
-
-  nonisolated static func lateResultToolStatus(
-    watchdogFired: Bool,
-    toolStallAbortFired: Bool,
-    stopReason: ChatTurnStopReason? = nil
-  ) -> ToolCallStatus {
-    watchdogFired || toolStallAbortFired || stopReason == .browserExtensionMissing ? .failed : .completed
-  }
-
-  /// The banner text to show when a turn ends with `BridgeError.stopped`.
-  /// A user-initiated Stop is silent (`nil`). But when the 60s send watchdog
-  /// fired for the turn, the `.stopped` came from the watchdog's own interrupt —
-  /// the turn timed out, so surface "Response took too long" rather than letting
-  /// it vanish. Extracted so the watchdog-vs-user-stop distinction is unit-tested.
-  nonisolated static func stoppedTurnErrorMessage(
-    watchdogFired: Bool,
-    toolStallAbortFired: Bool = false
-  ) -> String? {
-    if toolStallAbortFired {
-      return "A tool stopped reporting progress. Try again."
-    }
-    return watchdogFired ? "Response took too long. Try again." : nil
-  }
-
-  /// Map a `StallDetector.State` to the matching `ToolCallStatus`.
-  /// The two enums are deliberately separate — the detector tracks a
-  /// 3-state lifecycle independent of UI/persistence concerns.
-  private func mapDetectorState(_ state: StallDetector.State) -> ToolCallStatus {
-    switch state {
-    case .running: return .running
-    case .slow: return .slow
-    case .stalled: return .stalled
-    }
-  }
-
-  /// Apply detector transitions to the message's tool-call blocks.
-  /// Only `.tool(id:from:to:)` transitions are surfaced in the UI;
-  /// `.interEvent` transitions are observed but not rendered here.
-  private func applyStallTransitions(
-    messageId: String,
-    transitions: [StallDetector.Transition]
-  ) {
-    guard !transitions.isEmpty,
-      let index = messages.firstIndex(where: { $0.id == messageId })
-    else { return }
-
-    for transition in transitions {
-      guard case .tool(let id, _, let to) = transition else { continue }
-      for i in messages[index].contentBlocks.indices {
-        if case .toolCall(let blockId, let name, let oldStatus, let tuid, let input, let output) = messages[index]
-          .contentBlocks[i],
-          ChatProvider.stallTrackingId(toolUseId: tuid, name: name) == id,
-          oldStatus.isInFlight
-        {
-          messages[index].contentBlocks[i] = .toolCall(
-            id: blockId, name: name, status: mapDetectorState(to),
-            toolUseId: tuid, input: input, output: output
-          )
-        }
-      }
-    }
-    scheduleJournalUpdate(messageId: messageId, status: .streaming)
-  }
-
-  /// Re-resolve artifact cards whose persisted file paths are missing by asking the kernel.
-  private func rehydrateMissingArtifactResourcesFromKernel() async {
-    var runIds = Set<String>()
-    for message in messages {
-      for resource in message.resources where resource.artifactId != nil {
-        guard let fileURL = resource.fileURL else {
-          if let runId = resource.runId { runIds.insert(runId) }
-          continue
-        }
-        if !FileManager.default.fileExists(atPath: fileURL.path),
-          let runId = resource.runId
-        {
-          runIds.insert(runId)
-        }
-      }
-    }
-    guard !runIds.isEmpty else { return }
-
-    var artifactsByRunId: [String: [String: AgentArtifactProjection]] = [:]
-    for runId in runIds {
-      guard let artifacts = try? await DesktopCoordinatorService.shared.inspectArtifactsForRun(runId: runId)
-      else { continue }
-      // Guard against duplicate artifact ids from the runtime (last-write-wins).
-      artifactsByRunId[runId] = Dictionary(lastWriteWins: artifacts.map { ($0.artifactId, $0) })
-    }
-    guard !artifactsByRunId.isEmpty else { return }
-
-    for messageIndex in messages.indices {
-      var updatedResources = messages[messageIndex].resources
-      var changed = false
-      for resourceIndex in updatedResources.indices {
-        let resource = updatedResources[resourceIndex]
-        guard let artifactId = resource.artifactId,
-          let runId = resource.runId,
-          let artifact = artifactsByRunId[runId]?[artifactId]
-        else { continue }
-
-        let refreshed = resource.refreshedFromKernelArtifact(artifact)
-        if refreshed != resource {
-          updatedResources[resourceIndex] = refreshed
-          changed = true
-        }
-      }
-      if changed {
-        messages[messageIndex].resources = updatedResources
-        scheduleJournalUpdate(messageId: messages[messageIndex].id)
-      }
-    }
-  }
-
-  // MARK: - ChatErrorState recovery dispatch
-
-  /// User tapped the primary CTA on a `ChatErrorCard`. Dispatches to
-  /// the matching recovery action and clears `currentError`.
-  ///
-  /// Every `ChatErrorRecoveryAction` case is wired to a concrete
-  /// handler. Implementations are deliberately minimal: each one
-  /// performs the smallest useful action that points the user at the
-  /// fix path.
-  ///
-  /// - `.retry`: re-issue the last failed prompt.
-  /// - `.dismiss`: clear without further action.
-  /// - `.signIn`: start the same desktop Google OAuth flow used by the
-  ///   normal sign-in screen, then refresh account-scoped usage gates.
-  /// - `.installRuntime`: open `https://nodejs.org/` so the user can
-  ///   install Node before the bridge can spawn.
   func recoverFromError() async {
     guard let error = currentError else { return }
     let action = error.primaryRecovery
@@ -5937,80 +3720,30 @@ class ChatProvider: ObservableObject {
     await RuntimeOwnerIdentity.applyAutomationOwnerOverride(trimmedOwnerB)
     resetSessionStateForAuthChange()
 
-    let tracer = QueryTracer(query: trimmedQuery, inputMode: .text)
-    tracer.captureRequest(
-      systemPrompt: "Non-production owner-isolation kernel control probe.",
-      messages: [["role": "user", "content": trimmedQuery]])
-    tracer.begin("bridge_ensure", metadata: ["mode": "control_only_kernel_probe"])
-    let runtime = AgentRuntimeProcess.shared
-    let probeClientID = "owner-isolation-probe-\(UUID().uuidString.lowercased())"
-    guard
-      let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(
-        expectedOwnerID: trimmedOwnerB)
-    else {
-      tracer.end("bridge_ensure", metadata: ["error": "owner_authorization_missing"])
-      tracer.finalize(tokenCount: 0, model: "kernel-control-probe")
-      return ["error": "owner B authorization is unavailable"]
-    }
+    guard let authorization = RuntimeOwnerIdentity.captureAuthorizationSnapshot(expectedOwnerID: trimmedOwnerB)
+    else { return ["error": "owner B authorization is unavailable"] }
     do {
       let surface = mainChatSurfaceReference()
-      let receipt = try await OwnerIsolationKernelProbe.run(
-        ownerID: trimmedOwnerB,
-        query: trimmedQuery,
-        response: "PROBE",
-        registerRuntime: { requiresCredentials in
-          try await runtime.registerClient(
-            clientId: probeClientID,
-            harnessMode: "piMono",
-            authorizationSnapshot: authorization,
-            requiresCredentials: requiresCredentials)
-        },
-        synchronizeOwner: {
-          await runtime.refreshRuntimeOwner(
-            expectedOwnerId: trimmedOwnerB,
-            authorizationSnapshot: authorization)
-        },
-        resolveSurface: {
-          let resolved = try await runtime.resolveSurfaceSession(
-            clientId: probeClientID,
-            surface: surface,
-            title: nil,
-            authorizationSnapshot: authorization)
-          return (resolved.conversationId, resolved.sessionId)
-        },
-        recordExchange: { turns in
-          try await runtime.recordJournalExchange(
-            clientId: probeClientID,
-            surface: surface,
-            ownerID: trimmedOwnerB,
-            turns: turns,
-            authorizationSnapshot: authorization
-          ).turns
-        }
-      )
-      for turn in receipt.turns { projectJournalTurn(turn) }
-      tracer.end("bridge_ensure")
-      tracer.captureResponse(text: "PROBE")
-      tracer.finalize(tokenCount: 0, model: "kernel-control-probe")
-      currentError = nil
-      errorMessage = nil
-      await runtime.unregisterClient(clientId: probeClientID)
-
+      let bridge = AgentClient.makeBridge()
+      let range = try await bridge.listJournalTurns(surface: surface, limit: 1, authorizationSnapshot: authorization)
+      let key = UUID().uuidString
+      let now = Int(Date().timeIntervalSince1970 * 1000)
+      let writes = [("user", trimmedQuery), ("assistant", "PROBE")].enumerated().map { index, entry in
+        KernelJournalTurnWrite(
+          turnId: KernelTurnProjection.stableTurnID(continuityKey: key, role: entry.0),
+          role: entry.0, origin: "typed_chat", status: .completed, content: entry.1,
+          contentBlocksJSON: "[]", resourcesJSON: "[]", metadataJSON: "{}", createdAtMs: now + index)
+      }
+      let receipt = try await bridge.recordJournalExchange(
+        surface: surface, ownerID: trimmedOwnerB,
+        turns: writes, authorizationSnapshot: authorization, expectedGeneration: range.conversationGeneration)
+      projectJournalTurns(receipt.turns)
       var detail = automationMainChatSnapshot(limit: 20)
       detail["owner_a"] = ownerA
       detail["owner_b"] = trimmedOwnerB
-      detail["probe_query"] = trimmedQuery
-      detail["auth_user_id"] = UserDefaults.standard.string(forKey: .authUserId) ?? ""
-      detail["owner_override"] = UserDefaults.standard.string(forKey: .automationOwnerOverride) ?? ""
-      detail["conversation_id"] = receipt.conversationID
-      detail["agent_session_id"] = receipt.sessionID
+      detail["conversation_id"] = receipt.conversationId
       return detail
-    } catch {
-      await runtime.unregisterClient(clientId: probeClientID)
-      tracer.end("bridge_ensure", metadata: ["error": "kernel_control_probe_failed"])
-      tracer.finalize(tokenCount: 0, model: "kernel-control-probe")
-      return ["error": "owner B kernel probe failed: \(error.localizedDescription)"]
-    }
+    } catch { return ["error": "owner isolation journal probe failed"] }
   }
 
   /// Undo automationSwapTestOwner: clear the owner override (and heal a legacy

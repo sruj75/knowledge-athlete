@@ -7,7 +7,6 @@ import main
 from testing.e2e.fakes.llm import configure_llm_error, configure_llm_fakes
 from utils.llm import model_config
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -29,7 +28,7 @@ def test_wrapped_routes_and_openrouter_workload_are_absent() -> None:
     assert not {route_key for route_key in route_keys if route_key[1].startswith('/v1/wrapped/')}
     assert 'wrapped_analysis' not in model_config.get_all_workloads()
     assert all(workload.provider != 'openrouter' for workload in model_config.get_all_workloads().values())
-    assert ('POST', '/v2/models/{model}:streamGenerateContent') in route_keys
+    assert ('POST', '/v1/conversation/respond') in route_keys
 
 
 def test_e2e_llm_fake_registers_only_retained_provider_endpoints() -> None:

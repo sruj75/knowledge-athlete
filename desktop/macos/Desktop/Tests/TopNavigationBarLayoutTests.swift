@@ -106,8 +106,6 @@ final class TopNavigationBarLayoutTests: XCTestCase {
       [
         DesktopDestination.home.rawValue,
         DesktopDestination.memory.rawValue,
-        DesktopDestination.tasks.rawValue,
-        DesktopDestination.insights.rawValue,
       ]
     )
     XCTAssertEqual(TopNavigationRoutes.memoryDestinations, [.memories, .conversations])

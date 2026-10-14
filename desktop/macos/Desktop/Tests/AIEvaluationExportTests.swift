@@ -20,9 +20,10 @@ final class AIEvaluationExportTests: XCTestCase {
     let event = AIEvaluationObservation.decision(
       sessionID: "session", decisionID: "decision", observationID: "observation", prompt: prompt,
       transcripts: [.init(id: "segment", text: String(repeating: "t", count: 3_000), source: .mixed)],
-      conversation: [], note: String(repeating: "n", count: 3_000))
+      conversation: [])
     let json = try jsonObject(event, sharing: true)
-    XCTAssertEqual((json["note"] as? String)?.count, 2_000)
+    XCTAssertNil(json["note"])
+    XCTAssertNil(json["guidance"])
     XCTAssertEqual(((json["transcripts"] as? [[String: Any]])?.first?["text"] as? String)?.count, 2_000)
     for key in ["screen", "profile", "memories", "tools", "audio"] { XCTAssertNil(json[key]) }
     XCTAssertNil((json["prompt"] as? [String: Any])?["text"])
@@ -46,7 +47,7 @@ final class AIEvaluationExportTests: XCTestCase {
     let event = AIEvaluationObservation.decision(
       sessionID: "session", decisionID: "decision", observationID: "observation", prompt: prompt,
       transcripts: [.init(id: "segment", text: "ambient", source: .microphone)],
-      conversation: [], note: "private note")
+      conversation: [])
     let json = try jsonObject(event, sharing: false)
     XCTAssertNil(json["note"])
     XCTAssertNil(json["transcripts"])

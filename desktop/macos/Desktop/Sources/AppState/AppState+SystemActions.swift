@@ -24,7 +24,11 @@ extension AppState {
           // Only start transcription if onboarding is complete
           // During onboarding, we just update the permission state
           if self.hasCompletedOnboarding {
-            self.startTranscription()
+            if self.isTranscribing {
+              Task { await self.reconcileCapture() }
+            } else if AssistantSettings.shared.transcriptionEnabled {
+              self.startTranscription()
+            }
           }
         } else {
           log("Microphone permission denied")

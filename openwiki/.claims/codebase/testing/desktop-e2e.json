@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:54a65243df60a0d86bd14639ca9ef3b071c4f5b1a64aefc6b32f14ce8b0d8f1a",
+  "pageVersion": "sha256:29b0383883db65f340b93b808d16d95213bd161f1ac9ff7603e48f83d98753c6",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -8,7 +8,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh",
-          "version": "repo-file-v1:sha256:244e7c4bdd12a51faed4e04fa228afdadbd552542f8cf3d1c81d7a0c74acf20c"
+          "version": "repo-file-v1:sha256:7336b535624ade1d7c38c908801003912ef5cec7d6e4bc74055165648f30ef33"
         }
       ]
     },
@@ -18,7 +18,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/scripts/check-e2e-flow-coverage.py",
-          "version": "repo-file-v1:sha256:a99b2996a0a2b50f9c8565796b7acaa146aed51bf80d1a20fac67953b66c65ad"
+          "version": "repo-file-v1:sha256:2ebec87beb57d1b4d47aed6ca65a1eabf521894f480bf08c6518167c8f6709e6"
         },
         {
           "resource": "repo://desktop/macos/test.sh#L1-L21",
@@ -28,11 +28,11 @@
     },
     {
       "id": "claim_5782c4540f6d452d929201698d109386",
-      "statement": "Desktop-core tiers 1 through 3 require macOS and a non-production bundle; tiers 2 and 3 add the dev stack and spatial-overlay Swift harness, and tier 3 also invokes the continuity gauntlet.",
+      "statement": "Desktop-core tiers 1 through 3 require macOS and a non-production bundle; tiers 2 and 3 add the dev stack and spatial-overlay Swift harness, without invoking the retired Pi continuity gauntlet.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh#L1110-L1205",
-          "version": "repo-lines-v1:sha256:bbc253d7ae4be2342db1b2a958e554f255920ae93d4a0e0e54977bbae2ceac6c:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUwNGE0ODA0ZjU1MjQ1NWQ2MmIwZGE2NzEwN2U3MmM3YThiMDI2NTc2NzVmNDIzYjQ5OGNjN2IyNDE5ZGY3ZTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyYTI0NmU0ZGM1MDg4ZThjMTRhYjRjODk3ZjYzZDI0OTFhN2ZkMWNmMmQ3MzZmM2Y1ZDliMTA3YTRkMWY0NTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIzNTRkZTFmNTlmYzdhYWMwZWYzYmE5Nzg1ZmZjOGRlZGIzMzExMmUyZDhhN2RhYjBmY2ZhY2M1YTA2MjM3OTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwZGNkNGE5OWVjNTQ2NDUxODNmNWQ1MDE2Mjc0Y2U1YjQzMzU2YzY2MzVmYmRiYmM1NTQ5YjE3YjlhNTZhZGEifQ"
+          "resource": "repo://desktop/macos/scripts/desktop-core-harness.sh",
+          "version": "repo-file-v1:sha256:7336b535624ade1d7c38c908801003912ef5cec7d6e4bc74055165648f30ef33"
         }
       ]
     },
@@ -48,27 +48,19 @@
     },
     {
       "id": "claim_55adac4761ea4e6e8dc79481bf8c74d0",
-      "statement": "All-day listening regressions use the existing settings/restoration, onboarding completion/Skip and AppState capture boundaries; final-demo tests cover both direct completion controls, repeated completion and late warmup, while capture tests control hardware completions for cancellation, replacement sessions and required versus optional audio failure.",
+      "statement": "All-day listening tests exercise settings/restoration, onboarding completion/Skip and AppState hardware seams, including independent microphone/system choices, denied sources, cancellation and replacement-session isolation.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168",
-          "version": "repo-lines-v1:sha256:64e2fbdbb5a947c289d94842610ba1b8b5fd13e142dadedb8906ef8002babd62:eyJzZWxlY3RlZExpbmVDb3VudCI6MTY0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4MzhkZTVlZTBiN2I3ZTkyZjcyNDdhMWM4ODRlY2FiOGY1ZTg3NTI0OTBmMWY5MzQ0OWM4NWE0NTQwYThlMWIxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjZWFhNDhhY2VhYWRkNTdkYTg4ZWUxZWU3ODcwNWE5ODI3YmEzYjkwOWZjN2VhY2EwNDRkNjA5YjdhYWQ2ZjliIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyYWQ2N2EzMjFlOTgwYjQzYjNkZTgxNDdjNTk2OTM3ZTMwZWVhMjZlNGM4MGNlZGNjZmFkNDNjNDBlY2FjYTdkIn0"
+          "resource": "repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift",
+          "version": "repo-file-v1:sha256:d5d243654f596a5c78be758b2b52549deef09e1b635a6212bf0301f475f54472"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift#L7-L95",
-          "version": "repo-lines-v1:sha256:ff185ac352bc0e2ac0ef076f818206991f25ed4dde74418cddd0576258f0eb35:eyJzZWxlY3RlZExpbmVDb3VudCI6ODksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkY2U1ZDg3YjVkOWE0M2Y3MDZhOWNkZTAyMWNkMjZmNzI3OTUwNWVhN2MzODRhMGRlMTZjNDUzYjA0NmI0MDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVmY2RiOWNiNDA3OWZjOGFlZDZhYWRhMzg3MTM2MmUzOWJkYWNjNjI3MGNlZTRlNjgyMTE3ZDM4MTJhZWI3ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRmZTU2ZGRhMzNlZTMxMmUwYjQxZjFjMmJiZGNiNjRhM2M4OGRmNWI4NWI3YTU2ZTE4YjlmZjc2MTQ1NmRmN2IifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift",
+          "version": "repo-file-v1:sha256:83c00dced0c48512ffae0d9da056a303a2a69a97bdae68be83a75b9c8f5e6c1f"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingSkipBehaviorTests.swift#L7-L143",
-          "version": "repo-lines-v1:sha256:a8f841bf2a78e81042378274b00849f18c77ff123943c44eabc6f23eddfa9bbe:eyJzZWxlY3RlZExpbmVDb3VudCI6MTM3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlZWE2YWY4NjZmNzM2NDYzMzg4MDY1ZjhlMmRjYWFjNDA2Y2FlYzY2MGIwYzdjNGRlM2I5MTgxYjVkYzc3OTQ3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhNzE0M2RlZGQwMjBhZThiNmVhMTVhM2I2OTY2YjA5NzMxOTY5YTEwYzVkYjc1NmM2MGM5YjYxOGRjYWRkY2VlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2ZDE1ZjQ2Mzc2YWExY2M2YmY0OTJkM2EzMjFmOTQxNjVjN2Q0ZTc5YzM3NzUxNjg4YTU4ZWZhOWQ0OGU3YzI3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxYmM0M2I2MGEyODViMGJmMTBhMmNhNmQxOTAwZGNkNTQyYzk4NDczOWY1ZWQ5Y2RhZmRkOGQ2OTBlYTY1NjFhIn0"
-        },
-        {
-          "resource": "repo://desktop/macos/Desktop/Tests/PersistedCaptureLaunchPolicyTests.swift#L5-L77",
-          "version": "repo-lines-v1:sha256:081ebe459e8f136add4836342e294abe21211d6f5e9c055f57b4cbfefd79faf4:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlZjFiOGVlNzY0NDMwNWQ0YmIwYjE2NmFlNDA2OWRkZmFhYTU0NjIxNTZkNDVjMDUzNzkyMzA3YTUyNjI4NjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0NzUxNDBlMjZlOWM1YTE3MTFkNjQ0NWExOGI3ZjRhZTIwMjJmOTkzZWY2Mjg0MDc1NTQzMDFiOTZlMGRjMjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlYWE0OGFjZWFhZGQ1N2RhODhlZTFlZTc4NzA1YTk4MjdiYTNiOTA5ZmM3ZWFjYTA0NGQ2MDliN2FhZDZmOWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxOWNhOWIwYWIxYzExODMwNjUxOTZlYzk2YTFlYmFiNDNiYmRhMTJjM2Y4ZWVlODc3MzE5MTZlZmRiN2M1YTcifQ"
-        },
-        {
-          "resource": "repo://desktop/macos/Desktop/Tests/SystemAudioCaptureModeSettingsTests.swift#L5-L44",
-          "version": "repo-lines-v1:sha256:931335f1c23af7eda83f28b2f391ac2623bf1c2ee4b0aeef44021b8668e86557:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0NzUxNDBlMjZlOWM1YTE3MTFkNjQ0NWExOGI3ZjRhZTIwMjJmOTkzZWY2Mjg0MDc1NTQzMDFiOTZlMGRjMjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlYWE0OGFjZWFhZGQ1N2RhODhlZTFlZTc4NzA1YTk4MjdiYTNiOTA5ZmM3ZWFjYTA0NGQ2MDliN2FhZDZmOWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/OnboardingSkipBehaviorTests.swift",
+          "version": "repo-file-v1:sha256:5f26de9513a33c7147b7d8da7b8d15c2cfde0e7685c8a7f7c5602a30b66224bf"
         }
       ]
     },
@@ -88,11 +80,15 @@
     },
     {
       "id": "claim_2c49c226802644f48ee3106bd6b6a684",
-      "statement": "Supervisor coordinator, timeline, voice and export regression suites exercise observation scheduling, private voice admission, echo/capture mapping and consent revocation at implementation seams.",
+      "statement": "Supervisor, timeline, conversation and export regression suites exercise scheduling, scoped private guidance, echo/capture mapping and consent revocation at implementation seams.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift#L637-L741",
-          "version": "repo-lines-v1:sha256:3e4d8ccde83ccf20c2ac75a94e9d7462301b95d994e1f4e3157ada4baa23a860:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJhNWE2MmMyZGE0NjUyNjE0YjUyMjIyNmU5NjMyOGU5MjQ3YzA3ZDBmZDNjNjYxYTZjYTUxYzQwZTAzOWFjZDNmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0ODkzZjQwZTM3ODFlYjg5NmM4MmQwNDZhMDgwNjdhMTFlMzVjZGYyZjFkZmFmMjZmZWE5MGI4ZGI2Njc2NDEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ODRmZjJjYWIyOWUwZjVmMWM1OWQ5Y2MxMGE5NjE5MjYzZjI4M2ZkOTczYjNiMjNkMmNiOWQxMmFhY2EzNWJhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4ZGE5OGRmZjA5MmIyMmQ2NTRiZWZiM2NjYjEyOGQ4OWJiZDMwZWUyM2RkNTkzYzgyYTFlNDQ2MThhNTAzMDljIn0"
+          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift",
+          "version": "repo-file-v1:sha256:d78aa16fc7dc638bde6d0f35add3065605341290cd154e64f6be0b1a0c5267b2"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationLiveSessionTests.swift",
+          "version": "repo-file-v1:sha256:c055c547c7b5596ef61400ce1313dc6ae2f1b8ea915344cf35adbf05d2c02a69"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/SupervisorAudioTimelineTests.swift",
@@ -100,77 +96,67 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift",
-          "version": "repo-file-v1:sha256:ccf61d503d02b9affbedb4024ebb3e1312acd76a152e5364fcb760df77d89af5"
-        },
-        {
-          "resource": "repo://desktop/macos/Desktop/Tests/VoiceTurnCoordinatorTests.swift",
-          "version": "repo-file-v1:sha256:e8af028a130adc80755d4df0048fdf9e28f836c417538d22f53fba386990ad2a"
+          "version": "repo-file-v1:sha256:73ef361b0ba6e24a50c5d1802cad98102511862118479877f8bf16371f574ea8"
         }
       ]
     },
     {
       "id": "claim_9fd6a2ec83274249986b62964d472c2d",
-      "statement": "The complete authenticated A-B-C speaker/headphone interaction and feedback/export checks live in a manual flow rather than automatic T2/T3 acceptance.",
+      "statement": "Authenticated multi-reply A/B conversations, physical speaker/headphone/Bluetooth interruption, silent cues, fallback, privacy and the real eight-hour soak are specified in a manual flow, separately from automatic T2/T3 evidence.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L1-L55",
-          "version": "repo-lines-v1:sha256:e14aa337ff725da505a8e1018bbfc749223fc0561ee94b80a10f18ab779eb806:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2ZTBkMWFmZDZlOTYwMzZiNzc2YWIyMDY4NGRhMzVmMDc1YzUwZDZmM2MwZmQ1OTlkZGM4MjE4ZWJiZGZiNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyZDNhZDViYzBiNGY2OTkwMDAyZmQ2ODI0Yzk2YTg3NGE5MTI1NTNiMjM3ZTQxOTBlZmNlMmRjNTg0ODAwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
+          "version": "repo-file-v1:sha256:16f080692068cb818586fd241dbd658dc9bba82fc14ff64c65a9242dc77d5b25"
         }
       ]
     },
     {
-      "id": "claim_92180f48277048a7b4f9ab039478a100",
-      "statement": "Live input lifecycle tests drive controller admission through raw transport setup, assert provider-rejection diagnostics without private content or replay, and enforce standalone text framing for no-audio turns; the direct provider probe sends the same standalone text shape.",
+      "id": "claim_e6d0afa98e914680803f6894ff154a66",
+      "statement": "Conversation lifecycle, opening, bounded input and output-admission tests cover logical session behavior and initial journal acceptance before audio, while Node storage tests preserve revision order and historical recovery.",
       "evidence": [
         {
-          "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L36-L90",
-          "version": "repo-lines-v1:sha256:d7287331810ee9b4442d637d67649ccebc30e1f9005bdcc614c102b8d2c3ca74:eyJzZWxlY3RlZExpbmVDb3VudCI6NTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZmZGM4YzkwODQ4N2M3ZmZkYjUyMDUwMzE3MGRjODE2Y2Q2NGQxNzZlNDY3Y2Y2NmZhMTU0MDYxYThiOTExYmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY5OWVmZWRmZDJkOTcwNmQ4OTFjN2JhOTgzZTdmODRlMDVhZDBlMDE5MWMxMzI3OThiZTVlM2MxY2M1MzA0MjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZkNGYyN2I2N2ZkZDFjYjg4ODMyNzRiZTMwYzBhYTU0ODdiY2E4YjBiN2E5NTE5NDYxZTNlODkzZmZmZWFmYWMifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift",
+          "version": "repo-file-v1:sha256:375972a7b9fe4caf21dcf256f56b2e448094bebd242d8366f97efe8c35ec9475"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift#L13-L121",
-          "version": "repo-lines-v1:sha256:451eabfb0638fa007c9cf06a793dca419cc05165192888f6f6dc9f5d1c59c43e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA5LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2YmY5ZThiY2Y2M2VjZmE4OTEwMGQyMDA3OGQxZjMxY2I5OTJiYWY4YTFhYTQyOGQwY2E0NjA3YWJhMDk2Y2JkIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIzZjIxMmUyODliMTIyNTZhMmUwODI3MmY5MGNiZTZmNDk1NzVkOGEyM2M0M2U1ZGVhNWZjZTA0NzIxZmFlZWYxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3YzE2ZWVmNTBjNTJhOTgyNjlhMTU2YTY4YTM3MjI5NjA3OTA4OWM3ZDM1ZTQ0ZGYyZmI2ZDRlOWQ5NjNlZTczIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJmZDBlMTRlYmQ4ZDNhN2MyYTA0MjAyMjMzNjdlMmRlYTZmYWEwMGM1ZjM3ZjRlMzAyZGY5N2M0ZGEzN2I3YWQzIn0"
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationOpeningRequestTests.swift",
+          "version": "repo-file-v1:sha256:ea8a81831d74ac9f904de07ae7c7008737cd6cbdb45261a74420924ef4a7e0a9"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/RealtimeHubSessionInputLifecycleTests.swift#L780-L800",
-          "version": "repo-lines-v1:sha256:cba939f2f83183b65e7465b750e13a2b919f529fe644bdfdbfcf2b55c2c9e3d9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0ODgyYjgyODlkYmJmOWQxYzEzNzdmMDQ4NWJmOTQ5Y2NiNGJiZGIzYTg1NzZlZTViY2MzZjgwZGZlNDM2ODAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzYWM5YTJkZTFlNDRkNjg4YzBkYjI2MWNjYTkwZDVhODMwZjA3M2U1NDA3MTAwZWFjMzEwMTZlMGMzNjEyNzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjEyNzdlNDM1NjQwNzkyNjU1MTRlN2IxMzhmMWZhZjg2ZmVkZmIxNGUzYTQ5ZjQzMmUzYjU3MjU2YTU5NjNmNGIifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationOutputAdmissionTests.swift",
+          "version": "repo-file-v1:sha256:fb81cea2e49dad20a95b9e346799ebd4c17eb3bc6eb615ad12304c38cdf3f422"
         },
         {
-          "resource": "repo://scripts/voice-provider-probe.sh#L390-L404",
-          "version": "repo-lines-v1:sha256:e5e235169fea670939e6155a2c89a584b4e733a70f00c96fa9d69b10101c8208:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4YTkxOWUwM2UwNjRlMzU1YTk3Y2YwY2Y4MWZmNDc3ODQ2OGM4ZmIxNTI1OWI1NjA0OTgyMzZjZGY3NTRiNTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1MDMyZTk2NGQwOTMyMzUxZTVkMTg1MjY5MjgxYjE3MWEzYTA5YjA4YjI4NmU2NjFlYTQ3MDMyM2M4MmViNGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YzdiZGZlYTAwODY5NjIyNGUxNjE5ZGJkMDQzMjI5YzM0MDEwYzczNTdhMWJiODI3MmFiOWY3NWY5MjUxN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1M2IxNjA1YWRlNWQ5MGRmMmNlMzIyZDNlMjVjMzI1OTIwNWQ5MTY3ZjdlNWFjY2VjYzRjNzZlODEwMWRkZmQifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationPendingAudioTests.swift",
+          "version": "repo-file-v1:sha256:006520972a369dfe4bc20be12255740ca34d9cf644fb4fc2cbf570ef99965052"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/tests/conversation-storage.test.ts",
+          "version": "repo-file-v1:sha256:ab1ce4b07bf12efcb88422c84178480dd38a7ad9ec59383ae26e178920079bd5"
         }
       ]
     },
     {
-      "id": "claim_becc7a6e5e2d49f6957432f8103f92f6",
-      "statement": "Deterministic supervisor handoff tests exercise actual manager admission and replacement readiness with injected PCM, requiring one input flush and one activity end without private guidance replay; reducer tests retain distinct required-replacement and ordinary cold-PTT deadlines.",
+      "id": "claim_4ea8dc3e69fd4d2dab998d0e2ce1fa7f",
+      "statement": "The non-production debug_bar_state preview validates phases and synthetic levels, borrows only an empty floating surface without starting capture/providers, and preserves user-content or real-conversation ownership during cleanup.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorPTTHandoffTests.swift#L10-L159",
-          "version": "repo-lines-v1:sha256:93f1d4cf2a678a9af5aa01144a49644ea450636fa6c62253adc0eb38f263dd1f:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJhZDBhYmMyYWRmMDBmN2YxNmVkYjZjNzI3NjEwYWRiNmQzNTM1MTA2NzM0MmNkNWRhZTg1YjhjMDBhMDI3Yzc5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI2YmZiMDVjNzczZmViNmVkNTcyYWEzZGEyMWFiY2VlOTYzNDU0ZDk4YmNkZjdiODUwMWFhM2IzOThhODg1OTM0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4M2ZhZmY0Mjk2Y2Y4YzFiMjFhOTBmMDE1ZDc2YjA5OWZkZWY1YmQzNzg4NzIxODMwOWNiYWUxZjY1OWQyMjJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4NTEyOWE4Y2NkYzVkZDUzYjIzODAzZjQ3YTYwMGU5OTU2ZWJmMzdhOTM3YTI0YjEwMThhODY0ZWZkMTAwYzc0In0"
+          "resource": "repo://desktop/macos/Desktop/Sources/Automation/ConversationPresentationPreview.swift",
+          "version": "repo-file-v1:sha256:f816526d70d75855e96871fdb59686089ab44abff4948429555df1fdb86e11a2"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/VoiceTurnDomainTests/VoiceReplacementDeadlineTests.swift#L8-L73",
-          "version": "repo-lines-v1:sha256:5baccd771ba906d305b70df025a82086f3e4097bff71afd4d43d7ce3fd38b828:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzYmY0ODg1YzA1NDZjNjQ0MjJjNTE3YTRjNGNlMjNlOGYxZDM1NmYyMTNmNmIzZDAwMDIwNGE2MjJjYTJmMGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg0OWYzZjE4OTcwMTAzZjY0MDczZTk1OWJiOTdjNWZhNTFlNWJhM2VlMjUyNTIzZTE3ODVmMjQyMGI4YTUxYzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzMDkzZGI4OWI2YjQ1OTFhNjI3NjE1MjNkMmMwNTAyNTU4M2M5MTIxMGU3YTdlMWUxNTEwMWQyMmIzMjhjMTQifQ"
-        }
-      ]
-    },
-    {
-      "id": "claim_3786abe4ce1a47e8afc88553f0d6b243",
-      "statement": "Fallback observation tests require journal acceptance and original owner/session admission, separate generation from playback completion, and reject revoked or cancelled completions; delivery journal tests preserve assistant-only identity and correlation while keeping actual journal failure distinct from speech interruption.",
-      "evidence": [
-        {
-          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorVoiceDeliveryJournalTests.swift#L7-L101",
-          "version": "repo-lines-v1:sha256:2a78fff0cad596d1e436a7524c8c784d1033aad12b2eb162061bae4aed3598db:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIzZGI5NWMxODRmYmZjNDdhNjczMDNhMGZjMDVhYzNkNmZmYWNjNmIzNTM2OGQ2NjIyNzA2YWQ2MjVmNWQ2OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg2NzhjOWJiZjZmMDQ0YTM5NGZjMWEyZWUzNmMyYzQzM2U3NDY3MDM5ZmViMTcyMmQwNzE2NDgyOWU2MDkzMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkOTNiNWEzMDgzZGQxMGZhOWI3OGQ3MDFkN2M0ZGFmYmQyMGQ1ODI3NmViZDI1YWVkMmY1YzlkYmZhODYxOGQifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationPreviewActions.swift",
+          "version": "repo-file-v1:sha256:e89d0f7610a2e19936969b27d884f994fe208b72d14bec308c519d8073f03690"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/VoiceFallbackSupervisorObservationTests.swift#L78-L182",
-          "version": "repo-lines-v1:sha256:9e83367f091cd9f5f1b25d3ccff7aa4f797cd98391822cda88532619ab42d27d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA1LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJmODZkNWZjZGVjYTk2Mjg2NGZmZWVkYjYyNWM4N2M0NTFhYTY3OWU3YTlhYzk3Y2NkYTIwOWIzMGY1OWNkZmI5IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlODZmOWY2ZDRmODA5Nzc5MmM2ZjZmMGVjY2QwYTA4ZGNiY2M3YTJiMzdkZWJmMTgxMTRkNWQ3NDVkZTkxZDJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MSwiZm9sbG93aW5nQ29udGV4dEhhc2giOiI0MTJjYTM0NWNjZjc1YmY5YzA4MDZiY2U2OTViZThkZTgwOGI3OTk4NDI1MWE3YTU0ZDIwMmNmNjEwMWRkNDUxIn0"
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationPresentationPreviewTests.swift",
+          "version": "repo-file-v1:sha256:e7f6e74f49055ff5d93ed6734fdf9a88ffe1b35e500dab657da569bd6105eb88"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-28T09:46:29.604Z"
+    "at": "2026-10-14T15:50:15.263Z"
   }
 }

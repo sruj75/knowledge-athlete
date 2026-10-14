@@ -48,7 +48,6 @@ extension ChatProvider {
     if isInDefaultChat {
       let runtimeChatId = mainChatRuntimeChatId(sessionId: nil)
       let defaultSurface = AgentSurfaceReference.mainChat(chatId: runtimeChatId)
-      AgentRuntimeStatusStore.shared.clear(surface: defaultSurface)
       if !journalAlreadyCleared {
         let cleared: Bool
         #if DEBUG
@@ -71,7 +70,6 @@ extension ChatProvider {
       let sessionToDelete = currentSession
       if let session = sessionToDelete {
         let surface = AgentSurfaceReference.mainChat(chatId: session.id)
-        AgentRuntimeStatusStore.shared.clear(surface: surface)
         if !journalAlreadyCleared {
           let cleared: Bool
           #if DEBUG

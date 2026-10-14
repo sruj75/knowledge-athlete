@@ -95,7 +95,6 @@ def node_is_relevant(root: Path) -> bool:
         path.exists()
         for path in (
             root / "desktop/macos/agent/package.json",
-            root / "desktop/macos/pi-mono-extension/package.json",
         )
     )
 

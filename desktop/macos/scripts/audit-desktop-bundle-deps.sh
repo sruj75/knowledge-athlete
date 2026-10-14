@@ -62,7 +62,6 @@ dependency_exists_in_bundle() {
     "$CONTENTS_DIR/Resources"
     "$CONTENTS_DIR/Resources/Omi Computer_Omi Computer.bundle"
     "$CONTENTS_DIR/Resources/agent"
-    "$CONTENTS_DIR/Resources/pi-mono-extension"
   )
 
   for root in "${roots[@]}"; do

@@ -2,7 +2,6 @@ import Foundation
 
 @MainActor
 final class StartupWarmupCoordinator {
-  private let tasksStore: TasksStore
   private let chatProvider: ChatProvider
   private let retryDatabaseInit: () async -> Bool
   /// Warmup delays protect the busy launch window, so they count down from
@@ -18,12 +17,10 @@ final class StartupWarmupCoordinator {
   private var sessionTaskTokens: [StartupWarmupTaskID: UUID] = [:]
 
   init(
-    tasksStore: TasksStore,
     chatProvider: ChatProvider,
     retryDatabaseInit: @escaping () async -> Bool,
     launchAnchor: Date = Date()
   ) {
-    self.tasksStore = tasksStore
     self.chatProvider = chatProvider
     self.retryDatabaseInit = retryDatabaseInit
     self.launchAnchor = launchAnchor
@@ -111,16 +108,6 @@ final class StartupWarmupCoordinator {
   private func runDatabaseWarmup() async {
     guard await sleepForStartupDelay(StartupWarmupPolicy.immediateWarmupDelay) else { return }
 
-    await measurePerfAsync("DATA LOAD: Immediate warmup") { [self] in
-      async let taskSummary: Void = measurePerfAsync("DATA LOAD: Task summary snapshot") {
-        await tasksStore.loadDashboardTasks()
-      }
-      async let homeTasks: Void = measurePerfAsync("DATA LOAD: Home task snapshot") {
-        await tasksStore.loadHomeTasks()
-      }
-      _ = await (taskSummary, homeTasks)
-    }
-
     guard await sleepForStartupDelay(StartupWarmupPolicy.deferredWarmupDelay) else { return }
     guard AuthState.shared.isSignedIn else {
       log("DATA LOAD: Skipping DB lifecycle warmup because user is signed out")
@@ -128,7 +115,6 @@ final class StartupWarmupCoordinator {
       return
     }
 
-    tasksStore.scheduleStartupMaintenanceIfNeeded()
     await LocalMemoryLifecycleRunner.shared.start()
 
     logPerf("DATA LOAD: DB warmup complete", cpu: true)

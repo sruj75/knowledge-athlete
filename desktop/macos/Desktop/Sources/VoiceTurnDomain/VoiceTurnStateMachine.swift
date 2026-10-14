@@ -121,6 +121,9 @@ package enum VoiceTurnIntent: String, Equatable, Sendable {
   case locked
   case automation
   case supervisor
+  case conversation
+
+  package var ownsMicrophoneCapture: Bool { self != .supervisor && self != .conversation }
 }
 
 package enum VoiceTurnRoute: Equatable, Sendable {
@@ -315,7 +318,7 @@ package struct VoiceTurn: Equatable, Sendable {
     self.ownerID = ownerID
     self.supersededTurnID = supersededTurnID
     self.intent = intent
-    phase = intent == .supervisor ? .finalizing : (intent == .locked ? .lockedRecording : .recording)
+    phase = !intent.ownsMicrophoneCapture ? .finalizing : (intent == .locked ? .lockedRecording : .recording)
     route = .undecided
     pendingToolCallIDs = []
     toolEffectIdentities = [:]
@@ -335,7 +338,7 @@ package struct VoiceTurn: Equatable, Sendable {
     reservedEffectIdentities = []
     deadlines = []
     projection = VoiceTurnUIProjection(
-      isListening: intent != .supervisor,
+      isListening: intent.ownsMicrophoneCapture,
       isLocked: intent == .locked,
       transcript: "",
       hint: "",
@@ -1045,7 +1048,7 @@ struct VoiceTurnReducer {
       model.staleEventCount = 0
       model.invalidTransitionCount = 0
       model.duplicateTerminalCount = 0
-      if intent != .supervisor {
+      if intent.ownsMicrophoneCapture {
         schedule(.captureStart, after: deadlines.captureStart, in: &model, effects: &effects)
       }
       return VoiceTurnReduction(model: model, effects: effects)
@@ -1190,6 +1193,19 @@ struct VoiceTurnReducer {
       terminate(&model, reason: .captureFailed, effects: &effects)
 
     case .selectRoute(_, let route):
+      // A failed Live connection may fall back before any answer playback. The
+      // utterance keeps its identity while provider callbacks get a new fence.
+      if turn.intent == .conversation, route == .managedBatch,
+        turn.phase == .awaitingResponse, turn.activeLease == nil, !turn.providerFinished
+      {
+        cancel(.providerResponse, in: &model, effects: &effects)
+        model.turn?.phase = .finalizing
+        model.turn?.route = .managedBatch
+        model.turn?.sessionID = nil
+        model.turn?.responseID = nil
+        model.turn?.providerEffectIdentity = nil
+        return VoiceTurnReduction(model: model, effects: effects)
+      }
       guard turn.phase.isRecording || turn.phase == .finalizing else {
         invalid(&model, event: event, effects: &effects)
         return VoiceTurnReduction(model: model, effects: effects)
@@ -1719,7 +1735,7 @@ struct VoiceTurnReducer {
       cancel(.playbackDrain, in: &model, effects: &effects)
       model.turn?.activeLease = nil
       model.turn?.providerOutputSuppressed = false
-      if turn.intent == .supervisor, model.turn?.providerFinished == true {
+      if !turn.intent.ownsMicrophoneCapture, model.turn?.providerFinished == true {
         startJournalFinalizationIfNeeded(in: &model, effects: &effects)
       }
       if completionFencesSatisfied(model.turn) {
@@ -1839,7 +1855,7 @@ struct VoiceTurnReducer {
         stale(&model, event: event, effects: &effects)
         return VoiceTurnReduction(model: model, effects: effects)
       }
-      guard deadlineMatchesCurrentState(deadline, turn: turn) else {
+      guard VoiceTurnDeadlineAdmission.matchesCurrentState(deadline, turn: turn) else {
         stale(&model, event: event, effects: &effects)
         return VoiceTurnReduction(model: model, effects: effects)
       }
@@ -1969,47 +1985,6 @@ struct VoiceTurnReducer {
     }
   }
 
-  /// Deadline cancellation is best effort because a scheduled callback may have
-  /// already crossed its scheduler boundary. The reducer is the final admission
-  /// fence: a callback is valid only for the state that originally scheduled it.
-  private func deadlineMatchesCurrentState(_ deadline: VoiceTurnDeadline, turn: VoiceTurn) -> Bool {
-    switch deadline {
-    case .lockDecision:
-      return turn.phase == .pendingLockDecision
-    case .captureStart:
-      return turn.phase.isRecording
-    case .hubWarm:
-      return turn.route == .hubWarmWait
-    case .transcription:
-      return turn.phase == .finalizing
-    case .providerResponse:
-      return turn.phase == .awaitingResponse
-    case .pendingTools, .screenEvidenceProtocol:
-      return turn.phase == .awaitingTools
-    case .bargeInReplacement:
-      if case .replacing = turn.providerConnection,
-        turn.phase.isRecording || turn.phase == .finalizing
-      {
-        return true
-      }
-      return turn.phase == .awaitingResponse && turn.hubCommitPending
-    case .deferredCommit:
-      return turn.phase == .awaitingResponse && turn.hubCommitPending
-    case .playbackDrain:
-      if case .playing = turn.phase { return true }
-      return false
-    case .providerReconnect:
-      if case .reconnecting = turn.providerConnection { return true }
-      return false
-    case .journalFinalization:
-      return turn.phase == .awaitingJournal
-    case .transcriptionFinalization:
-      return turn.transcriptionFinalizationMode != nil
-    case .hintVisibility:
-      return true
-    }
-  }
-
   /// A physical PTT release remains `.finalizing` until the reducer has
   /// explicitly claimed its hub commit. Reconnect/replacement setup may run in
   /// that phase to buffer or refresh input context, but it cannot turn a
@@ -2060,7 +2035,7 @@ struct VoiceTurnReducer {
     effects: inout [VoiceTurnEffect]
   ) {
     guard var turn = model.turn, turn.journalFinalization == .pending else { return }
-    guard turn.intent != .supervisor || turn.activeLease == nil else { return }
+    guard turn.intent.ownsMicrophoneCapture || turn.activeLease == nil else { return }
     let identity = VoiceEffectIdentity(turnID: turn.id, effectID: turn.nextEffectID)
     turn.nextEffectID &+= 1
     turn.journalFinalization = .writing(identity)
@@ -2154,7 +2129,9 @@ struct VoiceTurnReducer {
       return
     }
     let record = VoiceTurnTerminalRecord(turnID: turn.id, reason: reason, route: turn.route)
-    if turn.intent != .supervisor && (turn.captureID != nil || turn.phase.isRecording || turn.phase == .finalizing) {
+    if turn.intent.ownsMicrophoneCapture
+      && (turn.captureID != nil || turn.phase.isRecording || turn.phase == .finalizing)
+    {
       effects.append(.stopCapture(turnID: turn.id, captureID: turn.captureID))
     }
     let preservesHubForBargeInHandoff: Bool = {

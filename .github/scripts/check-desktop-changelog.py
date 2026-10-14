@@ -68,8 +68,8 @@ EXEMPT_DESKTOP_PATHS = {
     # not alter the desktop application a user receives.
     "desktop/macos/scripts/desktop-flow-lint.py",
     "desktop/macos/scripts/desktop_flow_contract.py",
-    # Internal continuity qualification harness; it never ships in the app.
-    "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
+    # Internal conversation storage qualification harness; it never ships in the app.
+    "desktop/macos/scripts/test-conversation-storage.sh",
     # PR #115: this repository layout checker never ships in the app.
     "desktop/macos/scripts/check-sources-root-layout.py",
 }
@@ -130,7 +130,8 @@ def is_retired_documentation_exclusion_cleanup(path: str, base_ref: str, head_re
     ancestor = run_git(["merge-base", base_ref, head_ref])
     if subprocess.run(
         ["git", "cat-file", "-e", f"{ancestor}:{path}"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     ).returncode:
         return False
     before = run_git(["show", f"{ancestor}:{path}"])
@@ -141,15 +142,23 @@ def is_retired_documentation_exclusion_cleanup(path: str, base_ref: str, head_re
         return False
     package_prefix = str(PurePosixPath(path).parent) + "/"
     deleted_docs = {
-        item for item in run_git([
-            "diff", "--name-only", "--no-renames", "--diff-filter=D", f"{ancestor}..{head_ref}",
-        ]).splitlines()
+        item
+        for item in run_git(
+            [
+                "diff",
+                "--name-only",
+                "--no-renames",
+                "--diff-filter=D",
+                f"{ancestor}..{head_ref}",
+            ]
+        ).splitlines()
         if item.startswith(package_prefix) and item.endswith(".md")
     }
     allowed_lines: set[int] = set()
     arrays = re.finditer(
         r'^[ \t]*exclude:[ \t]*\[\n(?P<entries>(?:[ \t]*"[^"\\\n]*",[ \t]*\n)+)[ \t]*\]',
-        before, re.MULTILINE,
+        before,
+        re.MULTILINE,
     )
     for array in arrays:
         start_line = before.count("\n", 0, array.start("entries"))
@@ -163,7 +172,9 @@ def is_retired_documentation_exclusion_cleanup(path: str, base_ref: str, head_re
             if any(item.endswith("/" + entry[1]) for item in deleted_docs):
                 allowed_lines.add(start_line + offset)
     changes = difflib.SequenceMatcher(
-        a=before.splitlines(keepends=True), b=after.splitlines(keepends=True), autojunk=False,
+        a=before.splitlines(keepends=True),
+        b=after.splitlines(keepends=True),
+        autojunk=False,
     ).get_opcodes()
     return any(tag == "delete" for tag, *_ in changes) and all(
         tag == "equal" or (tag == "delete" and set(range(start, end)) <= allowed_lines)
@@ -223,7 +234,8 @@ def main() -> int:
 
     files = changed_files(args.base, args.head)
     requiring_changelog = [
-        path for path in files
+        path
+        for path in files
         if is_desktop_change_requiring_changelog(path)
         and not is_retired_documentation_exclusion_cleanup(path, args.base, args.head)
     ]

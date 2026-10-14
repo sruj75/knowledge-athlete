@@ -20,12 +20,10 @@ sources:
     resource: repo://backend/scripts/run-unit-ci.sh
   - id: openwiki-source-d5a3474b416677112c06b1cc
     resource: repo://backend/scripts/sync-python-deps.sh
-  - id: openwiki-source-221ccd7dfd0766ec2939c6ec
-    resource: repo://desktop/macos/agent/package.json
-  - id: openwiki-source-fd55fa27de60ffa7dc0fc82e
-    resource: repo://desktop/macos/agent/scripts/generate-tool-surfaces.mjs
-  - id: openwiki-source-edc5df9f3e1eaa7250675764
-    resource: repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts
+  - id: openwiki-source-33a3c0665254bfbf68df54c5
+    resource: repo://desktop/macos/agent/tests/conversation-entry.test.ts
+  - id: openwiki-source-954059e83a935f5d8de0c0ad
+    resource: repo://desktop/macos/scripts/test-conversation-storage.sh
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
@@ -46,16 +44,12 @@ sources:
     resource: repo://scripts/dev-harness/tests/test_observability_env.py
   - id: openwiki-source-06044ee38485672b205128e8
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
-  - id: openwiki-source-cadbf0c250f5afb51126591d
-    resource: repo://tools/codebase-map/package.json
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-  - id: openwiki-source-add0ec364ed6744f53f1bc54
-    resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-29T14:41:59.037Z" }
+generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-29T14:41:59.037Z
+    at: 2026-10-14T14:40:28.560Z
 ---
 # Development and wiki maintenance
 
@@ -71,7 +65,7 @@ Start at the repository root. `make setup` refreshes the main baseline, installs
 | Launch a named local Mac | `make desktop-run-local DESKTOP_USER=alice DESKTOP_APP_NAME=omi-my-task` |
 | Backend component tests | `backend/test.sh` |
 | Desktop component tests | `desktop/macos/test.sh` |
-| Node runtime checks | `cd desktop/macos/agent && npm run build && npm test` |
+| Conversation storage checks | `cd desktop/macos/agent && npm run build && npm test` |
 | Codebase map development | `npm --prefix tools/codebase-map run dev` |
 | Codebase map build and browser checks | `npm --prefix tools/codebase-map run check` |
 | Shared deterministic contract | `make preflight` |
@@ -85,6 +79,8 @@ Use the same named development bundle with synthetic emulator identities for the
 
 The harness admits `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` and `LANGFUSE_PROMPT_LABEL` only into the real-mode backend process. Infrastructure children, offline mode and the desktop launch environment exclude those values. Set the label to a deliberately selected test label when qualifying hosted test prompts; the resolver otherwise selects `production`. Creating a label or prompt is an external operation, separate from editing local configuration.
 
+The real local harness explicitly supplies a separate B allowance of 6,000 requests/day. Hosted admission remains unchanged at 1,500; local configuration is not permission to raise production limits. Keep credentials in the local secrets file, never in chat, committed files or test receipts.
+
 Auth emulator readiness allows 120 seconds for its sequential cold startup. A stack restart is required when its recorded source fingerprint no longer matches the checkout. Named-bundle qualification still requires a clean full source SHA and matching stack fingerprint; credentials or a successful prompt fetch alone do not prove physical microphone/playback behavior.
 
 ## Prerequisites and focused checks
@@ -93,13 +89,13 @@ The backend dependency synchronizer reads the exact Python version from `backend
 
 The local Mac launcher lists Xcode/`xcrun`, Python, `uv`, Node/npm and codesigning tools among its prerequisites; Cloudflare tooling is needed when its tunnel is selected. The emulator harness checks Node/npm, Java and its other local dependencies through `make dev-check`. Install the local libwebp dependency before packaging; [build/signing](../integrations/build-signing.md) explains that boundary.
 
-From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` for compile-only feedback. Before a runtime/Chat/voice QA bundle, the compact contract command is `./scripts/agent-logic-harness.sh --cross-surface-smoke`. A compile is not a running app: use the named local launcher above, then `./scripts/omi-ctl health`, `./scripts/omi-ctl actions` and `./scripts/omi-ctl log-path` on its configured automation port. The bridge returns runtime/backend identity and the exact private log path; [desktop E2E](../testing/desktop-e2e.md) covers tiered evidence.
+From `desktop/macos/`, use `xcrun swift build -c debug --package-path Desktop` for compile-only feedback. For the retained storage contract, use `./scripts/test-conversation-storage.sh`; this installs locked dependencies, builds, then tests the storage service without launching capture or providers. A compile is not a running app: use the named local launcher above, then `./scripts/omi-ctl health`, `./scripts/omi-ctl actions` and `./scripts/omi-ctl log-path` on its configured automation port. The bridge returns runtime/backend identity and the exact private log path; [desktop E2E](../testing/desktop-e2e.md) covers tiered evidence.
 
 `backend/test.sh` executes its selected test-file list. The full CI wrapper `backend/scripts/run-unit-ci.sh` also runs environment preflight and the applicable typecheck before delegating to that executor. These command roles explain why a narrow test run and full component acceptance report different scope.
 
-Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`, and the tool-surface generator imports the compiled manifest. Running tests without that build reports missing-module failures.
+Build the Node runtime before running its tests: the stdio fixture launches `dist/index.js`. Running tests without that build reports missing-module failures.
 
-The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all 23 areas, 342 nodes and 780 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
+The isolated [codebase map viewer](codebase-map.md) requires `npm --prefix tools/codebase-map ci` and `npm --prefix tools/codebase-map exec -- playwright install chromium` before local checks. Its check command type-checks, tests source provenance and deterministic spatial layout, builds the static Next.js export, and exercises all six areas, 37 nodes and 57 connections in Chromium. Browser coverage includes explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, cached local flows, restored scroll positions, fixed region coordinates, connection inspection and destination focus, resize, reduced motion and visible local retry recovery. GitHub Actions installs these dependencies when the shared manifest selects the viewer check.
 
 ## Product map and PR handoff
 
@@ -128,8 +124,7 @@ Commit wiki changes with the implementation on the current branch. The existing 
 - [.nvmrc](../../../.nvmrc)
 
 - [Node package scripts](../../../desktop/macos/agent/package.json#L1-L12)
-- [Runtime stdio fixture](../../../desktop/macos/agent/tests/runtime-stdio-contract.test.ts#L17-L36)
-- [Tool-surface generator](../../../desktop/macos/agent/scripts/generate-tool-surfaces.mjs#L1-L15)
+- [Storage stdio fixture](../../../desktop/macos/agent/tests/conversation-entry.test.ts)
 
 - [Local launch contract](../../../scripts/dev-harness/desktop-run-local.sh#L24-L78)
 - [Named profile safety tests](../../../scripts/dev-harness/tests/test_desktop_profile.py#L34-L62)

@@ -159,7 +159,7 @@ def test_render_prod_emits_one_canonical_backend_with_account_deletion(capsys, m
     assert 'ACCOUNT_DELETION_LEGACY_TASKS_INVOKER_SA=' in service_env
     assert 'LANGFUSE_BASE_URL=https://us.cloud.langfuse.com' in service_env
     assert 'LANGFUSE_TRACING_ENVIRONMENT=production' in service_env
-    assert 'LANGFUSE_PROMPT_NAME=intentive-chat-system' in service_env
+    assert 'LANGFUSE_PROMPT_NAME=' not in service_env
     assert 'LANGFUSE_PROMPT_CACHE_TTL_SECONDS=300' in service_env
     assert 'BASE_API_URL=https://backend.example.com' in service_env
     assert 'OMI_ENV_STAGE=prod' in service_env

@@ -1,14 +1,11 @@
 version: 2
 name: dashboard
 tier: 2
-description: Dashboard load with local task and goal projections
+description: Dashboard load with retained conversation history
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/DashboardPage.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Components/GoalsWidget.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/TaskNavigationRequestStore.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/UserFacingErrorPresentation.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/HomeChatCatalog.swift
 preconditions:
@@ -27,13 +24,6 @@ steps:
     name: Refresh retained local projections
     bridge.action:
       name: refresh_all_data
-
-  - id: S3
-    name: Read local goals projection
-    bridge.action:
-      name: goals_snapshot
-    expect:
-      ok: true
 
   - id: S4
     name: Read retained conversation projection

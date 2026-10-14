@@ -38,7 +38,10 @@ import type {
   RunAttempt,
   StartupReconciliationResult,
 } from "./types.js";
-import { providerBoundaryForAdapter } from "./execution-policy.js";
+// Legacy adapter identities remain in historical schema migrations only.
+function providerBoundaryForAdapter(adapterId: string): "managed_cloud" | `local_user:${string}` {
+  return adapterId === "pi-mono" || adapterId === "conversation" ? "managed_cloud" : `local_user:${adapterId}`;
+}
 
 const DATABASE_FILENAME = "heyintentive-agent.sqlite3";
 const PHASE_1_MIGRATION_VERSION = 1;

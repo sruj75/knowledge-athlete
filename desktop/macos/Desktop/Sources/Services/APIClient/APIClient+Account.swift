@@ -101,7 +101,14 @@ extension APIClient {
     }
   }
 
-  func synthesizeSpeech(request body: TtsSynthesizeRequest) async throws -> Data {
+  func synthesizeSpeech(
+    request body: TtsSynthesizeRequest,
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+  ) async throws -> Data {
+    var policy = RequestAuthPolicy.providerCredentialBoundary
+    policy.expectedAuthOwnerId = authorizationSnapshot?.ownerID
+    policy.authorizationSnapshot = authorizationSnapshot
+    try validateExpectedOwner(policy)
     let base = baseURL
     guard !base.isEmpty, let url = URL(string: base + "v1/tts/synthesize") else {
       throw APIError.invalidResponse
@@ -109,7 +116,9 @@ extension APIClient {
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.timeoutInterval = 60
-    request.allHTTPHeaderFields = try await buildHeaders()
+    request.allHTTPHeaderFields = try await buildHeaders(
+      expectedAuthOwnerId: authorizationSnapshot?.ownerID)
+    try validateExpectedOwner(policy)
     request.httpBody = try JSONEncoder().encode(body)
 
     // This canonical backend route identifies managed upstream failures with the
@@ -118,7 +127,7 @@ extension APIClient {
     // never invalidate the account session.
     let (data, httpResponse) = try await performAuthenticatedData(
       for: request,
-      authPolicy: .providerCredentialBoundary
+      authPolicy: policy
     )
 
     let payload = OmiHTTPTransport.extractErrorPayload(from: data)
@@ -136,7 +145,7 @@ extension APIClient {
     if httpResponse.statusCode == 401 {
       await invalidateSessionAfterUnauthorized(
         endpoint: endpointLabel(for: request),
-        signOutOn401: true
+        signOutOn401: authorizationSnapshot == nil
       )
       throw APIError.unauthorized
     }

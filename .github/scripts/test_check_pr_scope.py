@@ -23,7 +23,7 @@ class ClassificationTests(unittest.TestCase):
             'desktop/macos/Desktop/Sources/Chat/ChatToolExecutor.swift',
             '.github/workflows/gcp_backend.yml',
             'backend/testharness.py',  # 'testharness' must not match test excludes
-            'desktop/macos/scripts/test-tool-surfaces.sh',  # hyphenated prod script
+            'desktop/macos/scripts/test-conversation-storage.sh',  # hyphenated prod script
         ):
             self.assertTrue(is_production_source(path), path)
 

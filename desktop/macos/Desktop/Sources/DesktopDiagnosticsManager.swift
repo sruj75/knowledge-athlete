@@ -670,9 +670,9 @@ final class DesktopDiagnosticsManager {
     let normalizedCategory = category ?? failureClass?.logValue ?? "unclassified"
     let event: DesktopHealthEventName
     switch normalizedCategory {
-    case RealtimeHubCloseCategory.expectedIdleTeardown.rawValue:
+    case "expected_idle_teardown":
       event = .realtimeProviderExpectedIdleTeardown
-    case RealtimeHubCloseCategory.providerPolicyCloseFast.rawValue,
+    case "provider_policy_close_fast",
       CredentialFailureClass.providerPolicyClose(provider: .gemini).logValue:
       event = .realtimeProviderPolicyClose
     default:

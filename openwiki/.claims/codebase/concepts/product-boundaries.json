@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:aa8e479a44ccce9af9875752488c2b87e566ec6c9041e47db6e648879aae0326",
+  "pageVersion": "sha256:15ecfaa9f7ff0b44e012ded12b9891255d9751aed567d688905da2bfc1409daf",
   "claims": [
     {
       "id": "claim_71c8768653304d5c963d19b19d4e10c5",
@@ -35,14 +35,46 @@
           "version": "repo-file-v1:sha256:d4860235bde0442dd80bd6fac284ccbd5f4890f8737bcc24a4d8fb74a6d8fd6c"
         },
         {
-          "resource": "repo://desktop/macos/agent/src/runtime/runtime-owner-authority.ts",
-          "version": "repo-file-v1:sha256:dd811081b8a42899bc9f124bccee300ccee0c9a3aa224531d1f5031a4fd0654b"
+          "resource": "repo://desktop/macos/agent/src/conversation-protocol.ts",
+          "version": "repo-file-v1:sha256:208d26739d7628cc8caa9a7caeaf34112689fb917b09f009dd3b1ab639e4943d"
+        }
+      ]
+    },
+    {
+      "id": "claim_226796ff7e574644b6a895462dcf81cf",
+      "statement": "A uses an exact immutable prompt receipt across direct and Live routes; executable code restricts its capability to the fixed end_conversation lifecycle signal.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_conversation.py",
+          "version": "repo-file-v1:sha256:2c0118d87c3dc7cb72c4541b1f83d78b0a1368197c950e8976a47466d2bdafc9"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py",
+          "version": "repo-file-v1:sha256:affacfc00e221c247cabdb6e032973dd6a35e16e8f1791c5f4b3c50d77709da1"
+        },
+        {
+          "resource": "repo://backend/utils/observability/conversation_prompts.py",
+          "version": "repo-file-v1:sha256:bdf1891b1d7738238d419c2c418899135ec2a3c8811459f9d56ffad306a30880"
+        }
+      ]
+    },
+    {
+      "id": "claim_e6ec8ec2f4204c0fb058fa59dabf11b7",
+      "statement": "Active navigation exposes Home and Memory while retained account export includes historical task, goal and Focus records.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Account/Export/LocalUserDataExport.swift",
+          "version": "repo-file-v1:sha256:c8d7e7e5d7d8cd33d03cec8c535f3f501e7453d46bd655cfd2e736de5d5eb0d5"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift",
+          "version": "repo-file-v1:sha256:60fb6d923517c3622ca0bda2d791975760943d1b9c7c08d57594bca52a6c2b48"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-15T13:05:19.246Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

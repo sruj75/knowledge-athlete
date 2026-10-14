@@ -16,7 +16,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$TMPDIR/tests" "$TMPDIR/bin"
+# Exercise skip forwarding with an isolated fixture; production now has zero
+# skips after the retired execution suites were removed.
+mkdir -p "$TMPDIR/tests" "$TMPDIR/bin" "$TMPDIR/runner/scripts"
+cp "$RUNNER" "$MACOS_DIR/scripts/swift-test-skip-ratchet.py" "$TMPDIR/runner/scripts/"
+RUNNER="$TMPDIR/runner/scripts/swift-test-suites.sh"
+cat >"$TMPDIR/runner/scripts/swift-test-skips.json" <<'JSON'
+{
+  "max_skip_count": 1,
+  "allowed_tests": ["BetaTests/testOne"],
+  "skips": [{"test": "BetaTests/testOne", "issue": "fixture-only", "reason": "Verify runner skip forwarding."}]
+}
+JSON
 cat >"$TMPDIR/tests/AlphaTests.swift" <<'SWIFT'
 import XCTest
 final class AlphaTests: XCTestCase {
@@ -140,7 +151,7 @@ fi
 if ! grep -q "Ran 6 Swift suites in isolation with 2 worker(s)." "$TMPDIR/runner.out"; then
   fail "runner did not report suite count and worker count"
 fi
-if ! grep -q -- "--skip ChatDiscoverabilityTests/testAgentControlCapabilitiesMatchCanonicalManifest" "$FAKE_XCRUN_LOG"; then
+if ! grep -q -- "--skip BetaTests/testOne" "$FAKE_XCRUN_LOG"; then
   fail "runner did not pass ratcheted skips to SwiftPM"
 fi
 

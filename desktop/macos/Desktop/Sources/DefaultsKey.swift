@@ -52,6 +52,8 @@ enum DefaultsKey: String {
   case desktopIsPaywalled = "desktop_isPaywalled"
   case rewindDisableContentCache = "rewindDisableContentCache"
   case transcriptionVocabulary = "transcriptionVocabulary"
+  case transcriptionEnabled = "transcriptionEnabled"
+  case ambientMicrophoneEnabled = "ambientMicrophoneEnabled"
   case systemAudioCaptureMode = "systemAudioCaptureMode"
   case disableSystemAudioCapture = "disableSystemAudioCapture"
 }

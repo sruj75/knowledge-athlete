@@ -6,6 +6,7 @@ or fake-success shell did not survive the retirement.
 """
 
 from fastapi.testclient import TestClient
+import pytest
 
 import main
 
@@ -74,30 +75,37 @@ REJECTED_HTTP_OPERATIONS = (
 REJECTED_WEBSOCKET_OPERATIONS = ('/v1/listen', '/v2/listen', '/v3/listen')
 
 
-def test_every_rejected_operation_returns_genuine_not_found() -> None:
+@pytest.fixture(scope='module')
+def client():
     client = TestClient(main.app, raise_server_exceptions=False)
+    try:
+        yield client
+    finally:
+        client.close()
 
-    for method, path in REJECTED_HTTP_OPERATIONS:
-        response = client.request(method, path)
-        assert response.status_code == 404, f'{method} {path} returned {response.status_code}, not 404'
 
+@pytest.mark.parametrize(('method', 'path'), REJECTED_HTTP_OPERATIONS)
+def test_every_rejected_operation_returns_genuine_not_found(client, method, path) -> None:
+    response = client.request(method, path)
+    assert response.status_code == 404, f'{method} {path} returned {response.status_code}, not 404'
+
+
+@pytest.mark.parametrize('path', REJECTED_WEBSOCKET_OPERATIONS)
+def test_rejected_websocket_operation_returns_genuine_not_found(client, path) -> None:
     websocket_upgrade_headers = {
         'connection': 'upgrade',
         'upgrade': 'websocket',
         'sec-websocket-version': '13',
         'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
     }
-    for path in REJECTED_WEBSOCKET_OPERATIONS:
-        response = client.get(path, headers=websocket_upgrade_headers)
-        assert response.status_code == 404, f'WEBSOCKET {path} returned {response.status_code}, not 404'
+    response = client.get(path, headers=websocket_upgrade_headers)
+    assert response.status_code == 404, f'WEBSOCKET {path} returned {response.status_code}, not 404'
 
 
-def test_retained_neighbors_are_still_real_production_routes() -> None:
-    client = TestClient(main.app, raise_server_exceptions=False)
-
+def test_retained_neighbors_are_still_real_production_routes(client) -> None:
     for method, path in (
         ('GET', '/v1/users/me/subscription'),
-        ('POST', '/v2/models/{model}:streamGenerateContent'),
+        ('POST', '/v1/conversation/respond'),
         ('POST', '/v1/memory/compute/extract'),
         ('POST', '/v1/conversation-compute/structure'),
         ('POST', '/v1/tts/synthesize'),

@@ -56,7 +56,6 @@ def test_retired_hosted_authority_modules_are_deleted() -> None:
 def test_transient_compute_routes_remain() -> None:
     source = _router_source()
     for path in (
-        '/v1/conversation-compute/action-items',
         '/v1/memory/compute/extract',
         '/v1/memory/compute/normalize',
         '/v1/memory/compute/consolidate',

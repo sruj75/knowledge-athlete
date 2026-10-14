@@ -5,20 +5,17 @@ import SwiftUI
 @MainActor
 class ViewModelContainer: ObservableObject {
   // Shared stores (single source of truth)
-  let tasksStore = TasksStore.shared
   /// Process-launch anchor for startup warmups. Captured at container init
   /// (≈ app launch) so post-onboarding / late main-content appearance does
   /// not re-pay launch-protection delays.
   private let launchDate = Date()
 
   // ViewModels for each page
-  let tasksViewModel = TasksViewModel()
   let memoriesViewModel = MemoriesViewModel()
   /// Brain-map graph — persistent so the SceneKit scene, force layout, and
   /// camera survive page navigation instead of rebuilding every visit.
   let chatProvider: ChatProvider
   private lazy var warmupCoordinator = StartupWarmupCoordinator(
-    tasksStore: tasksStore,
     chatProvider: chatProvider,
     retryDatabaseInit: { [weak self] in
       await self?.retryDatabaseInit() ?? false
@@ -31,12 +28,8 @@ class ViewModelContainer: ObservableObject {
     chatProvider = provider
     ChatProvider.mainInstance = provider
 
-    // Bind the headless task automation actions (create/toggle/delete/reorder/dump)
-    // to this canonical, long-lived TasksViewModel so omi-ctl can drive TASK-01/02/03
-    // without the Tasks page being on screen. Gated to the automation bridge, which
-    // only runs on non-prod bundles.
+    // Keep Memory automation tied to the canonical view model.
     if DesktopAutomationLaunchOptions.isEnabled {
-      tasksViewModel.registerAutomationActions()
       memoriesViewModel.registerAutomationActions()
     }
   }
@@ -130,7 +123,6 @@ class ViewModelContainer: ObservableObject {
 
   func resetStartupState() {
     warmupCoordinator.reset()
-    tasksStore.resetSessionState()
     memoriesViewModel.resetSessionState()
     isInitialLoadComplete = false
     isLoading = false

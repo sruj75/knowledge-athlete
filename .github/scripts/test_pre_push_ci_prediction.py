@@ -65,6 +65,16 @@ class PrePushCiPredictionTests(unittest.TestCase):
         self.assertTrue(plan.includes("desktop-swift-tests"))
         self.assertEqual(github_outputs(plan)["should_run_tests"], "true")
 
+    def test_storage_runtime_inputs_select_retained_runtime_phase(self) -> None:
+        for path in (
+            "desktop/macos/agent/src/conversation-storage.ts",
+            "desktop/macos/scripts/test-conversation-storage.sh",
+            "desktop/macos/scripts/tests/test-conversation-storage-runtime-layout.sh",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(self.plan([path]).includes("desktop-agent-runtime"))
+        self.assertFalse(self.plan(["desktop/macos/pi-mono-extension/index.ts"]).includes("desktop-agent-runtime"))
+
     def test_unknown_component_paths_select_the_normal_component_lane(self) -> None:
         desktop = self.plan(["desktop/macos/Resources/unknown-input.txt"])
         self.assertTrue(desktop.includes("desktop-ci-only"))
@@ -99,7 +109,9 @@ class PrePushCiPredictionTests(unittest.TestCase):
             )
         )
 
-    def test_windows_kgworker_closure_inputs_select_only_the_targeted_test(self) -> None:
+    def test_windows_kgworker_closure_inputs_select_only_the_targeted_test(
+        self,
+    ) -> None:
         for path in (
             "desktop/windows/scripts/kgworker-native-closure.mjs",
             "desktop/windows/scripts/kgworker-native-closure.test.mjs",
@@ -109,7 +121,9 @@ class PrePushCiPredictionTests(unittest.TestCase):
         ):
             self.assertEqual(self.select([path]), ["windows-kgworker-native-closure"])
 
-    def test_unrelated_windows_changes_do_not_select_kgworker_closure_test(self) -> None:
+    def test_unrelated_windows_changes_do_not_select_kgworker_closure_test(
+        self,
+    ) -> None:
         self.assertEqual(self.select(["desktop/windows/src/renderer/src/pages/Tasks.tsx"]), [])
 
 

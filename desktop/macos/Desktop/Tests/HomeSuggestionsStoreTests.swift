@@ -75,7 +75,7 @@ final class GeminiHomeSuggestionGeneratorClassificationTests: XCTestCase {
   func testAllFetchesFailedClassifiesAsUnavailable() {
     XCTAssertEqual(
       GeminiHomeSuggestionGenerator.classifyContext(
-        memories: nil, conversations: nil, tasks: nil, goals: nil),
+        memories: nil, conversations: nil),
       .unavailable,
       "an outage must throw upstream, not cache an empty day"
     )
@@ -84,7 +84,7 @@ final class GeminiHomeSuggestionGeneratorClassificationTests: XCTestCase {
   func testEmptySuccessesMixedWithFailuresClassifyAsUnavailable() {
     XCTAssertEqual(
       GeminiHomeSuggestionGenerator.classifyContext(
-        memories: "", conversations: nil, tasks: nil, goals: nil),
+        memories: "", conversations: nil),
       .unavailable,
       "partial outage with no usable context must retry later"
     )
@@ -93,7 +93,7 @@ final class GeminiHomeSuggestionGeneratorClassificationTests: XCTestCase {
   func testAllFetchesSucceededEmptyClassifiesAsThin() {
     XCTAssertEqual(
       GeminiHomeSuggestionGenerator.classifyContext(
-        memories: "", conversations: "", tasks: "", goals: ""),
+        memories: "", conversations: ""),
       .thin,
       "a genuinely empty account holds the daily slot"
     )
@@ -102,17 +102,17 @@ final class GeminiHomeSuggestionGeneratorClassificationTests: XCTestCase {
   func testPartialFailureWithRealContextClassifiesAsAvailable() {
     XCTAssertEqual(
       GeminiHomeSuggestionGenerator.classifyContext(
-        memories: nil, conversations: "Discussed the Atlas launch", tasks: "", goals: nil),
-      .available(memories: "", conversations: "Discussed the Atlas launch", tasks: "", goals: "")
+        memories: nil, conversations: "Discussed the Atlas launch"),
+      .available(memories: "", conversations: "Discussed the Atlas launch")
     )
   }
 
   func testFullContextClassifiesAsAvailable() {
     XCTAssertEqual(
       GeminiHomeSuggestionGenerator.classifyContext(
-        memories: "Nik runs Omi", conversations: "Hiring sync", tasks: "Ship v2", goals: "50k"),
+        memories: "Nik runs Omi", conversations: "Hiring sync"),
       .available(
-        memories: "Nik runs Omi", conversations: "Hiring sync", tasks: "Ship v2", goals: "50k")
+        memories: "Nik runs Omi", conversations: "Hiring sync")
     )
   }
 }

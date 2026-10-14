@@ -33,7 +33,6 @@ def test_transient_compute_and_listen_routes_remain_without_worker_routes() -> N
     for route_key in (
         ("POST", "/v1/conversation-compute/discard"),
         ("POST", "/v1/conversation-compute/structure"),
-        ("POST", "/v1/conversation-compute/action-items"),
         ("POST", "/v1/memory/compute/extract"),
         ("POST", "/v1/memory/compute/normalize"),
         ("POST", "/v1/memory/compute/consolidate"),

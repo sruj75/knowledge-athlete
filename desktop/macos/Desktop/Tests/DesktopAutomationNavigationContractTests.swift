@@ -5,8 +5,7 @@ import XCTest
 final class DesktopAutomationNavigationContractTests: XCTestCase {
   func testEverySupportedTargetUsesTheProductionNavigationResolution() throws {
     let targets = [
-      "dashboard", "home", "chat", "conversations", "memories", "tasks", "focus", "insight",
-      "insights", "rewind", "settings", "permissions",
+      "dashboard", "home", "chat", "conversations", "memories", "rewind", "settings", "permissions",
     ]
 
     for target in targets {
@@ -24,7 +23,9 @@ final class DesktopAutomationNavigationContractTests: XCTestCase {
   }
 
   func testDeletedRawAndUnknownTargetsFailBeforeDispatch() {
-    for target in ["2", "6", "8", "apps", "brain-map", "unknown"] {
+    for target in [
+      "2", "4", "5", "6", "8", "tasks", "focus", "insight", "insights", "apps", "brain-map", "unknown",
+    ] {
       XCTAssertThrowsError(try request(target: target).validatedRoute()) { error in
         XCTAssertEqual(error as? DesktopAutomationNavigationError, .unsupportedTarget(target))
       }
@@ -75,9 +76,13 @@ final class DesktopAutomationNavigationContractTests: XCTestCase {
     )
     XCTAssertThrowsError(
       try request(
-        target: "tasks", highlightedSettingId: SettingsDestination.askMode.rawValue
+        target: "memories", highlightedSettingId: SettingsDestination.askMode.rawValue
       ).validatedRoute()
-    )
+    ) { error in
+      XCTAssertEqual(
+        error as? DesktopAutomationNavigationError,
+        .unsupportedSettingsDestination(SettingsDestination.askMode.rawValue))
+    }
   }
 
   private func request(

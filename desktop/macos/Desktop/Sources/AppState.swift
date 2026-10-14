@@ -293,9 +293,9 @@ class AppState: ObservableObject {
     get { servicesCoordinator.screenCaptureKitBrokenObserver }
     set { servicesCoordinator.screenCaptureKitBrokenObserver = newValue }
   }
-  var systemAudioCaptureModeObserver: NSObjectProtocol? {
-    get { servicesCoordinator.systemAudioCaptureModeObserver }
-    set { servicesCoordinator.systemAudioCaptureModeObserver = newValue }
+  var ambientAudioCaptureSettingsObserver: NSObjectProtocol? {
+    get { servicesCoordinator.ambientAudioCaptureSettingsObserver }
+    set { servicesCoordinator.ambientAudioCaptureSettingsObserver = newValue }
   }
   var coreAudioCaptureRecoveryObserver: NSObjectProtocol? {
     get { servicesCoordinator.coreAudioCaptureRecoveryObserver }
@@ -587,9 +587,9 @@ class AppState: ObservableObject {
       }
     }
 
-    // System Audio capture mode changed — re-apply the capture gate live if a recording is armed.
-    systemAudioCaptureModeObserver = NotificationCenter.default.addObserver(
-      forName: .systemAudioCaptureModeDidChange,
+    // Either ambient input changed — re-apply independent gates while Listening is armed.
+    ambientAudioCaptureSettingsObserver = NotificationCenter.default.addObserver(
+      forName: .ambientAudioCaptureSettingsDidChange,
       object: nil,
       queue: .main
     ) { [weak self] _ in
@@ -653,7 +653,6 @@ extension Notification.Name {
   /// Posted to expand the transcript/notes panel on the Rewind page
   static let expandRewindTranscript = Notification.Name("expandRewindTranscript")
   /// Posted to navigate to Task Assistant settings (Developer Settings)
-  static let navigateToTaskSettings = Notification.Name("navigateToTaskSettings")
   /// Posted to navigate to Ask Intentive Floating Bar settings
   static let navigateToFloatingBarSettings = Notification.Name("navigateToFloatingBarSettings")
   /// Posted to navigate to the retained advanced AI settings.
@@ -672,7 +671,6 @@ extension Notification.Name {
   static let insightPageDidLoad = Notification.Name("insightPageDidLoad")
   /// Posted to navigate to AI Chat page
   static let navigateToChat = Notification.Name("navigateToChat")
-  static let navigateToTasks = Notification.Name("navigateToTasks")
   /// Posted by keyboard shortcuts to navigate sidebar. userInfo: ["rawValue": Int]
   static let navigateToSidebarItem = Notification.Name("navigateToSidebarItem")
   /// Posted by Cmd+R to refresh all data (conversations, chat, tasks, memories)

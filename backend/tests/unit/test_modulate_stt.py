@@ -47,7 +47,6 @@ structure = conversation_processing.get_transcript_structure(transcript="synthet
 assert structure.title == "Hermetic Local Conversation"
 assert structure.category == "other"
 assert conversation_processing.should_discard_conversation("synthetic local fixture", 1) is False
-assert conversation_processing.extract_action_items(transcript="synthetic local fixture") == []
 
 segments = []
 

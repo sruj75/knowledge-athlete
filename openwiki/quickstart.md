@@ -10,10 +10,14 @@ sources:
     resource: repo://backend/main.py
   - id: openwiki-source-221ccd7dfd0766ec2939c6ec
     resource: repo://desktop/macos/agent/package.json
-  - id: openwiki-source-d961728264020390f7b3849f
-    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift
+  - id: openwiki-source-38614bd92321bf87a35d14d5
+    resource: repo://desktop/macos/agent/src/conversation-storage.ts
+  - id: openwiki-source-65f1ed7dfa0d6b5cfc855b63
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+  - id: openwiki-source-a3d51a297b17a104757cdbe1
+    resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift
   - id: openwiki-source-012f2c78e3b1446dfc35803f
     resource: repo://Makefile
   - id: openwiki-source-23775c3de52f3ab95a13cb8b
@@ -24,14 +28,14 @@ sources:
     resource: repo://tools/codebase-map/lib/diagram-source.mjs
   - id: openwiki-source-3db6130123d0c0614cc19cb5
     resource: repo://tools/codebase-map/next.config.ts
-generated: { by: "codex", at: "2026-09-27T17:33:01.317Z" }
+generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T17:33:01.317Z
+    at: 2026-10-14T15:50:15.263Z
 ---
 # Start here
 
-Intentive's active codebase is a macOS app with a bundled Node agent runtime and a managed Python backend. OpenWiki documents this repository's codebase only, with `codebase/` as the default destination for generated pages. Begin with the [system architecture](codebase/architecture/overview.md), then follow the task map below.
+Intentive's active codebase is a macOS app with a bundled Node/SQLite conversation storage service and a managed Python backend. OpenWiki documents this repository's codebase only, with `codebase/` as the default destination for generated pages. Begin with the [system architecture](codebase/architecture/overview.md), then follow the task map below.
 
 ## Before changing code
 
@@ -46,8 +50,9 @@ For instruction imports, summaries or workflow-policy changes, start with [instr
 | Understand ownership | [Architecture](codebase/architecture/overview.md), [product boundaries](codebase/concepts/product-boundaries.md) |
 | Look up provider accounts and settings | [Owner and provider record](codebase/operations/owner-provider-record.md) |
 | Trace capture or lost transcript | [Capture and transcription](codebase/workflows/capture-transcription.md) |
-| Trace B guidance, A speech and C interruption | [Supervisor conversation](codebase/workflows/supervisor-conversation.md), [evaluation privacy](codebase/integrations/telemetry.md) |
-| Change Chat, tools or PTT | [Chat and voice](codebase/workflows/chat-voice.md), [agent runtime](codebase/architecture/desktop-agent.md) |
+| Trace B guidance, continuous A speech and user interruption | [Supervisor conversation](codebase/workflows/supervisor-conversation.md), [evaluation privacy](codebase/integrations/telemetry.md) |
+| Change typed chat or continuous voice | [Chat and voice](codebase/workflows/chat-voice.md), [conversation storage](codebase/architecture/desktop-agent.md) |
+| Trace the original notch, microphone wave or playback feedback | [Conversation surface](codebase/workflows/chat-voice.md#original-conversation-surface), [synthetic preview](codebase/testing/desktop-e2e.md#synthetic-notch-preview) |
 | Change Memory processing | [Memory lifecycle](codebase/workflows/memory.md), [local data](codebase/architecture/local-data.md) |
 | Trace export or account deletion | [Account lifecycle](codebase/workflows/account-lifecycle.md) |
 | Change a backend route | [Backend](codebase/architecture/backend.md), [providers](codebase/integrations/providers.md), [billing](codebase/integrations/billing.md) |
@@ -72,7 +77,7 @@ The [pre-migration provenance](INSTRUCTIONS.md#provenance-and-ownership) and com
 ## Source evidence
 
 - [backend/main.py](../backend/main.py#L95-L119)
-- [desktop/macos/agent/package.json](../desktop/macos/agent/package.json#L1-L22)
+- [desktop/macos/agent/package.json](../desktop/macos/agent/package.json)
 - [Makefile](../Makefile#L21-L39)
 
 [Start here](quickstart.md) · [Authored guidance](INSTRUCTIONS.md)

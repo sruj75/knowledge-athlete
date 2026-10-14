@@ -1,0 +1,8 @@
+{
+  "changes": [
+    "Keep conversations open for natural spoken replies, interruption and typing, with shared history and continuous fallback when native voice is unavailable",
+    "Preserve the original notch conversation interface, blue opening glow and thinking feedback, with microphone and playback waves connected to continuous conversations",
+    "Add optional webcam context and adaptive Supervisor observation, with private guidance and independent capture controls",
+    "Retire Tasks, goals, Insights, Focus and general agent execution while preserving historical data, Memory, profile and exports"
+  ]
+}

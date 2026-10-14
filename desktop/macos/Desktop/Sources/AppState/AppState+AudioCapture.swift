@@ -3,13 +3,44 @@ import Foundation
 /// Owns ambient capture startup and capture-clock wiring to local or cloud transcription.
 @MainActor
 extension AppState {
-  /// Start microphone and optional system-audio capture.
+  /// Master Listening arms the enabled ambient sources independently. Actual
+  /// capture liveness determines B's status, not merely the session's armed bit.
+  var supervisorAudioAvailability: (SupervisorInputAvailability, SupervisorInputAvailability) {
+    let settings = AssistantSettings.shared
+    guard settings.transcriptionEnabled else { return (.disabled, .disabled) }
+    let microphone: SupervisorInputAvailability
+    if !settings.ambientMicrophoneEnabled {
+      microphone = .disabled
+    } else if isTranscribing && audioCaptureService?.capturing == true {
+      microphone = .available
+    } else {
+      microphone = AudioCaptureService.isPermissionDenied() ? .denied : .unavailable
+    }
+    let system: SupervisorInputAvailability
+    if effectiveSystemAudioMode == .never {
+      system = .disabled
+    } else if #available(macOS 14.4, *), isTranscribing,
+      (systemAudioCaptureService as? SystemAudioCaptureService)?.capturing == true
+    {
+      system = .available
+    } else {
+      system = systemAudioPermissionStatus == .denied ? .denied : .unavailable
+    }
+    return (microphone, system)
+  }
+
+  var ambientSystemAudioRequested: Bool {
+    if #available(macOS 14.4, *) { return effectiveSystemAudioMode == .always }
+    return false
+  }
+
+  /// Start the independently enabled microphone and system-audio sources.
   func startAudioCapture() async {
     await startMicrophoneAudioCapture()
   }
 
-  /// Start continuous microphone capture for the session. `reconcileCapture()` also starts
-  /// system audio when enabled by the System Audio setting.
+  /// Prepare the session's audio sinks. `reconcileCapture()` independently starts
+  /// microphone and system audio according to their settings and permission.
   /// Captured audio is mixed into one mono stream (cloud) or fed to separate Parakeet instances
   /// (local) so calls/videos/music end up in the transcript alongside the user's voice.
   func startMicrophoneAudioCapture() async {
@@ -39,10 +70,10 @@ extension AppState {
       }
     }
 
-    // Keep the microphone active and apply the System Audio setting.
+    // Apply each input setting; a missing microphone does not block system audio.
     await reconcileCapture()
 
-    log("Transcription: Audio capture armed (continuous microphone, system audio per setting)")
+    log("Transcription: Audio capture armed (microphone and system audio per setting)")
   }
 
   /// Start microphone capture and wire its chunks/level to the active sink (the mixer in cloud mode,
@@ -51,7 +82,9 @@ extension AppState {
   ///   false on a hard start failure (or if the session was torn down during the async start).
   @discardableResult
   func startMicCaptureIfNeeded() async -> Bool {
-    guard let mic = audioCaptureService else { return false }
+    guard AssistantSettings.shared.ambientMicrophoneEnabled, hasMicrophonePermission,
+      let mic = audioCaptureService
+    else { return false }
     guard !mic.capturing else { return true }
     do {
       let useLocalSTT = sttSession.useLocalSTT
@@ -73,7 +106,9 @@ extension AppState {
       )
       // The HAL setup above is async and can be slow. If recording stopped — or the service was
       // swapped (silent-mic fallback) — while we were awaiting it, undo the just-started capture.
-      guard isTranscribing, audioCaptureService === mic else {
+      guard isTranscribing, audioCaptureService === mic,
+        AssistantSettings.shared.ambientMicrophoneEnabled, hasMicrophonePermission
+      else {
         mic.stopCapture()
         return false
       }
@@ -114,7 +149,7 @@ extension AppState {
       // The HAL setup above is async and can be slow. If recording stopped — or the service was
       // torn down / recreated — while we were awaiting it, immediately stop the just-started tap
       // so we don't leave an orphaned capture running.
-      guard isTranscribing,
+      guard isTranscribing, effectiveSystemAudioMode == .always,
         (systemAudioCaptureService as? SystemAudioCaptureService) === systemService
       else {
         systemService.stopCapture()

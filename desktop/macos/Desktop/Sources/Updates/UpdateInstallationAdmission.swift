@@ -16,7 +16,8 @@ struct UpdateInstallationActivitySnapshot: Equatable {
   @MainActor
   static func current() -> UpdateInstallationActivitySnapshot {
     let appState = AppState.current
-    let realtime = RealtimeHubController.shared.lifecycleSnapshot
+    let conversation = ConversationVoiceController.shared
+    let turn = VoiceTurnCoordinator.shared.activeTurn
     let chat = ChatProvider.mainInstance
 
     return UpdateInstallationActivitySnapshot(
@@ -24,13 +25,13 @@ struct UpdateInstallationActivitySnapshot: Equatable {
         || appState?.transcriptionStartTask != nil
         || appState?.transcriptionStopTask != nil
         || appState?.isSavingConversation == true,
-      voiceCaptureActive: realtime.capturingInput,
-      voiceProviderActive: realtime.providerActive,
-      voicePlaybackActive: realtime.playbackActive
-        || FloatingBarVoicePlaybackService.shared.isSpeaking,
-      pendingVoiceToolCount: realtime.pendingToolCount,
-      realtimeTokenMintActive: realtime.minting,
-      voiceTurnActive: realtime.coordinatorTurnActive,
+      voiceCaptureActive: conversation.isOpen,
+      voiceProviderActive: turn != nil,
+      voicePlaybackActive: turn?.activeLease != nil,
+      pendingVoiceToolCount: 0,
+      realtimeTokenMintActive: conversation.conversationState == .connecting
+        || conversation.conversationState == .reconnecting,
+      voiceTurnActive: turn != nil,
       chatSendActive: chat?.isSending == true,
       chatStreamingActive: chat?.messages.contains(where: { $0.isStreaming }) == true
     )

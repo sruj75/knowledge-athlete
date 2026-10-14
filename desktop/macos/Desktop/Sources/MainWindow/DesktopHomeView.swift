@@ -132,7 +132,7 @@ struct DesktopHomeView: View {
       } else {
         // State 3: Signed in and onboarded - show main content
         ZStack {
-          // After onboarding completes, navigate to Tasks page
+          // Open Home after onboarding completes.
           Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
@@ -230,7 +230,7 @@ struct DesktopHomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .assistantSettingsDidChange)) { _ in
               reconcileCaptureServicesAfterLocalSettingsChange()
             }
-            // Cmd+R: refresh all data (conversations, chat, tasks, memories)
+            // Cmd+R: refresh all retained data (conversations, chat, memories)
             .onReceive(NotificationCenter.default.publisher(for: .refreshAllData)) { _ in
               Task { await appState.refreshConversations() }
             }
@@ -324,8 +324,8 @@ struct DesktopHomeView: View {
       // Register Geist/Geist Mono for the sign-in + conversational onboarding surfaces.
       // (Kept out of OmiApp to respect the product-file line-count ratchet.)
       OmiFontRegistration.registerAll()
-      // Drive the notch "moments" (live receipts + conversation-end) off real state.
-      NotchMomentsCoordinator.shared.start(appState: appState)
+      // Cancel only notifications from the retired task reminder feature.
+      Task { await RetiredTaskReminderCleanup.removePendingReminders() }
       // Force dark appearance and disable minSize computation on NSHostingView.
       // By default, every @Published change triggers
       // updateWindowContentSizeExtremaIfNecessary() → minSize() → sizeThatFits()
@@ -547,8 +547,6 @@ struct DesktopHomeView: View {
       MainChatNavigationRequestStore.shared.request()
     case .selectMemory(let destination):
       memoryDestinationRawValue = destination.rawValue
-    case .selectInsights(let segment):
-      InsightsHubNavigationStore.shared.request(segment: segment)
     }
     selectedIndex = resolution.destination.rawValue
 
@@ -691,8 +689,6 @@ struct DesktopHomeView: View {
   }
 
   private func updateStoreActivity(for index: Int) {
-    viewModelContainer.tasksStore.isActive =
-      index == DesktopDestination.home.rawValue || index == DesktopDestination.tasks.rawValue
     viewModelContainer.memoriesViewModel.isActive =
       index == DesktopDestination.memory.rawValue || index == DesktopDestination.memories.rawValue
   }
@@ -787,11 +783,6 @@ struct DesktopHomeView: View {
         selectedSettingsSection = .rewind
         selectedIndex = DesktopDestination.settings.rawValue
       }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToTaskSettings)) { _ in
-        // Navigate to settings > advanced > task assistant subsection
-        selectedSettingsSection = .advanced
-        selectedIndex = DesktopDestination.settings.rawValue
-      }
       .onReceive(NotificationCenter.default.publisher(for: .navigateToFloatingBarSettings)) { _ in
         selectedSettingsSection = .floatingBar
         selectedIndex = DesktopDestination.settings.rawValue
@@ -821,9 +812,6 @@ struct DesktopHomeView: View {
         // Chat now lives on the Dashboard page.
         selectedIndex = DesktopDestination.home.rawValue
       }
-      .onReceive(NotificationCenter.default.publisher(for: .navigateToTasks)) { _ in
-        selectedIndex = DesktopDestination.tasks.rawValue
-      }
   }
 
   private var mainContentWithSidebarItemNotifications: some View {
@@ -836,9 +824,6 @@ struct DesktopHomeView: View {
             memoryDestinationRawValue = destination.rawValue
             selectedIndex = DesktopDestination.memory.rawValue
           } else {
-            if item == .insights {
-              InsightsHubNavigationStore.shared.request(segment: .insights)
-            }
             selectedIndex = item.rawValue
           }
         }
@@ -875,42 +860,6 @@ struct DesktopHomeView: View {
     OmiMotion.withGated(Self.pageNavigationAnimation) {
       selectedIndex = DesktopDestination.home.rawValue
     }
-  }
-}
-
-/// Isolated page content switch — does NOT observe AppState or ViewModelContainer
-/// as @ObservedObject, so pages like TasksPage won't re-render when unrelated
-/// AppState properties (conversations, permissions, etc.) change.
-/// A minimal SB-styled segmented toggle used to fold two related surfaces into
-/// one tab (Conversations/Memories, Focus/Insights).
-private struct HubSegmentedControl: View {
-  @Environment(\.sbTheme) private var sb
-  @Binding var selection: InsightsHubSegment
-
-  var body: some View {
-    HStack(spacing: 4) {
-      ForEach(InsightsHubSegment.allCases, id: \.rawValue) { segment in
-        Button {
-          withAnimation(.easeOut(duration: 0.15)) { selection = segment }
-        } label: {
-          Text(segment == .insights ? "Insights" : "Focus")
-            .geist(size: 13, weight: selection == segment ? .semibold : .medium)
-            .foregroundStyle(selection == segment ? sb.ink : sb.ink(.w45))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(
-              RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(selection == segment ? sb.ink(.w1) : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-      }
-    }
-    .padding(4)
-    .background(
-      RoundedRectangle(cornerRadius: 10, style: .continuous).fill(sb.ink(.w04))
-    )
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
@@ -960,53 +909,6 @@ private struct MemoryHubPage: View {
   }
 }
 
-/// Canonical Insights tab — Insight history and Focus history share one surface.
-private struct InsightsHubPage: View {
-  @ObservedObject private var navigation = InsightsHubNavigationStore.shared
-  @State private var segment: InsightsHubSegment = .insights
-  @State private var requestedInsightID: String?
-
-  var body: some View {
-    VStack(spacing: 0) {
-      HubSegmentedControl(selection: $segment)
-        .padding(.top, 22)
-        .padding(.horizontal, 28)
-        .padding(.bottom, 4)
-
-      if segment == .insights {
-        InsightPage(
-          requestedInsightID: requestedInsightID,
-          onRequestConsumed: { requestedInsightID = nil }
-        )
-      } else {
-        FocusPage()
-      }
-    }
-    .onAppear(perform: consumePendingRequest)
-    .onReceive(navigation.$pendingRequest) { request in
-      guard request != nil else { return }
-      consumePendingRequest()
-    }
-    .alert(
-      "Insight unavailable",
-      isPresented: Binding(
-        get: { navigation.unavailableMessage != nil },
-        set: { if !$0 { navigation.dismissUnavailableMessage() } }
-      )
-    ) {
-      Button("OK") { navigation.dismissUnavailableMessage() }
-    } message: {
-      Text("This Insight is no longer available for the current account.")
-    }
-  }
-
-  private func consumePendingRequest() {
-    guard let request = navigation.consume() else { return }
-    segment = request.segment
-    requestedInsightID = request.insightID
-  }
-}
-
 private struct PageContentView: View {
   let selectedIndex: Int
   let appState: AppState
@@ -1039,7 +941,6 @@ private struct PageContentView: View {
         switch destination {
         case .home:
           DashboardPage(
-            tasksStore: viewModelContainer.tasksStore,
             appState: appState,
             chatProvider: viewModelContainer.chatProvider,
             memoriesViewModel: viewModelContainer.memoriesViewModel,
@@ -1059,13 +960,6 @@ private struct PageContentView: View {
               maxHeight: .infinity
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .tasks:
-          constrainedListPage(
-            TasksPage(
-              viewModel: viewModelContainer.tasksViewModel,
-              chatProvider: viewModelContainer.chatProvider))
-        case .insights:
-          InsightsHubPage()
         case .rewind:
           RewindPage(appState: appState)
         case .settings:

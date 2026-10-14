@@ -299,12 +299,12 @@ extension SBOnboardingModel {
     ]
   }
 
-  /// Push-to-talk options (hold to talk, hands-free).
+  /// Conversation shortcuts: tap to open or end.
   var talkShortcutOptions: [(id: String, shortcut: ShortcutSettings.KeyboardShortcut, sub: String)] {
     [
-      ("fn", ShortcutSettings.KeyboardShortcut(modifierOnly: .function), "hold to talk"),
-      ("opt", ShortcutSettings.KeyboardShortcut(modifierOnly: .option), "hold to talk"),
-      ("ctrl", ShortcutSettings.KeyboardShortcut(modifierOnly: .control), "hold to talk"),
+      ("fn", ShortcutSettings.KeyboardShortcut(modifierOnly: .function), "tap to talk"),
+      ("opt", ShortcutSettings.KeyboardShortcut(modifierOnly: .option), "tap to talk"),
+      ("ctrl", ShortcutSettings.KeyboardShortcut(modifierOnly: .control), "tap to talk"),
     ]
   }
 
@@ -403,8 +403,7 @@ extension SBOnboardingModel {
     return false
   }
 
-  /// Pick + persist a shortcut. `isTalk` → push-to-talk chord (held, drives the
-  /// voice demo); otherwise the Ask-Intentive open hotkey (tapped to open the window).
+  /// Persist the Talk conversation shortcut or the Ask-Intentive window shortcut.
   func pickShortcut(_ shortcut: ShortcutSettings.KeyboardShortcut, isTalk: Bool) {
     chosenShortcut = shortcut
     chosenShortcutIsPTT = isTalk
@@ -433,13 +432,8 @@ extension SBOnboardingModel {
 // MARK: - Screen + voice demo (live: notch visible, screen-aware answer)
 
 extension SBOnboardingModel {
-  /// Wire the real floating bar + push-to-talk exactly like the legacy
-  /// OnboardingVoiceDemoView: isolate the demo conversation (onboardingFloating
-  /// draft + the `.onboarding()` journal surface via `isOnboarding`), force live
-  /// transcription, warm the bridge, and SHOW the notch so it stays visible while
-  /// the user holds their key and asks about the screen. Screen capture is
-  /// attached automatically for screen-aware questions; the answer streams into
-  /// the notch, which spins while Intentive is thinking.
+  /// Use the production conversational voice path with an isolated onboarding
+  /// journal. Warm its storage bridge before enabling the shortcut.
   func startScreenDemo() {
     screenDemoDone = false
     screenDemoPTTReady = false
@@ -447,15 +441,10 @@ extension SBOnboardingModel {
     FloatingControlBarManager.shared.setup(appState: appState, chatProvider: chatProvider)
     FloatingControlBarManager.shared.barState?.switchAIDraft(to: .onboardingFloating)
     resetFloatingBarConversation()
-    ShortcutSettings.shared.pttTranscriptionModeDemoOverride = .live
     screenDemoSetupTask?.cancel()
     screenDemoSetupTask = Task { [weak self] in
       guard let self else { return }
-      // Unlike the normal app, onboarding did not have an earlier home-screen
-      // warmup. The old order set up PTT first, which made the hub request its
-      // kernel context before the bridge existed; the user's first hold then
-      // raced that cold start and could end without an answer. Establish the
-      // bridge before arming PTT so its first turn has a real response route.
+      // Canonical conversation admission requires the journal bridge to be ready.
       await self.activateScreenDemoPTTAfterBridgeWarmup(
         warmup: { await self.chatProvider.warmupBridge() },
         activate: { self.activateScreenDemoPTT() }
@@ -463,7 +452,7 @@ extension SBOnboardingModel {
     }
   }
 
-  /// The screen demo owns PTT only while its stage is still mounted. Keep this
+  /// The screen demo owns the Talk shortcut only while its stage is still mounted. Keep this
   /// lifecycle fence outside the unstructured task so the same production
   /// boundary can be regression-tested: leaving the stage during a cold bridge
   /// start must not attach fresh event monitors to the next onboarding page.
@@ -516,13 +505,12 @@ extension SBOnboardingModel {
     screenDemoDone = false
     screenDemoPTTReady = false
     screenDemoPTTUnavailable = false
-    ShortcutSettings.shared.pttTranscriptionModeDemoOverride = nil
     resetFloatingBarConversation()
     PushToTalkManager.shared.cleanup()
     FloatingControlBarManager.shared.hideForOnboardingDemo()
   }
 
-  /// The push-to-talk chord to prompt for the voice demo.
+  /// The conversation shortcut shown in the voice demo.
   var voiceChordTokens: [String] {
     let tokens = ShortcutSettings.shared.pttShortcut.displayTokens
     return tokens.isEmpty ? ["fn"] : tokens

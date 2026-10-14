@@ -58,7 +58,7 @@ final class ConversationStructureEnrichmentTests: XCTestCase {
     XCTAssertEqual(detail?.emoji, "✅")
     XCTAssertNotNil(detail?.commitmentsJson)
     XCTAssertEqual(work.first { $0.kind == .structure }?.state, .succeeded)
-    XCTAssertEqual(work.first { $0.kind == .actionItems }?.state, .pending)
+    XCTAssertNil(work.first { $0.kind == .actionItems })
   }
 
   func testStructureFailureIsIndependentAndDurableAcrossRestart() async throws {
@@ -76,7 +76,7 @@ final class ConversationStructureEnrichmentTests: XCTestCase {
     let work = try await restarted.enrichmentWork(conversationId: handle.conversationId)
     XCTAssertEqual(work.first { $0.kind == .structure }?.state, .pending)
     XCTAssertEqual(work.first { $0.kind == .structure }?.attemptCount, 1)
-    XCTAssertEqual(work.first { $0.kind == .actionItems }?.state, .pending)
+    XCTAssertNil(work.first { $0.kind == .actionItems })
   }
 
   func testMalformedStructureCandidateFailsWithoutPartialCommit() async throws {

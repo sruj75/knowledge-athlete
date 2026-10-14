@@ -1,18 +1,22 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:9f29d9a045cc890046b6af3b91d2ef78ef49ca0106723f5c8965c555fc3d28a7",
+  "pageVersion": "sha256:a1aa9352711a0a5070d2babb6290c9600d149de7e444d5ef69ead69255b8f6d2",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
-      "statement": "The repository composes a canonical FastAPI backend with desktop and transient compute routes and bundles a Node agent with TypeScript build and Vitest test commands.",
+      "statement": "The repository composes a canonical FastAPI backend with desktop and transient compute routes and bundles a Node/SQLite conversation storage service with TypeScript build and Vitest test commands.",
       "evidence": [
         {
           "resource": "repo://backend/main.py#L95-L121",
-          "version": "repo-lines-v1:sha256:ce2a2d355649e59414cc689ec2efe5a2e060628696463c4b4792ebc8211fde2f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzM2ExNDM2M2MxN2NiYjhiOGIzMjNmMTBlMTZhMGQyZmU4ZTI3MDIwYTU0OTE5YzFiOGY3NWM4ODM4ODliYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
+          "version": "repo-lines-v1:sha256:acc9457491b70a3a23bf6329a0a698221b6a08c9b5459e4be7957a4636863c80:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAzMzFiZTgwMjYxZmFjMDQ5YWJmYjhlZjljYzNmODk2YmQwZWFjZTZiNmEwZDU4MjA0ZTYxZmViZTk1OGYxYjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImEzM2ExNDM2M2MxN2NiYjhiOGIzMjNmMTBlMTZhMGQyZmU4ZTI3MDIwYTU0OTE5YzFiOGY3NWM4ODM4ODliYjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5MjNmNjNhYWUwZWQwNTNiZjY1YWFiMjk3MTgwYTM5NTUxMjVlMmI2ZWZiZmViOTZiNDQ0YmJjYmI1ZDZmMGMifQ"
         },
         {
-          "resource": "repo://desktop/macos/agent/package.json#L1-L22",
-          "version": "repo-lines-v1:sha256:da7bb2587998088d99649c353f144b1e6e838ac96dd001450ce3873e0b69c538:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIyZTE0MzJhZmUzOGVjZTZmN2I2OTJkZTNhNWE2NTYwNmZjYzlkODkwOTI0ZDkyMjRiOWUyMmRhYzRmM2ZiNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3ZjBlODBjYTM4NWJkODM2YjI5OTFjNzkxZDFmZmY1N2UzNDJhZDlhNTAyM2U0NzUzMTQ5YmU5ZDlhYzBhYTkifQ"
+          "resource": "repo://desktop/macos/agent/package.json",
+          "version": "repo-file-v1:sha256:d76bacea894904b2e5bfca5af67a989b454274b4889e61ef9c1359b960384550"
+        },
+        {
+          "resource": "repo://desktop/macos/agent/src/conversation-storage.ts",
+          "version": "repo-file-v1:sha256:9464c845201e0034197525fb553043416bf13fdc1140a631d4b6aa3d032d5409"
         }
       ]
     },
@@ -60,21 +64,25 @@
     },
     {
       "id": "claim_ed2bd5ac19a041548c406e2f8d7697a1",
-      "statement": "The supervisor combines existing observations and local context into private guidance admitted through the native voice owner rather than an independent product-write loop.",
+      "statement": "The Supervisor combines permitted observations and local context into private guidance delivered through the shared continuous conversation owner; typed and native/fallback voice share A's pinned instructions.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/RealtimeHubController%2BSupervisor.swift#L23-L138",
-          "version": "repo-lines-v1:sha256:24098c4a2746c0760c1a2eded41f4123e4d54686deef9402759f9d06b7a5d823:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiNjU4YmM3MWE2ZDM2NjY4MWE2OWI0YTg4NGJiZjkzODhjNjg1MzkyMDBkOWJkM2I1NDZkODkyYmY1Mjc2OTE4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI4Zjk0ZjY4NmI2OWEyZmIwMWI4YmZkNGI2YzA0Nzc1OTJkYzU0Njc5N2ZkMDQ5ZTcyZWU4Y2ZjNDc3ZjgwNWQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIwNWEwMGU1MGFhMDk5YzY4MGM1ODBmZGM3NjVlM2ZhMzg5MWQ3ZjdhMDVmY2QzODA4NzYzNDZhNDM3OGQ1ZmRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNzMxZTQ3ODVjMmIzNmY2MGFhYTM3ZWZmODkyMTk0ZTJkNGU5NzExNjUyZWNjMDQwNGE0MWJiYmIzMDJjZTdhIn0"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
+          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L74-L100",
-          "version": "repo-lines-v1:sha256:97f333da924c49d5cdc3ea2ea0460035382e6ee8fcee0732c2f1668553bc8cd3:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwY2E1OTQ2ZTBlMjBlMTkzYzFhODBkNWU3ZDU3MGMzYzY5NjBmYmRkNjgwMjBlNDY1ODQyM2UzMzRiZTllZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhYjZkZjgzMzVhMDFhM2UxZTIzMmFjN2EyOTM1OWExMDIzMzdkZTVkOTg5YTBmMmMzODQ4NmQyNzk0ZTM4Y2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwNWVmMDg3Y2MzYjQzNmNkNDA1MjMxZThiZTRjZWVkZmRiY2ZmM2MzYTZkODQ5MmJjZWRhZjk2NGJmMWZiYTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkMTNiYjBlMWE2Mjc4ZDYwNmZlZjI0OWMyZTU2MzM4MWI0NzZiYTM2YjZmNDE1MzM3ODU4MTE3Y2M3YjY4NTkifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
+          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift",
+          "version": "repo-file-v1:sha256:39dab477cbfee2b6bd0f0f33511ccc4f7ead892f509fb5311b1b64f4cbb6a5f0"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T17:33:01.317Z"
+    "at": "2026-10-14T15:50:15.263Z"
   }
 }

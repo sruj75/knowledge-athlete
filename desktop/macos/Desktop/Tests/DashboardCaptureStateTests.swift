@@ -56,9 +56,7 @@ final class DashboardCaptureStateTests: XCTestCase {
         options: .regularExpression) != nil)
     XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .memory))
     XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .memories))
-    XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .tasks))
     XCTAssertTrue(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .rewind))
-    XCTAssertFalse(DesktopNavigationPolicy.returnsHomeOnUnhandledEscape(from: .insights))
   }
 
   private func dashboardSource() throws -> String {

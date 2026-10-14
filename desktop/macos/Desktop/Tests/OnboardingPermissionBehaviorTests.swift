@@ -122,17 +122,26 @@ final class OnboardingPermissionBehaviorTests: XCTestCase {
     XCTAssertEqual(model.scrState, .ask)
   }
 
-  func testAccessibilityCopyNamesGlobalPTTAndPreciseRewindFocusTargeting() throws {
+  func testAccessibilityCopyNamesGlobalTalkAndPreciseRewindWindowTargeting() throws {
     let model = SBOnboardingModel(appState: AppState(), chatProvider: ChatProvider(), onComplete: nil)
     let copy = model.message(for: .accessibility)
 
-    XCTAssertTrue(copy.contains("global push-to-talk"))
-    XCTAssertTrue(copy.contains("Rewind and Focus"))
+    XCTAssertTrue(copy.contains("global Talk shortcut"))
+    XCTAssertTrue(copy.contains("Rewind"))
     XCTAssertTrue(copy.contains("exact window"))
+    XCTAssertFalse(copy.contains("push-to-talk"))
+    XCTAssertFalse(copy.contains("Focus"))
     XCTAssertFalse(copy.contains("click and type"))
+
+    let talkCopy = model.message(for: .shortcutTalk).lowercased()
+    XCTAssertTrue(talkCopy.contains("tap"))
+    XCTAssertTrue(talkCopy.contains("again"))
+    XCTAssertTrue(talkCopy.contains("end"))
+    XCTAssertFalse(talkCopy.contains("hold"))
 
     let viewSource = try desktopSourceFile("Onboarding/SecondBrain/SBOnboardingView.swift")
     XCTAssertFalse(viewSource.contains("click/type"))
+    XCTAssertFalse(viewSource.contains("Now hold it"))
   }
 
   /// Static absence tripwire: the retired live Automation/FDA consent surface

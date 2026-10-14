@@ -98,21 +98,17 @@ final class ScreenContextTelemetryTests: XCTestCase {
     XCTAssertEqual(facts?.succeeded, false)
   }
 
-  func testTelemetryContextDerivesSurfaceRunAndPillIdentifiers() {
-    let pillId = UUID()
-    let pillContext = ScreenContextTelemetryContext.from(surfaceRef: .floatingPill(pillId: pillId))
-    XCTAssertEqual(pillContext.surface, "floating_bar")
-    XCTAssertEqual(pillContext.surfaceKind, "floating_bar")
-    XCTAssertEqual(pillContext.externalRefKind, "pill")
-    XCTAssertEqual(pillContext.externalRefId, pillId.uuidString)
-    XCTAssertEqual(pillContext.pillId, pillId.uuidString)
-    XCTAssertNil(pillContext.runId)
-
-    let runContext = ScreenContextTelemetryContext.from(surfaceRef: .floatingBarRun(runId: "run-123"))
-    XCTAssertEqual(runContext.surface, "floating_bar")
-    XCTAssertEqual(runContext.externalRefKind, "run")
-    XCTAssertEqual(runContext.runId, "run-123")
-    XCTAssertNil(runContext.pillId)
+  func testTelemetryContextPreservesSharedChatIdentityAcrossTypedAndVoiceSurfaces() {
+    let chat = AgentSurfaceReference.mainChat(chatId: "chat-123")
+    let typed = ScreenContextTelemetryContext.from(surfaceRef: chat)
+    let voice = ScreenContextTelemetryContext.from(surfaceRef: chat.realtimeVoiceCompanion())
+    XCTAssertEqual(typed.surface, "main_chat")
+    XCTAssertEqual(voice.surface, "realtime_voice")
+    XCTAssertEqual(typed.externalRefKind, "chat")
+    XCTAssertEqual(voice.externalRefId, typed.externalRefId)
+    XCTAssertEqual(voice.externalRefId, "chat-123")
+    XCTAssertNil(voice.pillId)
+    XCTAssertNil(voice.runId)
   }
 
   func testAmbientPayloadMinimizesScreenContext() throws {
@@ -232,24 +228,6 @@ final class ScreenContextTelemetryTests: XCTestCase {
     XCTAssertFalse(snapshot.keywords.contains("Cursor"))
   }
 
-  func testPTTDoesNotCreateAnAmbientScreenContextSideChannel() throws {
-    let hubSource = try RealtimeHubControllerSourceTestSupport.moduleSource(testFilePath: #filePath)
-    let pttSource = try String(
-      contentsOf: URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .appendingPathComponent("Sources/FloatingControlBar/PushToTalkManager.swift"),
-      encoding: .utf8
-    )
-
-    XCTAssertFalse(hubSource.contains("prefetchVoiceTurnScreenContextIfNeeded"))
-    XCTAssertFalse(hubSource.contains("voiceTurnScreenContextEnvelopeJSON"))
-    XCTAssertFalse(hubSource.contains("ScreenContextWorkContextBuilder.payload"))
-    XCTAssertFalse(hubSource.contains("speculativeScreenshot"))
-    XCTAssertFalse(pttSource.contains("prefetchVoiceTurnScreenContextIfNeeded"))
-    XCTAssertTrue(hubSource.contains("FloatingControlBarManager.shared.kernelVoiceContextSnapshot()"))
-  }
-
   func testStaleWorkContextDropsScreenNowWhenFreshCaptureFails() throws {
     let source = try String(
       contentsOf: URL(fileURLWithPath: #filePath)
@@ -282,59 +260,13 @@ final class ScreenContextTelemetryTests: XCTestCase {
     XCTAssertFalse(postHog.contains(#""has_selected_app_context""#))
   }
 
-  func testDesktopPromptSeparatesCurrentScreenCaptureFromHistoricalWorkContext() {
-    let prompt = DesktopCapabilityRegistry.desktopToolPrompt
-    XCTAssertTrue(prompt.contains("Direct current-screen questions"))
-    XCTAssertTrue(prompt.contains("get_work_context only for recent historical activity"))
-    XCTAssertTrue(prompt.contains("never proves the screen is current"))
-    XCTAssertTrue(prompt.contains("capture_screen"))
-    XCTAssertTrue(prompt.contains("only after explicit current-turn consent"))
-    XCTAssertTrue(prompt.contains("request_permission"))
-  }
-
-  func testScopedDesktopPromptDoesNotMentionExcludedScreenTools() {
-    let prompt = DesktopCapabilityRegistry.scopedDesktopToolPrompt(
-      excluding: [
-        "get_work_context", "capture_screen", "get_screenshot", "request_permission", "check_permission_status",
-      ]
-    )
-    XCTAssertFalse(prompt.contains("get_work_context"))
-    XCTAssertFalse(prompt.contains("capture_screen"))
-    XCTAssertFalse(prompt.contains("get_screenshot"))
-    XCTAssertFalse(prompt.contains("request_permission"))
-    XCTAssertFalse(prompt.contains("check_permission_status"))
-    XCTAssertFalse(prompt.contains("Direct current-screen questions"))
-    XCTAssertFalse(prompt.contains("Recent work/activity history"))
-  }
-
-  func testScopedDesktopPromptDoesNotMentionPartiallyExcludedAlternatives() {
-    let prompt = DesktopCapabilityRegistry.scopedDesktopToolPrompt(
-      excluding: [
-        "request_permission", "get_screenshot", "search_memories", "create_action_item", "delete_task",
-        "update_agent_artifact_lifecycle",
-      ]
-    )
-    XCTAssertFalse(prompt.contains("request_permission"))
-    XCTAssertFalse(prompt.contains("get_screenshot"))
-    XCTAssertFalse(prompt.contains("search_memories"))
-    XCTAssertFalse(prompt.contains("create_action_item"))
-    XCTAssertFalse(prompt.contains("delete_task"))
-    XCTAssertFalse(prompt.contains("update_agent_artifact_lifecycle"))
-    XCTAssertTrue(prompt.contains("check_permission_status"))
-    XCTAssertTrue(prompt.contains("capture_screen"))
-    XCTAssertTrue(prompt.contains("get_memories"))
-    XCTAssertTrue(prompt.contains("update_action_item"))
-    XCTAssertTrue(prompt.contains("complete_task"))
-    XCTAssertTrue(prompt.contains("set_desktop_attention_override"))
-  }
-
   func testScreenInterestDetectorCatchesExplicitAndDeicticRequests() {
     XCTAssertTrue(ScreenContextInterestDetector.isScreenContextRequest("Can you see my screen?"))
     XCTAssertTrue(ScreenContextInterestDetector.isScreenContextRequest("Debug this error"))
     XCTAssertFalse(ScreenContextInterestDetector.isScreenContextRequest("What did I do yesterday?"))
   }
 
-  func testScreenContextAutoIncludePolicyCoversFloatingAndAgentTurns() {
+  func testScreenContextAutoIncludePolicyCoversFloatingAndMainTurns() {
     XCTAssertEqual(
       ScreenContextAutoIncludePolicy.reason(
         userText: "can you see my screen?",
@@ -356,12 +288,6 @@ final class ScreenContextTelemetryTests: XCTestCase {
         userText: "which one",
         systemPromptStyle: .floating,
         turnOwner: .floatingDefault
-      ))
-    XCTAssertTrue(
-      ScreenContextAutoIncludePolicy.shouldInclude(
-        userText: "take a look",
-        systemPromptStyle: .main,
-        turnOwner: .agentPill(UUID())
       ))
     XCTAssertTrue(
       ScreenContextAutoIncludePolicy.shouldInclude(

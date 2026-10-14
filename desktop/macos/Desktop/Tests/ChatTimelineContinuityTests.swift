@@ -940,115 +940,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertEqual(hydrated.contentBlocks.spawnedAgentIDs, [pillId, pillId])
   }
 
-  func testMaterializeAgentSpawnBlockFromSpawnToolResult() {
-    let pillId = UUID()
-    var blocks: [ChatContentBlock] = [
-      .toolCall(
-        id: "tool_1",
-        name: "spawn_agent",
-        status: .completed,
-        toolUseId: "tu-1",
-        input: ToolCallInput(summary: "Sleep Agent", details: "sleep five seconds"),
-        output: """
-          Agent started as a floating agent pill.
-          id: \(pillId.uuidString)
-          sessionId: sess-abc
-          runId: run-xyz
-          title: Sleep Agent
-          status: running
-          """
-      )
-    ]
-
-    let projection = ChatProvider.materializeAgentSpawnBlockIfNeeded(
-      in: &blocks,
-      toolUseId: "tu-1",
-      toolName: "spawn_agent"
-    )
-    XCTAssertEqual(
-      projection,
-      ChatProvider.SpawnedAgentPillProjection(
-        pillID: pillId,
-        sessionID: "sess-abc",
-        runID: "run-xyz",
-        title: "Sleep Agent",
-        objective: "sleep five seconds"
-      )
-    )
-    XCTAssertEqual(blocks.count, 2)
-    guard
-      case .agentSpawn(_, let spawnPill, let sessionId, let runId, let title, let objective) =
-        blocks[1]
-    else {
-      return XCTFail("spawn_agent tool result must emit .agentSpawn")
-    }
-    XCTAssertEqual(spawnPill, pillId)
-    XCTAssertEqual(sessionId, "sess-abc")
-    XCTAssertEqual(runId, "run-xyz")
-    XCTAssertEqual(title, "Sleep Agent")
-    XCTAssertEqual(objective, "sleep five seconds")
-
-    // Idempotent on repeat apply.
-    ChatProvider.materializeAgentSpawnBlockIfNeeded(
-      in: &blocks,
-      toolUseId: "tu-1",
-      toolName: "spawn_agent"
-    )
-    XCTAssertEqual(blocks.count, 2)
-
-    // Structured spawn card is the single visible entrypoint (tool link hidden).
-    let groups = ContentBlockGroup.visibleChatGroups(blocks, isStreaming: false)
-    XCTAssertEqual(groups.count, 1)
-    guard case .agentSpawn(_, let visiblePill, _, let visibleRun, _, _) = groups[0] else {
-      return XCTFail("expected only agentSpawn card after materialize, got \(groups)")
-    }
-    XCTAssertEqual(visiblePill, pillId)
-    XCTAssertEqual(visibleRun, "run-xyz")
-  }
-
-  func testMaterializeAgentSpawnBlockFromCanonicalProductionJSONResult() throws {
-    let pillId = UUID(uuidString: "C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48")!
-    // Exact compact response shape returned by control-tools.ts stringifyToolResult.
-    let output =
-      #"{"ok":true,"routeDecision":{"effect":"spawn_background_agent"},"requestedAgentCount":1,"agents":[{"kind":"background","delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"pi-mono","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}],"delegation":null,"session":{"sessionId":"sess-prod","ownerId":"owner-1","title":"Memory Insight","surfaceKind":"floating_agent","externalRefKind":"pill","externalRefId":"C7CBA329-65C4-4A5C-96A6-1A0A5FEECC48","defaultAdapterId":"pi-mono","metadata":{}},"run":{"runId":"run-prod","sessionId":"sess-prod"},"attempt":null}"#
-    var blocks: [ChatContentBlock] = [
-      .toolCall(
-        id: "tool-prod",
-        name: "spawn_agent",
-        status: .completed,
-        toolUseId: "tu-prod",
-        input: ToolCallInput(summary: "Memory Insight", details: "look through today's memories"),
-        output: output
-      )
-    ]
-
-    let projection = ChatProvider.materializeAgentSpawnBlockIfNeeded(
-      in: &blocks,
-      toolUseId: "tu-prod",
-      toolName: "spawn_agent"
-    )
-    XCTAssertEqual(projection?.runID, "run-prod")
-
-    XCTAssertEqual(blocks.count, 2)
-    guard
-      case .agentSpawn(let blockId, let actualPill, let sessionId, let runId, let title, let objective) =
-        blocks[1]
-    else { return XCTFail("canonical production result must materialize agentSpawn") }
-    XCTAssertEqual(blockId, "agent_spawn_run-prod")
-    XCTAssertEqual(actualPill, pillId)
-    XCTAssertEqual(sessionId, "sess-prod")
-    XCTAssertEqual(runId, "run-prod")
-    XCTAssertEqual(title, "Memory Insight")
-    XCTAssertEqual(objective, "look through today's memories")
-
-    ChatProvider.materializeAgentSpawnBlockIfNeeded(
-      in: &blocks,
-      toolUseId: "tu-prod",
-      toolName: "spawn_agent"
-    )
-    XCTAssertEqual(blocks.count, 2)
-  }
-
   func testSpawnToolOutputParsesSessionAndRunIds() {
     let pillId = UUID()
     let block = ChatContentBlock.toolCall(
@@ -1129,69 +1020,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
         pillIdMatches: { $0 == pillId }
       ),
       .pillId(pillId)
-    )
-  }
-
-  @MainActor
-  func testFindPillMatchesByHydratePreferenceOrder() {
-    let defaults = UserDefaults.standard
-    let previousAuthOwner = defaults.object(forKey: .authUserId)
-    let previousAutomationOwner = defaults.object(forKey: .automationOwnerOverride)
-    let ownerID = "timeline-hydrate-owner"
-    defaults.removeObject(forKey: .automationOwnerOverride)
-    defaults.set(ownerID, forKey: .authUserId)
-
-    let runPill = AgentPill(id: UUID(), query: "by-run", ownerID: ownerID)
-    runPill.canonicalRunId = "run-match"
-    runPill.canonicalSessionId = "sess-other"
-
-    let sessionPill = AgentPill(id: UUID(), query: "by-session", ownerID: ownerID)
-    sessionPill.canonicalSessionId = "sess-match"
-
-    let pillId = UUID()
-    let idPill = AgentPill(id: pillId, query: "by-id", ownerID: ownerID)
-
-    let manager = AgentPillsManager.shared
-    let previous = manager.pills
-    defer {
-      if let previousAuthOwner {
-        defaults.set(previousAuthOwner, forKey: .authUserId)
-      } else {
-        defaults.removeObject(forKey: .authUserId)
-      }
-      if let previousAutomationOwner {
-        defaults.set(previousAutomationOwner, forKey: .automationOwnerOverride)
-      } else {
-        defaults.removeObject(forKey: .automationOwnerOverride)
-      }
-      manager.replacePillsForTesting(previous)
-    }
-    manager.replacePillsForTesting([runPill, sessionPill, idPill])
-
-    XCTAssertEqual(
-      manager.findPill(
-        matching: .make(pillId: pillId, sessionId: "sess-match", runId: "run-match")
-      )?.id,
-      runPill.id,
-      "runId must win over sessionId and pillId"
-    )
-    XCTAssertEqual(
-      manager.findPill(
-        matching: .make(pillId: pillId, sessionId: "sess-match", runId: "missing-run")
-      )?.id,
-      sessionPill.id,
-      "sessionId must win over pillId when run misses"
-    )
-    XCTAssertEqual(
-      manager.findPill(
-        matching: .make(pillId: pillId, sessionId: "missing-sess", runId: nil)
-      )?.id,
-      pillId
-    )
-    XCTAssertNil(
-      manager.findPill(
-        matching: .make(pillId: UUID(), sessionId: "nope", runId: "nope")
-      )
     )
   }
 
@@ -1388,14 +1216,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
       dashboard.contains("transcriptMessages"),
       "Home chat must not filter notch/PTT turns out of history"
     )
-    XCTAssertTrue(
-      dashboard.contains("openAgentChatFromTimeline(agentID: agentID, completion: completion)"),
-      "Home Chat must open spawned-agent links from the timeline with open result feedback"
-    )
-    XCTAssertTrue(
-      dashboard.contains("openAgentChatFromTimeline(ref:completion:)"),
-      "Home Chat must open structured agent refs with open result feedback"
-    )
 
     let floatingState = try String(
       contentsOf: root.appendingPathComponent("Sources/FloatingControlBar/FloatingControlBarState.swift"),
@@ -1466,10 +1286,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
       contentsOf: root.appendingPathComponent("Sources/MainWindow/Components/ChatBubble.swift"),
       encoding: .utf8
     )
-    let floating = try String(
-      contentsOf: root.appendingPathComponent("Sources/FloatingControlBar/FloatingControlBarView.swift"),
-      encoding: .utf8
-    )
 
     XCTAssertTrue(
       bubble.contains("ChatContinuityInvariants.agentPreviewText(prompt: promptSnippet, output: output)"),
@@ -1478,12 +1294,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
     XCTAssertTrue(
       bubble.contains("ChatContinuityInvariants.agentPreviewText(prompt: summary.prompt, output: summary.output)"),
       "BackgroundAgentCard header must preview prompt, not raw output"
-    )
-    XCTAssertTrue(
-      floating.contains("ChatContinuityInvariants.agentPreviewText(")
-        && floating.contains("prompt: pill.query")
-        && floating.contains("output: pill.latestActivity"),
-      "agent list rows must preview query/objective via agentPreviewText"
     )
 
     let aiResponse = try String(
@@ -1519,8 +1329,11 @@ final class ChatTimelineContinuityTests: XCTestCase {
       encoding: .utf8
     )
 
+    // omi-test-quality: source-inspection -- static wiring contract: the floating
+    // surface forwards viewport-derived messages to the shared per-message renderer.
     XCTAssertTrue(aiResponse.contains("resources: message.displayResources"))
-    XCTAssertTrue(floatingView.contains("resources: message.displayResources"))
+    XCTAssertTrue(floatingView.contains("currentMessage: state.currentAIMessage(from: provider)"))
+    XCTAssertTrue(floatingView.contains("chatHistory: state.derivedChatHistory(from: provider)"))
     XCTAssertFalse(
       aiResponse.contains("provider.messages") && aiResponse.contains(".resources"),
       "AIResponseView must not read provider-wide resources"
@@ -1536,58 +1349,6 @@ final class ChatTimelineContinuityTests: XCTestCase {
   }
 
   /// INV-6 forbidden dual-write / multi-handler patterns — mechanical tripwires.
-  func testForbiddenContinuityPatternsAbsentFromWritePath() throws {
-    let root = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-
-    let hub = try RealtimeHubControllerSourceTestSupport.moduleSource(testFilePath: #filePath)
-    let runtime = try String(
-      contentsOf: root.appendingPathComponent("Sources/Chat/AgentRuntimeProcess.swift"),
-      encoding: .utf8
-    )
-    let bridge = try String(
-      contentsOf: root.appendingPathComponent("Sources/Chat/AgentBridge.swift"),
-      encoding: .utf8
-    )
-    let floatingState = try String(
-      contentsOf: root.appendingPathComponent("Sources/FloatingControlBar/FloatingControlBarState.swift"),
-      encoding: .utf8
-    )
-    let provider = try String(
-      contentsOf: root.appendingPathComponent("Sources/Providers/ChatProvider.swift"),
-      encoding: .utf8
-    )
-    let window = try String(
-      contentsOf: root.appendingPathComponent("Sources/FloatingControlBar/FloatingControlBarWindow.swift"),
-      encoding: .utf8
-    )
-
-    XCTAssertFalse(
-      hub.contains("ChatProvider.mainInstance"),
-      "realtime transport must project through the journal-facing manager, not reach into ChatProvider"
-    )
-    XCTAssertFalse(hub.contains("warmProvider = ChatProvider()"))
-    XCTAssertFalse(hub.contains("private var warmProvider"))
-    XCTAssertFalse(
-      hub.contains("ChatProvider()"),
-      "speculative warm must not construct a second ChatProvider"
-    )
-
-    XCTAssertFalse(runtime.contains("turn_recorded"))
-    XCTAssertFalse(bridge.contains("setTurnRecordedHandler"))
-    XCTAssertTrue(runtime.contains("func setJournalTurnChangedHandler"))
-    XCTAssertTrue(bridge.contains("func setJournalTurnChangedHandler"))
-
-    for source in [hub, runtime, bridge, floatingState, provider, window] {
-      XCTAssertFalse(
-        source.contains("suppressNextRecordedTurn"),
-        "dual-write bandage suppressNextRecordedTurn is forbidden"
-      )
-    }
-
-    XCTAssertFalse(floatingState.contains("@Published var chatHistory"))
-  }
 
   /// INV-6 single ChatProvider lifecycle — only ViewModelContainer may construct production instances.
   func testProductionSourcesOnlyConstructChatProviderInViewModelContainer() throws {

@@ -238,7 +238,6 @@ APP_PATH="$(python3 "$SCRIPT_DIR/../../scripts/dev-harness/dev_harness/desktop_p
 # copy is silently skipped → app shows "AI components missing".
 AGENT_DIR="$SCRIPT_DIR/agent"
 AGENT_PACKAGED_NODE_MODULES="$SCRIPT_DIR/.harness/agent-runtime/agent-node_modules"
-PI_MONO_PACKAGED_NODE_MODULES="$SCRIPT_DIR/.harness/agent-runtime/pi-mono-extension-node_modules"
 APP_DESKTOP_PATH="$HOME/Desktop/$APP_NAME.app"
 APP_DOWNLOADS_PATH="$HOME/Downloads/$APP_NAME.app"
 SIGN_IDENTITY="${OMI_SIGN_IDENTITY:-}"
@@ -910,27 +909,6 @@ else
 step "Preparing agent runtime..."
 "$(dirname "$0")/scripts/prepare-agent-runtime.sh" --universal-node
 
-step "Generating tool surfaces..."
-(
-  cd agent
-  NODE_BIN=""
-  for candidate in \
-    "../Desktop/Sources/Resources/node" \
-    "/opt/homebrew/opt/node@22/bin/node" \
-    "/usr/local/opt/node@22/bin/node" \
-    "$(command -v node 2>/dev/null || true)"; do
-    if [[ -n "$candidate" && -x "$candidate" ]] && "$candidate" --experimental-strip-types -e '0' >/dev/null 2>&1; then
-      NODE_BIN="$candidate"
-      break
-    fi
-  done
-  if [[ -z "$NODE_BIN" ]]; then
-    echo "ERROR: Node.js 22.6+ with --experimental-strip-types required for tool surface generation." >&2
-    exit 1
-  fi
-  "$NODE_BIN" --experimental-strip-types scripts/generate-tool-surfaces.mjs
-)
-
 step "Checking schema docs..."
 if [ -f scripts/check_schema_docs.sh ]; then
     bash scripts/check_schema_docs.sh || substep "Schema docs check failed (non-fatal)"
@@ -1044,30 +1022,6 @@ if [ -d "$AGENT_DIR/dist" ]; then
         exit 1
     fi
     macos_copy_tree "$AGENT_PACKAGED_NODE_MODULES" "$APP_BUNDLE/Contents/Resources/agent/node_modules"
-    mkdir -p "$APP_BUNDLE/Contents/Resources/agent/src/runtime"
-    cp -f "$AGENT_DIR/src/runtime/control-tool-manifest.ts" "$APP_BUNDLE/Contents/Resources/agent/src/runtime/"
-    cp -f "$AGENT_DIR/src/runtime/omi-tool-manifest.ts" "$APP_BUNDLE/Contents/Resources/agent/src/runtime/"
-fi
-
-substep "Copying pi-mono-extension (for piMono harness)"
-PI_MONO_EXT_DIR="$(dirname "$0")/pi-mono-extension"
-if [ -d "$PI_MONO_EXT_DIR" ]; then
-    if [ ! -d "$PI_MONO_EXT_DIR/node_modules" ]; then
-        substep "Installing pi-mono-extension dependencies"
-        (cd "$PI_MONO_EXT_DIR" && npm ci --no-fund --no-audit)
-    fi
-    mkdir -p "$APP_BUNDLE/Contents/Resources/pi-mono-extension"
-    cp -f "$PI_MONO_EXT_DIR/index.ts" "$APP_BUNDLE/Contents/Resources/pi-mono-extension/"
-    cp -f "$PI_MONO_EXT_DIR/package.json" "$APP_BUNDLE/Contents/Resources/pi-mono-extension/"
-    cp -f "$PI_MONO_EXT_DIR/package-lock.json" "$APP_BUNDLE/Contents/Resources/pi-mono-extension/"
-    if [ ! -d "$PI_MONO_PACKAGED_NODE_MODULES" ]; then
-        echo "ERROR: packaged pi-mono-extension dependencies missing at $PI_MONO_PACKAGED_NODE_MODULES"
-        echo "       Run scripts/prepare-agent-runtime.sh before bundling."
-        exit 1
-    fi
-    macos_copy_tree "$PI_MONO_PACKAGED_NODE_MODULES" "$APP_BUNDLE/Contents/Resources/pi-mono-extension/node_modules"
-else
-    echo "Warning: pi-mono-extension not found at $PI_MONO_EXT_DIR"
 fi
 
 substep "Copying .env.app"

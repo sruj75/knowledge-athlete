@@ -109,7 +109,6 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
         'POSTHOG_HOST',
         'LANGFUSE_BASE_URL',
         'LANGFUSE_TRACING_ENVIRONMENT',
-        'LANGFUSE_PROMPT_NAME',
         'LANGFUSE_PROMPT_CACHE_TTL_SECONDS',
         'REDIS_DB_HOST',
         'REDIS_DB_PORT',
@@ -142,7 +141,7 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
     assert backend['env']['BILLING_MODE']['value'] == 'disabled'
     assert backend['env']['POSTHOG_HOST']['value'] == 'https://us.i.posthog.com'
     assert backend['env']['LANGFUSE_BASE_URL']['value'] == 'https://us.cloud.langfuse.com'
-    assert backend['env']['LANGFUSE_PROMPT_NAME']['value'] == 'intentive-chat-system'
+    assert 'LANGFUSE_PROMPT_NAME' not in backend['env']
     assert backend['env']['LANGFUSE_PROMPT_CACHE_TTL_SECONDS']['value'] == '300'
     for binding in backend['secrets'].values():
         assert set(binding) <= {'secret', 'version_env_var'}

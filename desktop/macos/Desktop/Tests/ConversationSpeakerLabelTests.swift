@@ -150,8 +150,11 @@ final class ConversationSpeakerLabelTests: XCTestCase {
         .map(\.state),
       [.superseded])
     XCTAssertEqual(
+      work.filter { $0.contentGeneration == after.contentGeneration }.map(\.kind),
+      [.structure])
+    XCTAssertEqual(
       work.filter { $0.contentGeneration == after.contentGeneration }.map(\.state),
-      [.pending, .pending])
+      [.pending])
   }
 
   private func active(_ storage: TranscriptionStorage, text: String) async throws -> ConversationCaptureHandle {

@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 
 struct AgentArtifactProjection: Codable, Equatable, Identifiable {
@@ -130,118 +129,13 @@ struct AgentArtifactProjection: Codable, Equatable, Identifiable {
   }
 }
 
-struct AgentArtifactProjectionRequest: Equatable {
-  let sessionId: String?
-  let runId: String?
-  let attemptId: String?
-  let role: String?
-  let limit: Int?
-
-  init(
-    sessionId: String? = nil,
-    runId: String? = nil,
-    attemptId: String? = nil,
-    role: String? = nil,
-    limit: Int? = nil
-  ) {
-    self.sessionId = sessionId
-    self.runId = runId
-    self.attemptId = attemptId
-    self.role = role
-    self.limit = limit
-  }
-
-  var isScoped: Bool {
-    sessionId?.isEmpty == false || runId?.isEmpty == false || attemptId?.isEmpty == false
-  }
-
-  var toolInput: [String: Any] {
-    var input: [String: Any] = [:]
-    if let sessionId, !sessionId.isEmpty {
-      input["sessionId"] = sessionId
-    }
-    if let runId, !runId.isEmpty {
-      input["runId"] = runId
-    }
-    if let attemptId, !attemptId.isEmpty {
-      input["attemptId"] = attemptId
-    }
-    if let role, !role.isEmpty {
-      input["role"] = role
-    }
-    if let limit {
-      input["limit"] = limit
-    }
-    return input
-  }
-}
-
 enum AgentArtifactProjectionError: LocalizedError, Equatable {
-  case missingScope
   case invalidResponse
   case toolFailed(String)
-
   var errorDescription: String? {
     switch self {
-    case .missingScope:
-      return "Artifact inspection requires a session, run, or attempt."
-    case .invalidResponse:
-      return "Artifact inspection returned an invalid response."
-    case .toolFailed(let message):
-      return message
-    }
-  }
-}
-
-protocol AgentArtifactProjectionLoading: Sendable {
-  func controlTool(name: String, input: RuntimeJSONPayloadBox) async throws -> String
-}
-
-extension AgentBridge: AgentArtifactProjectionLoading {
-  func controlTool(name: String, input: RuntimeJSONPayloadBox) async throws -> String {
-    try await controlTool(
-      name: name,
-      input: input.value,
-      authorizationSnapshot: nil)
-  }
-}
-
-@MainActor
-final class AgentArtifactProjectionStore: ObservableObject {
-  @Published private(set) var artifacts: [AgentArtifactProjection] = []
-  @Published private(set) var isLoading = false
-  @Published private(set) var errorMessage: String?
-  private var loadGeneration = 0
-
-  func load(request: AgentArtifactProjectionRequest, bridge: AgentArtifactProjectionLoading) async {
-    loadGeneration += 1
-    let generation = loadGeneration
-    guard request.isScoped else {
-      artifacts = []
-      isLoading = false
-      errorMessage = AgentArtifactProjectionError.missingScope.localizedDescription
-      return
-    }
-
-    isLoading = true
-    errorMessage = nil
-    defer {
-      if loadGeneration == generation {
-        isLoading = false
-      }
-    }
-
-    do {
-      let result = try await bridge.controlTool(
-        name: "inspect_agent_artifacts",
-        input: RuntimeJSONPayloadBox(request.toolInput)
-      )
-      guard loadGeneration == generation else { return }
-      artifacts = try AgentArtifactProjection.parseList(fromToolResult: result)
-    } catch {
-      guard loadGeneration == generation else { return }
-      artifacts = []
-      errorMessage = error.localizedDescription
+    case .invalidResponse: return "Invalid historical artifact data."
+    case .toolFailed(let text): return text
     }
   }
 }

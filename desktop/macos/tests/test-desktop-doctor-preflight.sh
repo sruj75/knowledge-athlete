@@ -16,8 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$TMPDIR/bin" "$TMPDIR/desktop/macos/pi-mono-extension" "$TMPDIR/desktop/macos/tmp"
-touch "$TMPDIR/desktop/macos/pi-mono-extension/package.json"
+mkdir -p "$TMPDIR/bin" "$TMPDIR/desktop/macos/tmp"
 
 cat >"$TMPDIR/bin/xcrun" <<'SH'
 #!/usr/bin/env bash

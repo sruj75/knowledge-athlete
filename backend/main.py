@@ -32,7 +32,7 @@ from routers import (
     fair_use_reviews,
     advice,
     chat_sessions,
-    desktop_chat,
+    desktop_conversation,
     desktop_core,
     desktop_proxy,
     desktop_realtime,
@@ -114,7 +114,7 @@ app.include_router(fair_use_reviews.router)
 app.include_router(advice.router)
 app.include_router(chat_sessions.router)
 app.include_router(desktop_core.router)
-app.include_router(desktop_chat.router)
+app.include_router(desktop_conversation.router)
 app.include_router(desktop_proxy.router)
 app.include_router(desktop_realtime.router)
 app.include_router(desktop_supervisor.router)

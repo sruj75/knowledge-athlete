@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, suppress
 from dataclasses import dataclass
 import os
@@ -49,7 +49,7 @@ async def stream_managed_response_bytes(
     _monotonic: Callable[[], float] = time.monotonic,
     _sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     _wait: Callable[..., Awaitable[tuple[set[asyncio.Task[Any]], set[asyncio.Task[Any]]]]] = asyncio.wait,
-) -> AsyncIterator[bytes | object]:
+) -> AsyncGenerator[bytes | object, None]:
     """Yield raw response bytes; retry transport failures only before any byte."""
 
     active_policy = policy or ManagedStreamPolicy.from_environment()

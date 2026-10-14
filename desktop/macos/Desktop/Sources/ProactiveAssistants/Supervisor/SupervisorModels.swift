@@ -36,10 +36,52 @@ struct SupervisorScreenInput: Encodable, Sendable {
   }
 }
 
+struct SupervisorWebcamInput: Encodable, Sendable {
+  let jpegBase64: String
+  let capturedAt: String
+  enum CodingKeys: String, CodingKey {
+    case jpegBase64 = "jpeg_base64"
+    case capturedAt = "captured_at"
+  }
+}
+
+enum SupervisorInputAvailability: String, Encodable, Sendable {
+  case available, disabled, denied, unavailable, stale, suspended
+}
+
+struct SupervisorInputStatus: Encodable, Sendable {
+  var status: SupervisorInputAvailability = .unavailable
+  var capturedAt: String?
+  var ageMs: Int?
+  enum CodingKeys: String, CodingKey {
+    case status
+    case capturedAt = "captured_at"
+    case ageMs = "age_ms"
+  }
+}
+
+struct SupervisorInputStatuses: Encodable, Sendable {
+  var screen = SupervisorInputStatus()
+  var webcam = SupervisorInputStatus(status: .disabled)
+  var microphone = SupervisorInputStatus()
+  var system = SupervisorInputStatus()
+}
+
+enum SupervisorConversationState: String, Encodable, Sendable {
+  case closed, connecting, open, reconnecting, ending
+}
+
+struct SupervisorActiveConversation: Encodable, Equatable, Sendable {
+  let id: String
+  let state: SupervisorConversationState
+}
+
 struct SupervisorTranscriptInput: Encodable, Equatable, Sendable {
   let id: String
   let text: String
   let source: SupervisorTranscriptSource
+  var revision: Int = 0
+  var final: Bool = true
 }
 
 struct SupervisorConversationInput: Encodable, Equatable, Sendable {
@@ -47,9 +89,11 @@ struct SupervisorConversationInput: Encodable, Equatable, Sendable {
   let role: String
   let text: String
   let outcome: String?
+  var revision: Int = 0
+  var final: Bool = true
   enum CodingKeys: String, CodingKey {
     case turnID = "turn_id"
-    case role, text, outcome
+    case role, text, outcome, revision, final
   }
 }
 
@@ -63,12 +107,21 @@ struct SupervisorEvaluationRequest: Encodable, Sendable {
   let memories: [String]
   let profile: String
   let evaluationSharing: Bool
+  var observedAt: String = ""
+  var contentRevision: UInt64 = 0
+  var webcam: SupervisorWebcamInput?
+  var inputStatus = SupervisorInputStatuses()
+  var activeConversation: SupervisorActiveConversation?
   enum CodingKeys: String, CodingKey {
     case observationID = "observation_id"
     case sessionID = "session_id"
     case contextEpoch = "context_epoch"
     case evaluationSharing = "evaluation_sharing"
-    case screen, transcripts, conversation, memories, profile
+    case observedAt = "observed_at"
+    case contentRevision = "content_revision"
+    case inputStatus = "input_status"
+    case activeConversation = "active_conversation"
+    case screen, webcam, transcripts, conversation, memories, profile
   }
 }
 
@@ -100,10 +153,25 @@ struct SupervisorGuidance: Sendable {
   let authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   let action: SupervisorAction
   var context: String = ""
+  var relevantObservationEpoch: UInt64 = 0
 }
 
 enum SupervisorState: String, Sendable {
-  case idle, observing, evaluating, paused, disabled
+  case idle, observing, evaluating, paused, suspended, disabled
+}
+
+struct SupervisorObservationMetrics: Equatable, Sendable {
+  var admitted = 0
+  var budgetDeferrals = 0
+  var replacedPending = 0
+  var queueMs = 0
+  var providerMs = 0
+  var endToEndMs = 0
+}
+
+enum SupervisorRequestError: Error {
+  case payloadTooLarge
+  case rateLimited(reason: String, retryAfterSeconds: Int)
 }
 
 struct SupervisorMemoryContext: Sendable {

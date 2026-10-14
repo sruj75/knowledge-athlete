@@ -122,7 +122,7 @@ final class VoiceTurnCoordinator {
     requiresAuthenticatedOwner: Bool = false,
     ownerIDProvider: @escaping @MainActor () -> String? = { nil },
     ownerIsCurrent: @escaping @MainActor (String) -> Bool = {
-      AuthorizedToolExecution.isOwnerCurrent($0)
+      RuntimeOwnerIdentity.isAuthenticatedOwnerCurrent($0)
     }
   ) {
     domain = VoiceTurnDomain(model: model)
@@ -515,8 +515,9 @@ final class VoiceTurnCoordinator {
           || (previousTurn?.id == terminal.turnID && previousTurn?.providerFinished == true)
         let fullAnswerDurationMs = providerFinished ? playbackDurationMs : nil
         lastTerminalDelivery = (terminal.turnID, fullAnswerDurationMs != nil)
+        let terminalIntent = model.turn?.id == terminal.turnID ? model.turn?.intent : previousTurn?.intent
         if let admission = voiceObservationAdmissions.removeValue(forKey: terminal.turnID),
-          !Self.isHubRoute(terminal.route)
+          terminalIntent != .conversation, !Self.isHubRoute(terminal.route)
         {
           let outcome: String
           if fullAnswerDurationMs != nil {

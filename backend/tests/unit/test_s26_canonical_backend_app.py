@@ -25,7 +25,7 @@ def test_main_app_owns_retained_routes_and_rejects_retired_service_routes() -> N
 
     for method, path in (
         ('GET', '/v1/config/api-keys'),
-        ('POST', '/v2/models/{model}:streamGenerateContent'),
+        ('POST', '/v1/conversation/respond'),
         ('POST', '/v1/proxy/gemini/models'),
         ('POST', '/v2/realtime/session'),
         ('POST', '/v1/tts/synthesize'),

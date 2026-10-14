@@ -34,5 +34,4 @@ def reviewed_example(
     result: dict[str, object] = {'conversation': [item.model_dump(exclude_none=True) for item in event.conversation]}
     if isinstance(event, SupervisorDecisionObservation):
         result['transcripts'] = [item.model_dump() for item in event.transcripts]
-        result['guidance'] = event.note
     return result

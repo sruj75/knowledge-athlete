@@ -41,6 +41,10 @@ def source_label_for_path(path: PurePath, root_dir: PurePath = ROOT_DIR) -> str:
 # $ref dependencies automatically.
 TARGET_SCHEMAS = (
     'MintRequest',
+    'UsageReport',
+    'ConversationSessionRequest',
+    'ConversationSessionResponse',
+    'ConversationRespondRequest',
     'RealtimeSessionResponse',
     'SupervisorRequest',
     'SupervisorResponse',
@@ -53,10 +57,6 @@ TARGET_SCHEMAS = (
     'ConversationCandidateRequest',
     'ConversationCommitmentCandidate',
     'ConversationStructureResponse',
-    'RelatedTaskCandidate',
-    'ConversationActionItemsRequest',
-    'ConversationActionCandidate',
-    'ConversationActionItemsResponse',
     'FairUseConversationEvidence',
     'FairUseClassificationRequest',
     'FairUseClassificationResponse',
@@ -248,13 +248,6 @@ SWIFT_RESERVED = {
     '#available',
     '#selector',
 }
-
-
-def _swift_property(swift_name: str, wire_name: str, type_expr: str, optional: bool) -> str:
-    decl = f'public let {swift_name}: {type_expr}' + ('?' if optional else '')
-    if swift_name == wire_name:
-        return f'    {decl}'
-    return f'    {decl}\n    // wire: "{wire_name}"'
 
 
 def _render_struct(name: str, schema: dict[str, Any]) -> str:

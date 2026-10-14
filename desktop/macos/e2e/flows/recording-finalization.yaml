@@ -6,7 +6,6 @@ app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/AppState/AppServicesCoordinator.swift
   - desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationActionItemEnrichment.swift
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationDiscardAdmission.swift
   - desktop/macos/Desktop/Sources/ConversationFinalizationService.swift
   - desktop/macos/Desktop/Sources/MainWindow/Conversations/ConversationStructureEnrichment.swift

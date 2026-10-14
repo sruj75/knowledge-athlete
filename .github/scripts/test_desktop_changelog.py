@@ -19,9 +19,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-_SPEC = importlib.util.spec_from_file_location(
-    "desktop_changelog", Path(__file__).with_name("desktop-changelog.py")
-)
+_SPEC = importlib.util.spec_from_file_location("desktop_changelog", Path(__file__).with_name("desktop-changelog.py"))
 changelog = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(changelog)
 
@@ -93,18 +91,37 @@ let package = Package(
 )
 '''
         for case in (
-            "retired-documentation", "retained-documentation", "dependency-change",
-            "swift-exclusion", "product-source", "resource-change", "multiline-string",
-            "block-comment", "new-package",
+            "retired-documentation",
+            "retained-documentation",
+            "dependency-change",
+            "swift-exclusion",
+            "product-source",
+            "resource-change",
+            "multiline-string",
+            "block-comment",
+            "new-package",
         ):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
 
                 def git(*args: str) -> str:
                     return subprocess.check_output(
-                        ["git", "-c", "user.name=CI Test", "-c", "user.email=ci@example.invalid",
-                         "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
-                        cwd=root, env=env, text=True, stderr=subprocess.PIPE,
+                        [
+                            "git",
+                            "-c",
+                            "user.name=CI Test",
+                            "-c",
+                            "user.email=ci@example.invalid",
+                            "-c",
+                            "commit.gpgsign=false",
+                            "-c",
+                            "core.hooksPath=/dev/null",
+                            *args,
+                        ],
+                        cwd=root,
+                        env=env,
+                        text=True,
+                        stderr=subprocess.PIPE,
                     ).strip()
 
                 package = root / "desktop/macos/Desktop/Package.swift"
@@ -147,7 +164,10 @@ let package = Package(
                 git("commit", "--quiet", "-m", "documentation migration")
                 result = subprocess.run(
                     [sys.executable, str(script), "--base", base, "--head", "HEAD"],
-                    cwd=root, env=env, text=True, capture_output=True,
+                    cwd=root,
+                    env=env,
+                    text=True,
+                    capture_output=True,
                 )
                 self.assertEqual(result.returncode, 0 if case == "retired-documentation" else 1, result.stderr)
                 self.assertNotIn("check-sources-root-layout.py", result.stderr)
@@ -171,10 +191,16 @@ let package = Package(
                 def git(*args: str) -> str:
                     return subprocess.check_output(
                         [
-                            "git", "-c", "user.name=CI Test",
-                            "-c", "user.email=ci@example.invalid",
-                            "-c", "commit.gpgsign=false",
-                            "-c", "core.hooksPath=/dev/null", *args,
+                            "git",
+                            "-c",
+                            "user.name=CI Test",
+                            "-c",
+                            "user.email=ci@example.invalid",
+                            "-c",
+                            "commit.gpgsign=false",
+                            "-c",
+                            "core.hooksPath=/dev/null",
+                            *args,
                         ],
                         cwd=root,
                         env=env,
@@ -228,9 +254,9 @@ let package = Package(
             "desktop/macos/scripts/desktop-flow-lint.py",
             "desktop/macos/scripts/desktop_flow_contract.py",
             "desktop/macos/scripts/check-sources-root-layout.py",
-            # The continuity gauntlet and its flow definitions are internal
+            # The storage checks and flow definitions are internal
             # qualification infrastructure; PR labels cannot protect main push CI.
-            "desktop/macos/scripts/agent-continuity-gauntlet-lib.py",
+            "desktop/macos/scripts/test-conversation-storage.sh",
             "openwiki/codebase/testing/desktop-e2e.md",
             "desktop/macos/e2e/flows/agent-continuity.yaml",
             # Test files are never user-facing app changes (EXEMPT_DESKTOP_PATH_PREFIXES).

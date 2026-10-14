@@ -5,6 +5,59 @@ import XCTest
 @testable import Omi_Computer
 
 final class ConversationLocalFinalizationTests: XCTestCase {
+  func testRecoverySupersedesRetiredJobsWithoutBlockingCompletedSummary() async throws {
+    let owner = try makeStorage()
+    defer {
+      try? owner.pool.close()
+      try? FileManager.default.removeItem(at: owner.directory)
+    }
+    let handle = try await finishedConversation(owner.storage)
+    let discardClaim = try await owner.storage.claimDiscardWork(
+      conversationId: handle.conversationId, authorization: .unrestricted)
+    let discard = try XCTUnwrap(discardClaim)
+    _ = try await owner.storage.resolveDiscardWork(
+      conversationId: handle.conversationId,
+      contentGeneration: discard.contentGeneration, attemptCount: discard.attemptCount,
+      discard: false, authorization: .unrestricted)
+    let summaryClaim = try await owner.storage.claimEnrichmentWork(
+      conversationId: handle.conversationId, kind: .structure, authorization: .unrestricted)
+    let summary = try XCTUnwrap(summaryClaim)
+    _ = try await owner.storage.completeStructureWork(
+      conversationId: handle.conversationId,
+      contentGeneration: summary.contentGeneration, attemptCount: summary.attemptCount,
+      response: ConversationStructureComputeResponse(
+        generationId: UUID(), title: "Saved",
+        overview: "Retained summary", emoji: "", category: "other", commitments: []),
+      authorization: .unrestricted)
+    try await owner.pool.write { database in
+      try database.execute(
+        sql: """
+          INSERT INTO conversation_enrichment_work
+          (conversationId, contentGeneration, kind, state, attemptCount, createdAt, updatedAt)
+          VALUES (?, ?, ?, 'running', 1, ?, ?)
+          """,
+        arguments: [
+          handle.conversationId, summary.contentGeneration,
+          ConversationEnrichmentKind.actionItems.rawValue, Date(), Date(),
+        ])
+      try database.execute(
+        sql: "UPDATE transcription_sessions SET status = 'processing' WHERE conversationId = ?",
+        arguments: [handle.conversationId])
+    }
+    let restarted = TranscriptionStorage(databasePool: owner.pool)
+    let pending = try await restarted.recoverAndListPendingEnrichmentWork()
+    XCTAssertFalse(pending.contains { $0.kind == .actionItems })
+    let work = try await restarted.enrichmentWork(conversationId: handle.conversationId)
+    XCTAssertEqual(work.first { $0.kind == .actionItems }?.state, .superseded)
+    let detail = try await restarted.conversationDetail(id: handle.conversationId)
+    XCTAssertEqual(detail?.status, .completed)
+    XCTAssertEqual(detail?.overview, "Retained summary")
+    let claim = try await restarted.claimEnrichmentWork(
+      conversationId: handle.conversationId,
+      kind: .actionItems, authorization: .unrestricted)
+    XCTAssertNil(claim)
+  }
+
   func testFinalizationProjectionRefreshesBeforeAndAfterPostProcessing() async throws {
     let recorder = FinalizationProjectionRecorder()
 
@@ -116,8 +169,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let finalization = ConversationFinalizationService(
       storage: owner.storage,
       discard: .shared,
-      structure: .shared,
-      actionItems: .shared)
+      structure: .shared)
 
     await finalization.recoverPendingFinalizations()
     try await owner.storage.upsertSegments(
@@ -158,8 +210,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let finalization = ConversationFinalizationService(
       storage: owner.storage,
       discard: .shared,
-      structure: .shared,
-      actionItems: .shared)
+      structure: .shared)
 
     await finalization.recoverAbandonedRecordingsAfterLaunch(launchCutoff: launchCutoff)
     try await owner.storage.upsertSegments(
@@ -212,8 +263,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let finalization = ConversationFinalizationService(
       storage: owner.storage,
       discard: .shared,
-      structure: .shared,
-      actionItems: .shared)
+      structure: .shared)
 
     await finalization.recoverAbandonedRecordingsAfterLaunch(launchCutoff: launchCutoff)
 
@@ -237,8 +287,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let finalization = ConversationFinalizationService(
       storage: owner.storage,
       discard: .shared,
-      structure: .shared,
-      actionItems: .shared)
+      structure: .shared)
     let retry = TranscriptionRetryService(finalization: finalization)
     try await owner.pool.write { database in
       try database.execute(
@@ -304,8 +353,7 @@ final class ConversationLocalFinalizationTests: XCTestCase {
         storage: owner.storage,
         computer: computer,
         requiresOwnerAuthorization: false),
-      structure: .shared,
-      actionItems: .shared)
+      structure: .shared)
 
     await finalization.recoverPendingFinalizations()
 
@@ -334,8 +382,8 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     let detail = try await owner.storage.conversationDetail(id: handle.conversationId)
     let work = try await owner.storage.enrichmentWork(conversationId: handle.conversationId)
     XCTAssertEqual(detail?.status, .processing)
-    XCTAssertEqual(work.map(\.kind), [.discard, .structure, .actionItems])
-    XCTAssertEqual(work.map(\.state), [.failed, .pending, .pending])
+    XCTAssertEqual(work.map(\.kind), [.discard, .structure])
+    XCTAssertEqual(work.map(\.state), [.failed, .pending])
   }
 
   func testRecoveryDoesNotStealActiveWorkAndOldAttemptCannotCommitAfterReclaim() async throws {
@@ -432,10 +480,10 @@ final class ConversationLocalFinalizationTests: XCTestCase {
     XCTAssertEqual(
       work.filter { $0.contentGeneration == before.contentGeneration && $0.kind != .discard }
         .map(\.state),
-      [.superseded, .superseded])
-    XCTAssertEqual(
-      work.filter { $0.contentGeneration == retried.contentGeneration }.map(\.state),
-      [.pending, .pending])
+      [.superseded])
+    let nextGeneration = work.filter { $0.contentGeneration == retried.contentGeneration }
+    XCTAssertEqual(nextGeneration.map(\.kind), [.structure])
+    XCTAssertEqual(nextGeneration.map(\.state), [.pending])
   }
 
   private func finishedConversation(_ storage: TranscriptionStorage) async throws -> ConversationCaptureHandle {

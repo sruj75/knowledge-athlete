@@ -509,12 +509,14 @@ actor LocalUserDataExportLiveReader: LocalUserDataExportReading {
   func focusData(
     authorization: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [LocalUserDataFocusSession] {
-    try await ProactiveStorage.shared.getFocusSessions(
-      from: .distantPast,
-      to: .distantFuture,
-      limit: 500,
-      authorizationSnapshot: authorization
-    ).map(LocalUserDataFocusSession.init)
+    var records: [LocalUserDataFocusSession] = []
+    while true {
+      let page = try await ProactiveStorage.shared.getFocusSessions(
+        from: .distantPast, to: .distantFuture, limit: 500, offset: records.count,
+        authorizationSnapshot: authorization)
+      records.append(contentsOf: page.map(LocalUserDataFocusSession.init))
+      if page.count < 500 { return records }
+    }
   }
 
   func chatCatalog(
@@ -560,6 +562,7 @@ enum LocalUserDataExportSettings {
     "vadGateEnabled",
     "batchTranscriptionEnabled",
     "systemAudioCaptureMode",
+    "ambientMicrophoneEnabled",
     "screenAnalysisEnabled",
     "suggestionAssistantEnabled",
     "focusAssistantEnabled",

@@ -9,61 +9,61 @@ routing_contract:
   persistent_attempt_ledger: false
 
 workloads:
-  - key: chat_agent
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v2/models/gemini-3.7-flash:streamGenerateContent from local Node/Pi
-    result_owner: owner-scoped Mac Node journal
-  - key: chat_greeting
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v2/chat/initial-message
-    result_owner: owner-scoped Mac Node journal
-  - key: session_titles
-    lifecycle: retained
-    provider_model: gemini/gemini-2.5-flash-lite
-    caller: POST /v2/chat/generate-title
-    result_owner: owner-scoped Mac Chat catalog
-  - key: conv_discard
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/conversation-compute/discard
-    result_owner: Mac conversation transaction
-  - key: conv_structure
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/conversation-compute/structure
-    result_owner: Mac conversation transaction
-  - key: conv_action_items
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/conversation-compute/action-items
-    result_owner: Mac ActionItemStorage transaction
-  - key: memory_l1
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/memory/compute/extract
-    result_owner: Mac MemoryStorage lifecycle transaction
-  - key: memory_l2
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/memory/compute/normalize
-    result_owner: Mac MemoryStorage lifecycle transaction
-  - key: memory_conflict
-    lifecycle: retained
-    provider_model: gemini/gemini-3.7-flash
-    caller: POST /v1/memory/compute/consolidate
-    result_owner: Mac MemoryStorage lifecycle transaction
-  - key: translation
-    lifecycle: retained
-    provider_model: gemini/gemini-2.5-flash-lite
-    caller: POST /v4/listen translation coordinator
-    result_owner: matching Mac transcript segments
-  - key: fair_use
-    lifecycle: dependency_s20
-    provider_model: gemini/gemini-3.7-flash
-    caller: S-20 bounded fair-use classify route
-    result_owner: S-20 Mac GRDB evidence and content-free enforcement facts
+- key: chat_greeting
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v2/chat/initial-message
+  result_owner: owner-scoped Mac Node journal
+- key: conv_discard
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v1/conversation-compute/discard
+  result_owner: Mac conversation finalization transaction
+- key: conv_structure
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v1/conversation-compute/structure
+  result_owner: Mac conversation transaction
+- key: conversation
+  lifecycle: retained
+  provider_model: gemini/gemini-3.8-flash
+  caller: POST /v1/conversation/respond
+  result_owner: owner-scoped Mac canonical Chat journal
+- key: fair_use
+  lifecycle: dependency_s20
+  provider_model: gemini/gemini-3.7-flash
+  caller: S-20 bounded fair-use classify route
+  result_owner: S-20 Mac GRDB evidence and content-free enforcement facts
+- key: memory_conflict
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v1/memory/compute/consolidate
+  result_owner: Mac MemoryStorage atomic lifecycle transaction
+- key: memory_l1
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v1/memory/compute/extract
+  result_owner: Mac MemoryStorage lifecycle transaction
+- key: memory_l2
+  lifecycle: retained
+  provider_model: gemini/gemini-3.7-flash
+  caller: POST /v1/memory/compute/normalize
+  result_owner: Mac MemoryStorage lifecycle transaction
+- key: session_titles
+  lifecycle: retained
+  provider_model: gemini/gemini-2.5-flash-lite
+  caller: POST /v2/chat/generate-title
+  result_owner: owner-scoped Mac Chat catalog
+- key: supervisor
+  lifecycle: retained
+  provider_model: gemini/gemini-3.8-flash
+  caller: POST /v1/supervisor/evaluate
+  result_owner: owner-scoped Mac supervisor coordinator
+- key: translation
+  lifecycle: retained
+  provider_model: gemini/gemini-2.5-flash-lite
+  caller: POST /v4/listen translation coordinator
+  result_owner: matching Mac transcript segments
 adjacent_direct_surfaces:
   - surface: desktop_gemini_generation
     provider_models:

@@ -23,53 +23,6 @@ final class LocalChatCatalogTests: XCTestCase {
     XCTAssertTrue(summary.chatSession.starred)
   }
 
-  func testCatalogWireOperationsCarryOnlyOwnerScopedCatalogInputs() {
-    let list = AgentRuntimeProcess.chatCatalogWireMessage(
-      operation: .list,
-      clientId: "main-chat",
-      requestId: "list-1",
-      ownerID: "owner-a"
-    )
-    let create = AgentRuntimeProcess.chatCatalogWireMessage(
-      operation: .create,
-      clientId: "main-chat",
-      requestId: "create-1",
-      ownerID: "owner-a",
-      chatID: "chat-a"
-    )
-    let update = AgentRuntimeProcess.chatCatalogWireMessage(
-      operation: .update,
-      clientId: "main-chat",
-      requestId: "update-1",
-      ownerID: "owner-a",
-      chatID: "chat-a",
-      title: "Manual title",
-      titleOrigin: .manual,
-      expectedTitleOrigin: .automatic,
-      starred: true
-    )
-    let delete = AgentRuntimeProcess.chatCatalogWireMessage(
-      operation: .delete,
-      clientId: "main-chat",
-      requestId: "delete-1",
-      ownerID: "owner-a",
-      chatID: "chat-a"
-    )
-
-    XCTAssertEqual(list["type"] as? String, "chat_catalog_list")
-    XCTAssertNil(list["chatId"])
-    XCTAssertEqual(create["chatId"] as? String, "chat-a")
-    XCTAssertEqual(update["titleOrigin"] as? String, "manual")
-    XCTAssertEqual(update["expectedTitleOrigin"] as? String, "automatic")
-    XCTAssertEqual(update["starred"] as? Bool, true)
-    XCTAssertEqual(delete["type"] as? String, "chat_catalog_delete")
-    for message in [list, create, update, delete] {
-      XCTAssertEqual(message["ownerId"] as? String, "owner-a")
-      XCTAssertNil(message["sessionId"])
-      XCTAssertNil(message["messages"])
-    }
-  }
-
   @MainActor
   func testCreateRetryReusesTheCallerGeneratedChatIdentity() async throws {
     let provider = ChatProvider()

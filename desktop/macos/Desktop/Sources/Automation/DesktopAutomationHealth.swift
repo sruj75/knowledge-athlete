@@ -13,8 +13,4 @@ struct DesktopAutomationHealth: Codable {
   let backendURL: String
   let sourceGitSHA: String?
   let sourceTreeDirty: Bool?
-  let agentRuntimeRunning: Bool
-  let agentRuntimeExpectedProtocolVersion: Int
-  let agentRuntimeProtocolVersion: Int?
-  let agentRuntimeVersion: String?
 }

@@ -196,6 +196,18 @@ extension Notification.Name {
 /// `auth_userId` makes `AuthService.getIdToken()` treat real tokens as stale and
 /// call `clearTokens()`, leaving a ghost signed-in session.
 enum RuntimeOwnerIdentity {
+  static func isAuthenticatedOwnerCurrent(
+    _ expectedOwnerID: String,
+    defaults: UserDefaults = .standard,
+    allowAutomationOverride: Bool = AppBuild.isNonProduction
+  ) -> Bool {
+    let normalized = expectedOwnerID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return false }
+    let authenticated = defaults.string(forKey: .authUserId)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return currentOwnerId(defaults: defaults, allowAutomationOverride: allowAutomationOverride) == normalized
+      && authenticated == normalized
+  }
+
   static var effectiveOwnerTransitionInProgress: Bool {
     EffectiveOwnerAuthorizationRevocation.shared.isActive
   }
@@ -363,7 +375,6 @@ enum RuntimeOwnerIdentity {
       ProactiveAssistantsPlugin.shared.resetOwnerBoundCaptureState()
       SupervisorService.shared.endSession()
     }
-    await EmbeddingService.shared.resetForOwnerChange()
     await OCREmbeddingService.shared.reset()
     await RewindDatabase.shared.retargetEffectiveOwner(to: nextOwner)
     await TranscriptionStorage.shared.invalidateCache()

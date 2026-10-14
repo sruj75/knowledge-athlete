@@ -16,8 +16,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
       "sign_out",
       "vocabulary_snapshot",
       "vocabulary_set_terms",
-      "goals_snapshot",
-      "create_test_goal",
       "export_my_data",
       "subscription_snapshot",
       "settings_privacy_snapshot",
@@ -89,13 +87,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     }
   }
 
-  func testQualificationActionsRespectBackendContracts() throws {
-    let source = try bridgeSource()
-    let goalBody = try actionBody(named: "create_test_goal", in: source)
-    XCTAssertTrue(goalBody.contains("GoalStorage.shared.createGoal"))
-    XCTAssertFalse(goalBody.contains("APIClient"))
-  }
-
   func testFloatingIdleWaitRequiresObservedSubmission() throws {
     let source = try bridgeSource()
     let askBody = try actionBody(named: "ask", in: source)
@@ -157,7 +148,7 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
   func testMemoryCrudActionsUseNonProdGuard() throws {
     let source = try bridgeSource()
     for action in [
-      "create_test_memory", "edit_test_memory", "delete_test_memory", "create_test_goal", "create_test_folder",
+      "create_test_memory", "edit_test_memory", "delete_test_memory", "create_test_folder",
     ] {
       let body = try actionBody(named: action, in: source)
       XCTAssertTrue(body.contains("AppBuild.isNonProduction"))
@@ -343,28 +334,6 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     XCTAssertTrue(body.contains("MemoryStorage.shared.correct"))
   }
 
-  func testTaskDescriptionLookupRejectsAmbiguousMatches() throws {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/TasksPage.swift")
-    let source = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertTrue(
-      source.contains("\"error\": matches.count > 1 ? \"ambiguous task\""),
-      "toggle_task/delete_task should reject ambiguous description matches"
-    )
-  }
-
-  func testDumpTasksSupportsMarkerAbsentParam() throws {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/MainWindow/Pages/TasksPage.swift")
-    let source = try String(contentsOf: url, encoding: .utf8)
-    XCTAssertTrue(
-      source.contains("marker_absent"), "dump_tasks should return marker_absent when marker param is provided")
-  }
-
   func testMultiSpeakerInjectDerivesSpeakerIdFromLabel() throws {
     let url = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
@@ -385,11 +354,12 @@ final class DesktopAutomationSecondaryActionTests: XCTestCase {
     )
   }
 
-  func testDebugBarStateUsesReducerScopedPresentationEvent() throws {
-    let body = try actionBody(named: "debug_bar_state", in: bridgeSource())
+  func testDebugBarStateUsesTheConversationPresentationPreview() throws {
+    let source = try sourceFile(named: "DesktopAutomationConversationPreviewActions.swift", subdirectory: "Automation")
+    let body = try actionBody(named: "debug_bar_state", in: source)
 
-    XCTAssertTrue(body.contains("VoiceTurnDebugPresentationState(rawValue: s)"))
-    XCTAssertTrue(body.contains("VoiceTurnCoordinator.shared.applyDebugPresentationState"))
+    XCTAssertTrue(try bridgeSource().contains("registerConversationPresentationPreviewActions()"))
+    XCTAssertTrue(body.contains("ConversationPresentationPreview.live.apply(parameters)"))
     for forbidden in [
       "debugSetVoiceResponseActive",
       "bar.isVoiceListening =",

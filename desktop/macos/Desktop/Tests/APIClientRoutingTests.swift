@@ -456,7 +456,7 @@ final class APIClientRoutingTests: XCTestCase {
       }
       """.utf8)
     URLCapture.setResponse(statusCode: 429, body: body)
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
 
     do {
       _ = try await client.mintRealtimeSession(expectedOwnerID: "realtime-routing-owner")
@@ -476,7 +476,93 @@ final class APIClientRoutingTests: XCTestCase {
 
   // MARK: - Routing behavior: canonical backend endpoints
 
-  private func makeTestClient() async -> APIClient {
+  func testConversationBootstrapReturnsPinnedInstructionsBeforeLiveMint() async throws {
+    let previousOwner = UserDefaults.standard.object(forKey: .authUserId)
+    let previousOverride = UserDefaults.standard.object(forKey: .automationOwnerOverride)
+    UserDefaults.standard.set("conversation-routing-owner", forKey: .authUserId)
+    UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
+    RuntimeOwnerAuthorizationAuthority.shared.beginTransition()
+    RuntimeOwnerAuthorizationAuthority.shared.endTransition(ownerID: "conversation-routing-owner")
+    defer {
+      if let previousOwner {
+        UserDefaults.standard.set(previousOwner, forKey: .authUserId)
+      } else {
+        UserDefaults.standard.removeObject(forKey: .authUserId)
+      }
+      if let previousOverride { UserDefaults.standard.set(previousOverride, forKey: .automationOwnerOverride) }
+      RuntimeOwnerAuthorizationAuthority.shared.beginTransition()
+      RuntimeOwnerAuthorizationAuthority.shared.endTransition(ownerID: RuntimeOwnerIdentity.currentOwnerId())
+    }
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    URLCapture.setResponse(
+      statusCode: 200,
+      body: Data(
+        """
+        {"conversation_id":"conversation-1","prompt":{"text":"hello","name":"intentive-live-system","version":"conversation-v1","source":"fallback","sha256":"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"}}
+        """.utf8))
+    let client = await Self.makeTestClient()
+    let prompt = try await client.bootstrapConversation(
+      conversationID: "conversation-1", authorizationSnapshot: authorization)
+    XCTAssertEqual(prompt.text, "hello")
+    XCTAssertEqual(prompt.reference.version, "conversation-v1")
+    assertCapturedPath("/v1/conversation/session")
+    let request = try XCTUnwrap(URLCapture.capturedRequests.first)
+    let body = try XCTUnwrap(request.body)
+    let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+    XCTAssertEqual(object, ["conversation_id": "conversation-1"])
+  }
+
+  @MainActor
+  func testDirectConversationStreamsTextAndPreservesThePinnedPrompt() async throws {
+    let previousOwner = UserDefaults.standard.object(forKey: .authUserId)
+    let previousOverride = UserDefaults.standard.object(forKey: .automationOwnerOverride)
+    UserDefaults.standard.set("conversation-routing-owner", forKey: .authUserId)
+    UserDefaults.standard.removeObject(forKey: .automationOwnerOverride)
+    RuntimeOwnerAuthorizationAuthority.shared.beginTransition()
+    RuntimeOwnerAuthorizationAuthority.shared.endTransition(ownerID: "conversation-routing-owner")
+    defer {
+      if let previousOwner {
+        UserDefaults.standard.set(previousOwner, forKey: .authUserId)
+      } else {
+        UserDefaults.standard.removeObject(forKey: .authUserId)
+      }
+      if let previousOverride { UserDefaults.standard.set(previousOverride, forKey: .automationOwnerOverride) }
+      RuntimeOwnerAuthorizationAuthority.shared.beginTransition()
+      RuntimeOwnerAuthorizationAuthority.shared.endTransition(ownerID: RuntimeOwnerIdentity.currentOwnerId())
+    }
+    let authorization = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    URLCapture.setResponse(
+      statusCode: 200,
+      body: Data(
+        """
+        event: text_delta
+        data: {"text":"Start with "}
+
+        event: text_delta
+        data: {"text":"one paragraph."}
+
+        event: done
+        data: {"end_conversation":false,"prompt_ref":{"name":"intentive-live-system","version":"12","source":"langfuse","sha256":"pinned"}}
+
+
+        """.utf8))
+    let client = await Self.makeTestClient()
+    let reference = ConversationPromptReference(
+      name: "intentive-live-system", version: "12", source: "langfuse", sha256: "pinned")
+    let request = ConversationResponseRequest(
+      conversationID: "conversation-1", turnID: "turn-1", promptReference: reference,
+      history: [], message: "Help me start", context: "")
+    var received = ""
+    let result = try await client.respondToConversation(
+      request: request, authorizationSnapshot: authorization,
+      onTextDelta: { received += $0 })
+    XCTAssertEqual(received, "Start with one paragraph.")
+    XCTAssertEqual(result.promptReference, reference)
+    XCTAssertFalse(result.endConversation)
+    assertCapturedPath("/v1/conversation/respond")
+  }
+
+  private static func makeTestClient() async -> APIClient {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [URLCapture.self]
     let session = URLSession(configuration: config)
@@ -534,6 +620,55 @@ final class APIClientRoutingTests: XCTestCase {
     XCTAssertTrue(RuntimeOwnerIdentity.isAuthorizationCurrent(authorization))
   }
 
+  @MainActor
+  func testSupervisorQuotaResponsePreservesBoundedRetryDelay() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "supervisor-quota-owner")
+    addTeardownBlock { await fixture.restore() }
+    let owner = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [URLCapture.self]
+    let client = APIClient(session: URLSession(configuration: configuration))
+    await client.setTestAuthHeader("Bearer test-token")
+    URLCapture.setResponse(
+      statusCode: 429,
+      body: Data(#"{"detail":{"reason":"daily_quota","retry_after_seconds":4321}}"#.utf8))
+    do {
+      _ = try await client.evaluateSupervisor(
+        request: .init(
+          observationID: "observation", sessionID: "session", contextEpoch: 1, screen: nil,
+          transcripts: [], conversation: [], memories: [], profile: "", evaluationSharing: false),
+        authorizationSnapshot: owner)
+      XCTFail("quota response must pause B")
+    } catch SupervisorRequestError.rateLimited(let reason, let delay) {
+      XCTAssertEqual(reason, "daily_quota")
+      XCTAssertEqual(delay, 4_321)
+    }
+    XCTAssertTrue(RuntimeOwnerIdentity.isAuthorizationCurrent(owner))
+  }
+
+  @MainActor
+  func testSupervisorOversizedBodyNeverReachesTransport() async throws {
+    let fixture = RuntimeOwnerAuthorityTestFixture()
+    await fixture.establish(authOwnerID: "supervisor-cap-owner")
+    addTeardownBlock { await fixture.restore() }
+    let owner = try XCTUnwrap(RuntimeOwnerIdentity.captureAuthorizationSnapshot())
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [URLCapture.self]
+    let client = APIClient(session: URLSession(configuration: configuration))
+    await client.setTestAuthHeader("Bearer test-token")
+    URLCapture.reset()
+    do {
+      _ = try await client.evaluateSupervisor(
+        request: .init(
+          observationID: "observation", sessionID: "session", contextEpoch: 1, screen: nil,
+          transcripts: [], conversation: [], memories: [], profile: String(repeating: "x", count: 4_000_001),
+          evaluationSharing: false), authorizationSnapshot: owner)
+      XCTFail("oversized body must be rejected locally")
+    } catch SupervisorRequestError.payloadTooLarge {}
+    XCTAssertTrue(URLCapture.capturedRequests.isEmpty)
+  }
+
   func testManagedRequestsNeverEmitLegacyCustomerKeys() async throws {
     let legacyKeys = [
       (storage: "dev_openai_api_key", header: "X-BYOK-OpenAI"),
@@ -550,7 +685,7 @@ final class APIClientRoutingTests: XCTestCase {
       }
     }
 
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     let baseURL = "http://canonical-test:9001/"
     let _: ManagedHeaderResponse? = try? await client.get("managed-get", customBaseURL: baseURL)
     let _: ManagedHeaderResponse? = try? await client.post(
@@ -574,7 +709,7 @@ final class APIClientRoutingTests: XCTestCase {
   // -- Subscription/payments --
 
   func testGetUserSubscriptionRoutesToPython() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.getUserSubscription() as UserSubscriptionResponse
     assertRoutes(
       URLCapture.capturedRequests, host: "canonical-test", port: 9001,
@@ -583,7 +718,7 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   func testLocalComputeRoutesDoNotIntroduceDoubleSlashPaths() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     let requestId = UUID()
     let startedAt = Date(timeIntervalSince1970: 1_700_000_000)
 
@@ -608,20 +743,6 @@ final class APIClientRoutingTests: XCTestCase {
       ),
       authorizationSnapshot: nil)
     assertCapturedPath("/v1/conversation-compute/structure")
-
-    URLCapture.reset()
-    _ = try? await client.computeActionItems(
-      ConversationActionItemsComputeRequest(
-        generationId: requestId,
-        transcript: "A complete local transcript.",
-        startedAt: startedAt,
-        language: "en",
-        outputLanguage: "en",
-        timezone: "UTC",
-        relatedTasks: []
-      ),
-      authorizationSnapshot: nil)
-    assertCapturedPath("/v1/conversation-compute/action-items")
 
     URLCapture.reset()
     _ = try? await client.normalizeMemory(
@@ -662,7 +783,7 @@ final class APIClientRoutingTests: XCTestCase {
   // -- Config/API keys --
 
   func testFetchApiKeysRoutesToCanonicalBackend() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.fetchApiKeys() as APIClient.ApiKeysResponse
     assertRoutes(
       URLCapture.capturedRequests, host: "canonical-test", port: 9001,
@@ -671,7 +792,7 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   func testSynthesizeSpeechRoutesToCanonicalBackend() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.synthesizeSpeech(
       request: APIClient.TtsSynthesizeRequest(
         text: "Hello",
@@ -697,7 +818,7 @@ final class APIClientRoutingTests: XCTestCase {
   // -- Chat AI endpoints (migrated from Rust to Python) --
 
   func testGetInitialMessageRoutesToPython() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.getInitialMessage(profileText: "Local profile", memories: ["Local memory"])
     assertRoutes(
       URLCapture.capturedRequests, host: "canonical-test", port: 9001,
@@ -706,7 +827,7 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   func testGenerateSessionTitleRoutesToPython() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.generateSessionTitle(userText: "hi", assistantText: "hello")
     assertRoutes(
       URLCapture.capturedRequests, host: "canonical-test", port: 9001,
@@ -715,14 +836,15 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   func testRealtimeUsageReportContainsOnlyTokenCounts() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
 
     await client.reportRealtimeUsage(
       inputText: 11,
       inputAudio: 12,
       inputCached: 13,
       outputText: 14,
-      outputAudio: 15)
+      outputAudio: 15,
+      thinking: 7)
 
     let requests = URLCapture.capturedRequests
     assertRoutes(
@@ -734,15 +856,16 @@ final class APIClientRoutingTests: XCTestCase {
       Set(body?.keys.map { $0 } ?? []),
       Set([
         "input_text_tokens", "input_audio_tokens", "input_cached_tokens", "output_text_tokens",
-        "output_audio_tokens",
+        "output_audio_tokens", "thinking_tokens",
       ]))
     XCTAssertEqual(body?["input_cached_tokens"] as? Int, 13)
+    XCTAssertEqual(body?["thinking_tokens"] as? Int, 7)
   }
 
   // MARK: - Billing routing and server-owned offer body tests
 
   func testCreateCheckoutSessionSendsOnlyOfferIdentity() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     _ = try? await client.createCheckoutSession(offerId: "synthetic-monthly")
 
     let requests = URLCapture.capturedRequests
@@ -757,7 +880,7 @@ final class APIClientRoutingTests: XCTestCase {
   }
 
   func testHttpErrorPreservesDetailFromResponse() async {
-    let client = await makeTestClient()
+    let client = await Self.makeTestClient()
     do {
       _ = try await client.createCheckoutSession(offerId: "invalid-offer")
       XCTFail("Expected httpError to be thrown")

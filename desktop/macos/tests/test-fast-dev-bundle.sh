@@ -23,7 +23,7 @@ make_file Desktop/Package.swift 'package'
 make_file Desktop/Sources/Resources/asset.txt 'asset'
 make_file agent/src/index.ts 'agent'
 make_file agent/node_modules/ignored.txt 'first'
-make_file pi-mono-extension/index.ts 'extension'
+make_file agent/src/conversation-storage.ts 'conversation storage'
 
 first="$(omi_fast_bundle_fingerprint "$TMP_ROOT" bundle development yolo)"
 second="$(omi_fast_bundle_fingerprint "$TMP_ROOT" bundle development yolo)"

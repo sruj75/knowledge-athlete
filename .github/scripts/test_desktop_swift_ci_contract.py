@@ -144,7 +144,7 @@ class DesktopSwiftCIContractTests(unittest.TestCase):
             "desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift",
             "desktop/macos/Desktop/Sources/NotificationProbe.swift",
             "desktop/macos/Desktop/Sources/OmiApp.swift",
-            "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift",
+            "desktop/macos/Desktop/Sources/ProactiveAssistants/Services/RetiredTaskReminderCleanup.swift",
             "desktop/macos/Desktop/Tests/NotificationProbeTests.swift",
         ):
             with self.subTest(path=path):

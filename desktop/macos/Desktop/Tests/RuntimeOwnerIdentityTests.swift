@@ -89,48 +89,6 @@ private actor RuntimeOwnerKernelRevokeGate {
   }
 }
 
-private actor RuntimeOwnerPhysicalEffectProbe {
-  private let recorder: RuntimeOwnerTransitionOrderRecorder
-  private var effectStarted = false
-  private var effectStartWaiters: [CheckedContinuation<Void, Never>] = []
-  private var drainStarted = false
-  private var drainStartWaiters: [CheckedContinuation<Void, Never>] = []
-  private var effectRelease: CheckedContinuation<Void, Never>?
-
-  init(recorder: RuntimeOwnerTransitionOrderRecorder) { self.recorder = recorder }
-
-  func runNonCooperativeEffect() async {
-    recorder.append("effect_started")
-    effectStarted = true
-    effectStartWaiters.forEach { $0.resume() }
-    effectStartWaiters.removeAll()
-    await withCheckedContinuation { effectRelease = $0 }
-    recorder.append(Task.isCancelled ? "effect_cancelled_and_finished" : "effect_finished")
-  }
-
-  func markDrainStarted() {
-    recorder.append("drain_started")
-    drainStarted = true
-    drainStartWaiters.forEach { $0.resume() }
-    drainStartWaiters.removeAll()
-  }
-
-  func waitUntilEffectStarted() async {
-    if effectStarted { return }
-    await withCheckedContinuation { effectStartWaiters.append($0) }
-  }
-
-  func waitUntilDrainStarted() async {
-    if drainStarted { return }
-    await withCheckedContinuation { drainStartWaiters.append($0) }
-  }
-
-  func releaseEffect() {
-    effectRelease?.resume()
-    effectRelease = nil
-  }
-}
-
 /// Regression: gauntlet owner-swap must never rewrite Firebase `auth_userId`.
 /// Doing so makes `AuthService.getIdToken()` clear tokens (uid mismatch) and
 /// leaves a ghost signed-in session after restore.
@@ -378,72 +336,6 @@ final class RuntimeOwnerIdentityTests: XCTestCase {
     } else {
       XCTFail("kernel revoke did not receive a cleanup capability")
     }
-  }
-
-  func testReplacementOwnerWaitsForNonCooperativePhysicalEffectToDrain() async {
-    defaults.set("owner-a", forKey: .authUserId)
-    let defaultsReference = RuntimeOwnerTestDefaultsReference(value: defaults)
-    let recorder = RuntimeOwnerTransitionOrderRecorder()
-    let probe = RuntimeOwnerPhysicalEffectProbe(recorder: recorder)
-    let physicalEffect = Task { await probe.runNonCooperativeEffect() }
-    await probe.waitUntilEffectStarted()
-
-    let transition = Task {
-      try await RuntimeOwnerIdentity.performEffectiveOwnerTransition(
-        defaults: defaultsReference.value,
-        allowAutomationOverride: true,
-        plannedNextOwner: { _, _ in "owner-b" },
-        quiesceVoice: { _, _ in recorder.append("voice_quiesced") },
-        revokeKernelOwner: { _, _ in
-          await probe.markDrainStarted()
-          await AgentRuntimeProcess.cancelAndAwaitPhysicalExecutionTasks([physicalEffect])
-          recorder.append("drain_finished")
-        },
-        retargetLocalStorage: { _, _ in recorder.append("storage_retargeted") },
-        ownerDidChange: { recorder.append("owner_notified") }
-      ) { defaults in
-        recorder.append("defaults_mutated")
-        defaults.set("owner-b", forKey: .automationOwnerOverride)
-      }
-    }
-
-    await probe.waitUntilDrainStarted()
-    XCTAssertEqual(defaults.string(forKey: .authUserId), "owner-a")
-    XCTAssertNil(defaults.string(forKey: .automationOwnerOverride))
-    XCTAssertNil(
-      RuntimeOwnerIdentity.currentOwnerId(
-        defaults: defaults,
-        allowAutomationOverride: true))
-    XCTAssertEqual(
-      recorder.snapshot(),
-      ["effect_started", "voice_quiesced", "drain_started"])
-
-    // `markDrainStarted()` crosses an actor boundary immediately before the
-    // drain helper requests cancellation. Wait for that request explicitly so
-    // releasing the non-cooperative effect cannot race ahead of `cancel()`.
-    for _ in 0..<10_000 where !physicalEffect.isCancelled {
-      await Task.yield()
-    }
-    XCTAssertTrue(physicalEffect.isCancelled)
-
-    await probe.releaseEffect()
-    do {
-      try await transition.value
-    } catch {
-      XCTFail("owner transition failed: \(error)")
-    }
-
-    XCTAssertEqual(
-      RuntimeOwnerIdentity.currentOwnerId(
-        defaults: defaults,
-        allowAutomationOverride: true), "owner-b")
-    XCTAssertEqual(
-      recorder.snapshot(),
-      [
-        "effect_started", "voice_quiesced", "drain_started",
-        "effect_cancelled_and_finished", "drain_finished", "defaults_mutated",
-        "storage_retargeted", "owner_notified",
-      ])
   }
 
   func testSwapPathSourceNeverWritesAuthUserId() throws {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:2e70f732c215a7c365b01be38261cde38429d7175f8c1b2f002f2f15ee493421",
+  "pageVersion": "sha256:5262a80a79e8f5e9c2f8c567cce559033e83e4bded4f75373ebe9783da4d558e",
   "claims": [
     {
       "id": "claim_ca8a32d6adf443868d9aa2e6f1a594c5",
@@ -42,15 +42,15 @@
     },
     {
       "id": "claim_21398132a0f7481084601c3ab0a4e2a2",
-      "statement": "Normal Chat, Live and supervisor evaluation export is metadata only; explicit session sharing permits bounded conversation and guidance via a typed allowlist that excludes audio, screenshots, memory/profile copies and tool payloads.",
+      "statement": "Normal A and B evaluation export is metadata only; explicit session sharing permits bounded conversation and transcripts but never private guidance, audio, images, Memory/profile copies or tool payloads.",
       "evidence": [
         {
-          "resource": "repo://backend/utils/observability/evaluation_policy.py#L9-L38",
-          "version": "repo-lines-v1:sha256:2f5a87cf67765e8e43c9b07f16909e4154d0b4092a247c693e7b86fe6dafa16b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyM2FkODRmZWYxYTRlNzczNGIzZWYzM2ZkNWQwMzY2YjlmYTNmMzk0ZDg2NGZiNDI0ZGNjNGYwY2NjZTc4NDAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMTFjMDU2N2QwYTVmOWU5YjEzNWY2NWNkMjUzNzJkZmQ2Mjg3NzVmN2MxZWQyNTNmOGJhZDQyZGQyZDY2NjkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1ZjI3YjZjYTNmYjE0YzZiYmY0OTljZTI0ODEyOWRhMmJkZjIxZTI2MmRlYmFjYjVlMTkxNzdlYjc3ZDM4YWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://backend/utils/observability/evaluation_policy.py",
+          "version": "repo-file-v1:sha256:e0da4e5cb5138334a23ee14e56cdf98bb115694c806517a67c5a065e88dcca64"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift#L8-L104",
-          "version": "repo-lines-v1:sha256:c6676aa02e65a2703adc73fdf1a6dc4388cdb810625e168d057e44ba81e8a6c9:eyJzZWxlY3RlZExpbmVDb3VudCI6OTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyZjkxODMyNzIyNDliZDFmNzIzZDhlZWVhNGM2NGFjMGI2NmY2YTY3OTZhMWMyY2QwMDdiOWY5MjA1MjMxZWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQzYTFlYWYyMjRhOWNlZGIyNDMzMDNjODg5YmViOWYzNjg5YmQ4NWUxMDI0NzJlNGY5YWQ4ZDM4MTdhNTY2YjciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImViNGFkZDdmMGJjYjM1OTIxZGQ1Zjk4YzU1NDdkNjliMzAyYWM1N2JkYmY2NjdhNjhlZTQ5YzJmNmVhY2UwNWEifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift",
+          "version": "repo-file-v1:sha256:5212fc5c3645c70101139ba3b0f6e8bd27fade9bd5df742e6b7bc04211251ad4"
         }
       ]
     },
@@ -59,20 +59,16 @@
       "statement": "Session and epoch consent tickets fence queued content across off/on transitions, and the observation API rechecks current owner and consent after token lookup without authentication refresh or replay.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationObservation.swift#L106-L124",
-          "version": "repo-lines-v1:sha256:e84307e3789b0586f37318de08c07d26083b2ead73d91b534baa2df1c30a110e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3MTczM2YzZGQwNTQwM2I2ODMwZGU4ZDBjNWFkNGRlYWQxNzY0ZTY2YTQxMjYyMTdkOThlZjA0Nzg2MWEyOTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift",
+          "version": "repo-file-v1:sha256:1d231c6d46f95c22f3b496cbe2269e7fc38f280c910dda3f0d086b89ce939100"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L141-L189",
-          "version": "repo-lines-v1:sha256:683d84e9ed94bfb6f24a4ee1d2dc337976c43133ecb8794165461c1f0ea8734e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MmUwMzBjMjQ1NTVlMDA3MTc1OWY0YjRmN2IxZTU3MmU2NjJjNmEwNzA2ZmI4N2ZkYWQyZDM4ZGUzZTJmZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc0MGNiZTYwYmIwYWRjNWE3MmU0YjkxZTkxOTMzYzBmODlkM2Y1OGI3NmFiN2RhZTUxYTY3OWJmYTZhYjYyYzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift",
+          "version": "repo-file-v1:sha256:0dffedef815dc3b8dc806a05753e00d973b6becbe06db9e9c3baf0c31c8b7aa5"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift#L15-L38",
-          "version": "repo-lines-v1:sha256:0599d49bf249236bde71b054d372b1b9fc13a1b2cc3c583e38107871b5327d3d:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2ZmViNzZiNjY5MzIyOTQ1NDEyMDJhYmZiMjM0MmY5NzkwMDFhZTNiZDA1ZDk4N2Q2MjBmM2FjZjlhMjRmYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZiNTI3ZDgzMWQ5YTE1ZDYyNDM2N2RiMGVkNjQ1ZjFkNWJmMDE5NTRlMTBhMjM3YjM2ZmJiYjg4ZmJiNzA2YTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
-        },
-        {
-          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift#L632-L741",
-          "version": "repo-lines-v1:sha256:964a2a6702b126abd96d9d3f4ba0813092cc7a414fe264370e36f7dee84b1b00:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI5YjYyZjYwZDg1OTBhNTc5Y2Y0NmY4ZDY3Mzc4YzRjNTcyYjk2MmNlY2NkYjkwYzdhNWY3YjQyYjk2MDc4MmE0IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0ODkzZjQwZTM3ODFlYjg5NmM4MmQwNDZhMDgwNjdhMTFlMzVjZGYyZjFkZmFmMjZmZWE5MGI4ZGI2Njc2NDEzIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJhMDNjZWNmMGY4ZTgzNDAyMjEyMTc0MWY2ZGJkM2VjOWJhZDk1OTIwYTU5ZmZjNjY4MWQ0NDg3Nzc4OTc3OWRhIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI4ZGE5OGRmZjA5MmIyMmQ2NTRiZWZiM2NjYjEyOGQ4OWJiZDMwZWUyM2RkNTkzYzgyYTFlNDQ2MThhNTAzMDljIn0"
+          "resource": "repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift",
+          "version": "repo-file-v1:sha256:d78aa16fc7dc638bde6d0f35add3065605341290cd154e64f6be0b1a0c5267b2"
         }
       ]
     },
@@ -81,16 +77,16 @@
       "statement": "B observation IDs, B decisions, A terminal turns and helpful/unhelpful scores share owner/session-correlated traces with role-specific prompt versions; Chat instead resolves its actual prompt through an owner-scoped managed-request receipt.",
       "evidence": [
         {
-          "resource": "repo://backend/utils/observability/ai_evaluation.py#L49-L165",
-          "version": "repo-lines-v1:sha256:8f901b441d9d961dcd250c97e92cc33dc562a7341f185e236c2d664649a25556:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2YwOGM1ODg2OTQ0MTQ4ZGM3NTM4YmU2OGUxZDZjODUwMDI4YTVmYjM0ZGQ4NTlkZDk1NDIyYTE5MDI2YTZlIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1MmI3Y2UxMWU3N2NiZmYzZjIwZDQxYjYxNjRhZjc1MGE3NDJlMGYwZGVmNGY1NzFkYWQ4MjY2NDUzZWY0MTJkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI4Y2M0YTdkMWNjNzk2YWJhM2U0NjcyMzMyN2Y1MTdlOWY4MTE5ODJkMjUwZjA3MDI5ODZlNGI1NzY0YWQ5NTg5IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+          "resource": "repo://backend/utils/observability/ai_evaluation.py",
+          "version": "repo-file-v1:sha256:2b53a4371cc3f1c6c7b2fda631aa9c439f7eab75e162d6830a37f7791afe6616"
         },
         {
-          "resource": "repo://backend/utils/observability/chat_evaluation.py#L13-L31",
-          "version": "repo-lines-v1:sha256:ab336429204324ac23e37711061e31bc42f2e6b9f1b21f3dc35789ff3f713cc0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJiNDMxZTk5ZmI5OTFlOTBiYTU5ZjA0ZTEwY2EwMWUzZTZlMDY4NWU0MjY2ODAwMGMxYzM2MDA4YzdiMGY5ZjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlN2M5NTdiY2I0NGZiNjczYzk4YjAwNTBhNzVkMzgwODJkYjgxZDkxOGRlMzEzYTNmMDdjMTIzNTMwNmQ3ZWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyMDA5N2U0YWE1MDA2OGJhMTU3ZjlhMjczOWZhZDg2OTk1ZTFlMGNkY2NkYWRjNTg5N2MyMDM0Yzc0ZDNlZmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://backend/utils/observability/chat_evaluation.py",
+          "version": "repo-file-v1:sha256:ed6dde9a210dbe4b16f152b269b392d4603743aee15e11a65eb4c2ee006b6dd2"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift#L49-L139",
-          "version": "repo-lines-v1:sha256:af78ae9b2a50c738900f397a533e151676cf971f660069469f5dd9a7d50cab5c:eyJzZWxlY3RlZExpbmVDb3VudCI6OTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlMzc3ZjA0Yjg4MzdlZjQ3Mzg3ZDUyNTI2YjMxMjYzMWJhMWRmMTIzN2FiMTA2MDFiZDE2YTY4MjBhYzY3OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5YzRmYjQwZjkwMGQyMjU0ZDJmNzc3NDA2ZTUzZjZmMjdhMjJhYmQxYjk4YzIzMTk1NTlhYTQyNWQzZjMxMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ1NTA5NTcwZGU5NGIwNGYwNDFhYmYxOTVhZTkwZDJkMjUwOTBkMDA5YThmOThhZGEwOThjOWZlY2JjNWM4NjEifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift",
+          "version": "repo-file-v1:sha256:1d231c6d46f95c22f3b496cbe2269e7fc38f280c910dda3f0d086b89ce939100"
         }
       ]
     },
@@ -99,22 +95,40 @@
       "statement": "Supervisor evaluation and observation submission use relative endpoint paths with the canonical trailing-slash backend URL, producing the required single-slash authenticated POST routes.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift#L4-L36",
-          "version": "repo-lines-v1:sha256:4e267830753d810db8b5af86d76f8b277905a61f8099d0f175aaf10e572e50ac:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4NzBhNWU3YWU1MzBiNzQ2NTMwNTA3YjdiM2IyMzI0ZTA1ZDViMWVjNjU5NjQ4MmM2ZGViNmM5ZTY4MDI0N2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhNTg3ZGQ0MTQ4MTkwY2Q3OTg3MTk2ZDBjZDZlYjExODQ5OWNkODgyMTQ5MzE0YmNiYTgwNTdjYjE1MGQ5MDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUxNjU0OGI5YjkzOWI1NTI3ZGFjMDFmN2U4NTE3NWYzZWYyODRiMzFmNWM4Zjc4MTRkNTkxNDJlMjMzZjBlMTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlMGY3MjkzZDE1NmE2ZDEyNTI4ZGIxMjkzMzc5ZTUyYTVmODM2NzA0NDI5N2IyMjgyYjk3ZmYyYzg2MDQzOGQifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift",
+          "version": "repo-file-v1:sha256:0dffedef815dc3b8dc806a05753e00d973b6becbe06db9e9c3baf0c31c8b7aa5"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/DesktopBackendEnvironment.swift#L138-L157",
-          "version": "repo-lines-v1:sha256:223ac3b2b4b04c5ea9010754d32d924d402cfcadea875b821cf0413ad279c97b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlOGZkYzExZmE1N2FjMzE5ZGM3MWIxZjhkMDc3MTM5YzMyOTUyYTU5NzI3ODMyZDY5OWRiYjg1ODQ1ZGM0ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyMTI3MTViZWM1OWE0NDFmMTY4MmZmYjUyZTg5YmZhZDk5NzdmNTBmZmY3YWQzZjhhMWQxOTFkZGMzMDhkNDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFiYTYzOTYyNDAxMzI3ZDJlMDYyMDdlOGE4YTA2YmM3ZDlhMWRmYTM3YmUyNDk2YmNhZmE4ZGQxYWUxNDhmZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE5NmNjZDUxNmI5MzRmOGJjYWRmMjAzN2EwOGVmZmQ4MGI2MzRjYmI4OGRlMDM5MDdiZDk5NTQ2ZDkxMTU0ZWQifQ"
+          "resource": "repo://desktop/macos/Desktop/Tests/APIClientRoutingTests.swift",
+          "version": "repo-file-v1:sha256:c45e861349634375457e855741dedab1adf56ecf50a2557f91111ced5914820c"
+        }
+      ]
+    },
+    {
+      "id": "claim_57366dfa44e84a40a64b2a9fd569ee4b",
+      "statement": "Direct and Live usage accounting separates cached and uncached input from output and thinking, while delivery timing is captured before final journal acknowledgement.",
+      "evidence": [
+        {
+          "resource": "repo://backend/utils/llm/gemini_usage.py",
+          "version": "repo-file-v1:sha256:e8e9ea274f22c634f8b7549f569d48c3e1fa0ba95611cfb8739210f877f5cb9d"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Tests/APIClientRoutingTests.swift#L500-L535",
-          "version": "repo-lines-v1:sha256:da7aa97fc4f7ba6863378264b8cb8e5a4661a853d9f3430177e87b851ad51e81:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MTllYTY0MjdkYTNlMDUzMmNmYWM2NjI4YTIwZTAxYTkzNDFkMTdlOTViMDU3MWZhZjliY2QwM2VmOGYzNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE1MDhmNTMwYjAzODE0NmVkYWNjMDRiMDI2NjMzNGQwODczZjJmZTBiMDJkOWM1MzBmNTI1NDQzZjI3ZWI0YmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiMDhiNDJmMGQ4MWM0ODliM2FmOWEwMzE4ZDY4NzhkNGQwZDJkZTIzNTBmOWYxYWU0MDBmNDBlMDA1ZTE5ZmIifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLiveSession.swift",
+          "version": "repo-file-v1:sha256:c4286d730c983eda4189682d96431997b989c2669bb1892e47d97dac83c33baf"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L995-L1035",
+          "version": "repo-lines-v1:sha256:763610557e371ae52bce4b3300ad2d5142a0591786d7c4f0896fbcccabfe24e0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjMTFjOTEyMTU0MDdkNTBhYzNkOTRmYzY0MmFiN2M0NzQ3ZDQ4NDA4ZGM0YzNiYzg5MzA3MDY4NmU2ZmY3ZmQifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
+          "version": "repo-file-v1:sha256:dad87ca479a7ba0c18f4da504313cc4dc45ec7319b694284315a13101ffb0329"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-27T18:59:28.091Z"
+    "at": "2026-10-14T15:10:35.595Z"
   }
 }

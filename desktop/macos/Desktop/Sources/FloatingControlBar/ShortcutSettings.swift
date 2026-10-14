@@ -336,101 +336,14 @@ class ShortcutSettings: ObservableObject {
     didSet { UserDefaults.standard.set(pttEnabled, forKey: "shortcut_pttEnabled") }
   }
 
-  @Published var doubleTapForLock: Bool {
-    didSet { UserDefaults.standard.set(doubleTapForLock, forKey: "shortcut_doubleTapForLock") }
-  }
-
   /// When true, the floating bar uses a solid dark background instead of semi-transparent blur.
   @Published var solidBackground: Bool {
     didSet { UserDefaults.standard.set(solidBackground, forKey: "shortcut_solidBackground") }
   }
 
-  /// When true, push-to-talk plays start/end sounds.
-  @Published var pttSoundsEnabled: Bool {
-    didSet { UserDefaults.standard.set(pttSoundsEnabled, forKey: "shortcut_pttSoundsEnabled") }
-  }
-
-  /// When true, holding push-to-talk mutes any audio playing on the default output
-  /// device (e.g. music) for the duration of dictation, then restores it on release —
-  /// like Wispr Flow. The track keeps playing silently rather than being paused.
-  @Published var pttMuteSystemAudio: Bool {
-    didSet { UserDefaults.standard.set(pttMuteSystemAudio, forKey: "shortcut_pttMuteSystemAudio") }
-  }
-
-  /// Empty means Automatic. A non-empty value is a stable CoreAudio device UID
-  /// selected specifically for push-to-talk, independent of the macOS default input.
-  @Published var pttInputDeviceUID: String {
-    didSet { UserDefaults.standard.set(pttInputDeviceUID, forKey: .shortcutPTTInputDeviceUID) }
-  }
-
-  /// Push-to-talk transcription mode.
-  enum PTTTranscriptionMode: String, CaseIterable {
-    case live = "Live"
-    case batch = "Batch"
-
-    var description: String {
-      switch self {
-      case .live: return "Real-time transcription as you speak"
-      case .batch: return "Transcribe after recording for better accuracy"
-      }
-    }
-  }
-
-  @Published var pttTranscriptionMode: PTTTranscriptionMode {
-    didSet { UserDefaults.standard.set(pttTranscriptionMode.rawValue, forKey: "shortcut_pttTranscriptionMode") }
-  }
-
-  /// Transient, never-persisted override for the onboarding voice demo, which
-  /// forces `.live` only while its step is on screen. Persisting the forced
-  /// mode (as the demo used to, via `pttTranscriptionMode`'s didSet) meant a
-  /// quit/crash mid-step permanently corrupted the user's saved PTT mode.
-  /// Consumers read `effectivePTTTranscriptionMode`, not the stored property.
-  @Published var pttTranscriptionModeDemoOverride: PTTTranscriptionMode?
-
-  /// The PTT transcription mode in effect: the demo override when present,
-  /// otherwise the user's persisted preference.
-  var effectivePTTTranscriptionMode: PTTTranscriptionMode {
-    pttTranscriptionModeDemoOverride ?? pttTranscriptionMode
-  }
-
   /// When true, the floating bar can be repositioned by dragging. Off by default.
   @Published var draggableBarEnabled: Bool {
     didSet { UserDefaults.standard.set(draggableBarEnabled, forKey: "shortcut_draggableBarEnabled") }
-  }
-
-  /// Push-to-talk replies are always spoken aloud.
-  let floatingBarVoiceAnswersEnabled: Bool = true
-
-  /// When true, typed floating-bar questions receive spoken replies.
-  @Published var floatingBarTypedQuestionVoiceAnswersEnabled: Bool {
-    didSet {
-      UserDefaults.standard.set(
-        floatingBarTypedQuestionVoiceAnswersEnabled,
-        forKey: "shortcut_floatingBarTypedQuestionVoiceAnswersEnabled"
-      )
-      if !hasAnyFloatingBarVoiceAnswersEnabled {
-        FloatingBarVoicePlaybackService.shared.stop()
-      }
-    }
-  }
-
-  /// Voice playback speed (0.8x – 2.0x). Default 1.4x.
-  @Published var voicePlaybackSpeed: Float {
-    didSet {
-      UserDefaults.standard.set(voicePlaybackSpeed, forKey: "shortcut_voicePlaybackSpeed")
-    }
-  }
-
-  /// Speed presets for the voice speed slider (6 steps).
-  static let voiceSpeedSteps: [Float] = [0.8, 1.0, 1.2, 1.4, 1.6, 2.0]
-
-  static func voiceSpeedLabel(for speed: Float) -> String {
-    if speed <= 0.8 { return "Slow" }
-    if speed <= 1.0 { return "Normal" }
-    if speed <= 1.2 { return "Fast" }
-    if speed <= 1.4 { return "Faster" }
-    if speed <= 1.6 { return "Very Fast" }
-    return "Maximum"
   }
 
   /// A selectable voice for floating-bar replies.
@@ -532,17 +445,7 @@ class ShortcutSettings: ObservableObject {
     didSet {
       guard selectedVoiceID != oldValue else { return }
       UserDefaults.standard.set(selectedVoiceID, forKey: "shortcut_selectedVoiceID")
-      FloatingBarVoicePlaybackService.shared.playVoiceSample(voiceID: selectedVoiceID)
-      FloatingBarVoicePlaybackService.shared.prewarmBackgroundAgentKickoffPhrases()
     }
-  }
-
-  var hasAnyFloatingBarVoiceAnswersEnabled: Bool {
-    true
-  }
-
-  func shouldSpeakFloatingBarResponse(forVoiceQuery: Bool) -> Bool {
-    forVoiceQuery || floatingBarTypedQuestionVoiceAnswersEnabled
   }
 
   var askOmiUsesCustomShortcut: Bool {
@@ -581,22 +484,8 @@ class ShortcutSettings: ObservableObject {
 
     self.askOmiEnabled = UserDefaults.standard.object(forKey: .shortcutAskIntentiveEnabled) as? Bool ?? true
     self.pttEnabled = UserDefaults.standard.object(forKey: "shortcut_pttEnabled") as? Bool ?? true
-    self.doubleTapForLock = UserDefaults.standard.object(forKey: "shortcut_doubleTapForLock") as? Bool ?? true
     self.solidBackground = UserDefaults.standard.object(forKey: "shortcut_solidBackground") as? Bool ?? false
-    self.pttSoundsEnabled = UserDefaults.standard.object(forKey: "shortcut_pttSoundsEnabled") as? Bool ?? true
-    self.pttMuteSystemAudio = UserDefaults.standard.object(forKey: "shortcut_pttMuteSystemAudio") as? Bool ?? true
-    self.pttInputDeviceUID = UserDefaults.standard.string(forKey: .shortcutPTTInputDeviceUID) ?? ""
-    if let saved = UserDefaults.standard.string(forKey: "shortcut_pttTranscriptionMode"),
-      let mode = PTTTranscriptionMode(rawValue: saved)
-    {
-      self.pttTranscriptionMode = mode
-    } else {
-      self.pttTranscriptionMode = .batch
-    }
     self.draggableBarEnabled = UserDefaults.standard.object(forKey: "shortcut_draggableBarEnabled") as? Bool ?? false
-    self.floatingBarTypedQuestionVoiceAnswersEnabled =
-      UserDefaults.standard.object(forKey: "shortcut_floatingBarTypedQuestionVoiceAnswersEnabled") as? Bool ?? false
-    self.voicePlaybackSpeed = UserDefaults.standard.object(forKey: "shortcut_voicePlaybackSpeed") as? Float ?? 1.4
     let storedVoiceID = UserDefaults.standard.string(forKey: "shortcut_selectedVoiceID") ?? Self.defaultVoiceID
     let validVoiceID =
       Self.availableVoices.contains(where: { $0.id == storedVoiceID })
@@ -604,9 +493,6 @@ class ShortcutSettings: ObservableObject {
       : Self.defaultVoiceID
     self.selectedVoiceID = validVoiceID
 
-    Task { @MainActor in
-      FloatingBarVoicePlaybackService.shared.prewarmBackgroundAgentKickoffPhrases()
-    }
   }
 
   private func persistShortcut(_ shortcut: KeyboardShortcut, forKey key: String) {

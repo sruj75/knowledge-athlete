@@ -3,7 +3,6 @@ import Foundation
 
 enum AIUserProfileInputPolicy {
   static let memoryLimit = 100
-  static let taskLimit = 50
   static let conversationLimit = 20
   static let conversationLookbackDays = 7
   static let journalMessageLimit = 30
@@ -25,8 +24,6 @@ enum AIUserProfileInputPolicy {
 
 struct AIUserProfileInputs: Sendable {
   let memories: [String]
-  let tasks: [String]
-  let goals: [String]
   let conversations: [String]
   let journalMessages: [String]
 }
@@ -353,16 +350,14 @@ actor AIUserProfileService {
         await fetchDataSources(authorizationSnapshot: ownerSnapshot)
       }
     let memories = inputs.memories
-    let tasks = inputs.tasks
-    let goals = inputs.goals
     let conversations = inputs.conversations
     let journalMessages = inputs.journalMessages
     try authorization.require()
 
     // 2. Count total data items
-    let dataSourcesUsed = memories.count + tasks.count + goals.count + conversations.count + journalMessages.count
+    let dataSourcesUsed = memories.count + conversations.count + journalMessages.count
     log(
-      "AIUserProfileService: Fetched \(dataSourcesUsed) data items (memories=\(memories.count), tasks=\(tasks.count), goals=\(goals.count), convos=\(conversations.count))"
+      "AIUserProfileService: Fetched \(dataSourcesUsed) data items (memories=\(memories.count), convos=\(conversations.count))"
     )
 
     guard dataSourcesUsed > 0 else {
@@ -372,15 +367,13 @@ actor AIUserProfileService {
     // 3. Build prompt
     let prompt = buildPrompt(
       memories: memories,
-      tasks: tasks,
-      goals: goals,
       conversations: conversations,
       journalMessages: journalMessages)
 
     // 4. Call Gemini
     let systemPrompt = """
       You are generating a structured user profile that will be injected as context into AI pipelines \
-      (task extraction, goal extraction, memory extraction) that analyze the user's screen and audio activity.
+      (Memory and conversation context) that analyze the user's screen and audio activity.
 
       OUTPUT FORMAT:
       - A flat list of factual statements, one per line, prefixed with "- "
@@ -431,7 +424,7 @@ actor AIUserProfileService {
     let consolidationSystemPrompt = """
         You are merging a newly generated user profile with historical profiles to create \
         one holistic, up-to-date user profile. This profile is injected as context into AI pipelines \
-        (task extraction, goal extraction, memory extraction) that analyze the user's screen and audio activity.
+        (Memory and conversation context) that analyze the user's screen and audio activity.
 
         OUTPUT FORMAT:
         - A flat list of factual statements, one per line, prefixed with "- "
@@ -492,22 +485,16 @@ actor AIUserProfileService {
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async -> AIUserProfileInputs {
     async let memoriesTask = fetchMemories(authorizationSnapshot: authorizationSnapshot)
-    async let tasksTask = fetchTasks(authorizationSnapshot: authorizationSnapshot)
-    async let goalsTask = fetchGoals(authorizationSnapshot: authorizationSnapshot)
     async let conversationsTask = fetchConversations(
       authorizationSnapshot: authorizationSnapshot)
     async let journalTask = fetchJournalMessages(
       authorizationSnapshot: authorizationSnapshot)
 
     let memories = await memoriesTask
-    let tasks = await tasksTask
-    let goals = await goalsTask
     let conversations = await conversationsTask
     let journalMessages = await journalTask
     return AIUserProfileInputs(
       memories: memories,
-      tasks: tasks,
-      goals: goals,
       conversations: conversations,
       journalMessages: journalMessages)
   }
@@ -522,38 +509,6 @@ actor AIUserProfileService {
       return memories.map { "[\($0.category.rawValue)] \($0.content)" }
     } catch {
       log("AIUserProfileService: Failed to fetch memories: \(error.localizedDescription)")
-      return []
-    }
-  }
-
-  private func fetchTasks(
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async -> [String] {
-    do {
-      let tasks = try await ActionItemStorage.shared.getLocalActionItems(
-        limit: AIUserProfileInputPolicy.taskLimit,
-        authorizationSnapshot: authorizationSnapshot)
-      return tasks.map { item in
-        let status = item.completed ? "done" : "todo"
-        let priority = item.priority ?? "medium"
-        return "[\(status)/\(priority)] \(item.description)"
-      }
-    } catch {
-      log("AIUserProfileService: Failed to fetch tasks: \(error.localizedDescription)")
-      return []
-    }
-  }
-
-  private func fetchGoals(
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
-  ) async -> [String] {
-    do {
-      let goals = try await GoalStorage.shared.getLocalGoals(
-        activeOnly: true,
-        authorizationSnapshot: authorizationSnapshot)
-      return goals.map(\.title)
-    } catch {
-      log("AIUserProfileService: Failed to fetch goals: \(error.localizedDescription)")
       return []
     }
   }
@@ -592,21 +547,17 @@ actor AIUserProfileService {
         throw LocalMutationAuthorizationError.revoked
       }
       let surface = AgentSurfaceReference.mainChat(chatId: nil)
-      let resolved = try await session.resolveSurfaceSession(surface)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else {
-        throw LocalMutationAuthorizationError.revoked
-      }
-      let snapshot = try await session.getContextSnapshot(
-        sessionId: resolved.sessionId,
-        surfaceKind: surface.surfaceKind)
-      await session.stopAndWaitForExit()
+      let tail = try await session.listJournalTurnTail(
+        surface: surface, limit: 100,
+        authorizationSnapshot: authorizationSnapshot)
       guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return [] }
-      return snapshot.recentTurns
-        .compactMap(AgentContextRecentTurn.init(dictionary:))
+      var latest: [String: KernelJournalTurn] = [:]
+      for turn in tail.turns { latest[turn.turnId] = turn }
+      return latest.values.filter { !$0.content.isEmpty && $0.status == .completed }
+        .sorted { $0.createdAtMs < $1.createdAtMs }
         .suffix(AIUserProfileInputPolicy.journalMessageLimit)
         .map { "[\($0.role)] \($0.content)" }
     } catch {
-      await session.stopAndWaitForExit()
       log("AIUserProfileService: Failed to fetch local journal messages: \(error.localizedDescription)")
       return []
     }
@@ -616,8 +567,6 @@ actor AIUserProfileService {
 
   private func buildPrompt(
     memories: [String],
-    tasks: [String],
-    goals: [String],
     conversations: [String],
     journalMessages: [String]
   ) -> String {
@@ -625,14 +574,6 @@ actor AIUserProfileService {
 
     if !memories.isEmpty {
       sections.append("## Memories about the user\n\(memories.joined(separator: "\n"))")
-    }
-
-    if !tasks.isEmpty {
-      sections.append("## Recent tasks\n\(tasks.joined(separator: "\n"))")
-    }
-
-    if !goals.isEmpty {
-      sections.append("## Active goals\n\(goals.joined(separator: "\n"))")
     }
 
     if !conversations.isEmpty {
@@ -647,7 +588,7 @@ actor AIUserProfileService {
       Generate a factual user profile from the following data. \
       Output a flat list of concrete facts (one per line, prefixed with "- "). \
       This profile will be used as context for AI pipelines that analyze the user's screen and audio activity \
-      to extract tasks, goals, and memories. Focus on facts that help identify who is who, what projects are active, \
+      to support conversations and Memory. Focus on facts that help identify who is who, what projects are active, \
       and what the user's current priorities are. Under 2000 characters.
 
       \(sections.joined(separator: "\n\n"))

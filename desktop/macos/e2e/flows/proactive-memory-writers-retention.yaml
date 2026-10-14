@@ -5,7 +5,6 @@ description: Existing records remain available after automatic screen-derived wr
 app: non-prod
 covers:
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/MemoryExtraction/MemoryAssistantTelemetry.swift
-  - desktop/macos/Desktop/Sources/ProactiveAssistants/Assistants/Insight/InsightStorage.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Core/GeminiClient.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/ProactiveModels.swift
   - desktop/macos/Desktop/Sources/Rewind/Core/ProactiveStorage.swift

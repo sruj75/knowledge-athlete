@@ -39,18 +39,16 @@ sources:
     resource: repo://tools/codebase-map/next.config.ts
   - id: openwiki-source-cadbf0c250f5afb51126591d
     resource: repo://tools/codebase-map/package.json
-  - id: openwiki-source-ca4237737e1f00bf166d7fb5
-    resource: repo://tools/codebase-map/README.md
   - id: openwiki-source-74eca9dc530951021748ada2
     resource: repo://tools/codebase-map/tests/area-flows.test.mjs
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
   - id: openwiki-source-add0ec364ed6744f53f1bc54
     resource: repo://tools/codebase-map/tests/spatial-layout.test.mjs
-generated: { by: "codex", at: "2026-09-29T14:41:59.037Z" }
+generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-29T14:41:59.037Z
+    at: 2026-10-14T15:50:15.263Z
 ---
 # Codebase map viewer
 
@@ -60,30 +58,13 @@ owner-local product data or generate architecture from source code.
 
 ## What the map covers
 
-The 23 areas organize a source review; they are not a count of implementation
-modules. Boxes expose responsibilities at different sizes. The expanded map
-records admission gates and defaults, local and remote persistence,
-failure/recovery paths, settings, and downstream consumers across startup,
-capture, Supervisor guidance, Chat/voice, backend compute, account controls and
-operations. Edge labels distinguish calls, data, events and conditional
-relationships rather than promising one execution order.
+The current six areas describe account ownership, independent permitted inputs, Supervisor B, one logical A conversation, canonical history and instructions/measurement. They contain 37 nodes and 57 connections: 38 internal and 19 boundary connections. They are product responsibilities, not a count of implementation modules.
 
-The scope is active macOS, its Node runtime and registered backend behavior, with
-dormant branches marked where found. Paused Windows, dependency internals and full
-build/release/test workflows remain outside this product map. `NOT FOUND` and
-`UNVERIFIED` labels preserve unresolved caller or deployment questions; they do
-not establish that a path is safe to delete. Source configuration alone does not
-prove deployment, performance or runtime acceptance. Consequential changes still
-require checking the linked source and tests.
+The map follows persistent native Live, typed and sticky fallback A routes, immutable instructions, private B guidance, controlled audio, canonical acceptance and retained Memory/Rewind. It distinguishes preserved historical data from retired Pi execution and Tasks/goals/Insights/Focus producers. Paused Windows, dependency internals and detailed release/test workflows remain outside this product-body diagram. Source behavior does not establish provider, physical-audio or eight-hour acceptance.
 
-The [second source-review record](../../../docs/architecture/intentive-codeflow-review.md)
-records all 23 areas at its historical `ed00649c` source, including unchanged areas,
-source links, before/after box counts and retained gaps. Its integration note
-separates that receipt from the current Supervisor graph. Area 06 now describes
-one owner-bound Supervisor and private Live guidance, replacing the five
-background assistants. The expanded map retains descriptions of database
-recovery, structured export, task-vector coverage and Pi screenshot delivery
-limits. The receipt and diagram are source descriptions, not runtime acceptance.
+The conversation area explicitly retains the original notch and floating surface for both user and B starts. Its labels connect opening/thinking feedback to the lifecycle and microphone/playback waves to actual processed/rendered audio. The conversation remains visibly open between replies; these labels describe implemented wiring, not a physical audio qualification result.
+
+The [second source-review record](../../../docs/architecture/intentive-codeflow-review.md) preserves the historical 23-area `ed00649c` audit and appends the October 14 six-area integration. Its old task-vector and Pi screenshot gaps belong to that historical architecture. Viewer and publishing mechanics remain documented here and in the package README separately from the current product diagram.
 
 ## From repository to browser
 
@@ -188,15 +169,15 @@ npm --prefix tools/codebase-map run check
 
 The check generates route types, type-checks, exercises source provenance and
 spatial-layout tests, builds the static export, and runs Chromium against it.
-Browser checks account for all 23 areas, 342 nodes and 780 connections, including
-dense areas 07/15 and area 20 without internal edges. They cover readable
+Browser checks account for all six areas, 37 nodes and 57 connections, including
+the conversation area and the instructions area without internal edges. They cover readable
 overview titles, explicit click/keyboard entry, full labels at natural SVG size,
 wheel scrolling without opening or scaling diagrams, native touch scrolling,
 mouse drag, restored positions, fixed geographic coordinates, cached layouts,
 connection inspection and destination focus, resize/fullscreen, reduced motion,
 retry recovery and exact commit links. Pure tests cover deterministic geographic
 projection, non-overlap and boundary-flow direction. Browser checks account for
-all 412 cross-subsystem edges on both inflow and outflow sides, including
+all 19 cross-subsystem edges on both inflow and outflow sides, including
 independent list scrolling, destination navigation, scroll reset and keyboard
 focus. No live backend or model is involved.
 
@@ -209,8 +190,7 @@ the explicit installation commands above.
 
 Follow the [authored same-PR map review rule](../../INSTRUCTIONS.md#pr-closeout):
 review product flows and source anchors, update affected paths in the same PR, and
-record an update or reviewed-unchanged result in the PR checklist. The Mermaid map
-also describes its own publishing flow.
+record an update or reviewed-unchanged result in the PR checklist. The viewer README documents its publishing flow separately from the product diagram.
 
 The [viewer setup](../../../tools/codebase-map/README.md) specifies a dedicated
 Vercel project with `tools/codebase-map` as its root, access to files outside that

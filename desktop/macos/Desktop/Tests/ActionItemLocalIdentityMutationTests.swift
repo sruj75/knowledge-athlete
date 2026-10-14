@@ -229,41 +229,6 @@ final class ActionItemLocalIdentityMutationTests: XCTestCase {
     XCTAssertEqual(count, 1)
   }
 
-  @MainActor
-  func testEveryRecurrenceRuleAdvancesPastMissedBacklog() throws {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
-    let now = try XCTUnwrap(
-      calendar.date(
-        from: DateComponents(
-          year: 2025, month: 1, day: 6, hour: 10)))
-    let cases: [(rule: String, due: DateComponents, expected: DateComponents)] = [
-      ("daily", .init(year: 2025, month: 1, day: 5, hour: 9), .init(year: 2025, month: 1, day: 7, hour: 9)),
-      ("weekdays", .init(year: 2025, month: 1, day: 3, hour: 9), .init(year: 2025, month: 1, day: 7, hour: 9)),
-      ("weekly", .init(year: 2024, month: 12, day: 23, hour: 9), .init(year: 2025, month: 1, day: 13, hour: 9)),
-      ("biweekly", .init(year: 2024, month: 12, day: 9, hour: 9), .init(year: 2025, month: 1, day: 20, hour: 9)),
-      ("monthly", .init(year: 2024, month: 11, day: 6, hour: 9), .init(year: 2025, month: 2, day: 6, hour: 9)),
-    ]
-
-    for item in cases {
-      let due = try XCTUnwrap(calendar.date(from: item.due))
-      let expected = try XCTUnwrap(calendar.date(from: item.expected))
-      let task = TaskActionItem(
-        id: "local_1",
-        description: item.rule,
-        completed: false,
-        createdAt: due,
-        dueAt: due,
-        recurrenceRule: item.rule
-      )
-      XCTAssertEqual(
-        TasksStore.nextFutureDueDate(for: task, now: now, calendar: calendar),
-        expected,
-        item.rule
-      )
-    }
-  }
-
   func testStorageNormalizesTypedTaskFieldsAndRejectsUnknownValues() async throws {
     let inserted = try await ActionItemStorage.shared.insertLocalActionItem(
       ActionItemRecord(

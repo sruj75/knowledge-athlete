@@ -321,12 +321,6 @@ extension SettingsContentView {
   }
 
   func toggleTranscription(enabled: Bool) {
-    // Check microphone permission
-    if enabled && !appState.hasMicrophonePermission {
-      transcriptionError = "Microphone permission required"
-      isTranscribing = false
-      return
-    }
     if enabled { OnboardingExitPersistence.recordExplicitCapabilityEnablement() }
 
     transcriptionError = nil
@@ -335,6 +329,8 @@ extension SettingsContentView {
     // Track setting change
     AnalyticsManager.shared.settingToggled(setting: "transcription", enabled: enabled)
 
+    // Record explicit intent before a permission request can complete.
+    AssistantSettings.shared.transcriptionEnabled = enabled
     if enabled {
       appState.startTranscription()
       isTogglingTranscription = false
@@ -345,14 +341,19 @@ extension SettingsContentView {
       isTranscribing = false
     }
 
-    // Persist the setting
-    AssistantSettings.shared.transcriptionEnabled = enabled
+  }
+
+  func setAmbientMicrophoneEnabled(_ enabled: Bool) {
+    AssistantSettings.shared.ambientMicrophoneEnabled = enabled
+    if enabled && !appState.hasMicrophonePermission {
+      appState.requestMicrophonePermission()
+    }
   }
 
   func setSystemAudioCaptureMode(_ mode: AssistantSettings.SystemAudioCaptureMode) {
     AnalyticsManager.shared.settingToggled(
       setting: "system_audio_capture_mode_\(mode.rawValue)", enabled: mode != .never)
-    // Persisting posts .systemAudioCaptureModeDidChange; AppState updates system-audio capture
+    // Persisting posts .ambientAudioCaptureSettingsDidChange; AppState updates system-audio capture
     // without interrupting the microphone in an in-progress recording.
     AssistantSettings.shared.systemAudioCaptureMode = mode
   }
@@ -451,6 +452,7 @@ extension SettingsContentView {
     vocabularyList = AssistantSettings.shared.transcriptionVocabulary
     conversationLocationEnabled = AssistantSettings.shared.conversationLocationEnabled
     vadGateEnabled = AssistantSettings.shared.vadGateEnabled
+    ambientMicrophoneEnabled = AssistantSettings.shared.ambientMicrophoneEnabled
     systemAudioCaptureMode = AssistantSettings.shared.systemAudioCaptureMode
     let notifications = LocalNotificationSettings().snapshot()
     notificationsEnabled = notifications.enabled

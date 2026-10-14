@@ -1,11 +1,9 @@
 {
   "files": {
-    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": 6153,
-    "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift": 1941
+    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": 3886
   },
   "raise_justifications": {
-    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": "S-14 threads the original notification authorization snapshot through the existing canonical journal write API so no second writer or stale-generation fallback is introduced.",
-    "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift": "S-12 replaces hosted Memory tool dispatch with owner-authorized local get/search/add/edit/delete behavior at the existing tool boundary; splitting this multi-tool executor is outside the Memory authority deletion."
+    "desktop/macos/Desktop/Sources/Providers/ChatProvider.swift": "S-14 threads the original notification authorization snapshot through the existing canonical journal write API so no second writer or stale-generation fallback is introduced."
   },
   "threshold": 1500
 }

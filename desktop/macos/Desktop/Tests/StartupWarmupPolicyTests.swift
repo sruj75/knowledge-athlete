@@ -215,61 +215,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(DesktopDestination.allCases.contains(.settings))
   }
 
-  @MainActor
-  func testTasksStoreStartupMaintenanceSchedulesOnceForFirstUseLoadPath() async {
-    let store = TasksStore.shared
-    let ownerFixture = RuntimeOwnerAuthorityTestFixture()
-    addTeardownBlock { @MainActor in
-      await ownerFixture.restore()
-      store.resetSessionState()
-    }
-    await ownerFixture.establish(authOwnerID: "startup-maintenance-owner")
-    store.resetSessionState()
-
-    let firstTasks = store.scheduleStartupMaintenanceIfNeeded()
-    for task in firstTasks { await task.value }
-    XCTAssertTrue(store.hasScheduledStartupMaintenance)
-    XCTAssertEqual(firstTasks.count, 1)
-
-    XCTAssertTrue(store.scheduleStartupMaintenanceIfNeeded().isEmpty)
-  }
-
-  func testActiveHomeRefreshDoesNotRequireTasksPageHydration() throws {
-    let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    let sourceURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/Stores/TasksStore.swift")
-    let source = try String(contentsOf: sourceURL, encoding: .utf8)
-
-    XCTAssertTrue(
-      source.contains("guard isActive || hasLoadedIncomplete else { return }")
-        && source.contains("await refreshSummaryProjections(lease: lease)"),
-      "An active Home must refresh its owner-fenced task projection without waiting for Tasks-page hydration"
-    )
-  }
-
-  func testDatabaseWarmupSchedulesTaskMaintenanceWithoutTasksPageHydration() throws {
-    let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    let sourceURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/StartupWarmupCoordinator.swift")
-    let source = try String(contentsOf: sourceURL, encoding: .utf8)
-
-    guard let maintenanceRange = source.range(of: "tasksStore.scheduleStartupMaintenanceIfNeeded()"),
-      let lifecycleRange = source.range(of: "DATA LOAD: DB warmup complete")
-    else {
-      return XCTFail("Startup warmup must schedule task maintenance before DB lifecycle warmup")
-    }
-
-    XCTAssertLessThan(
-      maintenanceRange.lowerBound,
-      lifecycleRange.lowerBound,
-      "Startup maintenance must run from the startup warmup path, not only after opening Tasks"
-    )
-  }
-
   func testStartupResetClearsPerUserMemoriesState() throws {
     let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
     let containerURL =
@@ -294,20 +239,6 @@ final class StartupWarmupPolicyTests: XCTestCase {
     XCTAssertTrue(
       memoriesSource.contains("memories = []"),
       "Memories reset must clear any previous user's published memory rows"
-    )
-  }
-
-  func testStartupResetClearsPerUserTaskState() throws {
-    let testsURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    let containerURL =
-      testsURL
-      .deletingLastPathComponent()
-      .appendingPathComponent("Sources/ViewModelContainer.swift")
-    let containerSource = try String(contentsOf: containerURL, encoding: .utf8)
-
-    XCTAssertTrue(
-      containerSource.contains("tasksStore.resetSessionState()"),
-      "Startup reset must clear the sole TasksStore projection across account switches"
     )
   }
 

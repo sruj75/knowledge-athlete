@@ -69,7 +69,7 @@ DESKTOP_NOTIFICATION_REGRESSION_INPUTS = {
     "desktop/macos/tests/test-run-swift-ci.sh",
     "desktop/macos/Desktop/Sources/AppState/AppState+Permissions.swift",
     "desktop/macos/Desktop/Sources/OmiApp.swift",
-    "desktop/macos/Desktop/Sources/Providers/ChatToolExecutor.swift",
+    "desktop/macos/Desktop/Sources/ProactiveAssistants/Services/RetiredTaskReminderCleanup.swift",
 }
 
 DESKTOP_AGENT_RUNTIME_INPUTS = {
@@ -77,8 +77,10 @@ DESKTOP_AGENT_RUNTIME_INPUTS = {
     "desktop/macos/scripts/audit-desktop-bundle-deps.sh",
     "desktop/macos/scripts/prepare-agent-runtime.sh",
     "desktop/macos/scripts/prepare-desktop-bundle-native-deps.sh",
-    "desktop/macos/scripts/test-tool-surfaces.sh",
-    "desktop/macos/scripts/agent-logic-harness.sh",
+    "desktop/macos/scripts/test-conversation-storage.sh",
+    "desktop/macos/scripts/tests/test-conversation-storage-runtime-layout.sh",
+    "desktop/macos/scripts/agent-runtime-cache.sh",
+    "desktop/macos/scripts/tests/test-agent-runtime-cache.sh",
     "scripts/pre-push",
 }
 
@@ -156,9 +158,7 @@ def _is_desktop_notification_input(path: str) -> bool:
 
 
 def _is_desktop_agent_runtime_input(path: str) -> bool:
-    return path in DESKTOP_AGENT_RUNTIME_INPUTS or path.startswith(
-        ("desktop/macos/agent/", "desktop/macos/pi-mono-extension/")
-    )
+    return path in DESKTOP_AGENT_RUNTIME_INPUTS or path.startswith("desktop/macos/agent/")
 
 
 @dataclass(frozen=True)
@@ -217,7 +217,11 @@ def resolve_impact(
 
     releasable_desktop = any(_is_releasable_desktop_path(path) for path in normalized_paths) or selector_changed
     package_changed = any(
-        path in {"desktop/macos/Desktop/Package.swift", "desktop/macos/Desktop/Package.resolved"}
+        path
+        in {
+            "desktop/macos/Desktop/Package.swift",
+            "desktop/macos/Desktop/Package.resolved",
+        }
         for path in normalized_paths
     )
     if releasable_desktop:
@@ -254,9 +258,16 @@ def github_outputs(plan: ImpactPlan) -> dict[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--changed-files", type=Path, required=True)
-    parser.add_argument("--base", help="Optional Git revision used to detect deleted inputs and marker removals.")
+    parser.add_argument(
+        "--base",
+        help="Optional Git revision used to detect deleted inputs and marker removals.",
+    )
     parser.add_argument("--event", choices=("local", "pull_request", "push"), default="local")
-    parser.add_argument("--github-output", type=Path, help="Append established detect-changes outputs to this file.")
+    parser.add_argument(
+        "--github-output",
+        type=Path,
+        help="Append established detect-changes outputs to this file.",
+    )
     parser.add_argument("--output", choices=("lines", "json"), default="lines")
     args = parser.parse_args()
 
@@ -276,7 +287,12 @@ def main() -> int:
                 output.write(f"{name}={value}\n")
 
     if args.output == "json":
-        print(json.dumps({"phases": plan.ordered(), "github_outputs": github_outputs(plan)}, sort_keys=True))
+        print(
+            json.dumps(
+                {"phases": plan.ordered(), "github_outputs": github_outputs(plan)},
+                sort_keys=True,
+            )
+        )
     else:
         print("\n".join(plan.ordered()))
     return 0

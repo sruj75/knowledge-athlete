@@ -27,13 +27,8 @@ def fake_get_transcript_structure(*_args: Any, **_kwargs: Any) -> SimpleNamespac
     )
 
 
-def fake_extract_action_items(*_args: Any, **_kwargs: Any) -> list[Any]:
-    return []
-
-
 def install_offline_conversation_compute_fakes() -> None:
     """Replace only provider-backed conversation helpers in offline processes."""
 
     conversation_processing.should_discard_conversation = fake_should_discard_conversation
     conversation_processing.get_transcript_structure = fake_get_transcript_structure
-    conversation_processing.extract_action_items = fake_extract_action_items

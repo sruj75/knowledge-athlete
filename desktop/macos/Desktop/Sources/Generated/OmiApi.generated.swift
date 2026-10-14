@@ -163,100 +163,6 @@ public enum OmiAPI {
   }
 
 
-  public struct ConversationActionCandidate: Codable {
-    public let action: String
-    public let description_: String
-    public let dueAt: String?
-    public let targetTaskToken: String?
-
-    private enum CodingKeys: String, CodingKey {
-      case action
-      case description_ = "description"
-      case dueAt = "due_at"
-      case targetTaskToken = "target_task_token"
-    }
-
-    public init(from decoder: Decoder) throws {
-      let c = try decoder.container(keyedBy: CodingKeys.self)
-      action = try c.decode(String.self, forKey: .action)
-      description_ = try c.decode(String.self, forKey: .description_)
-      dueAt = try c.decodeIfPresent(String.self, forKey: .dueAt)
-      targetTaskToken = try c.decodeIfPresent(String.self, forKey: .targetTaskToken)
-    }
-
-    public init(action: String, description_: String, dueAt: String?, targetTaskToken: String?) {
-      self.action = action
-      self.description_ = description_
-      self.dueAt = dueAt
-      self.targetTaskToken = targetTaskToken
-    }
-  }
-
-
-  public struct ConversationActionItemsRequest: Codable {
-    public let generationId: String
-    public let language: String
-    public let outputLanguage: String
-    public let relatedTasks: [RelatedTaskCandidate]?
-    public let startedAt: String
-    public let timezone: String
-    public let transcript: String
-
-    private enum CodingKeys: String, CodingKey {
-      case generationId = "generation_id"
-      case language
-      case outputLanguage = "output_language"
-      case relatedTasks = "related_tasks"
-      case startedAt = "started_at"
-      case timezone
-      case transcript
-    }
-
-    public init(from decoder: Decoder) throws {
-      let c = try decoder.container(keyedBy: CodingKeys.self)
-      generationId = try c.decode(String.self, forKey: .generationId)
-      language = try c.decode(String.self, forKey: .language)
-      outputLanguage = try c.decode(String.self, forKey: .outputLanguage)
-      relatedTasks = try c.decodeIfPresent([RelatedTaskCandidate].self, forKey: .relatedTasks)
-      startedAt = try c.decode(String.self, forKey: .startedAt)
-      timezone = try c.decode(String.self, forKey: .timezone)
-      transcript = try c.decode(String.self, forKey: .transcript)
-    }
-
-    public init(generationId: String, language: String, outputLanguage: String, relatedTasks: [RelatedTaskCandidate]?, startedAt: String, timezone: String, transcript: String) {
-      self.generationId = generationId
-      self.language = language
-      self.outputLanguage = outputLanguage
-      self.relatedTasks = relatedTasks
-      self.startedAt = startedAt
-      self.timezone = timezone
-      self.transcript = transcript
-    }
-  }
-
-
-  public struct ConversationActionItemsResponse: Codable {
-    public let candidates: [ConversationActionCandidate]
-    public let generationId: String
-
-    private enum CodingKeys: String, CodingKey {
-      case candidates
-      case generationId = "generation_id"
-    }
-
-    public init(from decoder: Decoder) throws {
-      let c = try decoder.container(keyedBy: CodingKeys.self)
-      candidates = try c.decode([ConversationActionCandidate].self, forKey: .candidates)
-      generationId = try c.decode(String.self, forKey: .generationId)
-    }
-
-    public init(candidates: [ConversationActionCandidate], generationId: String) {
-      self.candidates = candidates
-      self.generationId = generationId
-    }
-  }
-
-
   public struct ConversationCandidateRequest: Codable {
     public let generationId: String
     public let language: String
@@ -377,14 +283,35 @@ public enum OmiAPI {
   }
 
 
+  public struct ConversationHistoryItem: Codable {
+    public let role: String
+    public let text: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      role = try c.decode(String.self, forKey: .role)
+      text = try c.decode(String.self, forKey: .text)
+    }
+
+    public init(role: String, text: String) {
+      self.role = role
+      self.text = text
+    }
+  }
+
+
   public struct ConversationObservation: Codable {
+    public let final_: Bool?
     public let outcome: String?
+    public let revision: Int?
     public let role: String
     public let text: String
     public let turnId: String
 
     private enum CodingKeys: String, CodingKey {
+      case final_ = "final"
       case outcome
+      case revision
       case role
       case text
       case turnId = "turn_id"
@@ -392,17 +319,156 @@ public enum OmiAPI {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      final_ = try c.decodeIfPresent(Bool.self, forKey: .final_)
       outcome = try c.decodeIfPresent(String.self, forKey: .outcome)
+      revision = try c.decodeIfPresent(Int.self, forKey: .revision)
       role = try c.decode(String.self, forKey: .role)
       text = try c.decode(String.self, forKey: .text)
       turnId = try c.decode(String.self, forKey: .turnId)
     }
 
-    public init(outcome: String?, role: String, text: String, turnId: String) {
+    public init(final_: Bool?, outcome: String?, revision: Int?, role: String, text: String, turnId: String) {
+      self.final_ = final_
       self.outcome = outcome
+      self.revision = revision
       self.role = role
       self.text = text
       self.turnId = turnId
+    }
+  }
+
+
+  public struct ConversationPromptReceipt: Codable {
+    public let name: String
+    public let sha256: String
+    public let source: String
+    public let text: String
+    public let version: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      name = try c.decode(String.self, forKey: .name)
+      sha256 = try c.decode(String.self, forKey: .sha256)
+      source = try c.decode(String.self, forKey: .source)
+      text = try c.decode(String.self, forKey: .text)
+      version = try c.decode(String.self, forKey: .version)
+    }
+
+    public init(name: String, sha256: String, source: String, text: String, version: String) {
+      self.name = name
+      self.sha256 = sha256
+      self.source = source
+      self.text = text
+      self.version = version
+    }
+  }
+
+
+  public struct ConversationPromptReference: Codable {
+    public let name: String
+    public let sha256: String
+    public let source: String
+    public let version: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      name = try c.decode(String.self, forKey: .name)
+      sha256 = try c.decode(String.self, forKey: .sha256)
+      source = try c.decode(String.self, forKey: .source)
+      version = try c.decode(String.self, forKey: .version)
+    }
+
+    public init(name: String, sha256: String, source: String, version: String) {
+      self.name = name
+      self.sha256 = sha256
+      self.source = source
+      self.version = version
+    }
+  }
+
+
+  public struct ConversationRespondRequest: Codable {
+    public let context: String?
+    public let conversationId: String
+    public let guidance: String?
+    public let history: [ConversationHistoryItem]?
+    public let image: JPEGImage?
+    public let message: String
+    public let promptRef: ConversationPromptReference
+    public let turnId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case context
+      case conversationId = "conversation_id"
+      case guidance
+      case history
+      case image
+      case message
+      case promptRef = "prompt_ref"
+      case turnId = "turn_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      context = try c.decodeIfPresent(String.self, forKey: .context)
+      conversationId = try c.decode(String.self, forKey: .conversationId)
+      guidance = try c.decodeIfPresent(String.self, forKey: .guidance)
+      history = try c.decodeIfPresent([ConversationHistoryItem].self, forKey: .history)
+      image = try c.decodeIfPresent(JPEGImage.self, forKey: .image)
+      message = try c.decode(String.self, forKey: .message)
+      promptRef = try c.decode(ConversationPromptReference.self, forKey: .promptRef)
+      turnId = try c.decode(String.self, forKey: .turnId)
+    }
+
+    public init(context: String?, conversationId: String, guidance: String?, history: [ConversationHistoryItem]?, image: JPEGImage?, message: String, promptRef: ConversationPromptReference, turnId: String) {
+      self.context = context
+      self.conversationId = conversationId
+      self.guidance = guidance
+      self.history = history
+      self.image = image
+      self.message = message
+      self.promptRef = promptRef
+      self.turnId = turnId
+    }
+  }
+
+
+  public struct ConversationSessionRequest: Codable {
+    public let conversationId: String
+
+    private enum CodingKeys: String, CodingKey {
+      case conversationId = "conversation_id"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversationId = try c.decode(String.self, forKey: .conversationId)
+    }
+
+    public init(conversationId: String) {
+      self.conversationId = conversationId
+    }
+  }
+
+
+  public struct ConversationSessionResponse: Codable {
+    public let conversationId: String
+    public let prompt: ConversationPromptReceipt
+
+    private enum CodingKeys: String, CodingKey {
+      case conversationId = "conversation_id"
+      case prompt
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversationId = try c.decode(String.self, forKey: .conversationId)
+      prompt = try c.decode(ConversationPromptReceipt.self, forKey: .prompt)
+    }
+
+    public init(conversationId: String, prompt: ConversationPromptReceipt) {
+      self.conversationId = conversationId
+      self.prompt = prompt
     }
   }
 
@@ -621,6 +687,24 @@ public enum OmiAPI {
 
     public init(message: String) {
       self.message = message
+    }
+  }
+
+
+  public struct JPEGImage: Codable {
+    public let jpegBase64: String
+
+    private enum CodingKeys: String, CodingKey {
+      case jpegBase64 = "jpeg_base64"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      jpegBase64 = try c.decode(String.self, forKey: .jpegBase64)
+    }
+
+    public init(jpegBase64: String) {
+      self.jpegBase64 = jpegBase64
     }
   }
 
@@ -1072,7 +1156,24 @@ public enum OmiAPI {
 
 
   public struct MintRequest: Codable {
-    public init() {}
+    public let conversationId: String
+    public let promptRef: ConversationPromptReference
+
+    private enum CodingKeys: String, CodingKey {
+      case conversationId = "conversation_id"
+      case promptRef = "prompt_ref"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      conversationId = try c.decode(String.self, forKey: .conversationId)
+      promptRef = try c.decode(ConversationPromptReference.self, forKey: .promptRef)
+    }
+
+    public init(conversationId: String, promptRef: ConversationPromptReference) {
+      self.conversationId = conversationId
+      self.promptRef = promptRef
+    }
   }
 
 
@@ -1121,7 +1222,7 @@ public enum OmiAPI {
 
   public struct RealtimeSessionResponse: Codable {
     public let expiresAt: String
-    public let prompt: PromptReceipt
+    public let prompt: ConversationPromptReceipt
     public let provider: String
     public let token: String
 
@@ -1135,45 +1236,15 @@ public enum OmiAPI {
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       expiresAt = try c.decode(String.self, forKey: .expiresAt)
-      prompt = try c.decode(PromptReceipt.self, forKey: .prompt)
+      prompt = try c.decode(ConversationPromptReceipt.self, forKey: .prompt)
       provider = try c.decode(String.self, forKey: .provider)
       token = try c.decode(String.self, forKey: .token)
     }
 
-    public init(expiresAt: String, prompt: PromptReceipt, provider: String, token: String) {
+    public init(expiresAt: String, prompt: ConversationPromptReceipt, provider: String, token: String) {
       self.expiresAt = expiresAt
       self.prompt = prompt
       self.provider = provider
-      self.token = token
-    }
-  }
-
-
-  public struct RelatedTaskCandidate: Codable {
-    public let completed: Bool?
-    public let description_: String
-    public let dueAt: String?
-    public let token: String
-
-    private enum CodingKeys: String, CodingKey {
-      case completed
-      case description_ = "description"
-      case dueAt = "due_at"
-      case token
-    }
-
-    public init(from decoder: Decoder) throws {
-      let c = try decoder.container(keyedBy: CodingKeys.self)
-      completed = try c.decodeIfPresent(Bool.self, forKey: .completed)
-      description_ = try c.decode(String.self, forKey: .description_)
-      dueAt = try c.decodeIfPresent(String.self, forKey: .dueAt)
-      token = try c.decode(String.self, forKey: .token)
-    }
-
-    public init(completed: Bool?, description_: String, dueAt: String?, token: String) {
-      self.completed = completed
-      self.description_ = description_
-      self.dueAt = dueAt
       self.token = token
     }
   }
@@ -1221,12 +1292,28 @@ public enum OmiAPI {
   }
 
 
+  public struct SupervisorActiveConversation: Codable {
+    public let id: String
+    public let state: String
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      id = try c.decode(String.self, forKey: .id)
+      state = try c.decode(String.self, forKey: .state)
+    }
+
+    public init(id: String, state: String) {
+      self.id = id
+      self.state = state
+    }
+  }
+
+
   public struct SupervisorDecisionObservation: Codable {
     public let conversation: [ConversationObservation]?
     public let decisionId: String
     public let evaluationSharing: Bool?
     public let kind: String
-    public let note: String?
     public let observationId: String
     public let prompt: PromptReference
     public let sessionId: String
@@ -1237,7 +1324,6 @@ public enum OmiAPI {
       case decisionId = "decision_id"
       case evaluationSharing = "evaluation_sharing"
       case kind
-      case note
       case observationId = "observation_id"
       case prompt
       case sessionId = "session_id"
@@ -1250,19 +1336,17 @@ public enum OmiAPI {
       decisionId = try c.decode(String.self, forKey: .decisionId)
       evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
       kind = try c.decode(String.self, forKey: .kind)
-      note = try c.decodeIfPresent(String.self, forKey: .note)
       observationId = try c.decode(String.self, forKey: .observationId)
       prompt = try c.decode(PromptReference.self, forKey: .prompt)
       sessionId = try c.decode(String.self, forKey: .sessionId)
       transcripts = try c.decodeIfPresent([TranscriptObservation].self, forKey: .transcripts)
     }
 
-    public init(conversation: [ConversationObservation]?, decisionId: String, evaluationSharing: Bool?, kind: String, note: String?, observationId: String, prompt: PromptReference, sessionId: String, transcripts: [TranscriptObservation]?) {
+    public init(conversation: [ConversationObservation]?, decisionId: String, evaluationSharing: Bool?, kind: String, observationId: String, prompt: PromptReference, sessionId: String, transcripts: [TranscriptObservation]?) {
       self.conversation = conversation
       self.decisionId = decisionId
       self.evaluationSharing = evaluationSharing
       self.kind = kind
-      self.note = note
       self.observationId = observationId
       self.prompt = prompt
       self.sessionId = sessionId
@@ -1271,52 +1355,121 @@ public enum OmiAPI {
   }
 
 
-  public struct SupervisorRequest: Codable {
-    public let contextEpoch: Int
-    public let conversation: [ConversationObservation]?
-    public let evaluationSharing: Bool?
-    public let memories: [String]?
-    public let observationId: String
-    public let profile: String?
-    public let screen: SupervisorScreen?
-    public let sessionId: String
-    public let transcripts: [TranscriptObservation]?
+  public struct SupervisorInputAvailability: Codable {
+    public let ageMs: Int?
+    public let capturedAt: String?
+    public let status: String
 
     private enum CodingKeys: String, CodingKey {
-      case contextEpoch = "context_epoch"
-      case conversation
-      case evaluationSharing = "evaluation_sharing"
-      case memories
-      case observationId = "observation_id"
-      case profile
-      case screen
-      case sessionId = "session_id"
-      case transcripts
+      case ageMs = "age_ms"
+      case capturedAt = "captured_at"
+      case status
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      ageMs = try c.decodeIfPresent(Int.self, forKey: .ageMs)
+      capturedAt = try c.decodeIfPresent(String.self, forKey: .capturedAt)
+      status = try c.decode(String.self, forKey: .status)
+    }
+
+    public init(ageMs: Int?, capturedAt: String?, status: String) {
+      self.ageMs = ageMs
+      self.capturedAt = capturedAt
+      self.status = status
+    }
+  }
+
+
+  public struct SupervisorInputStatus: Codable {
+    public let microphone: SupervisorInputAvailability
+    public let screen: SupervisorInputAvailability
+    public let system: SupervisorInputAvailability
+    public let webcam: SupervisorInputAvailability
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      microphone = try c.decode(SupervisorInputAvailability.self, forKey: .microphone)
+      screen = try c.decode(SupervisorInputAvailability.self, forKey: .screen)
+      system = try c.decode(SupervisorInputAvailability.self, forKey: .system)
+      webcam = try c.decode(SupervisorInputAvailability.self, forKey: .webcam)
+    }
+
+    public init(microphone: SupervisorInputAvailability, screen: SupervisorInputAvailability, system: SupervisorInputAvailability, webcam: SupervisorInputAvailability) {
+      self.microphone = microphone
+      self.screen = screen
+      self.system = system
+      self.webcam = webcam
+    }
+  }
+
+
+  public struct SupervisorRequest: Codable {
+    public let activeConversation: SupervisorActiveConversation?
+    public let contentRevision: Int?
+    public let contextEpoch: Int
+    public let conversation: [ConversationObservation]?
+    public let evaluationSharing: Bool?
+    public let inputStatus: SupervisorInputStatus?
+    public let memories: [String]?
+    public let observationId: String
+    public let observedAt: String?
+    public let profile: String?
+    public let screen: SupervisorScreen?
+    public let sessionId: String
+    public let transcripts: [TranscriptObservation]?
+    public let webcam: SupervisorWebcam?
+
+    private enum CodingKeys: String, CodingKey {
+      case activeConversation = "active_conversation"
+      case contentRevision = "content_revision"
+      case contextEpoch = "context_epoch"
+      case conversation
+      case evaluationSharing = "evaluation_sharing"
+      case inputStatus = "input_status"
+      case memories
+      case observationId = "observation_id"
+      case observedAt = "observed_at"
+      case profile
+      case screen
+      case sessionId = "session_id"
+      case transcripts
+      case webcam
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      activeConversation = try c.decodeIfPresent(SupervisorActiveConversation.self, forKey: .activeConversation)
+      contentRevision = try c.decodeIfPresent(Int.self, forKey: .contentRevision)
       contextEpoch = try c.decode(Int.self, forKey: .contextEpoch)
       conversation = try c.decodeIfPresent([ConversationObservation].self, forKey: .conversation)
       evaluationSharing = try c.decodeIfPresent(Bool.self, forKey: .evaluationSharing)
+      inputStatus = try c.decodeIfPresent(SupervisorInputStatus.self, forKey: .inputStatus)
       memories = try c.decodeIfPresent([String].self, forKey: .memories)
       observationId = try c.decode(String.self, forKey: .observationId)
+      observedAt = try c.decodeIfPresent(String.self, forKey: .observedAt)
       profile = try c.decodeIfPresent(String.self, forKey: .profile)
       screen = try c.decodeIfPresent(SupervisorScreen.self, forKey: .screen)
       sessionId = try c.decode(String.self, forKey: .sessionId)
       transcripts = try c.decodeIfPresent([TranscriptObservation].self, forKey: .transcripts)
+      webcam = try c.decodeIfPresent(SupervisorWebcam.self, forKey: .webcam)
     }
 
-    public init(contextEpoch: Int, conversation: [ConversationObservation]?, evaluationSharing: Bool?, memories: [String]?, observationId: String, profile: String?, screen: SupervisorScreen?, sessionId: String, transcripts: [TranscriptObservation]?) {
+    public init(activeConversation: SupervisorActiveConversation?, contentRevision: Int?, contextEpoch: Int, conversation: [ConversationObservation]?, evaluationSharing: Bool?, inputStatus: SupervisorInputStatus?, memories: [String]?, observationId: String, observedAt: String?, profile: String?, screen: SupervisorScreen?, sessionId: String, transcripts: [TranscriptObservation]?, webcam: SupervisorWebcam?) {
+      self.activeConversation = activeConversation
+      self.contentRevision = contentRevision
       self.contextEpoch = contextEpoch
       self.conversation = conversation
       self.evaluationSharing = evaluationSharing
+      self.inputStatus = inputStatus
       self.memories = memories
       self.observationId = observationId
+      self.observedAt = observedAt
       self.profile = profile
       self.screen = screen
       self.sessionId = sessionId
       self.transcripts = transcripts
+      self.webcam = webcam
     }
   }
 
@@ -1397,6 +1550,28 @@ public enum OmiAPI {
   }
 
 
+  public struct SupervisorWebcam: Codable {
+    public let capturedAt: String
+    public let jpegBase64: String
+
+    private enum CodingKeys: String, CodingKey {
+      case capturedAt = "captured_at"
+      case jpegBase64 = "jpeg_base64"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      capturedAt = try c.decode(String.self, forKey: .capturedAt)
+      jpegBase64 = try c.decode(String.self, forKey: .jpegBase64)
+    }
+
+    public init(capturedAt: String, jpegBase64: String) {
+      self.capturedAt = capturedAt
+      self.jpegBase64 = jpegBase64
+    }
+  }
+
+
   public struct TerminalTurnObservation: Codable {
     public let conversation: [ConversationObservation]?
     public let decisionId: String?
@@ -1448,21 +1623,73 @@ public enum OmiAPI {
 
 
   public struct TranscriptObservation: Codable {
+    public let final_: Bool?
     public let id: String
+    public let revision: Int?
     public let source: String
     public let text: String
 
+    private enum CodingKeys: String, CodingKey {
+      case final_ = "final"
+      case id
+      case revision
+      case source
+      case text
+    }
+
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      final_ = try c.decodeIfPresent(Bool.self, forKey: .final_)
       id = try c.decode(String.self, forKey: .id)
+      revision = try c.decodeIfPresent(Int.self, forKey: .revision)
       source = try c.decode(String.self, forKey: .source)
       text = try c.decode(String.self, forKey: .text)
     }
 
-    public init(id: String, source: String, text: String) {
+    public init(final_: Bool?, id: String, revision: Int?, source: String, text: String) {
+      self.final_ = final_
       self.id = id
+      self.revision = revision
       self.source = source
       self.text = text
+    }
+  }
+
+
+  public struct UsageReport: Codable {
+    public let inputAudioTokens: Int?
+    public let inputCachedTokens: Int?
+    public let inputTextTokens: Int?
+    public let outputAudioTokens: Int?
+    public let outputTextTokens: Int?
+    public let thinkingTokens: Int?
+
+    private enum CodingKeys: String, CodingKey {
+      case inputAudioTokens = "input_audio_tokens"
+      case inputCachedTokens = "input_cached_tokens"
+      case inputTextTokens = "input_text_tokens"
+      case outputAudioTokens = "output_audio_tokens"
+      case outputTextTokens = "output_text_tokens"
+      case thinkingTokens = "thinking_tokens"
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      inputAudioTokens = try c.decodeIfPresent(Int.self, forKey: .inputAudioTokens)
+      inputCachedTokens = try c.decodeIfPresent(Int.self, forKey: .inputCachedTokens)
+      inputTextTokens = try c.decodeIfPresent(Int.self, forKey: .inputTextTokens)
+      outputAudioTokens = try c.decodeIfPresent(Int.self, forKey: .outputAudioTokens)
+      outputTextTokens = try c.decodeIfPresent(Int.self, forKey: .outputTextTokens)
+      thinkingTokens = try c.decodeIfPresent(Int.self, forKey: .thinkingTokens)
+    }
+
+    public init(inputAudioTokens: Int?, inputCachedTokens: Int?, inputTextTokens: Int?, outputAudioTokens: Int?, outputTextTokens: Int?, thinkingTokens: Int?) {
+      self.inputAudioTokens = inputAudioTokens
+      self.inputCachedTokens = inputCachedTokens
+      self.inputTextTokens = inputTextTokens
+      self.outputAudioTokens = outputAudioTokens
+      self.outputTextTokens = outputTextTokens
+      self.thinkingTokens = thinkingTokens
     }
   }
 
@@ -1512,32 +1739,6 @@ public enum OmiAPI {
       throw OmiApiError.httpError(status: http.statusCode, data: data)
     }
     return
-  }
-
-  public static func computeActionItemsV1ConversationComputeActionItemsPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: ConversationActionItemsRequest) async throws -> ConversationActionItemsResponse {
-    let _path = "/v1/conversation-compute/action-items"
-    guard let components = URLComponents(string: client.baseURL + _path) else {
-      throw OmiApiError.invalidURL
-    }
-    guard let url = components.url else { throw OmiApiError.invalidURL }
-    var req = URLRequest(url: url)
-    req.httpMethod = "POST"
-    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
-    if let token = client.token {
-      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-    }
-    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
-    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
-    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
-    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    req.httpBody = try JSONEncoder().encode(body)
-    let (data, resp) = try await URLSession.shared.data(for: req)
-    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
-    guard (200..<300).contains(http.statusCode) else {
-      throw OmiApiError.httpError(status: http.statusCode, data: data)
-    }
-    return try JSONDecoder().decode(ConversationActionItemsResponse.self, from: data)
   }
 
   public static func computeDiscardV1ConversationComputeDiscardPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: ConversationDiscardRequest) async throws -> ConversationDiscardResponse {
@@ -1590,6 +1791,58 @@ public enum OmiAPI {
       throw OmiApiError.httpError(status: http.statusCode, data: data)
     }
     return try JSONDecoder().decode(ConversationStructureResponse.self, from: data)
+  }
+
+  public static func respondV1ConversationRespondPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: ConversationRespondRequest) async throws -> Void {
+    let _path = "/v1/conversation/respond"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return
+  }
+
+  public static func bootstrapSessionV1ConversationSessionPost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: ConversationSessionRequest) async throws -> ConversationSessionResponse {
+    let _path = "/v1/conversation/session"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return try JSONDecoder().decode(ConversationSessionResponse.self, from: data)
   }
 
   public static func classifyReviewV1FairUseReviewsReviewIdClassifyPost(client: OmiApiClient, reviewId: String, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: FairUseClassificationRequest) async throws -> FairUseClassificationResponse {
@@ -2097,6 +2350,32 @@ public enum OmiAPI {
     return try JSONDecoder().decode(RealtimeSessionResponse.self, from: data)
   }
 
+  public static func reportUsageV2RealtimeUsagePost(client: OmiApiClient, authorization: String? = nil, xAppPlatform: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil, body: UsageReport) async throws -> Void {
+    let _path = "/v2/realtime/usage"
+    guard let components = URLComponents(string: client.baseURL + _path) else {
+      throw OmiApiError.invalidURL
+    }
+    guard let url = components.url else { throw OmiApiError.invalidURL }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    for (name, value) in client.headers { req.setValue(value, forHTTPHeaderField: name) }
+    if let token = client.token {
+      req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+    }
+    if let authorization { req.setValue(String(authorization), forHTTPHeaderField: "authorization") }
+    if let xAppPlatform { req.setValue(String(xAppPlatform), forHTTPHeaderField: "X-App-Platform") }
+    if let xDeviceIdHash { req.setValue(String(xDeviceIdHash), forHTTPHeaderField: "X-Device-Id-Hash") }
+    if let xAppVersion { req.setValue(String(xAppVersion), forHTTPHeaderField: "X-App-Version") }
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try JSONEncoder().encode(body)
+    let (data, resp) = try await URLSession.shared.data(for: req)
+    guard let http = resp as? HTTPURLResponse else { throw OmiApiError.invalidURL }
+    guard (200..<300).contains(http.statusCode) else {
+      throw OmiApiError.httpError(status: http.statusCode, data: data)
+    }
+    return
+  }
+
   public static func transcribeVoiceMessageV2VoiceMessageTranscribePost(client: OmiApiClient, xAppPlatform: String? = nil, authorization: String? = nil, xDeviceIdHash: String? = nil, xAppVersion: String? = nil) async throws -> OmiAnyCodable {
     let _path = "/v2/voice-message/transcribe"
     guard let components = URLComponents(string: client.baseURL + _path) else {
@@ -2121,5 +2400,5 @@ public enum OmiAPI {
     return try JSONDecoder().decode(OmiAnyCodable.self, from: data)
   }
 
-  // Total: 25 Swift client methods generated.
+  // Total: 27 Swift client methods generated.
 }

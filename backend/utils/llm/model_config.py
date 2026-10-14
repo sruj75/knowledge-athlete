@@ -60,27 +60,27 @@ def _workload(
 
 
 _WORKLOADS: Dict[str, ManagedModelWorkload] = {
+    'conversation': _workload(
+        'conversation',
+        'gemini',
+        'gemini-3.8-flash',
+        'POST /v1/conversation/respond',
+        'bounded typed or transcribed conversation, existing context and one optional image',
+        'spoken or typed response and optional end_conversation lifecycle signal',
+        'conversation',
+        'owner-scoped Mac canonical Chat journal',
+        'preserve partial output and fail the turn without executing tools',
+    ),
     'supervisor': _workload(
         'supervisor',
         'gemini',
-        'gemini-3.7-flash',
+        'gemini-3.8-flash',
         'POST /v1/supervisor/evaluate',
         'bounded screen, transcripts, conversation and existing local profile context',
         'validated wait, guide_next_turn or intervene decision with a private note',
         'supervisor',
         'owner-scoped Mac supervisor coordinator',
         'wait on provider or invalid-decision failure; no tool or memory mutations',
-    ),
-    'conv_action_items': _workload(
-        'conv_action_items',
-        'gemini',
-        'gemini-3.7-flash',
-        'POST /v1/conversation-compute/action-items',
-        'bounded local transcript plus local time and related-task facts',
-        'validated action-item candidates',
-        'conversation_processing',
-        'Mac ActionItemStorage transaction',
-        'independent non-fatal candidate failure',
     ),
     'conv_structure': _workload(
         'conv_structure',
@@ -136,17 +136,6 @@ _WORKLOADS: Dict[str, ManagedModelWorkload] = {
         'translation',
         'matching Mac transcript segments',
         'preserve original transcript on failure',
-    ),
-    'chat_agent': _workload(
-        'chat_agent',
-        'gemini',
-        'gemini-3.7-flash',
-        'POST /v2/models/gemini-3.7-flash:streamGenerateContent from local Node/Pi',
-        'bounded owner-scoped local Chat context and tool schema',
-        'native Gemini content and tool-call stream',
-        'chat_agent',
-        'owner-scoped Mac Node journal',
-        'typed provider failure without cloud journal fallback',
     ),
     'fair_use': _workload(
         'fair_use',

@@ -37,16 +37,6 @@ class ExtractedActionItem(BaseModel):
         )
 
 
-class ActionItemsExtraction(BaseModel):
-    action_items: List[ExtractedActionItem] = Field(
-        description="A list of action items from the conversation",
-        default_factory=list,
-    )
-
-    def to_action_items(self) -> List[ActionItem]:
-        return [item.to_action_item() for item in self.action_items]
-
-
 class ConversationStructureExtraction(BaseModel):
     title: str = Field(description="A title/name for this conversation", default='')
     overview: str = Field(

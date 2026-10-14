@@ -989,11 +989,18 @@ extension TranscriptionService {
   static func batchTranscribe(
     audioData: Data,
     language: String = "en",
-    contextKeywords: [String] = []
+    contextKeywords: [String] = [],
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) async throws -> BatchTranscriptionResult {
+    if let authorizationSnapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+      throw AuthError.userChangedDuringRequest
+    }
     // Always use Firebase auth + Python backend
     let authService = await MainActor.run { AuthService.shared }
     let authHeader = try await authService.getAuthHeader()
+    if let authorizationSnapshot, !RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) {
+      throw AuthError.userChangedDuringRequest
+    }
     let baseURLString = "\(pythonBackendBaseURL)v2/voice-message/transcribe"
 
     guard var components = URLComponents(string: baseURLString) else {

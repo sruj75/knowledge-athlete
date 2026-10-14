@@ -3,26 +3,6 @@ import XCTest
 @testable import Omi_Computer
 
 final class TasksSortOrderBandingTests: XCTestCase {
-  @MainActor
-  func testNeutralInlineCreateAndSameSectionReorderPreserveDeadline() throws {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
-    let now = try XCTUnwrap(calendar.date(from: .init(year: 2025, month: 1, day: 6, hour: 10)))
-    let due = try XCTUnwrap(calendar.date(from: .init(year: 2025, month: 1, day: 6, hour: 15, minute: 37)))
-    let task = TaskActionItem(
-      id: "local_1",
-      description: "Preserve my exact time",
-      completed: false,
-      createdAt: now,
-      dueAt: due
-    )
-
-    XCTAssertNil(TasksViewModel.inlineCreationDueDate(after: nil, now: now, calendar: calendar))
-    XCTAssertEqual(
-      TasksViewModel.reorderedDueDate(for: task, in: .today, now: now, calendar: calendar),
-      due
-    )
-  }
 
   private var fixture: RewindStorageTestIsolation.Fixture?
 

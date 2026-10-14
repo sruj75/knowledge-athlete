@@ -12,6 +12,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AppState.swift
   - id: openwiki-source-33065b6602ae99fc06c69f61
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BAudioCapture.swift
+  - id: openwiki-source-d19eddf342e5d284838ce361
+    resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BCaptureReconciliation.swift
   - id: openwiki-source-7b28599e5fadd910008e71c1
     resource: repo://desktop/macos/Desktop/Sources/AppState/AppState%2BListenEvents.swift
   - id: openwiki-source-68f304488b5eba9e53815f71
@@ -26,18 +28,14 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift
   - id: openwiki-source-23883df34f7f1c15cb622684
     resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel%2BSteps.swift
-  - id: openwiki-source-ba8b351f307e1bdf1eb75789
-    resource: repo://desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingView.swift
-  - id: openwiki-source-422845293f0448d19afeded2
-    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Core/SystemInputIdleClock.swift
   - id: openwiki-source-577b743ef6d29a4ab11ce6a1
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/ProactiveAssistantsPlugin.swift
-  - id: openwiki-source-fa25afaba6337b7634ae58d1
-    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AssistantSettings.swift
   - id: openwiki-source-a0fab1458953c2a806bb3e77
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorAudioTimeline.swift
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
+  - id: openwiki-source-454db996859ac6ac975ce580
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorWebcamService.swift
   - id: openwiki-source-afd2ee5cdf854c9307c25e08
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalTranscriptFormatter.swift
   - id: openwiki-source-09ee795cdf804c9c27a7a9a6
@@ -50,16 +48,16 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationIngestionTests.swift
   - id: openwiki-source-c5914c9070f6356327633f39
     resource: repo://desktop/macos/Desktop/Tests/OnboardingCompletionBehaviorTests.swift
-  - id: openwiki-source-43a148583c684bbc3904c51c
-    resource: repo://desktop/macos/Desktop/Tests/SystemInputIdleClockTests.swift
-generated: { by: "codex", at: "2026-09-27T19:56:49.848Z" }
+  - id: openwiki-source-1150818d0cbb47383ad8c62d
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorWebcamTests.swift
+generated: { by: "codex", at: "2026-10-14T15:13:23.307Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-09-27T19:56:49.848Z
+    at: 2026-10-14T15:13:23.307Z
 ---
 # Capture and transcription
 
-Ambient capture and push-to-talk are different workflows. Ambient transcription produces the local conversation archive. PTT produces an interactive voice turn and has its own bounded recovery policy described in [Chat and voice](chat-voice.md).
+Ambient transcription and interactive conversation have separate owners. Ambient capture produces the local transcript archive. A uses a persistent voice-processing duplex path, with automatic speech boundaries and sticky fallback described in [Chat and voice](chat-voice.md).
 
 ## Ambient path
 
@@ -73,15 +71,15 @@ Genuine onboarding ends at the existing screen-and-voice demo. Its Continue and 
 
 Completion tears down the voice demo. A late bridge warmup checks both the current stage and whether exit has started before arming voice, so ending setup while preparation is pending cannot reopen the demo.
 
-Global Skip persists an inactive outcome, stops listening and monitoring, and presents no completion opener. Launch restoration respects that outcome as well as explicitly disabled listening. A later explicit enablement retires the Skip fence. Settings default System Audio to on; turning it off keeps the microphone available. Home retains a single Listening on/off control. There is no meetings-only selection, waiting status or meeting-ended conversation boundary. Shared conferencing detection still throttles screen capture and detects screen sharing.
+Global Skip persists an inactive outcome, stops listening and monitoring, and presents no completion opener. Launch restoration respects that outcome as well as explicitly disabled listening. A later explicit enablement retires the Skip fence. Microphone and System Audio have independent settings, both defaulting on; turning either off preserves the other permitted input. Home retains a single Listening on/off control. There is no meetings-only selection, waiting status or meeting-ended conversation boundary. Shared conferencing detection still throttles screen capture and detects screen sharing.
 
 The existing `NSWorkspace` lifecycle observers stop capture on Mac sleep and request restart on wake only when listening was active before sleep and remains enabled. Lid closure while the Mac stays awake does not itself trigger this sleep path. Physical sleep/wake and closed-lid behavior need named-app evidence; source inspection and synthetic notifications alone do not establish hardware qualification.
 
 ## Capture reconciliation and recovery
 
-`AppState` remains the capture owner; `AppState+AudioCapture` contains hardware startup and clock wiring, while `AppState+Transcription` reconciles the session. Reconciliation starts the microphone continuously and starts system audio only when enabled. Overlapping requests coalesce through the existing capture gate. Each asynchronous startup checks the recording generation before continuing, so an obsolete completion cannot stop or unlock a replacement session. Hardware-service identity checks undo stale starts. A required microphone failure stops listening; an optional system-audio failure records its permission outcome and leaves microphone capture running.
+`AppState` remains the capture owner; `AppState+AudioCapture` contains hardware startup and clock wiring, while `AppState+CaptureReconciliation` reconciles the independently enabled sources. Reconciliation separately starts each enabled and permitted source. Overlapping requests coalesce through the existing capture gate. Each asynchronous startup checks the recording generation before continuing, so an obsolete completion cannot stop or unlock a replacement session. Hardware-service identity checks undo stale starts. A denied, disabled or failed microphone does not stop healthy system capture, and a system-audio failure leaves a healthy microphone running. With both switches off Listening remains armed. If requested inputs all fail, the session stops rather than claiming capture.
 
-`AmbientCaptureLifecycleTests` exercises this implementation through hardware adapters with controlled startup completions. It checks independent System Audio disablement, both failure policies, stop during startup and replacement-session isolation. See [desktop verification](../testing/desktop-e2e.md#all-day-listening-coverage) for the separate genuine onboarding and physical audio checks.
+`AmbientCaptureLifecycleTests` exercises this implementation through hardware adapters with controlled startup completions. It checks independent microphone/system disablement and failure, stop during startup and replacement-session isolation. See [desktop verification](../testing/desktop-e2e.md#all-day-listening-coverage) for the separate genuine onboarding and physical audio checks.
 
 ## Transcript chronology
 
@@ -97,9 +95,11 @@ Capture callbacks attach monotonic host-clock intervals to 16 kHz PCM. The mixer
 
 Direct A–C input/playback intervals take precedence in B. Ambient segments overlapping those intervals, or lacking a valid capture mapping, are excluded from B only. Delayed corrections are checked again; an unmappable correction removes the older admitted version. This conservative first version may omit unrelated background speech during a voice turn. It does not pause ambient capture, rewrite transcription or remove archive records.
 
-The sixty-second screen-capture idle pause measures the last physical keyboard, mouse or tablet event through `SystemInputIdleClock`. It queries Quartz's any-input event selector on the HID source; null events have a separate clock and do not establish user inactivity. The clock regression supplies a recent physical-input time alongside an old null-event time and checks the real capture trigger. Genuine inactivity still pauses capture.
+Rewind archival triggering still uses physical-input idle and change detection. Supervisor demand can acquire a fresh permitted frame beyond that archival idle threshold: the polling path carries a separate `archiveFrame` decision and never advances archive cadence or submits OCR for a Supervisor-only sample. This keeps a person reading an unchanged screen observable without multiplying archive work.
 
-Screen capture continues through the existing permission, exclusion, owner and change-detection gates. App/window identity changes invalidate B's current context before capture starts. Both normal and fallback capture paths carry that epoch, so a late image cannot restore a departed application's context. A permitted changed frame schedules observation; capture storage and independent enrichment retain their own owners.
+Screen permission/exclusions, app/window identity and account/session fences remain. Meaningful content or application changes invalidate pending guidance; an unchanged freshly acquired image has fresh capture time without inventing a content revision.
+
+Webcam is a separate opt-in AVFoundation source, built-in by default with explicit external selection. It retains only the latest JPEG in memory: 1 fps, 640-pixel long edge, at most 256 KB and five-second freshness. Denial, disablement, disconnection, lock/sleep and owner changes clear invalid frames without blocking other permitted inputs. No webcam recording or local emotion classifier is created.
 
 ## Transient cloud path
 
@@ -109,8 +109,8 @@ There is no client-conversation identity in the accepted socket query. The tests
 
 ```mermaid
 flowchart LR
-  Setup[Final demo completion or explicit enablement] --> Gate[Account and microphone permission]
-  Gate --> Audio[Continuous microphone and optional system audio]
+  Setup[Final demo completion or explicit enablement] --> Gate[Account and independent source permissions]
+  Gate --> Audio[Enabled microphone and system audio]
   Audio --> Choice[Transcription selection]
   Choice --> Local[Local Parakeet]
   Choice --> Socket[Authenticated listen socket]
@@ -127,7 +127,7 @@ For a failure, identify whether admission, capture, transport, canonical segment
 - [Onboarding completion and Skip](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel.swift#L530-L593)
 - [Completion effects](../../../desktop/macos/Desktop/Sources/Onboarding/OnboardingExitPolicy.swift#L73-L107)
 - [Demo completion and late warmup](../../../desktop/macos/Desktop/Sources/Onboarding/SecondBrain/SBOnboardingModel+Steps.swift#L468-L531)
-- [Capture reconciliation](../../../desktop/macos/Desktop/Sources/AppState/AppState+Transcription.swift#L339-L394)
+- [Capture reconciliation](../../../desktop/macos/Desktop/Sources/AppState/AppState+CaptureReconciliation.swift)
 - [Hardware startup and clock wiring](../../../desktop/macos/Desktop/Sources/AppState/AppState+AudioCapture.swift#L7-L141)
 - [Sleep and wake](../../../desktop/macos/Desktop/Sources/AppState.swift#L493-L554)
 - [Hardware-seam regressions](../../../desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift#L5-L168)

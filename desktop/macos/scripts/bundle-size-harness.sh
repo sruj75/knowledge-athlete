@@ -20,7 +20,7 @@ usage() {
 Usage: scripts/bundle-size-harness.sh
 
 Builds a named macOS bundle, records size breakdowns, and runs bundle-local
-runtime smoke checks for the packaged Node agent and pi-mono extension.
+runtime smoke checks for the packaged Node conversation storage.
 
 Environment:
   OMI_BUNDLE_SIZE_APP_NAME   Named app bundle to build (default: omi-bundle-size)
@@ -178,32 +178,24 @@ human_size() {
 smoke_packaged_runtime() {
   local app="$1"
   local node="$app/Contents/Resources/Omi Computer_Omi Computer.bundle/node"
-  local pi_dir="$app/Contents/Resources/pi-mono-extension"
-
   "$node" --version >/dev/null
   (
-    cd "$pi_dir"
-    "$node" --experimental-strip-types -e "await import('./index.ts')"
-  )
-  (
     cd "$app/Contents/Resources/agent"
-    "$node" -e "await import('./dist/adapters/pi-mono.js'); console.log('agent pi adapter import ok')" >/dev/null
+    "$node" -e "await import('./dist/conversation-storage.js')" >/dev/null
   )
 }
 
 write_report() {
   local app="$1"
-  local total resources agent agent_node pi pi_node binary resource_bundle symlinks
+  local total resources agent agent_node binary resource_bundle symlinks
 
   total="$(bytes_for_path "$app")"
   resources="$(bytes_for_path "$app/Contents/Resources")"
   agent="$(bytes_for_path "$app/Contents/Resources/agent")"
   agent_node="$(bytes_for_path "$app/Contents/Resources/agent/node_modules")"
-  pi="$(bytes_for_path "$app/Contents/Resources/pi-mono-extension")"
-  pi_node="$(bytes_for_path "$app/Contents/Resources/pi-mono-extension/node_modules")"
   binary="$(bytes_for_path "$app/Contents/MacOS/Omi Computer")"
   resource_bundle="$(bytes_for_path "$app/Contents/Resources/Omi Computer_Omi Computer.bundle")"
-  symlinks="$(find "$app/Contents/Resources/pi-mono-extension/node_modules" -type l 2>/dev/null | wc -l | tr -d ' ')"
+  symlinks="$(find "$app/Contents/Resources/agent/node_modules" -type l 2>/dev/null | wc -l | tr -d ' ')"
 
   {
     echo "Bundle size harness report"
@@ -214,11 +206,9 @@ write_report() {
     printf "%-32s %12s\n" "resources" "$(human_size "$resources")"
     printf "%-32s %12s\n" "agent" "$(human_size "$agent")"
     printf "%-32s %12s\n" "agent/node_modules" "$(human_size "$agent_node")"
-    printf "%-32s %12s\n" "pi-mono-extension" "$(human_size "$pi")"
-    printf "%-32s %12s\n" "pi-mono/node_modules" "$(human_size "$pi_node")"
     printf "%-32s %12s\n" "main executable" "$(human_size "$binary")"
     printf "%-32s %12s\n" "SPM resource bundle" "$(human_size "$resource_bundle")"
-    printf "%-32s %12s\n" "pi symlinks" "$symlinks"
+    printf "%-32s %12s\n" "storage symlinks" "$symlinks"
   } | tee "$REPORT_PATH"
 
   cat > "$JSON_PATH" <<JSON
@@ -230,12 +220,10 @@ write_report() {
     "resources": $resources,
     "agent": $agent,
     "agent_node_modules": $agent_node,
-    "pi_mono_extension": $pi,
-    "pi_mono_node_modules": $pi_node,
     "main_executable": $binary,
     "spm_resource_bundle": $resource_bundle
   },
-  "pi_mono_symlinks": $symlinks
+  "storage_symlinks": $symlinks
 }
 JSON
 }

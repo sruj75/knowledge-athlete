@@ -4,7 +4,7 @@ import Foundation
 
 /// Builds the three home ask-bar suggestion chips: a fixed universal first
 /// question plus two personalized follow-ups generated from the user's own
-/// memories, conversations, tasks, and goals.
+/// memories and conversations.
 enum HomeSuggestionComposer {
   static let universalFirstQuestion = "What should I do today?"
 
@@ -207,8 +207,6 @@ enum HomeSuggestionGenerationError: Error {
 protocol HomeSuggestionLocalSources: Sendable {
   func memoryContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
   func conversationContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
-  func taskContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
-  func goalContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String?
 }
 
 struct DefaultHomeSuggestionLocalSources: HomeSuggestionLocalSources {
@@ -233,24 +231,6 @@ struct DefaultHomeSuggestionLocalSources: HomeSuggestionLocalSources {
     )
   }
 
-  func taskContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-    guard
-      let items = try? await ActionItemStorage.shared.getLocalActionItems(
-        limit: 50,
-        completed: false
-      )
-    else { return nil }
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-    return GeminiHomeSuggestionGenerator.boundedContext(items.map(\.description))
-  }
-
-  func goalContext(snapshot: RuntimeOwnerAuthorizationSnapshot) async -> String? {
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-    guard let goals = try? await GoalStorage.shared.getLocalGoals(activeOnly: true) else { return nil }
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(snapshot) else { return nil }
-    return GeminiHomeSuggestionGenerator.boundedContext(goals.prefix(50).map(\.title))
-  }
 }
 
 struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
@@ -312,16 +292,14 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     /// Every fetch succeeded and there is genuinely nothing to reference.
     case thin
     /// Enough real context arrived (partial fetch failures are tolerated).
-    case available(memories: String, conversations: String, tasks: String, goals: String)
+    case available(memories: String, conversations: String)
   }
 
   static func classifyContext(
     memories: String?,
-    conversations: String?,
-    tasks: String?,
-    goals: String?
+    conversations: String?
   ) -> ContextClassification {
-    let sources = [memories, conversations, tasks, goals]
+    let sources = [memories, conversations]
     let anyFailed = sources.contains(nil)
     let combined = sources.compactMap { $0 }.joined()
     if combined.isEmpty {
@@ -329,9 +307,7 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
     }
     return .available(
       memories: memories ?? "",
-      conversations: conversations ?? "",
-      tasks: tasks ?? "",
-      goals: goals ?? ""
+      conversations: conversations ?? ""
     )
   }
 
@@ -354,17 +330,13 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
   ) async -> ContextClassification {
     async let memoriesFetch = sources.memoryContext(snapshot: snapshot)
     async let conversationsFetch = sources.conversationContext(snapshot: snapshot)
-    async let actionItemsFetch = sources.taskContext(snapshot: snapshot)
-    async let goalsFetch = sources.goalContext(snapshot: snapshot)
 
-    let (memories, conversations, actionItems, goals) = await (
-      memoriesFetch, conversationsFetch, actionItemsFetch, goalsFetch
+    let (memories, conversations) = await (
+      memoriesFetch, conversationsFetch
     )
     return Self.classifyContext(
       memories: memories,
-      conversations: conversations,
-      tasks: actionItems,
-      goals: goals
+      conversations: conversations
     )
   }
 
@@ -377,18 +349,14 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
 
     let memoryContext: String
     let conversationContext: String
-    let tasksContext: String
-    let goalsContext: String
     switch classification {
     case .unavailable:
       throw HomeSuggestionGenerationError.contextUnavailable
     case .thin:
       return []
-    case .available(let memories, let conversations, let tasks, let goals):
+    case .available(let memories, let conversations):
       memoryContext = memories
       conversationContext = conversations
-      tasksContext = tasks
-      goalsContext = goals
     }
 
     let dateFormatter = DateFormatter()
@@ -403,12 +371,6 @@ struct GeminiHomeSuggestionGenerator: HomeSuggestionGenerating {
 
       RECENT CONVERSATION SUMMARIES:
       \(conversationContext.isEmpty ? "None" : conversationContext)
-
-      OPEN TASKS:
-      \(tasksContext.isEmpty ? "None" : tasksContext)
-
-      ACTIVE GOALS:
-      \(goalsContext.isEmpty ? "None" : goalsContext)
 
       Write up to 2 suggested questions this user would genuinely want to ask right now.
 

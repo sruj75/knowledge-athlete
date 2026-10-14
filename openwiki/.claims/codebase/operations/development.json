@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b7781ea9838e18a97499d7505f90506778e4fd3589f44b04e48a7777e53dd622",
+  "pageVersion": "sha256:7220f42803024eee4295bbf4c9c28f0c9819051ae6b2f2378b0844a92e01c5e2",
   "claims": [
     {
       "id": "claim_9780f5b0e5e84bb9affec1037163c790",
@@ -34,19 +34,15 @@
     },
     {
       "id": "claim_a5b9f01405ef4beca1e20cae67e49238",
-      "statement": "The Node stdio test fixture executes dist/index.js and the tool-surface generator imports the compiled manifest, so the Node runtime must be built before these tests run.",
+      "statement": "The Node storage stdio fixture executes dist/index.js, so the retained runtime must be built before its tests run.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/agent/package.json#L1-L12",
-          "version": "repo-lines-v1:sha256:4ae6d5baf5c2c1e2f4c5452d762e7315cba57e68b3ebec554b4233398fc90d70:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhM2I0NjlkOWUwOTc1NzIyNDY2NjczNGM5ZWY3YjI1NGQ4ODUzNGY1ZDViYjcwOTg5NjA4MDVjNTUzZGMzMDciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI2ZWRhYTNiMGE5Zjk0YjFiYWY5MjgwZjk3ZGMzNmJmM2QxZTk3ZDNiNmQzNTM5OTkxMjAwZjJhOGEzNzQxMmIifQ"
+          "resource": "repo://desktop/macos/agent/tests/conversation-entry.test.ts",
+          "version": "repo-file-v1:sha256:dda43575822f19bcb1342b26213ea1f2954b29bac3effc150e0b0b6edca29fb8"
         },
         {
-          "resource": "repo://desktop/macos/agent/scripts/generate-tool-surfaces.mjs#L1-L15",
-          "version": "repo-lines-v1:sha256:a7aadf8998151c4e3b624ef3aef9501d86da90209c245044b6df59ce2833f594:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1OWM0Nzg3MmI3MWYxMjU4OTk0Mjg5MjQ2NGU3NjRjMGRiMzUwYzIwYjcyMjI4NjQ1NjE1Y2MzNmUwYTA3MjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEwZjA5ZmRhNTEzZjFlYjMwM2U5MTg1ZGJlMDhlZmE2MjRjNjJlYzkxNjMwOGVkNmU4MjI5MGNlMGY0OWQ5NDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmNjVkOTJkMTQ0ZThiZmUyNmY4MzVmNGRjOWQ3M2NmZGY3OWE5MjlmNTY5NWNmMmJmMmFiNjE4ZmI2ODVkMTYifQ"
-        },
-        {
-          "resource": "repo://desktop/macos/agent/tests/runtime-stdio-contract.test.ts#L17-L36",
-          "version": "repo-lines-v1:sha256:da0f6838c23e815b6a0b475bc8ee6a75c50d28278c1c637fce2ddce3f35fe331:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYjdjZjZmOGI5M2I2MWI4NDEwOWE5OWI1N2RkMGVhZDU2MDVhMjk5OTFhMjllYTc0MWY3ZTVmNDVmNzA1NGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczZDhlYjA0OWI0OGRkYjk4Nzg1MTMyM2QzMmYzNzUxNzRkY2ZkYmVhNmU3MDFlZGU3MDVkZGY3Y2M5MmUwZDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRiYTZiOTNjYTkyZjc2MDcxZGUxN2IyNjg1ODlmNjU2ODdjMzFhMDQzNjViNjA4NDFhMDM0OTFhYzQ5YzdiMWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUwYmJjODI1YmY2ZjA1ZjJiNjU2NTI1MjI0MjRmYWE4M2Q1YTViNWUwOGFkN2U5NDEyZjM0YTBhZjU1ZjE2M2QifQ"
+          "resource": "repo://desktop/macos/scripts/test-conversation-storage.sh",
+          "version": "repo-file-v1:sha256:1db9dd951fe3db9873e7a2812437f0d5f556191417bd6c713bb55ccb3b5c32d8"
         }
       ]
     },
@@ -128,27 +124,19 @@
     },
     {
       "id": "claim_cccae7b0c114401c9aa4e8310f00cf90",
-      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all 23 areas, 342 nodes and 780 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
+      "statement": "The codebase map viewer builds directly from the canonical Mermaid file; its isolated check covers source provenance, deterministic spatial layout, static export and Chromium behavior across all six areas, 37 nodes and 57 edges, including click-only entry, native scrolling, full labels, caching, mouse/touch/keyboard navigation, reduced motion and local retry recovery; selected CI runs provision locked dependencies and Chromium.",
       "evidence": [
         {
-          "resource": "repo://.github/scripts/prepare_codebase_map_check.py#L1-L45",
-          "version": "repo-lines-v1:sha256:c38414d462aec31a7c970a36272e75ec22941cd5481066ab3cd821d26a06381e:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ODJjYmRiNGM4YjA3NTE4YmY0ODZjNTg5OTBmYzM5MTc4M2FhMjBhOTE2YmZiMjdhZDIxMWViMWQ1YzM2NDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiNjRlOTIwMDBhMTljYTM4NTkzYTRlNmEwYmFjNzcwOTZkMWU5ODY5NDlhM2I2MjgyNmI3Y2VhNGY3M2Q5ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+          "resource": "repo://.github/scripts/prepare_codebase_map_check.py",
+          "version": "repo-file-v1:sha256:c38414d462aec31a7c970a36272e75ec22941cd5481066ab3cd821d26a06381e"
         },
         {
-          "resource": "repo://tools/codebase-map/lib/diagram-source.mjs#L1-L37",
-          "version": "repo-lines-v1:sha256:216ec813382a3cd439c1310a6373bc98e403a81b7eabf91582da5046abada032:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkZmFmYWM3MDBlZDNjMDhiOTk3MTUwYzE1ZjllYmU5NGZiNWRiZTZkYTBhYTlmNDhiN2E2NGFiNzA3YmRmMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
-        },
-        {
-          "resource": "repo://tools/codebase-map/package.json#L1-L28",
-          "version": "repo-lines-v1:sha256:2467c34776142194853593a3e150dad420bd06a642d5138fadfe8f72a5245fd5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1NTIwNDRlNmY0ZTk2NTY0OTI3OTYyMGQ3NjUyYzYyNzQ0NjdjMjkwY2Q3ZTYzOTNiZjZmZjBlNGQ4ZDA5MDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3Mzk1OTgzOTZjZDE1MTk0NzNlNTMzNzMzMzI1NTE0N2QzNzkxZmQ2NjUwMTk0Y2UzZWRjZjI5NzAyM2Y4YTkifQ"
+          "resource": "repo://tools/codebase-map/lib/diagram-source.mjs",
+          "version": "repo-file-v1:sha256:216ec813382a3cd439c1310a6373bc98e403a81b7eabf91582da5046abada032"
         },
         {
           "resource": "repo://tools/codebase-map/tests/browser/viewer.spec.ts",
-          "version": "repo-file-v1:sha256:c2fea96f906bb9753f98baf405a3d3a888b41420a64efb0a7c20799c3bb6afc1"
-        },
-        {
-          "resource": "repo://tools/codebase-map/tests/spatial-layout.test.mjs",
-          "version": "repo-file-v1:sha256:1a7af2eefa407e67ae98ae786af95342ce78338215fbadd09c4e830197da8e3c"
+          "version": "repo-file-v1:sha256:b8bc049784a6b904169dadc846409e03ee07f795b8a6df33ff886de84d5931cc"
         }
       ]
     },
@@ -167,20 +155,12 @@
       "statement": "Local Langfuse credentials, endpoint and prompt label are supplied only to the real-mode backend child; offline, infrastructure and desktop environments exclude them.",
       "evidence": [
         {
-          "resource": "repo://scripts/dev-harness/desktop-app-scrub-env.txt#L1-L18",
-          "version": "repo-lines-v1:sha256:083411d695be57ba9c09d8dbde8184818ee9da8276b55ac39484d1bd1c9973f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFjZTE5Y2JiNmVlOTMyNjYyNWVhMWE3MDFkMGFmOWJiMTRkZmQ0ZTA2ODIzYTU0YjdmOTFjN2MyOTlmYmM0MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxZDdkMDUwZDE1MzMwM2EyNzBjMDBjNTU1NjFkZjBhM2Y0ZTk2M2Q3YmMxM2Y2Y2RmOGM5NDU5YjRlYzRlNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4M2E0MzgwODgwNzAwYzVkMjgwODg2YTg0NzA1MjRhNGY1ZDY3NTFiMzU0YjUwODUyZTg0MDQxM2YzMTNmYzQifQ"
-        },
-        {
-          "resource": "repo://scripts/dev-harness/dev_harness/cli.py#L2020-L2036",
-          "version": "repo-lines-v1:sha256:af0aff5e146dd485cb1e99a465f08d1a73fd0c4de964dafe2981ce5accd68e99:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMTU3NjFjMGZhYWYyYmU1NDNiOTYxNTU5YzdkNTRkYzRmZTk0OTkzMTVlNGIwNzY5MjNmOWUxOTVhYmVhOGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwNzIzODUxOTdkY2UyMzVmNTlhMTFmYzVkNTZhOGYxNWQzODVkYTg3NjViZmQ2ZWIxNmExYTBjM2JmYTkxNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1YmRlYjM0NGY1OTU0ZTE1YzA1NWUzZWJjYzNmYjdhMmZlM2E0MTg2YjYxZGM3NTVlMjE4YWEyYTRhMTVhYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiM2E4MjUzNGMwZGExOGYxNmFjYjZjNThkOTEzMDI0YWIyNzkwZDcyZTJkYjJhNzMxNzA2MmI4NDc1NjNhMjgifQ"
+          "resource": "repo://scripts/dev-harness/desktop-app-scrub-env.txt",
+          "version": "repo-file-v1:sha256:6f33f0b7dfc713e2a858ad38adc4b8e93b82d4a7d7573be8a45fd8fd4e0602f0"
         },
         {
           "resource": "repo://scripts/dev-harness/dev_harness/config.py#L280-L296",
-          "version": "repo-lines-v1:sha256:0f0dd81ded2a4544b54ebf15352c6238b041f2f659583354463295f4ae4ea62b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiMzM2ODJmMGI3MzlkM2ZjMzBkMmNkNGU1YzQ1OWEyNGU3YzQ2YzVkZjcyYTg5YWVhY2Y5Y2U2ODYxZmJkMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwNmZlNGE4Zjk2NjEyZGE3ZTE1N2UwODAwMGZjNjY1MjBjYjlmMWI2NDBkMzNlYTI4ODcyOTc1M2NlYWMwNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmYmQwMDkzMTRiYzI3MDg0MTY3MzRhMDJhZTVmZjM5YTFlNDhhMDUwYmU5MWY0M2IyZmFhOTIwMDJjNjJiZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
-        },
-        {
-          "resource": "repo://scripts/dev-harness/dev_harness/config.py#L39-L48",
-          "version": "repo-lines-v1:sha256:c8af1bbd0d7d0670d38af9a2b8cddca6f19595aa8cba622254aa03362a84d165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxZDk4OGE5OTFhNzlmNjRlMWUwMTY4NmNlOGU2Y2M3YTY3ZTIxMjI4MGJjZDhjZDBiOTE2YzRmYzEyMGYwZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhZmJhMDUyN2MzOTUzYzRiNmUwZTViNTczOWJhODM2MTJmODA1M2JjZGM5NDY2NzMwMTkzY2QxZDU5MGI0MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIwMzM5NjNkNzI4YWQ0YjRkNmIyODVkMDg5ZTA0YzZiNjY3YWE0Y2Y2ZTI4NTVhMmU1YTNkOGYzNzcxNThmOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiOWJiMzk4MzU3ZWRhNDRlNmRmNGUzOTc2NTQ5ZTZmNzRlN2JkNmYyOTllYjgzZDc2Yjk1ZDI5NDVjYjc3NTcifQ"
+          "version": "repo-lines-v1:sha256:21e49af43df30da96d3006d41f747be8e4be8edc188382bd091b138cbc973568:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiMzM2ODJmMGI3MzlkM2ZjMzBkMmNkNGU1YzQ1OWEyNGU3YzQ2YzVkZjcyYTg5YWVhY2Y5Y2U2ODYxZmJkMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyOGRhOWFmODA2YmYwZmMzMDE3YTA5YWVlNzUyNjRhYTgyMTdjNDM3NmRkNDQ4YTU1YzliNzJiYWNiOTFmNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmYmQwMDkzMTRiYzI3MDg0MTY3MzRhMDJhZTVmZjM5YTFlNDhhMDUwYmU5MWY0M2IyZmFhOTIwMDJjNjJiZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5YmFkODVmYWVlNDI2NTY4YjE3OGJiOTI0YTBmZmEzZTBhZjgzMTA5NDdmMjNhMTExYzQ4M2FlMmI2NzQxYjAifQ"
         },
         {
           "resource": "repo://scripts/dev-harness/tests/test_observability_env.py",
@@ -201,10 +181,20 @@
           "version": "repo-file-v1:sha256:ce9c4c2850377d5aba151a9c2fd0641eff3c4b4ace291544f08ef77562098757"
         }
       ]
+    },
+    {
+      "id": "claim_c3d4fb6f01074e60a55f67ffbda7080b",
+      "statement": "Real local harness children explicitly receive a separate Supervisor daily allowance of 6000 while offline children use stub providers.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/dev-harness/dev_harness/config.py#L280-L296",
+          "version": "repo-lines-v1:sha256:21e49af43df30da96d3006d41f747be8e4be8edc188382bd091b138cbc973568:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiMzM2ODJmMGI3MzlkM2ZjMzBkMmNkNGU1YzQ1OWEyNGU3YzQ2YzVkZjcyYTg5YWVhY2Y5Y2U2ODYxZmJkMmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyOGRhOWFmODA2YmYwZmMzMDE3YTA5YWVlNzUyNjRhYTgyMTdjNDM3NmRkNDQ4YTU1YzliNzJiYWNiOTFmNjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmYmQwMDkzMTRiYzI3MDg0MTY3MzRhMDJhZTVmZjM5YTFlNDhhMDUwYmU5MWY0M2IyZmFhOTIwMDJjNjJiZmMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5YmFkODVmYWVlNDI2NTY4YjE3OGJiOTI0YTBmZmEzZTBhZjgzMTA5NDdmMjNhMTExYzQ4M2FlMmI2NzQxYjAifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-09-29T14:41:59.037Z"
+    "at": "2026-10-14T14:40:28.560Z"
   }
 }

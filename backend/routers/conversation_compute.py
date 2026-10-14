@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import regex
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
 
 from models.conversation_enums import CategoryEnum
 from utils.llm import conversation_processing
@@ -23,7 +23,6 @@ router = APIRouter()
 BoundedTranscript = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1_000_000)]
 LanguageCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)]
 TimezoneName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
-BoundedDescription = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4_096)]
 
 
 class ConversationDiscardRequest(BaseModel):
@@ -94,43 +93,6 @@ class ConversationStructureResponse(BaseModel):
         return value
 
 
-class RelatedTaskCandidate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    token: Annotated[str, StringConstraints(pattern=r'^t[0-9]$')]
-    description: BoundedDescription
-    due_at: datetime | None = None
-    completed: bool = False
-
-
-class ConversationActionItemsRequest(ConversationCandidateRequest):
-    related_tasks: list[RelatedTaskCandidate] = Field(default_factory=list, max_length=10)
-
-
-class ConversationActionCandidate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    action: Annotated[str, StringConstraints(pattern=r'^(create|update|complete)$')]
-    description: BoundedDescription
-    target_task_token: Annotated[str, StringConstraints(pattern=r'^t[0-9]$')] | None = None
-    due_at: datetime | None = None
-
-    @model_validator(mode='after')
-    def validate_target_shape(self) -> 'ConversationActionCandidate':
-        if self.action in {'update', 'complete'} and self.target_task_token is None:
-            raise ValueError('update and complete candidates require a target')
-        if self.action == 'create' and self.target_task_token is not None:
-            raise ValueError('create candidates must not contain a target')
-        return self
-
-
-class ConversationActionItemsResponse(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-
-    generation_id: UUID
-    candidates: list[ConversationActionCandidate] = Field(max_length=100)
-
-
 def classify_discard(transcript: str, duration_seconds: float) -> bool:
     """Narrow injectable seam around the retained classifier."""
     return conversation_processing.should_discard_conversation(transcript, duration_seconds, raise_on_error=True)
@@ -144,28 +106,6 @@ def compute_structure_candidate(request: ConversationCandidateRequest, uid: str)
         tz=request.timezone,
         uid=uid,
         output_language_code=request.output_language,
-    )
-
-
-def compute_action_item_candidates(request: ConversationActionItemsRequest, uid: str):
-    del uid  # Usage is scoped by the route; the retained helper does not persist user state.
-    existing = [
-        {
-            'id': task.token,
-            'description': task.description,
-            'due_at': task.due_at,
-            'completed': task.completed,
-        }
-        for task in request.related_tasks
-    ]
-    return conversation_processing.extract_action_items(
-        transcript=request.transcript,
-        started_at=request.started_at,
-        language_code=request.language,
-        tz=request.timezone,
-        existing_action_items=existing,
-        output_language_code=request.output_language,
-        raise_on_error=True,
     )
 
 
@@ -213,38 +153,3 @@ def compute_structure(
     except ValidationError as error:
         logger.warning('Conversation structure returned an invalid candidate shape')
         raise HTTPException(status_code=502, detail='invalid_candidate_response') from error
-
-
-@router.post('/v1/conversation-compute/action-items', response_model=ConversationActionItemsResponse)
-def compute_action_items(
-    request: ConversationActionItemsRequest,
-    uid: str = Depends(get_current_participant_uid),
-) -> ConversationActionItemsResponse:
-    open_request = request.model_copy(
-        update={'related_tasks': [task for task in request.related_tasks if not task.completed]}
-    )
-    allowed_targets = {task.token for task in open_request.related_tasks}
-    try:
-        with track_usage(uid, Features.CONVERSATION_ACTION_ITEMS):
-            result = compute_action_item_candidates(open_request, uid)
-        candidates = []
-        for item in result:
-            action = item.candidate_action or 'create'
-            target = item.target_task_id
-            if action in {'update', 'complete'} and target not in allowed_targets:
-                raise ValueError('candidate target was not supplied by the caller')
-            candidates.append(
-                ConversationActionCandidate(
-                    action=action,
-                    description=item.description,
-                    target_task_token=target,
-                    due_at=item.due_at,
-                )
-            )
-        return ConversationActionItemsResponse(generation_id=request.generation_id, candidates=candidates)
-    except (ValidationError, ValueError) as error:
-        logger.warning('Conversation action items returned an invalid candidate shape')
-        raise HTTPException(status_code=502, detail='invalid_candidate_response') from error
-    except Exception as error:
-        logger.warning('Conversation action items compute failed')
-        raise HTTPException(status_code=502, detail='compute_failed') from error

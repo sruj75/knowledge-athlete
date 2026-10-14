@@ -7,7 +7,6 @@ covers:
   - desktop/macos/Desktop/Sources/Chat/ScreenContextTelemetry.swift
   - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningControls.swift
   - desktop/macos/Desktop/Sources/MainWindow/CaptureListeningLogic.swift
-  - desktop/macos/Desktop/Sources/FloatingControlBar/AboutUserCard.swift
   - desktop/macos/Desktop/Sources/ProactiveAssistants/Services/AIUserProfileService.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessagesView.swift
   - desktop/macos/Desktop/Sources/MainWindow/HomeStatusControls.swift
@@ -15,7 +14,6 @@ covers:
   - desktop/macos/Desktop/Sources/MainWindow/Pages/HomeStagePresentation.swift
   - desktop/macos/Desktop/Sources/MainWindow/Components/HomeChatCatalog.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeSuggestionsStore.swift
-  - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeKnowsComposer.swift
   - desktop/macos/Desktop/Sources/MainWindow/Dashboard/HomeAskFocusPolicy.swift
   - desktop/macos/Desktop/Sources/Theme/OmiColors.swift
   - desktop/macos/Desktop/Sources/MainWindow/MainChatNavigationRequest.swift

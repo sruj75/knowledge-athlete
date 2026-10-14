@@ -88,7 +88,7 @@ fi
 
 script_path="${2:-${1:-}}"
 case "$(basename "$script_path")" in
-  desktop-flow-lint.py|agent-continuity-gauntlet-lib.py)
+  desktop-flow-lint.py)
     if [[ "$scenario" == "self_check_fail" || "$scenario" == "keep_stack_fail" ]]; then
       exit 1
     fi
@@ -112,7 +112,6 @@ prepare_fixture_repo() {
   mkdir -p "$fixture/desktop/macos/scripts"
   ln -s "$CORE_HARNESS" "$fixture/desktop/macos/scripts/desktop-core-harness.sh"
   printf '# stub\n' >"$fixture/desktop/macos/scripts/desktop-flow-lint.py"
-  printf '# stub\n' >"$fixture/desktop/macos/scripts/agent-continuity-gauntlet-lib.py"
 }
 
 run_readiness_case() {

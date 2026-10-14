@@ -16,7 +16,7 @@ routes:
         placement: dependency
         scopes: []
       rate_limit:
-        policy_name: desktop_gemini_burst+desktop_gemini_daily
+        policy_name: desktop_supervisor_burst+desktop_supervisor_daily
         key_subject: uid
         enforcement: fail_closed
         placement: inline
@@ -97,10 +97,6 @@ routes:
   - route_type: http
     method: POST
     path: /v1/tts/synthesize
-    policy: *desktop_migration_policy
-  - route_type: http
-    method: POST
-    path: /v2/models/{model}:streamGenerateContent
     policy: *desktop_migration_policy
   - route_type: http
     method: POST
@@ -571,7 +567,7 @@ routes:
         state: active
   - route_type: http
     method: POST
-    path: /v1/conversation-compute/action-items
+    path: /v1/conversation-compute/discard
     policy: &conversation_compute_policy
       review_status: reviewed
       auth:
@@ -591,10 +587,6 @@ routes:
       deprecation:
         state: active
       owner: backend
-  - route_type: http
-    method: POST
-    path: /v1/conversation-compute/discard
-    policy: *conversation_compute_policy
   - route_type: http
     method: POST
     path: /v1/conversation-compute/structure
@@ -618,6 +610,48 @@ routes:
       surface: first_party_app
       visibility: first_party
       data_domain: metrics
+      deprecation:
+        state: active
+      owner: backend
+  - route_type: http
+    method: POST
+    path: /v1/conversation/session
+    policy:
+      review_status: reviewed
+      auth:
+        mechanisms: [firebase_id_token]
+        placement: dependency
+        scopes: []
+      rate_limit:
+        policy_name: none
+        key_subject: none
+        enforcement: none
+        placement: none
+      timeout_class: default_method
+      surface: first_party_app
+      visibility: first_party
+      data_domain: chat
+      deprecation:
+        state: active
+      owner: backend
+  - route_type: http
+    method: POST
+    path: /v1/conversation/respond
+    policy:
+      review_status: reviewed
+      auth:
+        mechanisms: [firebase_id_token]
+        placement: dependency
+        scopes: []
+      rate_limit:
+        policy_name: desktop_conversation_burst+chat_quota
+        key_subject: uid
+        enforcement: fail_closed
+        placement: inline
+      timeout_class: default_method
+      surface: first_party_app
+      visibility: first_party
+      data_domain: chat
       deprecation:
         state: active
       owner: backend

@@ -85,9 +85,10 @@ def _tls_listener(tmp_path: Path, *, hostname: str = 'localhost'):
     port = listener.getsockname()[1]
     finished = Event()
 
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+
     def serve_once() -> None:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(certfile=cert_path, keyfile=key_path)
         try:
             client, _ = listener.accept()
             try:
@@ -109,6 +110,20 @@ def _tls_listener(tmp_path: Path, *, hostname: str = 'localhost'):
         listener.close()
         finished.wait(timeout=3)
         thread.join(timeout=1)
+
+
+@pytest.fixture
+def tls_listener(tmp_path):
+    # Key generation and server setup are fixture work; the tests still perform
+    # the production client's real TLS handshake and certificate validation.
+    with _tls_listener(tmp_path) as endpoint:
+        yield endpoint
+
+
+@pytest.fixture
+def unrelated_ca():
+    ca_pem, _, _ = _certificate_chain(hostname='unrelated')
+    return ca_pem.decode('ascii')
 
 
 def _open_transport(client):
@@ -184,37 +199,36 @@ def test_injected_client_is_the_process_scoped_boundary(monkeypatch):
     assert connection.get_redis_client().get('cache-key') == 'cache-key'
 
 
-def test_production_client_completes_a_verified_tls_handshake(monkeypatch, tmp_path):
-    with _tls_listener(tmp_path) as (port, ca_pem):
-        monkeypatch.setenv('REDIS_DB_HOST', 'localhost')
-        monkeypatch.setenv('REDIS_DB_PORT', str(port))
-        monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
-        monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', ca_pem)
-        connection = _reload(monkeypatch)
+def test_production_client_completes_a_verified_tls_handshake(monkeypatch, tls_listener):
+    port, ca_pem = tls_listener
+    monkeypatch.setenv('REDIS_DB_HOST', 'localhost')
+    monkeypatch.setenv('REDIS_DB_PORT', str(port))
+    monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
+    monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', ca_pem)
+    connection = _reload(monkeypatch)
 
+    _open_transport(connection.get_redis_client())
+
+
+def test_production_client_rejects_an_untrusted_ca(monkeypatch, tls_listener, unrelated_ca):
+    port, _trusted_ca = tls_listener
+    monkeypatch.setenv('REDIS_DB_HOST', 'localhost')
+    monkeypatch.setenv('REDIS_DB_PORT', str(port))
+    monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
+    monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', unrelated_ca)
+    connection = _reload(monkeypatch)
+
+    with pytest.raises(ssl.SSLCertVerificationError):
         _open_transport(connection.get_redis_client())
 
 
-def test_production_client_rejects_an_untrusted_ca(monkeypatch, tmp_path):
-    with _tls_listener(tmp_path) as (port, _trusted_ca):
-        unrelated_ca, _, _ = _certificate_chain(hostname='unrelated')
-        monkeypatch.setenv('REDIS_DB_HOST', 'localhost')
-        monkeypatch.setenv('REDIS_DB_PORT', str(port))
-        monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
-        monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', unrelated_ca.decode('ascii'))
-        connection = _reload(monkeypatch)
+def test_production_client_rejects_a_hostname_mismatch(monkeypatch, tls_listener):
+    port, ca_pem = tls_listener
+    monkeypatch.setenv('REDIS_DB_HOST', str(ipaddress.ip_address('127.0.0.1')))
+    monkeypatch.setenv('REDIS_DB_PORT', str(port))
+    monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
+    monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', ca_pem)
+    connection = _reload(monkeypatch)
 
-        with pytest.raises(ssl.SSLCertVerificationError):
-            _open_transport(connection.get_redis_client())
-
-
-def test_production_client_rejects_a_hostname_mismatch(monkeypatch, tmp_path):
-    with _tls_listener(tmp_path) as (port, ca_pem):
-        monkeypatch.setenv('REDIS_DB_HOST', str(ipaddress.ip_address('127.0.0.1')))
-        monkeypatch.setenv('REDIS_DB_PORT', str(port))
-        monkeypatch.setenv('REDIS_DB_PASSWORD', 'test-auth-value')
-        monkeypatch.setenv('REDIS_DB_CA_CERT_PEM', ca_pem)
-        connection = _reload(monkeypatch)
-
-        with pytest.raises(ssl.SSLCertVerificationError):
-            _open_transport(connection.get_redis_client())
+    with pytest.raises(ssl.SSLCertVerificationError):
+        _open_transport(connection.get_redis_client())

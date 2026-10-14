@@ -33,5 +33,5 @@ def test_neighboring_retained_routes_keep_their_existing_contracts() -> None:
 
     assert main_client.post("/v1/memory/compute/extract").status_code == 401
     assert main_client.get("/v1/health").status_code == 200
-    assert main_client.post("/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse").status_code == 401
+    assert main_client.post("/v1/conversation/respond").status_code == 401
     assert main_client.post("/v2/realtime/session").status_code == 401

@@ -573,18 +573,6 @@ build() {
   ditto agent/dist "$APP_BUNDLE/Contents/Resources/agent/dist"
   cp agent/package.json "$APP_BUNDLE/Contents/Resources/agent/"
   ditto .harness/agent-runtime/agent-node_modules "$APP_BUNDLE/Contents/Resources/agent/node_modules"
-  mkdir -p "$APP_BUNDLE/Contents/Resources/agent/src/runtime"
-  cp agent/src/runtime/control-tool-manifest.ts agent/src/runtime/omi-tool-manifest.ts \
-    "$APP_BUNDLE/Contents/Resources/agent/src/runtime/"
-
-  [[ -d pi-mono-extension && -d .harness/agent-runtime/pi-mono-extension-node_modules ]] ||
-    fail "prepared pi-mono extension runtime is missing"
-  mkdir -p "$APP_BUNDLE/Contents/Resources/pi-mono-extension"
-  cp pi-mono-extension/index.ts pi-mono-extension/package.json pi-mono-extension/package-lock.json \
-    "$APP_BUNDLE/Contents/Resources/pi-mono-extension/"
-  ditto .harness/agent-runtime/pi-mono-extension-node_modules \
-    "$APP_BUNDLE/Contents/Resources/pi-mono-extension/node_modules"
-
   echo "Built exact universal source $SOURCE_SHA as $APP_BUNDLE."
 }
 

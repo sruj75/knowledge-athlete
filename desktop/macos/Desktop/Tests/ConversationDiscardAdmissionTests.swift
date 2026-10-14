@@ -98,8 +98,8 @@ final class ConversationDiscardAdmissionTests: XCTestCase {
     XCTAssertEqual(result, .kept)
     XCTAssertNotNil(detail)
     XCTAssertEqual(callCount, 0)
-    XCTAssertEqual(work.map(\.kind), [.discard, .structure, .actionItems])
-    XCTAssertEqual(work.map(\.state), [.succeeded, .pending, .pending])
+    XCTAssertEqual(work.map(\.kind), [.discard, .structure])
+    XCTAssertEqual(work.map(\.state), [.succeeded, .pending])
   }
 
   func testAffirmativeCurrentGenerationDeletesAndCreatesNoDerivations() async throws {
@@ -137,8 +137,8 @@ final class ConversationDiscardAdmissionTests: XCTestCase {
     XCTAssertEqual(second, .noPendingWork)
     XCTAssertNotNil(detail)
     XCTAssertEqual(callCount, 1)
-    XCTAssertEqual(work.map(\.kind), [.discard, .structure, .actionItems])
-    XCTAssertEqual(work.map(\.state), [.failed, .pending, .pending])
+    XCTAssertEqual(work.map(\.kind), [.discard, .structure])
+    XCTAssertEqual(work.map(\.state), [.failed, .pending])
   }
 
   func testNewerContentGenerationFencesAffirmativeInFlightResponse() async throws {

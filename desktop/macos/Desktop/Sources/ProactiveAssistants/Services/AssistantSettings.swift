@@ -7,7 +7,7 @@ class AssistantSettings {
 
   /// Controls when system audio (audio from other apps — calls, videos, music) is captured
   /// during a recording. `always` captures for the whole recording (default); `never`
-  /// keeps microphone capture active without capturing audio from other apps.
+  /// disables this input independently of the microphone.
   enum SystemAudioCaptureMode: String {
     case always
     case never
@@ -17,6 +17,7 @@ class AssistantSettings {
 
   private let screenAnalysisEnabledKey = "screenAnalysisEnabled"
   private let transcriptionEnabledKey = "transcriptionEnabled"
+  private let ambientMicrophoneEnabledKey = "ambientMicrophoneEnabled"
   private let transcriptionLanguageKey = "transcriptionLanguage"
   private let transcriptionAutoDetectKey = "transcriptionAutoDetect"
   private let voiceLanguagesKey = "voiceAssistantLanguages"
@@ -42,6 +43,7 @@ class AssistantSettings {
     UserDefaults.standard.register(defaults: [
       screenAnalysisEnabledKey: defaultScreenAnalysisEnabled,
       transcriptionEnabledKey: defaultTranscriptionEnabled,
+      ambientMicrophoneEnabledKey: true,
       transcriptionLanguageKey: defaultTranscriptionLanguage,
       transcriptionAutoDetectKey: defaultTranscriptionAutoDetect,
       transcriptionVocabularyKey.rawValue: defaultTranscriptionVocabulary,
@@ -69,6 +71,16 @@ class AssistantSettings {
     set {
       UserDefaults.standard.set(newValue, forKey: transcriptionEnabledKey)
       NotificationCenter.default.post(name: .transcriptionSettingsDidChange, object: nil)
+    }
+  }
+
+  /// Independent microphone intent for ambient Listening. Explicit Talk sessions
+  /// have their own microphone admission and are not controlled by this setting.
+  var ambientMicrophoneEnabled: Bool {
+    get { UserDefaults.standard.bool(forKey: ambientMicrophoneEnabledKey) }
+    set {
+      UserDefaults.standard.set(newValue, forKey: ambientMicrophoneEnabledKey)
+      NotificationCenter.default.post(name: .ambientAudioCaptureSettingsDidChange, object: nil)
     }
   }
 
@@ -220,7 +232,7 @@ class AssistantSettings {
   /// When system audio (audio from other apps) is captured during a recording.
   /// Default `.always` captures other apps alongside the microphone throughout the recording.
   /// The hidden `disableSystemAudioCapture` debug UserDefault still forces "never" — see `AppState.effectiveSystemAudioMode`.
-  /// Posts `.systemAudioCaptureModeDidChange` so an active recording can re-apply the gate live.
+  /// Posts `.ambientAudioCaptureSettingsDidChange` so an active recording can re-apply the gate live.
   var systemAudioCaptureMode: SystemAudioCaptureMode {
     get {
       let raw =
@@ -230,7 +242,7 @@ class AssistantSettings {
     }
     set {
       UserDefaults.standard.set(newValue.rawValue, forKey: systemAudioCaptureModeKey)
-      NotificationCenter.default.post(name: .systemAudioCaptureModeDidChange, object: nil)
+      NotificationCenter.default.post(name: .ambientAudioCaptureSettingsDidChange, object: nil)
     }
   }
 
@@ -246,6 +258,7 @@ class AssistantSettings {
   func resetToDefaults() {
     screenAnalysisEnabled = defaultScreenAnalysisEnabled
     transcriptionEnabled = defaultTranscriptionEnabled
+    ambientMicrophoneEnabled = true
     transcriptionLanguage = defaultTranscriptionLanguage
     transcriptionAutoDetect = defaultTranscriptionAutoDetect
     transcriptionVocabulary = defaultTranscriptionVocabulary
@@ -444,7 +457,7 @@ extension Notification.Name {
   static let assistantMonitoringStateDidChange = Notification.Name("assistantMonitoringStateDidChange")
   static let assistantMonitoringToggleRequested = Notification.Name("assistantMonitoringToggleRequested")
   static let transcriptionSettingsDidChange = Notification.Name("transcriptionSettingsDidChange")
-  static let systemAudioCaptureModeDidChange = Notification.Name("systemAudioCaptureModeDidChange")
+  static let ambientAudioCaptureSettingsDidChange = Notification.Name("ambientAudioCaptureSettingsDidChange")
   static let voiceLanguagesDidChange = Notification.Name("voiceLanguagesDidChange")
 }
 

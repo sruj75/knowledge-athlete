@@ -133,7 +133,8 @@ extension AppState {
     // shortcuts. Refuse to start and surface the upgrade popup.
     if blockIfPaywalled() { return }
 
-    guard AudioCaptureService.checkPermission() else {
+    checkMicrophonePermission()
+    if AssistantSettings.shared.ambientMicrophoneEnabled && !hasMicrophonePermission && !ambientSystemAudioRequested {
       requestMicrophonePermission()
       return
     }
@@ -159,7 +160,9 @@ extension AppState {
         "Transcription: Using language=\(effectiveLanguage) (autoDetect=\(AssistantSettings.shared.transcriptionAutoDetect), selected=\(AssistantSettings.shared.transcriptionLanguage))"
       )
 
-      recordingInputDeviceName = AudioCaptureService.getCurrentMicrophoneName()
+      recordingInputDeviceName =
+        AssistantSettings.shared.ambientMicrophoneEnabled && hasMicrophonePermission
+        ? AudioCaptureService.getCurrentMicrophoneName() : nil
       let admission = try await beginLocalConversation(
         language: effectiveLanguage, inputDeviceName: recordingInputDeviceName)
       let handle = admission.handle
@@ -333,72 +336,13 @@ extension AppState {
     }
   }
 
-  /// Keep microphone capture active and apply the System Audio setting. Called at capture start
-  /// and whenever the setting changes. Overlapping async start/stop is serialized through
-  /// `captureGateInFlight` / `captureReconcilePending`.
-  func reconcileCapture() async {
-    guard isTranscribing else { return }
-
-    // Coalesce: if an async start/stop is in flight, request another pass when it finishes.
-    if captureGateInFlight {
-      captureReconcilePending = true
-      return
-    }
-
-    let mode = effectiveSystemAudioMode
-    let generation = recordingGeneration
-    captureGateInFlight = true
-
-    if let mic = audioCaptureService, !mic.capturing {
-      let started = await startMicCaptureIfNeeded()
-      // A stopped or replaced session owns its own gate and capture services.
-      guard isTranscribing, recordingGeneration == generation else { return }
-      if !started, audioCaptureService === mic {
-        // Hard mic failure on a required start — stop the session rather than leave it silently
-        // "recording" with no audio (the silent-mic watchdog handles zero-sample mics separately).
-        log("Transcription: stopping — microphone could not start")
-        captureGateInFlight = false
-        stopTranscription()
-        return
-      }
-    }
-
-    // System audio is optional; disabling it keeps the microphone running.
-    if #available(macOS 14.4, *) {
-      let systemShouldCapture = mode == .always
-      if systemShouldCapture, systemAudioCaptureService == nil {
-        systemAudioCaptureService = SystemAudioCaptureService()
-        log("Transcription: System audio capture service created on demand (mode=\(mode.rawValue))")
-      }
-      if let systemService = systemAudioCaptureService as? SystemAudioCaptureService {
-        if systemShouldCapture, !systemService.capturing {
-          await startSystemAudioCaptureIfNeeded()
-          guard isTranscribing, recordingGeneration == generation else { return }
-        } else if !systemShouldCapture, systemService.capturing {
-          systemService.stopCapture()
-          AudioLevelMonitor.shared.updateSystemLevel(0)
-          log("Transcription: System audio capture paused")
-        }
-      }
-    }
-
-    captureGateInFlight = false
-    if let recoveryReason = pendingCoreAudioCaptureRecoveryReason {
-      pendingCoreAudioCaptureRecoveryReason = nil
-      await rebuildCoreAudioCaptureStack(reason: recoveryReason)
-      return
-    }
-    if captureReconcilePending {
-      captureReconcilePending = false
-      await reconcileCapture()
-    }
-  }
-
   /// Fall back from a silent Bluetooth mic to the built-in microphone.
   /// Triggered by `AudioCaptureService.onSilentMicDetected`.
   @MainActor
   func handleSilentMicFallback() {
-    guard isTranscribing, !silentMicFallbackInProgress else { return }
+    guard isTranscribing, AssistantSettings.shared.ambientMicrophoneEnabled, !silentMicFallbackInProgress else {
+      return
+    }
     silentMicFallbackInProgress = true
 
     guard let builtInID = AudioCaptureService.findBuiltInMicDeviceID() else {
@@ -468,7 +412,7 @@ extension AppState {
   /// UI continues to claim it is recording.
   @MainActor
   func handleSharedCaptureSilentMicDetection(reason: String) async {
-    guard isTranscribing else { return }
+    guard isTranscribing, AssistantSettings.shared.ambientMicrophoneEnabled else { return }
     silentMicRecoveryAttempts += 1
 
     switch SharedCaptureSilentMicRecoveryPolicy.action(for: silentMicRecoveryAttempts) {
@@ -486,6 +430,16 @@ extension AppState {
       log("Transcription: stopping after repeated silent microphone recovery failures")
       DesktopDiagnosticsManager.shared.recordTranscriptionSilentCaptureExhausted(
         recoveryAttempts: silentMicRecoveryAttempts)
+      if #available(macOS 14.4, *),
+        (systemAudioCaptureService as? SystemAudioCaptureService)?.capturing == true
+      {
+        audioCaptureService?.stopCapture()
+        AudioLevelMonitor.shared.updateMicrophoneLevel(0)
+        showAlert(
+          title: "Microphone Isn't Capturing Audio",
+          message: "Microphone capture stopped. System audio listening continues.")
+        return
+      }
       stopTranscription()
       showAlert(
         title: "Microphone Isn't Capturing Audio",

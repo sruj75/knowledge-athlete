@@ -42,20 +42,4 @@ final class FloatingBarVoiceResponseSettingsTests: XCTestCase {
     XCTAssertEqual(voice.openAIVoice, "shimmer")
   }
 
-  func testVoiceQueryAlwaysSpeaksAndTypedQueryUsesToggle() {
-    let settings = ShortcutSettings.shared
-    let originalTypedSetting = settings.floatingBarTypedQuestionVoiceAnswersEnabled
-
-    defer {
-      settings.floatingBarTypedQuestionVoiceAnswersEnabled = originalTypedSetting
-    }
-
-    settings.floatingBarTypedQuestionVoiceAnswersEnabled = false
-    XCTAssertTrue(settings.shouldSpeakFloatingBarResponse(forVoiceQuery: true))
-    XCTAssertFalse(settings.shouldSpeakFloatingBarResponse(forVoiceQuery: false))
-
-    settings.floatingBarTypedQuestionVoiceAnswersEnabled = true
-    XCTAssertTrue(settings.shouldSpeakFloatingBarResponse(forVoiceQuery: true))
-    XCTAssertTrue(settings.shouldSpeakFloatingBarResponse(forVoiceQuery: false))
-  }
 }

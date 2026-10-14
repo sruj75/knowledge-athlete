@@ -235,21 +235,6 @@ final class ScreenRecordingPermissionPolicyTests: XCTestCase {
   /// Regression: the onboarding request tool reopened System Settings even
   /// when Screen Recording was already granted. Opening must stay behind the
   /// granted check.
-  func testRequestToolOpensSettingsOnlyWhenDenied() throws {
-    // omi-test-quality: source-inspection -- static contract: the tool's
-    // NSWorkspace/System Settings side effects cannot be exercised hermetically.
-    let src = try sourceFile("Sources/Providers/ChatToolExecutor.swift")
-    guard let start = src.range(of: "case \"screen_recording\":")?.upperBound,
-      let end = src.range(of: "case \"microphone\":", range: start..<src.endIndex)?.lowerBound
-    else { return XCTFail("request tool must handle Screen Recording") }
-    let body = String(src[start..<end])
-    guard let guardPos = body.range(of: "if !screenRecordingGranted {")?.lowerBound,
-      let openPos = body.range(of: "Privacy_ScreenCapture")?.lowerBound
-    else { return XCTFail("Screen Recording settings must open behind the denied check") }
-    XCTAssertLessThan(
-      guardPos, openPos,
-      "opening Screen Recording settings must sit inside the not-granted branch")
-  }
 
   /// Regression: the onboarding "Reopen Omi" prompt looped forever because the
   /// offer was static step config with no memory of restarts. The offer must

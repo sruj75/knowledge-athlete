@@ -1,10 +1,11 @@
 import Cocoa
+import Combine
 import CoreGraphics
 @preconcurrency import UserNotifications
 
 /// Service that manages proactive assistants - screen monitoring, frame capture, and assistant coordination
 @MainActor
-public class ProactiveAssistantsPlugin: NSObject {
+public class ProactiveAssistantsPlugin: NSObject, ObservableObject {
   // MARK: - Singleton
   /// Shared instance
   public static let shared = ProactiveAssistantsPlugin()
@@ -22,11 +23,12 @@ public class ProactiveAssistantsPlugin: NSObject {
   private var isStartingMonitoring = false  // Prevents race condition with async startMonitoring
   private var monitoringStartFence = ProactiveMonitoringStartFence()
   private var _hasScreenRecordingPermission: Bool?  // Cached permission state
-  private var currentApp: String?
+  @Published private(set) var currentAppName: String?
+  private var captureGeneration: UInt64 = 0
+  private var captureInFlight: UUID?
   private var currentAppBundleID: String?
   private var currentWindowID: CGWindowID?
   private var currentWindowTitle: String?
-  private var lastStatus: FocusStatus?
   private var frameCount = 0
   private(set) var screenCaptureHealth: ScreenCaptureHealth = .stopped
 
@@ -288,13 +290,12 @@ public class ProactiveAssistantsPlugin: NSObject {
     // The shared capture stream feeds one supervisor. Historical record stores
     // and their UI remain independent of background analysis scheduling.
     _ = SupervisorService.shared
+    captureGeneration &+= 1
 
     // Get initial app state
     let (appName, _, _) = WindowMonitor.getActiveWindowInfoStatic()
     if let appName = appName {
-      currentApp = appName
-      // Update FocusStorage with initial detected app
-      FocusStorage.shared.updateDetectedApp(appName)
+      currentAppName = appName
     }
 
     // Start window monitor
@@ -378,10 +379,12 @@ public class ProactiveAssistantsPlugin: NSObject {
   }
 
   /// Stop monitoring
-  public func stopMonitoring() {
+  func stopMonitoring(screenAvailability: SupervisorInputAvailability = .disabled) {
+    captureGeneration &+= 1
+    captureInFlight = nil
     monitoringStartFence.cancel()
     isStartingMonitoring = false
-    SupervisorService.shared.endSession()
+    SupervisorService.shared.screenUnavailable(screenAvailability)
     guard isMonitoring else { return }
 
     captureTimer?.invalidate()
@@ -417,15 +420,11 @@ public class ProactiveAssistantsPlugin: NSObject {
       log("RewindBackpressure: Session total dropped frames: \(droppedFrameCount)")
     }
     droppedFrameCount = 0
-    currentApp = nil
+    currentAppName = nil
     currentWindowID = nil
     currentWindowTitle = nil
-    lastStatus = nil
     frameCount = 0
     setScreenCaptureHealth(.stopped)
-
-    // Clear FocusStorage real-time state
-    FocusStorage.shared.clearRealtimeStatus()
 
     // Report resources after stopping
     ResourceMonitor.shared.reportResourcesNow(context: "after_monitoring_stop")
@@ -465,11 +464,6 @@ public class ProactiveAssistantsPlugin: NSObject {
     _hasScreenRecordingPermission = ScreenCaptureService.checkPermission()
   }
 
-  /// Get current monitoring status
-  var currentStatus: (isMonitoring: Bool, currentApp: String?, lastStatus: FocusStatus?) {
-    return (isMonitoring, currentApp, lastStatus)
-  }
-
   private func handleCaptureTargetUnavailable() {
     // A secure/system/helper surface is not proof that the capture engine or
     // permission failed. Keep the normal timer armed so the very next real
@@ -498,17 +492,14 @@ public class ProactiveAssistantsPlugin: NSObject {
 
   private func onAppActivated(appName: String) {
     guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
-    guard appName != currentApp else { return }
+    guard appName != currentAppName else { return }
     updateSupervisorApplicationContext(
       appName: appName, authorizationSnapshot: authorizationSnapshot)
-    currentApp = appName
+    currentAppName = appName
     currentAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     currentWindowID = nil
     currentWindowTitle = nil  // Reset window title on app switch
     applyHeartbeatForApp()
-
-    // Update FocusStorage immediately with detected app (before analysis)
-    FocusStorage.shared.updateDetectedApp(appName)
 
     sendEvent(type: "appSwitch", data: ["app": appName])
     if SupervisorScreenPolicy.isAppExcluded(appName) {
@@ -521,23 +512,17 @@ public class ProactiveAssistantsPlugin: NSObject {
     appName: String?, windowTitle: String? = nil, windowID: CGWindowID? = nil,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) {
-    let previousEpoch = SupervisorService.shared.contextEpoch
     SupervisorService.shared.applicationContextChanged(
       appName: appName, windowTitle: windowTitle, windowID: windowID,
       authorizationSnapshot: authorizationSnapshot)
-    captureTrigger.invalidateSupervisorContext(
-      from: previousEpoch, to: SupervisorService.shared.contextEpoch)
   }
 
   private func makeSupervisorScreenUnavailable() {
-    let previousEpoch = SupervisorService.shared.contextEpoch
     SupervisorService.shared.screenUnavailable()
-    captureTrigger.invalidateSupervisorContext(
-      from: previousEpoch, to: SupervisorService.shared.contextEpoch)
   }
 
   private func applyHeartbeatForApp() {
-    let key = currentAppBundleID ?? currentApp ?? ""
+    let key = currentAppBundleID ?? currentAppName ?? ""
     guard key != lastHeartbeatAppKey else { return }
     lastHeartbeatAppKey = key
     let base = RewindSettings.shared.effectiveCaptureInterval(
@@ -547,7 +532,13 @@ public class ProactiveAssistantsPlugin: NSObject {
   }
 
   private func captureFrame() async {
-    guard isMonitoring, let screenCaptureService = screenCaptureService else { return }
+    guard isMonitoring, SupervisorService.shared.isSystemAvailable, captureInFlight == nil,
+      let screenCaptureService = screenCaptureService
+    else { return }
+    let captureToken = UUID()
+    let generation = captureGeneration
+    captureInFlight = captureToken
+    defer { if captureInFlight == captureToken { captureInFlight = nil } }
     guard let authorizationSnapshot = RuntimeOwnerIdentity.captureAuthorizationSnapshot() else { return }
 
     // Periodic screen recording permission recheck (issue #5792).
@@ -566,7 +557,7 @@ public class ProactiveAssistantsPlugin: NSObject {
         log("ProactiveAssistantsPlugin: Screen recording permission revoked — stopping monitoring")
         // Send user-visible notification about lost permission
         sendEvent(type: "permissionLost", data: ["permission": "screenRecording"])
-        stopMonitoring()
+        stopMonitoring(screenAvailability: .denied)
         return
       }
     }
@@ -591,17 +582,18 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     // Cheap early exits before resolving the active window.
     let idleSeconds = systemIdleSeconds()
-    if idleSeconds >= captureTrigger.idleThreshold {
+    var observeSupervisor = SupervisorService.shared.isObservationAllowed
+    if idleSeconds >= captureTrigger.idleThreshold && !observeSupervisor {
       return
     }
-    if let currentApp = currentApp, RewindSettings.shared.isAppExcluded(currentApp) {
+    if let currentAppName = currentAppName, RewindSettings.shared.isAppExcluded(currentAppName) {
       makeSupervisorScreenUnavailable()
       return
     }
 
     // Get current window info (use real app name, not cached)
     let (realAppName, windowTitle, windowID) = await WindowMonitor.getActiveWindowInfoAsync()
-    guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+    guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
     updateSupervisorApplicationContext(
       appName: realAppName, windowTitle: windowTitle, windowID: windowID,
       authorizationSnapshot: authorizationSnapshot)
@@ -642,12 +634,12 @@ public class ProactiveAssistantsPlugin: NSObject {
 
     // Use real app name from window info, fall back to cached if unavailable.
     // Mutable because windowGone retry may re-resolve to a different app.
-    var appName = realAppName ?? currentApp
+    var appName = realAppName ?? currentAppName
 
     // If the active window resolved to a different app, update tracking and
     // apply any app-specific heartbeat profile.
-    if let resolvedApp = realAppName, resolvedApp != currentApp {
-      currentApp = resolvedApp
+    if let resolvedApp = realAppName, resolvedApp != currentAppName {
+      currentAppName = resolvedApp
       currentAppBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
       applyHeartbeatForApp()
     }
@@ -657,8 +649,10 @@ public class ProactiveAssistantsPlugin: NSObject {
       return
     }
 
-    // Event-driven capture trigger: skip when idle, capture on context change,
-    // and heartbeat only when the user is active.
+    observeSupervisor = observeSupervisor && !SupervisorScreenPolicy.isAppExcluded(appName ?? "")
+    // Rewind alone owns archive/OCR admission. Supervisor-only samples never
+    // update its cadence or enter the archive path.
+    var archiveFrame = true
     switch captureTrigger.nextDecision(
       app: appName ?? "",
       windowTitle: currentWindowTitle,
@@ -666,7 +660,7 @@ public class ProactiveAssistantsPlugin: NSObject {
       now: now
     ) {
     case .skip:
-      return
+      archiveFrame = false
     case .preview:
       // On macOS 14+ capture a tiny preview first; if it's similar enough to a
       // recent preview, skip the expensive full capture and stretch the next
@@ -681,35 +675,44 @@ public class ProactiveAssistantsPlugin: NSObject {
             bundleID: currentAppBundleID, appName: appName, windowTitle: currentWindowTitle)
           if similarity >= threshold {
             captureTrigger.markPreviewSkipped(at: now, similarity: similarity, threshold: threshold)
-            return
+            archiveFrame = false
+          } else {
+            captureTrigger.recordPreviewHash(previewHash, at: now)
           }
-          captureTrigger.recordPreviewHash(previewHash, at: now)
         }
       }
     case .capture:
       break
     }
 
-    // Always capture frames (other features may need them)
+    guard archiveFrame || observeSupervisor else { return }
+    guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
+
+    // Reuse a capture for both consumers when archival work is due.
     // macOS 14+: capture CGImage directly, encode JPEG once for assistants,
     // pass CGImage to RewindIndexer (avoids redundant encode/decode round-trips)
     if #available(macOS 14.0, *) {
       // Use the window ID already resolved above to avoid stale cache hits
       // from a second getActiveWindowInfoAsync() call inside captureActiveWindowCGImage().
       var cgImage: CGImage? = nil
-      var captureResult = await screenCaptureService.captureWindowCGImage(windowID: windowID)
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      var captureResult: ScreenCaptureService.WindowCaptureResult
+      if archiveFrame {
+        captureResult = await screenCaptureService.captureWindowCGImage(windowID: windowID)
+      } else {
+        captureResult = await screenCaptureService.captureWindowCGImage(windowID: windowID, maxSize: 1_280)
+      }
+      guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
       if case .windowGone = captureResult {
         // The target disappeared or ScreenCaptureKit does not expose it. Retry
         // once after a fresh resolution, then treat a second unavailable target
         // as a normal paused tick rather than an engine failure.
         supervisorCaptureEpoch = SupervisorService.shared.contextEpoch
         captureResult = await screenCaptureService.captureActiveWindowCGImage()
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
         // Privacy: re-resolve app name since captureActiveWindowCGImage captures
         // whatever is currently active, which may differ from the earlier resolution.
         let (fallbackApp, fallbackTitle, fallbackID) = await WindowMonitor.getActiveWindowInfoAsync()
-        guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+        guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
         updateSupervisorApplicationContext(
           appName: fallbackApp, windowTitle: fallbackTitle, windowID: fallbackID,
           authorizationSnapshot: authorizationSnapshot)
@@ -742,8 +745,10 @@ public class ProactiveAssistantsPlugin: NSObject {
         frameCount += 1
         let captureTime = Date()
         let fullHash = RewindOCRService.dHash(of: cgImage)
-        captureTrigger.markCaptured(
-          app: appName, windowTitle: currentWindowTitle, at: captureTime, frameHash: fullHash)
+        if archiveFrame {
+          captureTrigger.markCaptured(
+            app: appName, windowTitle: currentWindowTitle, at: captureTime, frameHash: fullHash)
+        }
 
         if !SupervisorScreenPolicy.isAppExcluded(appName) {
           let frame = CapturedFrame(
@@ -752,18 +757,16 @@ public class ProactiveAssistantsPlugin: NSObject {
             captureTime: captureTime)
           SupervisorService.shared.observeFrame(
             frame, authorizationSnapshot: authorizationSnapshot, visualHash: fullHash,
-            applicationContextEpoch: supervisorCaptureEpoch)
+            applicationContextEpoch: supervisorCaptureEpoch, capturedUptime: ProcessInfo.processInfo.systemUptime)
         } else {
           makeSupervisorScreenUnavailable()
         }
-        captureTrigger.invalidateSupervisorContext(
-          from: supervisorCaptureEpoch, to: SupervisorService.shared.contextEpoch)
 
         // Pass CGImage directly to RewindIndexer (only if not excluded from Rewind).
         // Backpressure: skip this frame if the previous one is still being processed.
         // Without this, fire-and-forget Tasks queue up holding CGImages (~24MB each),
         // causing multi-GB memory growth when encoding can't keep up with capture rate.
-        if !isRewindExcluded {
+        if archiveFrame && !isRewindExcluded {
           if isProcessingRewindFrame {
             droppedFrameCount += 1
             if droppedFrameCount == 1 || droppedFrameCount % 30 == 0 {
@@ -796,13 +799,13 @@ public class ProactiveAssistantsPlugin: NSObject {
     } else if let jpegData = await screenCaptureService.captureActiveWindowAsync(),
       let appName = appName
     {
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
       // macOS 13.x fallback: existing JPEG-based path
       // Privacy: re-resolve app name since captureActiveWindowAsync captures
       // whatever is currently active, which may differ from the earlier resolution.
       var resolvedApp = appName
       let (freshApp, freshTitle, freshID) = await WindowMonitor.getActiveWindowInfoAsync()
-      guard RuntimeOwnerIdentity.isAuthorizationCurrent(authorizationSnapshot) else { return }
+      guard captureIsCurrent(generation, owner: authorizationSnapshot) else { return }
       updateSupervisorApplicationContext(
         appName: freshApp, windowTitle: freshTitle, windowID: freshID,
         authorizationSnapshot: authorizationSnapshot)
@@ -821,8 +824,10 @@ public class ProactiveAssistantsPlugin: NSObject {
 
       frameCount += 1
       let captureTime = Date()
-      captureTrigger.markCaptured(
-        app: resolvedApp, windowTitle: currentWindowTitle, at: captureTime)
+      if archiveFrame {
+        captureTrigger.markCaptured(
+          app: resolvedApp, windowTitle: currentWindowTitle, at: captureTime)
+      }
 
       let frame = CapturedFrame(
         jpegData: jpegData,
@@ -837,14 +842,12 @@ public class ProactiveAssistantsPlugin: NSObject {
         SupervisorService.shared.observeFrame(
           frame, authorizationSnapshot: authorizationSnapshot,
           visualHash: image.map { RewindOCRService.dHash(of: $0) },
-          applicationContextEpoch: supervisorCaptureEpoch)
+          applicationContextEpoch: supervisorCaptureEpoch, capturedUptime: ProcessInfo.processInfo.systemUptime)
       } else {
         makeSupervisorScreenUnavailable()
       }
-      captureTrigger.invalidateSupervisorContext(
-        from: supervisorCaptureEpoch, to: SupervisorService.shared.contextEpoch)
 
-      if !isRewindExcluded {
+      if archiveFrame && !isRewindExcluded {
         if isProcessingRewindFrame {
           droppedFrameCount += 1
           if droppedFrameCount == 1 || droppedFrameCount % 30 == 0 {
@@ -868,6 +871,11 @@ public class ProactiveAssistantsPlugin: NSObject {
     } else {
       handleCaptureEngineFailure()
     }
+  }
+
+  private func captureIsCurrent(_ generation: UInt64, owner: RuntimeOwnerAuthorizationSnapshot) -> Bool {
+    isMonitoring && captureGeneration == generation && SupervisorService.shared.isSystemAvailable
+      && RuntimeOwnerIdentity.isAuthorizationCurrent(owner)
   }
 
   // MARK: - CLI Test Triggers
@@ -937,6 +945,8 @@ public class ProactiveAssistantsPlugin: NSObject {
         log(
           "ProactiveAssistantsPlugin: System going to sleep, wasMonitoring=\(self?.wasMonitoringBeforeSleep ?? false)")
 
+        if let self { self.captureGeneration &+= 1 }
+        SupervisorService.shared.setSuspended(true)
         // Pause the capture timer while sleeping (same as screen lock)
         self?.captureTimer?.invalidate()
         self?.captureTimer = nil
@@ -1017,6 +1027,8 @@ public class ProactiveAssistantsPlugin: NSObject {
     log("ProactiveAssistantsPlugin: Screen locked - pausing capture")
 
     wasMonitoringBeforeLock = isMonitoring
+    captureGeneration &+= 1
+    SupervisorService.shared.setSuspended(true)
 
     // Pause the capture timer while locked
     captureTimer?.invalidate()

@@ -107,6 +107,21 @@ if [ -n "$POISONED_GIT_DIR" ]; then
     fail "inherited Git environment prevented feature change coverage detection"
 fi
 
+# A file introduced on this branch may be retired in the current worktree.
+# The final product cannot require an active UI flow for an absent source file.
+echo 'struct RetiredFeature {}' >"$REPO/desktop/macos/Desktop/Sources/MainWindow/Pages/RetiredFeature.swift"
+repo_git add .
+repo_git commit -q -m "feature later retired"
+rm "$REPO/desktop/macos/Desktop/Sources/MainWindow/Pages/RetiredFeature.swift"
+if ! coverage_check --root "$REPO" --strict >"$TMPDIR/retired.out" 2>"$TMPDIR/retired.err"; then
+  cat "$TMPDIR/retired.out"
+  cat "$TMPDIR/retired.err" >&2
+  fail "worktree-retired sources must not require a current flow"
+fi
+if grep -q "RetiredFeature.swift" "$TMPDIR/retired.out"; then
+  fail "worktree-retired source appeared in coverage selection"
+fi
+
 echo 'let value = "same "' >"$REPO/desktop/macos/Desktop/Sources/MainWindow/Pages/LiteralWhitespace.swift"
 repo_git add .
 repo_git commit -q -m "change user-visible string whitespace"

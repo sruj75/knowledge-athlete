@@ -1,7 +1,7 @@
 import Foundation
 
 enum AIVoiceTurnOutcome: String, Encodable, Sendable {
-  case completed, cancelled, failed, suppressed
+  case completed, cancelled, interrupted, failed, suppressed
 }
 
 /// Content is deliberately an allowlist. Screens, memories, profiles, tools and
@@ -12,7 +12,7 @@ enum AIEvaluationObservation: Sendable {
     outcome: AIVoiceTurnOutcome, durationMs: Int, conversation: [SupervisorConversationInput])
   case decision(
     sessionID: String, decisionID: String, observationID: String, prompt: AIManagedPrompt,
-    transcripts: [SupervisorTranscriptInput], conversation: [SupervisorConversationInput], note: String?)
+    transcripts: [SupervisorTranscriptInput], conversation: [SupervisorConversationInput])
   case chatTerminal(
     sessionID: String, turnID: String, requestID: String, outcome: AIVoiceTurnOutcome,
     durationMs: Int, conversation: [SupervisorConversationInput])
@@ -37,7 +37,7 @@ enum AIEvaluationObservation: Sendable {
     let observation: AIEvaluationObservation
     let sharing: Bool
     enum CodingKeys: String, CodingKey {
-      case kind, prompt, outcome, conversation, transcripts, note, value
+      case kind, prompt, outcome, conversation, transcripts, value
       case sessionID = "session_id"
       case turnID = "turn_id"
       case decisionID = "decision_id"
@@ -62,7 +62,7 @@ enum AIEvaluationObservation: Sendable {
         try container.encode(max(0, min(durationMs, 3_600_000)), forKey: .durationMs)
         if sharing { try container.encode(bounded(conversation), forKey: .conversation) }
       case .decision(
-        let sessionID, let decisionID, let observationID, let prompt, let transcripts, let conversation, let note):
+        let sessionID, let decisionID, let observationID, let prompt, let transcripts, let conversation):
         try container.encode("supervisor_decision", forKey: .kind)
         try container.encode(sessionID, forKey: .sessionID)
         try container.encode(decisionID, forKey: .decisionID)
@@ -74,7 +74,6 @@ enum AIEvaluationObservation: Sendable {
               SupervisorTranscriptInput(id: $0.id, text: String($0.text.prefix(2_000)), source: $0.source)
             }, forKey: .transcripts)
           try container.encode(bounded(conversation), forKey: .conversation)
-          try container.encodeIfPresent(note.map { String($0.prefix(2_000)) }, forKey: .note)
         }
       case .chatTerminal(let sessionID, let turnID, let requestID, let outcome, let durationMs, let conversation):
         try container.encode("chat_terminal", forKey: .kind)

@@ -17,9 +17,9 @@ final class AudioLevelDelivery: @unchecked Sendable {
     self.schedule = schedule
   }
 
-  func submit(_ level: Float, to handler: @escaping Handler) {
+  func submit(_ level: Float, capture: Capture? = nil, to handler: @escaping Handler) {
     let admittedGeneration: UInt64? = lock.withLock {
-      guard acceptingSamples else { return nil }
+      guard acceptingSamples, capture == nil || capture?.generation == generation else { return nil }
       latest = (level, handler)
       guard !scheduled else { return nil }
       scheduled = true

@@ -30,6 +30,7 @@ struct CaptureListeningControls: View {
         isToggling: isTogglingListening,
         action: toggleListening
       )
+      .help("Start or pause the microphone and system audio inputs enabled in Settings.")
     }
     .onAppear(perform: syncCaptureState)
     .onReceive(NotificationCenter.default.publisher(for: .screenCapturePermissionLost)) { _ in

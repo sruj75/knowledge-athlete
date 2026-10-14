@@ -36,7 +36,7 @@ final class ConversationLocalMergeTests: XCTestCase {
     }
     let work = try await owner.storage.enrichmentWork(conversationId: merged.conversationId)
     XCTAssertEqual(provenance, [first.conversationId, second.conversationId])
-    XCTAssertEqual(work.map(\.kind), [.structure, .actionItems])
+    XCTAssertEqual(work.map(\.kind), [.structure])
   }
 
   func testInjectedFailureLeavesBothSourcesAndNoReplacement() async throws {

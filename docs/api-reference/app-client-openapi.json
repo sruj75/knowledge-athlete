@@ -138,6 +138,77 @@
         "title": "ChatQuotaUnit",
         "type": "string"
       },
+      "ChatTerminalObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationObservation"
+            },
+            "maxItems": 16,
+            "title": "Conversation",
+            "type": "array"
+          },
+          "duration_ms": {
+            "maximum": 3600000.0,
+            "minimum": 0.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "evaluation_sharing": {
+            "default": false,
+            "title": "Evaluation Sharing",
+            "type": "boolean"
+          },
+          "kind": {
+            "const": "chat_terminal",
+            "title": "Kind",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "completed",
+              "interrupted",
+              "cancelled",
+              "failed",
+              "suppressed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "session_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "turn_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "session_id",
+          "turn_id",
+          "request_id",
+          "outcome",
+          "duration_ms"
+        ],
+        "title": "ChatTerminalObservation",
+        "type": "object"
+      },
       "ChatUsageQuota": {
         "properties": {
           "allowed": {
@@ -195,133 +266,6 @@
           "used"
         ],
         "title": "ChatUsageQuota",
-        "type": "object"
-      },
-      "ConversationActionCandidate": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "pattern": "^(create|update|complete)$",
-            "title": "Action",
-            "type": "string"
-          },
-          "description": {
-            "maxLength": 4096,
-            "minLength": 1,
-            "title": "Description",
-            "type": "string"
-          },
-          "due_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due At"
-          },
-          "target_task_token": {
-            "anyOf": [
-              {
-                "pattern": "^t[0-9]$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Task Token"
-          }
-        },
-        "required": [
-          "action",
-          "description"
-        ],
-        "title": "ConversationActionCandidate",
-        "type": "object"
-      },
-      "ConversationActionItemsRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "generation_id": {
-            "format": "uuid",
-            "title": "Generation Id",
-            "type": "string"
-          },
-          "language": {
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Language",
-            "type": "string"
-          },
-          "output_language": {
-            "maxLength": 32,
-            "minLength": 1,
-            "title": "Output Language",
-            "type": "string"
-          },
-          "related_tasks": {
-            "items": {
-              "$ref": "#/components/schemas/RelatedTaskCandidate"
-            },
-            "maxItems": 10,
-            "title": "Related Tasks",
-            "type": "array"
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          },
-          "timezone": {
-            "maxLength": 128,
-            "minLength": 1,
-            "title": "Timezone",
-            "type": "string"
-          },
-          "transcript": {
-            "maxLength": 1000000,
-            "minLength": 1,
-            "title": "Transcript",
-            "type": "string"
-          }
-        },
-        "required": [
-          "generation_id",
-          "transcript",
-          "started_at",
-          "language",
-          "output_language",
-          "timezone"
-        ],
-        "title": "ConversationActionItemsRequest",
-        "type": "object"
-      },
-      "ConversationActionItemsResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/ConversationActionCandidate"
-            },
-            "maxItems": 100,
-            "title": "Candidates",
-            "type": "array"
-          },
-          "generation_id": {
-            "format": "uuid",
-            "title": "Generation Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "generation_id",
-          "candidates"
-        ],
-        "title": "ConversationActionItemsResponse",
         "type": "object"
       },
       "ConversationCandidateRequest": {
@@ -460,14 +404,45 @@
         "title": "ConversationDiscardResponse",
         "type": "object"
       },
+      "ConversationHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "ConversationHistoryItem",
+        "type": "object"
+      },
       "ConversationObservation": {
         "additionalProperties": false,
         "properties": {
+          "final": {
+            "default": true,
+            "title": "Final",
+            "type": "boolean"
+          },
           "outcome": {
             "anyOf": [
               {
                 "enum": [
                   "completed",
+                  "interrupted",
                   "cancelled",
                   "failed",
                   "suppressed"
@@ -479,6 +454,12 @@
               }
             ],
             "title": "Outcome"
+          },
+          "revision": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
           },
           "role": {
             "enum": [
@@ -507,6 +488,195 @@
           "text"
         ],
         "title": "ConversationObservation",
+        "type": "object"
+      },
+      "ConversationPromptReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "const": "intentive-live-system",
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "langfuse",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^(?:[1-9][0-9]{0,9}|conversation-v1)$",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "source",
+          "sha256",
+          "text"
+        ],
+        "title": "ConversationPromptReceipt",
+        "type": "object"
+      },
+      "ConversationPromptReference": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "const": "intentive-live-system",
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "langfuse",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "pattern": "^(?:[1-9][0-9]{0,9}|conversation-v1)$",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "source",
+          "sha256"
+        ],
+        "title": "ConversationPromptReference",
+        "type": "object"
+      },
+      "ConversationRespondRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "context": {
+            "default": "",
+            "maxLength": 16000,
+            "title": "Context",
+            "type": "string"
+          },
+          "conversation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "guidance": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guidance"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationHistoryItem"
+            },
+            "maxItems": 64,
+            "title": "History",
+            "type": "array"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JPEGImage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "prompt_ref": {
+            "$ref": "#/components/schemas/ConversationPromptReference"
+          },
+          "turn_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "turn_id",
+          "prompt_ref",
+          "message"
+        ],
+        "title": "ConversationRespondRequest",
+        "type": "object"
+      },
+      "ConversationSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Conversation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ],
+        "title": "ConversationSessionRequest",
+        "type": "object"
+      },
+      "ConversationSessionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "prompt": {
+            "$ref": "#/components/schemas/ConversationPromptReceipt"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "prompt"
+        ],
+        "title": "ConversationSessionResponse",
         "type": "object"
       },
       "ConversationStructureResponse": {
@@ -811,6 +981,22 @@
           "message"
         ],
         "title": "InitialMessageResponse",
+        "type": "object"
+      },
+      "JPEGImage": {
+        "additionalProperties": false,
+        "properties": {
+          "jpeg_base64": {
+            "maxLength": 2800000,
+            "minLength": 1,
+            "title": "Jpeg Base64",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jpeg_base64"
+        ],
+        "title": "JPEGImage",
         "type": "object"
       },
       "LlmTotalCostResponse": {
@@ -1544,7 +1730,22 @@
       },
       "MintRequest": {
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "conversation_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "prompt_ref": {
+            "$ref": "#/components/schemas/ConversationPromptReference"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "prompt_ref"
+        ],
         "title": "MintRequest",
         "type": "object"
       },
@@ -1766,7 +1967,7 @@
             "type": "string"
           },
           "prompt": {
-            "$ref": "#/components/schemas/PromptReceipt"
+            "$ref": "#/components/schemas/ConversationPromptReceipt"
           },
           "provider": {
             "const": "gemini",
@@ -1785,45 +1986,6 @@
           "prompt"
         ],
         "title": "RealtimeSessionResponse",
-        "type": "object"
-      },
-      "RelatedTaskCandidate": {
-        "additionalProperties": false,
-        "properties": {
-          "completed": {
-            "default": false,
-            "title": "Completed",
-            "type": "boolean"
-          },
-          "description": {
-            "maxLength": 4096,
-            "minLength": 1,
-            "title": "Description",
-            "type": "string"
-          },
-          "due_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due At"
-          },
-          "token": {
-            "pattern": "^t[0-9]$",
-            "title": "Token",
-            "type": "string"
-          }
-        },
-        "required": [
-          "token",
-          "description"
-        ],
-        "title": "RelatedTaskCandidate",
         "type": "object"
       },
       "ScoreObservation": {
@@ -1852,6 +2014,20 @@
             "const": "score",
             "title": "Kind",
             "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           },
           "session_id": {
             "maxLength": 128,
@@ -2110,6 +2286,35 @@
         "title": "SubscriptionStatus",
         "type": "string"
       },
+      "SupervisorActiveConversation": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "closed",
+              "connecting",
+              "open",
+              "reconnecting",
+              "ending"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "SupervisorActiveConversation",
+        "type": "object"
+      },
       "SupervisorDecisionObservation": {
         "additionalProperties": false,
         "properties": {
@@ -2137,18 +2342,6 @@
             "const": "supervisor_decision",
             "title": "Kind",
             "type": "string"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
           },
           "observation_id": {
             "maxLength": 128,
@@ -2186,9 +2379,97 @@
         "title": "SupervisorDecisionObservation",
         "type": "object"
       },
+      "SupervisorInputAvailability": {
+        "additionalProperties": false,
+        "properties": {
+          "age_ms": {
+            "anyOf": [
+              {
+                "maximum": 86400000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Ms"
+          },
+          "captured_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captured At"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "disabled",
+              "denied",
+              "unavailable",
+              "stale",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SupervisorInputAvailability",
+        "type": "object"
+      },
+      "SupervisorInputStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "microphone": {
+            "$ref": "#/components/schemas/SupervisorInputAvailability"
+          },
+          "screen": {
+            "$ref": "#/components/schemas/SupervisorInputAvailability"
+          },
+          "system": {
+            "$ref": "#/components/schemas/SupervisorInputAvailability"
+          },
+          "webcam": {
+            "$ref": "#/components/schemas/SupervisorInputAvailability"
+          }
+        },
+        "required": [
+          "screen",
+          "webcam",
+          "microphone",
+          "system"
+        ],
+        "title": "SupervisorInputStatus",
+        "type": "object"
+      },
       "SupervisorRequest": {
         "additionalProperties": false,
         "properties": {
+          "active_conversation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupervisorActiveConversation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content_revision": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Content Revision",
+            "type": "integer"
+          },
           "context_epoch": {
             "maximum": 1.8446744073709552e+19,
             "minimum": 0.0,
@@ -2208,6 +2489,16 @@
             "title": "Evaluation Sharing",
             "type": "boolean"
           },
+          "input_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupervisorInputStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "memories": {
             "items": {
               "maxLength": 2000,
@@ -2223,6 +2514,18 @@
             "pattern": "^[A-Za-z0-9_.:-]+$",
             "title": "Observation Id",
             "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
           },
           "profile": {
             "default": "",
@@ -2254,6 +2557,16 @@
             "maxItems": 32,
             "title": "Transcripts",
             "type": "array"
+          },
+          "webcam": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupervisorWebcam"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2371,6 +2684,28 @@
         "title": "SupervisorScreen",
         "type": "object"
       },
+      "SupervisorWebcam": {
+        "additionalProperties": false,
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "jpeg_base64": {
+            "maxLength": 341336,
+            "minLength": 1,
+            "title": "Jpeg Base64",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jpeg_base64",
+          "captured_at"
+        ],
+        "title": "SupervisorWebcam",
+        "type": "object"
+      },
       "TerminalTurnObservation": {
         "additionalProperties": false,
         "properties": {
@@ -2415,6 +2750,7 @@
           "outcome": {
             "enum": [
               "completed",
+              "interrupted",
               "cancelled",
               "failed",
               "suppressed"
@@ -2454,12 +2790,23 @@
       "TranscriptObservation": {
         "additionalProperties": false,
         "properties": {
+          "final": {
+            "default": true,
+            "title": "Final",
+            "type": "boolean"
+          },
           "id": {
             "maxLength": 128,
             "minLength": 1,
             "pattern": "^[A-Za-z0-9_.:-]+$",
             "title": "Id",
             "type": "string"
+          },
+          "revision": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
           },
           "source": {
             "enum": [
@@ -2599,6 +2946,43 @@
           }
         },
         "title": "TrialMetadata",
+        "type": "object"
+      },
+      "UsageReport": {
+        "additionalProperties": false,
+        "properties": {
+          "input_audio_tokens": {
+            "default": 0,
+            "title": "Input Audio Tokens",
+            "type": "integer"
+          },
+          "input_cached_tokens": {
+            "default": 0,
+            "title": "Input Cached Tokens",
+            "type": "integer"
+          },
+          "input_text_tokens": {
+            "default": 0,
+            "title": "Input Text Tokens",
+            "type": "integer"
+          },
+          "output_audio_tokens": {
+            "default": 0,
+            "title": "Output Audio Tokens",
+            "type": "integer"
+          },
+          "output_text_tokens": {
+            "default": 0,
+            "title": "Output Text Tokens",
+            "type": "integer"
+          },
+          "thinking_tokens": {
+            "default": 0,
+            "title": "Thinking Tokens",
+            "type": "integer"
+          }
+        },
+        "title": "UsageReport",
         "type": "object"
       },
       "UserDataExportResponse": {
@@ -3052,6 +3436,7 @@
               "schema": {
                 "discriminator": {
                   "mapping": {
+                    "chat_terminal": "#/components/schemas/ChatTerminalObservation",
                     "score": "#/components/schemas/ScoreObservation",
                     "supervisor_decision": "#/components/schemas/SupervisorDecisionObservation",
                     "terminal_turn": "#/components/schemas/TerminalTurnObservation"
@@ -3061,6 +3446,9 @@
                 "oneOf": [
                   {
                     "$ref": "#/components/schemas/TerminalTurnObservation"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ChatTerminalObservation"
                   },
                   {
                     "$ref": "#/components/schemas/ScoreObservation"
@@ -3099,90 +3487,6 @@
           }
         ],
         "summary": "Report Observation"
-      }
-    },
-    "/v1/conversation-compute/action-items": {
-      "post": {
-        "operationId": "compute_action_items_v1_conversation_compute_action_items_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "title": "Authorization",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Platform",
-            "required": false,
-            "schema": {
-              "title": "X-App-Platform",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Device-Id-Hash",
-            "required": false,
-            "schema": {
-              "title": "X-Device-Id-Hash",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-App-Version",
-            "required": false,
-            "schema": {
-              "title": "X-App-Version",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConversationActionItemsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConversationActionItemsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "$ref": "#/components/responses/Error401"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "firebaseBearer": []
-          }
-        ],
-        "summary": "Compute Action Items"
       }
     },
     "/v1/conversation-compute/discard": {
@@ -3351,6 +3655,167 @@
           }
         ],
         "summary": "Compute Structure"
+      }
+    },
+    "/v1/conversation/respond": {
+      "post": {
+        "operationId": "respond_v1_conversation_respond_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationRespondRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Respond"
+      }
+    },
+    "/v1/conversation/session": {
+      "post": {
+        "operationId": "bootstrap_session_v1_conversation_session_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Bootstrap Session"
       }
     },
     "/v1/fair-use/reviews/{review_id}/classify": {
@@ -5090,6 +5555,83 @@
           }
         ],
         "summary": "Mint Session"
+      }
+    },
+    "/v2/realtime/usage": {
+      "post": {
+        "operationId": "report_usage_v2_realtime_usage_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "title": "Authorization",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Platform",
+            "required": false,
+            "schema": {
+              "title": "X-App-Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Device-Id-Hash",
+            "required": false,
+            "schema": {
+              "title": "X-Device-Id-Hash",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-App-Version",
+            "required": false,
+            "schema": {
+              "title": "X-App-Version",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsageReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error401"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "firebaseBearer": []
+          }
+        ],
+        "summary": "Report Usage"
       }
     },
     "/v2/voice-message/transcribe": {

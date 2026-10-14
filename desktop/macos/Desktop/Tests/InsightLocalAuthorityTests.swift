@@ -32,20 +32,6 @@ final class InsightLocalAuthorityTests: XCTestCase {
     XCTAssertTrue(projected.allSatisfy { $0.tags.contains("tips") })
   }
 
-  @MainActor
-  func testRetiredInsightProjectionCacheIsDeletedAndNeverLoaded() throws {
-    let suiteName = "insight-local-authority-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-    let key = "omi.advice.history.owner.some-owner"
-    defaults.set(Data("stale".utf8), forKey: key)
-
-    let storage = InsightStorage(defaults: defaults, startAutomatically: false)
-
-    XCTAssertTrue(storage.insightHistory.isEmpty)
-    XCTAssertNil(defaults.object(forKey: key))
-  }
-
   private func insertMemory(content: String, tags: [String]) async throws -> MemoryItem {
     try await MemoryStorage.shared.acceptAssertion(
       MemoryAssertion(

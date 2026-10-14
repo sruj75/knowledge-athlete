@@ -22,6 +22,7 @@ private final class FallbackSupervisorHarness {
   var owner: RuntimeOwnerAuthorizationSnapshot
   let defaults: UserDefaults
   var requests: [SupervisorEvaluationRequest] = []
+  var clock: TimeInterval = 100
 
   init() throws {
     defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
@@ -29,7 +30,8 @@ private final class FallbackSupervisorHarness {
   }
 
   lazy var supervisor = SupervisorService(
-    defaults: defaults, currentOwner: { self.owner },
+    defaults: defaults, now: { Date(timeIntervalSince1970: self.clock) },
+    monotonicNow: { self.clock }, currentOwner: { self.owner },
     ownerIsCurrent: { self.authority.isCurrent($0, ownerID: "fallback-owner") },
     evaluate: { request, _ in
       self.requests.append(request)
@@ -88,6 +90,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
         token, outcome: .journalAccepted,
         conversation: .init(
           userText: "Ask about the missing check.", assistantText: "Which check is still missing?")))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     let generated = try XCTUnwrap(h.requests.last)
     XCTAssertEqual(generated.conversation.map(\.role), ["user", "assistant"])
@@ -97,6 +100,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     XCTAssertNotNil(h.coordinator.activeTurnID, "A generated reply is still playing")
 
     XCTAssertTrue(h.coordinator.releaseOutput(lease))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     let completed = try XCTUnwrap(h.requests.last)
     XCTAssertEqual(completed.conversation.map(\.outcome), ["completed", "completed"])
@@ -112,6 +116,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     let (token, _) = try h.startReply()
     XCTAssertTrue(h.coordinator.completeNonHubProvider(token, outcome: .journalAccepted, conversation: conversation))
     h.coordinator.publish(.interrupt(turnID: token.turnID))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertEqual(h.requests.last?.conversation.map(\.outcome), ["cancelled", "cancelled"])
     XCTAssertFalse(h.coordinator.hasDeliveredVoiceOutput(turnID: token.turnID))
@@ -126,6 +131,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     let (token, lease) = try h.startReply(duringRecording: { h.supervisor.endSession() })
     XCTAssertTrue(h.coordinator.completeNonHubProvider(token, outcome: .journalAccepted, conversation: conversation))
     XCTAssertTrue(h.coordinator.releaseOutput(lease))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty, "The physical turn belongs to the session in which capture began")
   }
@@ -140,6 +146,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     h.supervisor.endSession()
     XCTAssertTrue(h.coordinator.completeNonHubProvider(token, outcome: .journalAccepted, conversation: conversation))
     XCTAssertTrue(h.coordinator.releaseOutput(lease))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty)
   }
@@ -156,6 +163,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     h.owner = try XCTUnwrap(h.authority.capture(ownerID: "fallback-owner", expectedOwnerID: nil))
     XCTAssertTrue(h.coordinator.completeNonHubProvider(token, outcome: .journalAccepted, conversation: conversation))
     XCTAssertTrue(h.coordinator.releaseOutput(lease))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty)
   }
@@ -170,6 +178,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     XCTAssertTrue(
       h.coordinator.completeNonHubProvider(failedToken, outcome: .journalFailed, conversation: conversation))
     _ = h.coordinator.releaseOutput(failedLease)
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty)
 
@@ -177,6 +186,7 @@ final class VoiceFallbackSupervisorObservationTests: XCTestCase {
     h.coordinator.publish(.interrupt(turnID: cancelledToken.turnID))
     XCTAssertFalse(
       h.coordinator.completeNonHubProvider(cancelledToken, outcome: .journalAccepted, conversation: conversation))
+    h.clock += 1
     await h.supervisor.evaluatePendingObservation()
     XCTAssertTrue(h.requests.isEmpty)
   }

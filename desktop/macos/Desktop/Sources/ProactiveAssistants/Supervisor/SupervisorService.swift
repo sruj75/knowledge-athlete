@@ -1,3 +1,5 @@
+import AVFoundation
+import AppKit
 import Combine
 import Foundation
 
@@ -10,7 +12,18 @@ struct SupervisorVoiceObservationAdmission: Equatable, Sendable {
 /// a notification; accepted guidance crosses the existing voice owner boundary.
 @MainActor
 final class SupervisorService: ObservableObject {
-  static let shared = SupervisorService()
+  static let shared: SupervisorService = {
+    let service = SupervisorService(audioAvailability: {
+      AppState.current?.supervisorAudioAvailability ?? (.unavailable, .unavailable)
+    })
+    service.installSystemObservers()
+    service.availabilityChanged = { SupervisorWebcamService.shared.setMonitoringAllowed($0) }
+    Task { @MainActor [weak service] in
+      guard let service else { return }
+      service.availabilityChanged(service.isObservationAllowed)
+    }
+    return service
+  }()
   static let enabledDefaultsKey = "supervisorEnabled"
 
   typealias Evaluator =
@@ -27,15 +40,21 @@ final class SupervisorService: ObservableObject {
     didSet {
       defaults.set(enabled, forKey: Self.enabledDefaultsKey)
       if !enabled { endSession() }
-      state = enabled ? .idle : .disabled
+      state = restingState
+      availabilityChanged(isObservationAllowed)
     }
   }
   /// Explicit opt-in for this logical session only. Never persisted in defaults.
   @Published var evaluationSharing = false
   @Published private(set) var sessionID = UUID().uuidString.lowercased()
   @Published private(set) var contextEpoch: UInt64 = 0
+  private var relevantObservationEpoch: UInt64 = 0
   @Published private(set) var state: SupervisorState = .idle
   @Published private(set) var pendingGuidance: SupervisorGuidance?
+  @Published private(set) var metrics = SupervisorObservationMetrics()
+  @Published private(set) var retryAt: Date?
+  var isSystemAvailable: Bool { !suspended }
+  var isObservationAllowed: Bool { enabled && !suspended }
 
   private let defaults: UserDefaults
   private let now: () -> Date
@@ -48,9 +67,16 @@ final class SupervisorService: ObservableObject {
   private let decisionStarted: @MainActor (String) -> Void
   private let recordDecision: DecisionRecorder
   private let automaticallySchedule: Bool
+  private let audioAvailability: @MainActor () -> (SupervisorInputAvailability, SupervisorInputAvailability)
   private var owner: RuntimeOwnerAuthorizationSnapshot?
   private var frame: CapturedFrame?
   private var frameHash: UInt64?
+  private var frameCapturedUptime: TimeInterval?
+  private var webcam: (data: Data, capturedAt: Date, uptime: TimeInterval)?
+  private var webcamHash: UInt64?
+  private var inputStatuses = SupervisorInputStatuses()
+  private var activeConversation: SupervisorActiveConversation?
+  private var contentRevision: UInt64 = 0
   private var applicationName: String?
   private var applicationWindowTitle: String?
   private var applicationWindowID: UInt32?
@@ -60,11 +86,20 @@ final class SupervisorService: ObservableObject {
   private var activeVoiceIntervals: [String: TimeInterval] = [:]
   private var voiceIntervals: [SupervisorCaptureInterval] = []
   private var dirty = false
-  private var changedAt = Date.distantPast
+  private var firstPendingAt: TimeInterval?
+  private var lastAdmissionAt: TimeInterval?
+  private var budgetTokens: Double = 3
+  private var budgetRefilledAt: TimeInterval
   private var scheduled: Task<Void, Never>?
   private var evaluationID: UUID?
-  private var pauseUntil = Date.distantPast
+  private var pauseUntil: TimeInterval = 0
+  private var pauseOwner: RuntimeOwnerAuthorizationSnapshot?
   private var ownerObserver: NSObjectProtocol?
+  private var systemObservers: [NSObjectProtocol] = []
+  private var sleeping = false
+  private var locked = false
+  private var suspended = false
+  private var availabilityChanged: @MainActor (Bool) -> Void = { _ in }
 
   init(
     defaults: UserDefaults = .standard,
@@ -89,7 +124,7 @@ final class SupervisorService: ObservableObject {
         profile: String((profile?.profileText ?? "").prefix(8_000)))
     },
     deliver: @escaping Delivery = { guidance in
-      _ = await RealtimeHubController.shared.submitSupervisorGuidance(guidance)
+      _ = await ConversationVoiceController.shared.submitSupervisorGuidance(guidance)
     },
     decisionStarted: @escaping @MainActor (String) -> Void = {
       AIEvaluationReporter.shared.captureDecisionStart(observationID: $0)
@@ -98,11 +133,15 @@ final class SupervisorService: ObservableObject {
       AIEvaluationReporter.shared.recordDecision(
         request: $0, response: $1, authorizationSnapshot: $2)
     },
-    automaticallySchedule: Bool = true
+    automaticallySchedule: Bool = true,
+    audioAvailability: @escaping @MainActor () -> (SupervisorInputAvailability, SupervisorInputAvailability) = {
+      (.unavailable, .unavailable)
+    }
   ) {
     self.defaults = defaults
     self.now = now
     self.monotonicNow = monotonicNow
+    self.budgetRefilledAt = monotonicNow()
     self.currentOwner = currentOwner
     self.ownerIsCurrent = ownerIsCurrent
     self.evaluate = evaluate
@@ -111,6 +150,7 @@ final class SupervisorService: ObservableObject {
     self.decisionStarted = decisionStarted
     self.recordDecision = recordDecision
     self.automaticallySchedule = automaticallySchedule
+    self.audioAvailability = audioAvailability
     self.enabled =
       defaults.object(forKey: Self.enabledDefaultsKey) == nil
       ? true : defaults.bool(forKey: Self.enabledDefaultsKey)
@@ -118,7 +158,11 @@ final class SupervisorService: ObservableObject {
     ownerObserver = NotificationCenter.default.addObserver(
       forName: .runtimeOwnerDidChange, object: nil, queue: .main
     ) { [weak self] _ in
-      MainActor.assumeIsolated { self?.endSession() }
+      MainActor.assumeIsolated {
+        self?.availabilityChanged(false)
+        self?.endSession()
+        if let self { self.availabilityChanged(self.isObservationAllowed) }
+      }
     }
   }
 
@@ -129,8 +173,15 @@ final class SupervisorService: ObservableObject {
     // slot until it completes. Its old session can never deliver a result.
     owner = nil
     dirty = false
+    lastAdmissionAt = nil
+    firstPendingAt = nil
     frame = nil
     frameHash = nil
+    frameCapturedUptime = nil
+    webcam = nil
+    webcamHash = nil
+    activeConversation = nil
+    inputStatuses = SupervisorInputStatuses()
     applicationName = nil
     applicationWindowTitle = nil
     applicationWindowID = nil
@@ -142,14 +193,76 @@ final class SupervisorService: ObservableObject {
     pendingGuidance = nil
     evaluationSharing = false
     contextEpoch &+= 1
+    relevantObservationEpoch &+= 1
     sessionID = UUID().uuidString.lowercased()
-    pauseUntil = .distantPast
-    state = enabled ? .idle : .disabled
+    // Locking, sleep, and toggling monitoring cannot erase a server pause for
+    // the same authorized owner. Owner-generation changes do clear it.
+    clearRevokedPause()
+    state = restingState
+  }
+
+  private func installSystemObservers() {
+    let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+    locked =
+      session?["CGSSessionScreenIsLocked"] as? Bool == true
+      || session?[kCGSessionOnConsoleKey as String] as? Bool == false
+    setSuspended(locked)
+    let events: [(NotificationCenter, Notification.Name, Bool, Bool)] = [
+      (NSWorkspace.shared.notificationCenter, NSWorkspace.willSleepNotification, true, true),
+      (.default, .systemDidWake, true, false),
+      (.default, .screenDidLock, false, true),
+      (.default, .screenDidUnlock, false, false),
+    ]
+    for (center, name, isSleep, value) in events {
+      systemObservers.append(
+        center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+          MainActor.assumeIsolated {
+            guard let self else { return }
+            if isSleep { self.sleeping = value } else { self.locked = value }
+            self.setSuspended(self.sleeping || self.locked)
+          }
+        })
+    }
+    for name in [Notification.Name.ambientAudioCaptureSettingsDidChange, .transcriptionSettingsDidChange] {
+      systemObservers.append(
+        NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+          MainActor.assumeIsolated {
+            guard let self, self.owner != nil, self.isObservationAllowed else { return }
+            self.markChanged(invalidateContext: true, invalidateObservationContext: true)
+          }
+        })
+    }
+  }
+
+  func setSuspended(_ value: Bool) {
+    guard suspended != value else { return }
+    suspended = value
+    if value { endSession() }
+    state = restingState
+    availabilityChanged(isObservationAllowed)
+  }
+
+  private var restingState: SupervisorState {
+    if !enabled { return .disabled }
+    if suspended { return .suspended }
+    return monotonicNow() < pauseUntil ? .paused : .idle
+  }
+
+  private func clearRevokedPause() {
+    guard let pauseOwner, currentOwner() == pauseOwner, ownerIsCurrent(pauseOwner) else {
+      pauseOwner = nil
+      pauseUntil = 0
+      retryAt = nil
+      return
+    }
   }
 
   private func admit(_ supplied: RuntimeOwnerAuthorizationSnapshot?) -> Bool {
-    guard enabled, let snapshot = supplied ?? currentOwner(), ownerIsCurrent(snapshot) else { return false }
+    guard isObservationAllowed, let snapshot = supplied ?? currentOwner(), ownerIsCurrent(snapshot) else {
+      return false
+    }
     if let owner, owner != snapshot { endSession() }
+    clearRevokedPause()
     owner = snapshot
     return true
   }
@@ -161,13 +274,49 @@ final class SupervisorService: ObservableObject {
 
   func observeVoice(
     userText: String? = nil, assistantText: String? = nil, turnID: String, outcome: String,
-    admission: SupervisorVoiceObservationAdmission
+    admission: SupervisorVoiceObservationAdmission, revision: Int? = nil, isFinal: Bool = true
   ) {
     // A provider callback cannot adopt a new monitoring session after capture began.
     guard admission.sessionID == sessionID, owner == admission.authorization else { return }
     observeVoice(
       userText: userText, assistantText: assistantText, turnID: turnID, outcome: outcome,
-      authorizationSnapshot: admission.authorization)
+      authorizationSnapshot: admission.authorization, revision: revision, isFinal: isFinal)
+  }
+
+  func updateConversation(id: String?, state: SupervisorConversationState) {
+    guard admit(nil) else { return }
+    let next = id.map { SupervisorActiveConversation(id: String($0.prefix(128)), state: state) }
+    guard next != activeConversation else { return }
+    let invalidates = activeConversation?.id != next?.id || state == .closed
+    activeConversation = next
+    markChanged(invalidateContext: invalidates)
+  }
+
+  func observeWebcam(
+    jpegData: Data, capturedAt: Date, capturedUptime: TimeInterval, visualHash: UInt64?,
+    observationSessionID: String, authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
+  ) {
+    guard observationSessionID == sessionID, admit(authorizationSnapshot),
+      jpegData.count <= 256_000, jpegData.starts(with: [0xFF, 0xD8, 0xFF]),
+      capturedUptime <= monotonicNow(), monotonicNow() - capturedUptime <= 5
+    else { return }
+    let changed =
+      webcam == nil || visualHash.map { hash in webcamHash.map { (hash ^ $0).nonzeroBitCount >= 8 } ?? true } == true
+    webcam = (jpegData, capturedAt, capturedUptime)
+    inputStatuses.webcam.status = .available
+    if changed {
+      webcamHash = visualHash
+      markChanged()
+    }
+  }
+
+  func webcamUnavailable(_ availability: SupervisorInputAvailability) {
+    guard webcam != nil || inputStatuses.webcam.status != availability else { return }
+    webcam = nil
+    webcamHash = nil
+    inputStatuses.webcam = .init(status: availability)
+    guard admit(nil) else { return }
+    markChanged(invalidateContext: true, invalidateObservationContext: true)
   }
 
   /// App/window identity is known before pixels are ready. Revoke old advice
@@ -187,14 +336,16 @@ final class SupervisorService: ObservableObject {
     applicationWindowID = windowID ?? (appChanged ? nil : applicationWindowID)
     frame = nil
     frameHash = nil
-    markChanged(invalidateContext: true)
+    frameCapturedUptime = nil
+    markChanged(invalidateContext: true, invalidateObservationContext: true)
   }
 
   func observeFrame(
     _ next: CapturedFrame,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot,
     visualHash: UInt64? = nil,
-    applicationContextEpoch: UInt64? = nil
+    applicationContextEpoch: UInt64? = nil,
+    capturedUptime: TimeInterval? = nil
   ) {
     guard admit(authorizationSnapshot),
       applicationContextEpoch == nil || applicationContextEpoch == contextEpoch
@@ -211,19 +362,24 @@ final class SupervisorService: ObservableObject {
         frameHash.map { (hash ^ $0).nonzeroBitCount >= 8 } ?? true
       } ?? (frame == nil)
     frame = next
+    frameCapturedUptime = capturedUptime ?? (monotonicNow() - max(0, now().timeIntervalSince(next.captureTime)))
+    inputStatuses.screen.status = .available
     if visualChanged {
       frameHash = visualHash
-      markChanged()
+      markChanged(invalidateObservationContext: true)
     }
   }
 
   /// Privacy exclusions revoke the previous image immediately, even when the
   /// next capture tick exits before producing another permitted frame.
-  func screenUnavailable() {
-    guard frame != nil else { return }
+  func screenUnavailable(_ availability: SupervisorInputAvailability = .unavailable) {
+    guard frame != nil || inputStatuses.screen.status != availability else { return }
     frame = nil
     frameHash = nil
-    markChanged(invalidateContext: true)
+    frameCapturedUptime = nil
+    inputStatuses.screen = .init(status: availability)
+    guard admit(nil) else { return }
+    markChanged(invalidateContext: true, invalidateObservationContext: true)
   }
 
   func observeAmbient(
@@ -251,10 +407,11 @@ final class SupervisorService: ObservableObject {
         changed = removeAmbient { $0.id == id } || changed
         continue
       }
-      let input = SupervisorTranscriptInput(id: id, text: text, source: provenance.source)
+      var input = SupervisorTranscriptInput(id: id, text: text, source: provenance.source)
       transcriptCaptures[id] = capture
       if let index = transcripts.firstIndex(where: { $0.id == id }) {
-        guard transcripts[index] != input else { continue }
+        guard transcripts[index].text != text || transcripts[index].source != input.source else { continue }
+        input.revision = transcripts[index].revision + 1
         transcripts[index] = input
       } else {
         transcripts.append(input)
@@ -290,13 +447,15 @@ final class SupervisorService: ObservableObject {
     turnID: String,
     outcome: String,
     occurredAt: Date = Date(),
-    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
+    authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil,
+    revision: Int? = nil, isFinal: Bool = true
   ) {
     guard admit(authorizationSnapshot) else { return }
     let terminal: String? =
       switch outcome {
       case "completed", "delivered": "completed"
-      case "cancelled", "interrupted": "cancelled"
+      case "cancelled": "cancelled"
+      case "interrupted": "interrupted"
       case "failed": "failed"
       case "suppressed": "suppressed"
       default: nil
@@ -306,8 +465,20 @@ final class SupervisorService: ObservableObject {
       let index = conversation.firstIndex { $0.turnID == turnID && $0.role == role }
       let text = String((content ?? index.map { conversation[$0].text } ?? "").prefix(1_000))
       guard !text.isEmpty else { continue }
-      let input = SupervisorConversationInput(turnID: turnID, role: role, text: text, outcome: terminal)
+      var input = SupervisorConversationInput(turnID: turnID, role: role, text: text, outcome: terminal)
+      input.final = isFinal
+      input.revision = max(0, revision ?? index.map { conversation[$0].revision + 1 } ?? 0)
       if let index {
+        let previous = conversation[index]
+        if previous.text == input.text, previous.outcome == input.outcome,
+          previous.final == input.final, revision == nil || revision == previous.revision
+        {
+          continue
+        }
+        guard !(previous.final && !input.final),
+          input.revision >= conversation[index].revision,
+          input.revision != conversation[index].revision || input.text == conversation[index].text
+        else { continue }
         guard conversation[index] != input else { continue }
         conversation[index] = input
       } else {
@@ -335,25 +506,38 @@ final class SupervisorService: ObservableObject {
       || activeVoiceIntervals.values.contains { capture.end > $0 }
   }
 
-  private func markChanged(invalidateContext: Bool = false) {
-    // Only app/window/privacy boundaries revoke an in-flight interpretation.
-    // Same-context events replace the next snapshot without starving a request
-    // whose response is slower than the capture or transcript cadence.
+  private func markChanged(invalidateContext: Bool = false, invalidateObservationContext: Bool = false) {
+    // Dispatch keeps its first-event deadline even when new observations arrive.
+    // App/window/privacy and meaningful screen changes independently revoke old
+    // interpretations; opening A changes only the logical conversation epoch.
     if invalidateContext {
       contextEpoch &+= 1
       pendingGuidance = nil
     }
-    changedAt = now()
+    if invalidateObservationContext {
+      relevantObservationEpoch &+= 1
+      pendingGuidance = nil
+    }
+    contentRevision &+= 1
+    if dirty {
+      metrics.replacedPending += 1
+    } else {
+      firstPendingAt = monotonicNow()
+      scheduled?.cancel()
+      scheduled = nil
+    }
     dirty = true
     if state != .paused { state = .observing }
     schedule()
   }
 
   private func schedule() {
-    guard automaticallySchedule, enabled, dirty, scheduled == nil, evaluationID == nil,
-      pauseUntil != .distantFuture
+    guard automaticallySchedule, isObservationAllowed, let due = nextEvaluationAt,
+      scheduled == nil, evaluationID == nil
     else { return }
-    let delay = max(3, pauseUntil.timeIntervalSince(now()))
+    refillBudget()
+    let budgetReady = budgetTokens >= 1 ? monotonicNow() : monotonicNow() + (1 - budgetTokens) * 5
+    let delay = max(0, max(due, max(pauseUntil, budgetReady)) - monotonicNow())
     scheduled = Task { [weak self] in
       do { try await Task.sleep(for: .seconds(delay)) } catch { return }
       guard let self else { return }
@@ -362,26 +546,75 @@ final class SupervisorService: ObservableObject {
     }
   }
 
-  func isCurrent(_ guidance: SupervisorGuidance) -> Bool {
-    enabled && ownerIsCurrent(guidance.authorizationSnapshot)
+  private var nextEvaluationAt: TimeInterval? {
+    let event = firstPendingAt.map { $0 + 1 }
+    let heartbeat = lastAdmissionAt.map { $0 + 30 }
+    switch (event, heartbeat) {
+    case (let event?, let heartbeat?): return min(event, heartbeat)
+    case (let event?, nil): return event
+    case (nil, let heartbeat?): return heartbeat
+    case (nil, nil): return nil
+    }
+  }
+
+  private func refillBudget() {
+    let time = monotonicNow()
+    budgetTokens = min(3, budgetTokens + max(0, time - budgetRefilledAt) / 5)
+    budgetRefilledAt = time
+  }
+
+  /// Opening A changes the observation context and consumes the pending note.
+  /// After that admission, relevant observation changes, consent, owner, session,
+  /// TTL, and input exclusion can revoke delivery; pending-note identity does not.
+  func isAcceptedGuidanceAllowed(_ guidance: SupervisorGuidance) -> Bool {
+    isObservationAllowed && ownerIsCurrent(guidance.authorizationSnapshot)
       && owner == guidance.authorizationSnapshot && guidance.sessionID == sessionID
-      && guidance.contextEpoch == contextEpoch && guidance.expiresAt > now()
-      && pendingGuidance?.id == guidance.id
+      && guidance.relevantObservationEpoch == relevantObservationEpoch
+      && guidance.expiresAt > now()
+      && applicationName.map { !RewindSettings.shared.isAppExcluded($0) } != false
       && frame.map { !SupervisorScreenPolicy.isAppExcluded($0.appName) } != false
   }
 
+  func isCurrent(_ guidance: SupervisorGuidance) -> Bool {
+    isAcceptedGuidanceAllowed(guidance)
+      && guidance.contextEpoch == contextEpoch && pendingGuidance?.id == guidance.id
+  }
+
   func evaluatePendingObservation() async {
-    guard enabled, dirty, evaluationID == nil, now() >= pauseUntil,
+    guard isObservationAllowed, let due = nextEvaluationAt, monotonicNow() >= due,
+      evaluationID == nil, monotonicNow() >= pauseUntil,
       let owner, ownerIsCurrent(owner)
     else { return }
+    refillBudget()
+    guard budgetTokens >= 1 else {
+      metrics.budgetDeferrals += 1
+      schedule()
+      return
+    }
+    budgetTokens -= 1
     let token = UUID()
     evaluationID = token
     dirty = false
+    let admittedAt = now()
+    let admittedUptime = monotonicNow()
+    metrics.queueMs = Int(max(0, admittedUptime - (firstPendingAt ?? due)) * 1_000)
+    metrics.admitted += 1
+    firstPendingAt = nil
+    lastAdmissionAt = admittedUptime
     state = .evaluating
+    pauseOwner = nil
+    pauseUntil = 0
+    retryAt = nil
     let session = sessionID
     let epoch = contextEpoch
-    let expires = changedAt.addingTimeInterval(30)
+    let observationEpoch = relevantObservationEpoch
+    let expires = admittedAt.addingTimeInterval(30)
     let observedFrame = frame
+    let observedFrameUptime = frameCapturedUptime
+    let observedWebcam = webcam
+    let observedRevision = contentRevision
+    let observedConversation = activeConversation
+    var statuses = inputStatuses
     _ = pruneAmbient()
     let transcriptSnapshot = transcripts
     let conversationSnapshot = conversation
@@ -393,7 +626,8 @@ final class SupervisorService: ObservableObject {
       }
     }
     let memory = await loadMemory(owner)
-    guard enabled, ownerIsCurrent(owner), sessionID == session, contextEpoch == epoch,
+    guard isObservationAllowed, ownerIsCurrent(owner), sessionID == session, contextEpoch == epoch,
+      relevantObservationEpoch == observationEpoch,
       now() < expires, !Task.isCancelled
     else { return }
     if let observedFrame, SupervisorScreenPolicy.isAppExcluded(observedFrame.appName) {
@@ -401,7 +635,11 @@ final class SupervisorService: ObservableObject {
       return
     }
     let screen: SupervisorScreenInput? = observedFrame.flatMap { captured in
-      guard now().timeIntervalSince(captured.captureTime) <= 30 else { return nil }
+      let age = max(0, monotonicNow() - (observedFrameUptime ?? admittedUptime))
+      statuses.screen = .init(
+        status: age <= 30 ? .available : .stale,
+        capturedAt: ISO8601DateFormatter().string(from: captured.captureTime), ageMs: min(86_400_000, Int(age * 1_000)))
+      guard age <= 30 else { return nil }
       let data = SuggestionFramePreview.downscaledJPEG(from: captured.jpegData)
       guard data.count <= 2_000_000, data.starts(with: [0xFF, 0xD8, 0xFF]) else { return nil }
       return .init(
@@ -409,19 +647,36 @@ final class SupervisorService: ObservableObject {
         windowTitle: captured.windowTitle.map { String($0.prefix(512)) },
         capturedAt: ISO8601DateFormatter().string(from: captured.captureTime))
     }
+    let webcamInput: SupervisorWebcamInput? = observedWebcam.flatMap { captured in
+      let age = max(0, monotonicNow() - captured.uptime)
+      statuses.webcam = .init(
+        status: age <= 5 ? .available : .stale,
+        capturedAt: ISO8601DateFormatter().string(from: captured.capturedAt), ageMs: min(86_400_000, Int(age * 1_000)))
+      guard age <= 5 else { return nil }
+      return .init(
+        jpegBase64: captured.data.base64EncodedString(),
+        capturedAt: ISO8601DateFormatter().string(from: captured.capturedAt))
+    }
+    (statuses.microphone.status, statuses.system.status) = audioAvailability()
     let request = SupervisorEvaluationRequest(
       observationID: UUID().uuidString.lowercased(), sessionID: session, contextEpoch: epoch,
       screen: screen, transcripts: transcriptSnapshot, conversation: conversationSnapshot,
       memories: Array(memory.memories.prefix(20)).map { String($0.prefix(1_000)) },
-      profile: String(memory.profile.prefix(8_000)), evaluationSharing: evaluationSharing)
+      profile: String(memory.profile.prefix(8_000)), evaluationSharing: evaluationSharing,
+      observedAt: ISO8601DateFormatter().string(from: admittedAt), contentRevision: observedRevision,
+      webcam: webcamInput, inputStatus: statuses, activeConversation: observedConversation)
     do {
       decisionStarted(request.observationID)
+      let providerStartedAt = monotonicNow()
       let response = try await evaluate(request, owner)
+      metrics.providerMs = Int(max(0, monotonicNow() - providerStartedAt) * 1_000)
+      metrics.endToEndMs = Int(max(0, monotonicNow() - admittedUptime) * 1_000)
       if let observedFrame, SupervisorScreenPolicy.isAppExcluded(observedFrame.appName) {
         screenUnavailable()
         return
       }
-      guard enabled, ownerIsCurrent(owner), sessionID == session, contextEpoch == epoch,
+      guard isObservationAllowed, ownerIsCurrent(owner), sessionID == session, contextEpoch == epoch,
+        relevantObservationEpoch == observationEpoch,
         now() < expires, !Task.isCancelled,
         response.observationID == request.observationID,
         response.sessionID == session, response.contextEpoch == epoch
@@ -435,18 +690,20 @@ final class SupervisorService: ObservableObject {
         id: response.decisionID, observationID: request.observationID,
         sessionID: session, contextEpoch: epoch, note: String(note.prefix(2_000)),
         expiresAt: expires, authorizationSnapshot: owner, action: response.action)
+      guidance.relevantObservationEpoch = observationEpoch
       guidance.context = Self.voiceContext(request)
       pendingGuidance = guidance
       await deliver(guidance)
     } catch {
       guard sessionID == session, ownerIsCurrent(owner), evaluationID == token else { return }
       state = .paused
-      pauseUntil = now().addingTimeInterval(60)
-      if case APIError.httpError(429, let detail) = error,
-        detail == "Daily Gemini request limit exceeded"
-      {
-        pauseUntil = .distantFuture
+      var retrySeconds: TimeInterval = 60
+      if case SupervisorRequestError.rateLimited(_, let seconds) = error {
+        retrySeconds = TimeInterval(max(1, seconds))
       }
+      pauseOwner = owner
+      pauseUntil = monotonicNow() + retrySeconds
+      retryAt = now().addingTimeInterval(retrySeconds)
     }
   }
 
@@ -455,7 +712,7 @@ final class SupervisorService: ObservableObject {
   func currentVoiceContext(
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot? = nil
   ) -> String {
-    guard enabled, let owner, ownerIsCurrent(owner),
+    guard isObservationAllowed, let owner, ownerIsCurrent(owner),
       authorizationSnapshot == nil || authorizationSnapshot == owner
     else { return "" }
     _ = pruneAmbient()

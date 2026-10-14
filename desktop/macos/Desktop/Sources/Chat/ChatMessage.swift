@@ -73,7 +73,7 @@ extension ChatMessage {
     guard sender == .ai, !isStreaming else { return nil }
     if journalStatus == .failed { return "Couldn't save this reply" }
     switch voiceDeliveryOutcome {
-    case .cancelled: return "Interrupted"
+    case .cancelled, .interrupted: return "Interrupted"
     case .failed: return "Voice reply incomplete"
     case .suppressed: return "Not spoken"
     case .completed, nil: return nil

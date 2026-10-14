@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from routers import conversation_compute
-from models.structured import ActionItem
 from utils.other.endpoints import get_current_participant_uid
 
 
@@ -193,7 +192,7 @@ def test_structure_returns_only_retained_candidates_and_tracks_usage(monkeypatch
     assert 'action_items' not in response.text
 
 
-def test_structure_and_action_requests_enforce_shared_bounds_and_iana_timezone(monkeypatch):
+def test_structure_request_enforces_shared_bounds_and_iana_timezone(monkeypatch):
     monkeypatch.setattr(conversation_compute, 'compute_structure_candidate', lambda *_: None)
     client = make_client()
     base = {
@@ -206,128 +205,3 @@ def test_structure_and_action_requests_enforce_shared_bounds_and_iana_timezone(m
     }
 
     assert client.post('/v1/conversation-compute/structure', json=base).status_code == 422
-    assert client.post('/v1/conversation-compute/action-items', json={**base, 'related_tasks': []}).status_code == 422
-
-
-def test_action_items_filter_completed_context_validate_targets_and_track_separately(monkeypatch):
-    captured = []
-    usage = []
-
-    @contextmanager
-    def tracked(uid, feature):
-        usage.append((uid, feature))
-        yield
-
-    def compute(request, uid):
-        captured.extend(request.related_tasks)
-        return [
-            SimpleNamespace(
-                description='Finish local conversation storage',
-                due_at=datetime(2026, 8, 19, 12, tzinfo=timezone.utc),
-                candidate_action='update',
-                target_task_id='t0',
-            )
-        ]
-
-    monkeypatch.setattr(conversation_compute, 'track_usage', tracked)
-    monkeypatch.setattr(conversation_compute, 'compute_action_item_candidates', compute)
-    generation_id = str(uuid4())
-    response = make_client().post(
-        '/v1/conversation-compute/action-items',
-        json={
-            'generation_id': generation_id,
-            'transcript': 'User: Update the local conversation task.',
-            'started_at': '2026-08-17T03:30:00Z',
-            'language': 'en',
-            'output_language': 'en',
-            'timezone': 'UTC',
-            'related_tasks': [
-                {'token': 't0', 'description': 'Existing open task', 'completed': False},
-                {'token': 't1', 'description': 'Completed task', 'completed': True},
-            ],
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        'generation_id': generation_id,
-        'candidates': [
-            {
-                'action': 'update',
-                'description': 'Finish local conversation storage',
-                'target_task_token': 't0',
-                'due_at': '2026-08-19T12:00:00Z',
-            }
-        ],
-    }
-    assert [task.token for task in captured] == ['t0']
-    assert usage == [('user-1', 'conv_action_items')]
-
-
-def test_action_items_reject_model_target_not_supplied_by_the_mac(monkeypatch):
-    monkeypatch.setattr(
-        conversation_compute,
-        'compute_action_item_candidates',
-        lambda *_: [
-            SimpleNamespace(
-                description='Mutate arbitrary task',
-                due_at=None,
-                candidate_action='complete',
-                target_task_id='t9',
-            )
-        ],
-    )
-
-    response = make_client().post(
-        '/v1/conversation-compute/action-items',
-        json={
-            'generation_id': str(uuid4()),
-            'transcript': 'complete it',
-            'started_at': '2026-08-17T03:30:00Z',
-            'language': 'en',
-            'output_language': 'en',
-            'timezone': 'UTC',
-            'related_tasks': [{'token': 't0', 'description': 'Allowed task'}],
-        },
-    )
-
-    assert response.status_code == 502
-    assert response.json() == {'detail': 'invalid_candidate_response'}
-
-
-def test_action_items_provider_failure_is_not_reported_as_an_empty_success(monkeypatch):
-    def fail(*_args, **_kwargs):
-        raise RuntimeError('secret provider detail')
-
-    monkeypatch.setattr(conversation_compute, 'compute_action_item_candidates', fail)
-
-    response = make_client().post(
-        '/v1/conversation-compute/action-items',
-        json={
-            'generation_id': str(uuid4()),
-            'transcript': 'User: Please follow up.',
-            'started_at': '2026-08-17T03:30:00Z',
-            'language': 'en',
-            'output_language': 'en',
-            'timezone': 'UTC',
-            'related_tasks': [],
-        },
-    )
-
-    assert response.status_code == 502
-    assert response.json() == {'detail': 'compute_failed'}
-    assert 'secret provider detail' not in response.text
-
-
-def test_past_due_normalization_logs_only_sanitized_metadata(caplog):
-    sentinel = 'SENSITIVE TRANSCRIPT TASK'
-    now = datetime(2026, 8, 17, 12, tzinfo=timezone.utc)
-    item = ActionItem(description=sentinel, due_at=now - timedelta(days=2))
-
-    conversation_compute.conversation_processing._normalize_action_item_due_dates(
-        [item], user_tz=timezone.utc, now=now, log_past_due_clears=True
-    )
-
-    assert item.due_at is None
-    assert 'Clearing action-item due date outside the retained time boundary' in caplog.text
-    assert sentinel not in caplog.text

@@ -3,9 +3,6 @@ type: Codebase guide
 title: Tests and repository contracts
 description: Explain hermetic test runners, workflow registry, documentation gates and shared manifest.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-09-15T16:15:28.553Z
 sources:
   - id: openwiki-source-3c5fb0f9d251edf233879d40
     resource: repo://.github/actions/release-eligibility/action.yml
@@ -27,9 +24,32 @@ sources:
     resource: repo://backend/test.sh
   - id: openwiki-source-ef65c2f64080826662c12d53
     resource: repo://backend/testing/import_isolation.py
+  - id: openwiki-source-8c64fead8c8caad37dea1f70
+    resource: repo://backend/tests/unit/test_desktop_conversation.py
+  - id: openwiki-source-3980081a58a01382ad067c02
+    resource: repo://desktop/macos/agent/tests/conversation-storage.test.ts
+  - id: openwiki-source-72dffde2f3f4878ee649e458
+    resource: repo://desktop/macos/Desktop/Tests/ConversationAudioLevelTests.swift
+  - id: openwiki-source-e258a11230cac85403c011e3
+    resource: repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift
+  - id: openwiki-source-16d471086ed15fce2dbb4570
+    resource: repo://desktop/macos/Desktop/Tests/ConversationMeterDeliveryTests.swift
+  - id: openwiki-source-3e930575818dad6d1f40ea0b
+    resource: repo://desktop/macos/Desktop/Tests/ConversationOutputAdmissionTests.swift
+  - id: openwiki-source-aac74c2c79bc006e52c8058a
+    resource: repo://desktop/macos/Desktop/Tests/ConversationPresentationPreviewTests.swift
+  - id: openwiki-source-3a40047b453ba7a3c4a3cd28
+    resource: repo://desktop/macos/Desktop/Tests/ConversationPresentationTests.swift
+  - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift
+  - id: openwiki-source-38a1b3c7a8acf2ceea409825
+    resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-09-15T16:15:28.553Z" }
+generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-14T15:50:15.263Z
 ---
 # Tests and repository contracts
 
@@ -41,7 +61,15 @@ The repository has component test runners and a shared deterministic governance 
 
 For dependency isolation, patch lazy-held clients at their owning seam. When import-time substitution is unavoidable, `backend/testing/import_isolation.py` provides a scoped module-stubbing context that restores both module entries and parent attributes. Do not introduce module-level fake clients that leak into neighboring tests.
 
-`desktop/macos/test.sh` discovers shell launcher tests, verifies E2E flow coverage, runs the desktop backend tests, then invokes Swift suites in per-suite process isolation. The Node agent package has its own Vitest runner and TypeScript build. The app's shared local databases and preferences explain why one combined Swift process is not equivalent to the official runner.
+`desktop/macos/test.sh` discovers shell launcher tests, verifies E2E flow coverage, runs the desktop backend tests, then invokes Swift suites in per-suite process isolation. The retained Node storage package has its own Vitest runner and TypeScript build; build before its stdio tests. The desktop backend selection includes authenticated conversation and Supervisor contracts. The app's shared local databases and preferences explain why one combined Swift process is not equivalent to the official runner.
+
+## Conversational seams
+
+The conversation lifecycle/audio seam covers listening-only silence, completion supersession, automatic Live input, bounded preconnection audio, interruption fences and accepted-before-playback admission. Observation-to-guidance tests cover one inference/latest pending state, shared event/quiet budgets, fresh frames, context expiry, independent inputs and account isolation. Backend contracts cover auth, prompt receipts, fixed capabilities, bounded multimodal payloads and private-content exclusion. Journal tests preserve seeded-history reopen, generation/idempotency, revision order and actual delivery metadata.
+
+Presentation tests exercise opening/listening/thinking/speaking projection, quiet open intervals and interruption priority independently of per-answer capture ownership. Audio tests use known PCM/render buffers and real meter delivery to check RMS, ambient isolation, stale receipts and output-only interruption. Common-opening tests cover reveal ordering, snooze admission and explicit hide. Preview tests use the real mapper/meter with a substituted operating-system window, including safe cleanup when user content or a real conversation takes ownership. These tests do not start physical audio hardware.
+
+Retired Tasks and execution expectations must become rejection or historical-preservation coverage, not skipped tests or reactivated features. The manual flow separately requires provider silent append, physical speaker/headphone/Bluetooth interruption and an actual eight-hour soak. A passing source or fake-clock test cannot satisfy those rows.
 
 ## Documentation contracts
 

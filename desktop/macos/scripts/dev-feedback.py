@@ -294,7 +294,7 @@ def parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  python3 scripts/dev-feedback.py --once swift 'ChatTests/testSendsMessage'\n"
             "  python3 scripts/dev-feedback.py --watch swift 'ChatTests/testSendsMessage'\n"
-            "  python3 scripts/dev-feedback.py --watch python 'tests/unit/test_desktop_chat.py'\n\n"
+            "  python3 scripts/dev-feedback.py --watch python 'tests/unit/test_desktop_conversation.py'\n\n"
             "This is an opt-in inner loop. Run the existing full component suite before a PR."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

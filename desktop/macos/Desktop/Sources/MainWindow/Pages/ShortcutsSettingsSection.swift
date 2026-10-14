@@ -7,7 +7,6 @@ struct ShortcutsSettingsSection: View {
   @State private var recordingTarget: ShortcutTarget?
   @State private var captureError: String?
   @State private var localShortcutCaptureMonitor: Any?
-  @State private var pttInputDevices: [AudioCaptureService.InputDevice] = []
 
   init(highlightedSettingId: Binding<String?> = .constant(nil)) {
     self._highlightedSettingId = highlightedSettingId
@@ -22,13 +21,6 @@ struct ShortcutsSettingsSection: View {
     VStack(spacing: OmiSpacing.xl) {
       askOmiKeyCard
       pttKeyCard
-      pttMicrophoneCard
-      doubleTapCard
-      pttSoundsCard
-      muteAudioCard
-    }
-    .onAppear {
-      refreshPTTInputDevices()
     }
     .onDisappear {
       stopShortcutCapture()
@@ -99,12 +91,14 @@ struct ShortcutsSettingsSection: View {
   private var pttKeyCard: some View {
     VStack(alignment: .leading, spacing: OmiSpacing.lg) {
       VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Push to Talk")
+        Text("Talk to Intentive")
           .scaledFont(size: OmiType.subheading, weight: .semibold)
           .foregroundColor(OmiColors.textPrimary)
-        Text("Hold the key to speak, release to send your question to AI.")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
+        Text(
+          "Tap once to start a conversation. Keep talking naturally, or tap again to end. Uses your system microphone."
+        )
+        .scaledFont(size: OmiType.body)
+        .foregroundColor(OmiColors.textSecondary)
       }
 
       HStack(spacing: OmiSpacing.md) {
@@ -126,7 +120,7 @@ struct ShortcutsSettingsSection: View {
       {
         shortcutRecorderCard(
           title: recordingTarget == .pushToTalk
-            ? "Press your custom push-to-talk shortcut now" : "Custom push-to-talk shortcut",
+            ? "Press your custom conversation shortcut now" : "Custom conversation shortcut",
           shortcut: settings.pttShortcut,
           isRecording: recordingTarget == .pushToTalk,
           action: { startShortcutCapture(.pushToTalk) },
@@ -155,164 +149,6 @@ struct ShortcutsSettingsSection: View {
       shortcutSelectionLabel(tokens: shortcut.displayTokens, isSelected: isSelected)
     }
     .buttonStyle(.plain)
-  }
-
-  private var pttMicrophoneCard: some View {
-    HStack(spacing: OmiSpacing.lg) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Push-to-Talk Microphone")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Text(
-          "Automatic follows your system input and uses the built-in mic with Bluetooth output to keep replies clear. Choose a microphone to override it."
-        )
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textSecondary)
-      }
-      Spacer()
-      SettingsMenuPicker(selection: $settings.pttInputDeviceUID) {
-        Text("Automatic").tag("")
-        ForEach(pttInputDevices, id: \.uid) { device in
-          Text(device.name).tag(device.uid)
-        }
-        if !settings.pttInputDeviceUID.isEmpty,
-          !pttInputDevices.contains(where: { $0.uid == settings.pttInputDeviceUID })
-        {
-          Text("Unavailable selected microphone").tag(settings.pttInputDeviceUID)
-        }
-      }
-    }
-    .padding(OmiSpacing.xl)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundTertiary.opacity(0.5))
-    )
-    .modifier(
-      SettingHighlightModifier(
-        settingId: "floatingbar.pttmicrophone", highlightedSettingId: $highlightedSettingId))
-  }
-
-  private func refreshPTTInputDevices() {
-    pttInputDevices = AudioCaptureService.availableInputDevices()
-  }
-
-  private var doubleTapCard: some View {
-    HStack(spacing: OmiSpacing.lg) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Double-tap for Locked Mode")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Text("Double-tap the push-to-talk key to keep listening hands-free. Tap again to send.")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-      }
-      Spacer()
-      Toggle("", isOn: $settings.doubleTapForLock)
-        .toggleStyle(OmiToggleStyle())
-    }
-    .padding(OmiSpacing.xl)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundTertiary.opacity(0.5))
-    )
-    .opacity(settings.pttEnabled ? 1 : 0.55)
-    .disabled(!settings.pttEnabled)
-    .modifier(
-      SettingHighlightModifier(
-        destination: .pushToTalkDoubleTap, highlightedSettingId: $highlightedSettingId))
-  }
-
-  private var pttSoundsCard: some View {
-    HStack(spacing: OmiSpacing.lg) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Push-to-Talk Sounds")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Text("Play audio feedback when starting and ending voice input.")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-      }
-      Spacer()
-      Toggle("", isOn: $settings.pttSoundsEnabled)
-        .toggleStyle(OmiToggleStyle())
-    }
-    .padding(OmiSpacing.xl)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundTertiary.opacity(0.5))
-    )
-    .opacity(settings.pttEnabled ? 1 : 0.55)
-    .disabled(!settings.pttEnabled)
-    .modifier(
-      SettingHighlightModifier(
-        destination: .pushToTalkSounds, highlightedSettingId: $highlightedSettingId))
-  }
-
-  private var muteAudioCard: some View {
-    HStack(spacing: OmiSpacing.lg) {
-      VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-        Text("Mute Audio While Talking")
-          .scaledFont(size: OmiType.subheading, weight: .semibold)
-          .foregroundColor(OmiColors.textPrimary)
-        Text("Silence music and other playback while holding push-to-talk, then restore it on release.")
-          .scaledFont(size: OmiType.body)
-          .foregroundColor(OmiColors.textSecondary)
-      }
-      Spacer()
-      Toggle("", isOn: $settings.pttMuteSystemAudio)
-        .toggleStyle(OmiToggleStyle())
-    }
-    .padding(OmiSpacing.xl)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundTertiary.opacity(0.5))
-    )
-    .opacity(settings.pttEnabled ? 1 : 0.55)
-    .disabled(!settings.pttEnabled)
-    .modifier(
-      SettingHighlightModifier(
-        settingId: "floatingbar.muteaudio", highlightedSettingId: $highlightedSettingId))
-  }
-
-  private var referenceCard: some View {
-    VStack(alignment: .leading, spacing: OmiSpacing.md) {
-      Text("Keyboard Shortcuts")
-        .scaledFont(size: OmiType.subheading, weight: .semibold)
-        .foregroundColor(OmiColors.textPrimary)
-
-      shortcutRow(
-        label: "Open Intentive",
-        keys: settings.askOmiEnabled ? settings.askOmiShortcut.displayLabel : "Disabled")
-      shortcutRow(label: "Toggle floating bar", keys: "\u{2318}\\")
-      shortcutRow(
-        label: "Push to talk",
-        keys: settings.pttEnabled ? settings.pttShortcut.displayLabel + " hold" : "Disabled")
-      if settings.pttEnabled && settings.doubleTapForLock {
-        shortcutRow(
-          label: "Locked listening", keys: settings.pttShortcut.displayLabel + " \u{00D7}2")
-      }
-    }
-    .padding(OmiSpacing.xl)
-    .background(
-      RoundedRectangle(cornerRadius: OmiChrome.smallControlRadius)
-        .fill(OmiColors.backgroundTertiary.opacity(0.5))
-    )
-  }
-
-  private func shortcutRow(label: String, keys: String) -> some View {
-    HStack {
-      Text(label)
-        .scaledFont(size: OmiType.body)
-        .foregroundColor(OmiColors.textSecondary)
-      Spacer()
-      Text(keys)
-        .scaledMonospacedFont(size: 14, weight: .medium)
-        .foregroundColor(OmiColors.textPrimary)
-        .padding(.horizontal, OmiSpacing.sm)
-        .padding(.vertical, OmiSpacing.xxs)
-        .background(OmiColors.backgroundTertiary.opacity(0.8))
-        .cornerRadius(OmiChrome.badgeRadius)
-    }
   }
 
   private func customShortcutButton(for target: ShortcutTarget, isSelected: Bool) -> some View {

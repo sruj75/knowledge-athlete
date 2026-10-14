@@ -7,36 +7,6 @@ import XCTest
 final class RealtimeHubReconnectContractTests: XCTestCase {
   private let reducer = VoiceTurnReducer()
 
-  func testSessionCallbackAdmissionFencesSupersededSocketAndOwner() {
-    XCTAssertTrue(
-      RealtimeHubReconnectIdentityPolicy.admitsSessionCallback(
-        isLiveSessionObject: true,
-        sessionOwnerIsCurrent: true))
-    XCTAssertFalse(
-      RealtimeHubReconnectIdentityPolicy.admitsSessionCallback(
-        isLiveSessionObject: false,
-        sessionOwnerIsCurrent: true),
-      "replaced session object callbacks must never enter the reducer")
-    XCTAssertFalse(
-      RealtimeHubReconnectIdentityPolicy.admitsSessionCallback(
-        isLiveSessionObject: true,
-        sessionOwnerIsCurrent: false),
-      "authenticated owner change must fence the still-live socket")
-  }
-
-  func testReconnectedSessionIDFenceIgnoresLateOldSession() {
-    let live = VoiceSessionID()
-    let superseded = VoiceSessionID()
-    XCTAssertTrue(
-      RealtimeHubReconnectIdentityPolicy.admitsReconnectedSessionID(
-        callbackSessionID: live,
-        liveSessionID: live))
-    XCTAssertFalse(
-      RealtimeHubReconnectIdentityPolicy.admitsReconnectedSessionID(
-        callbackSessionID: superseded,
-        liveSessionID: live))
-  }
-
   func testSuccessfulReconnectCompletesOnceAndFencesLateOldSession() {
     let turnID = VoiceTurnID()
     let oldSessionID = VoiceSessionID()
@@ -64,12 +34,6 @@ final class RealtimeHubReconnectContractTests: XCTestCase {
     XCTAssertEqual(
       model.turn?.providerConnection,
       .reconnecting(identity: reservation.identity, previousSessionID: oldSessionID))
-
-    XCTAssertFalse(
-      RealtimeHubReconnectIdentityPolicy.admitsReconnectedSessionID(
-        callbackSessionID: oldSessionID,
-        liveSessionID: newSessionID),
-      "production boundary must fence the superseded session before reducer admission")
 
     model =
       reduce(

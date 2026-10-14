@@ -279,6 +279,7 @@ extension ProactiveStorage {
     from startDate: Date,
     to endDate: Date,
     limit: Int = 500,
+    offset: Int = 0,
     authorizationSnapshot: RuntimeOwnerAuthorizationSnapshot
   ) async throws -> [FocusSessionRecord] {
     let authorization = LocalMutationAuthorization {
@@ -286,7 +287,7 @@ extension ProactiveStorage {
     }
     return try await authorization.withReadLease {
       try authorization.require()
-      let results = try await self.getFocusSessions(from: startDate, to: endDate, limit: limit)
+      let results = try await self.getFocusSessions(from: startDate, to: endDate, limit: limit, offset: offset)
       try authorization.require()
       return results
     }

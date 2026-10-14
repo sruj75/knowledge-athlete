@@ -56,7 +56,6 @@ enum ViewExporter {
         {
           AnyView(
             DashboardPage(
-              tasksStore: TasksStore(observesNotifications: false),
               appState: AppState(),
               chatProvider: previewChatProvider(),
               memoriesViewModel: MemoriesViewModel(),
@@ -68,18 +67,6 @@ enum ViewExporter {
       (
         "04-conversations",
         { AnyView(ConversationsPage(appState: AppState(), selectedConversation: .constant(nil))) },
-        CGSize(width: 900, height: 700)
-      ),
-
-      (
-        "05-focus",
-        { AnyView(FocusPage()) },
-        CGSize(width: 900, height: 700)
-      ),
-
-      (
-        "06-insight",
-        { AnyView(InsightPage()) },
         CGSize(width: 900, height: 700)
       ),
 
@@ -215,7 +202,6 @@ enum ViewExporter {
         {
           AnyView(
             DashboardPage(
-              tasksStore: TasksStore(observesNotifications: false),
               appState: AppState(),
               chatProvider: ChatProvider(),
               memoriesViewModel: previewMemoriesViewModel(),
@@ -240,15 +226,6 @@ enum ViewExporter {
           )
         }
       ),
-      (
-        "full-tasks", 4,
-        {
-          return AnyView(
-            TasksPage(viewModel: TasksViewModel()))
-        }
-      ),
-      ("full-focus", 5, { AnyView(FocusPage()) }),
-      ("full-insight", 6, { AnyView(InsightPage()) }),
       ("full-rewind", 7, { AnyView(RewindPage()) }),
       (
         "full-settings", 9,

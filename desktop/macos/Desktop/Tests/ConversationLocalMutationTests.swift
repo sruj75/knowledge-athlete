@@ -26,10 +26,10 @@ final class ConversationLocalMutationTests: XCTestCase {
     let work = try await restarted.enrichmentWork(conversationId: handle.conversationId)
     XCTAssertEqual(
       work.filter { $0.contentGeneration == detail?.contentGeneration }.map(\.kind),
-      [.structure, .actionItems])
+      [.structure])
     XCTAssertEqual(
       work.filter { $0.contentGeneration == detail?.contentGeneration }.map(\.state),
-      [.pending, .pending])
+      [.pending])
   }
 
   func testRevokedTransactionRollsBackWithoutPublishingRequestedValue() async throws {

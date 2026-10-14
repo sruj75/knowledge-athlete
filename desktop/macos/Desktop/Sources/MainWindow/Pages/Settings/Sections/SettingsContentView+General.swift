@@ -63,13 +63,13 @@ extension SettingsContentView {
             .foregroundColor(OmiColors.info)
 
           VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
-            Text("Audio Recording")
+            Text("Listening")
               .scaledFont(size: OmiType.subheading, weight: .semibold)
               .foregroundColor(OmiColors.textPrimary)
 
             Text(
               transcriptionError
-                ?? (isTranscribing ? "Recording and transcribing audio" : "Audio recording is paused")
+                ?? (isTranscribing ? "Observing the audio inputs enabled below" : "Ambient audio observation is paused")
             )
             .scaledFont(size: OmiType.body)
             .foregroundColor(transcriptionError != nil ? OmiColors.warning : OmiColors.textTertiary)
@@ -176,6 +176,36 @@ extension SettingsContentView {
                 .fill(OmiColors.warning.opacity(0.1))
             )
           }
+        }
+      }
+
+      settingsCard(destination: .microphone) {
+        HStack(spacing: OmiSpacing.lg) {
+          Image(systemName: "mic.fill")
+            .scaledFont(size: OmiType.subheading)
+            .foregroundColor(OmiColors.info)
+          VStack(alignment: .leading, spacing: OmiSpacing.xxs) {
+            Text("Microphone")
+              .scaledFont(size: OmiType.subheading, weight: .semibold)
+              .foregroundColor(OmiColors.textPrimary)
+            Text("Include microphone audio while Listening is on. Talk conversations use their own microphone.")
+              .scaledFont(size: OmiType.body)
+              .foregroundColor(OmiColors.textTertiary)
+          }
+          Spacer()
+          Toggle(
+            "",
+            isOn: Binding(
+              get: { ambientMicrophoneEnabled },
+              set: { value in
+                ambientMicrophoneEnabled = value
+                setAmbientMicrophoneEnabled(value)
+              }
+            )
+          )
+          .toggleStyle(OmiToggleStyle())
+          .labelsHidden()
+          .accessibilityLabel("Microphone while Listening")
         }
       }
 
