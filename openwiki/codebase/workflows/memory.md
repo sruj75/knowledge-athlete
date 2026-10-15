@@ -27,7 +27,7 @@ sources:
 generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Memory lifecycle
 

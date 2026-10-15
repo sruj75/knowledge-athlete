@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:49ffd34d50ce6dd79d90cd0298d9c7c13685eb1d057457b96e2d13bef3faf0bc",
+  "pageVersion": "sha256:53deb10c2684dc6f31df2c55a0f0573a5061896f4db4b18ee6c9dc17af86aa83",
   "claims": [
     {
       "id": "claim_99203f0f8d854aa48cc2bf6b841ecff6",
@@ -8,7 +8,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -21,8 +21,8 @@
           "version": "repo-file-v1:sha256:9af9e29dfd68205ea3647278b7229779cdef97e59e5e1e02a7843e5206c6a8be"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L583-L710",
-          "version": "repo-lines-v1:sha256:e9a27196f5773a171932c354d5bd716c05abfc2f7a781ce8281b3ced54c5b895:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI4LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1NjEyYWUzYTAzNjY1MDA0YTMyM2I5MTU0NmM5ZTdiZWY3MTU2NGJlZDU1M2RlNjIyMThkMmQwODkyYjAyZjdmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmNmNiZDljNjk2MGMwZWE1MzAyZTQ4ODRiNzAwYzc0NDgxMGI5ZmY4NDRlZGM2YjU1ZTAyZWYwZDYwNzYxYTA0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJjODYzOTc1YTczOWM5NmU4N2JhOTg1ZTQ2NWIxNGM5NWY2MzA4MWU3MWMzZTY0MDBhM2RhMDczOWE1NWRkMTc2IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlYTY1YTQ5ZjI1M2U4MTUzNTY4NGYzZjA1M2Y3MWUxYWI5N2M0OGViNWVmOTNiZjBmMDc3ZGFkM2Y4NWJkOGU3In0"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L635-L800",
+          "version": "repo-lines-v1:sha256:b45aea67d6f652bd6c868dbe21b0a7c77f9a79e86b8adc60adaa5cfdeb3354f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTY2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWY5YzA1ZTMzYjE4MDZlMDU5YjBhYjYzMDBmOGViMGRlYzViMzJlNmQ5MDQ1ZjYyNjQ3NTVkN2E1MWI1MjFhIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiOGIyZjg1NmQ4YTg4ZTgyZDkzN2M5MDc0ZWQwOGUxOTQ4NDg4YzRiMTBiZTNlYmYwODY0ZjYwMWZlOGZhMWM0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3MGRjZWNjOWNiZTNlMDZiM2NiZTUyMDg5Nzg1YmQ1MWQyNDJiNTFkZjM5ZjI2YjY5MGE5MGZiOWE3MGNiMjBmIn0"
         }
       ]
     },
@@ -50,7 +50,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         }
       ]
     },
@@ -82,7 +82,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -92,11 +92,11 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -110,7 +110,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -128,7 +128,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorWebcamService.swift",
@@ -146,7 +146,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/FloatingConversationOpening.swift",
@@ -160,11 +160,11 @@
     },
     {
       "id": "claim_72f1e5c251fc4effb1cbce956bac262e",
-      "statement": "B uses Gemini 3.8 Flash with low thinking and separate development accounting at 6000 daily requests, while the hosted allowance remains 1500; scheduling instrumentation distinguishes admission, deferral, capture age, queue, provider and end-to-end time.",
+      "statement": "B uses Gemini 3.8 Flash with low thinking and separate development accounting at 6000 daily requests while hosted allowance remains 1500; local diagnostics distinguish session admissions, deferrals, input age and evaluator round-trip timing from provider-only telemetry.",
       "evidence": [
         {
           "resource": "repo://backend/services/desktop_inference.py",
-          "version": "repo-file-v1:sha256:a549ee9a8fe50d859a6dd0b6dffceaf9d7e08fd742aa3989ed75d47ba33d98ff"
+          "version": "repo-file-v1:sha256:0f1f96f8a4c11bac9fd98f0e698db1541a5b7bb452e4054c15fdecb886de9b14"
         },
         {
           "resource": "repo://backend/utils/llm/model_config.py",
@@ -172,7 +172,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         },
         {
           "resource": "repo://scripts/dev-harness/dev_harness/config.py#L280-L296",
@@ -186,13 +186,13 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
-          "version": "repo-file-v1:sha256:16f080692068cb818586fd241dbd658dc9bba82fc14ff64c65a9242dc77d5b25"
+          "version": "repo-file-v1:sha256:8f8f6a66a25e6ac0723874319b302d72d01b6fefaf5ab3ea60ba97a0d7290938"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

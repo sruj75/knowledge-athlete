@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:b7a882e0cb546d03dd52f48ea7dd771233e0c577dff732ea968fe87f2f0bfeab",
+  "pageVersion": "sha256:51657bbc7c67c931d5675c7fbb0ce7fe1a4d99e257c1d786e2dc007bd2b93c93",
   "claims": [
     {
       "id": "claim_1ae32bfa0ced442c9374eb8dd5b47ab8",
@@ -18,11 +18,11 @@
       "evidence": [
         {
           "resource": "repo://backend/routers/memory_compute.py",
-          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+          "version": "repo-file-v1:sha256:3768c3d11e05b22271414411a2b27e147e02c9d4b878de0799632f8974a0307a"
         },
         {
           "resource": "repo://backend/tests/unit/test_memory_compute.py",
-          "version": "repo-file-v1:sha256:758614ce7c30b7019cdee3431c8bb6e619a9fe285969e52d141732010906a7f4"
+          "version": "repo-file-v1:sha256:54f1f487759b4a57e36b5932b0a30554769d64cbc16b4e0009f21b9a7c1170ac"
         }
       ]
     },
@@ -38,15 +38,15 @@
     },
     {
       "id": "claim_50cfc08276734020aa2fa4a3e0a76209",
-      "statement": "Supervisor evaluation uses authenticated participant admission and separate Supervisor quotas, makes one schema-bound model call without tools, and returns wait on unavailable managed prompts or invalid provider output.",
+      "statement": "Supervisor evaluation uses Firebase authentication and separate Supervisor quotas, makes one schema-bound model call without tools, and returns wait on unavailable managed prompts or invalid provider output.",
       "evidence": [
         {
           "resource": "repo://backend/routers/desktop_supervisor.py#L63-L178",
           "version": "repo-lines-v1:sha256:460d06cb1ceb8f19199230a6e947fe5d6b1b71ee1795ba8e0d38d0f7e8d41c34:eyJzZWxlY3RlZExpbmVDb3VudCI6MTE2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI4ZDJhYWI5NDA5ZjExMmIzZjczNTk5YjkzYjBhMmNhYWQ3Nzc3OWRlZTkxMzI5ZDY5ZjEzZDYxNjIzNmJmZDQ3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmYmQ0MWYyNGEzOGZhODQ2MWFiNzljNDA4MDk0YmQ3OTM3NDM0ZWQ4YzhhMTQ3MDRhMzhkM2U0ZDY1MTE0ZmZhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI5NGUyYzNkNjI1OTNkY2I1OGRmOGRhNWRkODBlMDhlNTNhZDkyNWEzY2VhMTQyMzEzZDY4ZGVkZjhlMWY1NTIzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIzZDkxMzg0NjE1NjBkM2JlNjQ0YzhjOGE4ODVhYjJjNzcwNGM3NmQ1ZmYwMzZiYTlmMDRjYzNlYjMzOGI1Yjc0In0"
         },
         {
-          "resource": "repo://backend/services/desktop_inference.py#L77-L104",
-          "version": "repo-lines-v1:sha256:358215947955ad9b4be055fd196303493bffbddd373b3b905801627cfa6c3c26:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjZWU0N2Y5MTZjZGIxMTEyM2Q2ZTMyNWYxZmZmYmQyNzhlZjMyYjJhMjQxYjQ0MjcxMjQ2YTAwYTFiYjYwNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NjI1ZTZlMGUwYzI5ZTdhMDUzYzM5NzgwYzJmZWFiMGRhZTcxMjJmOTFlYjcxYTZkNjMyMTFiMDVlM2Y4M2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzMjI2Yzk4MjIwZjE0OTkxZGU0MTA1MjJlNjU3ZmJhN2NlYzY3NjdkZTA0YjY5ZmZjMjgyNDdkYWI5NDQ4ZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5YjgwZDkyZDE5MzVhNzE0MmUwMTJhYTM3MGIzZjEzZTM1MDBlMDhjMmNlMjYzNGI0MWQ1YmEzM2Y3ZjE2YzcifQ"
+          "resource": "repo://backend/services/desktop_inference.py#L54-L104",
+          "version": "repo-lines-v1:sha256:4892dafac51f5d808e14cc9ec296593cd4c6405510cb05a2ddf4797b8286e2fd:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkZGUzOTBmYWE0NmYwYzMzNmMwZjhhYzdhNjIxY2IzMzE2ZDMwY2ZlYmRiNjU2ZjU1NDA2NWJjZDUzN2UzOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NjI1ZTZlMGUwYzI5ZTdhMDUzYzM5NzgwYzJmZWFiMGRhZTcxMjJmOTFlYjcxYTZkNjMyMTFiMDVlM2Y4M2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5YjgwZDkyZDE5MzVhNzE0MmUwMTJhYTM3MGIzZjEzZTM1MDBlMDhjMmNlMjYzNGI0MWQ1YmEzM2Y3ZjE2YzcifQ"
         }
       ]
     },
@@ -74,7 +74,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -105,10 +105,72 @@
           "version": "repo-lines-v1:sha256:358215947955ad9b4be055fd196303493bffbddd373b3b905801627cfa6c3c26:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBjZWU0N2Y5MTZjZGIxMTEyM2Q2ZTMyNWYxZmZmYmQyNzhlZjMyYjJhMjQxYjQ0MjcxMjQ2YTAwYTFiYjYwNjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NjI1ZTZlMGUwYzI5ZTdhMDUzYzM5NzgwYzJmZWFiMGRhZTcxMjJmOTFlYjcxYTZkNjMyMTFiMDVlM2Y4M2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzMjI2Yzk4MjIwZjE0OTkxZGU0MTA1MjJlNjU3ZmJhN2NlYzY3NjdkZTA0YjY5ZmZjMjgyNDdkYWI5NDQ4ZDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5YjgwZDkyZDE5MzVhNzE0MmUwMTJhYTM3MGIzZjEzZTM1MDBlMDhjMmNlMjYzNGI0MWQ1YmEzM2Y3ZjE2YzcifQ"
         }
       ]
+    },
+    {
+      "id": "claim_be2deb4b93654b1cb9833e0305f148bd",
+      "statement": "Offline stub mode makes Live token minting and generated TTS return unavailable-provider responses without contacting their model providers; TTS does not consume its meter on this path.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L125-L150",
+          "version": "repo-lines-v1:sha256:5ff21fccd714026bfa0d890f487b859f3a539eb66f87241c1dc17f88c5c112ff:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMjY0NThkZGRmMGEyMTZlYTQyY2RkYjkyZjgwMmVlZDRmN2M5NDIxMzJhZDZlNWI3ZDA0ZWU3ZWI0YmZlZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYWJmNDFkNDEyNzYwMDQwODE4NTkyNjJmYzQ2NGZmYWZjZTU4MjVmYTg5YjExYTYwMmVhMmU4Nzg3M2E2ZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlOGYxYjFlM2JlMjVhOTg3MTNlY2JhMDEzZWJlMmUxM2E0MGZmYmNhYmE4YjY3M2FkOTJkMzAxZDgxMTJhMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhOTllMDhiYWM1OWQ2MjQ2MjA3ZjQyN2M1NmUxY2JiMTJkNzE1YmM0YTE2ZjFkM2QxZmFmMmJhZDQzNDEzMjgifQ"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_tts_updates.py#L198-L223",
+          "version": "repo-lines-v1:sha256:087f742f07b236d2e27aefd8bfc3cd023e58a6bc0bfab9c4a48595d074071a8b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0MDBkMGVjMmY5MTlkNWZjZDg1YTc5NzQwYmRlZWQwOGMwYzEzZDViNDIxMTFhMTMyNDFjMTRlYWE5ZjdlODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE4ZjU5MjA0YzFjM2RmMzlkNGY5ZDVlN2E5N2Q5N2E4NTU1MDExYzM0YTg2MzIxMjQ3YTE3MWQyMzhkOTFmNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNDNhZDNlYThlNTRiZWFiYzhjMWQxODhkZDc3ODFjZmIwZTlmYjQzNTVlYmIyYzNiMTRhM2E0NWEzNDdmYTcifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_realtime.py",
+          "version": "repo-file-v1:sha256:4dab682569e07ef4d408bf71d5077f7922bf21b349eebb3afe569a284810984e"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_tts_updates.py",
+          "version": "repo-file-v1:sha256:ace099a391314073bdd6d5095ff6f16812f892389d368f3d0bf9e633c50f654a"
+        }
+      ]
+    },
+    {
+      "id": "claim_eacb836b903d43db9bc14d2a8cbfb6b7",
+      "statement": "Managed compute reuses Firebase-authenticated HTTP/WebSocket identity dependencies without a participant list or five-person cap, while hosted stages and Cloud Run prevent the local synthetic-token fallback.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py#L53-L183",
+          "version": "repo-lines-v1:sha256:d208f6089e34c04144d458cbe5d7540684492a7b4d44153a0080e88ef8ab7818:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMmU3YjlmYjg3YjA4NTdlYWE1ODNlMGEyN2QwNzFjODhkNzZlNzQyYjVmMWNmMTA4NzZhNTBmODAyMGNkZjQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxZWZhYzlhNmI2OGQwOTQ0ZmQzMzZkYzhmMzkzOGI4YTE1Y2RmNmM0NmViYjg1YjQ5ODM1YjgyMTRjYTAxOTU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxOGU3YzI2MjMxMjVkMWNmOWVhYTk3YWU1ZDI3Y2IxZjQ0ODEyY2FlMjk0MWI5MzQ3NzljYjY2OTY3YTFkYmU3In0"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access_topology.py",
+          "version": "repo-file-v1:sha256:09456553827194ed8dccafe032adc8949be7556fe24dca05e43d86116056a5a6"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L125-L199",
+          "version": "repo-lines-v1:sha256:316a43fa4dd3b279fdab972ccb35b7e42b43bb96ce6f7053b499b47ebd0dda61:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YTBkMmIwYzBhMTUzZjM2ZjZhZTU4OWQ1ZDU4YzU1OTdlNWY2ZDRkZjVmMDQ3OWUyZTU2NWY3OTExYzRmZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MTU1YjA3OTk1MDU4ODI2MmZmOGEzOWUwOTljNDYxNzY4ZTJiYWIzZDIwNDgzMGZlY2JkYjU1N2ExZGZlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlMzk1NmYxNWFkZDRhZWRiNjVkZjBkZDEzMmJiODc2NjlmYWMwMTQ3M2YzZDY2MDhkMTRjMDBkOTVjODU4YjMifQ"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L65-L94",
+          "version": "repo-lines-v1:sha256:10289b0ced81ae3f2544c8e862f4c1386ac4187698042b8c06811d1e9e68f31c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxN2E3YWVmMTJmOWMxNWE4ZDM1ZGJkNGZlYTk3MDRhM2JiNDRkYTc1NWZmY2UyMDE4NjUwNzVjOGE5NGY0MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxZTQ1NmM4NzU4NzFhZDRjNjgwMGJlMWM1ZGQwYmViNWQ3ZGZmNTkyY2ZjZTA4ZmJmYzQyZmM1MWJlMzdhNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmZDE3Mjk2Y2MzZjIwNmFiYjhmNWRjNjRiMGNlZmVkYjEwM2M1Njk5YmUxMzZmNTBjNTJiZjg2MTc5Yzk2ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiYzczOWM2YTA4ZDBhOGJkZTA3ZjNkYzk4ZDVlOTllZjk2MzEzMTBkZjkyMWFmMzllNTUxZTljNDMyZGZhYjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f68c9c3e2dab43788660d1a4c9c80d31",
+      "statement": "Real Live token issuance enforces the existing per-account Gemini burst/daily counters before provider transport; quota rejection returns 429 and unavailable limiter storage returns 503 without minting, while offline stub mode exits before the quota check.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L124-L153",
+          "version": "repo-lines-v1:sha256:29c101550ff92813752bb72362d838968f7801c0e53c526641b8fa97f8bc6f88:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwYzc4ZTA3ZTZhOTVjMWJhMTYzZjhhMDZlM2IxMzQ3ZTM3OWY1ZWE5ODE1MGMxNjZiYjVkNDQ1M2FhM2IwOTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzNzQwYTFlNTk1NjEwMDM2ZWU0Y2MzYmI3OWNmMWYyZDczMjMyOWMxZDA0YTUyZmFjYzgzMTRjZmZiZWM4MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZjY1Y2VlMDM1M2Q4OWNkYmNkMGM0NDQ2MTIyNDFlMWM0ZWFkNDIxNzhiMjdhNmRiMmFjMWQ5MDU2ZjYwYjMifQ"
+        },
+        {
+          "resource": "repo://backend/services/desktop_inference.py#L60-L74",
+          "version": "repo-lines-v1:sha256:54069fd17e7793f746f3064ce97df5dfd7a05b1f92e48aff4821a734f169174a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0OTMyN2NiYjAzMTJlNzQyYjJlMDE1OTE3NjM3MmI1MmM5Zjk3ZTNlOTA0MGRlYmJhNmY5OGZmMjUyNjEyYTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5OWMyNmJmOTJiNWIzNGUyMjk0ZTlhMWYyZWQ0ZjJjMmIxZWJiMWZiZmVlYTA5YTAyODZlMDc4YTQwNjAwZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlMzk1NmYxNWFkZDRhZWRiNjVkZjBkZDEzMmJiODc2NjlmYWMwMTQ3M2YzZDY2MDhkMTRjMDBkOTVjODU4YjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkMjlhNWM4ZmM1MWJhZjgzZmI5YzhjYTQyNjcxNzUwYTNlMjE2MTcwZjBmNGRmMDMyY2MxYjI0ZGNiNjM2MWQifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py#L246-L304",
+          "version": "repo-lines-v1:sha256:56526ecb78e4f621aeec39d59bd981a4c3fa05b6c05140a19b330bf3f219b546:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwMGUwMDQwMTZjOGIyYzkxNWE1YTE1YzUwZDdlMmE3ZjExNDNhNWY3NjcyMDI0NmJhMTZkYjhkZDgyMDk2ZDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJmZjc2NGYwZWUyMDgyZGQxMTQ1NjRhMjhmYzFiNWEzNmM1YWFhMTQwMWJkOGU2NGYzNTQ4MThjNDQzZjZjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlOTU1ZDc2NjVlNDI4ZTc5NTk3MjRiNjIyZGY2MzNhOGU0MWJiOTQzYWNlOTY2MzkzN2UzNTAyNTVmNTFmMTIifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

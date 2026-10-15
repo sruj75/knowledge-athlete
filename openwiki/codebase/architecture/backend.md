@@ -5,7 +5,7 @@ description: Explain canonical app composition, route admission, executor bounda
 tags: [intentive, codebase]
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+    at: 2026-10-15T08:50:15.427Z
 sources:
   - id: openwiki-source-fcffbe3e28749eaf9a39557c
     resource: repo://backend/main.py
@@ -15,19 +15,33 @@ sources:
     resource: repo://backend/routers/conversation_compute.py
   - id: openwiki-source-477ee7f176f7957c006c22b7
     resource: repo://backend/routers/desktop_conversation.py
+  - id: openwiki-source-246adce1bd09822e870e6154
+    resource: repo://backend/routers/desktop_realtime.py
   - id: openwiki-source-436c23d0e71e7e8c078ad9ef
     resource: repo://backend/routers/desktop_supervisor.py
+  - id: openwiki-source-f9557f9df695b6659e2ddd5c
+    resource: repo://backend/routers/desktop_tts_updates.py
   - id: openwiki-source-62abf112d5ded48560527143
     resource: repo://backend/routers/memory_compute.py
   - id: openwiki-source-068f72d8a1a874d1c411a1d0
     resource: repo://backend/services/desktop_inference.py
+  - id: openwiki-source-8c40c7f2c568311d665a5ad7
+    resource: repo://backend/tests/unit/test_desktop_realtime.py
+  - id: openwiki-source-533d858e0a14018e47b7cc2b
+    resource: repo://backend/tests/unit/test_desktop_tts_updates.py
   - id: openwiki-source-5fe974b198877ecf775fae46
     resource: repo://backend/tests/unit/test_memory_compute.py
+  - id: openwiki-source-44ad4321bfb7e29f77339266
+    resource: repo://backend/tests/unit/test_public_compute_access_topology.py
+  - id: openwiki-source-19de91ecaf934d5786e88f8b
+    resource: repo://backend/tests/unit/test_public_compute_access.py
   - id: openwiki-source-01c563e69975269a5c47bffa
     resource: repo://backend/utils/observability/ai_evaluation.py
+  - id: openwiki-source-948937d6dce1b6ceff01afbb
+    resource: repo://backend/utils/other/endpoints.py
   - id: openwiki-source-e0e1aceea6bbd06a72738ece
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
 ---
 # Managed Python backend
 
@@ -35,7 +49,7 @@ The FastAPI application in `backend/main.py` is the common backend entrypoint. I
 
 ## Request and state boundaries
 
-A managed desktop request carries Firebase identity. Participant admission and endpoint rate limiting happen through the dependencies selected by each route. The route policy manifest records authentication expectations, while its inventory tests detect mismatches against the composed app. Account export/deletion has a different admission purpose from ordinary product compute; do not infer that participant exclusion removes account lifecycle access.
+Managed desktop compute and account operations use the existing Firebase-authenticated HTTP/WebSocket dependencies. New verified accounts need no participant list or five-person cap. Each route retains its existing workload quota and rate-limit wrapper. The route-policy manifest and inventory tests check the composed app's authentication expectations. Hosted stages and Cloud Run identity disable the local synthetic-token fallback even when runtime ADC has no credential-file variables; hosted admin impersonation remains disabled by the deployment contract.
 
 Conversation compute accepts bounded transcripts and a generation UUID and returns discard or structure candidates. The Mac remains responsible for committing those results. Memory extract, normalize, and consolidate routes similarly return validated proposals. Invalid provider shapes become bounded `502` errors; routes log failure categories rather than dumping the supplied content.
 
@@ -47,11 +61,15 @@ The backend still owns retained account/subscription, usage, fair-use and update
 
 The direct stream emits `text_delta`, then `done` with usage/model metadata and the optional fixed `end_conversation` signal. Unsupported functions, partial provider failure or incomplete streams produce a bounded error rather than a successful terminal reply or automatic replay. The desktop owns durable acceptance and final playback. No route restores Pi or a general execution loop.
 
+In offline stub mode, Live token minting and generated TTS return their existing unavailable-provider `503` responses before opening a provider HTTP client; TTS also skips its quota meter. Offline direct-A/B fixtures can exercise local orchestration without paid inference. These fixture results do not establish actual provider speech, silent guidance or physical interruption.
+
+Real Live token issuance checks the existing per-account Gemini burst and daily counters before contacting the token provider. Rejected quotas return `429`; unavailable limiter storage returns `503`, with no token request. These counters bound issuance requests, not audio duration or a monetary budget. Offline Live still returns unavailable before reaching this quota check.
+
 Both A and B reject bodies above 4 MB. B retains the 2 MB decoded screen limit and separately bounded camera input. Its burst and daily counters are independent of other workloads; hosted daily admission remains 1,500. Only explicit dev/local configuration can select the 6,000-request development allowance. Quota failures return a retry time rather than inviting an immediate retry loop.
 
 ## Supervisor and evaluation intake
 
-`POST /v1/supervisor/evaluate` authenticates a participant through the shared desktop admission gate and uses a separate Supervisor quota ledger. The request contains separately identified screen/webcam images, availability and capture times, bounded transcript revisions, conversation state, owner-independent session/observation IDs and context epoch. The authenticated owner scopes the deterministic decision ID; caller-supplied context never supplies authority.
+`POST /v1/supervisor/evaluate` authenticates a Firebase account through the shared desktop identity dependency and uses a separate Supervisor quota ledger. The request contains separately identified screen/webcam images, availability and capture times, bounded transcript revisions, conversation state, owner-independent session/observation IDs and context epoch. The authenticated owner scopes the deterministic decision ID; caller-supplied context never supplies authority.
 
 Each valid evaluation makes one managed Gemini call and validates `wait`, `guide_next_turn` or `intervene` plus an optional private note. The server owns the model, schema and no-tools contract. Missing managed B instructions produce `wait` before inference; invalid provider output returns `wait` with a degraded outcome. The route retains no product records and returns the selected prompt receipt with accepted decisions.
 
@@ -66,6 +84,9 @@ Trace a route through its auth dependency, request/response model, compute helpe
 The canonical-app tests verify router composition; Memory tests inject compute results and malformed proposals. Supervisor endpoint tests exercise upstream status and transport failures, one-call admission, preserved prompt/observation correlation and private-content exclusion. Deployment claims require the [release workflow](../operations/releases.md), not just successful FastAPI import. Follow [capture](../workflows/capture-transcription.md), [Memory](../workflows/memory.md), and [account lifecycle](../workflows/account-lifecycle.md) for end-to-end boundaries.
 
 ## Source evidence
+
+- [Firebase identity boundary](../../../backend/utils/other/endpoints.py)
+- [Public compute authentication and quota regressions](../../../backend/tests/unit/test_public_compute_access.py)
 
 - [Direct A contracts](../../../backend/models/desktop_conversation.py)
 - [Direct A routing](../../../backend/routers/desktop_conversation.py)

@@ -10,6 +10,10 @@ sources:
     resource: repo://backend/routers/desktop_realtime.py
   - id: openwiki-source-62abf112d5ded48560527143
     resource: repo://backend/routers/memory_compute.py
+  - id: openwiki-source-44ad4321bfb7e29f77339266
+    resource: repo://backend/tests/unit/test_public_compute_access_topology.py
+  - id: openwiki-source-19de91ecaf934d5786e88f8b
+    resource: repo://backend/tests/unit/test_public_compute_access.py
   - id: openwiki-source-45a66916bd16b1697eca50f8
     resource: repo://backend/utils/billing/config.py
   - id: openwiki-source-b923075d856f4498032624f2
@@ -24,10 +28,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/MainWindow/DesktopNavigation.swift
   - id: openwiki-source-83de7f0f3608399f3b050de3
     resource: repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Product authority and constraints
 
@@ -41,7 +45,7 @@ This division lets local archive operations retain a clear owner even when a pro
 
 ## Identity and admission
 
-Firebase identity remains a hosted boundary. Product compute uses participant admission, while the backend also exposes authenticated account lifecycle operations. Billing availability is a separate typed configuration with disabled mode as its default. Do not treat “billing disabled” as “authentication disabled,” or infer that every authenticated identity is a configured hosted participant.
+Firebase identity remains a hosted boundary. Product compute and account lifecycle operations reuse the existing authenticated dependencies; a verified account needs no separate invitation or configured participant UID. Workload-specific quotas, rate limits and owner boundaries remain independent of this access decision. Hosted stages and Cloud Run reject the local synthetic-token fallback. Billing availability remains a separate typed configuration with disabled mode as its default; disabled billing does not disable authentication.
 
 The storage process requires a fixed startup owner and rejects requests for another owner. The Mac's database generation and local authorization snapshots protect delayed reads and commits. These mechanisms support the same account boundary at different effect owners.
 
@@ -57,7 +61,7 @@ Read the relevant final IR decisions and current product constraints in the brie
 
 ## Source evidence
 
-- [backend/utils/other/endpoints.py](../../../backend/utils/other/endpoints.py#L132-L175)
+- [backend/utils/other/endpoints.py](../../../backend/utils/other/endpoints.py#L125-L199)
 - [backend/routers/memory_compute.py](../../../backend/routers/memory_compute.py)
 - [desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift](../../../desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift#L86-L119)
 - [backend/utils/billing/config.py](../../../backend/utils/billing/config.py)

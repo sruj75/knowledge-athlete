@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:48051cbb52dc9a37029ec2c6d78b32f731ed49754c0594397d59d39354adc2cd",
+  "pageVersion": "sha256:814a8a5ea36b94320fca81555ca661a09c12d3a523b43c6ed48e79d1e4b9738b",
   "claims": [
     {
       "id": "claim_7fcdd211685a4b4585c51bac055dec51",
@@ -201,10 +201,28 @@
           "version": "repo-lines-v1:sha256:4845980599e57deb0ff16e2827cd18cd1279f4b4c4eeee82deb39291deafb53c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjNWQxNmViNmYwMzMwMzIzMmJhMzhmYzA2ZTJmMmY1NmQ1ZWNmOGY0MDllOTJjZGQ4YzVlOTczNDJjZjgzZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZDFkMWRiNzQ2NzI3ZDM3YTM1ZDQzMmU5MjVlNmM5MjM2NGE2NTVhODUwODNjNGEwNTYzYWViZjM0N2ZiMmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlNzYzZGFkZTUwN2JiN2I0YmVlY2U1M2I5ZGJhMGZhZTFiMWYyMzExZjIwMzdlNjFlNWU5YTFiNTJkMjBiOWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAzOGQ0NjA2NmIyMmUzN2UyN2ViNWM4NjI2ZGM4MjI2YTY3YTNhZDZkZjBiMDU1OWRhNjc2MTQ1NTJlZWFhMzgifQ"
         }
       ]
+    },
+    {
+      "id": "claim_e0da8a368a274639b18137617370d09d",
+      "statement": "Current managed compute accepts verified Firebase accounts without a configured participant list, and hosted stage or Cloud Run identity prevents the synthetic local-token fallback.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py#L53-L183",
+          "version": "repo-lines-v1:sha256:d208f6089e34c04144d458cbe5d7540684492a7b4d44153a0080e88ef8ab7818:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMmU3YjlmYjg3YjA4NTdlYWE1ODNlMGEyN2QwNzFjODhkNzZlNzQyYjVmMWNmMTA4NzZhNTBmODAyMGNkZjQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxZWZhYzlhNmI2OGQwOTQ0ZmQzMzZkYzhmMzkzOGI4YTE1Y2RmNmM0NmViYjg1YjQ5ODM1YjgyMTRjYTAxOTU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxOGU3YzI2MjMxMjVkMWNmOWVhYTk3YWU1ZDI3Y2IxZjQ0ODEyY2FlMjk0MWI5MzQ3NzljYjY2OTY3YTFkYmU3In0"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L125-L199",
+          "version": "repo-lines-v1:sha256:316a43fa4dd3b279fdab972ccb35b7e42b43bb96ce6f7053b499b47ebd0dda61:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YTBkMmIwYzBhMTUzZjM2ZjZhZTU4OWQ1ZDU4YzU1OTdlNWY2ZDRkZjVmMDQ3OWUyZTU2NWY3OTExYzRmZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MTU1YjA3OTk1MDU4ODI2MmZmOGEzOWUwOTljNDYxNzY4ZTJiYWIzZDIwNDgzMGZlY2JkYjU1N2ExZGZlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlMzk1NmYxNWFkZDRhZWRiNjVkZjBkZDEzMmJiODc2NjlmYWMwMTQ3M2YzZDY2MDhkMTRjMDBkOTVjODU4YjMifQ"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L65-L94",
+          "version": "repo-lines-v1:sha256:10289b0ced81ae3f2544c8e862f4c1386ac4187698042b8c06811d1e9e68f31c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxN2E3YWVmMTJmOWMxNWE4ZDM1ZGJkNGZlYTk3MDRhM2JiNDRkYTc1NWZmY2UyMDE4NjUwNzVjOGE5NGY0MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxZTQ1NmM4NzU4NzFhZDRjNjgwMGJlMWM1ZGQwYmViNWQ3ZGZmNTkyY2ZjZTA4ZmJmYzQyZmM1MWJlMzdhNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmZDE3Mjk2Y2MzZjIwNmFiYjhmNWRjNjRiMGNlZmVkYjEwM2M1Njk5YmUxMzZmNTBjNTJiZjg2MTc5Yzk2ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiYzczOWM2YTA4ZDBhOGJkZTA3ZjNkYzk4ZDVlOTllZjk2MzEzMTBkZjkyMWFmMzllNTUxZTljNDMyZGZhYjMifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

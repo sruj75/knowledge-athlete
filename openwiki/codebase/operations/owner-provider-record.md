@@ -12,10 +12,14 @@ sources:
     resource: repo://backend/routers/desktop_realtime.py
   - id: openwiki-source-f9557f9df695b6659e2ddd5c
     resource: repo://backend/routers/desktop_tts_updates.py
+  - id: openwiki-source-19de91ecaf934d5786e88f8b
+    resource: repo://backend/tests/unit/test_public_compute_access.py
   - id: openwiki-source-6439c0b00e9284c12c7afccb
     resource: repo://backend/utils/llm/model_config.py
   - id: openwiki-source-63500ad8455656e0ed04a9b7
     resource: repo://backend/utils/observability/langfuse_prompts.py
+  - id: openwiki-source-948937d6dce1b6ceff01afbb
+    resource: repo://backend/utils/other/endpoints.py
   - id: openwiki-source-789de173853ba5c47c43229b
     resource: repo://backend/utils/stt/pre_recorded.py
   - id: openwiki-source-e64cb83f3cc3efdfd935da37
@@ -26,10 +30,10 @@ sources:
     resource: repo://desktop/macos/scripts/desktop-core-harness.sh
   - id: openwiki-source-3ff70d80feb2d0ad64f504ba
     resource: repo://scripts/dev-harness/dev_harness/providers.py
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Owner and provider record
 
@@ -77,7 +81,7 @@ project. Project membership for that email was not queried.
 | Mode | Configuration |
 | --- | --- |
 | Local Dev | Named workspace app, local Firebase Auth/Firestore emulators, local Redis, and synthetic users. The harness defaults to `PROVIDER_MODE=real`, using local provider credentials; automated desktop tests explicitly select `PROVIDER_MODE=offline`. |
-| Owner Beta | `Intentive Beta.app` uses the shared `knowledge-athlete-dev` backend and configured Firebase participants. |
+| Owner Beta / public-release target | `Intentive Beta.app` uses the existing shared `knowledge-athlete-dev` backend. Current source admits any verified Firebase account without a participant list; serving deployment and public release are separate steps. |
 | Customer billing | `BILLING_MODE=disabled` |
 | Cloud authentication | Operator CLI: browser OAuth. Hosted runtime: service-account ADC. GitHub deployment: Workload Identity Federation. |
 
@@ -150,7 +154,8 @@ Managed prompt names and label selection describe the current resolver, not a gu
 | Codemagic `intentive_macos_release` | Beta Firebase configuration, backend/update URLs, Sparkle keys, Sentry upload token, and Release App private key |
 | Local development | Gitignored `backend/.env.local-dev` for explicit provider tests; Sparkle private key in the macOS login Keychain |
 
-Configuration sources: [runtime manifest](../../../backend/deploy/runtime_env.yaml),
+Configuration sources: [Firebase compute identity](../../../backend/utils/other/endpoints.py),
+[runtime manifest](../../../backend/deploy/runtime_env.yaml),
 [local provider modes](../../../scripts/dev-harness/dev_harness/providers.py),
 [automated desktop harness](../../../desktop/macos/scripts/desktop-core-harness.sh),
 [managed workloads](../../../backend/utils/llm/model_config.py),

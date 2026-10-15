@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:a1aa9352711a0a5070d2babb6290c9600d149de7e444d5ef69ead69255b8f6d2",
+  "pageVersion": "sha256:a4f1f7b9d66e8e8dc30b8a29ad996dac14460b01e2a3c460caa0de7496d2f076",
   "claims": [
     {
       "id": "claim_cae2aabf47814b1b8a043f16af60aac8",
@@ -68,11 +68,11 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift",
@@ -83,6 +83,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T08:34:31.929Z"
   }
 }

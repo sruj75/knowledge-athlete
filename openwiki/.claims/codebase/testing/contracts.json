@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:5a3a04b35ab85249195007c029cc00c49772c389e7d1c6ded45dda78b91451c5",
+  "pageVersion": "sha256:9324d702355bd50879ac5857569a2754a90f6d77fafb316fa94403174e3056ab",
   "claims": [
     {
       "id": "claim_a15c40aa331e4669b9cd04381539f009",
@@ -92,7 +92,7 @@
       "evidence": [
         {
           "resource": "repo://backend/tests/unit/test_desktop_conversation.py",
-          "version": "repo-file-v1:sha256:8c2a7fa9736b9aeeb0a54563f255bd31d51be1f1087d94f273c797bf8de48f61"
+          "version": "repo-file-v1:sha256:8e800b266e4e5babdf2466ea23dfe790ad3e4d763451d2ee0daca9b037d7fd80"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift",
@@ -104,7 +104,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift",
-          "version": "repo-file-v1:sha256:73ef361b0ba6e24a50c5d1802cad98102511862118479877f8bf16371f574ea8"
+          "version": "repo-file-v1:sha256:da40a4d7a14545c9af9d2247cca2b5100a1b5ddefd7e611d29c7030b31b523af"
         },
         {
           "resource": "repo://desktop/macos/agent/tests/conversation-storage.test.ts",
@@ -112,7 +112,7 @@
         },
         {
           "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
-          "version": "repo-file-v1:sha256:16f080692068cb818586fd241dbd658dc9bba82fc14ff64c65a9242dc77d5b25"
+          "version": "repo-file-v1:sha256:8f8f6a66a25e6ac0723874319b302d72d01b6fefaf5ab3ea60ba97a0d7290938"
         }
       ]
     },
@@ -162,13 +162,67 @@
         },
         {
           "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L40-L134",
-          "version": "repo-lines-v1:sha256:02816461a6b9d1949bff154d48776c8b2a6d6fb46a562e7c503709d6b4f5efd6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMGRmN2Q2ZDJjNjMyMjY3NDAyZTdjZTJiY2U0Mzk2ZDRlZjQwZTVhODI4YTY1MTA0MjA4ODI2Yjc2NjAyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ZTk1MjgwMWM5MTBlZGQwZGJkNDdlNmFhZGUxYjMzZGJkOTA3N2QyYzk3Mjg3ODc5N2JhNDAyNDVkOTY4ZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3OTNiMDczYzE0ODYyMzIxMGJkZTI0ZmZhNjc5NzNhZjI0NzE0ZTY3ODlkNzRmODEzODVhY2RhOTE1OTBjZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5OTc4MTQzZDE3MDI1MzkxNjk2NGQ3MzkyYzljZjM2ZTQwODgxYmY0YjJkYzcxOGVjYjJjNGE5N2YyMTQyM2QifQ"
+          "version": "repo-lines-v1:sha256:5137609e62d310caa4db2ac62ee22a94a50fa1ceedf48f0dcada3b3d23e30eb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MTBkZjdkNmQyYzYzMjI2NzQwMmU3Y2UyYmNlNDM5NmQ0ZWY0MGU1YTgyOGE2NTEwNDIwODgyNmI3NjYwMjVmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1NWU5NTI4MDFjOTEwZWRkMGRiZDQ3ZTZhYWRlMWIzM2RiZDkwNzdkMmM5NzI4Nzg3OTdiYTQwMjQ1ZDk2OGQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2NzkzYjA3M2MxNDg2MjMyMTBiZGUyNGZmYTY3OTczYWYyNDcxNGU2Nzg5ZDc0ZjgxMzg1YWNkYTkxNTkwY2ZmIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyOTk3ODE0M2QxNzAyNTM5MTY5NjRkNzM5MmM5Y2YzNmU0MDg4MWJmNGIyZGM3MThlY2IyYzRhOTdmMjE0MjNkIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_0ca945b5734f46e888eba6fc1b2cd716",
+      "statement": "Diagnostic regressions exercise owner/generation fencing, bounded content-free encoding, idempotent metrics and old-session completion isolation, while offline Live/TTS regressions reject outbound provider construction and TTS quota consumption.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_realtime.py",
+          "version": "repo-file-v1:sha256:4dab682569e07ef4d408bf71d5077f7922bf21b349eebb3afe569a284810984e"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_tts_updates.py",
+          "version": "repo-file-v1:sha256:ace099a391314073bdd6d5095ff6f16812f892389d368f3d0bf9e633c50f654a"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/ConversationDiagnosticLedgerTests.swift",
+          "version": "repo-file-v1:sha256:f38490180197d7c7fc7d608bff7be2ff3397bf0dfde7bf3e82db11f232033892"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorDiagnosticMetricsTests.swift",
+          "version": "repo-file-v1:sha256:ed10c1396ee4325a0a7dbfd0ea1b5200fa49fe4d8e16a130c560bb3521987952"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift",
+          "version": "repo-file-v1:sha256:da40a4d7a14545c9af9d2247cca2b5100a1b5ddefd7e611d29c7030b31b523af"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f871207fc0246f98a0d98377ff52e16",
+      "statement": "Public-compute regressions exercise verified new accounts, HTTP/WebSocket authentication failures, hosted synthetic-token denial, retained account operations and Live quota/storage rejection before provider issuance.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py",
+          "version": "repo-file-v1:sha256:3d19c3167538013f0a518d0b003a9bfd525a9c36d541f12f8cacfb12422d114b"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access_topology.py",
+          "version": "repo-file-v1:sha256:09456553827194ed8dccafe032adc8949be7556fe24dca05e43d86116056a5a6"
+        }
+      ]
+    },
+    {
+      "id": "claim_158a021f62f1462ba113f1eefbee56b8",
+      "statement": "Direct-A streaming contract fixtures override the lazy Langfuse client getter without replacing the real SSE/provider orchestration; dedicated observability tests retain generation lifecycle and export-policy coverage.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_conversation.py#L121-L192",
+          "version": "repo-lines-v1:sha256:c0ccfe87c5b8e5f9b3932aaf1f9a440a9e127d017e15b90b212214a8b9e7a6fa:eyJzZWxlY3RlZExpbmVDb3VudCI6NzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzZjM2NmI5YmQ5YThkMGYzNDBhMmJjMGJlMWUyMmVlYTIwNTY4ZGQ3OGE0NTI4MWI3MjFiMzBmMjJkMDg3ZjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMzA4ZWU0NThiYThkMWQ5YzhlOWY4MTM1NzQ3MWY0ODMyMWEzZmI1OTU2N2ViMGRjODVmNzZjNjY4ZmE2NjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZjZjE0ZGNlNWZlMmMwNTlhNmIxY2IwNTE3YmQzZjUwYjc1YTQ1NGI0OTRiMTQ2YWI3OGU3NGVjNjllNjhjZDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxNTY1N2IzZDNmODMwOGMwNjM3MTBhOWQ2MGQ3MzAxOTRmOWQ0NGM0ODUxNWQzMTQ4MDJhZmQwNzljNWE5ZTAifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_langfuse_observability.py",
+          "version": "repo-file-v1:sha256:c46cf8da64874b2558129f8a61714578338edb76bae485e8870b57bf23a0ee07"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T06:57:13.407Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

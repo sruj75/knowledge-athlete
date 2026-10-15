@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:62a2cb0ab993696d367c0c8ce7523fa9dcd4416573bcd475d52e4be61f25a251",
+  "pageVersion": "sha256:44bc596ac619663110568faaa0fb623750bc988c59c07993312ab0299821b8b4",
   "claims": [
     {
       "id": "claim_0bbbdc5863884ad7a83cc11b3640d82f",
@@ -18,7 +18,7 @@
       "evidence": [
         {
           "resource": "repo://backend/routers/memory_compute.py",
-          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+          "version": "repo-file-v1:sha256:3768c3d11e05b22271414411a2b27e147e02c9d4b878de0799632f8974a0307a"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/MemoryStorage.swift",
@@ -32,7 +32,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider%2BConversation.swift",
@@ -49,8 +49,8 @@
           "version": "repo-file-v1:sha256:6afafef793f504f91158188dd053d8e0d40cf460d848f083a5818210005efb9d"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L995-L1071",
-          "version": "repo-lines-v1:sha256:9eaad284949456afa64328a82c6cd13729eb8827f5f5e51d863d5e312c634ae4:eyJzZWxlY3RlZExpbmVDb3VudCI6NzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUwYWY2ODY5OGYzNTBkNTFhZTlmNjkwNGRlNTFlOTRiYzUyN2RkYmQxZjJmMGIyODI5YzY1MzcxZjg0MWZkNGQifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1056-L1155",
+          "version": "repo-lines-v1:sha256:7ce6a8283684086153af195614979cb076d5b8b4bc89335a47e8aa9cb9bd8fef:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI1ZWRjMzM5ZDkxNjIxN2ZkODllMTliZGRmMTEzNDVjZDY1M2I4MjViMjYwNDFmNGI4N2M3ZDcwYjk0NjFlZGVmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJjZGRhM2Y5NWRmM2VkNTExMWY1YzdkZjk3Mzg4NGUxYmRhNDJhNTAxMzI4ZGEwMDZjZTNkMGQwYjEwZTMwYTE0IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJkYjZhNzlmMzJlOTFiNzg3OWRkMmRlOTRkOThhOGQxNzkzYWYxYzZmYmVlMjM4MWRkZGYwN2I2YmE3OTFjNDcyIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJiNjYyZmFmZDI2MDQwOTIxODE5ODE3YTJjOTk4YTc1ZGMzZTYyYmQ2MDE1YjFkYjYwMDMzYTBmYWE1M2Q5OWQyIn0"
         }
       ]
     },
@@ -64,7 +64,7 @@
         },
         {
           "resource": "repo://backend/routers/desktop_realtime.py",
-          "version": "repo-file-v1:sha256:affacfc00e221c247cabdb6e032973dd6a35e16e8f1791c5f4b3c50d77709da1"
+          "version": "repo-file-v1:sha256:5e4c06eb6a2e299c96a357ad458d8150b10ad1750233fcd05fb50d88de182d38"
         },
         {
           "resource": "repo://desktop/macos/agent/src/index.ts",
@@ -77,8 +77,8 @@
       "statement": "User and Supervisor initiation reveal one retained notch conversation surface through the same opening boundary, which cancels pending dismissal; explicit hide closes active conversation before retracting.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L343-L375",
-          "version": "repo-lines-v1:sha256:678cf6305684b2ee1fc3c3271e1c8cbc1c7062aa7294b3c9df239f4701a2743e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkMGVmYjY1NjkyN2U5ZmUxMzYwZGJlODhlNjBiMzM2M2ZiNTViZDQxOWU4YmRlYWEyNzgxYWZlOTIyMzVlNWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4MmI3MDlmZGQzMWM1MWMwM2FhZGI3NmFhY2I4NDgzMzM5MDgwZWY3MzY0OWMxYmZlNzg5MWQxN2Y2MDIxNmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNjYmE2MjMzNzVjYjU2MDlkMTMwMDhhNmM5YzgzOWE1ZmI5Y2NmNTE3NjI3OGZhZDA5YTg2OTA2MzRkOGE1NGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyMjRiM2MyNGIzMjIxMWUwNTY4NDVhMzcyNmI1YjY1OWZmY2NiOTY2NWQwYjNhMzYxYWMyMTliOGVmNmExMGYifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L384-L415",
+          "version": "repo-lines-v1:sha256:d8704fb6e23c470599889a6c18204a3335890feb0c6195da23e24cfcb6a7f559:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNTJiZjBjYmMxNDUxZWU2MjMyMWFmMWY2Y2JmNGYyODg0NDg4OTk2NmUxMDk4NTQyZWEzMjQ0MTA5NjMwYjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyMmY2MGMwNDI3Njc2OGZmZTRmNTk5NjY4ZGYyZjdiZjI4OGY0Nzk4MGI1MjQzY2RmOTI5MWQwNmRlYzFmY2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNlOTdlYTY5ZWRlZjc1NjY1NTRhZjVkNjFmOGNlMDA4MWU3YzY0NzllOTZjYTM3MThkZDEwNjQ1YzBmYmE0NDkifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/FloatingConversationOpening.swift#L1-L54",
@@ -89,6 +89,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

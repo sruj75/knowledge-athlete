@@ -53,7 +53,7 @@ sources:
 generated: { by: "codex", at: "2026-10-14T15:13:23.307Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T15:13:23.307Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Capture and transcription
 

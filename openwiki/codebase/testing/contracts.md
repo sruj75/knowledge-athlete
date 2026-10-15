@@ -3,9 +3,6 @@ type: Codebase guide
 title: Tests and repository contracts
 description: Explain hermetic test runners, workflow registry, documentation gates and shared manifest.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-10-15T06:57:13.407Z
 sources:
   - id: openwiki-source-3c5fb0f9d251edf233879d40
     resource: repo://.github/actions/release-eligibility/action.yml
@@ -31,12 +28,24 @@ sources:
     resource: repo://backend/testing/import_isolation.py
   - id: openwiki-source-8c64fead8c8caad37dea1f70
     resource: repo://backend/tests/unit/test_desktop_conversation.py
+  - id: openwiki-source-8c40c7f2c568311d665a5ad7
+    resource: repo://backend/tests/unit/test_desktop_realtime.py
+  - id: openwiki-source-533d858e0a14018e47b7cc2b
+    resource: repo://backend/tests/unit/test_desktop_tts_updates.py
+  - id: openwiki-source-3ed14971b31729972bb6d50c
+    resource: repo://backend/tests/unit/test_langfuse_observability.py
+  - id: openwiki-source-44ad4321bfb7e29f77339266
+    resource: repo://backend/tests/unit/test_public_compute_access_topology.py
+  - id: openwiki-source-19de91ecaf934d5786e88f8b
+    resource: repo://backend/tests/unit/test_public_compute_access.py
   - id: openwiki-source-276b6bd5d516d3e8277c2462
     resource: repo://backend/tests/unit/test_voice_provider_probe.py
   - id: openwiki-source-3980081a58a01382ad067c02
     resource: repo://desktop/macos/agent/tests/conversation-storage.test.ts
   - id: openwiki-source-72dffde2f3f4878ee649e458
     resource: repo://desktop/macos/Desktop/Tests/ConversationAudioLevelTests.swift
+  - id: openwiki-source-523ecad9a8c0ea5762adfd5c
+    resource: repo://desktop/macos/Desktop/Tests/ConversationDiagnosticLedgerTests.swift
   - id: openwiki-source-e258a11230cac85403c011e3
     resource: repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift
   - id: openwiki-source-16d471086ed15fce2dbb4570
@@ -47,13 +56,18 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/ConversationPresentationPreviewTests.swift
   - id: openwiki-source-3a40047b453ba7a3c4a3cd28
     resource: repo://desktop/macos/Desktop/Tests/ConversationPresentationTests.swift
+  - id: openwiki-source-8e7da6716cdbf6513a389519
+    resource: repo://desktop/macos/Desktop/Tests/SupervisorDiagnosticMetricsTests.swift
   - id: openwiki-source-ec2aa1ff3fb10c3cb271e0b4
     resource: repo://desktop/macos/Desktop/Tests/SupervisorServiceTests.swift
   - id: openwiki-source-38a1b3c7a8acf2ceea409825
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-10-15T06:57:13.407Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Tests and repository contracts
 
@@ -63,7 +77,7 @@ The repository has component test runners and a shared deterministic governance 
 
 `backend/test.sh` selects discovered unit-test files, supplies hermetic credentials, excludes integration/slow markers by default, and normally isolates files in separate pytest processes. Its local CPU-duration ratchet can make a run nonzero even when assertions pass; report that outcome accurately. The workflow-contract registry maps high-risk workflows to owned sources and tests so changes select their relevant coverage.
 
-For dependency isolation, patch lazy-held clients at their owning seam. When import-time substitution is unavoidable, `backend/testing/import_isolation.py` provides a scoped module-stubbing context that restores both module entries and parent attributes. Do not introduce module-level fake clients that leak into neighboring tests.
+For dependency isolation, patch lazy-held clients at their owning seam. The direct-A stream fixture overrides the lazy Langfuse client getter so inherited developer credentials cannot initialize an external exporter. Separate observability contract tests still exercise generation lifecycle and export policy. When import-time substitution is unavoidable, `backend/testing/import_isolation.py` provides a scoped module-stubbing context that restores both module entries and parent attributes. Do not introduce module-level fake clients that leak into neighboring tests.
 
 `desktop/macos/test.sh` discovers shell launcher tests, verifies E2E flow coverage, runs the desktop backend tests, then invokes Swift suites in per-suite process isolation. The retained Node storage package has its own Vitest runner and TypeScript build; build before its stdio tests. The desktop backend selection includes authenticated conversation and Supervisor contracts. The app's shared local databases and preferences explain why one combined Swift process is not equivalent to the official runner.
 
@@ -73,7 +87,9 @@ The conversation lifecycle/audio seam covers listening-only silence, completion 
 
 Presentation tests exercise opening/listening/thinking/speaking projection, quiet open intervals and interruption priority independently of per-answer capture ownership. Audio tests use known PCM/render buffers and real meter delivery to check RMS, ambient isolation, stale receipts and output-only interruption. Common-opening tests cover reveal ordering, snooze admission and explicit hide. Preview tests use the real mapper/meter with a substituted operating-system window, including safe cleanup when user content or a real conversation takes ownership. These tests do not start physical audio hardware.
 
-Retired Tasks and execution expectations must become rejection or historical-preservation coverage, not skipped tests or reactivated features. The manual flow separately requires provider silent append, physical speaker/headphone/Bluetooth interruption and an actual eight-hour soak. A passing source or fake-clock test cannot satisfy those rows.
+`ConversationDiagnosticLedgerTests` covers owner/generation input fencing, terminal deduplication, bounded metadata and reauthentication purge. `SupervisorDiagnosticMetricsTests` checks idempotent receipts and aggregate timings; service tests verify read-only snapshots, reset isolation and rejection of old-session completions. Offline Live/TTS tests install failing provider-client seams and require the unavailable response before provider calls or TTS metering.
+
+Retired Tasks and execution expectations must become rejection or historical-preservation coverage, not skipped tests or reactivated features. The manual flow separately requires provider silent append, physical speaker/headphone/Bluetooth interruption and an actual eight-hour soak. A passing source or fake-clock test cannot satisfy those rows. They describe the full manual coverage; the [authored initial launch scope](../../INSTRUCTIONS.md#product-constraints) does not add the extended route matrix or soak as gates for the short owner pilot.
 
 ### Release-probe request and stream contracts
 
@@ -95,10 +111,16 @@ PR preflight, main-push Hygiene and Release Eligibility use the shared changelog
 
 `Package.swift` normally requires a changelog. The checker recognizes one narrow documentation cleanup: the entire manifest edit only removes Markdown entries from plain `exclude` arrays, and the referenced documents are deleted in the same Git comparison. Dependency, resource, Swift-exclusion and other package edits remain gated, as do mixed changes to product source. Unrecognized syntax also remains gated. The regression test runs the actual CLI over temporary Git commits, covering the documentation migration and cases that must still fail.
 
+Public-compute regressions exercise more than five distinct verified identities, rejected HTTP/WebSocket credentials, hosted synthetic-token denial, retained account operations and mounted-route authentication topology. Live mint tests exercise allowed issuance, burst/daily rejection and unavailable limiter storage before provider transport. These are hermetic seam checks, not real Google sign-in or funded voice acceptance.
+
 ## Source evidence
 
+- [Public compute authentication and quota regressions](../../../backend/tests/unit/test_public_compute_access.py)
+- [Mounted-route authentication topology](../../../backend/tests/unit/test_public_compute_access_topology.py)
+- [Dedicated tracing contracts](../../../backend/tests/unit/test_langfuse_observability.py)
+
 - [Portable candidate-probe fixtures](../../../.github/scripts/test_backend_candidate_probe.py)
-- [Conversation request-model regression](../../../backend/tests/unit/test_desktop_conversation.py#L214-L272)
+- [Conversation request-model regression](../../../backend/tests/unit/test_desktop_conversation.py#L222-L281)
 - [Prompt-bound voice probe tests](../../../backend/tests/unit/test_voice_provider_probe.py)
 
 - [backend/test.sh](../../../backend/test.sh#L35-L105)

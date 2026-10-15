@@ -17,6 +17,10 @@ sources:
     resource: repo://backend/routers/desktop_supervisor.py
   - id: openwiki-source-f9557f9df695b6659e2ddd5c
     resource: repo://backend/routers/desktop_tts_updates.py
+  - id: openwiki-source-068f72d8a1a874d1c411a1d0
+    resource: repo://backend/services/desktop_inference.py
+  - id: openwiki-source-19de91ecaf934d5786e88f8b
+    resource: repo://backend/tests/unit/test_public_compute_access.py
   - id: openwiki-source-aeeaf88f155573378474eb0c
     resource: repo://backend/utils/llm/gemini_usage.py
   - id: openwiki-source-6439c0b00e9284c12c7afccb
@@ -29,10 +33,10 @@ sources:
     resource: repo://backend/utils/observability/langfuse_prompts.py
   - id: openwiki-source-9eb663951a8b4854a33ecbc8
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/ConversationPromptBindingStore.swift
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Managed model providers
 
@@ -65,13 +69,18 @@ Code constructs provider payloads, permits only A's fixed `end_conversation` sig
 
 ## Request and failure boundaries
 
-Swift sends owner-bound Firebase identity to the managed backend. Node serves local storage and receives no model credential. Backend Gemini construction reads the server key, attaches usage/error callbacks, and caches by model, streaming, thinking configuration and feature. Unknown managed providers fail explicitly.
+Swift sends owner-bound Firebase identity to the managed backend. Current compute accepts any verified Firebase account without an invite list. Live token issuance reuses the existing Gemini burst/daily limiter before provider transport; quota rejection and limiter failure do not mint a token. Offline stub mode still exits before this gate. These limits count issuance requests rather than guaranteeing a duration or spend cap. Node serves local storage and receives no model credential. Backend Gemini construction reads the server key, attaches usage/error callbacks, and caches by model, streaming, thinking configuration and feature. Unknown managed providers fail explicitly.
 
 Compute failure policy belongs to the workload and caller: discard can preserve a conversation on failure; other candidate operations can fail independently. Realtime has its own bounded PCM recovery path described in [Chat and voice](../workflows/chat-voice.md). Do not generalize that recovery into a cross-provider text switch.
+
+With the existing LLM stub enabled, Live credential minting and generated TTS report their configured-provider `503` failure before contacting Gemini/OpenAI; the TTS path also bypasses metering. Local direct-response fixtures remain usable. Offline checks can verify contracts and recovery, but cannot establish successful native speech or silent provider guidance.
 
 The package's parsing, conversation processing, Memory computation, temporal handling, transport and accounting helpers support these explicit contracts. [Backend guidance](../../INSTRUCTIONS.md#backend-guidance) owns logging and executor rules. Credentials and live qualification are outside this wiki's evidence; the [open commitments](../../INSTRUCTIONS.md#unresolved-commitments) remain authoritative.
 
 ## Source evidence
+
+- [Live issuance quota](../../../backend/services/desktop_inference.py#L60-L74)
+- [Public compute admission regressions](../../../backend/tests/unit/test_public_compute_access.py)
 
 - [Exact instruction resolution](../../../backend/utils/observability/conversation_prompts.py)
 - [Exclusive token accounting](../../../backend/utils/llm/gemini_usage.py)

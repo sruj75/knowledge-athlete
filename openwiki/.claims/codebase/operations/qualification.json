@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:10f57ef468cee116f31969e58cd975950a5c7b4962fd947d916b6a7639966129",
+  "pageVersion": "sha256:1d27ec114375bf77cc121a9e1602713fed1f293f0107410d1cf5918f798ce4a9",
   "claims": [
     {
       "id": "claim_374445dd3f514c12af7a7a6aed43412f",
@@ -78,7 +78,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
-          "version": "repo-file-v1:sha256:16f080692068cb818586fd241dbd658dc9bba82fc14ff64c65a9242dc77d5b25"
+          "version": "repo-file-v1:sha256:8f8f6a66a25e6ac0723874319b302d72d01b6fefaf5ab3ea60ba97a0d7290938"
         }
       ]
     },
@@ -118,7 +118,7 @@
         },
         {
           "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L40-L134",
-          "version": "repo-lines-v1:sha256:02816461a6b9d1949bff154d48776c8b2a6d6fb46a562e7c503709d6b4f5efd6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMGRmN2Q2ZDJjNjMyMjY3NDAyZTdjZTJiY2U0Mzk2ZDRlZjQwZTVhODI4YTY1MTA0MjA4ODI2Yjc2NjAyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ZTk1MjgwMWM5MTBlZGQwZGJkNDdlNmFhZGUxYjMzZGJkOTA3N2QyYzk3Mjg3ODc5N2JhNDAyNDVkOTY4ZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3OTNiMDczYzE0ODYyMzIxMGJkZTI0ZmZhNjc5NzNhZjI0NzE0ZTY3ODlkNzRmODEzODVhY2RhOTE1OTBjZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5OTc4MTQzZDE3MDI1MzkxNjk2NGQ3MzkyYzljZjM2ZTQwODgxYmY0YjJkYzcxOGVjYjJjNGE5N2YyMTQyM2QifQ"
+          "version": "repo-lines-v1:sha256:5137609e62d310caa4db2ac62ee22a94a50fa1ceedf48f0dcada3b3d23e30eb7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI2MTBkZjdkNmQyYzYzMjI2NzQwMmU3Y2UyYmNlNDM5NmQ0ZWY0MGU1YTgyOGE2NTEwNDIwODgyNmI3NjYwMjVmIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI1NWU5NTI4MDFjOTEwZWRkMGRiZDQ3ZTZhYWRlMWIzM2RiZDkwNzdkMmM5NzI4Nzg3OTdiYTQwMjQ1ZDk2OGQyIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI2NzkzYjA3M2MxNDg2MjMyMTBiZGUyNGZmYTY3OTczYWYyNDcxNGU2Nzg5ZDc0ZjgxMzg1YWNkYTkxNTkwY2ZmIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyOTk3ODE0M2QxNzAyNTM5MTY5NjRkNzM5MmM5Y2YzNmU0MDg4MWJmNGIyZGM3MThlY2IyYzRhOTdmMjE0MjNkIn0"
         }
       ]
     },
@@ -151,10 +151,20 @@
           "version": "repo-lines-v1:sha256:bafa7d6fa13cf816c5b43aa0b71440dcbb3f3aafdcaf1c96ac949275d38fb5da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhY2UyMTIwNjkzNDA3NWZhYTdhNDk2ODMxMDVjMmM0MTVlNWY3MTc5YjU2OTkzZDU1ODFlZTM3NDZkYjU4ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1YjA1NGNkZTcyMzBhZjc2ZGZhNjdlOTdjZmVmZTQyMzhmMTVlYmEyZjY5MTE5MmIwMjliM2I3NzQ0Mzk0OGMifQ"
         }
       ]
+    },
+    {
+      "id": "claim_465701d64d3749209a724cf07cfb0296",
+      "statement": "The manual conversation flow uses content-free A snapshots for exchange-level delivery correlation and B snapshots for observation measurement, explicitly separating offline preparation, PCM/drain evidence and evaluator round-trip timing from human-heard/provider qualification.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L59-L80",
+          "version": "repo-lines-v1:sha256:c7ae8d56c842340fe3d73c3aaa45316e322bc5de48b5044ea1f3fc91f166aec7:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmZjU2M2I1NWU1Njg3ODI4MDk1MjA1ZjA1NTYyMzQ3OTQ0YjdjNjY3OTFkMmVmYTk3MDc0MTMxZWZhMjExZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxYzhlNmNjOTNjYzM0NzdhNjA3MzczMmEwZmI1YWZkMjliNzFkNzNlMmEyNmJmNzM4NGQ2ZTJjNDQyNzY5ZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUwNzM5OTMwNzlkYWU3ZjIyNjBlM2M1NDU0ZjlhZDhjNTM2YTA1NjAzMzQ5MzhjN2JiMzA3NTg5ZTMxODIyNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoyLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA2NmIyNmZjZjBkOWYyNzliNjRiZmEyZTY1MmIwODIxNDRhMGI5ZmI3ZDkyMjhkNDVlNGM2OTQwNjhhOTgyOWUifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T06:57:13.407Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

@@ -40,10 +40,10 @@ sources:
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-543a4acc2ebff40b6e85a9d0
     resource: repo://scripts/dev-harness/dev_harness/config.py
-generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T15:50:15.263Z
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Supervisor conversation
 
@@ -79,7 +79,7 @@ Local observation can sample once per second. A meaningful change establishes a 
 
 Only one inference request can be in flight. New input replaces the pending snapshot instead of creating a backlog. Content revision, capture age, request admission time and guidance expiry are separate. Guidance expires thirty seconds after admission, including context-loading and inference time. Account, capture-session and relevant-context checks fence asynchronous results before delivery. Opening A does not itself invalidate the cue that opened it.
 
-The scheduler records admissions, budget deferrals, capture age, queue time, provider time and end-to-end time. Development has a separately configured B allowance of 6,000 requests per day; the hosted limit remains 1,500. These are implementation defaults, not measured production cost ceilings.
+The read-only nonproduction diagnostic snapshot records session-scoped admissions, budget deferrals, fixed-reason skips, evaluator starts/returns/failures and constant-size timing aggregates. It also projects permitted input age, pending work, budget and retry state without exposing image/transcript/guidance content or the process-wide content revision. Ending a session resets counters and rejects old completion receipts. Evaluator round-trip includes network/backend time; provider-only latency and exclusive token counts come from backend telemetry. Development has a separately configured B allowance of 6,000 requests per day; the hosted limit remains 1,500. These are implementation defaults, not measured production cost ceilings.
 
 ## Private decisions and delivery
 
@@ -107,6 +107,6 @@ Evaluation sharing starts off and is scoped to the current session. Consent epoc
 
 ## Verification boundary
 
-Tests cover scheduling, budget sharing, scoped cues, transcript replacement, capture isolation, private provider requests and canonical delivery outcomes. The [manual conversation flow](../../../desktop/macos/e2e/flows/supervisor-conversation.yaml) additionally requires human-heard speech and natural interruption on speakers, headphones and a supported Bluetooth route. A provider protocol probe, an app launch and a fake-clock workday are distinct from physical audio acceptance and an eight-hour resource soak.
+Tests cover scheduling, budget sharing, scoped cues, transcript replacement, capture isolation, private provider requests and canonical delivery outcomes. The [manual conversation flow](../../../desktop/macos/e2e/flows/supervisor-conversation.yaml) additionally requires human-heard speech and natural interruption on speakers, headphones and a supported Bluetooth route. A provider protocol probe, an app launch and a fake-clock workday are distinct from physical audio acceptance and an eight-hour resource soak. The [authored initial launch scope](../../INSTRUCTIONS.md#product-constraints) starts with one real owner pilot; the extended device matrix and soak remain unperformed qualifications rather than additional gates for that short pilot.
 
 [Start here](../../quickstart.md) · [Authored guidance](../../INSTRUCTIONS.md)

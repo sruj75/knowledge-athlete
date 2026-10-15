@@ -3,9 +3,6 @@ type: Codebase guide
 title: Qualification and open obligations
 description: Explain evidence gates and existing harnesses; link authored open commitments without claiming qualification.
 tags: [intentive, codebase]
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-10-15T06:57:13.407Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
@@ -47,7 +44,10 @@ sources:
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-10-15T06:57:13.407Z" }
+generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-15T08:50:15.427Z
 ---
 # Qualification and open obligations
 
@@ -77,6 +77,8 @@ Failure-class metadata points to retained guard owners: HTTP status/detail cover
 
 ## Conversational product qualification
 
+The October 15 [authored launch scope](../../INSTRUCTIONS.md#product-constraints) starts with one real owner pilot, then the existing signed/notarized public DMG path. The full manual flow below retains broader audio-route and eight-hour coverage. Those extended checks remain unperformed qualifications; they are not added gates for the short owner pilot. Component or offline evidence cannot mark them complete.
+
 The manual `supervisor-conversation` flow requires the exact named development bundle, authenticated Gemini and identified A/B instructions. Both user and B starts must support several replies without another shortcut press. Natural interruption must be heard and exercised on speakers, headphones and a supported Bluetooth route, with output stopped promptly and no self-trigger from A's playback.
 
 Both starts must reveal the same original notch/chat surface, with blue opening glow, thinking, real microphone-level input waves and rendered-playback feedback. Check visibility between replies and after focus loss, rapid close/reopen, and clean conversation termination on explicit hide/snooze. The non-production `debug_bar_state` preview can render these phases with declared synthetic levels without starting capture or providers. Restore `idle` after preview; these images establish presentation only and cannot pass physical voice acceptance.
@@ -86,6 +88,8 @@ Verify explicit close, completion after final playback, newer activity supersedi
 Private guidance must wait through generation/playback and append at an idle boundary without unsolicited competing speech. Wire shape alone does not prove this provider behavior. Check partial transcript revisions, interrupted delivery, stale cue rejection, independent permissions, camera denial/disconnection and account/lock/sleep isolation. An unchanged scene must remain observable without duplicate archive/OCR writes.
 
 Prompt pinning, telemetry privacy and quota retry behavior have separate assertions. Private guidance/images never enter history or observability, even in a selected evaluation session. Metadata receipts may correlate B decisions, actual delivery and feedback; old journal rows do not recreate in-memory feedback receipts after restart.
+
+For local preparation, use the nonproduction `conversation_diagnostics_snapshot` and `supervisor_diagnostics_snapshot` actions described under [measurement boundaries](../integrations/telemetry.md#measurement-boundaries). The manual flow asks for step-bound A snapshots and B timing/budget observations. PCM counters include silence; a sealed playback drain still requires a completed outcome and human-heard evidence. B round-trip time is not provider-only latency. Offline fixtures and a capture-inactive snapshot smoke check require no paid inference and do not pass the physical/provider rows.
 
 After provider and physical checks pass, perform the real eight-hour observation/resource soak, measuring CPU/memory, evaluation counts, exclusive tokens, capture/queue/provider/end-to-end timing, skipped work and quota gaps. Fake-clock scheduling profiles support comparison but establish neither real resource stability nor a production cost ceiling. Missing provider access, silent-append failure or natural-interruption failure remains an explicit qualification blocker.
 

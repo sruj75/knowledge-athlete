@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:51aebbaa879b9b838f326ff708ee35f6b03c40c49d13fcde6817102b28da0358",
+  "pageVersion": "sha256:f6c36ad984e2b3db2f90cff67f3df99b56db8b90fe9796b7d9ef940b825c4c49",
   "claims": [
     {
       "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
@@ -31,20 +31,20 @@
       "statement": "Direct conversation revisions and terminal playback outcomes update the same bounded Supervisor turn under captured owner/session admission, with revoked admissions rejected.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1026-L1049",
-          "version": "repo-lines-v1:sha256:982efdd0dc5b4f2e93394400ea803761cc77bc33e8082065afb10f643a64c6fe:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjYTRmODMxNDVlMjA5YjJlZjNhNDhiZGFkODkyZDEyMzUyMmExYzM4OTY4ZGU3OWJmMGY5MzNiNzhjMmJkOGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA5YjI4NzFlYThiMDBiOWRiNjc2YTFiMWQxMDhhZjJlMDRjNGIzMjc3OTJhMzM0ZGJmNGYyZTYxZmVhNGIxMTYifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1078-L1091",
+          "version": "repo-lines-v1:sha256:04d3745901e2d4674997b00e2276749767a325087e4a0e56c92ac76331ca5937:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxNjUwMmFlMzAxNmJlMDYxOTg0NDU1Njg3ZmE0ZWQ1MWFlNzFlYmM1MDNkZjg2OGU2ZWY4MzUzNWJiNzdkOTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM5MjRlMGExOTE3YzY4NWViMjUwNGFjMzlmODBlNThmOWIwODZlYTc3OTgzY2E2ZGRhMGJjNmI2OTQ5OWJhYjcifQ"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1134-L1141",
-          "version": "repo-lines-v1:sha256:33556adb03e14381255290ba48655ae74f04cb335a2b878629b7d630394c8902:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjU1OTE3MTExODg2ZDEzMWMwMDY0OGVmYWNkYjQ3NmU3YjFiY2E5YWIwMTFjM2MxMTBiNzE4OWE5ZDk3ZDA2MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjdlNTc4OGQ1ZDlkNzNkMjRhODFkYmMwYTVhNzRiZmE4MmM5YzNiM2FmOTllNTJhZjc5NmU5MGI0NjhhOGEzZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTViYjQ1Mjc0YTkxNzczMjE5Y2M2NGQ3YjU1Yjk1YmEyNzdmMjkyOWMwOTdlMmE4MWYzM2MzYzdhOTUwMmUyNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYWVmNGNkYjY4YWNjMTMyOTYzMzc5ZGQyZDhjOWUxY2E5YTViZWI0MDdkMzAzYzA1ZDk3ZGIzMDQzOGY3OTA5NyJ9"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1192-L1202",
+          "version": "repo-lines-v1:sha256:eb59a1f3a070bfab49691045cf5aec9d7e29a35ec92fa114797543a0454f9004:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1NTkxNzExMTg4NmQxMzFjMDA2NDhlZmFjZGI0NzZlN2IxYmNhOWFiMDExYzNjMTEwYjcxODlhOWQ5N2QwNjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk4ZWIzZDU5ZmQ2ZjA5YTc0OWY5YThkNWVkZmI2MDNiZTI5YzIyNTI4M2E5YmY3YmE0ZGYwZDY5NGU2ZDA4YzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE1YmI0NTI3NGE5MTc3MzIxOWNjNjRkN2I1NWI5NWJhMjc3ZjI5MjljMDk3ZTJhODFmMzNjM2M3YTk1MDJlMjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1MGU1MGFjZTU4MjgyZjlmZTQ2MTgwMDI5NDc4MjBjNmRkMWZlNjRjYmVmMjdhMjEyMjYzZGM0ZjA3NjA2NDkifQ"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L630-L648",
-          "version": "repo-lines-v1:sha256:5f67a8778b016314cd027f3ebe1947d2cc9cb5c45cb0d992970a98cafeda3b86:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMTU0Y2I1NmI4NzgwMzA2ZWU2YzgyNzkxYWM2YTE2ZGI0NGUxMmM3MWQ0OGMxODA2NWNkNGFjZGUwNjQ1MmUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxYzllMzEwODA1NGQ1MTVkNDhjNmQ1MTBmZmViZThlOGM1ZTcyMTEzNWE5MmVjNmE5NWIwMjY2NGY4NmE5NWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzY2JiYzVjOGVjN2U5MTRjMjNmMmYxZGM1ODVjMDVjZmNjOWVjNmZmZWI2YjhjYTU1YWNiNzgwOGUwMDI2OTciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiOGY4Y2YyZjZjMDM1MmQ3YmQwZDY1MWEwZGI3NGRlYTM4ZGZmZGIxZDIxOGE3NmYxMTA2NTViMTZjNTM5MWIifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L792-L804",
+          "version": "repo-lines-v1:sha256:c676bb81ba84d27f004f48ea95fdc21295eadfe9d9cc4909c9cdcfbac1a43662:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiNjE3NjA4NmYzYzdiMjc2OGQyZWM5Mzc5ZWI5ZDk0NTYzMTg3Y2QzZDQ4YWVjYTBhOGNmMzdmNTMxYTIxOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhOTA5MjFhN2Y3NTY0NzFhMTBlYzM2MTI4NzgyODRlOGRlNWY4YTM1Mzk4ODM2YjNhZDczYjNjNGFkN2IyZTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliODA2NDAzNGUxZDc1ZDY0YzgzOTRjZDJmMTQ0MTM4MTZiZTEwY2EzNDY2N2E3YzA2OGFkYjQ3NTU0MDgwNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVlYTgyYTY2M2RiYmVlYzZjMzdmNDFhNDUzYzlkYjQyMGJkNWM0NThhZTBmYjJkNWJjMGU5Y2RlOWYyNTQzYzgifQ"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L270-L285",
-          "version": "repo-lines-v1:sha256:8fcb7d74c11cac6ed863f73623a3825b4f7bf8ced580fa17ca579c454ccdd44e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZDEzMjJmMDgwYWI0OTM0ZmRkYjM0NmQ1YmI0NzZiMDhmYzQ4NDJmMzNjMTRkODE5Y2I2ZDA0NjVhOWY3ZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzNWZlZTk1M2YzN2ZmM2M1NTkwNGQ0ZThmMmRhYWMyMjJkMDZkZDE3NjlmZTZiZTU0OWRlOGQxNGY0MTFiYzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyZmY2NDQwY2IwMTMxN2M3MGE3NjEwY2Q0NWJjMzRmOWFlMWI3MTg3NzdjNzgwNTEwN2RiNWQ1NzY1MTZkYmMifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L273-L286",
+          "version": "repo-lines-v1:sha256:bef3adf2d2ae2651fd4fe897bc845c61373d5f58bed9fcf7e3d296df6f809027:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZDEzMjJmMDgwYWI0OTM0ZmRkYjM0NmQ1YmI0NzZiMDhmYzQ4NDJmMzNjMTRkODE5Y2I2ZDA0NjVhOWY3ZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmMTE3NzhjMWFjMGVkY2NiMTFkOTY5OTI2MmMzOGU3NTA4ZGE4NzRjMWY2MzU5NTAyOTcxNGIzM2IxODUwOGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYzNWZlZTk1M2YzN2ZmM2M1NTkwNGQ0ZThmMmRhYWMyMjJkMDZkZDE3NjlmZTZiZTU0OWRlOGQxNGY0MTFiYzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiMmNhNDk3YzMxYzRiYWM4YmYwMDFlZTQ4NTZjNzczNzAzNzZjNTUxZjExMGRjODRkNmNjMTVmYmUzN2JlMDcifQ"
         }
       ]
     },
@@ -68,7 +68,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift",
-          "version": "repo-file-v1:sha256:cbe26c0efaf80d3759b8e54c6dce5f62f73552292929cc681e3fe4edf147022b"
+          "version": "repo-file-v1:sha256:1ea8b42ea27440cd0eb96b0539c26042fb7776c1bc4b8099404a0b3b3f826993"
         }
       ]
     },
@@ -143,6 +143,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T08:34:31.929Z"
   }
 }

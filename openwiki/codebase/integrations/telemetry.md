@@ -24,6 +24,12 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
   - id: openwiki-source-0f0462a4bfd1de02ce1949b1
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/APIClient%2BSupervisor.swift
+  - id: openwiki-source-165d8d846888f007d8821c81
+    resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationDiagnosticActions.swift
+  - id: openwiki-source-869496739638054d1bb1d66f
+    resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationSupervisorDiagnosticActions.swift
+  - id: openwiki-source-3ac56b02c6af3d6838b2d7f7
+    resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDiagnosticLedger.swift
   - id: openwiki-source-db06656b742d5a9138835e33
     resource: repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLiveSession.swift
   - id: openwiki-source-65f1ed7dfa0d6b5cfc855b63
@@ -32,16 +38,20 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/Observability/SentryBeforeSendPolicy.swift
   - id: openwiki-source-c2b1bb99ebb64c26ca0bc0e2
     resource: repo://desktop/macos/Desktop/Sources/Privacy/ProductAnalyticsConsentController.swift
+  - id: openwiki-source-a87b35c218de8f3bf296d20b
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorDiagnosticSnapshot.swift
+  - id: openwiki-source-e0e1aceea6bbd06a72738ece
+    resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-d2fcc2b5c63a2a31e81a6ae9
     resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
   - id: openwiki-source-c8eeff499a30efe076e6b5cf
     resource: repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift
   - id: openwiki-source-abb5b57da8acacb3c7b68515
     resource: repo://desktop/macos/Desktop/Tests/APIClientRoutingTests.swift
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
+generated: { by: "codex", at: "2026-10-15T08:34:31.929Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T15:10:35.595Z
+    at: 2026-10-15T08:34:31.929Z
 ---
 # Telemetry and privacy boundaries
 
@@ -76,6 +86,10 @@ Chat uses the successful managed request ID. A short-lived Redis receipt stores 
 Provider usage distinguishes uncached input, cached input, output and thinking tokens so totals do not double count cached prompt content. Actual returned model versions are recorded when available; the requested route is not substituted for missing provider evidence. B records capture age, queue/provider/end-to-end latency, skipped evaluations and quota gaps without image bytes.
 
 Typed response timing ends at visible completion and voice timing at actual playback completion/interruption, before awaiting final journal acknowledgement. Persistence failure cannot erase delivery the user already heard. Route changes to batch or system speech use the existing bounded fallback reporter. A fake-clock workday tests admission counts; it does not measure provider cost or real resource stability.
+
+Nonproduction automation exposes read-only `conversation_diagnostics_snapshot` and `supervisor_diagnostics_snapshot` actions. A reports bounded correlation/prompt references, admitted processed PCM counts and the latest delivery/render/sealed-drain receipt. Its ledger rejects old owner/generation callbacks and retains closed metadata only for the same authentication epoch. PCM includes silence, and rendered/drained output is not proof of human hearing or journal acknowledgement.
+
+B reports session-scoped counters and constant-size timing aggregates, input age, pending work, budget and retry state. It excludes the process-wide content revision. Evaluator starts are client requests; returns are not successful decisions. Round-trip time includes network/backend work, and the admission slot also covers preparation/delivery. These local snapshots neither start capture nor export dialogue, images, prompts, guidance or raw owner IDs; provider telemetry remains necessary for provider-only latency and token accounting.
 
 ## Verification
 

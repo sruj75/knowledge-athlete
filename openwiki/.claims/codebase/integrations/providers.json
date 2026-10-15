@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:8e1ed7f549327a15d11d32998f18c4823bdcf4a706de1b23df661948cbae3fdb",
+  "pageVersion": "sha256:ebd4038bfa68afd8ea5ed389250c7a01efcd991d31f0fec8fc0f50be5c914e86",
   "claims": [
     {
       "id": "claim_13783c2d5b6c412c840eb0045df11b2b",
@@ -60,7 +60,7 @@
       "evidence": [
         {
           "resource": "repo://backend/routers/desktop_realtime.py",
-          "version": "repo-file-v1:sha256:affacfc00e221c247cabdb6e032973dd6a35e16e8f1791c5f4b3c50d77709da1"
+          "version": "repo-file-v1:sha256:5e4c06eb6a2e299c96a357ad458d8150b10ad1750233fcd05fb50d88de182d38"
         },
         {
           "resource": "repo://backend/routers/desktop_supervisor.py#L78-L98",
@@ -97,10 +97,42 @@
           "version": "repo-lines-v1:sha256:204f154d0ac948833ce599fef23c71e7c5fad528a1d4ed8de2cd4aa2396e9975:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZTVkMzQxMzA0ZmU5ZjU3ODNlOTI5ZGViYTEyZjVmMTliOGRkODJmNDRkZDEwNzY3YTFkMmQxODQ2NmIzNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc4N2FmYzEyMTY0NDA2NDFhOWQ0ZWRlYWQ4ZWJiMzkwMTJmNzkzNzdkZmI4YjJjYzM1Zjg2Zjc4MmNlNmQ5NWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhjYzRhN2QxY2M3OTZhYmEzZTQ2NzIzMzI3ZjUxN2U5ZjgxMTk4MmQyNTBmMDcwMjk4NmU0YjU3NjRhZDk1ODkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRiY2MwMGRmMTgwZDQyNDg5OTM4NDE5YjIzNzc1MWNlOTI3ZDY5ZDcwODc1MzQxYmFiOWRlYzlhZjcyMGI0ZTYifQ"
         }
       ]
+    },
+    {
+      "id": "claim_64e8bf3626ff4b20b783f44582d2666d",
+      "statement": "When LLM stub mode is enabled, the Live mint and TTS handlers return configured-provider 503 errors before provider HTTP, and TTS does not reach its quota meter.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L125-L150",
+          "version": "repo-lines-v1:sha256:5ff21fccd714026bfa0d890f487b859f3a539eb66f87241c1dc17f88c5c112ff:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyMjY0NThkZGRmMGEyMTZlYTQyY2RkYjkyZjgwMmVlZDRmN2M5NDIxMzJhZDZlNWI3ZDA0ZWU3ZWI0YmZlZGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFmYWJmNDFkNDEyNzYwMDQwODE4NTkyNjJmYzQ2NGZmYWZjZTU4MjVmYTg5YjExYTYwMmVhMmU4Nzg3M2E2ZDkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlOGYxYjFlM2JlMjVhOTg3MTNlY2JhMDEzZWJlMmUxM2E0MGZmYmNhYmE4YjY3M2FkOTJkMzAxZDgxMTJhMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhOTllMDhiYWM1OWQ2MjQ2MjA3ZjQyN2M1NmUxY2JiMTJkNzE1YmM0YTE2ZjFkM2QxZmFmMmJhZDQzNDEzMjgifQ"
+        },
+        {
+          "resource": "repo://backend/routers/desktop_tts_updates.py#L198-L223",
+          "version": "repo-lines-v1:sha256:087f742f07b236d2e27aefd8bfc3cd023e58a6bc0bfab9c4a48595d074071a8b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE0MDBkMGVjMmY5MTlkNWZjZDg1YTc5NzQwYmRlZWQwOGMwYzEzZDViNDIxMTFhMTMyNDFjMTRlYWE5ZjdlODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE4ZjU5MjA0YzFjM2RmMzlkNGY5ZDVlN2E5N2Q5N2E4NTU1MDExYzM0YTg2MzIxMjQ3YTE3MWQyMzhkOTFmNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkNDNhZDNlYThlNTRiZWFiYzhjMWQxODhkZDc3ODFjZmIwZTlmYjQzNTVlYmIyYzNiMTRhM2E0NWEzNDdmYTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_568f6e225a234a4d8e4cba84e1244a4f",
+      "statement": "Live token issuance checks the existing per-account Gemini burst/daily limiter before provider transport, failing closed with 429 for exhaustion or 503 for limiter failure; offline stub mode exits first.",
+      "evidence": [
+        {
+          "resource": "repo://backend/routers/desktop_realtime.py#L124-L153",
+          "version": "repo-lines-v1:sha256:29c101550ff92813752bb72362d838968f7801c0e53c526641b8fa97f8bc6f88:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwYzc4ZTA3ZTZhOTVjMWJhMTYzZjhhMDZlM2IxMzQ3ZTM3OWY1ZWE5ODE1MGMxNjZiYjVkNDQ1M2FhM2IwOTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUzNzQwYTFlNTk1NjEwMDM2ZWU0Y2MzYmI3OWNmMWYyZDczMjMyOWMxZDA0YTUyZmFjYzgzMTRjZmZiZWM4MjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI5ZjY1Y2VlMDM1M2Q4OWNkYmNkMGM0NDQ2MTIyNDFlMWM0ZWFkNDIxNzhiMjdhNmRiMmFjMWQ5MDU2ZjYwYjMifQ"
+        },
+        {
+          "resource": "repo://backend/services/desktop_inference.py#L60-L74",
+          "version": "repo-lines-v1:sha256:54069fd17e7793f746f3064ce97df5dfd7a05b1f92e48aff4821a734f169174a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0OTMyN2NiYjAzMTJlNzQyYjJlMDE1OTE3NjM3MmI1MmM5Zjk3ZTNlOTA0MGRlYmJhNmY5OGZmMjUyNjEyYTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5OWMyNmJmOTJiNWIzNGUyMjk0ZTlhMWYyZWQ0ZjJjMmIxZWJiMWZiZmVlYTA5YTAyODZlMDc4YTQwNjAwZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlMzk1NmYxNWFkZDRhZWRiNjVkZjBkZDEzMmJiODc2NjlmYWMwMTQ3M2YzZDY2MDhkMTRjMDBkOTVjODU4YjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkMjlhNWM4ZmM1MWJhZjgzZmI5YzhjYTQyNjcxNzUwYTNlMjE2MTcwZjBmNGRmMDMyY2MxYjI0ZGNiNjM2MWQifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py#L246-L304",
+          "version": "repo-lines-v1:sha256:56526ecb78e4f621aeec39d59bd981a4c3fa05b6c05140a19b330bf3f219b546:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwMGUwMDQwMTZjOGIyYzkxNWE1YTE1YzUwZDdlMmE3ZjExNDNhNWY3NjcyMDI0NmJhMTZkYjhkZDgyMDk2ZDkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJmZjc2NGYwZWUyMDgyZGQxMTQ1NjRhMjhmYzFiNWEzNmM1YWFhMTQwMWJkOGU2NGYzNTQ4MThjNDQzZjZjOTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFlOTU1ZDc2NjVlNDI4ZTc5NTk3MjRiNjIyZGY2MzNhOGU0MWJiOTQzYWNlOTY2MzkzN2UzNTAyNTVmNTFmMTIifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

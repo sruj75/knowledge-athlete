@@ -1,14 +1,26 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:15ecfaa9f7ff0b44e012ded12b9891255d9751aed567d688905da2bfc1409daf",
+  "pageVersion": "sha256:de3bfcd3d6ac997d82042d6363e8ef731054459fb42e3a1eb0715e04321e46ba",
   "claims": [
     {
       "id": "claim_71c8768653304d5c963d19b19d4e10c5",
-      "statement": "Hosted product compute and general authenticated account operations use distinct identity dependencies.",
+      "statement": "Hosted product compute and account operations share Firebase-authenticated identity dependencies without an invite-only participant gate; hosted stage and Cloud Run identity reject the synthetic local-token fallback.",
       "evidence": [
         {
-          "resource": "repo://backend/utils/other/endpoints.py#L132-L175",
-          "version": "repo-lines-v1:sha256:2242e40acfd8fdcff3e436506f0fd2a42584c1982e145778c27fcab03bd20658:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxNDljODUxMzM1MmI0MDY4ZWYwZTVjYzY2YWFmYzg4YmVjNTFhZTg3ODQzNDVhNDhhNDdlYzUyMDQ2OGU5NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MTU1YjA3OTk1MDU4ODI2MmZmOGEzOWUwOTljNDYxNzY4ZTJiYWIzZDIwNDgzMGZlY2JkYjU1N2ExZGZlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhYjQxOTQzYjQ1Y2Y4Mjg0MzQ2YjRhNWM4NzJiZDEyODI3MWEyZDViN2Q5ODlhZjczYzkyZTUyNGU1NzNhNmEifQ"
+          "resource": "repo://backend/tests/unit/test_public_compute_access.py#L53-L183",
+          "version": "repo-lines-v1:sha256:d208f6089e34c04144d458cbe5d7540684492a7b4d44153a0080e88ef8ab7818:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMmU3YjlmYjg3YjA4NTdlYWE1ODNlMGEyN2QwNzFjODhkNzZlNzQyYjVmMWNmMTA4NzZhNTBmODAyMGNkZjQxIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxZWZhYzlhNmI2OGQwOTQ0ZmQzMzZkYzhmMzkzOGI4YTE1Y2RmNmM0NmViYjg1YjQ5ODM1YjgyMTRjYTAxOTU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxOGU3YzI2MjMxMjVkMWNmOWVhYTk3YWU1ZDI3Y2IxZjQ0ODEyY2FlMjk0MWI5MzQ3NzljYjY2OTY3YTFkYmU3In0"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_public_compute_access_topology.py",
+          "version": "repo-file-v1:sha256:09456553827194ed8dccafe032adc8949be7556fe24dca05e43d86116056a5a6"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L125-L199",
+          "version": "repo-lines-v1:sha256:316a43fa4dd3b279fdab972ccb35b7e42b43bb96ce6f7053b499b47ebd0dda61:eyJzZWxlY3RlZExpbmVDb3VudCI6NzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YTBkMmIwYzBhMTUzZjM2ZjZhZTU4OWQ1ZDU4YzU1OTdlNWY2ZDRkZjVmMDQ3OWUyZTU2NWY3OTExYzRmZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE2MTU1YjA3OTk1MDU4ODI2MmZmOGEzOWUwOTljNDYxNzY4ZTJiYWIzZDIwNDgzMGZlY2JkYjU1N2ExZGZlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZlMzk1NmYxNWFkZDRhZWRiNjVkZjBkZDEzMmJiODc2NjlmYWMwMTQ3M2YzZDY2MDhkMTRjMDBkOTVjODU4YjMifQ"
+        },
+        {
+          "resource": "repo://backend/utils/other/endpoints.py#L65-L94",
+          "version": "repo-lines-v1:sha256:10289b0ced81ae3f2544c8e862f4c1386ac4187698042b8c06811d1e9e68f31c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxN2E3YWVmMTJmOWMxNWE4ZDM1ZGJkNGZlYTk3MDRhM2JiNDRkYTc1NWZmY2UyMDE4NjUwNzVjOGE5NGY0MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxZTQ1NmM4NzU4NzFhZDRjNjgwMGJlMWM1ZGQwYmViNWQ3ZGZmNTkyY2ZjZTA4ZmJmYzQyZmM1MWJlMzdhNDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmZDE3Mjk2Y2MzZjIwNmFiYjhmNWRjNjRiMGNlZmVkYjEwM2M1Njk5YmUxMzZmNTBjNTJiZjg2MTc5Yzk2ODMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiYzczOWM2YTA4ZDBhOGJkZTA3ZjNkYzk4ZDVlOTllZjk2MzEzMTBkZjkyMWFmMzllNTUxZTljNDMyZGZhYjMifQ"
         }
       ]
     },
@@ -18,7 +30,7 @@
       "evidence": [
         {
           "resource": "repo://backend/routers/memory_compute.py",
-          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+          "version": "repo-file-v1:sha256:3768c3d11e05b22271414411a2b27e147e02c9d4b878de0799632f8974a0307a"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Rewind/Core/LocalMemoryLifecycleRunner.swift#L86-L119",
@@ -50,7 +62,7 @@
         },
         {
           "resource": "repo://backend/routers/desktop_realtime.py",
-          "version": "repo-file-v1:sha256:affacfc00e221c247cabdb6e032973dd6a35e16e8f1791c5f4b3c50d77709da1"
+          "version": "repo-file-v1:sha256:5e4c06eb6a2e299c96a357ad458d8150b10ad1750233fcd05fb50d88de182d38"
         },
         {
           "resource": "repo://backend/utils/observability/conversation_prompts.py",
@@ -75,6 +87,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

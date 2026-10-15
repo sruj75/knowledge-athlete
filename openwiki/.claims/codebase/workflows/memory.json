@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:ca10faf1a4a5ea7f528b0166ef4c79429c28d56c38a49f87a6fa678fccc6e55c",
+  "pageVersion": "sha256:f7011fb7e4c498915c7bcee13e6bea97c59757b85787d7202e5eff44005b36e3",
   "claims": [
     {
       "id": "claim_a27d784147154d4482309535c1bb46f4",
@@ -32,11 +32,11 @@
       "evidence": [
         {
           "resource": "repo://backend/routers/memory_compute.py",
-          "version": "repo-file-v1:sha256:e7778b53c01129f59dd8ab6f01a496f0dc44ae6745e6e90b16cada793e759bfd"
+          "version": "repo-file-v1:sha256:3768c3d11e05b22271414411a2b27e147e02c9d4b878de0799632f8974a0307a"
         },
         {
           "resource": "repo://backend/tests/unit/test_memory_compute.py",
-          "version": "repo-file-v1:sha256:758614ce7c30b7019cdee3431c8bb6e619a9fe285969e52d141732010906a7f4"
+          "version": "repo-file-v1:sha256:54f1f487759b4a57e36b5932b0a30554769d64cbc16b4e0009f21b9a7c1170ac"
         }
       ]
     },
@@ -46,7 +46,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift",
-          "version": "repo-file-v1:sha256:138c3331ad948e8c66b2fd58f83b336ad30b3dfb13b0bdbc8fb75b304bd43e17"
+          "version": "repo-file-v1:sha256:e580dd19f0c8cfa71a52acf6193a156ab881eb8d2f32d1d4eb2ad283742a2a78"
         }
       ]
     },
@@ -89,6 +89,6 @@
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T08:50:15.427Z"
   }
 }

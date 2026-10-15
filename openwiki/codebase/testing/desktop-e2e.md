@@ -8,8 +8,14 @@ sources:
     resource: repo://desktop/macos/agent/tests/conversation-storage.test.ts
   - id: openwiki-source-1a5c75ab5fe48066cb01992a
     resource: repo://desktop/macos/Desktop/Sources/Automation/ConversationPresentationPreview.swift
+  - id: openwiki-source-165d8d846888f007d8821c81
+    resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationDiagnosticActions.swift
   - id: openwiki-source-1755dc193842bf4d7add2bd1
     resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationPreviewActions.swift
+  - id: openwiki-source-e931dc09c5362e329fe611a2
+    resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationPTTActions.swift
+  - id: openwiki-source-869496739638054d1bb1d66f
+    resource: repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationSupervisorDiagnosticActions.swift
   - id: openwiki-source-6b5fc7ac4b4a739ef71b172a
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
   - id: openwiki-source-c8eeff499a30efe076e6b5cf
@@ -48,10 +54,10 @@ sources:
     resource: repo://desktop/macos/scripts/omi-ctl
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
+generated: { by: "codex", at: "2026-10-15T08:34:31.929Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-14T15:50:15.263Z
+    at: 2026-10-15T08:34:31.929Z
 ---
 # Desktop end-to-end verification
 
@@ -105,6 +111,8 @@ Run affected XCTest suites in separate processes, for example `xcrun swift test 
 `AIEvaluationExportTests` and production API request tests check bounded export, consent epochs and owner revalidation after delayed token lookup. Private guidance is excluded even with opt-in; a telemetry 401 does not refresh, replay or sign out.
 
 `supervisor-conversation.yaml` remains manual. It requires several replies from user/B starts, spoken interruption on speakers/headphones/Bluetooth, all end conditions, multiple forced-fallback exchanges, silent private cues, independent input failures, prompt/privacy checks and a real eight-hour resource soak. T2/T3 success, injected PCM, provider-returned audio or a fake-clock workday cannot mark that flow passed. Record source/bundle/backend identity and measured timings separately from any blocked row.
+
+For read-only local measurement, call `conversation_diagnostics_snapshot` or `supervisor_diagnostics_snapshot` on that named nonproduction bridge. Each action returns a scoped `snapshot_json` string. Retain only that content-free projection, not the ordinary action envelope's broader UI state. A snapshots expose admitted processed PCM counts, IDs and delivery flags; B snapshots expose input age, session counters, timing aggregates, pending work and retry/budget status. Neither action starts capture or provider work. The [measurement boundaries](../integrations/telemetry.md#measurement-boundaries) explain why these counters do not by themselves pass the manual flow.
 
 ### Synthetic notch preview
 

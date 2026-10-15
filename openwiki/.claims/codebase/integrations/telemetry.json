@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:5262a80a79e8f5e9c2f8c567cce559033e83e4bded4f75373ebe9783da4d558e",
+  "pageVersion": "sha256:ce6526efbd48564cd045e5a4827b54bcf28d354a211cee4d5a6ccfc8beb49484",
   "claims": [
     {
       "id": "claim_ca8a32d6adf443868d9aa2e6f1a594c5",
@@ -117,18 +117,44 @@
           "version": "repo-file-v1:sha256:c4286d730c983eda4189682d96431997b989c2669bb1892e47d97dac83c33baf"
         },
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L995-L1035",
-          "version": "repo-lines-v1:sha256:763610557e371ae52bce4b3300ad2d5142a0591786d7c4f0896fbcccabfe24e0:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdjMTFjOTEyMTU0MDdkNTBhYzNkOTRmYzY0MmFiN2M0NzQ3ZDQ4NDA4ZGM0YzNiYzg5MzA3MDY4NmU2ZmY3ZmQifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationVoiceController.swift#L1078-L1127",
+          "version": "repo-lines-v1:sha256:a3f847c83d0b10760a4902c88bcff1ec7ad29fc2797670e50c987c2bcaa61137:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZTMyYTU2OTJmOWY1NWQ3ZmFiMDZjYjA0NGViNDdmZTVkNWJjYWZiMzYwODExODYwZDhmZWFhZTJiNzM5ZWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMTMzZDVlYzFkMWZiNjc4NTkyZjkyYTZjNTFlYWFkMzVkYTY4MWVkMTJmNWVkOTMxZWIwMWQyOTU0M2ZiNzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjZTZiZDNmZmFiMWY5NTAyNWNlMmMyOTkyNjg0NWEyNmM4OGIxZjBhZjAzNWY5ZjAzMTllNDE5OGY5MjdkZTcifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift",
           "version": "repo-file-v1:sha256:dad87ca479a7ba0c18f4da504313cc4dc45ec7319b694284315a13101ffb0329"
         }
       ]
+    },
+    {
+      "id": "claim_98400feb88fc45a5bfab2421bea9deb3",
+      "statement": "Nonproduction A/B diagnostic actions project content-free runtime metadata without starting capture; A fences input/delivery counters by owner and generation while B exposes session-scoped counters and bounded aggregate timing rather than provider-only latency.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationConversationDiagnosticActions.swift",
+          "version": "repo-file-v1:sha256:74a06103f886761d0eb7895a451c918d0b1775d3113ba4b384b79a86a6a3288e"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/Automation/DesktopAutomationSupervisorDiagnosticActions.swift",
+          "version": "repo-file-v1:sha256:fc494124e5ec34d99e9dc2761a01b9c408a08c1f74bad85a30e1567f77cf1a18"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDiagnosticLedger.swift",
+          "version": "repo-file-v1:sha256:45c3e20ab5a0deacc37332789b9b25d85ac455b7bc74de92e54165272fad2426"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorDiagnosticSnapshot.swift",
+          "version": "repo-file-v1:sha256:51eff8af66e4b29bf0a4800134d2d5a3d2f790dee1f43fdf3c2d6f34372f7379"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift#L587-L633",
+          "version": "repo-lines-v1:sha256:4d93a61dacd742faedf66d7904c0d1d80b61f4c5b6ca9b5efc1e207ed393ec7c:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmMmJjNjA2ODIwNDhkNjA3OTcyNTcwODg3ODJjM2ZiYTEzNjFlYzQ0NGQ1OTlkNmM0ZWZmYjk0MzVmMDNlOGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2MTJhZTNhMDM2NjUwMDRhMzIzYjkxNTQ2YzllN2JlZjcxNTY0YmVkNTUzZGU2MjIxOGQyZDA4OTJiMDJmN2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM4NjM5NzVhNzM5Yzk2ZTg3YmE5ODVlNDY1YjE0Yzk1ZjYzMDgxZTcxYzNlNjQwMGEzZGEwNzM5YTU1ZGQxNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiODNmYzk0YWQzNDgxZmVlNWJhYzcwNmY4NTE2YzdlMTdiZmY1M2M4YjZjMmJiNDk4MTgwZTUzNzNhNTJiZDQifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:10:35.595Z"
+    "at": "2026-10-15T08:34:31.929Z"
   }
 }
