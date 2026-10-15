@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:53deb10c2684dc6f31df2c55a0f0573a5061896f4db4b18ee6c9dc17af86aa83",
+  "pageVersion": "sha256:37d506768da70a88838e250daa99f4f237fe25266c9e304cd9bcab61cbaafbaa",
   "claims": [
     {
       "id": "claim_99203f0f8d854aa48cc2bf6b841ecff6",
@@ -186,13 +186,13 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
-          "version": "repo-file-v1:sha256:8f8f6a66a25e6ac0723874319b302d72d01b6fefaf5ab3ea60ba97a0d7290938"
+          "version": "repo-file-v1:sha256:3e2b6759a0fcd5c0fb5dbe5f576630bd2a3d791ee78d95614db167dd5ce7e6cf"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T08:50:15.427Z"
+    "at": "2026-10-15T14:47:39.134Z"
   }
 }

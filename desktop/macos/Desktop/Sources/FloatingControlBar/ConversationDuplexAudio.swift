@@ -66,6 +66,9 @@ final class ConversationDuplexAudio: @unchecked Sendable {
           self.playbackLevelHandler = playbackLevel
           engine.attach(player)
           engine.connect(player, to: engine.mainMixerNode, format: outputFormat)
+          // Voice processing requires identical input/output client formats.
+          // The mixer converts the provider's 24 kHz playback to that format.
+          engine.connect(engine.mainMixerNode, to: engine.outputNode, format: captureFormat)
           let generation = self.generation
           engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: captureFormat) {
             [weak self] buffer, _ in

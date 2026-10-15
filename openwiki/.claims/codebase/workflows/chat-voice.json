@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:f6c36ad984e2b3db2f90cff67f3df99b56db8b90fe9796b7d9ef940b825c4c49",
+  "pageVersion": "sha256:db33aa88f731ae8345f6f656671adc1bfb2b300c0e583616a12a1ce9d7cb6304",
   "claims": [
     {
       "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
@@ -78,7 +78,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift",
-          "version": "repo-file-v1:sha256:45c4a2123b896442344235d5e7bb97c941a9b945a3ee377ee328c84d73bd60e7"
+          "version": "repo-file-v1:sha256:fa4112f4d820f42dae822d3ccb304f233e636bf27be4b52445488e03f243a603"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLiveSession.swift",
@@ -118,7 +118,7 @@
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift#L68-L140",
-          "version": "repo-lines-v1:sha256:053ebbcb5171db942cf66577f17b55ddb0c468e67a3aadc188268f6b6fade31d:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmYjM1MzJlNDAzZWY4MGFlNDU3MDk1Y2M1NGMzNTZmYzA3Y2YxYjFiZWRkNWRkNTMyNjNkM2RjYjVhMWZkYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyYWIzNzVlYmQ5MzkzNWQ2MTI2Y2FmNjdhYTc4Y2VhZjhlNjdhNzI5YjE5ZjIzNDg3Y2QyYmNhY2ZiOTZiNWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkYWNhYWQ2Yzk3MTIzNDNlYTI1M2UxMzU3YTc3OGJhN2Y4NmY3YWQ2YTRlMmJjYTg1YWJiMmJmNTQyMzFmMDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlYjc1Y2UzOGZlMWQ3MWVkNWJkMGZkZDAzMzkyMTQ5MjFlOGE5YzE1YjE4N2JjNzc2NGMxMTU5ODRjMmRhYjgifQ"
+          "version": "repo-lines-v1:sha256:49c91e95f1aec927c5d5498776036f490729407cb6250c3d0c83ca4bc898ab62:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNmYjM1MzJlNDAzZWY4MGFlNDU3MDk1Y2M1NGMzNTZmYzA3Y2YxYjFiZWRkNWRkNTMyNjNkM2RjYjVhMWZkYWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyYWIzNzVlYmQ5MzkzNWQ2MTI2Y2FmNjdhYTc4Y2VhZjhlNjdhNzI5YjE5ZjIzNDg3Y2QyYmNhY2ZiOTZiNWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkYWNhYWQ2Yzk3MTIzNDNlYTI1M2UxMzU3YTc3OGJhN2Y4NmY3YWQ2YTRlMmJjYTg1YWJiMmJmNTQyMzFmMDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlYjc1Y2UzOGZlMWQ3MWVkNWJkMGZkZDAzMzkyMTQ5MjFlOGE5YzE1YjE4N2JjNzc2NGMxMTU5ODRjMmRhYjgifQ"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationPresentation.swift",
@@ -139,10 +139,20 @@
           "version": "repo-lines-v1:sha256:fa9707e09de191206eb522d8372e41497a7c0106c8fccf5368bb6493025c9164:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwOGU3NWM3ZjMwMjJkNDFiMDViMGRkZmM0MDc1OGU5OGVmZGUxNWFiYjRmMjZmMWUzYjY0NmRjYTM2NzYzODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
         }
       ]
+    },
+    {
+      "id": "claim_c49cd764173447928980c3a4e11e8aa5",
+      "statement": "Duplex startup connects the main mixer to the output node with the same capture format used by the input tap, retaining a 24 kHz player connection and 16 kHz input converter; configuration changes fail the active graph visibly.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift#L45-L108",
+          "version": "repo-lines-v1:sha256:cea2d398737b21e89e6a0be85393005edbfeb848d5a4f39ff1b003a1f8012014:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlOGRkNTM3N2U3YTMwMmYwYjI3YmE3YTYyNjg1ZmFkMmQ3YzQ3MDEzMzU0YzM5YzIxN2Q2YWJlYzY3OTk3NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3NWJlYjEzNTc5MTk4YjI2NDk0MGRmNWY4M2I4MTgxZTJiMDM0YTAyZDY0ZTYyYmE1YWFlZjcwNjc4NmEyMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T08:34:31.929Z"
+    "at": "2026-10-15T14:47:39.134Z"
   }
 }

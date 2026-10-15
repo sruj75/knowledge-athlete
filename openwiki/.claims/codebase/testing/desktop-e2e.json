@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:44c810abbeeaf28e63987371bd0961772da60b79047e49fa1e94749576b738b4",
+  "pageVersion": "sha256:6db0badc143af498838f01fe546ca5bf81bcdbd864e1dab6b6b7bdc3e89cdf7c",
   "claims": [
     {
       "id": "claim_f8a9aaea2dfd40f7a462b5312154b15b",
@@ -106,7 +106,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml",
-          "version": "repo-file-v1:sha256:8f8f6a66a25e6ac0723874319b302d72d01b6fefaf5ab3ea60ba97a0d7290938"
+          "version": "repo-file-v1:sha256:3e2b6759a0fcd5c0fb5dbe5f576630bd2a3d791ee78d95614db167dd5ce7e6cf"
         }
       ]
     },
@@ -171,10 +171,20 @@
           "version": "repo-file-v1:sha256:fc494124e5ec34d99e9dc2761a01b9c408a08c1f74bad85a30e1567f77cf1a18"
         }
       ]
+    },
+    {
+      "id": "claim_f8fd751b6a6c45c483c5689198d67c27",
+      "statement": "The manual conversation startup check requires an open Live route, microphone availability, increasing processed PCM and actual reply playback on the recorded physical route, including differing capture/output client formats.",
+      "evidence": [
+        {
+          "resource": "repo://desktop/macos/e2e/flows/supervisor-conversation.yaml#L59-L61",
+          "version": "repo-lines-v1:sha256:e3d85455c26ca11888626bf8f9f67c86155e0a40246f10d1d6caaf183cd67f4f:eyJzZWxlY3RlZExpbmVDb3VudCI6MywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNGU3NzVlZmEwZTVmZjgxNmJiMWQzZDQxMTg4OWIyNjgxM2IzNzFkNDdjMWNjYzA0YWNjNDY0YWMwODA4OTRmNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYWU2MjA3OTVjZWVlY2NjYzUxMzM3MWZhOWEzOGM3YTA4ZGExOGY3NjhiY2JjYTM2YTFjMTc4OTgwN2ViNzliNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTA3Mzk5MzA3OWRhZTdmMjI2MGUzYzU0NTRmOWFkOGM1MzZhMDU2MDMzNDkzOGM3YmIzMDc1ODllMzE4MjI2ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOThjNzhmMjc4YWUzODQ5ZTU3MzVkNjQ5NDQyMDhkNjlmNDg1NjRhOWY5MzI4MjhmNzg1Y2JmNmU5MjA5OGEyNiJ9"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T08:34:31.929Z"
+    "at": "2026-10-15T14:47:39.134Z"
   }
 }

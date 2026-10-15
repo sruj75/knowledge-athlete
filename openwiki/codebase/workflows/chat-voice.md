@@ -34,10 +34,10 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/ProactiveAssistants/Supervisor/SupervisorService.swift
   - id: openwiki-source-d2fcc2b5c63a2a31e81a6ae9
     resource: repo://desktop/macos/Desktop/Sources/Providers/ChatProvider.swift
-generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
+generated: { by: "codex", at: "2026-10-15T14:47:39.134Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-15T08:34:31.929Z
+    at: 2026-10-15T14:47:39.134Z
 ---
 # Continuous spoken and typed conversation
 
@@ -66,6 +66,8 @@ Closed typed chat sends bounded history/current message, permitted context and o
 ## Continuous audio and interruption
 
 `ConversationLiveSession` enables automatic voice activity detection and retains its connection across ordinary replies. `ConversationDuplexAudio` uses one voice-processing AVAudioEngine for processed 16 kHz microphone input and controlled 24 kHz PCM output. Native PCM, generated TTS and system speech all feed that output, giving echo cancellation its render reference. Ambient system-audio observation remains separately owned.
+
+While the engine is stopped, duplex startup explicitly connects the main mixer to the output node using the same capture format installed on the input tap. This matches both voice-processing client formats instead of leaving playback on the output device's implicit format. The player still accepts 24 kHz provider PCM; the mixer converts it to the common client format and the input converter produces 16 kHz microphone PCM. A later device configuration change ends the current graph visibly so it can be reopened.
 
 On user speech, the controller stops and flushes playback, cancels obsolete generation/synthesis and fences late callbacks. The interrupted outcome is persisted asynchronously without holding the next utterance behind journal acknowledgement. A bounded ten-second preconnection microphone prefix cannot silently drop its beginning: overflow rejects that Live prefix and uses the complete bounded segmented utterance for fallback.
 

@@ -44,10 +44,10 @@ sources:
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-10-15T08:50:15.427Z" }
+generated: { by: "codex", at: "2026-10-15T14:47:39.134Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-15T08:50:15.427Z
+    at: 2026-10-15T14:50:32.031Z
 ---
 # Qualification and open obligations
 
@@ -80,6 +80,8 @@ Failure-class metadata points to retained guard owners: HTTP status/detail cover
 The October 15 [authored launch scope](../../INSTRUCTIONS.md#product-constraints) starts with one real owner pilot, then the existing signed/notarized public DMG path. The full manual flow below retains broader audio-route and eight-hour coverage. Those extended checks remain unperformed qualifications; they are not added gates for the short owner pilot. Component or offline evidence cannot mark them complete.
 
 The manual `supervisor-conversation` flow requires the exact named development bundle, authenticated Gemini and identified A/B instructions. Both user and B starts must support several replies without another shortcut press. Natural interruption must be heard and exercised on speakers, headphones and a supported Bluetooth route, with output stopped promptly and no self-trigger from A's playback.
+
+Its startup check records the current physical route and requires an open Live connection with microphone availability and increasing processed PCM before testing replies. It includes differing capture/output formats; an opening error or zero capture fails that hardware check.
 
 Both starts must reveal the same original notch/chat surface, with blue opening glow, thinking, real microphone-level input waves and rendered-playback feedback. Check visibility between replies and after focus loss, rapid close/reopen, and clean conversation termination on explicit hide/snooze. The non-production `debug_bar_state` preview can render these phases with declared synthetic levels without starting capture or providers. Restore `idle` after preview; these images establish presentation only and cannot pass physical voice acceptance.
 

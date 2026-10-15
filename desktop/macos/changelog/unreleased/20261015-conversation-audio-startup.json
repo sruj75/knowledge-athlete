@@ -1,0 +1,3 @@
+{
+  "change": "Fix voice conversations failing to start when the microphone and playback audio formats differ"
+}
