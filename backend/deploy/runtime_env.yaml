@@ -180,9 +180,6 @@ environments:
             BACKEND_RUNTIME_SERVICE_ACCOUNT:
               env_var: BACKEND_RUNTIME_SERVICE_ACCOUNT
               category: runtime_identity
-            INTENTIVE_HOSTED_PARTICIPANT_UIDS:
-              env_var: INTENTIVE_HOSTED_PARTICIPANT_UIDS
-              category: access_control
             OMI_PARITY_PACK_CAPTURE:
               value: '0'
               category: replay_capture

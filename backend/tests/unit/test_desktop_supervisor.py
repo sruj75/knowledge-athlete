@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from routers import desktop_supervisor
 from services import desktop_inference
-from utils.other.endpoints import get_current_participant_uid
+from utils.other.endpoints import get_current_user_uid
 from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
 
 
@@ -408,12 +408,12 @@ def test_observation_intake_rejects_images_and_arbitrary_feedback_text(harness):
     assert calls == []
 
 
-def test_participant_auth_and_paywall_still_guard_supervisor(monkeypatch, harness):
+def test_firebase_auth_and_paywall_still_guard_supervisor(monkeypatch, harness):
     client, calls = harness
     client.app.dependency_overrides.clear()
     body = {'observation_id': 'observation-1', 'session_id': 'session-1', 'context_epoch': 0}
     assert client.post('/v1/supervisor/evaluate', json=body).status_code == 401
-    client.app.dependency_overrides[get_current_participant_uid] = lambda: 'synthetic-owner'
+    client.app.dependency_overrides[get_current_user_uid] = lambda: 'synthetic-owner'
 
     async def immediate(_executor, function, *args):
         return function(*args)

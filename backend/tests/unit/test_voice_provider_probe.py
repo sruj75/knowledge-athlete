@@ -75,6 +75,11 @@ def test_probe_bootstraps_and_mints_through_current_routes_with_the_same_pinned_
         return {"name": "auth_tokens/gemini-token-must-not-leak"}, None
 
     monkeypatch.setattr(desktop_conversation, "run_blocking", bootstrap)
+
+    async def allowed_mint(uid):
+        assert uid == "synthetic-owner"
+
+    monkeypatch.setattr(desktop_realtime, "enforce_desktop_gemini_quota", allowed_mint)
     monkeypatch.setattr(desktop_realtime, "run_blocking", mint)
     monkeypatch.setattr(desktop_realtime, "_post_json", provider)
     monkeypatch.setenv("GEMINI_API_KEY", "synthetic-key-never-used")
@@ -82,7 +87,7 @@ def test_probe_bootstraps_and_mints_through_current_routes_with_the_same_pinned_
     app.include_router(desktop_conversation.router)
     app.include_router(desktop_realtime.router)
     app.dependency_overrides[desktop_conversation.authorized_desktop_user] = lambda: "synthetic-owner"
-    app.dependency_overrides[desktop_realtime.get_current_participant_uid] = lambda: "synthetic-owner"
+    app.dependency_overrides[desktop_realtime.get_current_user_uid] = lambda: "synthetic-owner"
 
     def backend(request, *, timeout):
         assert request.get_header("Authorization") == "Bearer firebase-token-must-not-leak"

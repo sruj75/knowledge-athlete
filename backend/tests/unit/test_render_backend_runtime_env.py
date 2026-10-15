@@ -18,7 +18,6 @@ def _reuse_parsed_repo_manifest(monkeypatch):
     monkeypatch.setenv('GCP_PROJECT_ID', 'owned-project')
     monkeypatch.setenv('RUNTIME_GCP_PROJECT_ID', 'owned-runtime-project')
     monkeypatch.setenv('FIREBASE_AUTH_PROJECT_ID', 'owned-firebase-project')
-    monkeypatch.setenv('INTENTIVE_HOSTED_PARTICIPANT_UIDS', 'firebase-owner-from-environment')
     monkeypatch.setenv('BACKEND_CANONICAL_URL', 'https://backend.example.com')
     monkeypatch.setenv('REDIS_DB_HOST', 'redis.internal.example')
     monkeypatch.setenv('REDIS_DB_PORT', '6378')
@@ -203,7 +202,6 @@ def test_render_dev_emits_free_tier_cloud_run_without_private_network(capsys, mo
     service_env = _job_env_block(output, 'backend')
     assert 'BASE_API_URL=https://backend.example.com' in service_env
     assert 'ADMIN_KEY_AUTH_ENABLED=false' in service_env
-    assert 'INTENTIVE_HOSTED_PARTICIPANT_UIDS=firebase-owner-from-environment' in service_env
     assert 'OMI_PARITY_PACK_CAPTURE=0' in service_env
     assert 'OMI_PARITY_PACK_ALLOWED_PRINCIPALS=' not in service_env
     assert 'OMI_PARITY_PACK_ROOT=' not in service_env

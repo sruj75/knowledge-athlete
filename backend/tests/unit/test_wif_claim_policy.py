@@ -20,6 +20,11 @@ from scripts.wif_claim_policy import (  # noqa: E402
 )
 
 
+@pytest.fixture
+def runtime_manifest():
+    return load_manifest()
+
+
 def inputs(env: str) -> dict[str, str]:
     return {
         'GITHUB_REPOSITORY': 'hypermind-ai/knowledge-athlete',
@@ -44,9 +49,11 @@ def claims_for(policy) -> dict[str, str]:
 
 @pytest.mark.parametrize('environment', ['dev', 'prod'])
 @pytest.mark.parametrize('principal', ['deploy', 'firestore_readonly', 'firestore_writer'])
-def test_exact_claim_set_authorizes_only_the_matching_principal(environment: str, principal: str) -> None:
+def test_exact_claim_set_authorizes_only_the_matching_principal(
+    runtime_manifest, environment: str, principal: str
+) -> None:
     policy = resolve_claim_policy(
-        load_manifest(), environment=environment, principal=principal, external_inputs=inputs(environment)
+        runtime_manifest, environment=environment, principal=principal, external_inputs=inputs(environment)
     )
 
     assert claim_rejections(policy, claims_for(policy), requested_service_account=policy.service_account) == []
@@ -63,20 +70,24 @@ def test_exact_claim_set_authorizes_only_the_matching_principal(environment: str
         ('workflow_ref', 'hypermind-ai/knowledge-athlete/.github/workflows/untrusted.yml@refs/heads/main'),
     ],
 )
-def test_mutated_branch_fork_ids_environment_and_workflow_are_denied(claim_name: str, replacement: str) -> None:
-    policy = resolve_claim_policy(load_manifest(), environment='dev', principal='deploy', external_inputs=inputs('dev'))
+def test_mutated_branch_fork_ids_environment_and_workflow_are_denied(
+    runtime_manifest, claim_name: str, replacement: str
+) -> None:
+    policy = resolve_claim_policy(
+        runtime_manifest, environment='dev', principal='deploy', external_inputs=inputs('dev')
+    )
     claims = claims_for(policy)
     claims[claim_name] = replacement
 
     assert claim_name in claim_rejections(policy, claims, requested_service_account=policy.service_account)
 
 
-def test_cross_environment_service_account_is_denied() -> None:
+def test_cross_environment_service_account_is_denied(runtime_manifest) -> None:
     dev_policy = resolve_claim_policy(
-        load_manifest(), environment='dev', principal='deploy', external_inputs=inputs('dev')
+        runtime_manifest, environment='dev', principal='deploy', external_inputs=inputs('dev')
     )
     prod_policy = resolve_claim_policy(
-        load_manifest(), environment='prod', principal='deploy', external_inputs=inputs('prod')
+        runtime_manifest, environment='prod', principal='deploy', external_inputs=inputs('prod')
     )
 
     assert claim_rejections(
@@ -86,9 +97,9 @@ def test_cross_environment_service_account_is_denied() -> None:
     ) == ['service_account']
 
 
-def test_prod_deploy_policy_rejects_the_automatic_development_workflow() -> None:
+def test_prod_deploy_policy_rejects_the_automatic_development_workflow(runtime_manifest) -> None:
     policy = resolve_claim_policy(
-        load_manifest(), environment='prod', principal='deploy', external_inputs=inputs('prod')
+        runtime_manifest, environment='prod', principal='deploy', external_inputs=inputs('prod')
     )
     claims = claims_for(policy)
     claims['workflow_ref'] = 'hypermind-ai/knowledge-athlete/.github/workflows/gcp_backend_auto_dev.yml@refs/heads/main'
@@ -96,8 +107,10 @@ def test_prod_deploy_policy_rejects_the_automatic_development_workflow() -> None
     assert claim_rejections(policy, claims, requested_service_account=policy.service_account) == ['workflow_ref']
 
 
-def test_attribute_condition_names_every_immutable_and_workflow_claim() -> None:
-    policy = resolve_claim_policy(load_manifest(), environment='dev', principal='deploy', external_inputs=inputs('dev'))
+def test_attribute_condition_names_every_immutable_and_workflow_claim(runtime_manifest) -> None:
+    policy = resolve_claim_policy(
+        runtime_manifest, environment='dev', principal='deploy', external_inputs=inputs('dev')
+    )
 
     condition = attribute_condition(policy)
 
@@ -106,8 +119,8 @@ def test_attribute_condition_names_every_immutable_and_workflow_claim() -> None:
     assert '*' not in condition
 
 
-def test_policy_rejects_wildcard_or_missing_external_coordinates() -> None:
-    manifest = deepcopy(load_manifest())
+def test_policy_rejects_wildcard_or_missing_external_coordinates(runtime_manifest) -> None:
+    manifest = deepcopy(runtime_manifest)
     manifest['environments']['dev']['foundation']['wif']['claims']['workflow_paths']['deploy'] = [
         '.github/workflows/*.yml'
     ]
@@ -117,12 +130,12 @@ def test_policy_rejects_wildcard_or_missing_external_coordinates() -> None:
     missing_id = inputs('dev')
     missing_id.pop('GITHUB_REPOSITORY_ID')
     with pytest.raises(ValueError, match='missing required WIF input GITHUB_REPOSITORY_ID'):
-        resolve_claim_policy(load_manifest(), environment='dev', principal='deploy', external_inputs=missing_id)
+        resolve_claim_policy(runtime_manifest, environment='dev', principal='deploy', external_inputs=missing_id)
 
 
-def test_provider_contract_maps_and_conditions_every_exact_claim() -> None:
+def test_provider_contract_maps_and_conditions_every_exact_claim(runtime_manifest) -> None:
     policies = [
-        resolve_claim_policy(load_manifest(), environment='dev', principal=principal, external_inputs=inputs('dev'))
+        resolve_claim_policy(runtime_manifest, environment='dev', principal=principal, external_inputs=inputs('dev'))
         for principal in ('deploy', 'firestore_readonly', 'firestore_writer')
     ]
 

@@ -151,9 +151,16 @@ explanations. Full decisions and dated records remain in [Git history](#accepted
   not intent persistence alone. Unconfirmed enqueue failure preserves signed-in retry; dispatch-attempt
   fencing protects newer attempts and claimed workers. Immediate sign-out follows genuine acceptance
   without a polling screen (IR-189/S-25); a process-local timer is not a scale-to-zero guarantee.
-- Hosted Beta admits configured one-to-five Firebase participants plus the reserved release probe;
-  unlisted authenticated accounts retain export/deletion. Dev is isolated, billing disabled, and
-  customer provider keys are forbidden. No paid/public launch is implied by implementation approval.
+- Public launch decision (2026-10-15): after one owner pilot, distribute the signed/notarized Mac
+  DMG publicly and admit any valid Google/Firebase-authenticated account. This supersedes the earlier
+  same-day one-to-five invited-participant decision; remove the participant list and cap. Keep existing
+  authentication, quotas/fair-use, owner-local data/export/deletion and independent capture/proactive
+  permissions. Dev stays isolated, billing disabled, and customer provider keys forbidden. No paid
+  billing activation, budget increase or prepaid auto-reload follows from public distribution.
+- Today's launch scope is the owner pilot followed by the existing signed release/update path.
+  Basic Langfuse A/B prompts are sufficient; the user owns prompt content. Additional PostHog/Sentry
+  work and speculative fixes are deferred until actual feedback identifies a need. Unperformed
+  longer-running/provider/platform qualifications remain unproven; do not claim them from local tests.
 - Downloaded updates relaunch only when the authoritative activity snapshot is idle. Capture,
   finalization, voice/provider/playback/tool/token and Chat work defer installation; never force idle
   with a timeout. Development builds install on quit.
@@ -270,7 +277,7 @@ and [test contracts](codebase/testing/contracts.md) for current commands and mec
 
 - Use the backend-owned Python 3.11 interpreter/lock and existing dependency scripts; avoid incidental
   upgrades. Keep local/offline and hosted configuration separate. Hosted auth uses runtime ADC,
-  rejects credential files/admin impersonation and fails closed on invalid participant configuration.
+  rejects credential files/admin impersonation and local synthetic-token bypasses in hosted stages.
 - Classify typed failures by reason/provider/route/status/retryability. Provider 401s and
   session-preserving polls must not invalidate Firebase identity.
 - Async HTTP uses shared pools/semaphores/circuit breakers; blocking leaf work uses purpose-specific

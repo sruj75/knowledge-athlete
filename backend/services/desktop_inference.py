@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException
 from database import redis_db
 from database import llm_usage as llm_usage_db
 from utils.executors import critical_executor, db_executor, run_blocking
-from utils.other.endpoints import get_current_participant_uid
+from utils.other.endpoints import get_current_user_uid
 from utils.subscription import enforce_chat_quota, is_trial_paywalled
 from utils.llm.gemini_usage import GeminiUsage
 
@@ -51,7 +51,7 @@ async def record_conversation_usage(uid: str, usage: GeminiUsage) -> None:
     )
 
 
-async def authorized_desktop_user(uid: str = Depends(get_current_participant_uid)) -> str:
+async def authorized_desktop_user(uid: str = Depends(get_current_user_uid)) -> str:
     if await run_blocking(db_executor, is_trial_paywalled, uid, 'desktop'):
         raise HTTPException(status_code=402, detail='trial_expired')
     return uid

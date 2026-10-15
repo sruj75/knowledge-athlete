@@ -3,9 +3,36 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+from fastapi import HTTPException
 
 from routers import desktop_tts_updates
 from routers.desktop_tts_updates import ReleaseInfo, _appcast_xml, _is_allowed_openai_voice, _manual_download_url
+
+
+@pytest.mark.asyncio
+async def test_offline_tts_is_unavailable_without_provider_or_quota_use(monkeypatch):
+    async def immediate(_executor, function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    meter = MagicMock(return_value=(0, 1))
+    monkeypatch.setenv('OMI_LLM_STUB', '1')
+    monkeypatch.setenv('OPENAI_API_KEY', 'offline-placeholder')
+    monkeypatch.setattr(desktop_tts_updates, 'is_trial_paywalled', lambda _uid, _source: False)
+    monkeypatch.setattr(desktop_tts_updates, 'run_blocking', immediate)
+    monkeypatch.setattr(desktop_tts_updates.redis_db, 'check_tts_rate_limit', meter)
+    monkeypatch.setattr(
+        desktop_tts_updates.httpx,
+        'AsyncClient',
+        lambda **_: pytest.fail('offline TTS must not contact the provider'),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await desktop_tts_updates.tts_synthesize(
+            desktop_tts_updates.TtsSynthesizeRequest(text='hello', voice_id='marin'), uid='managed-user'
+        )
+
+    assert error.value.status_code == 503
+    meter.assert_not_called()
 
 
 @pytest.mark.asyncio

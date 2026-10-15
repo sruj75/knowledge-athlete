@@ -4,9 +4,11 @@ import pytest
 
 from scripts.route_policy_inventory import generate_backend_route_inventory
 
-PARTICIPANT_HTTP_PATHS = {
+COMPUTE_HTTP_PATHS = {
     "/v1/conversation/session",
     "/v1/conversation/respond",
+    "/v1/supervisor/evaluate",
+    "/v1/ai/observations",
     "/v2/chat/initial-message",
     "/v2/chat/generate-title",
     "/v2/voice-messages",
@@ -22,12 +24,12 @@ PARTICIPANT_HTTP_PATHS = {
     "/v1/fair-use/reviews/{review_id}/classify",
 }
 
-PARTICIPANT_WEBSOCKET_PATHS = {
+COMPUTE_WEBSOCKET_PATHS = {
     "/v2/voice-message/transcribe-stream",
     "/v4/listen",
 }
 
-LEGACY_ACCOUNT_PATHS = {
+ACCOUNT_PATHS = {
     ("DELETE", "/v1/users/delete-account"),
     ("GET", "/v1/users/export"),
     ("GET", "/v1/users/language"),
@@ -54,21 +56,20 @@ def backend_routes() -> dict[tuple[str, str, str], dict]:
     return {(route["route_type"], route["method"], route["path"]): route for route in inventory["routes"]}
 
 
-def test_real_backend_dependency_graph_gates_only_the_hosted_compute_surface(
+def test_public_compute_and_account_routes_retain_firebase_authentication(
     backend_routes: dict[tuple[str, str, str], dict],
 ):
     routes = backend_routes
 
-    for path in PARTICIPANT_HTTP_PATHS:
+    for path in COMPUTE_HTTP_PATHS:
         route = routes[("http", "POST", path)]
-        assert "get_current_participant_uid" in _dependency_suffixes(route), path
+        assert "get_current_user_uid" in _dependency_suffixes(route), path
 
-    for path in PARTICIPANT_WEBSOCKET_PATHS:
+    for path in COMPUTE_WEBSOCKET_PATHS:
         route = routes[("websocket", "WEBSOCKET", path)]
-        assert "get_current_participant_uid_ws_listen" in _dependency_suffixes(route), path
+        assert "get_current_user_uid_ws_listen" in _dependency_suffixes(route), path
 
-    for method, path in LEGACY_ACCOUNT_PATHS:
+    for method, path in ACCOUNT_PATHS:
         route = routes[("http", method, path)]
         dependencies = _dependency_suffixes(route)
         assert "get_current_user_uid" in dependencies, path
-        assert "get_current_participant_uid" not in dependencies, path

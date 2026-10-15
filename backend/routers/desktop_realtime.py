@@ -13,14 +13,16 @@ from pydantic import BaseModel, ConfigDict, StrictInt
 from database._client import get_firestore_client
 from models.desktop_ai import OpaqueID
 from models.desktop_conversation import ConversationPromptReference, RealtimeSessionResponse
+from services.desktop_inference import enforce_desktop_gemini_quota
 from utils.executors import db_executor, llm_executor, run_blocking
+from utils.llm.desktop_llm_stub import llm_stub_enabled
 from utils.observability.conversation_prompts import (
     ConversationPromptMismatchError,
     ConversationPromptUnavailableError,
     conversation_prompt_receipt,
     resolve_conversation_prompt,
 )
-from utils.other.endpoints import get_current_participant_uid, get_current_user_uid
+from utils.other.endpoints import get_current_user_uid
 from utils.subscription import is_trial_paywalled
 
 router = APIRouter()
@@ -121,7 +123,7 @@ async def _post_json(
 
 
 @router.post("/v2/realtime/session", response_model=RealtimeSessionResponse)
-async def mint_session(request: MintRequest, uid: str = Depends(get_current_participant_uid)) -> JSONResponse:
+async def mint_session(request: MintRequest, uid: str = Depends(get_current_user_uid)) -> JSONResponse:
     if await run_blocking(db_executor, is_trial_paywalled, uid, "desktop"):
         return JSONResponse(
             status_code=402,
@@ -134,8 +136,9 @@ async def mint_session(request: MintRequest, uid: str = Depends(get_current_part
     except ConversationPromptUnavailableError:
         return _error(503, 'prompt_unavailable', 'Pinned conversation instructions are unavailable', retryable=True)
     key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not key:
+    if llm_stub_enabled() or not key:
         return _error(503, "provider_not_configured", "Gemini realtime is not configured", "Gemini", retryable=True)
+    await enforce_desktop_gemini_quota(uid)
     now = datetime.now(timezone.utc)
     start = (now + timedelta(minutes=_SESSION_START_WINDOW_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
     expires_at = (now + timedelta(minutes=_SESSION_MAX_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")

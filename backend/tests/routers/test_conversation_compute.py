@@ -7,14 +7,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from routers import conversation_compute
-from utils.other.endpoints import get_current_participant_uid
+from utils.other.endpoints import get_current_user_uid
 
 
 def make_client(*, authenticated: bool = True) -> TestClient:
     app = FastAPI()
     app.include_router(conversation_compute.router)
     if authenticated:
-        app.dependency_overrides[get_current_participant_uid] = lambda: 'user-1'
+        app.dependency_overrides[get_current_user_uid] = lambda: 'user-1'
     return TestClient(app)
 
 

@@ -25,7 +25,8 @@ def _load_admission_script():
     return module
 
 
-def _scope_job() -> dict:
+@pytest.fixture
+def scope_job() -> dict:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding='utf-8'))
     return workflow['jobs']['scope']
 
@@ -44,6 +45,7 @@ def _commit(repo: Path, relative_path: str) -> str:
 
 
 def _run_scope(
+    scope_job: dict,
     repo: Path,
     sha: str,
     *,
@@ -113,7 +115,7 @@ fi
             encoding='utf-8',
         )
         jq.chmod(0o755)
-    scope_step = next(step for step in _scope_job()['steps'] if step.get('id') == 'scope')
+    scope_step = next(step for step in scope_job['steps'] if step.get('id') == 'scope')
     scope_script = f'export PATH="$OMI_TEST_FAKE_BIN:$PATH"\n{scope_step["run"]}'
     result = subprocess.run(
         bash_command('-c', scope_script, cwd=ROOT),
@@ -168,10 +170,10 @@ def test_windows_bash_resolution_uses_the_active_git_installation(tmp_path: Path
     assert bash_executable(cwd=ROOT, platform_name='nt', git_exec_path=git_exec_path) == str(git_bash)
 
 
-def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None:
+def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path, scope_job: dict) -> None:
     desktop_sha = _commit(git_repo, 'openwiki/codebase/architecture/overview.md')
 
-    outputs, summary = _run_scope(git_repo, desktop_sha)
+    outputs, summary = _run_scope(scope_job, git_repo, desktop_sha)
 
     assert outputs == {'applies': 'false', 'reason': 'unrelated'}
     assert 'Green no-op' in summary
@@ -181,38 +183,42 @@ def test_unrelated_desktop_change_exits_as_a_green_no_op(git_repo: Path) -> None
     'relative_path',
     ('backend/main.py', '.github/actions/release-eligibility/action.yml'),
 )
-def test_backend_source_or_deploy_input_change_requires_deliberate_dispatch(git_repo: Path, relative_path: str) -> None:
+def test_backend_source_or_deploy_input_change_requires_deliberate_dispatch(
+    git_repo: Path, scope_job: dict, relative_path: str
+) -> None:
     relevant_sha = _commit(git_repo, relative_path)
 
-    outputs, _summary = _run_scope(git_repo, relevant_sha)
+    outputs, _summary = _run_scope(scope_job, git_repo, relevant_sha)
 
     assert outputs == {'applies': 'false', 'reason': 'manual-required'}
 
 
-def test_active_policy_preserves_the_existing_backend_scope_decision(git_repo: Path) -> None:
+def test_active_policy_preserves_the_existing_backend_scope_decision(git_repo: Path, scope_job: dict) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
 
-    outputs, _summary = _run_scope(git_repo, relevant_sha, deployment_mode='active')
+    outputs, _summary = _run_scope(scope_job, git_repo, relevant_sha, deployment_mode='active')
 
     assert outputs == {'applies': 'true', 'reason': 'automatic'}
 
 
-def test_superseded_backend_commit_is_a_green_no_op(git_repo: Path) -> None:
+def test_superseded_backend_commit_is_a_green_no_op(git_repo: Path, scope_job: dict) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
     current_main = _commit(git_repo, 'README-new.md')
 
-    outputs, summary = _run_scope(git_repo, relevant_sha, main_sha=current_main, comparison='ahead')
+    outputs, summary = _run_scope(scope_job, git_repo, relevant_sha, main_sha=current_main, comparison='ahead')
 
     assert outputs == {'applies': 'false'}
     assert 'superseded no-op' in summary
 
 
 @pytest.mark.parametrize('comparison', ('behind', 'diverged'))
-def test_non_ancestor_comparison_cannot_bypass_source_admission(git_repo: Path, comparison: str) -> None:
+def test_non_ancestor_comparison_cannot_bypass_source_admission(
+    git_repo: Path, scope_job: dict, comparison: str
+) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
 
     outputs, summary = _run_scope(
-        git_repo, relevant_sha, main_sha='a' * 40, comparison=comparison, deployment_mode='active'
+        scope_job, git_repo, relevant_sha, main_sha='a' * 40, comparison=comparison, deployment_mode='active'
     )
 
     assert outputs == {'applies': 'true', 'reason': 'automatic'}
@@ -220,36 +226,42 @@ def test_non_ancestor_comparison_cannot_bypass_source_admission(git_repo: Path, 
 
 
 @pytest.mark.parametrize('api_fault', ('ref-http', 'compare-http', 'malformed-json', 'wrong-url', 'wrong-base'))
-def test_ambiguous_api_proof_cannot_authorize_cloud_work(git_repo: Path, api_fault: str) -> None:
+def test_ambiguous_api_proof_cannot_authorize_cloud_work(git_repo: Path, scope_job: dict, api_fault: str) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
 
     outputs, summary = _run_scope(
-        git_repo, relevant_sha, main_sha='a' * 40, comparison='ahead', api_fault=api_fault, expected_returncode=1
+        scope_job,
+        git_repo,
+        relevant_sha,
+        main_sha='a' * 40,
+        comparison='ahead',
+        api_fault=api_fault,
+        expected_returncode=1,
     )
 
     assert outputs == {}
     assert 'proof was unavailable or ambiguous' in summary
 
 
-def test_unknown_comparison_status_cannot_authorize_cloud_work(git_repo: Path) -> None:
+def test_unknown_comparison_status_cannot_authorize_cloud_work(git_repo: Path, scope_job: dict) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
 
-    outputs, summary = _run_scope(git_repo, relevant_sha, comparison='unexpected', expected_returncode=1)
+    outputs, summary = _run_scope(scope_job, git_repo, relevant_sha, comparison='unexpected', expected_returncode=1)
 
     assert outputs == {}
     assert 'proof was unavailable or ambiguous' in summary
 
 
-def test_missing_parent_cannot_authorize_cloud_work(git_repo: Path) -> None:
-    outputs, summary = _run_scope(git_repo, _git(git_repo, 'rev-parse', 'HEAD'), expected_returncode=1)
+def test_missing_parent_cannot_authorize_cloud_work(git_repo: Path, scope_job: dict) -> None:
+    outputs, summary = _run_scope(scope_job, git_repo, _git(git_repo, 'rev-parse', 'HEAD'), expected_returncode=1)
 
     assert outputs == {}
     assert 'could not resolve the triggering commit parent' in summary
 
 
-def test_stale_relevant_sha_reaches_and_fails_the_existing_admission_guard(git_repo: Path) -> None:
+def test_stale_relevant_sha_reaches_and_fails_the_existing_admission_guard(git_repo: Path, scope_job: dict) -> None:
     relevant_sha = _commit(git_repo, 'backend/main.py')
-    outputs, _summary = _run_scope(git_repo, relevant_sha, deployment_mode='active')
+    outputs, _summary = _run_scope(scope_job, git_repo, relevant_sha, deployment_mode='active')
     admission = _load_admission_script()
 
     assert outputs == {'applies': 'true', 'reason': 'automatic'}

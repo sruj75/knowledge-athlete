@@ -100,16 +100,6 @@ def _validate_dev_beta_runtime_contract(env: str, env_config: ConfigDict) -> lis
     secrets = _as_config_dict(backend.get('secrets')) or {}
     errors: list[ValidationError] = []
 
-    if env_map.get('INTENTIVE_HOSTED_PARTICIPANT_UIDS') != {
-        'env_var': 'INTENTIVE_HOSTED_PARTICIPANT_UIDS',
-        'category': 'access_control',
-    }:
-        errors.append(
-            ValidationError(
-                scope,
-                'INTENTIVE_HOSTED_PARTICIPANT_UIDS must bind the environment-owned input of the same name',
-            )
-        )
     if env_map.get('ADMIN_KEY_AUTH_ENABLED') != {'value': 'false', 'category': 'access_control'}:
         errors.append(ValidationError(scope, "hosted Beta ADMIN_KEY impersonation must be literal 'false'"))
     if env_map.get('OMI_PARITY_PACK_CAPTURE') != {'value': '0', 'category': 'replay_capture'}:

@@ -30,6 +30,30 @@ def load_validator():
     return module
 
 
+@pytest.fixture(scope='module')
+def _runtime_manifest_source():
+    validator = load_validator()
+    return validator._load_yaml(validator.DEFAULT_MANIFEST)
+
+
+@pytest.fixture
+def runtime_manifest(_runtime_manifest_source):
+    return copy.deepcopy(_runtime_manifest_source)
+
+
+@pytest.fixture(scope='module')
+def _workflow_sources():
+    return {
+        filename: yaml.safe_load((ROOT.parent / '.github/workflows' / filename).read_text(encoding='utf-8'))
+        for filename in ('gcp_backend.yml', 'gcp_backend_auto_dev.yml', 'gcp_firestore_indexes.yml')
+    }
+
+
+@pytest.fixture
+def workflow_documents(_workflow_sources):
+    return copy.deepcopy(_workflow_sources)
+
+
 def write_yaml(path: Path, payload: dict) -> None:
     with path.open('w', encoding='utf-8') as handle:
         yaml.safe_dump(payload, handle, sort_keys=False)
@@ -64,8 +88,8 @@ def test_repo_prod_runtime_matches_manifest():
     assert errors == []
 
 
-def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
-    workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
+def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes(workflow_documents):
+    workflow = workflow_documents['gcp_backend.yml']
     modes = workflow[True]['workflow_dispatch']['inputs']['mode']['options']
     job = workflow['jobs']['foundation-maintenance']
     readiness_step = next(
@@ -93,9 +117,10 @@ def test_manual_workflow_exposes_only_read_only_foundation_maintenance_modes():
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
-def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(env_name):
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
+    env_name, runtime_manifest, workflow_documents
+):
+    manifest = runtime_manifest
     services = manifest['environments'][env_name]['cloud_run']['services']
 
     assert set(services) == {'backend'}
@@ -125,7 +150,7 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
     if env_name == 'dev':
         assert 'MODULATE_API_KEY' in backend['secrets']
         assert {'POSTHOG_PROJECT_API_KEY', 'GOOGLE_CALENDAR_API_KEY'}.isdisjoint(backend['secrets'])
-        workflow = yaml.safe_load((ROOT.parent / '.github/workflows/gcp_backend.yml').read_text(encoding='utf-8'))
+        workflow = workflow_documents['gcp_backend.yml']
         deploy_steps = workflow['jobs']['deploy']['steps']
         transcription_gate = next(
             step for step in deploy_steps if step.get('name') == 'Gate backend candidate on known audio'
@@ -148,9 +173,8 @@ def test_runtime_manifest_has_one_service_with_the_retained_configuration_union(
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
-def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inputs(env_name):
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inputs(env_name, runtime_manifest):
+    manifest = runtime_manifest
     backend = manifest['environments'][env_name]['cloud_run']['services']['backend']
 
     assert backend['service_account'] == {'env_var': 'BACKEND_RUNTIME_SERVICE_ACCOUNT'}
@@ -161,15 +185,10 @@ def test_hosted_runtime_uses_dedicated_identity_adc_and_exact_secret_version_inp
     assert all(binding.get('version') != 'latest' for binding in backend['secrets'].values())
 
 
-def test_dev_runtime_declares_owner_beta_admission_release_controls_and_capture_off():
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+def test_dev_runtime_retains_release_controls_and_capture_off_for_public_access(runtime_manifest):
+    manifest = runtime_manifest
     backend = manifest['environments']['dev']['cloud_run']['services']['backend']
 
-    assert backend['env']['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] == {
-        'env_var': 'INTENTIVE_HOSTED_PARTICIPANT_UIDS',
-        'category': 'access_control',
-    }
     assert backend['env']['ADMIN_KEY_AUTH_ENABLED'] == {
         'value': 'false',
         'category': 'access_control',
@@ -189,14 +208,10 @@ def test_dev_runtime_declares_owner_beta_admission_release_controls_and_capture_
     }
 
 
-def test_dev_beta_runtime_contract_rejects_literal_participant_identity_and_enabled_capture(tmp_path):
+def test_dev_beta_runtime_contract_rejects_enabled_impersonation_and_capture(tmp_path, runtime_manifest):
     validator = load_validator()
-    manifest = copy.deepcopy(validator._load_yaml(validator.DEFAULT_MANIFEST))
+    manifest = copy.deepcopy(runtime_manifest)
     backend = manifest['environments']['dev']['cloud_run']['services']['backend']
-    backend['env']['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] = {
-        'value': 'raw-firebase-owner-uid',
-        'category': 'access_control',
-    }
     backend['env']['OMI_PARITY_PACK_CAPTURE']['value'] = '1'
     backend['env']['ADMIN_KEY_AUTH_ENABLED'] = {
         'value': 'true',
@@ -212,13 +227,6 @@ def test_dev_beta_runtime_contract_rejects_literal_participant_identity_and_enab
 
     errors = validator.validate_runtime_env(env='dev', manifest_path=manifest_path)
 
-    assert (
-        validator.ValidationError(
-            'dev/cloud_run/backend',
-            'INTENTIVE_HOSTED_PARTICIPANT_UIDS must bind the environment-owned input of the same name',
-        )
-        in errors
-    )
     assert (
         validator.ValidationError(
             'dev/cloud_run/backend',
@@ -257,10 +265,9 @@ def test_dev_beta_runtime_contract_rejects_literal_participant_identity_and_enab
     ],
 )
 def test_canonical_cloud_run_contract_is_explicit_and_owned(
-    env_name, network_flags, cpu, memory, minimum, maximum, cpu_mode
+    env_name, network_flags, cpu, memory, minimum, maximum, cpu_mode, runtime_manifest
 ):
-    validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    manifest = runtime_manifest
     env_config = manifest['environments'][env_name]
     cloud_run = env_config['cloud_run']
     backend = cloud_run['services']['backend']
@@ -287,9 +294,9 @@ def test_canonical_cloud_run_contract_is_explicit_and_owned(
     assert backend['flags'] == expected_flags
 
 
-def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift(tmp_path):
+def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift(tmp_path, runtime_manifest):
     validator = load_validator()
-    manifest = copy.deepcopy(validator._load_yaml(validator.DEFAULT_MANIFEST))
+    manifest = copy.deepcopy(runtime_manifest)
     backend = manifest['environments']['prod']['cloud_run']['services']['backend']
     backend['flags']['--cpu'] = '2'
     backend['secrets']['OPENAI_API_KEY'] = {'secret': 'OPENAI_API_KEY', 'version': 'latest'}
@@ -303,9 +310,8 @@ def test_cloud_run_contract_validator_rejects_capacity_and_floating_secret_drift
 
 
 @pytest.mark.parametrize(('env_name', 'alerts'), [('dev', []), ('prod', ['health_unreachable', 'cloud_run_5xx'])])
-def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, alerts):
-    validator = load_validator()
-    foundation = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments'][env_name]['foundation']
+def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, alerts, runtime_manifest):
+    foundation = runtime_manifest['environments'][env_name]['foundation']
 
     assert foundation['network'] == {'region': 'us-west1', 'connectivity': 'public-egress'}
     assert foundation['redis'] == {
@@ -348,9 +354,9 @@ def test_owned_foundation_contract_covers_retained_dependencies_only(env_name, a
     }
 
 
-def test_account_deletion_dispatch_contract_requires_canonical_backend_profile():
+def test_account_deletion_dispatch_contract_requires_canonical_backend_profile(runtime_manifest):
     validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    manifest = runtime_manifest
     prod = copy.deepcopy(manifest['environments']['prod'])
 
     assert validate_account_deletion_dispatch_contract('prod', prod) == []
@@ -391,9 +397,9 @@ def test_repo_cloud_run_workflows_match_manifest():
     assert errors == []
 
 
-def test_repo_prod_cloud_run_workflows_match_manifest(monkeypatch):
+def test_repo_prod_cloud_run_workflows_match_manifest(monkeypatch, runtime_manifest):
     validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    manifest = runtime_manifest
     env_config = validator._get_env_config(manifest, 'prod')
     load_yaml = validator._load_yaml
 
@@ -419,7 +425,7 @@ def test_repo_prod_cloud_run_workflows_match_manifest(monkeypatch):
     assert errors == []
 
 
-def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json_keys():
+def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json_keys(workflow_documents):
     workflows = {
         'manual': ROOT.parent / '.github/workflows/gcp_backend.yml',
         'automatic': ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml',
@@ -438,7 +444,7 @@ def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json
     }
 
     for name, path in workflows.items():
-        workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
+        workflow = workflow_documents[path.name]
         auth_steps = [
             step
             for job in workflow['jobs'].values()
@@ -483,16 +489,18 @@ def test_backend_and_firestore_workflows_use_environment_scoped_wif_without_json
         ),
     ],
 )
-def test_dev_runtime_contract_steps_receive_every_secret_version_input(workflow_name, contract_steps):
+def test_dev_runtime_contract_steps_receive_every_secret_version_input(
+    workflow_name, contract_steps, runtime_manifest, workflow_documents
+):
     """Static workflow tripwire for the runtime-manifest renderer and its preflight callers."""
-    manifest = yaml.safe_load((ROOT / 'deploy/runtime_env.yaml').read_text(encoding='utf-8'))
+    manifest = runtime_manifest
     service_secrets = manifest['environments']['dev']['cloud_run']['services']['backend']['secrets']
     required_versions = {
         binding['version_env_var']
         for binding in service_secrets.values()
         if isinstance(binding, dict) and 'version_env_var' in binding
     }
-    workflow = yaml.safe_load((ROOT.parent / '.github/workflows' / workflow_name).read_text(encoding='utf-8'))
+    workflow = workflow_documents[workflow_name]
 
     deploy_steps = {step.get('name'): step for step in workflow['jobs']['deploy']['steps']}
     assert contract_steps <= deploy_steps.keys()
@@ -503,14 +511,11 @@ def test_dev_runtime_contract_steps_receive_every_secret_version_input(workflow_
         # GitHub reserves GITHUB_* configuration names; the renderer's process env is unchanged.
         assert step_env['GITHUB_TOKEN_VERSION'] == '${{ vars.INTENTIVE_GITHUB_TOKEN_VERSION }}'
 
-    renderer_env = deploy_steps['Render backend runtime env'].get('env', {})
-    assert renderer_env['INTENTIVE_HOSTED_PARTICIPANT_UIDS'] == '${{ vars.INTENTIVE_HOSTED_PARTICIPANT_UIDS }}'
 
-
-def test_workflow_validation_uses_immutable_workflow_root_with_admitted_runtime_manifest(tmp_path):
+def test_workflow_validation_uses_immutable_workflow_root_with_admitted_runtime_manifest(tmp_path, workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows/gcp_backend.yml'
-    admitted_workflow = validator._load_yaml(workflow_path)
+    admitted_workflow = workflow_documents[workflow_path.name]
     old_admitted_workflow = copy.deepcopy(admitted_workflow)
     old_admitted_workflow['jobs']['deploy']['steps'] = [
         step
@@ -691,10 +696,10 @@ def test_firestore_index_reconciliation_preserves_the_read_only_runtime_boundary
 
 
 @pytest.mark.parametrize('workflow_name', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_firestore_readiness_contract_requires_isolated_job_dependency(workflow_name):
+def test_firestore_readiness_contract_requires_isolated_job_dependency(workflow_name, workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows' / workflow_name
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
     workflow['jobs']['deploy'].pop('needs')
 
     errors = validator._validate_firestore_index_reconciliation_boundary(str(workflow_path), workflow)
@@ -702,10 +707,10 @@ def test_firestore_readiness_contract_requires_isolated_job_dependency(workflow_
     assert any('deploy must depend on the isolated Firestore readiness job' in error.message for error in errors)
 
 
-def test_automatic_firestore_readiness_contract_requires_current_main_then_admitted_sha():
+def test_automatic_firestore_readiness_contract_requires_current_main_then_admitted_sha(workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml'
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
 
     assert validator._validate_firestore_readiness_workflow_contract(str(workflow_path), workflow) == []
 
@@ -728,10 +733,10 @@ def test_automatic_firestore_readiness_contract_requires_current_main_then_admit
     )
 
 
-def test_automatic_firestore_readiness_contract_requires_readiness_admitted_sha_for_deploy():
+def test_automatic_firestore_readiness_contract_requires_readiness_admitted_sha_for_deploy(workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows/gcp_backend_auto_dev.yml'
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
     deploy_checkout = next(
         step for step in workflow['jobs']['deploy']['steps'] if step.get('uses') == 'actions/checkout@v7'
     )
@@ -748,10 +753,10 @@ def test_automatic_firestore_readiness_contract_requires_readiness_admitted_sha_
     )
 
 
-def test_manual_firestore_readiness_contract_allows_one_staged_workflow_control_checkout():
+def test_manual_firestore_readiness_contract_allows_one_staged_workflow_control_checkout(workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows/gcp_backend.yml'
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
 
     assert validator._validate_firestore_readiness_workflow_contract(str(workflow_path), workflow) == []
 
@@ -772,10 +777,10 @@ def test_manual_firestore_readiness_contract_allows_one_staged_workflow_control_
 
 
 @pytest.mark.parametrize('workflow_name', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_firestore_readiness_contract_requires_validation_before_artifact_upload(workflow_name):
+def test_firestore_readiness_contract_requires_validation_before_artifact_upload(workflow_name, workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows' / workflow_name
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
     steps = workflow['jobs']['firestore_readiness']['steps']
     upload_index = next(index for index, step in enumerate(steps) if step.get('uses') == 'actions/upload-artifact@v7')
     upload = steps.pop(upload_index)
@@ -790,10 +795,10 @@ def test_firestore_readiness_contract_requires_validation_before_artifact_upload
 
 
 @pytest.mark.parametrize('workflow_name', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_firestore_readiness_contract_rejects_backend_deployment_credentials(workflow_name):
+def test_firestore_readiness_contract_rejects_backend_deployment_credentials(workflow_name, workflow_documents):
     validator = load_validator()
     workflow_path = ROOT.parent / '.github/workflows' / workflow_name
-    workflow = validator._load_yaml(workflow_path)
+    workflow = workflow_documents[workflow_path.name]
     auth = next(
         step
         for step in workflow['jobs']['firestore_readiness']['steps']
@@ -806,9 +811,9 @@ def test_firestore_readiness_contract_rejects_backend_deployment_credentials(wor
     assert any('must not receive backend deployment credentials' in error.message for error in errors)
 
 
-def test_repo_prod_rendered_cloud_run_state_matches_manifest():
+def test_repo_prod_rendered_cloud_run_state_matches_manifest(runtime_manifest):
     validator = load_validator()
-    manifest = validator._load_yaml(validator.DEFAULT_MANIFEST)
+    manifest = runtime_manifest
     env_config = validator._get_env_config(manifest, 'prod')
     rendered_state = validator._build_rendered_cloud_run_state(env_config)
 
@@ -1010,10 +1015,10 @@ def test_managed_stt_contract_rejects_retired_provider_controls(retired_name):
     ]
 
 
-def test_repo_manifests_use_only_fixed_modulate_managed_stt_contract():
+def test_repo_manifests_use_only_fixed_modulate_managed_stt_contract(runtime_manifest):
     validator = load_validator()
     for environment in ('dev', 'prod'):
-        manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
+        manifest = runtime_manifest
         env_config = manifest['environments'][environment]
         assert validator._validate_managed_stt_contract(environment, env_config) == []
 
@@ -1051,9 +1056,9 @@ def test_repo_rendered_cloud_run_matches_manifest():
 
 
 @pytest.mark.parametrize('env_name', ['dev', 'prod'])
-def test_missing_modulate_binding_is_rejected_for_rendered_hosted_cloud_run(tmp_path, env_name):
+def test_missing_modulate_binding_is_rejected_for_rendered_hosted_cloud_run(tmp_path, env_name, runtime_manifest):
     validator = load_validator()
-    manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
+    manifest = copy.deepcopy(runtime_manifest)
     services = manifest['environments'][env_name]['cloud_run']['services']
     required_services = {'backend'}
     for service_name in required_services:
@@ -1077,9 +1082,8 @@ def test_missing_modulate_binding_is_rejected_for_rendered_hosted_cloud_run(tmp_
     }
 
 
-def test_prod_cloud_run_secret_bindings_exclude_stale_service_account_json():
-    validator = load_validator()
-    manifest = validator._load_yaml(ROOT / 'deploy/runtime_env.yaml')
+def test_prod_cloud_run_secret_bindings_exclude_stale_service_account_json(runtime_manifest):
+    manifest = runtime_manifest
     prod_services = manifest['environments']['prod']['cloud_run']['services']
     stale_secrets = {'SERVICE_ACCOUNT_JSON'}
 
@@ -1142,9 +1146,9 @@ def test_fetch_live_cloud_run_state_rejects_missing_deployment_binding_before_gc
     assert commands == []
 
 
-def test_manifest_requires_environment_owned_cloud_run_deployment_name(tmp_path):
+def test_manifest_requires_environment_owned_cloud_run_deployment_name(tmp_path, runtime_manifest):
     validator = load_validator()
-    manifest = copy.deepcopy(validator._load_yaml(ROOT / 'deploy/runtime_env.yaml'))
+    manifest = copy.deepcopy(runtime_manifest)
     manifest['environments']['dev']['cloud_run']['services']['backend'].pop('deployment_name', None)
     manifest_path = tmp_path / 'runtime_env.yaml'
     write_yaml(manifest_path, manifest)
@@ -1158,9 +1162,9 @@ def test_manifest_requires_environment_owned_cloud_run_deployment_name(tmp_path)
     )
 
 
-def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract(monkeypatch):
+def test_live_cloud_run_describe_normalizes_capacity_identity_and_probe_contract(monkeypatch, runtime_manifest):
     validator = load_validator()
-    env_config = validator._load_yaml(validator.DEFAULT_MANIFEST)['environments']['prod']
+    env_config = runtime_manifest['environments']['prod']
     monkeypatch.setenv('GCP_PROJECT_ID', 'owned-prod')
     monkeypatch.setenv('BACKEND_CLOUD_RUN_SERVICE', 'intentive-production')
     document = {

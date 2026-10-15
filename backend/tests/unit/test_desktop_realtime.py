@@ -21,6 +21,14 @@ def _mint_request():
     )
 
 
+@pytest.fixture
+def allowed_mint_quota(monkeypatch):
+    async def allowed(uid):
+        assert uid == 'user-1'
+
+    monkeypatch.setattr(desktop_realtime, 'enforce_desktop_gemini_quota', allowed)
+
+
 class _Client:
     def __init__(self, response):
         self.response = response
@@ -36,7 +44,38 @@ class _Client:
 
 
 @pytest.mark.asyncio
-async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(monkeypatch):
+async def test_offline_mint_is_unavailable_without_contacting_provider(monkeypatch):
+    monkeypatch.setenv('OMI_LLM_STUB', '1')
+    monkeypatch.setenv('GEMINI_API_KEY', 'offline-placeholder')
+    monkeypatch.setattr(
+        desktop_realtime,
+        'enforce_desktop_gemini_quota',
+        lambda _uid: pytest.fail('offline Live must not consume hosted mint quota'),
+    )
+    monkeypatch.setattr(
+        desktop_realtime.httpx,
+        'AsyncClient',
+        lambda **_: pytest.fail('offline Live must not contact the provider'),
+    )
+
+    async def run(_executor, function, *_args):
+        if function is desktop_realtime.resolve_conversation_prompt:
+            return ResolvedRuntimePrompt('Live behavior', 'intentive-live-system', '7', 'langfuse')
+        assert function is desktop_realtime.is_trial_paywalled
+        return False
+
+    monkeypatch.setattr(desktop_realtime, 'run_blocking', run)
+
+    response = await desktop_realtime.mint_session(_mint_request(), 'user-1')
+
+    assert response.status_code == 503
+    body = json.loads(response.body)
+    assert body['reason'] == 'provider_not_configured'
+    assert 'token' not in body
+
+
+@pytest.mark.asyncio
+async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(monkeypatch, allowed_mint_quota):
     monkeypatch.setenv("GEMINI_API_KEY", "platform-key")
     monkeypatch.setattr(
         desktop_realtime.httpx,
@@ -75,7 +114,7 @@ async def test_gemini_mint_returns_ephemeral_token_without_session_audit_write(m
 
 
 @pytest.mark.asyncio
-async def test_mint_classifies_provider_quota_error(monkeypatch):
+async def test_mint_classifies_provider_quota_error(monkeypatch, allowed_mint_quota):
     monkeypatch.setenv("GEMINI_API_KEY", "platform-key")
     monkeypatch.setattr(
         desktop_realtime.httpx,

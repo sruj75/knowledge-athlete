@@ -22,18 +22,26 @@ from scripts.cloud_run_deployment_identity import (  # noqa: E402
 )
 
 
+@pytest.fixture
+def workflow(filename: str):
+    return yaml.safe_load((ROOT / '.github/workflows' / filename).read_text(encoding='utf-8'))
+
+
+@pytest.fixture
+def runtime_manifest():
+    return yaml.safe_load((BACKEND_ROOT / 'deploy/runtime_env.yaml').read_text(encoding='utf-8'))
+
+
 @pytest.mark.parametrize('filename', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_repository_workflow_has_one_digest_from_build_through_smoke_and_deploy(filename: str) -> None:
+def test_repository_workflow_has_one_digest_from_build_through_smoke_and_deploy(filename: str, workflow) -> None:
     path = ROOT / '.github/workflows' / filename
-    workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
 
     assert validate_immutable_deploy_contract(str(path), workflow) == []
 
 
 @pytest.mark.parametrize('filename', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_repository_workflow_deploys_environment_owned_cloud_run_service(filename: str) -> None:
+def test_repository_workflow_deploys_environment_owned_cloud_run_service(filename: str, workflow) -> None:
     path = ROOT / '.github/workflows' / filename
-    workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
     deploy = workflow['jobs']['deploy']
 
     assert deploy['env']['BACKEND_CLOUD_RUN_SERVICE'] == '${{ vars.BACKEND_CLOUD_RUN_SERVICE }}'
@@ -56,12 +64,11 @@ def test_repository_workflow_deploys_environment_owned_cloud_run_service(filenam
         ('gcp_backend_auto_dev.yml', 'deploy'),
     ],
 )
-def test_workflow_job_exports_manifest_deployment_binding_for_runtime_resolver(filename: str, job_name: str) -> None:
-    workflow_path = ROOT / '.github/workflows' / filename
-    workflow = yaml.safe_load(workflow_path.read_text(encoding='utf-8'))
+def test_workflow_job_exports_manifest_deployment_binding_for_runtime_resolver(
+    filename: str, job_name: str, workflow, runtime_manifest
+) -> None:
     workflow_env = workflow['jobs'][job_name]['env']
-    manifest = yaml.safe_load((BACKEND_ROOT / 'deploy/runtime_env.yaml').read_text(encoding='utf-8'))
-    binding = manifest['environments']['dev']['cloud_run']['services']['backend']['deployment_name']
+    binding = runtime_manifest['environments']['dev']['cloud_run']['services']['backend']['deployment_name']
     resolved_job_env = {
         name: ('knowledge-athlete-dev' if value == '${{ vars.BACKEND_CLOUD_RUN_SERVICE }}' else str(value))
         for name, value in workflow_env.items()
@@ -72,9 +79,8 @@ def test_workflow_job_exports_manifest_deployment_binding_for_runtime_resolver(f
 
 
 @pytest.mark.parametrize('filename', ['gcp_backend.yml', 'gcp_backend_auto_dev.yml'])
-def test_tag_smoke_or_predeploy_service_discovery_mutations_fail_closed(filename: str) -> None:
+def test_tag_smoke_or_predeploy_service_discovery_mutations_fail_closed(filename: str, workflow) -> None:
     path = ROOT / '.github/workflows' / filename
-    workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
 
     mutable_smoke = deepcopy(workflow)
     smoke = next(

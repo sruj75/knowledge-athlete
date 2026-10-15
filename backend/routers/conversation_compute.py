@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 from models.conversation_enums import CategoryEnum
 from utils.llm import conversation_processing
 from utils.llm.usage_tracker import Features, track_usage
-from utils.other.endpoints import get_current_participant_uid
+from utils.other.endpoints import get_current_user_uid
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -112,7 +112,7 @@ def compute_structure_candidate(request: ConversationCandidateRequest, uid: str)
 @router.post('/v1/conversation-compute/discard', response_model=ConversationDiscardResponse)
 def compute_discard(
     request: ConversationDiscardRequest,
-    uid: str = Depends(get_current_participant_uid),
+    uid: str = Depends(get_current_user_uid),
 ) -> ConversationDiscardResponse:
     try:
         with track_usage(uid, Features.CONVERSATION_DISCARD):
@@ -128,7 +128,7 @@ def compute_discard(
 @router.post('/v1/conversation-compute/structure', response_model=ConversationStructureResponse)
 def compute_structure(
     request: ConversationCandidateRequest,
-    uid: str = Depends(get_current_participant_uid),
+    uid: str = Depends(get_current_user_uid),
 ) -> ConversationStructureResponse:
     try:
         with track_usage(uid, Features.CONVERSATION_STRUCTURE):

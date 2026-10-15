@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from models.desktop_conversation import ConversationPromptReceipt
 from routers import desktop_conversation, desktop_realtime
 from utils.observability import conversation_prompts
+from utils.observability import langfuse as langfuse_observability
 from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
 
 
@@ -90,6 +91,10 @@ async def test_live_mint_resolves_exact_reference_instead_of_current_label(monke
     async def mint(*_args, **_kwargs):
         return {'name': 'synthetic-token'}, None
 
+    async def allowed_mint(_uid):
+        return None
+
+    monkeypatch.setattr(desktop_realtime, 'enforce_desktop_gemini_quota', allowed_mint)
     monkeypatch.setattr(desktop_realtime, 'run_blocking', immediate)
     monkeypatch.setattr(desktop_realtime, '_post_json', mint)
     reference = {
@@ -116,6 +121,9 @@ async def test_live_mint_resolves_exact_reference_instead_of_current_label(monke
 @pytest.fixture
 def conversation_harness(monkeypatch):
     calls = []
+    # Route contracts must not construct an external tracing client from local credentials.
+    # Tracing lifecycle and export policy have their own observability contract tests.
+    monkeypatch.setattr(langfuse_observability, 'get_langfuse_client', lambda: None)
     frames = [
         {'candidates': [{'content': {'parts': [{'text': 'Let us start small.'}]}}]},
         {
