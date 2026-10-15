@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:db33aa88f731ae8345f6f656671adc1bfb2b300c0e583616a12a1ce9d7cb6304",
+  "pageVersion": "sha256:c4942d57a9b0c83dfd3510ddd745656aeaf52455ef9dc11bc8738229ddc4b7ae",
   "claims": [
     {
       "id": "claim_c0a55ca2d5c940da94c732959d8fa44d",
@@ -78,7 +78,7 @@
       "evidence": [
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift",
-          "version": "repo-file-v1:sha256:fa4112f4d820f42dae822d3ccb304f233e636bf27be4b52445488e03f243a603"
+          "version": "repo-file-v1:sha256:8da655200ea57b7290d2904af6e46f70aa3c6d197b8c08a45cbd19a10601a107"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationLiveSession.swift",
@@ -142,17 +142,21 @@
     },
     {
       "id": "claim_c49cd764173447928980c3a4e11e8aa5",
-      "statement": "Duplex startup connects the main mixer to the output node with the same capture format used by the input tap, retaining a 24 kHz player connection and 16 kHz input converter; configuration changes fail the active graph visibly.",
+      "statement": "Duplex startup selects mono noninterleaved Float32 clients at the capture sample rate and uses that format for both the input tap and mixer/output connection, avoiding mismatched VPIO clients and implicit discrete-channel microphone conversion; it retains 24 kHz player input, 16 kHz microphone conversion and visible failure on configuration changes.",
       "evidence": [
         {
-          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift#L45-L108",
-          "version": "repo-lines-v1:sha256:cea2d398737b21e89e6a0be85393005edbfeb848d5a4f39ff1b003a1f8012014:eyJzZWxlY3RlZExpbmVDb3VudCI6NjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlOGRkNTM3N2U3YTMwMmYwYjI3YmE3YTYyNjg1ZmFkMmQ3YzQ3MDEzMzU0YzM5YzIxN2Q2YWJlYzY3OTk3NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3NWJlYjEzNTc5MTk4YjI2NDk0MGRmNWY4M2I4MTgxZTJiMDM0YTAyZDY0ZTYyYmE1YWFlZjcwNjc4NmEyMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMifQ"
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift#L252-L287",
+          "version": "repo-lines-v1:sha256:e30664b6e75e6549c49f2438b9d2cbf5856c3f1b056b62cbe47dd88a3afc62f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1OTVkZDQ3N2JkZmM1MDA1ZDgwNzQ0M2Q2MzhkMjNkNGNkZjZmYTM4ODIzNDY5OTc3NWVlNGQyMzAzYTg2MDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkzM2YyYmY1ZThhN2M0OTM0YTRiZjZhZDQ0ZjAzMDI1YjQyNzQyMDU4MjUwMzdjZjdkMTAwYjkyNDJhZTBhMzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4YWRkOGFmMmFiNmM4NjhlNGNlMDc3NWI1Zjg2NzQ5OGFmODY1M2I5YzljNDU1ZDNjOTE4ZmRlNWQwNzgwYzkifQ"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Sources/FloatingControlBar/ConversationDuplexAudio.swift#L45-L113",
+          "version": "repo-lines-v1:sha256:1438265236f39f3f6059fa2363821f5b9bc84374a8a99c9b13238f9140c0e819:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlOGRkNTM3N2U3YTMwMmYwYjI3YmE3YTYyNjg1ZmFkMmQ3YzQ3MDEzMzU0YzM5YzIxN2Q2YWJlYzY3OTk3NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3NWJlYjEzNTc5MTk4YjI2NDk0MGRmNWY4M2I4MTgxZTJiMDM0YTAyZDY0ZTYyYmE1YWFlZjcwNjc4NmEyMGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwOTUwYWUxNjBhODc1MDU2YTBlODI4YzM4ZmUwY2E2MTdmYmJlZTI1NzdhZTFjMjE5NjEwNDNhZTFlMDNhN2UifQ"
         }
       ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-15T14:47:39.134Z"
+    "at": "2026-10-15T15:18:48.302Z"
   }
 }

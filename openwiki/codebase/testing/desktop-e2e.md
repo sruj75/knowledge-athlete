@@ -20,6 +20,8 @@ sources:
     resource: repo://desktop/macos/Desktop/Tests/AmbientCaptureLifecycleTests.swift
   - id: openwiki-source-c8eeff499a30efe076e6b5cf
     resource: repo://desktop/macos/Desktop/Tests/APIClientAuthRetryTests.swift
+  - id: openwiki-source-16b95d03aba49501608c711d
+    resource: repo://desktop/macos/Desktop/Tests/ConversationDuplexFormatTests.swift
   - id: openwiki-source-e258a11230cac85403c011e3
     resource: repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift
   - id: openwiki-source-e8af95bb11237ff7601f5bab
@@ -54,10 +56,10 @@ sources:
     resource: repo://desktop/macos/scripts/omi-ctl
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-10-15T14:47:39.134Z" }
+generated: { by: "codex", at: "2026-10-15T15:18:48.302Z" }
 verified:
   - by: openwiki/0.5.2
-    at: 2026-10-15T14:47:39.134Z
+    at: 2026-10-15T15:18:48.302Z
 ---
 # Desktop end-to-end verification
 
@@ -112,7 +114,9 @@ Run affected XCTest suites in separate processes, for example `xcrun swift test 
 
 `supervisor-conversation.yaml` remains manual. It requires several replies from user/B starts, spoken interruption on speakers/headphones/Bluetooth, all end conditions, multiple forced-fallback exchanges, silent private cues, independent input failures, prompt/privacy checks and a real eight-hour resource soak. T2/T3 success, injected PCM, provider-returned audio or a fake-clock workday cannot mark that flow passed. Record source/bundle/backend identity and measured timings separately from any blocked row.
 
-Start with its physical audio-graph check: record the input/output formats and require an open Live route, available microphone and increasing processed PCM. Include differing capture/output client formats before checking actual reply playback. The flow keeps this hardware boundary separate from offline graph and format-only tests.
+Start with its physical audio-graph check: record the input/output formats and require an open Live route, available microphone and increasing processed PCM. On a device exposing discrete multichannel capture, verify matching mono client formats, a microphone waveform that responds to real speech, speech admission and an answer a person hears. PCM counts include silence. The flow keeps physical format negotiation and hearing separate from synthetic conversion tests.
+
+`ConversationDuplexFormatTests` exercises the production client-format factory and streaming microphone converter. It checks mono Float32 client selection at 44.1/48 kHz for mono, three-channel and seven-channel device descriptions, then converts synthetic client-format audio to 16 kHz Int16 PCM. Multiple chunks must preserve duration, sample alignment, nonzero samples and RMS. These cases test format selection and downstream conversion; they do not run a physical multichannel device or qualify the device matrix.
 
 For read-only local measurement, call `conversation_diagnostics_snapshot` or `supervisor_diagnostics_snapshot` on that named nonproduction bridge. Each action returns a scoped `snapshot_json` string. Retain only that content-free projection, not the ordinary action envelope's broader UI state. A snapshots expose admitted processed PCM counts, IDs and delivery flags; B snapshots expose input age, session counters, timing aggregates, pending work and retry/budget status. Neither action starts capture or provider work. The [measurement boundaries](../integrations/telemetry.md#measurement-boundaries) explain why these counters do not by themselves pass the manual flow.
 

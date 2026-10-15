@@ -1,0 +1,3 @@
+{
+  "change": "Fix silent microphone audio in voice conversations on devices with multiple audio channels"
+}

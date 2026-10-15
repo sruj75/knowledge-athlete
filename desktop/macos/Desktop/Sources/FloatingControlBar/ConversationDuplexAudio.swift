@@ -56,7 +56,10 @@ final class ConversationDuplexAudio: @unchecked Sendable {
           // Must be configured while stopped. Enabling on input also switches
           // the paired output to voice processing on macOS.
           try engine.inputNode.setVoiceProcessingEnabled(true)
-          let captureFormat = engine.inputNode.outputFormat(forBus: 0)
+          guard let captureFormat = Self.voiceProcessingClientFormat(for: engine.inputNode.outputFormat(forBus: 0))
+          else {
+            throw Failure.unavailableInput
+          }
           guard captureFormat.sampleRate > 0, captureFormat.channelCount > 0,
             let converter = AVAudioConverter(from: captureFormat, to: inputFormat)
           else { throw Failure.unavailableInput }
@@ -247,10 +250,25 @@ final class ConversationDuplexAudio: @unchecked Sendable {
   }
 
   private func convertInput(_ buffer: AVAudioPCMBuffer) throws -> Data {
-    guard let converter, let inputFormat,
+    guard let converter else { throw Failure.conversion }
+    return try Self.microphonePCM(from: buffer, using: converter)
+  }
+
+  static func voiceProcessingClientFormat(for deviceFormat: AVAudioFormat) -> AVAudioFormat? {
+    guard deviceFormat.sampleRate > 0, deviceFormat.channelCount > 0 else { return nil }
+    // VPIO can expose a discrete multichannel device layout. Implicit mapping
+    // from that layout to mono can select no source and silently discard audio.
+    return AVAudioFormat(
+      commonFormat: .pcmFormatFloat32, sampleRate: deviceFormat.sampleRate, channels: 1, interleaved: false)
+  }
+
+  static func microphonePCM(from buffer: AVAudioPCMBuffer, using converter: AVAudioConverter) throws -> Data {
+    let inputFormat = converter.outputFormat
+    guard
       let converted = AVAudioPCMBuffer(
         pcmFormat: inputFormat,
-        frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 16_000 / buffer.format.sampleRate + 32))
+        frameCapacity: AVAudioFrameCount(
+          Double(buffer.frameLength) * inputFormat.sampleRate / buffer.format.sampleRate + 32))
     else { throw Failure.conversion }
     let source = ConversationAudioBufferBox(buffer)
     var error: NSError?
