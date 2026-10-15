@@ -1,4 +1,7 @@
+import hashlib
 import json
+from pathlib import Path
+import runpy
 from types import SimpleNamespace
 
 import httpx
@@ -6,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from models.desktop_conversation import ConversationPromptReceipt
 from routers import desktop_conversation, desktop_realtime
 from utils.observability import conversation_prompts
 from utils.observability.langfuse_prompts import ResolvedRuntimePrompt
@@ -205,6 +209,73 @@ def test_direct_a_stream_uses_pinned_policy_fixed_capabilities_and_exclusive_usa
     assert payload['contents'][-1]['parts'][-1] == {'inlineData': {'mimeType': 'image/jpeg', 'data': '/9j/'}}
     assert payload['contents'][1] == {'role': 'user', 'parts': [{'text': 'Earlier question'}]}
     assert payload['contents'][2] == {'role': 'model', 'parts': [{'text': 'Earlier answer'}]}
+
+
+def test_release_candidate_probe_bounds_long_history_through_current_request_models(conversation_harness, monkeypatch):
+    """Exercise the real probe, request validation, provider adapter and typed SSE."""
+    client, calls, frames, _ = conversation_harness
+    probe = SimpleNamespace(
+        **runpy.run_path(str(Path(__file__).resolve().parents[3] / '.github/scripts/backend_candidate_probe.py'))
+    )
+    text = 'Pinned A'
+    receipt = ConversationPromptReceipt(
+        name='intentive-live-system',
+        version='2',
+        source='langfuse',
+        text=text,
+        sha256=hashlib.sha256(text.encode()).hexdigest(),
+    )
+    monkeypatch.setattr(desktop_conversation, 'bootstrap_conversation_prompt', lambda: receipt)
+    long_answer = 'a' * 4001
+    frames[0]['candidates'][0]['content']['parts'] = [{'text': long_answer}]
+    frames[1]['candidates'][0]['content']['parts'] = []
+    accepted = []
+
+    class Response:
+        def __init__(self, response):
+            self.response = response
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, size=-1):
+            return self.response.content[:size] if size >= 0 else self.response.content
+
+        def __iter__(self):
+            return iter(self.response.content.splitlines(keepends=True))
+
+    def backend(request, *, timeout):
+        response = client.post(request.selector, content=request.data, headers={'Content-Type': 'application/json'})
+        assert response.status_code == 200, response.text
+        accepted.append((request.selector, json.loads(request.data)))
+        return Response(response)
+
+    monkeypatch.setattr(probe.urllib.request, 'urlopen', backend)
+    probe.probe_candidate.__globals__['_request_json'] = lambda url: (
+        {'status': 'ok'}
+        if url.endswith('/v1/health')
+        else {'status': 'healthy', 'service': 'backend', 'chat_contract_version': '2'}
+    )
+    probe.probe_candidate.__globals__['_require_firestore_read'] = lambda _: {'status': 'passed'}
+    evidence = probe.probe_candidate(
+        base_url='https://candidate.invalid',
+        token='synthetic-token',
+        expected_contract_version='2',
+        source_sha='a' * 40,
+        expected_revision='backend-fixture',
+        expected_image_digest='sha256:' + 'b' * 64,
+        candidate_tag='candidate',
+        workflow_run_id='123',
+    )
+    turns = [body for path, body in accepted if path == '/v1/conversation/respond']
+    assert len(turns) == len(calls) == 2
+    assert turns[0]['prompt_ref'] == turns[1]['prompt_ref'] == receipt.reference().model_dump()
+    assert turns[1]['history'][1]['text'] == long_answer[:4000]
+    assert evidence['chat']['initial_turn_chars'] == len(long_answer)
+    assert long_answer not in json.dumps(evidence)
 
 
 @pytest.fixture(scope='module')

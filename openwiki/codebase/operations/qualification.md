@@ -3,33 +3,51 @@ type: Codebase guide
 title: Qualification and open obligations
 description: Explain evidence gates and existing harnesses; link authored open commitments without claiming qualification.
 tags: [intentive, codebase]
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-15T06:57:13.407Z
 sources:
   - id: openwiki-source-3b73c81eefcd909208670ce0
     resource: repo://.github/checks-manifest.yaml
+  - id: openwiki-source-a2e9f488324574616875f69a
+    resource: repo://.github/failure-classes/FC-provider-http-error-format.json
+  - id: openwiki-source-b1a0c4c7878c2939e6b73152
+    resource: repo://.github/failure-classes/FC-public-web-routing-parity.json
+  - id: openwiki-source-6d3dedd47b97bc8466968f9a
+    resource: repo://.github/failure-classes/FC-selection-overlay-layout-loop.json
+  - id: openwiki-source-7c8fa8df1fbcb76046ab158a
+    resource: repo://.github/failure-classes/FC-split-mutation-authority.json
+  - id: openwiki-source-4614724a189e4cc9cf1a0f57
+    resource: repo://.github/failure-classes/FC-surface-tool-authority-projection.json
   - id: openwiki-source-19d91df3181544492a10253e
     resource: repo://.github/scripts/check_policy_change_review.py
   - id: openwiki-source-2086e730056d335da93dacd1
     resource: repo://.github/scripts/publish_guardrail_pulse.py
   - id: openwiki-source-54aa0818a69c7dc32f892aa8
     resource: repo://.github/scripts/run_checks.py
+  - id: openwiki-source-ecca44aa084e91aded2c105f
+    resource: repo://.github/scripts/test_backend_candidate_probe.py
   - id: openwiki-source-6fc056d3bbb591906ac1f888
     resource: repo://.github/scripts/test_check_policy_change_review.py
   - id: openwiki-source-54e240f9ab6a71a2b90a1c33
     resource: repo://.github/workflows/guardrail-baseline-pulse.yml
+  - id: openwiki-source-8c64fead8c8caad37dea1f70
+    resource: repo://backend/tests/unit/test_desktop_conversation.py
+  - id: openwiki-source-276b6bd5d516d3e8277c2462
+    resource: repo://backend/tests/unit/test_voice_provider_probe.py
   - id: openwiki-source-e762e0de342d9685ba91244f
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationFeedbackView.swift
   - id: openwiki-source-e0ddaa9325c2b96bfacccfee
     resource: repo://desktop/macos/Desktop/Sources/AIObservability/AIEvaluationReporter.swift
   - id: openwiki-source-21802c0cbbe5aeada371f269
     resource: repo://desktop/macos/Desktop/Sources/MainWindow/Components/ChatMessageMetadataRow.swift
+  - id: openwiki-source-317262cd3f709b346ea8731c
+    resource: repo://desktop/macos/Desktop/Tests/GeminiBackgroundRoutingTests.swift
   - id: openwiki-source-38a1b3c7a8acf2ceea409825
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-fa2531a1c23faf0486307e94
     resource: repo://tools/codebase-map/tests/browser/viewer.spec.ts
-generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-10-14T15:50:15.263Z
+generated: { by: "codex", at: "2026-10-15T06:57:13.407Z" }
 ---
 # Qualification and open obligations
 
@@ -50,6 +68,12 @@ Record the full source SHA, dirty-state qualification, bundle identity, backend 
 The shared deterministic manifest runs checks in named local and CI lanes. Repo Checks separates PR metadata preflight from code-change detection and Hygiene, and prepares the dependencies required by its selected checks. Pre-push retains the shared PR preflight and the component/evidence checks for the actual pushed diff. The Mermaid map supports source navigation; it does not certify product acceptance.
 
 The [codebase map viewer](codebase-map.md) adds a diff-selected build and browser check in both lanes. Its Chromium tests account for all six areas, 37 nodes and 57 connections across generated local views, including dense and internally disconnected areas. They exercise explicit click/keyboard entry, full labels at natural size, native wheel/touch scrolling without diagram zoom, mouse dragging, remembered positions, cached local flows, fixed geographic regions, connection inspection and destination focus, resize/fullscreen, reduced motion, parse/layout recovery and commit links against the static export. Recovery includes a local render failure, retained retry when reselecting that area, and a successful retry. Spatial tests verify deterministic geographic projection and non-overlap. CI provisions its locked packages and browser through the same manifest selection. A passing viewer check establishes rendering and source-loading behavior; semantic map accuracy and the live Vercel Git connection/deployment still need their own review and observation.
+
+## Release-probe regression evidence
+
+The portable candidate-probe fixtures exercise the executable helper's conversation bootstrap, pinned receipt, two typed SSE responses, terminal usage, stream bounds and redacted evidence. Their source-contract tripwires check current route and field declarations; real request-model coverage lives in the backend conversation tests, including a long first answer carried into bounded follow-up history. The voice-probe tests mount the current conversation-session and realtime routers with synthetic authentication, then substitute provider transport to check receipt reuse, Live setup and failure/redaction paths. These hermetic tests do not establish funded provider availability, actual speech or silent B guidance.
+
+Failure-class metadata points to retained guard owners: HTTP status/detail coverage in `GeminiBackgroundRoutingTests`, selectable-content layout coverage in `ChatTimelineContinuityTests`, and canonical conversation-storage plus Memory ownership tests. Optional artifact references for fully retired routing/execution projections are absent; historical class identities and lifecycle records remain separate from those live coverage pointers. Registry validation checks declared artifact paths rather than proving the tests' behavioral scope.
 
 ## Conversational product qualification
 

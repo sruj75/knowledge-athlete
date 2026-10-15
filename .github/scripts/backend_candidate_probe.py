@@ -5,8 +5,8 @@ The probe is deliberately bounded and content-free in its evidence. It proves:
 
 * the workflow supplies the admitted backend source identity;
 * the shallow process health contract stays unchanged;
-* the versioned desktop chat contract is advertised independently and on responses;
-* two ordinary turns complete in the same history.
+* the versioned desktop compatibility contract is advertised independently;
+* A bootstraps once and completes two tool-free turns with the same pinned prompt.
 
 The Firebase ID token is read from a mode-0600 file and is never printed.
 """
@@ -14,6 +14,7 @@ The Firebase ID token is read from a mode-0600 file and is never printed.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -28,6 +29,9 @@ from typing import Any, Iterable
 HTTP_TIMEOUT_SECONDS = 75
 MAX_CHAT_SECONDS = 70
 MAX_FIRST_EVENT_SECONDS = 20
+MAX_RESPONSE_BYTES = 1_000_000
+MAX_TEXT_CHARS = 32_000
+MAX_HISTORY_TEXT_CHARS = 4_000
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 CONTRACT_PATTERN = re.compile(r"^[1-9][0-9]{0,5}$")
 
@@ -90,13 +94,21 @@ def parse_sse(
     stage: str,
     started_at: float | None = None,
     max_elapsed_seconds: float | None = None,
+    expected_prompt_ref: dict[str, str] | None = None,
 ) -> tuple[str, bool, float, bool]:
     text: list[str] = []
     saw_terminal = False
     saw_usage = False
     first_event_seconds: float | None = None
+    event_name = ""
+    data_lines: list[str] = []
+    received_bytes = 0
+    text_chars = 0
     started_at = time.monotonic() if started_at is None else started_at
     for raw_line in lines:
+        received_bytes += len(raw_line)
+        if received_bytes > MAX_RESPONSE_BYTES:
+            raise ProbeError(f"{stage}: stream exceeded its byte bound")
         elapsed = time.monotonic() - started_at
         if max_elapsed_seconds is not None and elapsed > max_elapsed_seconds:
             raise ProbeError(f"{stage}: exceeded {max_elapsed_seconds:g}s response budget")
@@ -104,42 +116,63 @@ def parse_sse(
             line = raw_line.decode("utf-8").strip()
         except UnicodeDecodeError as error:
             raise ProbeError(f"{stage}: invalid SSE encoding") from error
-        if not line.startswith("data:"):
+        if line.startswith(":"):
             continue
-        data = line[5:].strip()
+        if line.startswith("event:"):
+            event_name = line[6:].strip()
+            continue
+        if line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+            continue
+        if line or not data_lines:
+            continue
+        data = "\n".join(data_lines)
+        data_lines.clear()
         try:
             event = _require_object(json.loads(data), stage=stage)
         except json.JSONDecodeError as error:
             raise ProbeError(f"{stage}: invalid SSE JSON") from error
-        if "error" in event:
-            error_payload = event.get("error")
-            error_type = error_payload.get("type") if isinstance(error_payload, dict) else "unknown"
-            raise ProbeError(f"{stage}: upstream stream error ({error_type})")
+        if saw_terminal:
+            raise ProbeError(f"{stage}: event arrived after terminal completion")
+        if event_name == "error":
+            raise ProbeError(f"{stage}: upstream stream error")
         if first_event_seconds is None:
             first_event_seconds = time.monotonic() - started_at
             if first_event_seconds > MAX_FIRST_EVENT_SECONDS:
                 raise ProbeError(f"{stage}: first event exceeded {MAX_FIRST_EVENT_SECONDS}s budget")
-        usage = event.get("usageMetadata")
-        if isinstance(usage, dict):
-            saw_usage = True
-        candidates = event.get("candidates")
-        if not isinstance(candidates, list):
-            continue
-        for candidate in candidates:
-            if not isinstance(candidate, dict):
-                continue
-            if isinstance(candidate.get("finishReason"), str):
-                saw_terminal = True
-            content = candidate.get("content")
-            parts = content.get("parts") if isinstance(content, dict) else None
-            if not isinstance(parts, list):
-                continue
-            for part in parts:
-                if isinstance(part, dict) and part.get("thought") is not True and isinstance(part.get("text"), str):
-                    text.append(part["text"])
+        if event_name == "text_delta":
+            delta = event.get("text")
+            if not isinstance(delta, str):
+                raise ProbeError(f"{stage}: invalid text delta")
+            text_chars += len(delta)
+            if text_chars > MAX_TEXT_CHARS:
+                raise ProbeError(f"{stage}: answer exceeded its text bound")
+            text.append(delta)
+        elif event_name == "done":
+            if event.get("end_conversation") is not False:
+                raise ProbeError(f"{stage}: conversation ended before the ordinary follow-up")
+            if expected_prompt_ref is not None and event.get("prompt_ref") != expected_prompt_ref:
+                raise ProbeError(f"{stage}: terminal prompt reference mismatch")
+            usage = event.get("usage")
+            required_usage = (
+                "input_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "thinking_tokens",
+            )
+            saw_usage = isinstance(usage, dict) and all(
+                isinstance(usage.get(key), int) and not isinstance(usage[key], bool) and usage[key] >= 0
+                for key in required_usage
+            )
+            saw_terminal = True
+        else:
+            raise ProbeError(f"{stage}: unsupported conversation event")
+        event_name = ""
+    if data_lines:
+        raise ProbeError(f"{stage}: truncated SSE event")
     answer = "".join(text).strip()
     if not saw_terminal:
-        raise ProbeError(f"{stage}: stream ended without a terminal candidate")
+        raise ProbeError(f"{stage}: stream ended without terminal completion")
     if not answer:
         raise ProbeError(f"{stage}: stream completed without answer text")
     if first_event_seconds is None:
@@ -182,61 +215,41 @@ def _chat_request(
     base_url: str,
     *,
     token: str,
-    contract_version: str,
+    conversation_id: str,
+    turn_id: str,
+    prompt_ref: dict[str, str],
     messages: list[dict[str, str]],
     stage: str,
     timeout: int = HTTP_TIMEOUT_SECONDS,
 ) -> ChatResult:
-    contents = [
-        {
-            "role": "model" if message["role"] == "assistant" else "user",
-            "parts": [{"text": message["content"]}],
-        }
-        for message in messages
-    ]
     payload = {
-        "contents": contents,
-        "generationConfig": {
-            "maxOutputTokens": 512,
-            "thinkingConfig": {"thinkingLevel": "LOW"},
-        },
-        "tools": [
-            {
-                "functionDeclarations": [
-                    {
-                        "name": "release_probe_noop",
-                        "description": "Release-probe placeholder. Never call this tool.",
-                        "parametersJsonSchema": {"type": "object", "properties": {}},
-                    }
-                ]
-            }
+        "conversation_id": conversation_id,
+        "turn_id": turn_id,
+        "prompt_ref": prompt_ref,
+        "history": [
+            {"role": message["role"], "text": message["content"][:MAX_HISTORY_TEXT_CHARS]} for message in messages[:-1]
         ],
+        "message": messages[-1]["content"],
     }
     request = urllib.request.Request(
-        f"{base_url.rstrip('/')}/v2/models/gemini-3.7-flash:streamGenerateContent?alt=sse",
+        f"{base_url.rstrip('/')}/v1/conversation/respond",
         data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
         headers={
             "Accept": "text/event-stream",
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "x-intentive-chat-contract-version": contract_version,
         },
         method="POST",
     )
     started_at = time.monotonic()
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            response_contract = response.headers.get("x-intentive-chat-contract-version")
-            if response_contract != contract_version:
-                raise ProbeError(
-                    f"{stage}: response contract mismatch "
-                    f"(expected={contract_version}, actual={response_contract or 'missing'})"
-                )
             answer, _, first_event_seconds, saw_usage = parse_sse(
                 response,
                 stage=stage,
                 started_at=started_at,
                 max_elapsed_seconds=MAX_CHAT_SECONDS,
+                expected_prompt_ref=prompt_ref,
             )
             elapsed_seconds = time.monotonic() - started_at
             if elapsed_seconds > MAX_CHAT_SECONDS:
@@ -255,6 +268,57 @@ def _chat_request(
         raise ProbeError(f"{stage}: request failed") from error
 
 
+def _bootstrap_conversation(base_url: str, *, token: str, conversation_id: str) -> dict[str, str]:
+    request = urllib.request.Request(
+        f"{base_url.rstrip('/')}/v1/conversation/session",
+        data=json.dumps({"conversation_id": conversation_id}).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            body = response.read(MAX_RESPONSE_BYTES + 1)
+        if len(body) > MAX_RESPONSE_BYTES:
+            raise ProbeError("conversation_bootstrap: response exceeded its byte bound")
+        payload = _require_object(json.loads(body.decode("utf-8")), stage="conversation_bootstrap")
+    except urllib.error.HTTPError as error:
+        raise ProbeError(f"conversation_bootstrap: HTTP {error.code}") from error
+    except (
+        urllib.error.URLError,
+        OSError,
+        TimeoutError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as error:
+        raise ProbeError("conversation_bootstrap: request failed") from error
+    if payload.get("conversation_id") != conversation_id:
+        raise ProbeError("conversation_bootstrap: conversation identity mismatch")
+    prompt = _require_object(payload.get("prompt"), stage="conversation_bootstrap")
+    text = prompt.get("text")
+    version = prompt.get("version")
+    source = prompt.get("source")
+    try:
+        prompt_hash = hashlib.sha256(text.encode("utf-8")).hexdigest() if isinstance(text, str) else None
+    except UnicodeError as error:
+        raise ProbeError("conversation_bootstrap: invalid prompt receipt") from error
+    if (
+        prompt.get("name") != "intentive-live-system"
+        or not isinstance(text, str)
+        or not 1 <= len(text) <= MAX_TEXT_CHARS
+        or not isinstance(version, str)
+        or source not in ("langfuse", "fallback")
+        or (source == "fallback" and version != "conversation-v1")
+        or (source == "langfuse" and re.fullmatch(r"[1-9][0-9]{0,9}", version) is None)
+        or prompt.get("sha256") != prompt_hash
+    ):
+        raise ProbeError("conversation_bootstrap: invalid prompt receipt")
+    return {key: prompt[key] for key in ("name", "version", "source", "sha256")}
+
+
 def probe_candidate(
     *,
     base_url: str,
@@ -268,15 +332,23 @@ def probe_candidate(
 ) -> dict[str, object]:
     process_health = validate_process_health(_request_json(f"{base_url.rstrip('/')}/v1/health"))
     compatibility = validate_compatibility(
-        _request_json(f"{base_url.rstrip('/')}/"), expected_contract_version=expected_contract_version
+        _request_json(f"{base_url.rstrip('/')}/"),
+        expected_contract_version=expected_contract_version,
     )
     firestore = _require_firestore_read(base_url)
+    conversation_id = f"release-probe-{workflow_run_id}"
+    prompt_ref = _bootstrap_conversation(base_url, token=token, conversation_id=conversation_id)
 
-    initial_prompt = "Reply with one concise sentence confirming that the desktop chat service is available."
+    keep_open = "There will be another user turn; keep this conversation open and do not call end_conversation."
+    initial_prompt = (
+        f"Reply with one concise sentence confirming that the desktop chat service is available. {keep_open}"
+    )
     initial_result = _chat_request(
         base_url,
         token=token,
-        contract_version=expected_contract_version,
+        conversation_id=conversation_id,
+        turn_id=f"{conversation_id}.initial",
+        prompt_ref=prompt_ref,
         messages=[{"role": "user", "content": initial_prompt}],
         stage="initial_turn",
     )
@@ -285,11 +357,13 @@ def probe_candidate(
     follow_up_result = _chat_request(
         base_url,
         token=token,
-        contract_version=expected_contract_version,
+        conversation_id=conversation_id,
+        turn_id=f"{conversation_id}.follow-up",
+        prompt_ref=prompt_ref,
         messages=[
             {"role": "user", "content": initial_prompt},
             {"role": "assistant", "content": initial_result.answer},
-            {"role": "user", "content": "Reply with one short follow-up sentence."},
+            {"role": "user", "content": f"Reply with one short follow-up sentence. {keep_open}"},
         ],
         stage="ordinary_follow_up",
     )
@@ -328,7 +402,8 @@ def probe_health_only(
 ) -> dict[str, object]:
     return {
         "backend": validate_compatibility(
-            _request_json(f"{base_url.rstrip('/')}/"), expected_contract_version=expected_contract_version
+            _request_json(f"{base_url.rstrip('/')}/"),
+            expected_contract_version=expected_contract_version,
         ),
         "process_health": validate_process_health(_request_json(f"{base_url.rstrip('/')}/v1/health")),
         "schema_version": 1,
@@ -370,7 +445,12 @@ def main() -> int:
     if not args.health_only:
         if args.source_sha is None or not SHA_PATTERN.fullmatch(args.source_sha):
             parser.error("--source-sha must be one lowercase full commit SHA")
-        for name in ("expected_revision", "expected_image_digest", "candidate_tag", "workflow_run_id"):
+        for name in (
+            "expected_revision",
+            "expected_image_digest",
+            "candidate_tag",
+            "workflow_run_id",
+        ):
             if not getattr(args, name):
                 parser.error(f"--{name.replace('_', '-')} is required for a full candidate probe")
         if not re.fullmatch(r"sha256:[0-9a-f]{64}", args.expected_image_digest):

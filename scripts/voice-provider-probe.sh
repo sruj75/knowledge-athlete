@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Prove one deployed managed realtime-provider turn without exposing credentials.
 
-The probe mints a short-lived provider credential from the deployed desktop
-backend, opens the provider's direct WebSocket path, commits a fixed harmless
-text fixture, and waits for the provider's terminal response event. It accepts
+The probe resolves pinned conversation instructions and mints a short-lived
+provider credential from the deployed desktop backend, opens the provider's
+direct WebSocket path with those instructions, commits a fixed harmless text
+fixture, and waits for the provider's terminal response event. It accepts
 only a mode-0600 Firebase ID-token file so callers never put a bearer token in a
 command line, environment dump, or log.
 """
@@ -12,8 +13,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
+import re
 import socket
 import ssl
 import stat
@@ -26,8 +29,10 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
+from uuid import uuid4
 
 MINT_PATH = "/v2/realtime/session"
+SESSION_PATH = "/v1/conversation/session"
 GEMINI_URL_PREFIX = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained"
 GEMINI_TOKEN_PREFIX = "auth_tokens/"
 PROBE_INPUT = "Reply with exactly OMI_PROVIDER_PROBE_OK."
@@ -43,6 +48,12 @@ class ProbeConfig:
     base_url: str
     bearer_token: str | None
     timeout_seconds: float
+
+
+@dataclass(frozen=True)
+class ProviderSession:
+    token: str
+    prompt_text: str
 
 
 class ProbeFailure(RuntimeError):
@@ -105,13 +116,12 @@ def _classify_http_error(status_code: int) -> ProbeFailure:
     return ProbeFailure("mint_http_unexpected")
 
 
-def _mint_provider_token(config: ProbeConfig) -> str:
+def _post_backend_json(config: ProbeConfig, path: str, payload: dict[str, Any], schema_error: str) -> dict[str, Any]:
     if not config.base_url or not config.bearer_token:
         raise ProbeFailure("configuration")
-    body = b"{}"
     request = urllib.request.Request(
-        f"{config.base_url}{MINT_PATH}",
-        data=body,
+        f"{config.base_url}{path}",
+        data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
         method="POST",
         headers={
             "Accept": "application/json",
@@ -133,20 +143,57 @@ def _mint_provider_token(config: ProbeConfig) -> str:
         raise ProbeFailure("mint_transport")
 
     if len(payload_bytes) > MAX_HTTP_RESPONSE_BYTES:
-        raise ProbeFailure("mint_schema")
+        raise ProbeFailure(schema_error)
     try:
         payload = json.loads(payload_bytes.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        raise ProbeFailure("mint_schema")
+        raise ProbeFailure(schema_error)
     finally:
         payload_bytes = b""
     if not isinstance(payload, dict):
+        raise ProbeFailure(schema_error)
+    return payload
+
+
+def _prompt_receipt(value: object, schema_error: str) -> dict[str, str]:
+    fields = ("name", "version", "source", "sha256", "text")
+    if not isinstance(value, dict) or any(not isinstance(value.get(key), str) for key in fields):
+        raise ProbeFailure(schema_error)
+    receipt = {key: value[key] for key in fields}
+    try:
+        prompt_hash = hashlib.sha256(receipt["text"].encode("utf-8")).hexdigest()
+    except UnicodeError as error:
+        raise ProbeFailure(schema_error) from error
+    version_valid = (
+        receipt["source"] == "langfuse" and re.fullmatch(r"[1-9][0-9]{0,9}", receipt["version"]) is not None
+    ) or (receipt["source"] == "fallback" and receipt["version"] == "conversation-v1")
+    if (
+        receipt["name"] != "intentive-live-system"
+        or not version_valid
+        or not 1 <= len(receipt["text"]) <= 32000
+        or prompt_hash != receipt["sha256"]
+    ):
+        raise ProbeFailure(schema_error)
+    return receipt
+
+
+def _mint_provider_session(config: ProbeConfig) -> ProviderSession:
+    conversation_id = f"provider-probe-{uuid4()}"
+    bootstrap = _post_backend_json(config, SESSION_PATH, {"conversation_id": conversation_id}, "session_schema")
+    if bootstrap.get("conversation_id") != conversation_id:
+        raise ProbeFailure("session_schema")
+    receipt = _prompt_receipt(bootstrap.get("prompt"), "session_schema")
+    reference = {key: value for key, value in receipt.items() if key != "text"}
+    payload = _post_backend_json(
+        config, MINT_PATH, {"conversation_id": conversation_id, "prompt_ref": reference}, "mint_schema"
+    )
+    if _prompt_receipt(payload.get("prompt"), "mint_schema") != receipt:
         raise ProbeFailure("mint_schema")
     token = payload.get("token")
     valid = payload.get("provider") == "gemini" and isinstance(token, str) and token.startswith(GEMINI_TOKEN_PREFIX)
     if not valid or len(token) > MAX_TOKEN_CHARS:
         raise ProbeFailure("mint_schema")
-    return token
+    return ProviderSession(token=token, prompt_text=receipt["text"])
 
 
 class ProviderWebSocket:
@@ -356,8 +403,8 @@ def _receive_until(websocket: ProviderWebSocket, timeout_seconds: float, matcher
             return
 
 
-def _gemini_websocket(token: str, timeout_seconds: float) -> ProviderWebSocket:
-    query = urllib.parse.urlencode({"access_token": token})
+def _gemini_websocket(session: ProviderSession, timeout_seconds: float) -> ProviderWebSocket:
+    query = urllib.parse.urlencode({"access_token": session.token})
     websocket = ProviderWebSocket(f"{GEMINI_URL_PREFIX}?{query}", {}, timeout_seconds)
     try:
         websocket.connect()
@@ -365,8 +412,30 @@ def _gemini_websocket(token: str, timeout_seconds: float) -> ProviderWebSocket:
             {
                 "setup": {
                     "model": "models/gemini-3.1-flash-live-preview",
-                    "generationConfig": {"responseModalities": ["AUDIO"], "temperature": 0.0},
-                    "systemInstruction": {"parts": [{"text": "Return the requested deterministic response."}]},
+                    "generationConfig": {
+                        "responseModalities": ["AUDIO"],
+                        "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": "Charon"}}},
+                    },
+                    "systemInstruction": {"parts": [{"text": session.prompt_text}]},
+                    "inputAudioTranscription": {},
+                    "outputAudioTranscription": {},
+                    "realtimeInputConfig": {
+                        "automaticActivityDetection": {"disabled": False},
+                        "activityHandling": "START_OF_ACTIVITY_INTERRUPTS",
+                    },
+                    "tools": [
+                        {
+                            "functionDeclarations": [
+                                {
+                                    "name": "end_conversation",
+                                    "description": "End this conversation after your final spoken response.",
+                                    "parameters": {"type": "OBJECT", "properties": {}},
+                                }
+                            ]
+                        }
+                    ],
+                    "sessionResumption": {},
+                    "contextWindowCompression": {"slidingWindow": {}},
                 }
             }
         )
@@ -382,13 +451,13 @@ def run_probe(config: ProbeConfig) -> int:
         _emit("authenticate", "FAIL", "configuration")
         return 1
     _emit("authenticate", "PASS", "none")
-    provider_token = ""
+    session = None
     current_step = "mint"
     try:
-        provider_token = _mint_provider_token(config)
+        session = _mint_provider_session(config)
         _emit("mint", "PASS", "none")
         current_step = "connect"
-        websocket = _gemini_websocket(provider_token, config.timeout_seconds)
+        websocket = _gemini_websocket(session, config.timeout_seconds)
         _emit("connect", "PASS", "none")
         try:
             current_step = "commit"
@@ -415,7 +484,7 @@ def run_probe(config: ProbeConfig) -> int:
         _emit(current_step, "FAIL", "provider_transport")
         return 1
     finally:
-        provider_token = ""
+        session = None
     _emit("close", "PASS", "expected_idle_teardown")
     return 0
 

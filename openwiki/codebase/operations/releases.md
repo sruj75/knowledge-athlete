@@ -3,7 +3,12 @@ type: Codebase guide
 title: Delivery and updates
 description: Trace backend exact-SHA deployment and desktop qualification, promotion, signed artifacts and idle relaunch.
 tags: [intentive, codebase]
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-15T06:57:13.407Z
 sources:
+  - id: openwiki-source-6934316e4f1b3e4bc3d82368
+    resource: repo://.github/scripts/backend_candidate_probe.py
   - id: openwiki-source-44eedcfce6140b49b80aa902
     resource: repo://.github/scripts/desktop-release-source-identity.py
   - id: openwiki-source-8b209a766e65972401f06f98
@@ -22,10 +27,9 @@ sources:
     resource: repo://desktop/macos/Desktop/Sources/UpdaterViewModel.swift
   - id: openwiki-source-8870fabff52713e7a9cb9151
     resource: repo://desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift
-generated: { by: "codex", at: "2026-10-14T14:40:28.560Z" }
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-10-14T14:40:28.560Z
+  - id: openwiki-source-5f82b394f0fb8c8ef82a6f25
+    resource: repo://scripts/voice-provider-probe.sh
+generated: { by: "codex", at: "2026-10-15T06:57:13.407Z" }
 ---
 # Delivery and updates
 
@@ -36,6 +40,14 @@ Backend deployment and desktop publication use separate evidence and mutation pa
 The manual Cloud Run workflow accepts an environment, exact release SHA and mode. Deploy, traffic repair, read-only foundation readiness and artifact cleanup dry-run are distinct modes. The environment-scoped backend-stack concurrency group serializes deployment mutations without canceling a running operation.
 
 The runtime environment contract defines the canonical deployment shape. The workflow obtains short-lived GitHub workload identity, builds and identifies the candidate, runs readiness/acceptance gates, promotes traffic and verifies the serving release vector. Failure/rollback evidence matters because a successful image build cannot prove the serving service matches it. Break-glass inputs relax a named evidence gate while retaining the merged-source boundary.
+
+### Candidate conversation and Live probes
+
+Before shifting traffic, the manual backend workflow runs the candidate conversation helper and the managed voice-provider helper with a protected Firebase token file. Candidate evidence remains bound to the admitted source, revision, image digest, tag and workflow run. The conversation helper checks shallow process health, advertised compatibility and read-only Firestore availability, then creates one `/v1/conversation/session` and sends two `/v1/conversation/respond` turns with the same validated prompt reference. It parses the application's `text_delta`/`done` stream, requires terminal usage and prompt identity, and rejects premature completion or unsupported events. Both fixed fixtures ask to keep the conversation open.
+
+The conversation probe bounds first-event latency to 20 seconds and a response to 70 seconds, caps stream/text size and carries at most 4,000 characters per historical turn. Its receipt records counts/timings and target identity rather than conversation text or credentials. The root compatibility version remains a separate advertised contract; the removed raw-provider chat route is not used.
+
+The voice helper first resolves that logical conversation's A instructions, mints `/v2/realtime/session` with the same conversation ID and prompt reference, and verifies the returned complete receipt before connecting. Provider setup uses the pinned instructions, automatic voice activity detection, transcription, the fixed `end_conversation` signal and the current Live voice/session settings. It sends standalone text without manual microphone activity markers. A successful terminal provider event proves that bounded protocol exchange only; human-heard audio, natural interruption and silent Supervisor guidance require their separate acceptance paths.
 
 ## Desktop
 
@@ -63,6 +75,10 @@ The updater passes a current local activity snapshot into installation admission
 Before changing delivery tooling, trace the precise workflow, script and contract tests that own the transition. Production configuration, signed/notarized acceptance and owner/legal destinations include outstanding authored obligations; repository source is not live deployment evidence.
 
 ## Source evidence
+
+- [Candidate conversation probe](../../../.github/scripts/backend_candidate_probe.py)
+- [Prompt-bound voice probe](../../../scripts/voice-provider-probe.sh)
+- [Pre-traffic probe workflow](../../../.github/workflows/gcp_backend.yml#L826-L852)
 
 - [.github/workflows/gcp_backend.yml](../../../.github/workflows/gcp_backend.yml#L1-L95)
 - [desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift](../../../desktop/macos/Desktop/Sources/Updates/UpdateInstallationAdmission.swift)

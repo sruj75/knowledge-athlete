@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:82238937f21fa1050440603322895b0731dbbe50dd7e20f62af5ab336ac3ec33",
+  "pageVersion": "sha256:5a3a04b35ab85249195007c029cc00c49772c389e7d1c6ded45dda78b91451c5",
   "claims": [
     {
       "id": "claim_a15c40aa331e4669b9cd04381539f009",
@@ -92,7 +92,7 @@
       "evidence": [
         {
           "resource": "repo://backend/tests/unit/test_desktop_conversation.py",
-          "version": "repo-file-v1:sha256:1c723f1878432d8571169c4e8182f6aa017463799e34d35268dd4c0a7d462327"
+          "version": "repo-file-v1:sha256:8c2a7fa9736b9aeeb0a54563f255bd31d51be1f1087d94f273c797bf8de48f61"
         },
         {
           "resource": "repo://desktop/macos/Desktop/Tests/ConversationLifecycleTests.swift",
@@ -137,10 +137,38 @@
           "version": "repo-file-v1:sha256:91b5d24853d0371f42163fe45df87f7435d094ae973e7eb345d275108a32aceb"
         }
       ]
+    },
+    {
+      "id": "claim_f0583730607e40bebef15be4ff50a93e",
+      "statement": "Portable candidate-probe fixtures use executable helper requests and current-source route/field tripwires, while backend coverage validates a long-answer follow-up with the actual ConversationRespondRequest model, a 4000-character history bound and full-length evidence counts.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/test_backend_candidate_probe.py",
+          "version": "repo-file-v1:sha256:74b5bbf4b8fdd7e22a45243a8944bf945e51405175734123a14ddd951ae3a9a8"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_conversation.py#L214-L272",
+          "version": "repo-lines-v1:sha256:367510edb258cc367b220f25f494c308db4fcf3d50eba7f7e475311b61a97e36:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwOGZlNGZmODRlMjljMmFkYjNhZDNhZjQ4NjdjYWI2ZmIxMTFiMTQ5OTc0ZGFlZmExMGNlNDMxMTMxMzI4ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2YWI5NWJkZDVkODQ2ZjYxNzA2OTk3ZDI2MThjZDQ1NTZlMGY0MjE1ZGRjZTViZmQ0OWE0YWMwNDM0MGY1MzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjMWM0N2QxN2QyM2M3ODg3M2M2N2NhZmIzZGY3MzIxYzM5NWUzYWYwMzViMmNkYjliN2UxNjU5OGUxZDZmNGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_253559e1302b4d579d1a290deaf7e2e0",
+      "statement": "Voice-probe regressions mount the current session and realtime routers with synthetic authentication/provider seams and verify conversation/prompt continuity, setup, receipt rejection and output redaction without proving paid-provider or physical-audio acceptance.",
+      "evidence": [
+        {
+          "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L192-L342",
+          "version": "repo-lines-v1:sha256:0b6cb6054e8bd78363095dfaee9c76e0701bf8d461e6a4536fa21f535293280c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjZDVkY2I5NzcyNmJmNTczNWZjNzlkYTIxZDIxN2E3MDljYWQyZWQ3YmE2MWMyZmMwMzM1NTNlNWQ5NTdhMGY3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI0N2Q4NjlmNzIzOTIxNDY1MGNiMzQwNzg1ZGE4NzkxZDgzNGNlNDkxODM3MGM5MzRjNWFiMjZkNTQwODhmMzdjIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI3ZDNmODFmN2ViNTZlNGJjMmFlZDQ0MzgxYjYxY2IwMTdkNmE3YjAwNGE2N2NmZWE0YWU5ZmE5ZTM5YWRkYzNmIn0"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L40-L134",
+          "version": "repo-lines-v1:sha256:02816461a6b9d1949bff154d48776c8b2a6d6fb46a562e7c503709d6b4f5efd6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMGRmN2Q2ZDJjNjMyMjY3NDAyZTdjZTJiY2U0Mzk2ZDRlZjQwZTVhODI4YTY1MTA0MjA4ODI2Yjc2NjAyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ZTk1MjgwMWM5MTBlZGQwZGJkNDdlNmFhZGUxYjMzZGJkOTA3N2QyYzk3Mjg3ODc5N2JhNDAyNDVkOTY4ZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3OTNiMDczYzE0ODYyMzIxMGJkZTI0ZmZhNjc5NzNhZjI0NzE0ZTY3ODlkNzRmODEzODVhY2RhOTE1OTBjZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5OTc4MTQzZDE3MDI1MzkxNjk2NGQ3MzkyYzljZjM2ZTQwODgxYmY0YjJkYzcxOGVjYjJjNGE5N2YyMTQyM2QifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T06:57:13.407Z"
   }
 }

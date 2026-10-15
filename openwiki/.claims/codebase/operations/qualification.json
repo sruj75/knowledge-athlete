@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:117aaae76d1701369032417be9e123dcaa44ef95889c78956211097020644a07",
+  "pageVersion": "sha256:10f57ef468cee116f31969e58cd975950a5c7b4962fd947d916b6a7639966129",
   "claims": [
     {
       "id": "claim_374445dd3f514c12af7a7a6aed43412f",
@@ -103,10 +103,58 @@
           "version": "repo-lines-v1:sha256:a3eaf5c1a2c493f03bcbf3716e3e970237c3f7f6deb81a3691cde4fa12a9a4bc:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3MmVlYTZiNzY3ZWJhODBjMTFkZjk4OGFhNWVmNTMyZmIzMzc5NDRlMmUxNjk4MTZiMTViNTA4ODMxODQ2MmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJhM2U1OTVkODc3YTA2NTdkYTgxNjA4YTJhN2Y5YWUyYzEyZTQ2NzMwNGQ0MDY0MDNjMTlkNzZhZjdmZjkwMzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjViNWViOGM5NWRjYTY2MjBmNWU2NWNiYzVhMjJmY2M2YTdiM2MwYWEwNWM0N2RiZjY1MDdlODA1NzU4YWViY2UifQ"
         }
       ]
+    },
+    {
+      "id": "claim_2ea3229166de4e7da0234854321d97d0",
+      "statement": "Release-probe coverage combines portable executable-helper fixtures with backend tests that use current conversation request models and mounted session/mint routers under synthetic authentication and substituted provider transport; it does not establish physical or paid-provider acceptance.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/test_backend_candidate_probe.py",
+          "version": "repo-file-v1:sha256:74b5bbf4b8fdd7e22a45243a8944bf945e51405175734123a14ddd951ae3a9a8"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_desktop_conversation.py#L214-L272",
+          "version": "repo-lines-v1:sha256:367510edb258cc367b220f25f494c308db4fcf3d50eba7f7e475311b61a97e36:eyJzZWxlY3RlZExpbmVDb3VudCI6NTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwOGZlNGZmODRlMjljMmFkYjNhZDNhZjQ4NjdjYWI2ZmIxMTFiMTQ5OTc0ZGFlZmExMGNlNDMxMTMxMzI4ODgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc2YWI5NWJkZDVkODQ2ZjYxNzA2OTk3ZDI2MThjZDQ1NTZlMGY0MjE1ZGRjZTViZmQ0OWE0YWMwNDM0MGY1MzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjMWM0N2QxN2QyM2M3ODg3M2M2N2NhZmIzZGY3MzIxYzM5NWUzYWYwMzViMmNkYjliN2UxNjU5OGUxZDZmNGMifQ"
+        },
+        {
+          "resource": "repo://backend/tests/unit/test_voice_provider_probe.py#L40-L134",
+          "version": "repo-lines-v1:sha256:02816461a6b9d1949bff154d48776c8b2a6d6fb46a562e7c503709d6b4f5efd6:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxMGRmN2Q2ZDJjNjMyMjY3NDAyZTdjZTJiY2U0Mzk2ZDRlZjQwZTVhODI4YTY1MTA0MjA4ODI2Yjc2NjAyNWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1ZTk1MjgwMWM5MTBlZGQwZGJkNDdlNmFhZGUxYjMzZGJkOTA3N2QyYzk3Mjg3ODc5N2JhNDAyNDVkOTY4ZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY3OTNiMDczYzE0ODYyMzIxMGJkZTI0ZmZhNjc5NzNhZjI0NzE0ZTY3ODlkNzRmODEzODVhY2RhOTE1OTBjZmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5OTc4MTQzZDE3MDI1MzkxNjk2NGQ3MzkyYzljZjM2ZTQwODgxYmY0YjJkYzcxOGVjYjJjNGE5N2YyMTQyM2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0dae588b713f418fb8e94315f4454ec9",
+      "statement": "Failure-class artifact metadata names retained HTTP status/detail, selectable-content layout, conversation-storage and Memory ownership guards; retired public-web and general-tool projections have no declared live artifact while their class lifecycle records remain present.",
+      "evidence": [
+        {
+          "resource": "repo://.github/failure-classes/FC-provider-http-error-format.json",
+          "version": "repo-file-v1:sha256:dfa36700bfdf9fc83550f8592b00a39612a5a7463c8ddac80c06d78f4c0574b5"
+        },
+        {
+          "resource": "repo://.github/failure-classes/FC-public-web-routing-parity.json",
+          "version": "repo-file-v1:sha256:254a0760400124118efc32c7e918e913b2644162d50912dc1e309e044685bb2e"
+        },
+        {
+          "resource": "repo://.github/failure-classes/FC-selection-overlay-layout-loop.json",
+          "version": "repo-file-v1:sha256:aa0fcb3504d08e0e6ca4780450b1be4612b08d15052f5a1d78227988074ef6ec"
+        },
+        {
+          "resource": "repo://.github/failure-classes/FC-split-mutation-authority.json",
+          "version": "repo-file-v1:sha256:8b0ac7e414bf021cba661a4150c2e68c9f9b03cc92d45651fa4809c88da6497a"
+        },
+        {
+          "resource": "repo://.github/failure-classes/FC-surface-tool-authority-projection.json",
+          "version": "repo-file-v1:sha256:554e86eb9b3f219c4d6211e365c779e8862ed6c9b5aaf952e6ca51913e72b1a1"
+        },
+        {
+          "resource": "repo://desktop/macos/Desktop/Tests/GeminiBackgroundRoutingTests.swift#L97-L111",
+          "version": "repo-lines-v1:sha256:bafa7d6fa13cf816c5b43aa0b71440dcbb3f3aafdcaf1c96ac949275d38fb5da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhY2UyMTIwNjkzNDA3NWZhYTdhNDk2ODMxMDVjMmM0MTVlNWY3MTc5YjU2OTkzZDU1ODFlZTM3NDZkYjU4ZDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1YjA1NGNkZTcyMzBhZjc2ZGZhNjdlOTdjZmVmZTQyMzhmMTVlYmEyZjY5MTE5MmIwMjliM2I3NzQ0Mzk0OGMifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T15:50:15.263Z"
+    "at": "2026-10-15T06:57:13.407Z"
   }
 }

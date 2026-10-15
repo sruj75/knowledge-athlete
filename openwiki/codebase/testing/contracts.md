@@ -3,6 +3,9 @@ type: Codebase guide
 title: Tests and repository contracts
 description: Explain hermetic test runners, workflow registry, documentation gates and shared manifest.
 tags: [intentive, codebase]
+verified:
+  - by: openwiki/0.5.2
+    at: 2026-10-15T06:57:13.407Z
 sources:
   - id: openwiki-source-3c5fb0f9d251edf233879d40
     resource: repo://.github/actions/release-eligibility/action.yml
@@ -12,6 +15,8 @@ sources:
     resource: repo://.github/scripts/check-desktop-changelog.py
   - id: openwiki-source-e3f9a19b526001fa9705952b
     resource: repo://.github/scripts/pr_preflight.py
+  - id: openwiki-source-ecca44aa084e91aded2c105f
+    resource: repo://.github/scripts/test_backend_candidate_probe.py
   - id: openwiki-source-7530c7eab9bc82ec52ca4f19
     resource: repo://.github/scripts/test_check_package_architecture_maps.py
   - id: openwiki-source-324e72713e22c9e2553c7392
@@ -26,6 +31,8 @@ sources:
     resource: repo://backend/testing/import_isolation.py
   - id: openwiki-source-8c64fead8c8caad37dea1f70
     resource: repo://backend/tests/unit/test_desktop_conversation.py
+  - id: openwiki-source-276b6bd5d516d3e8277c2462
+    resource: repo://backend/tests/unit/test_voice_provider_probe.py
   - id: openwiki-source-3980081a58a01382ad067c02
     resource: repo://desktop/macos/agent/tests/conversation-storage.test.ts
   - id: openwiki-source-72dffde2f3f4878ee649e458
@@ -46,10 +53,7 @@ sources:
     resource: repo://desktop/macos/e2e/flows/supervisor-conversation.yaml
   - id: openwiki-source-2a54d9d29c8899e4e49d806c
     resource: repo://desktop/macos/test.sh
-generated: { by: "codex", at: "2026-10-14T15:50:15.263Z" }
-verified:
-  - by: openwiki/0.5.2
-    at: 2026-10-14T15:50:15.263Z
+generated: { by: "codex", at: "2026-10-15T06:57:13.407Z" }
 ---
 # Tests and repository contracts
 
@@ -71,6 +75,12 @@ Presentation tests exercise opening/listening/thinking/speaking projection, quie
 
 Retired Tasks and execution expectations must become rejection or historical-preservation coverage, not skipped tests or reactivated features. The manual flow separately requires provider silent append, physical speaker/headphone/Bluetooth interruption and an actual eight-hour soak. A passing source or fake-clock test cannot satisfy those rows.
 
+### Release-probe request and stream contracts
+
+The stdlib-only candidate-probe suite drives the actual helper with bounded HTTP/SSE fixtures and checks current route/field declarations against repository source. Its AST checks are structural tripwires. The backend conversation suite separately passes real probe requests through `ConversationRespondRequest`, including a 4,001-character first answer carried into a 4,000-character historical turn while evidence keeps the full answer count. This distinguishes current schema behavior from two mutually consistent mocks.
+
+Voice-probe tests mount the current conversation-session and realtime routers with synthetic identity and prompt/provider seams. They verify one conversation ID and exact prompt receipt through bootstrap, mint and Live setup; malformed or changed receipts fail before provider connection, and credentials/prompt content stay out of output. Socket framing and failure bounds remain separately covered. These tests establish hermetic request/transport behavior, not paid-provider availability or physical voice acceptance.
+
 ## Documentation contracts
 
 The existing reference checker covers wiki Markdown links and the remaining entrypoints, including encoded source paths and native repository URIs. The agent-size ratchet applies to the root AGENTS and CLAUDE entrypoints; detailed rules belong in the preserved brief.
@@ -86,6 +96,10 @@ PR preflight, main-push Hygiene and Release Eligibility use the shared changelog
 `Package.swift` normally requires a changelog. The checker recognizes one narrow documentation cleanup: the entire manifest edit only removes Markdown entries from plain `exclude` arrays, and the referenced documents are deleted in the same Git comparison. Dependency, resource, Swift-exclusion and other package edits remain gated, as do mixed changes to product source. Unrecognized syntax also remains gated. The regression test runs the actual CLI over temporary Git commits, covering the documentation migration and cases that must still fail.
 
 ## Source evidence
+
+- [Portable candidate-probe fixtures](../../../.github/scripts/test_backend_candidate_probe.py)
+- [Conversation request-model regression](../../../backend/tests/unit/test_desktop_conversation.py#L214-L272)
+- [Prompt-bound voice probe tests](../../../backend/tests/unit/test_voice_provider_probe.py)
 
 - [backend/test.sh](../../../backend/test.sh#L35-L105)
 - [backend/scripts/select_backend_unit_tests.py](../../../backend/scripts/select_backend_unit_tests.py)

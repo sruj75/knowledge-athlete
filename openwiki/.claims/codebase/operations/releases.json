@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:0cd9d4ec0b0109ffa1240da5a14b59161920f69a90a3a5c2bfe27844e51c9852",
+  "pageVersion": "sha256:111ad9be1b366da39d28e739f3dfaf987c8af08133edc24b86380e370c98646e",
   "claims": [
     {
       "id": "claim_0dba16a239c049318e6212ef970fb9ce",
@@ -83,10 +83,70 @@
           "version": "repo-lines-v1:sha256:cf40c9bfa8ad8e8b9e7d8d9c28c561f99e5e5fc7ee9958e45555d7a5128281b4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MTllYTY0MjdkYTNlMDUzMmNmYWM2NjI4YTIwZTAxYTkzNDFkMTdlOTViMDU3MWZhZjliY2QwM2VmOGYzNzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMwYzFmMTg4ZjE0MmVkN2E4MjQ2ODBiMjA3MTcyYzU1MTliYzYxNGE0OGZkYTdjZjE2N2VkYjhkZGY3OTk1NmMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkYzhlMmM0Njk2OTU5YzU4NzE0OWEwMzk4MTA2ZWUxMmQ3MjAzYTZjMWUyNDQ1ZmE1M2NjNWJmYzIxYzhjZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEifQ"
         }
       ]
+    },
+    {
+      "id": "claim_1625501eb1ac4af6a8ec8649ac0123fd",
+      "statement": "The backend candidate conversation probe validates compatibility, process health and Firestore reads, bootstraps one conversation, and completes two typed streaming responses using the same validated A prompt reference, bounded historical turns and content-free evidence.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/backend_candidate_probe.py#L213-L396",
+          "version": "repo-lines-v1:sha256:c1bd460b9a32afbf997e45be8e9213ab186a778af837185658cfae23c4affd9e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTg0LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIwMWJhNDcxOWM4MGI2ZmU5MTFiMDkxYTdjMDUxMjRiNjRlZWVjZTk2NGUwOWMwNThlZjhmOTgwNWRhY2E1NDZiIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3NWM2ZmE1ODUxOTE0M2ViZDg0MDU2MWIyZWU1NmM0MjlkN2UxZjQ5NjZhNGZhY2Q4MGQ2Y2YyNjg1MGQxZDk3IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwNDQyODk2ZDUzNDM0NmZkN2RjZmI3YTdiYmI3YzRmMWI0YzRjNDllOTMyYTBhNDQxMDYyYjliMjNkNTVhODBlIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_35520549da134c72944079b183e3f81a",
+      "statement": "Candidate SSE validation requires prompt-matching terminal completion and numeric usage with bounded first-event/total response time, stream bytes and answer text; user fixtures explicitly keep the conversation open.",
+      "evidence": [
+        {
+          "resource": "repo://.github/scripts/backend_candidate_probe.py#L27-L36",
+          "version": "repo-lines-v1:sha256:3ef15ab925284d08d5eb18debffc7ed67b12f1bb1525b90ca68719003f51cecf:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmMWI0MzhkMjE3NTk3NTBjMzNlMTQzYTZhNmRkZjMxMjdjYzRiYzhlNDc4M2ZhMzYyYWFlZjcxYjhlYmY3NjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUyYTQ2NzNjMjJkNDliZDU0OTQzYTBmY2U3ZDEwOTc2MGJhY2U0ZDAwYWM5ZThhMGExZWYxYzI4M2ZkMjNiYzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdhMDdkMWJiZWI1NTkzMTBmMjQxYjU4MTM1ZDY5YTYxMzI3Y2I0ZTA2OTAxZGVmNmRiYWRiMWE3OGUwYTgwMTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZDAxMjhmNTIwMTM0MWEyZmNkN2Y3ZmYzOTUwZDYyODIwM2IyY2NiOWYwMzI4MTMwYzU4OThiOWY1NzViODIifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/backend_candidate_probe.py#L331-L376",
+          "version": "repo-lines-v1:sha256:a23b9bf931b309dafa98216153a13195abaff9561304e445daee9ca7638f6ca9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4MWQ4M2FhZTk0YjYyZmQ1OWFlZGRhZjgzZjU2MWM0OWM4ZjlhZDdkMGI0YWUwMzBiNTRiOWQyYWI1OGYyOTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2MmVjY2YyNDg5ODQ4NzRlM2Y5MDE3NDA1NzQxZTc3ZTYwODAzMjhhMjYzYzc5NTJkZmQ0ODg0MDJlYmU4MjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE5NTQyYTU5ZTRlMjI1OTRkNzUwMTRhYmM3NzQ0ZWY5ZjhmOTlmMzAzNzllZDljMWUxNzY1OTkxM2U5NmUyMWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdlZTI5MmI5ZDg5MjhlZWQ1MWZkNmVjZDUxNmRhOWUyMWU1OWNlN2EwMDM1ZmUxYWRlMjQxNzU0ZTViMjQxODAifQ"
+        },
+        {
+          "resource": "repo://.github/scripts/backend_candidate_probe.py#L89-L183",
+          "version": "repo-lines-v1:sha256:16b5e5d6a2bb69bda5fb869de235190b3c48cf5de7d2241b6aca3fe3a81a97d2:eyJzZWxlY3RlZExpbmVDb3VudCI6OTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNkYzBlOTA5ZGUzNGZjNzZlOGYzNzZhZmMwZWZmYjZiMWZkOTc2NDdkZGJlMWFkZWY4NmRlNTk1ZjUxZGI0M2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM5OGZmYmFhMDhhODlhODY4YmRlNTVkOWRlN2E3YmM4N2Q4NTBhOWU1Njg1ZGM0YWVmYmRkMWNlZWE4MzUxNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY1NjAwZGRkZGUwM2RjZGJiYWUzYWNhNmIzYWFlOTQzODVhMTczMjgyNTJhMmQzOWViNDM1YjExOTE2MDc0ZjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7f79f6b74f9c4eaba1f32fd69e066b1f",
+      "statement": "The managed voice probe bootstraps A's prompt, mints with its conversation ID and prompt reference, validates receipt identity and hash, and connects with those instructions and the app's automatic-VAD fixed-lifecycle Live setup before sending standalone text.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/voice-provider-probe.sh#L155-L198",
+          "version": "repo-lines-v1:sha256:8386a89cc0ee7fdb6387919cfe42e8abfe6b8dc0da5139c5b416b9773d039450:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMDg1MWFjNWEwNGQ5MDdlNjRjOTA4ZTUyMDQxMDI4YmI4M2ZkMGZlYWE3Y2ZlNTdjYjBjZmM4NjQxNDA2NTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU3ZmFiZWUyNGYxMjA2ZjhjYzMzZmY3Yjg1ZWQ4MDEyYWJlMWZmNzZjMTUwNjEzOTYxOWFjZWE2MDNlNDQ4ZGUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiOTg1YWM0NDUwMTJjYjk3ZjEyMGI0NTQxMzRjZTRlMTFjNTJjZmFiMDA5YTgzY2M4MjczMzVmYWZhNWZiNWIifQ"
+        },
+        {
+          "resource": "repo://scripts/voice-provider-probe.sh#L405-L487",
+          "version": "repo-lines-v1:sha256:8bee85dc3bb1d79d07ec612b7501dbcfe4080e9b194a3446e8beaca5916f8b1e:eyJzZWxlY3RlZExpbmVDb3VudCI6ODMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZjYWU4OTE3MTZhOTI3NzE0ZDI2OWY3NDA0YjE1N2I1YmFkMjk4YTc1YmY4YzU2Njk2ZjBjMjY1ZGI1N2VjZTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyMmE0MmU0ZTI2ZGJmN2Q5NzE2MjkwYWM4MDc4ZTEzZDk5OWMxMGY2YzYyY2UwZDkyYjczNzcwZjE2YmY2OGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZjYTQzYTUwNjZmMmQ2OTk4MGQ4MjU4NGJhYzVjMGE1Yjg0MTE3NjhmNjJkZGM1YzUzMWU2NzFiNjMwYTgyNGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_265a031f4ede4c99a4298ec46d84c3d3",
+      "statement": "The manual backend deployment executes both conversation and managed voice probes on the no-traffic candidate before traffic promotion; their protocol results do not establish human-heard conversation acceptance.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/gcp_backend.yml#L826-L852",
+          "version": "repo-lines-v1:sha256:986ef3f69495d827029d26be990262574357a8a4b8fa007dc983b2ee07606fc4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlNjk0ZTUyMWFmYmQ3Yjc2MTg5ZmQ0ZWE0NWU5MzRiYzdhNWZmNWE1NGI4MTkzZDI2NjUzMjU3NDc5MzQ3YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjOTlhNjUwOGRlZDdkMWU0Y2RlNTZiNjI2ZjEyYzFlMGQzMDQ4NzQzZmY3MzE1YjhkMGFiOWY3OGNlOGViNjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJlYWM3ZTc3ZWI4NjY1YjIwM2NkN2IyYTljYWE0MzQxY2RjMzk0MjU0MTk0YTcwY2JjMGU4MDU2MGMxM2I5NWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgwZWUzNzliMzNkNDc0OTYwZWRkODhmNWE3OTNjZDM3NzM5ZThjYzAzYWJmNWJmNGMyZjNiZjc5YWMwY2U5NGMifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/gcp_backend.yml#L913-L916",
+          "version": "repo-lines-v1:sha256:7dc189a341f830e939a654adda12197cba8f1fba611dcccf4ac0f6037d46733a:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGZiZGIyOWU1MmI1MTFiYzU2YzZlZWI3OTNjY2Y3ODY3YTNmOGM5MGRjZjY1ZmVhZTJhNzQ1Y2Y5OTVmMjNiNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzY1YWE1NGM1ZDY5MmFjYWRkODhhOTU0NjYwMDFhODM4M2Q1YzIyZTJkM2M1Y2I0ZTYxOTUxODliYTlmMDQyMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNTc3OWYwYTAwYmE3OGY1OWYyMjhkMTZjM2Q2Y2JjODExYjBiNTZiNTM4ZjE2Y2MxMTUxMDgwNzI5M2Y0Mjk5ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGRiM2QwZmY1MzkzNzc3ODhmZTUyYjY3ZTljZDdjY2M4NDg2ODllMDQ4MTY1NWNmNWNjZGIzOWQ4YjUzMGYwNCJ9"
+        },
+        {
+          "resource": "repo://scripts/voice-provider-probe.sh#L451-L488",
+          "version": "repo-lines-v1:sha256:caf066029d8396d241c457f4c38e4b92e7287f00470f9eef2be24b5763ddab8e:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNDEyYzdjNTZjMjIxNTMxM2VkZTY3NzRjM2UwNmIwZDAzZTczMWIxNzA1N2RiOTgyMDc0YzIzODFmYjc0MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmZWVhN2YyMmRkODlmOTdiYjEzNDA2NTJkM2I3NWQ3NGEzZjZkNDYwZDZiMGZlMDM5OTM1ZWJjMzM5NjcxYTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE3YjBiNDkyNGEwMDc4ZTA4MTk2YjUxZWY0NDFmMTBmMjYyMmYxMWFmOGU5MTEwMGM1ZGEwM2Y2NzY2MWNlYzgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1NzIyYjhjNGYyODMxYTA4YTZmZjE2OGQxNjUxMTRiNmZkYmFjZjk4NDIxNTM2NjI3NzY5M2JkY2IzYmQwMjAifQ"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.5.2",
-    "at": "2026-10-14T14:40:28.560Z"
+    "at": "2026-10-15T06:57:13.407Z"
   }
 }
