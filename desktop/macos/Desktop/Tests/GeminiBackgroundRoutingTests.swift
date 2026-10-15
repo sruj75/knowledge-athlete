@@ -105,6 +105,7 @@ final class GeminiBackgroundRoutingTests: XCTestCase {
     } catch let error as GeminiClient.GeminiClientError {
       guard case .apiError(let message) = error else { return XCTFail("Expected HTTP failure") }
       XCTAssertTrue(message.hasPrefix("HTTP 404:"))
+      XCTAssertTrue(message.contains("model unavailable"), "Provider detail must survive HTTP status normalization")
     }
   }
 

@@ -3,9 +3,6 @@
   "id": "FC-public-web-routing-parity",
   "violated_contract": "Compatibility projections of public-web routing must make the same routing decision as the authoritative gateway policy.",
   "canonical_prevention": "Keep the Python gateway authoritative and run every compatibility projection against one shared behavioral routing corpus.",
-  "canonical_prevention_artifact": [
-    "desktop/macos/agent/tests/pi-mono-adapter.test.ts"
-  ],
   "evidence_prs": [10422],
   "scope_hints": [
     "backend/routers/desktop_core.py",
