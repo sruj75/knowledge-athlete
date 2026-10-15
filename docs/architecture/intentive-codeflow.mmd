@@ -92,7 +92,7 @@ flowchart TD
     subgraph ENGINEERING["Instructions and measurement"]
       LANGFUSE["Langfuse versioned instructions<br/>A pinned per logical conversation; B per evaluation<br/>coaching behavior edited outside this implementation"]
       REPO["One versioned tool-free A fallback<br/>only at conversation creation"]
-      METRICS["Model version; exclusive input/cached/output/thinking counts<br/>capture age / queue / provider / end-to-end latency<br/>skip and quota gaps; no private guidance, image or raw-audio exports"]
+      METRICS["Model version; exclusive input/cached/output/thinking counts<br/>capture age / queue / provider / end-to-end latency<br/>local content-free A/B acceptance snapshots<br/>skip and quota gaps; no private guidance, image or raw-audio exports"]
       LANGFUSE --> BOOT
       LANGFUSE --> B
       REPO --> BOOT

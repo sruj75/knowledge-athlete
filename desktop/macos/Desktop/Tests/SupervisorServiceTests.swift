@@ -15,6 +15,7 @@ private final class SupervisorTestHarness {
   var evaluation: SupervisorService.Evaluator?
   var automaticallySchedule = false
   var memory = SupervisorMemoryContext.empty
+  var memoryLoader: SupervisorService.MemoryLoader?
   let defaults: UserDefaults
 
   init() throws {
@@ -32,7 +33,10 @@ private final class SupervisorTestHarness {
       if let evaluation = self.evaluation { return try await evaluation(request, owner) }
       return Self.response(request)
     },
-    loadMemory: { _ in self.memory }, deliver: { self.delivered.append($0) },
+    loadMemory: { owner in
+      if let memoryLoader = self.memoryLoader { return await memoryLoader(owner) }
+      return self.memory
+    }, deliver: { self.delivered.append($0) },
     decisionStarted: { _ in }, recordDecision: { _, _, _ in },
     automaticallySchedule: automaticallySchedule)
 
@@ -90,6 +94,129 @@ private final class SupervisorRequestGate {
 
 @MainActor
 final class SupervisorServiceTests: XCTestCase {
+  func testDiagnosticResetRejectsLateEvaluatorCompletionAndHidesRevokedOwner() async throws {
+    let h = try SupervisorTestHarness()
+    let gate = SupervisorRequestGate()
+    h.evaluation = { request, _ in
+      await gate.hold()
+      return SupervisorTestHarness.response(request, action: .wait)
+    }
+    h.service.observeVoice(userText: "old account content", turnID: "turn", outcome: "completed")
+    let task = Task { await h.evaluate() }
+    await gate.waitForStart()
+    let previousSession = h.service.diagnosticSnapshot().sessionID
+    h.service.endSession()
+    let reset = h.service.diagnosticSnapshot()
+    XCTAssertNotEqual(reset.sessionID, previousSession)
+    XCTAssertEqual(reset.metrics.admitted, 0)
+    let resetExport = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(reset)) as? [String: Any])
+    XCTAssertNil(
+      resetExport["contentRevision"], "activity revision from the retired session is not diagnostic metadata")
+    XCTAssertEqual(reset.currentWork, .none)
+    XCTAssertTrue(reset.evaluationSlotOccupied, "old work still holds the single-flight slot")
+    gate.release()
+    await task.value
+    XCTAssertEqual(h.service.diagnosticSnapshot().metrics.evaluatorReturns, 0)
+    XCTAssertEqual(h.service.diagnosticSnapshot().metrics.evaluatorRoundTrip.count, 0)
+    h.service.observeVoice(userText: "new session", turnID: "new", outcome: "completed")
+    h.authority.beginTransition()
+    let revoked = h.service.diagnosticSnapshot()
+    XCTAssertNil(revoked.sessionID)
+    XCTAssertFalse(revoked.ownerAuthorized)
+    XCTAssertEqual(revoked.metrics.admitted, 0)
+    XCTAssertFalse(revoked.pendingChangedObservation)
+  }
+
+  func testDiagnosticReadShowsCaptureAgeAndStalenessWithoutStartingWorkOrExportingContent() throws {
+    let h = try SupervisorTestHarness()
+    h.service.observeFrame(
+      CapturedFrame(
+        jpegData: Data(), appName: "Private editor", windowTitle: "Private title", frameNumber: 1, captureTime: h.date),
+      authorizationSnapshot: h.owner, capturedUptime: h.uptime)
+    h.service.observeWebcam(
+      jpegData: Data([0xFF, 0xD8, 0xFF]), capturedAt: h.date, capturedUptime: h.uptime,
+      visualHash: 0, observationSessionID: h.service.sessionID, authorizationSnapshot: h.owner)
+    h.uptime += 6
+    let snapshot = h.service.diagnosticSnapshot()
+    XCTAssertEqual(snapshot.inputs.screen.status, "available")
+    XCTAssertEqual(snapshot.inputs.screen.ageMs, 6_000)
+    XCTAssertEqual(snapshot.inputs.webcam.status, "stale")
+    XCTAssertEqual(snapshot.inputs.webcam.ageMs, 6_000)
+    XCTAssertTrue(h.requests.isEmpty)
+    XCTAssertEqual(snapshot.metrics.admitted, 0)
+    let encoded = String(decoding: try JSONEncoder().encode(snapshot), as: UTF8.self)
+    XCTAssertFalse(encoded.contains("Private"))
+    XCTAssertFalse(encoded.contains("supervisor-test"))
+    h.uptime += 25
+    XCTAssertEqual(h.service.diagnosticSnapshot().inputs.screen.status, "stale")
+    h.service.webcamUnavailable(.denied)
+    XCTAssertEqual(h.service.diagnosticSnapshot().inputs.webcam.status, "denied")
+    XCTAssertNil(h.service.diagnosticSnapshot().inputs.webcam.ageMs)
+    h.service.setSuspended(true)
+    XCTAssertEqual(h.service.diagnosticSnapshot().inputs.screen.status, "suspended")
+    XCTAssertNil(h.service.diagnosticSnapshot().inputs.screen.ageMs)
+  }
+
+  func testDiagnosticQuotaStateSurvivesLockAndCountsOnlyActualAttemptedWork() async throws {
+    let h = try SupervisorTestHarness()
+    h.evaluation = { _, _ in throw SupervisorRequestError.rateLimited(reason: "daily_quota", retryAfterSeconds: 90) }
+    h.service.observeVoice(userText: "work", turnID: "turn", outcome: "completed")
+    await h.evaluate()
+    let paused = h.service.diagnosticSnapshot()
+    XCTAssertEqual(paused.retryReason, .dailyQuota)
+    XCTAssertEqual(paused.retryRemainingMs, 90_000)
+    XCTAssertEqual(paused.metrics.evaluatorStarts, 1)
+    XCTAssertEqual(paused.metrics.evaluatorFailures, 1)
+    h.service.setSuspended(true)
+    h.service.setSuspended(false)
+    h.uptime += 10
+    h.service.observeVoice(userText: "after unlock", turnID: "next", outcome: "completed")
+    await h.evaluate()
+    let after = h.service.diagnosticSnapshot()
+    XCTAssertEqual(after.retryReason, .dailyQuota)
+    XCTAssertEqual(after.retryRemainingMs, 79_000)
+    XCTAssertEqual(after.metrics.admitted, 0)
+    XCTAssertEqual(after.metrics.skipped["retry_pause"], 1)
+    XCTAssertEqual(h.requests.count, 1)
+  }
+
+  func testDiagnosticsDistinguishPreparationFromEvaluatorAndMeasureExactBoundaries() async throws {
+    let h = try SupervisorTestHarness()
+    let memory = SupervisorRequestGate()
+    let provider = SupervisorRequestGate()
+    h.memoryLoader = { _ in
+      await memory.hold()
+      return .empty
+    }
+    h.evaluation = { request, _ in
+      await provider.hold()
+      return SupervisorTestHarness.response(request, action: .wait)
+    }
+    h.service.observeVoice(userText: "private transcript", turnID: "turn", outcome: "completed")
+    let task = Task { await h.evaluate() }
+    await memory.waitForStart()
+    let preparing = h.service.diagnosticSnapshot()
+    XCTAssertEqual(preparing.metrics.admitted, 1)
+    XCTAssertEqual(preparing.metrics.evaluatorStarts, 0)
+    XCTAssertEqual(preparing.currentWork, .preparing)
+    XCTAssertTrue(preparing.evaluationSlotOccupied)
+    h.uptime += 2
+    memory.release()
+    await provider.waitForStart()
+    XCTAssertEqual(h.service.diagnosticSnapshot().currentWork, .evaluating)
+    h.uptime += 4
+    provider.release()
+    await task.value
+    let completed = h.service.diagnosticSnapshot()
+    XCTAssertEqual(completed.metrics.evaluatorReturns, 1)
+    XCTAssertEqual(completed.metrics.queue.lastMs, 1_000)
+    XCTAssertEqual(completed.metrics.evaluatorRoundTrip.lastMs, 4_000)
+    XCTAssertEqual(completed.metrics.admissionToCompletion.lastMs, 6_000)
+    XCTAssertEqual(completed.metrics.observationToCompletion.lastMs, 7_000)
+    XCTAssertFalse(completed.evaluationSlotOccupied)
+    XCTAssertFalse(String(decoding: try JSONEncoder().encode(completed), as: UTF8.self).contains("private transcript"))
+  }
+
   func testQuietContextIsReconsideredWithANewGuidanceLifetime() async throws {
     let h = try SupervisorTestHarness()
     h.service.observeVoice(userText: "I am reading this document", turnID: "turn", outcome: "completed")

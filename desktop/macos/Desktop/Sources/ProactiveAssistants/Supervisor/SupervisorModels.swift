@@ -160,15 +160,6 @@ enum SupervisorState: String, Sendable {
   case idle, observing, evaluating, paused, suspended, disabled
 }
 
-struct SupervisorObservationMetrics: Equatable, Sendable {
-  var admitted = 0
-  var budgetDeferrals = 0
-  var replacedPending = 0
-  var queueMs = 0
-  var providerMs = 0
-  var endToEndMs = 0
-}
-
 enum SupervisorRequestError: Error {
   case payloadTooLarge
   case rateLimited(reason: String, retryAfterSeconds: Int)

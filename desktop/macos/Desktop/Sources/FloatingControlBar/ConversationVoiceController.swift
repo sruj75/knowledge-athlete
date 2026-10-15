@@ -34,6 +34,8 @@ final class ConversationVoiceController {
     var outputAdmission = ConversationOutputAdmission()
     var outputAdmissionRequested = false
     var outputPlayed = false
+    var outputRendered = false
+    var outputDrained = false
     var physicalEndedAt: TimeInterval?
     var providerBound = false
     var providerFinished = false
@@ -44,6 +46,7 @@ final class ConversationVoiceController {
   private let audio = ConversationDuplexAudio()
   private let detector = ConversationSpeechDetector()
   private let renderer = ConversationSpeechRenderer()
+  private var diagnostics = ConversationDiagnosticLedger<RuntimeOwnerAuthorizationSnapshot>()
   private(set) var lifecycle = ConversationLifecycle() {
     didSet {
       SupervisorService.shared.updateConversation(
@@ -60,7 +63,16 @@ final class ConversationVoiceController {
   private var prompt: ConversationPromptReceipt?
   private var history: [ConversationHistoryMessage] = []
   private var savedContext = ""
-  private var current: Turn? { didSet { publishConversationPresentation() } }
+  private var current: Turn? {
+    didSet {
+      publishConversationPresentation()
+      if let current, oldValue?.id != current.id {
+        diagnostics.beginTurn(
+          id: current.id.description, owner: RuntimeOwnerIdentity.captureAuthorizationSnapshot(),
+          generation: lifecycle.generation)
+      }
+    }
+  }
   private var microphoneAvailable = false { didSet { publishConversationPresentation() } }
   private var actualOutputActive = false { didSet { publishConversationPresentation() } }
   private var playbackPresentationGeneration: UInt64 = 0
@@ -107,8 +119,36 @@ final class ConversationVoiceController {
     if ownerObserver == nil {
       ownerObserver = NotificationCenter.default.addObserver(
         forName: .runtimeOwnerDidChange, object: nil, queue: .main
-      ) { [weak self] _ in Task { @MainActor in self?.close() } }
+      ) { [weak self] _ in
+        Task { @MainActor in
+          self?.close()
+          self?.diagnostics.reset()
+        }
+      }
     }
+  }
+
+  /// Read-only acceptance metadata. This never starts capture, inference, or
+  /// playback. The physical input counters include silence, not just speech.
+  func diagnosticSnapshot() -> ConversationDiagnosticSnapshot? {
+    guard AppBuild.isNonProduction else { return nil }
+    let owner = RuntimeOwnerIdentity.captureAuthorizationSnapshot()
+    if let id = lifecycle.id {
+      diagnostics.updateMetadata(
+        logicalID: id, journalID: context?.conversationID,
+        connectionID: session == nil ? nil : sessionID.description,
+        prompt: prompt.map { .init(name: $0.name, version: $0.version, source: $0.source, sha256: $0.sha256) },
+        owner: owner, generation: lifecycle.generation)
+      let presentation = ConversationPresentation.resolve(
+        state: lifecycle.state, microphoneOpen: microphoneAvailable, userSpeaking: userSpeaking,
+        replyPending: current != nil && current?.journalStarted == false, playbackActive: actualOutputActive)
+      diagnostics.updateRuntime(
+        state: lifecycle.state.rawValue, route: lifecycle.route == .live ? "live" : "batch",
+        microphoneAvailable: microphoneAvailable, userSpeaking: userSpeaking,
+        listening: presentation.phase == .listening, rendering: actualOutputActive,
+        owner: owner, generation: lifecycle.generation)
+    }
+    return diagnostics.snapshot(owner: owner)
   }
 
   func toggle() {
@@ -357,6 +397,9 @@ final class ConversationVoiceController {
     textConversationAuthorization = nil
     lifecycle.open(id: UUID().uuidString, now: now)
     let generation = lifecycle.generation
+    if AppBuild.isNonProduction, let id = lifecycle.id {
+      diagnostics.begin(owner: authorization, generation: generation, conversationID: id)
+    }
     proactiveOpening = guidance
     openingSent = false
     reconnectAttempts = 0
@@ -452,6 +495,8 @@ final class ConversationVoiceController {
     } else if let id = lifecycle.id {
       provider?.endPinnedConversation(id: id)
     }
+    _ = diagnosticSnapshot()
+    diagnostics.close(owner: RuntimeOwnerIdentity.captureAuthorizationSnapshot(), generation: lifecycle.generation)
     lifecycle.close()
     setupTask?.cancel()
     responseTask?.cancel()
@@ -523,6 +568,7 @@ final class ConversationVoiceController {
         token: credential.token, instructions: prompt.text, resumeHandle: resumeHandle
       ) { [weak self] source, event in self?.receive(event, from: source, generation: generation) }
       session = connection
+      _ = diagnosticSnapshot()
       liveReady = false
       connection.start()
       connectionDeadline?.cancel()
@@ -590,6 +636,10 @@ final class ConversationVoiceController {
 
   private func receiveMicrophone(_ data: Data, generation: UInt64) {
     guard let context, accepts(generation, owner: context.authorizationSnapshot) else { return }
+    // This private entrypoint is fed only by the duplex engine's processed tap.
+    // Synthetic presentation previews never enter this path.
+    diagnostics.recordProcessedPCM(
+      byteCount: data.count, owner: context.authorizationSnapshot, generation: generation)
     if lifecycle.route == .live {
       if liveReady {
         session?.sendAudio(data)
@@ -907,6 +957,7 @@ final class ConversationVoiceController {
           guard let self, self.playbackPresentationGeneration == playbackGeneration,
             self.current?.id == turnID, self.current?.lease == lease
           else { return }
+          self.current?.outputRendered = true
           self.actualOutputActive = true
         }
       },
@@ -927,6 +978,7 @@ final class ConversationVoiceController {
           self.clearPlaybackPresentation()
           self.current?.lease = nil
           self.current?.physicalEndedAt = self.now
+          self.current?.outputDrained = true
           _ = self.coordinator.releaseOutput(lease)
         }
       })
@@ -1027,6 +1079,12 @@ final class ConversationVoiceController {
     guard var turn = current, !turn.journalStarted else { return }
     turn.journalStarted = true
     current = turn
+    if let outcome = ConversationDiagnosticSnapshot.Outcome(rawValue: delivery.rawValue) {
+      diagnostics.recordDelivery(
+        turnID: turn.id.description, outcome: outcome, renderObserved: turn.outputRendered,
+        playbackDrainObserved: turn.outputDrained, owner: RuntimeOwnerIdentity.captureAuthorizationSnapshot(),
+        generation: lifecycle.generation)
+    }
     if !turn.userText.isEmpty { history.append(.init(role: "user", text: turn.userText)) }
     if !turn.assistantText.isEmpty { history.append(.init(role: "assistant", text: turn.assistantText)) }
     history = boundedHistory()

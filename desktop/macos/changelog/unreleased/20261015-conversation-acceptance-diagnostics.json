@@ -1,0 +1,6 @@
+{
+  "changes": [
+    "Add content-free conversation and Supervisor diagnostics to development builds for voice and monitoring qualification",
+    "Keep offline development voice setup and generated speech from contacting paid providers"
+  ]
+}

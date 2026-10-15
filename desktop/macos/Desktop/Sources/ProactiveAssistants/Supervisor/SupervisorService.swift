@@ -94,6 +94,7 @@ final class SupervisorService: ObservableObject {
   private var evaluationID: UUID?
   private var pauseUntil: TimeInterval = 0
   private var pauseOwner: RuntimeOwnerAuthorizationSnapshot?
+  private var diagnosticRetryReason: SupervisorDiagnosticSnapshot.RetryReason?
   private var ownerObserver: NSObjectProtocol?
   private var systemObservers: [NSObjectProtocol] = []
   private var sleeping = false
@@ -195,6 +196,7 @@ final class SupervisorService: ObservableObject {
     contextEpoch &+= 1
     relevantObservationEpoch &+= 1
     sessionID = UUID().uuidString.lowercased()
+    metrics = SupervisorObservationMetrics()
     // Locking, sleep, and toggling monitoring cannot erase a server pause for
     // the same authorized owner. Owner-generation changes do clear it.
     clearRevokedPause()
@@ -253,6 +255,7 @@ final class SupervisorService: ObservableObject {
       pauseOwner = nil
       pauseUntil = 0
       retryAt = nil
+      diagnosticRetryReason = nil
       return
     }
   }
@@ -537,6 +540,7 @@ final class SupervisorService: ObservableObject {
     else { return }
     refillBudget()
     let budgetReady = budgetTokens >= 1 ? monotonicNow() : monotonicNow() + (1 - budgetTokens) * 5
+    if budgetReady > max(monotonicNow(), max(due, pauseUntil)) { metrics.budgetDeferrals += 1 }
     let delay = max(0, max(due, max(pauseUntil, budgetReady)) - monotonicNow())
     scheduled = Task { [weak self] in
       do { try await Task.sleep(for: .seconds(delay)) } catch { return }
@@ -580,14 +584,86 @@ final class SupervisorService: ObservableObject {
       && guidance.contextEpoch == contextEpoch && pendingGuidance?.id == guidance.id
   }
 
+  /// Reads existing state only: never adopts an owner, refreshes capture, starts
+  /// timers or loads content. A revoked owner's counters are not exportable.
+  func diagnosticSnapshot() -> SupervisorDiagnosticSnapshot {
+    let time = monotonicNow()
+    let authorized = owner.map { ownerIsCurrent($0) && currentOwner() == $0 } ?? false
+    let exposesSession = owner == nil || authorized
+    var snapshot = SupervisorDiagnosticSnapshot()
+    snapshot.sessionID = exposesSession ? sessionID : nil
+    snapshot.sampledUptimeMs = Int(max(0, time) * 1_000)
+    snapshot.monitoringEnabled = enabled
+    snapshot.suspended = suspended
+    snapshot.ownerAuthorized = authorized
+    snapshot.state = state.rawValue
+    snapshot.evaluationSlotOccupied = evaluationID != nil
+    guard exposesSession else { return snapshot }
+    snapshot.metrics = metrics
+    snapshot.currentWork = metrics.currentWork
+    snapshot.pendingChangedObservation = dirty
+    snapshot.nextDueInMs = nextEvaluationAt.map { Int(max(0, $0 - time) * 1_000) }
+    snapshot.budgetTokens = min(3, budgetTokens + max(0, time - budgetRefilledAt) / 5)
+    if let pauseOwner, currentOwner() == pauseOwner, ownerIsCurrent(pauseOwner) {
+      snapshot.retryReason = diagnosticRetryReason
+      snapshot.retryRemainingMs = Int(max(0, pauseUntil - time) * 1_000)
+    }
+    guard authorized, isObservationAllowed else {
+      let status = suspended ? "suspended" : enabled ? "unavailable" : "disabled"
+      snapshot.inputs = .init(
+        screen: .init(status: status), webcam: .init(status: status),
+        microphone: .init(status: status), system: .init(status: status))
+      return snapshot
+    }
+    func imageStatus(_ status: SupervisorInputAvailability, capturedAt: TimeInterval?, freshness: TimeInterval)
+      -> SupervisorDiagnosticSnapshot.Input
+    {
+      guard let capturedAt else { return .init(status: status == .available ? "unavailable" : status.rawValue) }
+      let age = max(0, time - capturedAt)
+      return .init(status: age <= freshness ? status.rawValue : "stale", ageMs: Int(min(86_400_000, age * 1_000)))
+    }
+    snapshot.inputs.screen = imageStatus(inputStatuses.screen.status, capturedAt: frameCapturedUptime, freshness: 30)
+    snapshot.inputs.webcam = imageStatus(inputStatuses.webcam.status, capturedAt: webcam?.uptime, freshness: 5)
+    let audio = audioAvailability()
+    snapshot.inputs.microphone = .init(status: audio.0.rawValue)
+    snapshot.inputs.system = .init(status: audio.1.rawValue)
+    return snapshot
+  }
+
   func evaluatePendingObservation() async {
-    guard isObservationAllowed, let due = nextEvaluationAt, monotonicNow() >= due,
-      evaluationID == nil, monotonicNow() >= pauseUntil,
-      let owner, ownerIsCurrent(owner)
-    else { return }
+    guard enabled else {
+      metrics.skip(.disabled)
+      return
+    }
+    guard !suspended else {
+      metrics.skip(.suspended)
+      return
+    }
+    guard let due = nextEvaluationAt else {
+      metrics.skip(.noPending)
+      return
+    }
+    guard monotonicNow() >= due else {
+      metrics.skip(.notDue)
+      return
+    }
+    guard evaluationID == nil else {
+      metrics.skip(.inFlight)
+      return
+    }
+    guard monotonicNow() >= pauseUntil else {
+      metrics.skip(.retryPause)
+      return
+    }
+    guard let owner else {
+      metrics.skip(.noOwner)
+      return
+    }
+    guard ownerIsCurrent(owner) else { return }
     refillBudget()
     guard budgetTokens >= 1 else {
       metrics.budgetDeferrals += 1
+      metrics.skip(.budget)
       schedule()
       return
     }
@@ -597,14 +673,14 @@ final class SupervisorService: ObservableObject {
     dirty = false
     let admittedAt = now()
     let admittedUptime = monotonicNow()
-    metrics.queueMs = Int(max(0, admittedUptime - (firstPendingAt ?? due)) * 1_000)
-    metrics.admitted += 1
+    let diagnosticReceipt = metrics.admit(queuedAt: firstPendingAt ?? due, at: admittedUptime)
     firstPendingAt = nil
     lastAdmissionAt = admittedUptime
     state = .evaluating
     pauseOwner = nil
     pauseUntil = 0
     retryAt = nil
+    diagnosticRetryReason = nil
     let session = sessionID
     let epoch = contextEpoch
     let observationEpoch = relevantObservationEpoch
@@ -619,6 +695,9 @@ final class SupervisorService: ObservableObject {
     let transcriptSnapshot = transcripts
     let conversationSnapshot = conversation
     defer {
+      if sessionID == session, ownerIsCurrent(owner) {
+        metrics.finish(diagnosticReceipt, at: monotonicNow(), outcome: .discardedBeforeEvaluation)
+      }
       if evaluationID == token {
         evaluationID = nil
         if state == .evaluating { state = .observing }
@@ -629,8 +708,12 @@ final class SupervisorService: ObservableObject {
     guard isObservationAllowed, ownerIsCurrent(owner), sessionID == session, contextEpoch == epoch,
       relevantObservationEpoch == observationEpoch,
       now() < expires, !Task.isCancelled
-    else { return }
+    else {
+      if sessionID == session, ownerIsCurrent(owner) { metrics.skip(.invalidatedObservation) }
+      return
+    }
     if let observedFrame, SupervisorScreenPolicy.isAppExcluded(observedFrame.appName) {
+      metrics.skip(.excludedInput)
       screenUnavailable()
       return
     }
@@ -667,11 +750,13 @@ final class SupervisorService: ObservableObject {
       webcam: webcamInput, inputStatus: statuses, activeConversation: observedConversation)
     do {
       decisionStarted(request.observationID)
-      let providerStartedAt = monotonicNow()
+      metrics.startEvaluator(diagnosticReceipt, at: monotonicNow())
       let response = try await evaluate(request, owner)
-      metrics.providerMs = Int(max(0, monotonicNow() - providerStartedAt) * 1_000)
-      metrics.endToEndMs = Int(max(0, monotonicNow() - admittedUptime) * 1_000)
+      if sessionID == session, ownerIsCurrent(owner) {
+        metrics.finish(diagnosticReceipt, at: monotonicNow(), outcome: .returned)
+      }
       if let observedFrame, SupervisorScreenPolicy.isAppExcluded(observedFrame.appName) {
+        if sessionID == session, ownerIsCurrent(owner) { metrics.skip(.excludedInput) }
         screenUnavailable()
         return
       }
@@ -680,7 +765,10 @@ final class SupervisorService: ObservableObject {
         now() < expires, !Task.isCancelled,
         response.observationID == request.observationID,
         response.sessionID == session, response.contextEpoch == epoch
-      else { return }
+      else {
+        if sessionID == session, ownerIsCurrent(owner) { metrics.skip(.rejectedResponse) }
+        return
+      }
       recordDecision(request, response, owner)
       pendingGuidance = nil
       guard response.outcome == "completed", response.action != .wait,
@@ -696,10 +784,14 @@ final class SupervisorService: ObservableObject {
       await deliver(guidance)
     } catch {
       guard sessionID == session, ownerIsCurrent(owner), evaluationID == token else { return }
+      metrics.finish(diagnosticReceipt, at: monotonicNow(), outcome: error is CancellationError ? .cancelled : .failed)
       state = .paused
       var retrySeconds: TimeInterval = 60
-      if case SupervisorRequestError.rateLimited(_, let seconds) = error {
+      diagnosticRetryReason = .evaluatorFailure
+      if case SupervisorRequestError.rateLimited(let reason, let seconds) = error {
         retrySeconds = TimeInterval(max(1, seconds))
+        diagnosticRetryReason =
+          reason == "daily_quota" ? .dailyQuota : reason == "burst_quota" ? .burstQuota : .evaluatorFailure
       }
       pauseOwner = owner
       pauseUntil = monotonicNow() + retrySeconds

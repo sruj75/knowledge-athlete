@@ -2,6 +2,8 @@ import Foundation
 
 extension DesktopAutomationActionRegistry {
   func registerPTTActions() {
+    registerConversationDiagnosticActions()
+    registerSupervisorDiagnosticActions()
     register(
       name: "conversation_open", summary: "Open the conversational voice surface through the production lifecycle."
     ) { _ in
